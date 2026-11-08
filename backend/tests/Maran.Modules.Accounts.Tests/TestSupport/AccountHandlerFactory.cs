@@ -1,9 +1,11 @@
 using Maran.Modules.Accounts.Commands.ChangeAccountOwnerEmail;
 using Maran.Modules.Accounts.Commands.ChangeAccountPlan;
 using Maran.Modules.Accounts.Commands.CreateAccount;
+using Maran.Modules.Accounts.Commands.TransferAccount;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Services;
 using Maran.SharedKernel.Interfaces;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Maran.Modules.Accounts.Tests.TestSupport;
@@ -24,13 +26,15 @@ public static class AccountHandlerFactory
     /// <param name="agent">The agent double.</param>
     /// <param name="audit">The journal's writer; a fresh one when not stated.</param>
     /// <param name="bus">The bus the owner's login is requested on; a fresh stub when not stated.</param>
+    /// <param name="passwordPolicy">The password policy double; one that accepts everything when not stated.</param>
     /// <returns>The handler.</returns>
     public static CreateAccountCommandHandler Create(
         AccountsDbContext dbContext,
         ICurrentUser currentUser,
         RecordingAgentAccountsClient agent,
         RecordingAuditWriter? audit = null,
-        StubMessageBus? bus = null)
+        StubMessageBus? bus = null,
+        StubInitialPasswordPolicy? passwordPolicy = null)
     {
         return new CreateAccountCommandHandler(
             dbContext,
@@ -40,6 +44,8 @@ public static class AccountHandlerFactory
             new ResellerNameDirectory(dbContext),
             agent,
             new AccountRuntimeLimitsEnforcer(agent),
+            new AccountLimitOverrideResolver(new ResellerScope(dbContext, currentUser)),
+            passwordPolicy ?? new StubInitialPasswordPolicy(),
             new FakeClock(Now),
             new AccountAuditJournal(audit ?? new RecordingAuditWriter(), currentUser),
             bus ?? new StubMessageBus(),
@@ -52,22 +58,52 @@ public static class AccountHandlerFactory
     /// <param name="currentUser">The caller the context and the services act for.</param>
     /// <param name="agent">The agent double.</param>
     /// <param name="audit">The journal's writer.</param>
+    /// <param name="bus">The bus the plan change is announced on; one that accepts everything when not stated.</param>
+    /// <param name="announcerLogger">Where a subscriber's failure is logged; a discarding one when not stated.</param>
     /// <returns>The handler.</returns>
     public static ChangeAccountPlanCommandHandler ChangePlan(
         AccountsDbContext dbContext,
         ICurrentUser currentUser,
         RecordingAgentAccountsClient agent,
-        RecordingAuditWriter audit)
+        RecordingAuditWriter audit,
+        StubMessageBus? bus = null,
+        ILogger<AccountPlanChangeAnnouncer>? announcerLogger = null)
     {
         return new ChangeAccountPlanCommandHandler(
             dbContext,
             new ResellerScope(dbContext, currentUser),
             new ResellerAllocationGuard(dbContext),
             new ResellerNameDirectory(dbContext),
-            new AccountDiskQuotaEnforcer(agent),
-            new AccountRuntimeLimitsEnforcer(agent),
+            HostSynchronizer(agent),
             new AccountAuditJournal(audit, currentUser),
-            new StubDisplayNames());
+            new StubDisplayNames(),
+            new AccountPlanChangeAnnouncer(
+                bus ?? new StubMessageBus(), announcerLogger ?? NullLogger<AccountPlanChangeAnnouncer>.Instance));
+    }
+
+    /// <summary>Builds the account transfer handler.</summary>
+    /// <param name="dbContext">The module's context.</param>
+    /// <param name="currentUser">The caller the context and the services act for.</param>
+    /// <param name="agent">The agent double.</param>
+    /// <param name="audit">The journal's writer.</param>
+    /// <param name="bus">The bus the owner change is announced on.</param>
+    /// <returns>The handler.</returns>
+    public static TransferAccountCommandHandler Transfer(
+        AccountsDbContext dbContext,
+        ICurrentUser currentUser,
+        RecordingAgentAccountsClient agent,
+        RecordingAuditWriter audit,
+        StubMessageBus bus)
+    {
+        return new TransferAccountCommandHandler(
+            dbContext,
+            new ResellerAllocationGuard(dbContext),
+            new ResellerNameDirectory(dbContext),
+            HostSynchronizer(agent),
+            bus,
+            new AccountAuditJournal(audit, currentUser),
+            new StubDisplayNames(),
+            new AccountPlanChangeAnnouncer(bus, NullLogger<AccountPlanChangeAnnouncer>.Instance));
     }
 
     /// <summary>Builds the owner address change handler.</summary>
@@ -89,5 +125,13 @@ public static class AccountHandlerFactory
             bus,
             new AccountAuditJournal(audit, currentUser),
             new StubDisplayNames());
+    }
+
+    /// <summary>Builds the service that puts a plan's figures on the host.</summary>
+    /// <param name="agent">The agent double.</param>
+    /// <returns>The synchronizer.</returns>
+    private static AccountPlanHostSynchronizer HostSynchronizer(RecordingAgentAccountsClient agent)
+    {
+        return new AccountPlanHostSynchronizer(new AccountDiskQuotaEnforcer(agent), new AccountRuntimeLimitsEnforcer(agent));
     }
 }

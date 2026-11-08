@@ -54,6 +54,33 @@ public sealed class ChangeSitePhpVersionCommandHandlerTests
         Assert.Equal(37u, Assert.Single(agent.MaxChildren));
     }
 
+    /// <summary>The pool of the new version carries the settings the account's customer chose.</summary>
+    [Fact]
+    public async Task The_pool_of_the_new_version_carries_the_settings_the_account_chose()
+    {
+        // The agent's pool write replaces what is on disk, so a switch that sent no settings would
+        // reset the customer's php.ini choices on the new version's pool.
+        var account = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        var siteId = await SeedAsync(database, account, "example.com");
+        await using (var seed = SitesTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            seed.PhpSettings.Add(new PhpSetting(Guid.NewGuid(), account, "memory_limit", "128M"));
+            await seed.SaveChangesAsync();
+        }
+
+        var agent = new RecordingAgentSitesClient();
+        await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(account), database);
+
+        await Handler(context, account, agent).HandleAsync(
+            new ChangeSitePhpVersionCommand(siteId, "8.4", "198.51.100.7", "tests"),
+            CancellationToken.None);
+
+        var sent = Assert.Single(Assert.Single(agent.SettingOverrides));
+        Assert.Equal("memory_limit", sent.Name);
+        Assert.Equal("128M", sent.Value);
+    }
+
     /// <summary>The descriptor handed to the agent carries the stored sites own facts.</summary>
     [Fact]
     public async Task The_descriptor_handed_to_the_agent_carries_the_stored_sites_own_facts()
@@ -316,7 +343,8 @@ public sealed class ChangeSitePhpVersionCommandHandlerTests
             agent,
             new RecordingAgentPhpClient(installedPhp ?? ["8.3", "8.4"]),
             new SiteAuditJournal(audit ?? new RecordingAuditWriter(), FakeCurrentUser.Customer(accountId)),
-            SitesTestContext.SiteNames());
+            SitesTestContext.SiteNames(),
+            new PhpAccountPoolSettings(context));
     }
 
     /// <summary>Seeds one site and returns its id.</summary>

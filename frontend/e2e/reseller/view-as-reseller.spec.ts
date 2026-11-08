@@ -34,9 +34,9 @@ import type { ViewingAs } from '../../src/types/viewAs'
 
 /** The catalogue both operators and the viewed customer need: accounts, sites and databases. */
 const MODULES: PanelModule[] = [
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
-  { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
-  { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
+  { name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'databases', displayName: 'Databases', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 /** What the panel reports while an administrator views as the reseller. */

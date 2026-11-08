@@ -78,4 +78,100 @@
   <data name="SiteStatusUnknown">
     <value>Սա կայքի կարգավիճակ չէ։</value>
   </data>
+  <data name="SiteBodySizeOutOfRange">
+    <value>Կայքի համար այդպիսի վերբեռնման չափ սահմանել հնարավոր չէ։</value>
+  </data>
+  <data name="SiteCacheDaysOutOfRange">
+    <value>Կայքի համար քեշավորման այդպիսի ժամկետ սահմանել հնարավոր չէ։</value>
+  </data>
+  <data name="SiteRequestRateOutOfRange">
+    <value>Կայքի համար հարցումների այդպիսի սահմանաչափ սահմանել հնարավոր չէ։</value>
+  </data>
+  <data name="SiteRequestBurstOutOfRange">
+    <value>Կայքի համար հարցումների պոռթկման այդպիսի չափ սահմանել հնարավոր չէ։</value>
+  </data>
+  <data name="SiteRedirectLimit">
+    <value>Կայքը չի կարող ունենալ ավելի շատ վերահասցեավորման կանոններ, քան նշված է սահմանաչափում։</value>
+  </data>
+  <data name="SiteRedirectPathInvalid">
+    <value>Վերահասցեավորման ուղիներից մեկը անթույլատրելի է։</value>
+  </data>
+  <data name="SiteRedirectTargetInvalid">
+    <value>Վերահասցեավորման նպատակակետերից մեկը անթույլատրելի է։</value>
+  </data>
+  <data name="SiteRedirectDuplicated">
+    <value>Վերահասցեավորման երկու կանոն վերաբերում են նույն ուղուն։</value>
+  </data>
+  <data name="SiteBasicAuthLimit">
+    <value>Կայքը չի կարող ունենալ ավելի շատ գաղտնաբառով օգտատերեր, քան նշված է սահմանաչափում։</value>
+  </data>
+  <data name="SiteBasicAuthUserInvalid">
+    <value>Օգտատերերի անուններից մեկը անթույլատրելի է։</value>
+  </data>
+  <data name="SiteBasicAuthUserDuplicated">
+    <value>Երկու օգտատերեր ունեն նույն անունը։</value>
+  </data>
+  <data name="SiteBasicAuthPasswordInvalid">
+    <value>Գաղտնաբառերից մեկը չափազանց կարճ է կամ չափազանց երկար։</value>
+  </data>
+  <data name="SiteBasicAuthPasswordRequired">
+    <value>Նոր օգտատիրոջը գաղտնաբառ է պետք։</value>
+  </data>
+  <data name="SiteIpRuleLimit">
+    <value>Կայքը չի կարող ունենալ ավելի շատ հասցեներ, քան նշված է սահմանաչափում։</value>
+  </data>
+  <data name="SiteIpRuleInvalid">
+    <value>Հասցեներից մեկը վավեր հասցե կամ տիրույթ չէ։</value>
+  </data>
+  <data name="SiteIpRuleDuplicated">
+    <value>Նույն հասցեն կամ տիրույթը նշված է երկու անգամ։</value>
+  </data>
+  <data name="SiteIpAccessModeInvalid">
+    <value>Մուտքի ռեժիմը չի համապատասխանում հասցեների ցանկին։</value>
+  </data>
+  <data name="SiteOptionUnknown">
+    <value>Այդպիսի տարբերակ առաջարկվածների մեջ չկա։</value>
+  </data>
+  <data name="SiteCanonicalHostNotServed">
+    <value>Կայքը պետք է արձագանքի և՛ սովորական, և՛ www անվանը, նախքան դրանցից մեկը հիմնական դառնալը։</value>
+  </data>
+  <data name="SiteLogRetentionInvalid">
+    <value>Ընտրեք մատյանների պահպանման ժամկետը 1-ից 14 օրվա սահմաններում։</value>
+  </data>
+  <data name="SiteTrafficWindowInvalid">
+    <value>Ընտրեք տրաֆիկի ամփոփման առաջարկվող ժամանակահատվածներից որևէ մեկը։</value>
+  </data>
+  <data name="PhpExtensionNotAllowed">
+    <value>Սա PHP-ի ընդլայնում չէ, որը հնարավոր է փոխարկել այստեղ։</value>
+  </data>
+  <data name="PhpExtensionNotAvailable">
+    <value>Այս սերվերի օպերացիոն համակարգը չի կարող փոխարկել այդ ընդլայնումը ձեր նշած ձևով։</value>
+  </data>
+  <data name="PhpExtensionToggleFailed">
+    <value>Սերվերը չհաստատեց, որ ընդլայնումը փոխվել է, ուստի փոփոխությունը համարվում է ձախողված։ Կրկնելուց առաջ ստուգեք PHP տարբերակի վիճակը։</value>
+  </data>
+  <data name="PhpSettingsRequired">
+    <value>PHP-ի կարգավորումների ցանկը բացակայում է։</value>
+  </data>
+  <data name="PhpSettingNotAllowed">
+    <value>Կարգավորումներից մեկը PHP-ի փոփոխելի կարգավորում չէ։</value>
+  </data>
+  <data name="PhpSettingDuplicated">
+    <value>PHP-ի նույն կարգավորումը նշված է երկու անգամ։</value>
+  </data>
+  <data name="PhpSettingValueInvalid">
+    <value>PHP-ի կարգավորումներից մեկի արժեքն անթույլատրելի է։ Չափերը, ժամանակը և քանակները ամբողջ թվեր են սերվերի սահմաններում, իսկ ժամային գոտին պետք է լինի գոտու անուն, օրինակ՝ Europe/Berlin։</value>
+  </data>
+  <data name="PhpSettingAbovePlan">
+    <value>PHP-ի կարգավորումներից մեկը գերազանցում է ձեր սակագնի թույլատրածը։</value>
+  </data>
+  <data name="PhpSettingSizesTogether">
+    <value>Բեռնման չափը և հարցման առավելագույն չափը սահմանեք միասին կամ երկուսն էլ թողեք չսահմանված։</value>
+  </data>
+  <data name="PhpSettingPostSizeBelowUpload">
+    <value>Հարցման առավելագույն չափը չի կարող փոքր լինել բեռնման չափից, այլապես այդ չափի բեռնումները կկորչեն։</value>
+  </data>
+  <data name="SiteOptionNotForBackend">
+    <value>Այս պարամետրը չի կիրառվում այսպիսի կայքի համար։</value>
+  </data>
 </root>

@@ -1,0 +1,32 @@
+{
+  "filesTransfers": {
+    "queueLabel": "Վերբեռնման հերթ",
+    "queueHeading": "Վերբեռնումներ",
+    "limitHint": "Ֆայլեր մինչև {limit}",
+    "dropLabel": "Քաշեք ֆայլերն այստեղ",
+    "pickLabel": "Ընտրել ֆայլեր",
+    "state": {
+      "queued": "Սպասում է",
+      "uploading": "Վերբեռնվում է",
+      "done": "Վերբեռնվեց",
+      "failed": "Սխալ",
+      "cancelled": "Չեղարկվեց"
+    },
+    "uploadingLabel": "Վերբեռնվում է {name}",
+    "cancel": "Չեղարկել",
+    "cancelLabel": "Չեղարկել {name}-ի վերբեռնումը",
+    "retry": "Կրկնել",
+    "retryLabel": "Կրկնել {name}-ի վերբեռնումը",
+    "replace": "Փոխարինել առկա ֆայլը",
+    "replaceLabel": "Փոխարինել առկա {name}-ը այս ֆայլով",
+    "dismiss": "Հեռացնել",
+    "dismissLabel": "Հեռացնել {name}-ը ցանկից",
+    "clearFinished": "Մաքրել ավարտվածները",
+    "failedNoAnswer": "Վերբեռնումը չհասավ վահանակին։",
+    "download": "Ներբեռնել",
+    "downloadFolder": "Ներբեռնել արխիվով",
+    "downloadLabel": "Ներբեռնել {name}",
+    "downloadFolderLabel": "Ներբեռնել {name} թղթապանակն արխիվով",
+    "downloading": "Ներբեռնումը պատրաստվում է…"
+  }
+}

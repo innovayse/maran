@@ -9,7 +9,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::io;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Once};
 
 use tracing::subscriber::DefaultGuard;
 use tracing_subscriber::fmt::MakeWriter;
@@ -37,6 +37,23 @@ impl<'a> MakeWriter<'a> for SharedBuffer {
     }
 }
 
+/// Makes the process-wide default a subscriber that enables every event and writes nowhere.
+///
+/// Without it, a callsite first reached by a test that has no scoped subscriber installed
+/// (any neighbour running in parallel) is registered with the process default, which is
+/// "off", and a test that installs its own scoped subscriber a moment later can lose the
+/// event for good. With a permissive default the callsite is always live, the scoped
+/// subscriber of the capturing thread receives its events, and every other thread's events
+/// go to the sink. Installed once; a default some other code installed first is left alone.
+fn keep_callsites_live() {
+    static ONCE: Once = Once::new();
+    ONCE.call_once(|| {
+        let _ = tracing::subscriber::set_global_default(
+            tracing_subscriber::fmt().with_writer(io::sink).finish(),
+        );
+    });
+}
+
 /// The installed subscriber and the buffer it writes to.
 pub struct CapturedLog {
     /// Where every formatted event lands.
@@ -48,6 +65,7 @@ pub struct CapturedLog {
 impl CapturedLog {
     /// Installs a plain-text (no ANSI) subscriber for this thread.
     pub fn start() -> Self {
+        keep_callsites_live();
         let buffer = SharedBuffer::default();
         let subscriber = tracing_subscriber::fmt()
             .with_writer(buffer.clone())
@@ -73,14 +91,6 @@ impl CapturedLog {
             .unwrap()
             .lines()
             .map(str::to_owned)
-            .collect()
-    }
-
-    /// The lines that are audit lines: the ones carrying `event=rpc`.
-    pub fn audit_lines(&self) -> Vec<String> {
-        self.lines()
-            .into_iter()
-            .filter(|line| line.contains("event=rpc"))
             .collect()
     }
 }

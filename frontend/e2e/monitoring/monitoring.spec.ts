@@ -12,7 +12,7 @@ import type { AccountDiskUsage, ChartRange, MetricBucket, ServiceStatus } from '
 import type { PanelModule } from '../../src/types/module'
 
 const LICENSED: PanelModule[] = [
-  { name: 'monitoring', displayName: 'Monitoring', tier: 'included', state: 'enabled' },
+  { name: 'monitoring', displayName: 'Monitoring', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 // Five day-range buckets. The processor values are distinct and deliberately not round, so a

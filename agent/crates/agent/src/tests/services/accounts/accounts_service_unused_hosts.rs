@@ -463,6 +463,27 @@ impl SiteHost for UnusedSiteHost {
     }
 
     /// Unreachable: see [`UnusedSiteHost`].
+    fn write_auth_file(
+        &self,
+        _target: &Path,
+        _contents: &str,
+        _placement: &maran_ops::sites::model::auth_file_placement::AuthFilePlacement<'_>,
+        _validator: &Validator<'_>,
+    ) -> Result<(), SitesOpError> {
+        unreachable!("no rpc in this file reaches the site host")
+    }
+
+    /// Unreachable: see [`UnusedSiteHost`].
+    fn remove_auth_file(&self, _target: &Path) -> Result<(), SitesOpError> {
+        unreachable!("no rpc in this file reaches the site host")
+    }
+
+    /// Unreachable: see [`UnusedSiteHost`].
+    fn list_auth_files(&self) -> Result<Vec<PathBuf>, SitesOpError> {
+        unreachable!("no rpc in this file reaches the site host")
+    }
+
+    /// Unreachable: see [`UnusedSiteHost`].
     fn resolve_in_account_home(
         &self,
         _account: &AccountName,

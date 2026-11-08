@@ -24,9 +24,13 @@ export interface PlanChoice {
  *
  * Each option is labelled with the plan's name, its disk in a human unit and its sites as a plural
  * form (#222), because the limits are what make the choice meaningful rather than a list of words.
+ * @param forReseller Names the reseller whose plans are offered, read at each search; `null` offers the
+ * administrator's own. Omitted by every picker whose plans are the caller's (the account form, the
+ * plan dialog); the owner-transfer dialog passes the owner chosen so far, because an account is sold
+ * only from its owner's plans.
  * @returns The picker's bindings and its search.
  */
-export const usePlanChoice = (): PlanChoice => {
+export const usePlanChoice = (forReseller: () => string | null = (): null => {return null}): PlanChoice => {
   const { t } = useI18n()
   const accountsStore = useAccountsStore()
 
@@ -67,7 +71,7 @@ export const usePlanChoice = (): PlanChoice => {
    * @returns Resolves once the read has settled.
    */
   const search = async (term: string): Promise<void> => {
-    await accountsStore.searchPlanChoices(term)
+    await accountsStore.searchPlanChoices(term, forReseller())
   }
 
   return { picker, search }

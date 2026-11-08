@@ -6,6 +6,8 @@ using Maran.Modules.Monitoring.Resources;
 using Maran.Sdk.Alerts;
 using Maran.Sdk.Contracts;
 using Microsoft.Extensions.Localization;
+using AlertTransition = Maran.Modules.Monitoring.Domain.Enums.AlertTransition;
+using SdkAlertTransition = Maran.Sdk.Contracts.AlertTransition;
 
 namespace Maran.Modules.Monitoring.Services;
 
@@ -30,7 +32,7 @@ namespace Maran.Modules.Monitoring.Services;
 /// <para>
 /// <b>It does not send the mail; it asks for it.</b> This class composes the subject and body from
 /// its own resources — the publisher owns the words, because only the publisher knows what the mail
-/// is about — and hands them to <see cref="OperatorAlertMailer"/>, the panel's one path for an
+/// is about — and hands them to <see cref="OperatorAlertDispatcher"/>, the panel's one path for an
 /// operator alert. That path journals the transition, reads where an operator alert goes and
 /// requests the mail; this class holds no mailer, no recipient and no message bus of its own.
 /// Recording each reading against its alert row is <see cref="AlertObserver"/>'s.
@@ -46,13 +48,16 @@ namespace Maran.Modules.Monitoring.Services;
 /// </remarks>
 public sealed class AlertEvaluator
 {
-    /// <summary>Above this percentage of the root filesystem, the disk is considered to be in alarm.</summary>
+    /// <summary>The subject recorded and mailed about for the server's processor.</summary>
     /// <remarks>
-    /// Ninety per cent, from spec §11. Strictly above, so a filesystem sitting at exactly ninety is
-    /// not an alarm: the threshold marks the point where the remaining space has started to run out,
-    /// and a server parked precisely on it is not yet losing anything.
+    /// There is exactly one processor load to watch (all cores together), so this is a constant, the
+    /// same reason <see cref="RootFilesystemSubject"/> is.
     /// </remarks>
-    public const double DiskUsageThresholdPercent = 90.0;
+    public const string ProcessorSubject = "cpu";
+
+    /// <summary>The subject recorded and mailed about for the server's memory.</summary>
+    /// <remarks>See <see cref="ProcessorSubject"/> for why this is a constant.</remarks>
+    public const string MemorySubject = "memory";
 
     /// <summary>The subject recorded and mailed about for the filesystem the panel watches.</summary>
     /// <remarks>
@@ -106,7 +111,7 @@ public sealed class AlertEvaluator
     private readonly AlertObserver _observer;
 
     /// <summary>The panel's one path for an operator alert: journal, recipient, mail (issue #290).</summary>
-    private readonly OperatorAlertMailer _operatorAlerts;
+    private readonly OperatorAlertDispatcher _operatorAlerts;
 
     /// <summary>The panel's append-only journal.</summary>
     private readonly MonitoringAuditJournal _journal;
@@ -123,7 +128,7 @@ public sealed class AlertEvaluator
     public AlertEvaluator(
         MonitoringDbContext dbContext,
         AlertObserver observer,
-        OperatorAlertMailer operatorAlerts,
+        OperatorAlertDispatcher operatorAlerts,
         MonitoringAuditJournal journal,
         IStringLocalizer<NotificationMessages> text)
     {
@@ -172,6 +177,11 @@ public sealed class AlertEvaluator
     /// <paramref name="sftpJailStatus"/> does — including that it must not RESOLVE an alert that is
     /// currently firing: an unanswered round is not evidence the condition cleared.
     /// </param>
+    /// <param name="hostLoad">
+    /// How busy the processor and the memory were, or <c>null</c> when this round did not read them.
+    /// A <c>null</c> advances nothing and resets nothing, for the same reason a <c>null</c>
+    /// <paramref name="clockSync"/> does.
+    /// </param>
     /// <param name="observedAt">When the readings were taken, from the panel's clock.</param>
     /// <param name="cancellationToken">Cancels the evaluation.</param>
     public async Task EvaluateAsync(
@@ -182,6 +192,7 @@ public sealed class AlertEvaluator
         AgentQuotaEnforceability? quotaStatus,
         AgentClockSyncState? clockSync,
         CodeIntegrityVerdict? codeIntegrityVerdict,
+        HostLoadReading? hostLoad,
         DateTimeOffset observedAt,
         CancellationToken cancellationToken)
     {
@@ -193,6 +204,7 @@ public sealed class AlertEvaluator
             quotaStatus,
             clockSync,
             codeIntegrityVerdict,
+            hostLoad,
             observedAt,
             cancellationToken);
 
@@ -227,7 +239,7 @@ public sealed class AlertEvaluator
     /// <remarks>
     /// The words are composed here; journalling the transition, finding the recipient, requesting
     /// the mail and journalling <c>MailSkippedNoSmtp</c> when there is nobody to tell are
-    /// <see cref="OperatorAlertMailer"/>'s, the one path the Backups module's alerts take too — its
+    /// <see cref="OperatorAlertDispatcher"/>'s, the one path the Backups module's alerts take too — its
     /// remarks carry why the journal entry comes first and why a skipped mail is a success.
     /// </remarks>
     private async Task AnnounceAsync(
@@ -242,8 +254,15 @@ public sealed class AlertEvaluator
         var subjectLine = _text[SubjectKey(kind, transition), subject].Value;
         var body = _text[BodyKey(kind, transition), subject, detail].Value;
 
+        var alert = new OperatorAlert(
+            AlertSource.Monitoring,
+            kind.ToString(),
+            transition == AlertTransition.Raised ? SdkAlertTransition.Raised : SdkAlertTransition.Resolved,
+            subject,
+            detail);
+
         await _operatorAlerts.AlertAsync(
-            _journal, action, $"{kind}:{auditSubject}", subjectLine, body, cancellationToken);
+            _journal, action, $"{kind}:{auditSubject}", alert, subjectLine, body, cancellationToken);
     }
 
     /// <summary>The resource key of the subject line for one kind of transition.</summary>

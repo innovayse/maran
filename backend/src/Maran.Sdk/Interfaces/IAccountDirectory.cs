@@ -164,7 +164,8 @@ public interface IAccountDirectory
     /// <remarks>
     /// <para>
     /// <b>This member deliberately breaks the scoping promise of <see cref="FindAsync"/>.</b> Unattended
-    /// work (certificate renewal) runs with no principal, so <see cref="FindAsync"/> answers it nothing
+    /// work (certificate renewal, the hourly site log maintenance) runs with no principal, so
+    /// <see cref="FindAsync"/> answers it nothing
     /// by design; this member answers the same for an anonymous caller, an administrator and a customer
     /// of another account. A handler on a request path that passed it an id a caller supplied would
     /// disclose whether that account exists and its system user name — an IDOR with a 200 in place of a

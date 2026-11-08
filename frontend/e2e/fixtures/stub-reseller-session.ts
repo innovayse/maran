@@ -33,7 +33,7 @@ export const RESELLER_USER: AuthenticatedUser = {
  * Accounts module is the one that carries a reseller's screens.
  */
 export const RESELLER_MODULES: PanelModule[] = [
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
+  { name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 /**
@@ -41,13 +41,13 @@ export const RESELLER_MODULES: PanelModule[] = [
  * specs hand this to a reseller or a customer on purpose, so a refusal cannot be the module guard's.
  */
 export const ADMIN_MODULES: PanelModule[] = [
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
-  { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
-  { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
-  { name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' },
-  { name: 'firewall', displayName: 'Firewall', tier: 'included', state: 'enabled' },
-  { name: 'monitoring', displayName: 'Monitoring', tier: 'included', state: 'enabled' },
-  { name: 'tasks', displayName: 'Tasks', tier: 'included', state: 'enabled' },
+  { name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'databases', displayName: 'Databases', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'backups', displayName: 'Backups', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'firewall', displayName: 'Firewall', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'monitoring', displayName: 'Monitoring', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'tasks', displayName: 'Tasks', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 /**

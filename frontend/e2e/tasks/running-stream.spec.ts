@@ -7,7 +7,7 @@ import type { PanelModule } from '../../src/types/module'
 import type { PanelTask } from '../../src/types/panelTask'
 
 const LICENSED: PanelModule[] = [
-  { name: 'tasks', displayName: 'Background tasks', tier: 'included', state: 'enabled' },
+  { name: 'tasks', displayName: 'Background tasks', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 /** The running-tasks read the shell used before issue #274; nothing may call it any more. */

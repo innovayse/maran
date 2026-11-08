@@ -17,6 +17,7 @@ public sealed class SendTestMailCommandValidator : AbstractValidator<SendTestMai
     {
         RuleFor(command => command.Recipient)
             .Must(EmailAddressRule.IsAddress)
-            .WithErrorCode(nameof(ErrorMessages.MailRecipientInvalid));
+            .WithErrorCode(nameof(ErrorMessages.MailRecipientInvalid))
+            .WithMessage(nameof(ErrorMessages.MailRecipientInvalid));
     }
 }

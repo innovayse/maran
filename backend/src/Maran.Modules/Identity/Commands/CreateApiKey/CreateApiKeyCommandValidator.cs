@@ -25,14 +25,18 @@ public sealed class CreateApiKeyCommandValidator : AbstractValidator<CreateApiKe
             .WithErrorCode(nameof(ErrorMessages.ApiKeyNameInvalid))
             .WithMessage(nameof(ErrorMessages.ApiKeyNameInvalid));
 
-        RuleFor(command => command.Scopes)
-            .Must(scopes =>
+        // The scopes are the OWNER's: a reseller's key may hold only the reseller-grade ones and the
+        // administrator's only the administrator-grade ones. A scope outside the owner's set is the
+        // same refusal as one the panel has never heard of.
+        RuleFor(command => command)
+            .Must(command =>
             {
-                return scopes is { Count: > 0 } && scopes.All(scope =>
+                return command.Scopes is { Count: > 0 } && command.Scopes.All(scope =>
                 {
-                    return scope is not null && ApiKeyScopes.All.Contains(scope);
+                    return scope is not null && ApiKeyScopes.GrantableTo(command.OwnerResellerId).Contains(scope);
                 });
             })
+            .OverridePropertyName(nameof(CreateApiKeyCommand.Scopes))
             .WithErrorCode(nameof(ErrorMessages.ApiKeyScopeUnknown))
             .WithMessage(nameof(ErrorMessages.ApiKeyScopeUnknown));
 

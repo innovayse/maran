@@ -3,6 +3,7 @@
 pub mod rhel_adapter;
 pub mod rhel_packages;
 pub mod rhel_paths;
+pub mod rhel_php_extensions;
 pub mod rhel_services;
 
 pub use rhel_adapter::RhelAdapter;

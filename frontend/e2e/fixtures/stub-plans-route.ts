@@ -2,7 +2,7 @@ import type { Page, Route } from '@playwright/test'
 import { pagedAnswer, type PagedRules } from './paged-answer'
 import type { AccountFeatureName } from '../../src/types/accountFeature'
 import type { Plan } from '../../src/types/account'
-import type { ManagedPlan, PlanFeatureChoice, PlanRequest } from '../../src/types/plan'
+import type { ManagedPlan, PlanFeatureChoice, PlanPhpLimits, PlanRequest } from '../../src/types/plan'
 
 /**
  * The single plan the create-account form offers in specs. One is enough: the form's
@@ -146,6 +146,9 @@ export const PLAN_FEATURE_CHOICES: PlanFeatureChoice[] = [
   { feature: 'php', featureDisplayName: 'PHP versions' },
 ]
 
+/** The bounds the stubbed panel gives a plan created without any, like the backend's conservative default. */
+const DEFAULT_PHP_LIMITS: PlanPhpLimits = { memoryLimitMaxMb: 256, uploadMaxMb: 64, maxExecutionSeconds: 120, maxInputVars: 3000 }
+
 /** Every feature name, the set a plan that predates features sells. */
 const EVERY_FEATURE: AccountFeatureName[] = PLAN_FEATURE_CHOICES.map((choice) => {
   return choice.feature
@@ -170,6 +173,7 @@ export const MANAGED_PLANS: ManagedPlan[] = [
     cpuQuotaPercent: { kind: 'limited', maximum: 100 },
     memoryMaxMb: { kind: 'limited', maximum: 1024 },
     maxProcesses: { kind: 'limited', maximum: 50 },
+    phpLimits: { memoryLimitMaxMb: 1024, uploadMaxMb: 16, maxExecutionSeconds: 30, maxInputVars: 1000 },
     features: ['databases', 'cron', 'fileTransfer', 'backups'],
     accountCount: 3,
     resellerId: null,
@@ -188,6 +192,7 @@ export const MANAGED_PLANS: ManagedPlan[] = [
     cpuQuotaPercent: { kind: 'unlimited' },
     memoryMaxMb: { kind: 'unlimited' },
     maxProcesses: { kind: 'unlimited' },
+    phpLimits: { memoryLimitMaxMb: 256, uploadMaxMb: 64, maxExecutionSeconds: 120, maxInputVars: 3000 },
     features: EVERY_FEATURE,
     accountCount: 0,
     resellerId: null,
@@ -206,6 +211,7 @@ export const MANAGED_PLANS: ManagedPlan[] = [
     cpuQuotaPercent: { kind: 'unlimited' },
     memoryMaxMb: { kind: 'unlimited' },
     maxProcesses: { kind: 'unlimited' },
+    phpLimits: { memoryLimitMaxMb: 512, uploadMaxMb: 128, maxExecutionSeconds: 300, maxInputVars: 5000 },
     features: EVERY_FEATURE,
     accountCount: 1,
     resellerId: null,
@@ -295,6 +301,8 @@ export const stubManagedPlans = async (
         cpuQuotaPercent: body.cpuQuotaPercent,
         memoryMaxMb: body.memoryMaxMb,
         maxProcesses: body.maxProcesses,
+        // The panel gives a plan made without bounds its conservative default; the form always sends them.
+        phpLimits: body.phpLimits ?? DEFAULT_PHP_LIMITS,
         features: body.features,
         accountCount: 0,
         resellerId: null,

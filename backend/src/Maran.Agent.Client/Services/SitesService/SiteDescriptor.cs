@@ -20,12 +20,18 @@ namespace Maran.Agent.Client.Services.SitesService;
 /// The panel knows this and the renderer must not guess: a guess drops a live site back to plain
 /// HTTP on the next unrelated edit.
 /// </param>
+/// <param name="Options">
+/// The site's per-site options. Required rather than optional for the reason <see cref="HasCertificate"/>
+/// is: a re-render that omits them drops the site's redirects, credentials and IP rules, so a caller
+/// without any says <see cref="SiteOptionsDescriptor.None"/> out loud.
+/// </param>
 public sealed record SiteDescriptor(
     IReadOnlyList<string> Aliases,
     SiteBackendKind Backend,
     string PhpVersion,
     string ProxyUpstream,
-    bool HasCertificate)
+    bool HasCertificate,
+    SiteOptionsDescriptor Options)
 {
     /// <summary>Converts this descriptor into the wire message the agent's rpcs require.</summary>
     /// <returns>The populated <see cref="SiteSpec"/>.</returns>
@@ -37,6 +43,7 @@ public sealed record SiteDescriptor(
             PhpVersion = PhpVersion,
             ProxyUpstream = ProxyUpstream,
             HasCertificate = HasCertificate,
+            Options = Options.ToWire(),
         };
         spec.Aliases.AddRange(Aliases);
 

@@ -37,6 +37,14 @@ public sealed class FakeCurrentUser : ICurrentUser
         return new FakeCurrentUser(new ResellerCaller(Guid.NewGuid(), username, resellerId));
     }
 
+    /// <summary>An API key a reseller owns, or the administrator's when <paramref name="resellerId"/> is null.</summary>
+    /// <param name="resellerId">The reseller that owns the key, or <c>null</c> for the administrator's.</param>
+    /// <returns>The fake current user.</returns>
+    public static FakeCurrentUser ApiKey(Guid? resellerId)
+    {
+        return new FakeCurrentUser(new ApiKeyCaller(Guid.NewGuid(), [], resellerId));
+    }
+
     /// <summary>Creates an unattended-work principal: nobody signed in.</summary>
     public static FakeCurrentUser Anonymous()
     {

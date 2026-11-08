@@ -1,0 +1,30 @@
+{
+  "panelUpdate": {
+    "heading": "Panel updates",
+    "subtitle": "The version this panel runs and the release available for it.",
+    "versionTitle": "Version",
+    "currentLabel": "Running version",
+    "channelLabel": "Channel",
+    "lastCheckedLabel": "Last checked",
+    "neverChecked": "Not checked yet",
+    "availableLabel": "Available version",
+    "upToDate": "None, the panel is up to date",
+    "releasedLabel": "Released",
+    "notesLabel": "Release notes",
+    "notesLink": "Read the release notes",
+    "noNotes": "No release notes published",
+    "previousLabel": "Previous version",
+    "noPrevious": "No rollback possible",
+    "inProgress": "An update is queued or running.",
+    "hint": "The update installs the signed release the last check found. Progress and the result, including an automatic rollback, appear in the task list.",
+    "action": "Update now",
+    "confirmTitle": "Update the panel",
+    "confirmQuestion": "The panel installs the available release and restarts. If the health check fails, it returns to the previous version by itself.",
+    "confirmAction": "Update now",
+    "cancel": "Cancel",
+    "close": "Close",
+    "working": "Requesting the update…",
+    "started": "The update was requested. Follow it in the task list.",
+    "openTasks": "Open tasks"
+  }
+}

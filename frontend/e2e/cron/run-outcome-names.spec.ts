@@ -14,7 +14,7 @@ import type { PanelModule } from '../../src/types/module'
 // The outcome word on a run is the panel's own: the run carries it, so the bundle holds no copy of
 // the vocabulary (issue #330).
 
-const LICENSED: PanelModule[] = [{ name: 'cron', displayName: 'Scheduled tasks', tier: 'included', state: 'enabled' }]
+const LICENSED: PanelModule[] = [{ name: 'cron', displayName: 'Scheduled tasks', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }]
 
 const ALICE: Account = {
   id: '22222222-2222-2222-2222-222222222222',

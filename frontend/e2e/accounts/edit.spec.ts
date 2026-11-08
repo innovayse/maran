@@ -46,7 +46,7 @@ const openAccount = async (page: Page, account: AccountDetail, refusal?: string)
   let current = account
   await stubSignedIn(page)
   await stubHealthy(page)
-  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' }])
+  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
   await stubInvitation(page, account.id, 'pending')
   await stubPlans(page, THREE_PLANS)
   await page.route(`**/api/v1/accounts/${account.id}`, async (route) => {
@@ -181,7 +181,7 @@ test('the accounts list narrowed to a plan shows only the accounts on it, and ca
   }
   await stubSignedIn(page)
   await stubHealthy(page)
-  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' }])
+  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
   await stubPlans(page, THREE_PLANS)
   await stubAccounts(page, [onPlan, offPlan])
 

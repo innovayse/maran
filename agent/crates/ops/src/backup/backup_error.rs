@@ -3,6 +3,8 @@
 use maran_agent_core::utils::bound_exceeded::BoundExceeded;
 use maran_agent_core::utils::floor_refusal::FloorRefusal;
 
+use crate::backup::model::dump_refusal::DumpRefusal;
+
 /// The `status` reported when a program could not be started at all.
 ///
 /// Negative so it can never collide with an exit status, every one of which is
@@ -344,11 +346,31 @@ pub enum BackupError {
         status: i32,
     },
 
+    /// The server's temporary import users could not be listed, so none left
+    /// behind by an interrupted import was dropped.
+    #[error("the temporary import users could not be listed, status {status}")]
+    ImportUsersUnlistable {
+        /// The client's exit status, or `PROGRAM_UNAVAILABLE`.
+        status: i32,
+    },
+
     /// A dump could not be loaded back into the server.
     #[error("a dump could not be loaded, status {status}")]
     LoadFailed {
         /// The client's exit status, or `PROGRAM_UNAVAILABLE`.
         status: i32,
+    },
+
+    /// A dump someone else wrote was refused by the restricted loader's pre-scan,
+    /// before a byte of it reached the database server.
+    ///
+    /// A finding about the dump, not about the host: nothing was loaded and no
+    /// temporary user was created. Carries a closed kind and nothing the dump
+    /// said.
+    #[error("a dump was refused before it reached the server: {reason}")]
+    RestrictedLoadRefused {
+        /// Why the pre-scan refused it.
+        reason: DumpRefusal,
     },
 
     /// The restore's staging tree could not be created, chowned or removed.
@@ -447,6 +469,43 @@ pub enum BackupError {
         /// Where the home is.
         path: String,
     },
+
+    /// A single directory was renamed aside, the restored one could not take its
+    /// place, and the reversal failed too (issue #160).
+    ///
+    /// The directory the customer's site is served from is missing from its
+    /// home, and its previous contents are parked at the carried path. The path
+    /// is `AgentPaths`-built (the restore's own parking directory), never caller
+    /// input, so one `mv` puts the site back.
+    #[error("the restore left the site's directory parked at {path}")]
+    DirectoryParkedAt {
+        /// Where the previous directory is.
+        path: String,
+    },
+
+    /// A directory on the way to the one being restored, or one of the restore's own
+    /// working directories, is missing, is a link, or is not the account's.
+    ///
+    /// Raised by the descriptor walk of a single-directory restore (issue #160),
+    /// which refuses what it cannot prove is the account's own rather than
+    /// following it. Nothing was replaced.
+    #[error("a directory the restore needs is missing, is a link, or is not the account's")]
+    DirectoryUnusable,
+
+    /// The archive does not hold the database the restore was asked for.
+    ///
+    /// The database is one the panel knows (otherwise it would be
+    /// [`Self::UnknownDatabase`]), but the manifest does not list it: it was
+    /// created after the backup was taken. Nothing was changed.
+    #[error("the archive holds no dump of the requested database")]
+    DatabaseNotInBackup,
+
+    /// The archive does not hold the directory the restore was asked for.
+    ///
+    /// The directory is absent from the archive's `home/` tree: the site did not
+    /// exist when the backup was taken. Nothing was changed.
+    #[error("the archive holds no copy of the requested directory")]
+    DirectoryNotInBackup,
 
     /// The destination's endpoint is not HTTPS.
     ///
@@ -558,6 +617,128 @@ pub enum BackupError {
     /// was is not something the wire or an alert needs in order to act.
     #[error("a database the manifest names has no dump in the archive")]
     DumpMissing,
+
+    /// The artifact is sealed and the call carried no key to open it with.
+    ///
+    /// Nothing was decrypted and nothing was changed. The panel reads it as
+    /// "the destination this backup lives in has lost, or never sent, its key".
+    /// On the wire it travels with [`BackupError::ArtifactDecryptionFailed`] as
+    /// `ARCHIVE_UNOPENABLE` (issue #445): the operator's remedy is the same, to
+    /// look at the destination's key, and neither is a bad request.
+    #[error("the archive is encrypted and no key was supplied")]
+    EncryptionKeyRequired,
+
+    /// A sealed artifact cannot be opened with the key it was given.
+    ///
+    /// Named for what is known and not for what is likely. A wrong key, a
+    /// damaged file, a header this agent does not know, and an archive cut
+    /// short or extended all end here, because an AEAD that told them apart
+    /// would be telling a guesser which of its guesses came close; a tampered
+    /// sealed archive and a wrong key are indistinguishable by construction.
+    /// Where the file's digest was checked first (a restore and a
+    /// verification both do), a flipped bit would already have been a
+    /// checksum mismatch, so the key is the likelier cause, and that reading
+    /// is the panel's to make and word, never this variant's to assert.
+    /// Carries nothing, not even a position: which chunk failed is a fact
+    /// about the ciphertext, and a restore that is refused has no use for it.
+    #[error("the archive cannot be opened with the key supplied for its destination")]
+    ArtifactDecryptionFailed,
+
+    /// Sealing a finished archive failed.
+    ///
+    /// A fault of this host (a full disk, no randomness, an unreadable file),
+    /// never of the request. The plain archive and the half-written sealed one
+    /// are both removed, and no artifact is published.
+    #[error("the archive could not be encrypted")]
+    ArtifactEncryptionFailed,
+
+    /// The signing key an export was handed is not an unencrypted PKCS#8 ECDSA
+    /// P-384 private key.
+    ///
+    /// A refusal about the REQUEST, raised before the account's backup lock is
+    /// taken or a file is opened. Carries nothing: not the key, not the parser's
+    /// wording, which could describe the key's bytes.
+    #[error("the package signing key is not an ECDSA P-384 private key")]
+    PackageSigningKeyRejected,
+
+    /// The signature over a package manifest does not verify, or the key or
+    /// signature is not a well-formed ECDSA P-384 one.
+    ///
+    /// One variant for a flipped bit in the manifest, a flipped bit in the
+    /// signature and a key of the wrong shape: telling them apart would tell a
+    /// forger which part of the forgery came close.
+    #[error("the package signature does not verify")]
+    PackageSignatureInvalid,
+
+    /// The public key in a package is not the one the operator confirmed.
+    ///
+    /// The signature may be perfectly valid: it proves only that the holder of
+    /// the key signed, and the fingerprint comparison is what ties that holder
+    /// to the server the operator thinks the package came from.
+    #[error("the package was signed by a key other than the one confirmed")]
+    PackageFingerprintMismatch,
+
+    /// The package manifest is not a manifest this agent understands: not JSON
+    /// of the expected shape, a duplicate or unknown field, a version it does
+    /// not know, a name no account could have, or a figure outside its bounds.
+    #[error("the package manifest cannot be read as a manifest")]
+    PackageManifestMalformed,
+
+    /// A system user of the account's name already exists on this host.
+    ///
+    /// An imported account keeps its system user name, because a restore
+    /// accepts only an artifact whose manifest names the account it restores
+    /// into (issue #127, decision D1); a name already taken is therefore a
+    /// conflict, reported before anything is written.
+    #[error("a system user of that name already exists on this host")]
+    ImportAccountExists,
+
+    /// A backup with the package's id is already published with another digest.
+    ///
+    /// Ids are minted by the exporting host and are unique there; meeting one
+    /// here with different bytes means an id collision or a tampered package,
+    /// and neither is resolved by overwriting.
+    #[error("a different backup with that id is already published")]
+    ImportBackupIdTaken,
+
+    /// The package declares more bytes than this host will stage.
+    #[error("the package declares {declared} bytes, over the {limit} byte ceiling")]
+    ImportTooLarge {
+        /// The size the signed manifest declares.
+        declared: u64,
+        /// The ceiling that applies: the smaller of the caller's and the agent's.
+        limit: u64,
+    },
+
+    /// The stream carried a different number of bytes than the signed manifest
+    /// declares: more (trailing bytes are refused) or fewer.
+    #[error("the package stream does not carry the number of bytes the manifest declares")]
+    ImportLengthMismatch,
+
+    /// The stream's SHA-256 is not the one the signed manifest declares.
+    #[error("the package stream does not hash to the digest the manifest declares")]
+    ImportDigestMismatch,
+
+    /// The client's stream ended abnormally before the package was complete:
+    /// the sender disappeared, or the stream failed.
+    #[error("the package stream was interrupted")]
+    ImportInterrupted,
+
+    /// The staged artifact is sealed (encrypted) and so unreadable by this host.
+    ///
+    /// Raised on export for a sealed backup, and on import for a stream whose
+    /// bytes open with the sealed header. A refusal about the artifact; nothing
+    /// was published.
+    #[error("the archive is encrypted and cannot be moved between servers")]
+    SealedArtifactNotTransferable,
+
+    /// The consumer of an export stopped taking bytes.
+    ///
+    /// The client went away or stopped reading for longer than the sink's
+    /// patience. Nothing was changed on this host by the export; the lock is
+    /// released.
+    #[error("the export was stopped because the receiver stopped reading")]
+    ExportStopped,
 
     /// A program this area started ran past its deadline, or wrote more output
     /// than the area is willing to hold, and was killed together with its

@@ -2,6 +2,7 @@
 
 use std::sync::LazyLock;
 
+use maran_agent_core::utils::bounded_slots::BoundedSlots;
 use maran_agent_core::validation::system::cron_entry_id::CronEntryId;
 use maran_agent_core::validation::system::name::AccountName;
 
@@ -9,11 +10,28 @@ use crate::cron::cron_error::CronError;
 use crate::cron::cron_host::CronHost;
 use crate::cron::model::cron_run::CronRun;
 use crate::cron::model::crontab_document::CrontabDocument;
-use crate::cron::run_now_slots::{ACCOUNT_RUN_NOW_SLOTS, HOST_RUN_NOW_SLOTS, RunNowSlots};
+
+/// The most entries the agent runs by hand at once, across every account.
+///
+/// A run holds one thread of tokio's blocking pool from the moment it starts
+/// until the job ends, which is up to `RUN_NOW_RUNTIME_CEILING` (two minutes).
+/// That pool is shared with every other rpc of the agent — file operations,
+/// every `userdel`, every backup — and its default ceiling is 512 threads.
+/// Sixteen leaves a customer's "run now" button no way to take a meaningful
+/// share of it, and is still more than a hosting server has reason to run at
+/// once: the runs are for checking that a job works.
+pub(crate) const HOST_RUN_NOW_SLOTS: usize = 16;
+
+/// The most entries one account may have running by hand at once.
+///
+/// Two, so that a customer who starts a second while the first is still going
+/// is not told no, and one who scripts the button cannot occupy more than two
+/// threads. The host-wide count is what bounds the sum of accounts.
+pub(crate) const ACCOUNT_RUN_NOW_SLOTS: usize = 2;
 
 /// The runs by hand this process has admitted and not yet seen end (issue #333).
-static RUN_NOW_SLOTS: LazyLock<RunNowSlots> =
-    LazyLock::new(|| RunNowSlots::new(HOST_RUN_NOW_SLOTS, ACCOUNT_RUN_NOW_SLOTS));
+static RUN_NOW_SLOTS: LazyLock<BoundedSlots> =
+    LazyLock::new(|| BoundedSlots::new(HOST_RUN_NOW_SLOTS, ACCOUNT_RUN_NOW_SLOTS));
 
 /// Runs entry `id` of `account` now and waits for it (issue #158).
 ///
@@ -38,7 +56,7 @@ static RUN_NOW_SLOTS: LazyLock<RunNowSlots> =
 /// **Bounded, and refused rather than queued** (issue #333). A run holds a
 /// thread of the agent's blocking pool until the job ends, so the agent admits
 /// a fixed number at once for the host and a smaller one for each account
-/// (`run_now_slots`). The slot is taken as the first statement, before the
+/// (`BoundedSlots`). The slot is taken as the first statement, before the
 /// crontab is read, and given back by every path out of the call, so a refused
 /// call has read nothing and a finished one holds nothing.
 ///
@@ -69,7 +87,7 @@ pub fn run_cron_entry(
 ///
 /// Every variant [`run_cron_entry`] documents.
 pub(crate) fn run_within(
-    slots: &RunNowSlots,
+    slots: &BoundedSlots,
     host: &dyn CronHost,
     account: &AccountName,
     id: &CronEntryId,

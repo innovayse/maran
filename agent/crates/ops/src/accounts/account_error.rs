@@ -8,6 +8,8 @@ use maran_agent_core::validation::system::managed_account_error::ManagedAccountE
 use maran_agent_core::validation::system::name_error::NameError;
 use maran_distro::AdapterBinary;
 
+use crate::safe_write::SafeWriteError;
+
 /// The most characters of a refusing tool's standard error the agent writes to
 /// its own log.
 ///
@@ -394,6 +396,18 @@ pub enum AccountError {
         /// The account whose spool survived.
         username: String,
     },
+
+    /// An account's `pam_limits` drop-in (issue #194) could not be written,
+    /// validated or removed.
+    ///
+    /// Carries nothing: the protocol's own variants hold a tool's standard
+    /// error, and this area has no field that could hold one on the wire. When
+    /// a WRITE is refused the previous file is back in place; when a REMOVAL
+    /// fails during an account's deletion, `userdel` has not run and the same
+    /// deletion can be retried, because a drop-in named after a deleted account
+    /// would otherwise be handed to the next account given the name.
+    #[error("the account's open-files limit file could not be written or removed")]
+    LimitsFileFailed,
 }
 
 impl AccountError {
@@ -453,6 +467,21 @@ impl AccountError {
                 program: program.to_string(),
                 reason: other.to_string(),
             },
+        }
+    }
+}
+
+impl AccountError {
+    /// Folds a failed write of the `pam_limits` drop-in into this area's list.
+    ///
+    /// A bound stays a [`Self::Bound`], since a validator that outlived its
+    /// deadline is not a verdict on the file; every other failure is
+    /// [`Self::LimitsFileFailed`], because the protocol's variants hold a tool's
+    /// standard error and this area has no field that could hold one.
+    pub(crate) fn from_limits_write(error: SafeWriteError) -> Self {
+        match error {
+            SafeWriteError::Bound(bound) => Self::Bound(bound),
+            _ => Self::LimitsFileFailed,
         }
     }
 }

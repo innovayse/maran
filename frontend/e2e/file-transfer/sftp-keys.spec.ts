@@ -22,8 +22,8 @@ import type { SftpUser, SftpUserKey } from '../../src/types/sftpUser'
 // Every control is found by role and name, and the dialog is reached by clicks alone.
 
 const LICENSED: PanelModule[] = [
-  { name: 'sftp', displayName: 'File transfer', tier: 'included', state: 'enabled' },
-  { name: 'ftp', displayName: 'FTPS', tier: 'included', state: 'enabled' },
+  { name: 'sftp', displayName: 'File transfer', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'ftp', displayName: 'FTPS', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 const ALICE: Account = {

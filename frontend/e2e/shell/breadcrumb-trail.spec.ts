@@ -21,6 +21,7 @@ const SITE: Site = {
   status: 'enabled',
   statusName: 'Enabled',
   createdAt: '2026-08-01T10:00:00Z',
+  logRetentionDays: 14,
 }
 
 const SITE_DETAIL: SiteDetail = {
@@ -37,6 +38,7 @@ const SITE_DETAIL: SiteDetail = {
   status: 'enabled',
   statusName: 'Enabled',
   createdAt: SITE.createdAt,
+  logRetentionDays: 14,
 }
 
 const ACCOUNT: Account = {
@@ -112,6 +114,9 @@ for (const { section, child, expected } of SUBMENU_CASES) {
 
 test('a site ends the trail on its domain, with a placeholder while it loads', async ({ page }) => {
   await openFullShell(page)
+  // Wide enough for a three-crumb trail ending on a domain beside the app bar's controls: the breadcrumb
+  // hides itself when the whole trail does not fit (see ShellBreadcrumb), and at 1440 this one is cut off.
+  await page.setViewportSize({ width: 1680, height: 900 })
   await stubSites(page, [SITE])
   await stubSiteDetail(page, SITE_DETAIL)
   await delayRoute(page, `**/api/v1/sites/${SITE.id}`, 1500)

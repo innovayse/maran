@@ -1,5 +1,6 @@
 using Google.Protobuf.Collections;
 using Grpc.Net.Client;
+using Maran.Agent.Client.Channels;
 using Maran.Agent.Client.Errors;
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Resources;
@@ -81,11 +82,19 @@ public sealed class AgentFirewallClient : IAgentFirewallClient
         _logger = logger;
     }
 
-    /// <summary>Creates a client that calls the agent over <paramref name="channel"/>.</summary>
+    /// <summary>Creates a client whose every call goes to the server the current agent target selects.</summary>
+    /// <param name="channels">Hands out the channel of the server each call is aimed at.</param>
+    /// <param name="logger">Sink for the agent's diagnostic text and for a local refusal.</param>
+    public AgentFirewallClient(IAgentChannels channels, ILogger<AgentFirewallClient> logger)
+        : this(new GrpcFirewallServiceInvoker(channels), logger)
+    {
+    }
+
+    /// <summary>Creates a client over one fixed <paramref name="channel"/>, whatever the target.</summary>
     /// <param name="channel">A channel to the agent, e.g. from <see cref="Channels.AgentChannel.CreateUnixSocket"/>.</param>
     /// <param name="logger">Sink for the agent's diagnostic text and for a local refusal.</param>
     public AgentFirewallClient(GrpcChannel channel, ILogger<AgentFirewallClient> logger)
-        : this(new GrpcFirewallServiceInvoker(new V1.FirewallService.FirewallServiceClient(channel)), logger)
+        : this(new FixedAgentChannels(channel), logger)
     {
     }
 

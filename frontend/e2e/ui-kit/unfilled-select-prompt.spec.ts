@@ -46,7 +46,7 @@ const stubShell = async (page: Page, modules: PanelModule[]): Promise<void> => {
 }
 
 test('the plan chooser prompts for a choice instead of showing an identifier', async ({ page }) => {
-  await stubShell(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' }])
+  await stubShell(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
   await stubAccounts(page, [])
   await stubPlans(page)
 
@@ -68,11 +68,11 @@ test('the account pickers of every create form prompt for a choice instead of st
   page,
 }) => {
   await stubShell(page, [
-    { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
-    { name: 'sftp', displayName: 'SFTP', tier: 'included', state: 'enabled' },
-    { name: 'ftp', displayName: 'FTPS', tier: 'included', state: 'enabled' },
-    { name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' },
-    { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
+    { name: 'databases', displayName: 'Databases', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+    { name: 'sftp', displayName: 'SFTP', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+    { name: 'ftp', displayName: 'FTPS', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+    { name: 'backups', displayName: 'Backups', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+    { name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
   ])
   await stubAccounts(page, [ALICE])
   await stubDatabases(page, [])
@@ -100,11 +100,11 @@ test('the account pickers of every create form prompt for a choice instead of st
 test('the account pickers of every create form are named after the account in Armenian', async ({ page }) => {
   await setPersistedLocale(page, 'hy')
   await stubShell(page, [
-    { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
-    { name: 'sftp', displayName: 'SFTP', tier: 'included', state: 'enabled' },
-    { name: 'ftp', displayName: 'FTPS', tier: 'included', state: 'enabled' },
-    { name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' },
-    { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
+    { name: 'databases', displayName: 'Databases', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+    { name: 'sftp', displayName: 'SFTP', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+    { name: 'ftp', displayName: 'FTPS', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+    { name: 'backups', displayName: 'Backups', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+    { name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
   ])
   await stubAccounts(page, [ALICE])
   await stubDatabases(page, [])
@@ -125,7 +125,7 @@ test('the account pickers of every create form are named after the account in Ar
 })
 
 test('the PHP version picker prompts for a choice instead of standing blank', async ({ page }) => {
-  await stubShell(page, [{ name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' }])
+  await stubShell(page, [{ name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
   await stubAccounts(page, [ALICE])
   await stubSites(page, [])
   await stubPhpVersions(page, [

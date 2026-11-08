@@ -9,19 +9,20 @@ import type { PanelModule } from '../../src/types/module'
  * navigation specs of issue #209 walk the whole sidebar, so they need every entry it can draw.
  */
 export const FULL_CATALOGUE: PanelModule[] = [
-  { name: 'identity', displayName: 'Users and access', tier: 'included', state: 'enabled' },
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
-  { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
-  { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
-  { name: 'sftp', displayName: 'File transfer', tier: 'included', state: 'enabled' },
-  { name: 'ftp', displayName: 'FTPS', tier: 'included', state: 'enabled' },
-  { name: 'ssl', displayName: 'SSL certificates', tier: 'included', state: 'enabled' },
-  { name: 'firewall', displayName: 'Firewall', tier: 'included', state: 'enabled' },
-  { name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' },
-  { name: 'cron', displayName: 'Scheduled tasks', tier: 'included', state: 'enabled' },
-  { name: 'tasks', displayName: 'Tasks', tier: 'included', state: 'enabled' },
-  { name: 'monitoring', displayName: 'Monitoring', tier: 'included', state: 'enabled' },
-  { name: 'notifications', displayName: 'Notifications', tier: 'included', state: 'enabled' },
+  { name: 'identity', displayName: 'Users and access', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'databases', displayName: 'Databases', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'sftp', displayName: 'File transfer', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'ftp', displayName: 'FTPS', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'ssl', displayName: 'SSL certificates', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'firewall', displayName: 'Firewall', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'dns', displayName: 'DNS', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'backups', displayName: 'Backups', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'cron', displayName: 'Scheduled tasks', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'tasks', displayName: 'Tasks', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'monitoring', displayName: 'Monitoring', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'notifications', displayName: 'Notifications', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 /**

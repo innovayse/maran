@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { stubSignedIn } from './fixtures/stub-auth-routes'
-import { loaded, stubDashboard, SYNCHRONIZED_CLOCK, UNAVAILABLE } from './fixtures/stub-dashboard-route'
+import { ALERT_DELIVERY_OK, loaded, stubDashboard, SYNCHRONIZED_CLOCK, UNAVAILABLE } from './fixtures/stub-dashboard-route'
 import { stubHealthy } from './fixtures/stub-health-route'
 import { stubEmptyModules } from './fixtures/stub-modules-route'
 import type { Dashboard } from '../src/types/dashboard'
@@ -17,6 +17,8 @@ const WITH_REFUSAL: Dashboard = {
   attention: {
     certificatesExpiringSoon: loaded(0),
     failedBackups: loaded(0),
+    sitesOnEndOfLifePhp: loaded(0),
+    alertDelivery: ALERT_DELIVERY_OK,
     bannedAddresses: loaded(0),
     failedTasks: loaded(0),
     clock: SYNCHRONIZED_CLOCK,

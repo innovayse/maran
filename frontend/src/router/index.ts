@@ -15,20 +15,33 @@ import PlansListPage from '../pages/plans/PlansListPage.vue'
 import ResellerOverviewPage from '../pages/reseller/ResellerOverviewPage.vue'
 import ResellerDetailPage from '../pages/resellers/ResellerDetailPage.vue'
 import ResellerFormPage from '../pages/resellers/ResellerFormPage.vue'
+import ResellerProfileFormPage from '../pages/resellers/ResellerProfileFormPage.vue'
 import ResellersListPage from '../pages/resellers/ResellersListPage.vue'
 import SitesListPage from '../pages/sites/SitesListPage.vue'
 import SiteFormPage from '../pages/sites/SiteFormPage.vue'
 import SiteDetailPage from '../pages/sites/SiteDetailPage.vue'
 import DatabasesPage from '../pages/databases/DatabasesPage.vue'
+import DatabaseUsersPage from '../pages/databases/DatabaseUsersPage.vue'
 import DatabaseGrantRepairPage from '../pages/databases/DatabaseGrantRepairPage.vue'
+import DnsNameserversPage from '../pages/dns/DnsNameserversPage.vue'
+import DnsZoneDetailPage from '../pages/dns/DnsZoneDetailPage.vue'
+import DnsZoneFormPage from '../pages/dns/DnsZoneFormPage.vue'
+import DnsZonesListPage from '../pages/dns/DnsZonesListPage.vue'
 import BackupDestinationsPage from '../pages/backups/BackupDestinationsPage.vue'
 import BackupSchedulePage from '../pages/backups/BackupSchedulePage.vue'
+import MyBackupSchedulePage from '../pages/backups/MyBackupSchedulePage.vue'
 import BackupsPage from '../pages/backups/BackupsPage.vue'
 import FtpUsersListPage from '../pages/ftp/FtpUsersListPage.vue'
 import SftpUsersListPage from '../pages/sftp/SftpUsersListPage.vue'
+import MailAliasesListPage from '../pages/mail/MailAliasesListPage.vue'
+import MailboxesListPage from '../pages/mail/MailboxesListPage.vue'
+import MailDomainsListPage from '../pages/mail/MailDomainsListPage.vue'
 import FirewallPage from '../pages/firewall/FirewallPage.vue'
 import FirewallBansPage from '../pages/firewall/FirewallBansPage.vue'
 import FirewallWhitelistPage from '../pages/firewall/FirewallWhitelistPage.vue'
+import FileManagerPage from '../pages/files/FileManagerPage.vue'
+import FileEditPage from '../pages/files/FileEditPage.vue'
+import FileTrashPage from '../pages/files/FileTrashPage.vue'
 import CronPage from '../pages/cron/CronPage.vue'
 import CronRunsPage from '../pages/cron/CronRunsPage.vue'
 import TasksPage from '../pages/tasks/TasksPage.vue'
@@ -46,8 +59,12 @@ import SessionsPage from '../pages/settings/SessionsPage.vue'
 import ApiKeysPage from '../pages/settings/ApiKeysPage.vue'
 import TwoFactorSettingsPage from '../pages/settings/TwoFactorSettingsPage.vue'
 import SecurityPolicyPage from '../pages/settings/SecurityPolicyPage.vue'
+import PhpSettingsPage from '../pages/sites/PhpSettingsPage.vue'
 import PhpVersionsPage from '../pages/settings/PhpVersionsPage.vue'
+import PanelUpdatePage from '../pages/settings/PanelUpdatePage.vue'
 import PanelCertificatePage from '../pages/settings/PanelCertificatePage.vue'
+import ResellerBrandingPage from '../pages/reseller/ResellerBrandingPage.vue'
+import AlertSettingsPage from '../pages/settings/AlertSettingsPage.vue'
 import SmtpSettingsPage from '../pages/settings/SmtpSettingsPage.vue'
 import { createAuthGuard } from './authGuard'
 import { createModuleAccessGuard } from './moduleAccessGuard'
@@ -59,6 +76,13 @@ import { createRoleGuard } from './roleGuard'
  * lands on the not-found screen without a request being made (issue #204).
  */
 const SITE_ID_SEGMENT = ':id([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})'
+
+/**
+ * The route segment naming a DNS zone by its id, which the panel only ever issues as a UUID, with the same effect as {@link SITE_ID_SEGMENT}: any other shape is not found
+ * without a request being made. Whole string constants, because the route census reads the router
+ * as text and resolves a segment by its constant (`e2e/ui-kit/route-coverage.spec.ts`).
+ */
+const DNS_ZONE_SEGMENT = 'zones/:id([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})'
 
 /**
  * Creates the application router. Every route nests under {@link DefaultLayout},
@@ -156,11 +180,27 @@ export const createAppRouter = (): Router => {
             },
           },
           {
+            path: ':id/profile',
+            name: 'reseller-profile-edit',
+            component: ResellerProfileFormPage,
+            props: true,
+            meta: { module: 'accounts', title: 'resellers.profile.heading', adminOnly: true, navigationParent: 'resellers' },
+          },
+          {
             path: ':id/edit',
             name: 'reseller-edit',
             component: ResellerFormPage,
             props: true,
             meta: { module: 'accounts', title: 'resellers.form.headingEdit', adminOnly: true, navigationParent: 'resellers' },
+          },
+          {
+            // The reseller's API keys as its administrator oversees them (issue #435): the API keys screen
+            // asked for this reseller's keys, which it lists and revokes but cannot create.
+            path: ':id/api-keys',
+            name: 'reseller-api-keys-oversight',
+            component: ApiKeysPage,
+            props: true,
+            meta: { module: 'accounts', title: 'apiKeys.overseen.heading', adminOnly: true, navigationParent: 'resellers' },
           },
         ],
       },
@@ -174,11 +214,24 @@ export const createAppRouter = (): Router => {
         children: [{ path: '', name: 'reseller-overview', component: ResellerOverviewPage, meta: { module: 'accounts', title: 'resellers.overview.heading', resellerOnly: true } }],
       },
       {
+        // A reseller's own part of the audit journal: the entries about its accounts and its login
+        // (issue #370). It is the administrator's audit page asking the reseller's endpoint
+        // (`GET /api/v1/audit/reseller`), which refuses every other role; `resellerOnly` sends an
+        // administrator or a customer who opens the address to the "not available" screen.
+        path: '/reseller/audit',
+        component: DefaultLayout,
+        children: [{ path: '', name: 'reseller-audit', component: AuditPage, meta: { title: 'app.audit.heading', resellerOnly: true } }],
+      },
+      {
         path: '/sites',
         component: DefaultLayout,
         children: [
           { path: '', name: 'sites', component: SitesListPage, meta: { module: 'sites', title: 'sites.list.heading' } },
           { path: 'new', name: 'sites-new', component: SiteFormPage, meta: { module: 'sites', title: 'sites.form.heading' } },
+          // The account's PHP settings (issue #138), one page for every site on PHP. A static segment
+          // beside the UUID pattern below, which it can never match. The endpoint is the Php
+          // feature's, so the navigation offers the item only to a plan that sells it.
+          { path: 'php-settings', name: 'php-settings', component: PhpSettingsPage, meta: { module: 'sites', title: 'phpSettings.heading' } },
           // The UUID pattern keeps this route off /sites/new and off any other segment that
           // cannot name a site, so neither reaches the detail page.
           {
@@ -191,13 +244,21 @@ export const createAppRouter = (): Router => {
         ],
       },
       {
-        // Two routes, and no `:id` child: a database has no detail to open — the row is the
+        // Three routes, and no `:id` child: a database has no detail to open — the row is the
         // database, and both of its actions live on it. A deep link to a single one would lead to a
         // page that could only repeat the row it came from.
         path: '/databases',
         component: DefaultLayout,
         children: [
           { path: '', name: 'databases', component: DatabasesPage, meta: { module: 'databases', title: 'databases.list.heading' } },
+          // Database users and their per-database privileges. Not admin-only: a customer manages the
+          // users of their own account, and the endpoint scopes every read and write to it.
+          {
+            path: 'users',
+            name: 'database-users',
+            component: DatabaseUsersPage,
+            meta: { module: 'databases', title: 'databases.users.list.heading' },
+          },
           // Administrators only. The endpoint is the boundary; `adminOnly` is advice that spares a
           // customer an administrator's screen around a refusal. It sits under `/databases` rather
           // than under `/settings` because its subject is this server's database grants, which is
@@ -208,6 +269,40 @@ export const createAppRouter = (): Router => {
             name: 'database-grant-repair',
             component: DatabaseGrantRepairPage,
             meta: { module: 'databases', title: 'databases.grantRepair.heading', adminOnly: true },
+          },
+        ],
+      },
+      {
+        // The DNS module (issue #178). One zones list serves the administrator's "Zones" and the
+        // customer's "My zones" (the navigation lists both entries under this one route), and a zone
+        // has a detail page with its records. The name server settings are administrators only: the
+        // endpoint refuses every other role, and `adminOnly` spares a customer an administrator's
+        // screen around a refusal. Zone templates and DNSSEC are later phases of the issue and have
+        // no route until their endpoints exist.
+        path: '/dns',
+        component: DefaultLayout,
+        children: [
+          { path: 'zones', name: 'dns-zones', component: DnsZonesListPage, meta: { module: 'dns', title: 'dns.zones.heading' } },
+          {
+            path: 'zones/new',
+            name: 'dns-zone-new',
+            component: DnsZoneFormPage,
+            meta: { module: 'dns', title: 'dns.zoneForm.heading', navigationParent: 'dns-zones' },
+          },
+          // The UUID pattern keeps this route off /dns/zones/new and off any other segment that
+          // cannot name a zone, so neither reaches the detail page.
+          {
+            path: DNS_ZONE_SEGMENT,
+            name: 'dns-zone-detail',
+            component: DnsZoneDetailPage,
+            props: true,
+            meta: { module: 'dns', title: 'dns.detail.heading', navigationParent: 'dns-zones', titledByRecord: true },
+          },
+          {
+            path: 'nameservers',
+            name: 'dns-nameservers',
+            component: DnsNameserversPage,
+            meta: { module: 'dns', title: 'dns.nameservers.heading', adminOnly: true },
           },
         ],
       },
@@ -228,6 +323,15 @@ export const createAppRouter = (): Router => {
             name: 'backup-schedule',
             component: BackupSchedulePage,
             meta: { module: 'backups', title: 'backups.schedule.heading', adminOnly: true },
+          },
+          // The customer's own schedule (issue #147): it names no account, because the endpoint takes
+          // it from the login. No role flag: the navigation offers it to customers only, and an
+          // administrator who opens the address is answered "account not found" by the endpoint.
+          {
+            path: 'my-schedule',
+            name: 'my-backup-schedule',
+            component: MyBackupSchedulePage,
+            meta: { module: 'backups', title: 'backups.mySchedule.heading' },
           },
           // Administrators only, by the same two layers. The screen reads and never writes —
           // the panel publishes no way to add or remove a destination that could succeed.
@@ -255,6 +359,21 @@ export const createAppRouter = (): Router => {
         ],
       },
       {
+        // Three pages, one per list, and no `:id` child: a domain, a mailbox and an alias are each
+        // the row that shows them, and what a domain needs published in DNS is a dialog off its row.
+        // Each list keeps its page, search and sort in the URL, which two lists on one route would
+        // fight over. Guarded by the `mail` module; the bare `/mail` forwards to the mailboxes, the
+        // page a customer opens most.
+        path: '/mail',
+        component: DefaultLayout,
+        children: [
+          { path: '', redirect: { name: 'mailboxes' } },
+          { path: 'domains', name: 'mail-domains', component: MailDomainsListPage, meta: { module: 'mail', title: 'mail.domains.heading' } },
+          { path: 'mailboxes', name: 'mailboxes', component: MailboxesListPage, meta: { module: 'mail', title: 'mail.mailboxes.heading' } },
+          { path: 'aliases', name: 'mail-aliases', component: MailAliasesListPage, meta: { module: 'mail', title: 'mail.aliases.heading' } },
+        ],
+      },
+      {
         // The screen before the merged one. A customer's bookmark still points here, so the path
         // stays and forwards rather than turning into a 404.
         path: '/sftp-users',
@@ -273,6 +392,29 @@ export const createAppRouter = (): Router => {
           { path: '', name: 'firewall', component: FirewallPage, meta: { module: 'firewall', title: 'firewall.heading', adminOnly: true } },
           { path: 'bans', name: 'firewall-bans', component: FirewallBansPage, meta: { module: 'firewall', title: 'firewall.bans.heading', adminOnly: true } },
           { path: 'whitelist', name: 'firewall-whitelist', component: FirewallWhitelistPage, meta: { module: 'firewall', title: 'firewall.whitelist.heading', adminOnly: true } },
+        ],
+      },
+      {
+        // The file manager: the browser at the bare `/files`, the text editor and the trash as pages of
+        // their own. The folder (`?path=`) and the account (`?account=`) travel in the query, not in
+        // the path, because a file name can hold any character and the editor must survive a reload
+        // on the same file. The editor and the trash are children of the browser's menu item.
+        path: '/files',
+        component: DefaultLayout,
+        children: [
+          { path: '', name: 'file-manager', component: FileManagerPage, meta: { module: 'files', title: 'filesBrowser.heading' } },
+          {
+            path: 'edit',
+            name: 'file-editor',
+            component: FileEditPage,
+            meta: { module: 'files', title: 'filesEditor.heading', navigationParent: 'file-manager' },
+          },
+          {
+            path: 'trash',
+            name: 'file-trash',
+            component: FileTrashPage,
+            meta: { module: 'files', title: 'filesTrash.heading', navigationParent: 'file-manager' },
+          },
         ],
       },
       {
@@ -414,8 +556,16 @@ export const createAppRouter = (): Router => {
           // ability to send a reset link.
           // Administrator-managed API keys (issue #144), the Identity module's own screen.
           { path: 'api-keys', name: 'api-keys', component: ApiKeysPage, meta: { module: 'identity', title: 'apiKeys.heading', adminOnly: true } },
+          // A reseller's own API keys (issue #435): the same screen asking the reseller's endpoint, which
+          // refuses every other role; `resellerOnly` sends an administrator or a customer to the "not available" screen.
+          { path: 'reseller-api-keys', name: 'reseller-api-keys', component: ApiKeysPage, meta: { title: 'apiKeys.heading', resellerOnly: true } },
           { path: 'security-policy', name: 'security-policy', component: SecurityPolicyPage, meta: { title: 'app.securityPolicy.heading', adminOnly: true } },
+          // Who is told about an alert and at what level (issue #142); administrators only, like the mail it rides on.
+          { path: 'alerts', name: 'alert-settings', component: AlertSettingsPage, meta: { title: 'alertSettings.heading', adminOnly: true } },
           { path: 'smtp', name: 'smtp-settings', component: SmtpSettingsPage, meta: { title: 'app.smtp.heading', adminOnly: true } },
+          // The branding a reseller gives its customers' shell (issue #367). The endpoints refuse every other
+          // role, and `resellerOnly` sends an administrator or a customer to the "not available" screen.
+          { path: 'branding', name: 'reseller-branding', component: ResellerBrandingPage, meta: { title: 'branding.heading', resellerOnly: true } },
           // The panel's own certificate (issue #132): a page of its own under Settings in the menu
           // (`navigationTree.ts`, issue #311), which places it in the breadcrumb too.
           {
@@ -423,6 +573,14 @@ export const createAppRouter = (): Router => {
             name: 'panel-certificate',
             component: PanelCertificatePage,
             meta: { title: 'panelCertificate.heading', adminOnly: true },
+          },
+          // The panel's own release state and the update action (issue #382): administrators only,
+          // the endpoint refuses everyone else whatever this flag says.
+          {
+            path: 'panel-update',
+            name: 'panel-update',
+            component: PanelUpdatePage,
+            meta: { title: 'panelUpdate.heading', adminOnly: true },
           },
           // PHP runtimes are server-wide and installing one is administrators' work, so this sits
           // with the other administrator screens and carries no `meta.module`: a host with no PHP

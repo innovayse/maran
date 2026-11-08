@@ -1,0 +1,32 @@
+{
+  "filesTransfers": {
+    "queueLabel": "Upload queue",
+    "queueHeading": "Uploads",
+    "limitHint": "Files up to {limit}",
+    "dropLabel": "Drop files here",
+    "pickLabel": "Choose files",
+    "state": {
+      "queued": "Waiting",
+      "uploading": "Uploading",
+      "done": "Uploaded",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "uploadingLabel": "Uploading {name}",
+    "cancel": "Cancel",
+    "cancelLabel": "Cancel the upload of {name}",
+    "retry": "Try again",
+    "retryLabel": "Try uploading {name} again",
+    "replace": "Replace the existing file",
+    "replaceLabel": "Replace the existing {name} with this upload",
+    "dismiss": "Remove",
+    "dismissLabel": "Remove {name} from the list",
+    "clearFinished": "Clear finished",
+    "failedNoAnswer": "The upload did not reach the panel.",
+    "download": "Download",
+    "downloadFolder": "Download as archive",
+    "downloadLabel": "Download {name}",
+    "downloadFolderLabel": "Download the folder {name} as an archive",
+    "downloading": "Preparing the download…"
+  }
+}

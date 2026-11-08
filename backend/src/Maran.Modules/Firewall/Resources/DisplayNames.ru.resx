@@ -27,4 +27,22 @@
   <data name="FirewallProtocolUdp">
     <value>UDP</value>
   </data>
+  <data name="FirewallMenuRules">
+    <value>Правила</value>
+  </data>
+  <data name="FirewallMenuBans">
+    <value>Блокировки</value>
+  </data>
+  <data name="FirewallMenuWhitelist">
+    <value>Исключения</value>
+  </data>
+  <data name="FirewallRouteRules">
+    <value>Межсетевой экран</value>
+  </data>
+  <data name="FirewallRouteBans">
+    <value>Блокировки</value>
+  </data>
+  <data name="FirewallRouteWhitelist">
+    <value>Исключения</value>
+  </data>
 </root>

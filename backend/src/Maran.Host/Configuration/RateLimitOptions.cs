@@ -125,6 +125,21 @@ public sealed class RateLimitOptions
     public int BackupVerifyWindowSeconds { get; set; } = 3600;
 
     /// <summary>
+    /// DNS requests allowed for one hosting account within <see cref="DnsWindowSeconds"/>, reads and edits
+    /// together.
+    /// </summary>
+    /// <remarks>
+    /// Sixty a minute: an accepted edit makes the root agent re-render a whole zone and reload it in the name
+    /// server, which is the cost this bounds, while a person editing records by hand stays far below it.
+    /// </remarks>
+    [Range(1, 10_000)]
+    public int DnsMaxRequests { get; set; } = 60;
+
+    /// <summary>The window <see cref="DnsMaxRequests"/> is counted over, in seconds.</summary>
+    [Range(1, 86_400)]
+    public int DnsWindowSeconds { get; set; } = 60;
+
+    /// <summary>
     /// Journal exports allowed for one signed-in administrator within <see cref="AuditExportWindowSeconds"/>,
     /// counted across the audit export and the personal-data export together.
     /// </summary>
@@ -139,4 +154,53 @@ public sealed class RateLimitOptions
     /// <summary>The window <see cref="AuditExportMaxRequests"/> is counted over, in seconds.</summary>
     [Range(1, 86_400)]
     public int AuditExportWindowSeconds { get; set; } = 3600;
+
+    /// <summary>
+    /// Global-search requests allowed for one signed-in user within <see cref="SearchWindowSeconds"/>
+    /// (<c>SearchRateLimitPolicy</c>).
+    /// </summary>
+    /// <remarks>
+    /// One hundred and twenty a minute: the palette sends a request per pause in typing, a fast typist
+    /// pauses perhaps twice a second at most, and each request reads several modules' tables, so the
+    /// number is generous for a person and a wall for a loop enumerating the namespace.
+    /// </remarks>
+    [Range(1, 10_000)]
+    public int SearchMaxRequests { get; set; } = 120;
+
+    /// <summary>The window <see cref="SearchMaxRequests"/> is counted over, in seconds.</summary>
+    [Range(1, 3600)]
+    public int SearchWindowSeconds { get; set; } = 60;
+
+    /// <summary>
+    /// Provisioning writes allowed for one API key within <see cref="ProvisioningWindowSeconds"/>
+    /// (<c>ProvisioningRateLimitPolicy</c>).
+    /// </summary>
+    /// <remarks>
+    /// Sixty a minute: a billing system provisioning accounts in a burst needs room, every permitted
+    /// request creates, changes or deletes a hosting account, and a loop with a stolen key is held to
+    /// one a second. It slows that key and does not stop it; revocation does.
+    /// </remarks>
+    [Range(1, 100_000)]
+    public int ProvisioningMaxRequests { get; set; } = 60;
+
+    /// <summary>The window <see cref="ProvisioningMaxRequests"/> is counted over, in seconds.</summary>
+    [Range(1, 3600)]
+    public int ProvisioningWindowSeconds { get; set; } = 60;
+
+    /// <summary>
+    /// File-manager requests allowed for one hosting account within <see cref="FilesWindowSeconds"/>
+    /// (<c>FilesRateLimitPolicy</c>).
+    /// </summary>
+    /// <remarks>
+    /// Six hundred a minute: a file manager sends a request per folder opened and per search pause, so a
+    /// busy person needs room, and a loop listing folders is held to ten a second. Transfers are bounded
+    /// separately, by their own concurrency slots, because a request count says nothing about how long
+    /// a stream is held open.
+    /// </remarks>
+    [Range(1, 100_000)]
+    public int FilesMaxRequests { get; set; } = 600;
+
+    /// <summary>The window <see cref="FilesMaxRequests"/> is counted over, in seconds.</summary>
+    [Range(1, 3600)]
+    public int FilesWindowSeconds { get; set; } = 60;
 }

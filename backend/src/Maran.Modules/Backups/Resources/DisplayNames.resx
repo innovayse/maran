@@ -159,7 +159,43 @@
   <data name="BackupFailureBackupVerificationFailed">
     <value>The archive does not match its record</value>
   </data>
+  <data name="BackupFailureBackupVerificationArchiveKeyRejected">
+    <value>The archive cannot be opened with its destination's encryption key</value>
+  </data>
   <data name="BackupFailureBackupVerificationArtifactMissing">
     <value>The archive could not be found</value>
+  </data>
+  <data name="BackupFailureAgentTooLarge">
+    <value>The file or folder was too large to open</value>
+  </data>
+  <data name="BackupFailureAgentQuotaExceeded">
+    <value>The account's disk quota was used up</value>
+  </data>
+  <data name="BackupFailureAgentArchiveUnsafe">
+    <value>The archive contained items that are not safe to unpack</value>
+  </data>
+  <data name="BackupFailureAgentArchiveUnopenable">
+    <value>The archive could not be opened with its destination's encryption key</value>
+  </data>
+  <data name="BackupsMenuList">
+    <value>Backup list</value>
+  </data>
+  <data name="BackupsMenuSchedule">
+    <value>Schedule</value>
+  </data>
+  <data name="BackupsMenuDestinations">
+    <value>Destinations</value>
+  </data>
+  <data name="BackupsRouteList">
+    <value>Backups</value>
+  </data>
+  <data name="BackupsRouteSchedule">
+    <value>Backup schedule</value>
+  </data>
+  <data name="BackupsRouteMySchedule">
+    <value>My backup schedule</value>
+  </data>
+  <data name="BackupsRouteDestinations">
+    <value>Backup destinations</value>
   </data>
 </root>

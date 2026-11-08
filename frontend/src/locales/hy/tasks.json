@@ -40,7 +40,8 @@
       "AccountResumption": "Հաշվի վերականգնում",
       "BackupCreate": "Պահուստի ստեղծում",
       "BackupRestore": "Պահուստից վերականգնում",
-      "PhpVersionInstall": "PHP տարբերակի տեղադրում"
+      "PhpVersionInstall": "PHP տարբերակի տեղադրում",
+      "PhpExtensionChange": "PHP ընդլայնման փոփոխություն"
     },
     "pane": {
       "correlationId": "Հարցման նույնացուցիչ",

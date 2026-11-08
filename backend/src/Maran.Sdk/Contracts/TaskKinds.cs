@@ -80,4 +80,28 @@ public static class TaskKinds
     /// about it to the customer waiting for the version.
     /// </remarks>
     public const string PhpVersionInstall = "PhpVersionInstall";
+
+    /// <summary>
+    /// A PHP extension is being switched on or off for one PHP version, on an administrator's demand
+    /// (issue #157).
+    /// </summary>
+    /// <remarks>
+    /// It earns a task because switching an extension on may install a package through the host's
+    /// package manager, and every change ends in a php-fpm validation and reload that an operator
+    /// watching it can tell apart from a wedged request. The subject is the version and the catalogue
+    /// name.
+    /// </remarks>
+    public const string PhpExtensionChange = "PhpExtensionChange";
+
+    /// <summary>
+    /// The panel is updating itself, started by an administrator from the panel's settings screen
+    /// (issue #382).
+    /// </summary>
+    /// <remarks>
+    /// It is the one kind that is MEANT to outlive the process that opened it: the update restarts the
+    /// panel, so the process that sees the task end is not the one that started it. The startup pass
+    /// that closes tasks a dead process left running therefore leaves this kind alone, and the Updates
+    /// module closes it from the root update's report, or its own reaper when no report arrives.
+    /// </remarks>
+    public const string PanelUpdate = "PanelUpdate";
 }

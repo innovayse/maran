@@ -2,7 +2,7 @@ namespace Maran.Modules.Sites.Commands.DisableSite;
 
 /// <summary>
 /// Serves a suspension response in place of the site's content, keeping its vhost, aliases and log
-/// paths in place. Idempotent: disabling a disabled site changes nothing.
+/// paths in place. Idempotent in effect: disabling a disabled site leaves it disabled.
 /// </summary>
 /// <param name="SiteId">The site to disable.</param>
 /// <param name="IpAddress">The caller's address, recorded in the audit journal.</param>

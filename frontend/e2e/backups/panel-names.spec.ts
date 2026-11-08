@@ -12,7 +12,7 @@ import type { PanelModule } from '../../src/types/module'
 // The status and reason words on the backup history are the panel's own: the rows carry them, so
 // the bundle holds no copy of the vocabulary (issue #330).
 
-const LICENSED: PanelModule[] = [{ name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' }]
+const LICENSED: PanelModule[] = [{ name: 'backups', displayName: 'Backups', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }]
 
 const ALICE: Account = {
   id: '22222222-2222-2222-2222-222222222222',

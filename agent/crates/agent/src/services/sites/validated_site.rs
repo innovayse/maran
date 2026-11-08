@@ -9,6 +9,7 @@ use maran_ops::sites::{CreateSiteInput, SiteCertificate, SiteKind};
 
 use crate::proto::{AgentError, SiteBackendType, SiteSpec};
 use crate::services::sites::validated_identity::validated_identity;
+use crate::services::sites::validated_options::validated_options;
 use crate::services::wire::invalid_input::invalid_input;
 
 /// The most names one certificate may cover, the primary domain included:
@@ -123,12 +124,22 @@ pub(super) fn site_from_spec(
         .has_certificate
         .then(|| SiteCertificate::for_domain(&domain));
 
+    // The options too, against the site they are for. The disable and
+    // remove-certificate variants share this path, so a stored option an
+    // upgrade has made invalid refuses them as well; the panel validates the
+    // same options before it stores them, so that is not a state it reaches.
+    let options = validated_options(spec.options.as_ref())?;
+    options
+        .check_against(&kind, &domain, &aliases)
+        .map_err(|error| invalid_input(error.to_string()))?;
+
     Ok(CreateSiteInput {
         account,
         domain,
         aliases,
         kind,
         certificate,
+        options,
     })
 }
 

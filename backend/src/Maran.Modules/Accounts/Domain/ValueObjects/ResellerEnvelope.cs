@@ -56,6 +56,12 @@ public sealed record ResellerEnvelope
     /// <summary>The highest php-fpm worker count per pool one of the reseller's plans may state.</summary>
     public int MaxPhpWorkersPerPool { get; private set; }
 
+    /// <summary>The highest mailbox count one of the reseller's plans may state (issue #177).</summary>
+    public int MaxMailboxes { get; private set; }
+
+    /// <summary>The highest mailbox quota pool, in mebibytes, one of the reseller's plans may state (issue #177).</summary>
+    public int MailboxQuotaPoolMib { get; private set; }
+
     /// <summary>The features the reseller may sell; every plan it defines must hold a subset of them.</summary>
     public AccountFeature Features { get; private set; }
 
@@ -76,6 +82,8 @@ public sealed record ResellerEnvelope
     /// <param name="maxFtpUsers">The highest FTPS login count one plan may state.</param>
     /// <param name="maxCronEntries">The highest cron entry count one plan may state.</param>
     /// <param name="maxPhpWorkersPerPool">The highest php-fpm worker count per pool one plan may state.</param>
+    /// <param name="maxMailboxes">The highest mailbox count one plan may state.</param>
+    /// <param name="mailboxQuotaPoolMib">The highest mailbox quota pool, in mebibytes, one plan may state.</param>
     /// <param name="features">The features the reseller may sell.</param>
     /// <param name="runtimeLimits">The runtime ceilings, already copied so no instance is shared.</param>
     private ResellerEnvelope(
@@ -89,6 +97,8 @@ public sealed record ResellerEnvelope
         int maxFtpUsers,
         int maxCronEntries,
         int maxPhpWorkersPerPool,
+        int maxMailboxes,
+        int mailboxQuotaPoolMib,
         AccountFeature features,
         RuntimeLimits runtimeLimits)
     {
@@ -102,6 +112,8 @@ public sealed record ResellerEnvelope
         MaxFtpUsers = maxFtpUsers;
         MaxCronEntries = maxCronEntries;
         MaxPhpWorkersPerPool = maxPhpWorkersPerPool;
+        MaxMailboxes = maxMailboxes;
+        MailboxQuotaPoolMib = mailboxQuotaPoolMib;
         Features = features;
         RuntimeLimits = runtimeLimits;
     }
@@ -124,6 +136,8 @@ public sealed record ResellerEnvelope
     /// <param name="maxFtpUsers">The highest FTPS login count one plan may state.</param>
     /// <param name="maxCronEntries">The highest cron entry count one plan may state.</param>
     /// <param name="maxPhpWorkersPerPool">The highest php-fpm worker count per pool one plan may state.</param>
+    /// <param name="maxMailboxes">The highest mailbox count one plan may state.</param>
+    /// <param name="mailboxQuotaPoolMib">The highest mailbox quota pool, in mebibytes, one plan may state.</param>
     /// <param name="features">The features the reseller may sell.</param>
     /// <param name="runtimeLimits">The runtime ceilings the reseller's plans may not exceed.</param>
     /// <returns>The envelope.</returns>
@@ -141,6 +155,8 @@ public sealed record ResellerEnvelope
         int maxFtpUsers,
         int maxCronEntries,
         int maxPhpWorkersPerPool,
+        int maxMailboxes,
+        int mailboxQuotaPoolMib,
         AccountFeature features,
         RuntimeLimits runtimeLimits)
     {
@@ -155,6 +171,8 @@ public sealed record ResellerEnvelope
         ArgumentOutOfRangeException.ThrowIfNegative(maxFtpUsers);
         ArgumentOutOfRangeException.ThrowIfNegative(maxCronEntries);
         ArgumentOutOfRangeException.ThrowIfNegative(maxPhpWorkersPerPool);
+        ArgumentOutOfRangeException.ThrowIfNegative(maxMailboxes);
+        ArgumentOutOfRangeException.ThrowIfNegative(mailboxQuotaPoolMib);
 
         if (!features.IsKnownSet())
         {
@@ -182,6 +200,8 @@ public sealed record ResellerEnvelope
             maxFtpUsers,
             maxCronEntries,
             maxPhpWorkersPerPool,
+            maxMailboxes,
+            mailboxQuotaPoolMib,
             features,
             copiedLimits);
     }

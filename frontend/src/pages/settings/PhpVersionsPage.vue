@@ -33,6 +33,13 @@
  * on a narrower screen. The table scrolls inside its own container, so nothing scrolls
  * horizontally at 390px.
  *
+ * **Lifecycle and extensions (issue #157).** Each version carries its support phase as a badge (a
+ * word and a glyph, never colour alone), the day its security support ends, and how many sites run
+ * on it. When any site runs on an end-of-life version the page says so above the table, because
+ * that is the one fact on this screen that asks for action. Choosing "Extensions" on a row opens
+ * that version's extension switches in a panel of their own below; a switch is a host-wide change
+ * and the panel says so.
+ *
  * **A refusal to list is shown, and an empty list is only announced once the load has settled.**
  * The store records the server's refusal in `errorMessage`; the page prints it in place of the
  * table, instead of leaving a customer who typed the URL with an empty one. And
@@ -50,16 +57,25 @@ import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
+import UiLink from '../../components/ui/UiLink.vue'
 import UiTable from '../../components/ui/UiTable.vue'
-import type { PhpDefaultStatus } from '../../types/phpVersion'
+import PhpExtensionsPanel from '../../components/sites/PhpExtensionsPanel.vue'
+import PhpLifecycleBadge from '../../components/sites/PhpLifecycleBadge.vue'
+import type { PhpDefaultStatus, PhpVersion } from '../../types/phpVersion'
 import type { UiTableColumn } from '../../types/tableColumn'
+import { useLocaleStore } from '../../stores/locale'
 import { usePhpVersionsStore } from '../../stores/phpVersions'
+import { formatDate } from '../../utils/formatDate'
 
 const { t } = useI18n()
+const localeStore = useLocaleStore()
 const phpVersionsStore = usePhpVersionsStore()
 
 /** The version chosen in the install select, e.g. `8.4`, or the empty string while nothing is chosen. */
 const version: Ref<string> = ref('')
+
+/** The version whose extensions panel is open, e.g. `8.3`, or `null` while none is. */
+const extensionsFor: Ref<string | null> = ref(null)
 
 /** The versions the host can install and does not have yet, as the select's options. */
 const installOptions: ComputedRef<SelectOption[]> = computed(() => {
@@ -76,8 +92,35 @@ const installOptions: ComputedRef<SelectOption[]> = computed(() => {
 const columns: ComputedRef<UiTableColumn[]> = computed(() => {
   return [
     { key: 'version', label: t('php.table.version'), kind: 'identifier' },
+    { key: 'lifecycle', label: t('php.table.lifecycle'), kind: 'badge' },
+    { key: 'endOfLife', label: t('php.table.endOfLife'), kind: 'date' },
+    { key: 'sitesUsing', label: t('php.table.sitesUsing'), kind: 'number' },
     { key: 'default', label: t('php.table.default'), kind: 'badge' },
+    { key: 'extensions', label: t('php.table.extensions'), kind: 'actions' },
   ]
+})
+
+/** The installed versions that reached their end of life and still carry sites, in the order the server listed them. */
+const endOfLifeInUse: ComputedRef<PhpVersion[]> = computed(() => {
+  return phpVersionsStore.phpVersions.filter((candidate) => {
+    return candidate.lifecycle.status === 'endOfLife' && (candidate.sitesUsing ?? 0) > 0
+  })
+})
+
+/** How many sites run on those versions in all; the count the warning is worded by. */
+const endOfLifeSites: ComputedRef<number> = computed(() => {
+  return endOfLifeInUse.value.reduce((total, candidate) => {
+    return total + (candidate.sitesUsing ?? 0)
+  }, 0)
+})
+
+/** The end-of-life versions in use, named for the warning (`8.0, 7.4`). */
+const endOfLifeVersions: ComputedRef<string> = computed(() => {
+  return endOfLifeInUse.value
+    .map((candidate) => {
+      return candidate.version
+    })
+    .join(', ')
 })
 
 /**
@@ -120,6 +163,15 @@ const install = async (): Promise<void> => {
   }
 }
 
+/**
+ * Opens the extensions panel for one version.
+ * @param chosen The installed version, e.g. `8.3`.
+ * @returns Nothing; the panel loads its own list.
+ */
+const openExtensions = (chosen: string): void => {
+  extensionsFor.value = chosen
+}
+
 onMounted(async () => {
   await Promise.all([phpVersionsStore.loadPhpVersions(), phpVersionsStore.loadInstallablePhpVersions()])
 })
@@ -135,6 +187,15 @@ onMounted(async () => {
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:items-start">
       <UiCard>
         <UiSectionHeading class="mb-4" :title="t('php.table.heading')" />
+
+        <!-- Administrator-only figure (sitesUsing is null for anyone else): the one fact here that asks
+             for action, so it is stated before the table and not left to a badge. -->
+        <UiAlert v-if="endOfLifeSites > 0" variant="warning" class="mb-4">
+          {{ t('php.eol.warning', { count: endOfLifeSites, versions: endOfLifeVersions }, endOfLifeSites) }}
+          <template #actions>
+            <UiLink to="/sites">{{ t('php.eol.openSites') }}</UiLink>
+          </template>
+        </UiAlert>
 
         <UiLoadingRegion :state="phpVersionsStore.phpVersionsState">
           <!-- The server's own refusal or failure to list: the backend's localized sentence, so
@@ -158,10 +219,26 @@ onMounted(async () => {
             :loading="phpVersionsStore.phpVersionsState === 'loading'"
           >
             <template #cell-version="{ row }">{{ row.version }}</template>
+            <template #cell-lifecycle="{ row }"><PhpLifecycleBadge :lifecycle="row.lifecycle" /></template>
+            <template #cell-endOfLife="{ row }">
+              {{ row.lifecycle.endOfLife === null ? '' : formatDate(row.lifecycle.endOfLife, localeStore.current) }}
+            </template>
+            <template #cell-sitesUsing="{ row }">{{ row.sitesUsing ?? '' }}</template>
             <template #cell-default="{ row }">
               <UiBadge v-if="row.defaultStatus === 'default'" variant="success">{{ defaultLabel(row.defaultStatus) }}</UiBadge>
               <UiBadge v-else-if="row.defaultStatus === 'unknown'" variant="warning">{{ defaultLabel(row.defaultStatus) }}</UiBadge>
               <template v-else>{{ defaultLabel(row.defaultStatus) }}</template>
+            </template>
+            <template #cell-extensions="{ row }">
+              <!-- The visible word is the column's own, short enough to sit beside the version in the
+                   phone's card; the version is in the accessible name, which still contains the word. -->
+              <UiButton
+                variant="secondary"
+                :aria-label="t('php.table.openExtensions', { version: row.version })"
+                @click="openExtensions(row.version)"
+              >
+                {{ t('php.table.extensions') }}
+              </UiButton>
             </template>
           </UiTable>
         </UiLoadingRegion>
@@ -200,5 +277,14 @@ onMounted(async () => {
         </div>
       </UiCard>
     </div>
+
+    <UiCard v-if="extensionsFor !== null">
+      <UiSectionHeading
+        class="mb-4"
+        :title="t('phpExtensions.heading', { version: extensionsFor })"
+        :subtitle="t('phpExtensions.hostWide', { version: extensionsFor })"
+      />
+      <PhpExtensionsPanel :version="extensionsFor" />
+    </UiCard>
   </section>
 </template>

@@ -47,13 +47,13 @@ cli_release_arch() {
 }
 
 # cli_release_manifest_field MANIFEST KEY: prints one value read from a manifest, or nothing when it
-# is absent (the caller decides whether absence is an error). KEY is `version`, `channel`, or
-# `<component>-<arch>.url` / `<component>-<arch>.sha256`. No jq: the manifest is small, machine
+# is absent (the caller decides whether absence is an error). KEY is `version`, `channel`,
+# `notes_url`, `released`, or `<component>-<arch>.url` / `<component>-<arch>.sha256`. No jq: the manifest is small, machine
 # written and pretty printed, and brace depth keeps a top-level key apart from one inside an
 # artifact. Call it only on a manifest cli_release_verify_manifest has accepted.
 cli_release_manifest_field() {
   local manifest="$1" key="$2" name field
-  [[ "$key" =~ ^(version|channel|[a-z]+-[a-z0-9_]+\.(url|sha256))$ ]] \
+  [[ "$key" =~ ^(version|channel|notes_url|released|[a-z]+-[a-z0-9_]+\.(url|sha256))$ ]] \
     || cli_fail "internal error: bad manifest key '${key}'"
   name="${key%.*}"
   field="${key##*.}"
@@ -69,6 +69,72 @@ cli_release_manifest_field() {
     nested == 1 && depth == 3 && in_block && $0 ~ ("^[[:space:]]*" field "[[:space:]]*:") { emit() }
     { opens = gsub(/{/, "{"); closes = gsub(/}/, "}"); depth += opens - closes }
   ' "$manifest"
+}
+
+# cli_release_manifest_is_security MANIFEST: succeeds only when the manifest names this release a
+# security release, that is when its top-level `security` member appears exactly once and is the
+# literal JSON `true` (issue #383). Absent, `false`, a string such as "true", a number, a second
+# `security` member, and a `security` member inside an artifact block all fail: the answer decides
+# what the unattended timer may apply, so every doubtful spelling must read as "not a security
+# release". Call it only on a manifest cli_release_verify_manifest has accepted, so the flag read is
+# the signed one. Never calls cli_fail; the caller decides what a refusal means.
+cli_release_manifest_is_security() {
+  awk '
+    depth == 1 && $0 ~ /^[[:space:]]*"security"[[:space:]]*:/ {
+      seen++
+      if ($0 ~ /^[[:space:]]*"security"[[:space:]]*:[[:space:]]*true[[:space:]]*,?[[:space:]]*$/) { is_true = 1 }
+    }
+    { opens = gsub(/{/, "{"); closes = gsub(/}/, "}"); depth += opens - closes }
+    END { exit (seen == 1 && is_true) ? 0 : 1 }
+  ' "$1"
+}
+
+# The longest notes_url `maran update --check` will print.
+readonly MARAN_RELEASE_NOTES_URL_MAX=512
+
+# cli_release_notes_url_valid URL: succeeds only for an https URL of at most MARAN_RELEASE_NOTES_URL_MAX
+# bytes made of a fixed ASCII alphabet. The text is written by a remote party and printed on a root
+# terminal, so the test is an allow-list: whitespace, control characters (an escape sequence could
+# redraw the screen), quotes, backslashes, angle brackets, the characters a shell reads (` $ ; ( ) ! *
+# and the single quote) and every non-ASCII byte fall outside it, so a pasted URL stays inert.
+# LC_ALL=C pins the character classes to bytes.
+cli_release_notes_url_valid() {
+  local LC_ALL=C
+  [ "${#1}" -le "$MARAN_RELEASE_NOTES_URL_MAX" ] \
+    && [[ "$1" =~ ^https://[A-Za-z0-9][A-Za-z0-9._~:/?#@\&+,=%-]*$ ]]
+}
+
+# cli_release_date_valid DATE: succeeds for a real calendar date written YYYY-MM-DD (2026-02-31 fails).
+cli_release_date_valid() {
+  local LC_ALL=C
+  [[ "$1" =~ ^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$ ]] \
+    && [ "$(date -u -d "$1" +%Y-%m-%d 2>/dev/null)" = "$1" ]
+}
+
+# cli_release_describe_notes MANIFEST: prints the `released:` and `release notes:` lines of a manifest
+# cli_release_verify_manifest has accepted. A field the manifest does not carry is reported as such
+# (an older release has neither); a field that fails its validation is named on stderr and never
+# printed. The URL is only printed, never fetched.
+cli_release_describe_notes() {
+  local manifest="$1" released notes_url
+  released="$(cli_release_manifest_field "$manifest" released)"
+  notes_url="$(cli_release_manifest_field "$manifest" notes_url)"
+  if [ -z "$released" ]; then
+    echo "released: not published"
+  elif cli_release_date_valid "$released"; then
+    echo "released: ${released}"
+  else
+    echo "released: not shown"
+    echo "maran: warning: the manifest's release date is not a YYYY-MM-DD date; it is not shown" >&2
+  fi
+  if [ -z "$notes_url" ]; then
+    echo "release notes: no release notes published"
+  elif cli_release_notes_url_valid "$notes_url"; then
+    echo "release notes: ${notes_url}"
+  else
+    echo "release notes: not shown"
+    echo "maran: warning: the manifest's release notes URL is not a plain https URL; it is not shown" >&2
+  fi
 }
 
 # cli_release_require_work_dir DIR: refuses unless DIR is an absolute path naming a real directory

@@ -179,6 +179,15 @@ backend/
 │   │   │                                 #   vocabulary belongs to no module). These three are the
 │   │   │                                 #   test for this folder: a type that needs to see ALL the
 │   │   │                                 #   modules at once, not one more module's worth of logic.
+│   │   │                                 #   Also here for the same reason: ModuleManifestGuard (refuses
+│   │   │                                 #   at composition time a set of manifests that breaks the
+│   │   │                                 #   module contract — the rules are the Sdk's
+│   │   │                                 #   ManifestValidator, the Host only applies them to the
+│   │   │                                 #   composed set), PanelVersion (the Sdk's IPanelVersion),
+│   │   │                                 #   ModuleAudienceRule (the ONE judgement of what a caller is
+│   │   │                                 #   offered, applied to a module and to each menu entry) and
+│   │   │                                 #   ModuleMenuLocalizer with ModuleMenuItemDto/ModuleRouteDto
+│   │   │                                 #   (a manifest's menu and routes as the catalogue sends them).
 │   │   ├── Resources/                   # the .resx tables the composition root itself owns, reached
 │   │   │                                 #   through IStringLocalizer<T> by an empty marker class per
 │   │   │                                 #   table: DisplayNames (names of things that are not
@@ -196,6 +205,9 @@ backend/
 │   │   │                                 #   singleton counting API-key authentication FAILURES per address,
 │   │   │                                 #   because authorization runs before the framework limiter
 │   │   ├── Resilience/                  # one pipeline per file (agent, acme, outbound http)
+│   │   ├── Search/                      # the global search: SearchEndpoint (POST /api/v1/search), SearchFanOut
+│   │   │                                 #   (asks every ISearchProvider in turn, isolating failure and time),
+│   │   │                                 #   SearchModuleGate (a provider is asked only if its module is enabled)
 │   │   ├── Behaviors/                   # Wolverine message middleware (logging, tx, validation)
 │   │   ├── Idempotency/                 # deliberately holds nothing but its .gitkeep: Idempotency-Key
 │   │   │                                 #   handling is the Sdk's IdempotentAttribute filter over the
@@ -275,17 +287,25 @@ backend/
 │   │       ├── Mail/                    #   no salt, no configuration — grouped by subject; never
 │   │       ├── Network/                 #   files directly under Utilities/
 │   │       ├── Text/                    #   Mail/: EmailAddressRule, MailHeaderTextRule
+│   │       ├── Versions/                #   Versions/: SemanticVersion (strict SemVer 2.0.0 parse and
+│   │       │                            #     precedence, never throws), VersionRange (comparators
+│   │       │                            #     joined by spaces, `>=1.2.0 <2.0.0`)
 │   │       └── Tokens/                  #   Network/: ClientAddress, CidrRule (strict address/prefix
 │   │                                    #     range and its Contains), HostNameRule, PublicUrlRule (the
 │   │                                    #     panel's own https origin), Ipv4MappedAddress
-│   │                                    #   Text/: ColumnText, LikePattern (a search term as a literal
+│   │                                    #   Text/: ColumnText, NotificationText (feed and webhook text: control
+│   │                                    #     characters removed, trimmed, capped), LikePattern (a search term as a literal
 │   │                                    #     ILIKE pattern: \ % _ escaped), CsvField (one RFC 4180
-│   │                                    #     field, spreadsheet formulas neutralised)
+│   │                                    #     field, spreadsheet formulas neutralised), OperatorClaim (the
+│   │                                    #     console's operator name tidied for a log-like column)
 │   │                                    #   Tokens/: RefreshTokenHasher, PasswordResetTokenHasher, ApiKeyHasher
 │   │                                    #     (mint a key, its shape check, digest, constant-time compare)
 │   ├── Maran.Sdk/                   # the module contract consumed by paid modules too
 │   │   ├── DependencyInjection.cs       # AddSdk — the project's registrations
-│   │   ├── Interfaces/                  # IPanelModule.cs — the module contract — plus the
+│   │   ├── Interfaces/                  # IPanelModule.cs — the module contract — with
+│   │   │                                #   IModuleMigrations (what a module that owns a schema offers
+│   │   │                                #   the `maran migrate` verb) and IPanelVersion (the running
+│   │   │                                #   panel's version, implemented by the Host), plus the
 │   │   │                                #   read-only windows one module opens onto another's data,
 │   │   │                                #   implemented by the OWNING module (IAccountDirectory,
 │   │   │                                #   ISiteDirectory, IAuditWriter, IAlertRecipientDirectory,
@@ -300,15 +320,26 @@ backend/
 │   │   │                                #   implements so a shared facility writes into it.
 │   │   │                                #   A seam holding a credential stays module-internal
 │   │   │                                #   (rules/architecture.md "A shared facility's contract").
-│   │   ├── Alerts/                      # OperatorAlertMailer — the ONE path an alert to the
+│   │   ├── Alerts/                      # OperatorAlertDispatcher — the ONE path an alert to the
 │   │   │                                #   server's operator takes: journal it through the caller's
-│   │   │                                #   ISystemAuditJournal, read the address, publish
-│   │   │                                #   SendMailRequested or journal MailSkippedNoSmtp. Callers
-│   │   │                                #   supply only the localized words (issue #290)
+│   │   │                                #   ISystemAuditJournal, publish the webhook event
+│   │   │                                #   (OperatorAlertRaised) and the feed entry
+│   │   │                                #   (PanelNotificationRaised), then one SendMailRequested per
+│   │   │                                #   address or journal MailSkippedNoSmtp. Callers supply only
+│   │   │                                #   the OperatorAlert and the localized words (issues #290, #142, #164)
 │   │   ├── Controllers/                 # BaseApiController (+ controller-scoped filters)
 │   │   ├── Extensions/                  # ApiResultExtensions and other Sdk extensions
 │   │   ├── Permissions/                 # permission constants per area, one file each
-│   │   ├── Navigation/                  # menu contribution types
+│   │   ├── Navigation/                  # what a module contributes to the navigation, as data:
+│   │   │                                #   ModuleMenuItem, ModuleRoute and ModuleIconKeys (the closed
+│   │   │                                #   glyph vocabulary). The catalogue returns them and the SPA
+│   │   │                                #   keeps no menu of its own for the module
+│   │   ├── Manifests/                   # the rules a Manifest must satisfy before the panel composes
+│   │   │                                #   its module, as pure functions: ManifestValidator (one
+│   │   │                                #   manifest, and a whole composed set), ManifestFinding and
+│   │   │                                #   Enums/ManifestFindingKind (the closed set of rules it can
+│   │   │                                #   break), ManifestPermissionVocabulary (the policy names a
+│   │   │                                #   permission may take, read from the Sdk's own constants)
 │   │   ├── Filters/                     # action filters modules may opt into: IdempotentAttribute (with
 │   │   │                                 #   IdempotencyFilter behind it and IdempotencyNoStoreAttribute for an
 │   │   │                                 #   action whose answer carries a secret), and
@@ -369,8 +400,12 @@ backend/
 │           │                            #   arrives through the module's own controllers, discovered
 │           │                            #   by ASP.NET Core's controller model — IPanelModule has no
 │           │                            #   endpoint-mapping member to implement.
-│           ├── <Name>Manifest.cs        # module identity: id, display-name resource key,
-│           │                            #   version, licence tier, dependencies
+│           ├── <Name>Manifest.cs        # module identity: id, display-name resource key, version,
+│           │                            #   licence tier, kind (Core | Packageable), minimum panel
+│           │                            #   version, schema (null when it owns no tables; else equal to
+│           │                            #   the id), dependencies as (id, version range), agent
+│           │                            #   capabilities, permissions (the authorization policy names
+│           │                            #   its controllers use), menu and routes
 │           ├── Controllers/             # thin HTTP surface (+ External/ for outward APIs)
 │           │   └── <Resource>Controller.cs  # an action binds its Command or Query DIRECTLY; there
 │           │                            #   is no Requests/ folder (see "An endpoint binds its
@@ -820,7 +855,8 @@ Maran.Sdk/
 │   ├── BaseApiController.cs      # the base every module controller inherits
 │   └── ApiResultExtensions.cs    # Result<T> -> IActionResult (ProblemDetails on failure)
 ├── Permissions/                  # permission constants per area, one file per area
-├── Navigation/                   # menu contribution types
+├── Navigation/                   # menu contribution types (ModuleMenuItem, ModuleRoute, ModuleIconKeys)
+├── Manifests/                    # ManifestValidator and its findings: the rules a Manifest must satisfy
 ├── Filters/                      # action filters modules may opt into (IdempotentAttribute,
 │                                 #   RequiresAccountFeatureAttribute)
 ├── Streaming/                    # the panel's one stream transport, shared by every module that
@@ -828,13 +864,13 @@ Maran.Sdk/
 │   └── EventStreamFrame.cs       #   heartbeat, flushing, shutdown ordering; a module supplies only
 │                                 #   its frame type, event name and payload
 ├── Alerts/
-│   └── OperatorAlertMailer.cs    # the one operator-alert path every module that alerts calls
+│   └── OperatorAlertDispatcher.cs # the one operator-alert path every module that alerts calls
 └── GlobalUsings.cs
 ```
 
 `Alerts/` is in the Sdk for the same kind of reason: it publishes a Wolverine message, and the Sdk
 is the shared project that references WolverineFx and declares `SendMailRequested`. A module that
-alerts the operator **MUST NOT** read the recipient and publish the mail itself — two copies of that
+alerts the operator **MUST NOT** read the recipients and publish the mail, the webhook event or the feed entry itself — two copies of that
 path (Monitoring's and Backups') existed until issue #290, and a difference between them would have
 been invisible to either module's tests.
 
@@ -861,8 +897,14 @@ Maran.SharedKernel/Utilities/
 │   └── Ipv4MappedAddress.cs      # unwrapping the mapped form a dual-stack listener reports
 ├── Text/
 │   ├── ColumnText.cs             # shortening a value to what a character varying(n) column holds
+│   ├── NotificationText.cs       # text bound for the notification feed or a webhook: control characters removed, capped
 │   ├── CsvField.cs               # one value as one RFC 4180 field, a leading formula character neutralised
-│   └── LikePattern.cs            # a search term as an ILIKE pattern that matches it literally
+│   ├── LikePattern.cs            # a search term as an ILIKE pattern that matches it literally
+│   ├── SearchRank.cs             # how well a term matches a candidate's fields: exact, prefix, substring
+│   └── OperatorClaim.cs          # the operator's console name tidied before a log-like column
+├── Versions/
+│   ├── SemanticVersion.cs        # a strictly parsed Semantic Versioning 2.0.0 version and its precedence
+│   └── VersionRange.cs           # a dependency's accepted versions, `>=1.2.0 <2.0.0`, and whether one satisfies it
 └── Tokens/
     ├── ApiKeyHasher.cs              # mint an API key, check its shape, digest it, compare digests
     ├── PasswordResetTokenHasher.cs  # mint a reset token, and the digest stored beside it

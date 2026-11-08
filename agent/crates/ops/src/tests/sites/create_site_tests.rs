@@ -25,7 +25,7 @@ use crate::sites::{SitesOpError, create_site};
 
 use crate::php::fake_php_host::FakePhpHost;
 use crate::sites::fake_site_host::{
-    FakeSiteHost, TEST_WORKERS, create_test_site, distro, php_input,
+    FakeSiteHost, TEST_WORKERS, create_test_site, distro, php_input, php_input_with_options,
 };
 
 /// Counts the non-overlapping occurrences of `needle` in `haystack`.
@@ -518,4 +518,46 @@ fn a_refused_vhost_leaves_the_document_root_and_the_pool_but_no_vhost() {
         Some("the winner's vhost\n"),
         "and the only vhost is the winner's"
     );
+}
+
+#[test]
+fn a_sites_credential_file_is_written_before_the_vhost_that_names_it() {
+    let host = FakeSiteHost::passing();
+    let input = php_input_with_options();
+
+    create_test_site(&host, &input).unwrap();
+
+    // nginx reloads the vhost the moment it is written; one that named a file
+    // not there yet would answer every request with a 500.
+    assert_eq!(
+        host.write_order(),
+        [
+            AgentPaths::site_auth_file(&input.domain),
+            PathBuf::from("/etc/maran/nginx/sites/example.com.conf"),
+        ]
+    );
+}
+
+#[test]
+fn options_that_do_not_fit_the_site_are_refused_before_any_directory_is_made() {
+    use crate::sites::model::canonical_host::CanonicalHost;
+    use crate::sites::model::site_options::SiteOptions;
+
+    let host = FakeSiteHost::passing();
+    // The site serves `shop.example.com` only; the `www.` preference names
+    // `www.shop.example.com`, which it does not serve.
+    let input = CreateSiteInput {
+        domain: Domain::parse("shop.example.com").unwrap(),
+        aliases: vec![],
+        options: SiteOptions::new(Some(CanonicalHost::Www), None, None, vec![], vec![], None)
+            .unwrap(),
+        ..php_input()
+    };
+
+    let failure = create_test_site(&host, &input).unwrap_err();
+
+    assert!(matches!(failure, SitesOpError::InvalidOptions(_)));
+    assert!(host.created().is_empty());
+    assert!(host.log_directories().is_empty());
+    assert!(host.write_order().is_empty());
 }

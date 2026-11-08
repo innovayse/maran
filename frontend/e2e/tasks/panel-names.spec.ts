@@ -10,7 +10,7 @@ import type { PanelTask } from '../../src/types/panelTask'
 // the vocabulary (issue #330).
 
 const LICENSED: PanelModule[] = [
-  { name: 'tasks', displayName: 'Background tasks', tier: 'included', state: 'enabled' },
+  { name: 'tasks', displayName: 'Background tasks', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 /** A name no bundle contains, so a badge printing it can only have read it off the row. */

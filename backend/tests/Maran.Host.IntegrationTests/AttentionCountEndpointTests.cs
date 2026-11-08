@@ -12,6 +12,8 @@ using Maran.Modules.Firewall.Persistence;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
+using Maran.Modules.Notifications.Persistence;
+using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Ssl.Persistence;
 using Maran.Modules.Tasks.Persistence;
 using Maran.SharedKernel.Interfaces;
@@ -41,7 +43,7 @@ namespace Maran.Host.IntegrationTests;
 /// assert.
 /// </para>
 /// <para>
-/// UNOBSERVED HERE: the count of failed tasks, expiring certificates, failed backups and bans is
+/// UNOBSERVED HERE: the count of failed tasks, expiring certificates, failed backups, bans and end-of-life PHP sites is
 /// asserted as a sum in <c>AttentionTallyTests</c> and not re-seeded here; this file observes the
 /// route, the policy, the clock source and the unavailable state.
 /// </para>
@@ -202,9 +204,11 @@ public sealed class AttentionCountEndpointTests : IAsyncLifetime
             typeof(IdentityDbContext),
             typeof(AccountsDbContext),
             typeof(BackupsDbContext),
+            typeof(SitesDbContext),
             typeof(SslDbContext),
             typeof(FirewallDbContext),
             typeof(TasksDbContext),
+            typeof(NotificationsDbContext),
         ];
 
         using var scope = factory.Services.CreateScope();

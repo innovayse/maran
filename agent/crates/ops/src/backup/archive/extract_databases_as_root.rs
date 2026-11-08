@@ -71,12 +71,36 @@ pub(crate) fn extract_databases_as_root(
     })?;
 
     for (name, recorded) in expected {
-        let (sha256, _bytes) = checksum_file(&extracted_dump_path(scratch, name))?;
-        if sha256 != recorded.sha256 {
-            return Err(BackupError::DumpChecksumMismatch {
-                database: name.as_str().to_owned(),
-            });
-        }
+        verify_extracted_dump(scratch, name, recorded)?;
+    }
+
+    Ok(())
+}
+
+/// Hashes one extracted dump and compares it with the digest the manifest
+/// recorded for it.
+///
+/// The whole restore calls it once per database it will load, and the
+/// single-database restore (issue #160) once: one comparison, one place, so the
+/// two cannot come to disagree about what "this is the dump the backup took"
+/// means.
+///
+/// # Errors
+///
+/// - [`BackupError::ChecksumUnreadable`] when the dump is not there or cannot be
+///   read to the end.
+/// - [`BackupError::DumpChecksumMismatch`] naming `database` when it is not the
+///   dump this backup wrote.
+pub(crate) fn verify_extracted_dump(
+    scratch: &Path,
+    database: &DatabaseName,
+    recorded: &ManifestDatabase,
+) -> Result<(), BackupError> {
+    let (sha256, _bytes) = checksum_file(&extracted_dump_path(scratch, database))?;
+    if sha256 != recorded.sha256 {
+        return Err(BackupError::DumpChecksumMismatch {
+            database: database.as_str().to_owned(),
+        });
     }
 
     Ok(())

@@ -3,8 +3,10 @@ using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Tests.TestSupport;
+using Maran.Sdk.Contracts;
 using Maran.Sdk.Events;
 using Maran.SharedKernel.Results;
+using Maran.SharedKernel.Security;
 using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Accounts.Tests.Commands.CreateAccount;
@@ -176,6 +178,90 @@ public sealed class CreateAccountCommandHandlerTests
 
         Assert.Equal("PlanNotFound", result.Error!.Code);
         Assert.Empty(agent.Calls);
+    }
+
+    /// <summary>
+    /// A weak initial password is refused before the agent is asked anything and before any row is
+    /// written: no account is left behind with a login that was never issued (issue #194).
+    /// </summary>
+    [Fact]
+    public async Task A_weak_initial_password_is_refused_before_the_agent_or_the_database_is_touched()
+    {
+        await using var dbContext = CreateDbContext();
+        var agent = new RecordingAgentAccountsClient();
+        var bus = new StubMessageBus();
+        var policy = new StubInitialPasswordPolicy("weak");
+        var handler = AccountHandlerFactory.Create(
+            dbContext, FakeCurrentUser.Admin(), agent, bus: bus, passwordPolicy: policy);
+        var planId = await SeedPlanAsync(dbContext);
+
+        var result = await handler.HandleAsync(
+            new CreateAccountCommand(
+                "acme",
+                "acme.example.com",
+                planId,
+                "owner@example.com",
+                LoginMode: OwnerLoginMode.InitialPassword,
+                InitialPassword: new SensitiveString("weak"),
+                IpAddress: Ip,
+                UserAgent: Client),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AccountInitialPasswordInvalid", result.Error!.Code);
+        Assert.Equal(ErrorType.Validation, result.Error.Type);
+        Assert.Equal(["acme"], policy.AskedFor);
+        Assert.Empty(agent.Calls);
+        Assert.Empty(await dbContext.Accounts.ToListAsync());
+        Assert.Empty(bus.Invoked);
+    }
+
+    /// <summary>
+    /// The inverse control: an initial password the policy accepts creates the account, so the refusal
+    /// above is the policy's verdict and not a handler that refuses every initial password.
+    /// </summary>
+    [Fact]
+    public async Task An_initial_password_the_policy_accepts_creates_the_account()
+    {
+        await using var dbContext = CreateDbContext();
+        var agent = new RecordingAgentAccountsClient();
+        var policy = new StubInitialPasswordPolicy("weak");
+        var handler = AccountHandlerFactory.Create(dbContext, FakeCurrentUser.Admin(), agent, passwordPolicy: policy);
+        var planId = await SeedPlanAsync(dbContext);
+
+        var result = await handler.HandleAsync(
+            new CreateAccountCommand(
+                "acme",
+                "acme.example.com",
+                planId,
+                "owner@example.com",
+                LoginMode: OwnerLoginMode.InitialPassword,
+                InitialPassword: new SensitiveString("Correct-Horse-9"),
+                IpAddress: Ip,
+                UserAgent: Client),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(["acme"], policy.AskedFor);
+        Assert.Single(await dbContext.Accounts.ToListAsync());
+    }
+
+    /// <summary>An invitation carries no password, so the password policy is never asked.</summary>
+    [Fact]
+    public async Task An_invitation_never_asks_the_password_policy()
+    {
+        await using var dbContext = CreateDbContext();
+        var policy = new StubInitialPasswordPolicy();
+        var handler = AccountHandlerFactory.Create(
+            dbContext, FakeCurrentUser.Admin(), new RecordingAgentAccountsClient(), passwordPolicy: policy);
+        var planId = await SeedPlanAsync(dbContext);
+
+        var result = await handler.HandleAsync(
+            new CreateAccountCommand("acme", "acme.example.com", planId, "owner@example.com", IpAddress: Ip, UserAgent: Client),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(policy.AskedFor);
     }
 
     /// <summary>Seeds one plan and returns its id.</summary>

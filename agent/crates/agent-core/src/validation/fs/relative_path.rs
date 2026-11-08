@@ -2,15 +2,9 @@
 
 use std::path::PathBuf;
 
+use super::path_component::check_path_component;
+use super::path_component_problem::PathComponentProblem;
 use super::relative_path_error::RelativePathError;
-
-/// Longest single component the agent will accept.
-///
-/// 255 bytes is the limit every filesystem in the support matrix enforces on a
-/// name, so a longer one could not be created anyway; refusing it here turns an
-/// `ENAMETOOLONG` from inside a forked child — which can report nothing but an
-/// exit status — into a typed answer the panel can read.
-const MAXIMUM_COMPONENT: usize = 255;
 
 /// Most components the agent will descend into or create.
 ///
@@ -68,22 +62,12 @@ impl RelativePath {
 
         let mut components = Vec::new();
         for component in text.split('/') {
-            if component.is_empty() {
-                return Err(RelativePathError::EmptyComponent);
-            }
-            if component == "." || component == ".." {
-                return Err(RelativePathError::Traversal);
-            }
-            // Checked on the raw bytes rather than on `char`s: a NUL is what
-            // truncates the name at the C boundary, and every other control
-            // character is refused with it because none belongs in a file name
-            // the panel asked for (rules/security.md item 4).
-            if component.bytes().any(|byte| byte.is_ascii_control()) {
-                return Err(RelativePathError::ForbiddenCharacter);
-            }
-            if component.len() > MAXIMUM_COMPONENT {
-                return Err(RelativePathError::ComponentTooLong);
-            }
+            check_path_component(component).map_err(|problem| match problem {
+                PathComponentProblem::Empty => RelativePathError::EmptyComponent,
+                PathComponentProblem::Traversal => RelativePathError::Traversal,
+                PathComponentProblem::ForbiddenCharacter => RelativePathError::ForbiddenCharacter,
+                PathComponentProblem::TooLong => RelativePathError::ComponentTooLong,
+            })?;
             // Checked INSIDE the loop, so the ceiling is a bound on what this
             // function allocates rather than a report on what it already has.
             // A path of a million components would otherwise be materialised in

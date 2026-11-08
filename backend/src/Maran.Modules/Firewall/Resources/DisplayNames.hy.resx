@@ -27,4 +27,22 @@
   <data name="FirewallProtocolUdp">
     <value>UDP</value>
   </data>
+  <data name="FirewallMenuRules">
+    <value>Կանոններ</value>
+  </data>
+  <data name="FirewallMenuBans">
+    <value>Արգելափակումներ</value>
+  </data>
+  <data name="FirewallMenuWhitelist">
+    <value>Բացառություններ</value>
+  </data>
+  <data name="FirewallRouteRules">
+    <value>Ցանցային վահան</value>
+  </data>
+  <data name="FirewallRouteBans">
+    <value>Արգելափակումներ</value>
+  </data>
+  <data name="FirewallRouteWhitelist">
+    <value>Բացառություններ</value>
+  </data>
 </root>

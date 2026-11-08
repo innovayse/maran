@@ -115,6 +115,10 @@ internal static class AgentErrorTranslator
             ErrorCode.AccountSuspended => ErrorType.Conflict,
             ErrorCode.AgentSaturated => ErrorType.Unavailable,
             ErrorCode.RunNotStopped => ErrorType.Failure,
+            ErrorCode.QuotaExceeded => ErrorType.Conflict,
+            ErrorCode.ArchiveUnsafe => ErrorType.Validation,
+            ErrorCode.TooLarge => ErrorType.Validation,
+            ErrorCode.ArchiveUnopenable => ErrorType.Validation,
             _ => ErrorType.Failure,
         };
     }
@@ -187,6 +191,32 @@ internal static class AgentErrorTranslator
     /// <see cref="ErrorCode.SystemFailure"/>, whose generic sentence says the request failed and
     /// leaves the host as it was; a module that knows what the code means says so in its own words, as
     /// <c>Maran.Modules.Cron.Mappers.CronAgentErrorTranslator</c> does.
+    ///
+    /// <see cref="ErrorCode.QuotaExceeded"/> is the account's disk quota ending a write (issue #167).
+    /// Its kind is <see cref="ErrorType.Conflict"/> (409): the request is well-formed and disagrees
+    /// with state the customer owns, a quota already spent, and repeating it unchanged meets the same
+    /// quota. It is not <see cref="ErrorCode.BelowFreeSpaceFloor"/>, which is the host running short
+    /// for everyone and answers 503. <see cref="ErrorCode.ArchiveUnsafe"/> is an archive refused as a
+    /// whole because it holds a member the agent will not write; its kind is
+    /// <see cref="ErrorType.Validation"/> (400), because the customer can send a different archive,
+    /// and its sentence names no member: a member name is the customer's data and belongs in the
+    /// journal of the module that called, never in the answer.
+    ///
+    /// <see cref="ErrorCode.TooLarge"/> is the agent refusing to open a file larger than the size the
+    /// request allowed, or a directory holding more names than a listing can describe (issue #166).
+    /// Its kind is <see cref="ErrorType.Validation"/> (400): the request as asked cannot be answered
+    /// and asking again meets the same size, so it is neither a 503 that invites a retry nor a 500,
+    /// because nothing broke and nothing was changed. It travels as its own code so a module can tell
+    /// the customer the file or folder is too large to open here, which no generic sentence says.
+    ///
+    /// <see cref="ErrorCode.ArchiveUnopenable"/> is a sealed backup archive that did not open under
+    /// the key the call carried, or that was sent none (issue #445). Its kind is
+    /// <see cref="ErrorType.Validation"/> (400): the pair of archive and key is what the agent
+    /// refused, nothing was changed, and repeating the call unchanged meets the same key. The code is
+    /// named for what the agent knows and no more: the cipher authenticates every chunk, so a wrong
+    /// key and a damaged sealed file fail identically, and the agent cannot say "wrong key". It
+    /// travels as its own code so the backups module can tell the operator to check the destination's
+    /// archive key, which the shared validation sentence ("correct these details") does not say.
     /// </remarks>
     public static string ToErrorCode(ErrorCode code)
     {
@@ -206,6 +236,10 @@ internal static class AgentErrorTranslator
             ErrorCode.AccountSuspended => nameof(ErrorMessages.AgentAccountSuspended),
             ErrorCode.AgentSaturated => nameof(ErrorMessages.AgentSaturated),
             ErrorCode.RunNotStopped => nameof(ErrorMessages.AgentRunNotStopped),
+            ErrorCode.QuotaExceeded => nameof(ErrorMessages.AgentQuotaExceeded),
+            ErrorCode.ArchiveUnsafe => nameof(ErrorMessages.AgentArchiveUnsafe),
+            ErrorCode.TooLarge => nameof(ErrorMessages.AgentTooLarge),
+            ErrorCode.ArchiveUnopenable => nameof(ErrorMessages.AgentArchiveUnopenable),
             _ => nameof(ErrorMessages.AgentUnspecified),
         };
     }

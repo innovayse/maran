@@ -236,11 +236,11 @@ REST `/api/provisioning/v1/…`; auth — скоупированные API-кл�
 
 ## 14. Установщик, обновления, CLI
 
-**Установка:** `curl -sSL https://get.maran.innovayse.com | sudo bash`; скрипт тонкий — качает версионированные артефакты с проверкой Ed25519-подписи манифеста. Preflight до первого изменения: ОС/архитектура, RAM/диск, порты, чужие панели → честный отказ. Шаги идемпотентны: deps → PgSQL (unix-socket only) → юзер `maran` → бинарники `/usr/local/maran/` → hardened systemd-юниты (`NoNewPrivileges`, `ProtectSystem=strict`, `PrivateTmp` для api) → nginx-vhost 8443 self-signed → миграции → сервисы. **Первый админ — в браузере по одноразовому setup-токену** (пароль не попадает в логи/history). Полный лог установки; честный `uninstall.sh`; офлайн-tarball для энтерпрайза.
+**Установка:** `curl -sSL https://get.maran.innovayse.com | sudo bash`; скрипт тонкий — качает версионированные артефакты с проверкой подписи манифеста (ECDSA P-384, SHA-384; лицензии подписаны отдельно, Ed25519 — см. §13). Preflight до первого изменения: ОС/архитектура, RAM/диск, порты, чужие панели → честный отказ. Шаги идемпотентны: deps → PgSQL (unix-socket only) → юзер `maran` → бинарники `/usr/local/maran/` → hardened systemd-юниты (`NoNewPrivileges`, `ProtectSystem=strict`, `PrivateTmp` для api) → nginx-vhost 8443 self-signed → миграции → сервисы. **Первый админ — в браузере по одноразовому setup-токену** (пароль не попадает в логи/history). Полный лог установки; честный `uninstall.sh`; офлайн-tarball для энтерпрайза.
 
-**Обновления:** каналы stable/beta; манифесты подписаны; один клик из UI или `maran update`. Порядок: скачать+проверить всё → автоматический `pg_dump` → blue/green-каталоги + переключение симлинка → рестарт → агент последним (handshake + аддитивный proto покрывают окно). `maran rollback` — откат симлинка + дамп как страховка. Автообновление только security-патчей (по умолчанию вкл, отключаемо).
+**Обновления:** каналы stable/beta; манифесты подписаны; один клик из UI или `maran update` (`maran update --check` — только проверка версии). `maran update`/`--check` инициирует оператор от root: CLI скачивает подписанный манифест и артефакты по HTTPS, не передавая идентификаторов; вызов не делают ни API, ни агент; безвызовная альтернатива — `--offline-tarball`. Проверка по таймеру этим не покрыта. Порядок: скачать+проверить всё → автоматический `pg_dump` → blue/green-каталоги + переключение симлинка → рестарт API, затем агента, и только после обоих рестартов — health-gate (окно между рестартами покрывают handshake и аддитивный proto, но ровно на одну ревизию, поэтому готовность проверяется после обоих). `maran rollback` — откат симлинка + дамп как страховка. Автообновление только security-патчей (по умолчанию вкл, отключаемо).
 
-**CLI `maran`** (root-only): `status`, `update`, `rollback`, `admin-reset-password`, `collect-diagnostics`, `panel-backup`, `panel-restore` (disaster recovery of the panel itself: database, keys, licence, configuration — docs/operations/panel-disaster-recovery.md) — аварийный доступ при недоступном вебе.
+**CLI `maran`** (root-only): `status`, `update`, `rollback`, `admin-reset-password`, `issue-panel-certificate`, `collect-diagnostics`, `panel-backup`, `panel-restore` (disaster recovery of the panel itself: database, keys, licence, configuration — docs/operations/panel-disaster-recovery.md) — аварийный доступ при недоступном вебе.
 
 ## 15. Наблюдаемость и ошибки
 
@@ -248,7 +248,7 @@ REST `/api/provisioning/v1/…`; auth — скоупированные API-кл�
 - **Сквозной correlation-id:** UI → HTTP → Wolverine → gRPC-метаданные → операция агента.
 - `/health` (живость + готовность: БД, handshake агента); самомониторинг через Monitoring-модуль; деградационный баннер + алерт при падении агента.
 - `collect-diagnostics` → тарболл с вычищенными секретами.
-- **Без скрытой телеметрии:** единственный исходящий вызов — документированный phone-home; отчёты об ошибках opt-in.
+- **Без скрытой телеметрии:** исходящие вызовы — документированный phone-home и запускаемая оператором загрузка подписанного релиза через `maran update` (§14); отчёты об ошибках opt-in.
 - Ошибки: типизированный `Result` в домене; наружу RFC 7807 с кодом и i18n-текстом; enum ошибок в proto; **детализация по роли** (админ — полная причина, клиент — безопасная формулировка).
 
 ## 16. Тестирование

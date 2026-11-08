@@ -30,6 +30,8 @@ public sealed class ResellerEnvelopePolicyTests
     [InlineData("MaxFtpUsers")]
     [InlineData("MaxCronEntries")]
     [InlineData("MaxPhpWorkersPerPool")]
+    [InlineData("MaxMailboxes")]
+    [InlineData("MailboxQuotaPoolMib")]
     public void A_plan_one_over_a_ceiling_is_refused_naming_that_figure(string field)
     {
         var atCeilings = AtTheCeilings();
@@ -42,6 +44,8 @@ public sealed class ResellerEnvelopePolicyTests
             "MaxFtpUsers" => atCeilings with { MaxFtpUsers = 14 },
             "MaxCronEntries" => atCeilings with { MaxCronEntries = 15 },
             "MaxPhpWorkersPerPool" => atCeilings with { MaxPhpWorkersPerPool = 16 },
+            "MaxMailboxes" => atCeilings with { MaxMailboxes = 17 },
+            "MailboxQuotaPoolMib" => atCeilings with { MailboxQuotaPoolMib = 18 },
             _ => throw new ArgumentOutOfRangeException(nameof(field)),
         };
 
@@ -223,6 +227,8 @@ public sealed class ResellerEnvelopePolicyTests
             maxFtpUsers: 13,
             maxCronEntries: 14,
             maxPhpWorkersPerPool: 15,
+            maxMailboxes: 16,
+            mailboxQuotaPoolMib: 17,
             features: AccountFeature.Mail | AccountFeature.Dns);
     }
 
@@ -238,6 +244,8 @@ public sealed class ResellerEnvelopePolicyTests
             maxFtpUsers: 13,
             maxCronEntries: 14,
             maxPhpWorkersPerPool: 15,
-            features: AccountFeature.Mail | AccountFeature.Dns);
+            features: AccountFeature.Mail | AccountFeature.Dns,
+            maxMailboxes: 16,
+            mailboxQuotaPoolMib: 17);
     }
 }

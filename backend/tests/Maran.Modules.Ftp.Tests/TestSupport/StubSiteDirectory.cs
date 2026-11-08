@@ -36,7 +36,14 @@ public sealed class StubSiteDirectory : ISiteDirectory
             SiteBackend.Php,
             "8.3",
             string.Empty,
-            HasCertificate: true));
+            HasCertificate: true,
+            SiteOptionsSnapshot.None));
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<string>> ListDomainsAsync(Guid accountId, CancellationToken cancellationToken)
+    {
+        return Task.FromResult<IReadOnlyList<string>>([]);
     }
 
     /// <inheritdoc />

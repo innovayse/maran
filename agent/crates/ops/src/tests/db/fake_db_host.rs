@@ -414,6 +414,16 @@ impl DbHost for FakeDbHost {
         }
 
         if statement.starts_with("REVOKE ") {
+            // MariaDB's grammar refuses `ALL PRIVILEGES, GRANT OPTION` in one REVOKE
+            // (error 1064, issue #450); the fake must too, or the unit tests accept it.
+            if statement.starts_with("REVOKE ALL PRIVILEGES, ")
+                || statement.contains(", GRANT OPTION ON ")
+            {
+                return Err(DbError::from_client(
+                    1,
+                    "ERROR 1064 (42000): You have an error in your SQL syntax",
+                ));
+            }
             let revoked = Self::quoted(statement, '`');
             let user = Self::nth_quoted(statement, '\'', 1);
             // Matched literally on the `Db` column, exactly as the server does:

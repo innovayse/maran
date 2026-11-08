@@ -2,16 +2,20 @@ using Maran.Modules.Accounts;
 using Maran.Modules.Backups;
 using Maran.Modules.Cron;
 using Maran.Modules.Databases;
+using Maran.Modules.Dns;
+using Maran.Modules.Files;
 using Maran.Modules.Firewall;
 using Maran.Modules.Ftp;
 using Maran.Modules.Idempotency;
 using Maran.Modules.Identity;
+using Maran.Modules.Mail;
 using Maran.Modules.Monitoring;
 using Maran.Modules.Notifications;
 using Maran.Modules.Sftp;
 using Maran.Modules.Sites;
 using Maran.Modules.Ssl;
 using Maran.Modules.Tasks;
+using Maran.Modules.Updates;
 using Maran.Sdk.Interfaces;
 
 namespace Maran.Host.Modules;
@@ -50,12 +54,18 @@ public static class ModuleRegistry
             new DatabasesModule(),
             new SftpModule(),
             new FtpModule(),
+            new MailModule(),
+            new DnsModule(),
             new CronModule(),
+            new FilesModule(),
             new FirewallModule(),
             new TasksModule(),
             new MonitoringModule(),
             new NotificationsModule(),
             new BackupsModule(),
             new IdempotencyModule(),
+            // The panel's own update screen (issue #382): administrator only, no menu entry because the
+            // SPA reaches it from Settings, and no schema.
+            new UpdatesModule(),
         ];
 }

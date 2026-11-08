@@ -28,6 +28,46 @@ service PhpService {
   // the same test InstallPhpVersion applies, so an install picker built on
   // this list never offers a version the install would refuse.
   rpc ListInstallablePhpVersions(ListInstallablePhpVersionsRequest) returns (ListInstallablePhpVersionsResponse);
+
+  // Lists the thirteen extensions of the panel's closed catalogue for one
+  // installed PHP version, alphabetical, each with whether that version's
+  // php-fpm has it loaded and what this host's family can do with it.
+  // Read-only. The state is what the daemon loads (its own module listing),
+  // not what an ini file says. An unsupported version is INVALID_INPUT, a
+  // supported version that is not installed is VALIDATION_FAILED, and a
+  // listing that could not be read is SYSTEM_FAILURE, never an empty list.
+  rpc ListPhpExtensions(ListPhpExtensionsRequest) returns (ListPhpExtensionsResponse);
+
+  // Switches one catalogue extension on or off for one installed PHP version,
+  // streaming progress. Switching on installs the extension's package through
+  // the same root install unit a PHP version uses, then enables it; switching
+  // off needs a family switch and is refused where there is none. The change
+  // is checked with `php-fpm -t` and reloaded, and undone when php-fpm refuses
+  // it. Idempotent: an extension already in the requested state completes
+  // immediately with a success terminal message. The effect is host-wide for
+  // that version: every account's pool is reloaded.
+  rpc SetPhpExtension(SetPhpExtensionRequest) returns (stream SetPhpExtensionResponse);
+
+  // Rewrites one account's existing php-fpm pool at one PHP version with a new
+  // worker budget and a new set of php.ini settings. A closed typed command,
+  // not a way to run or template anything: the settings are `PhpSetting`
+  // pairs the agent checks against its own whitelist. Idempotent: the pool is
+  // rendered, compared byte for byte with the file on disk, and written
+  // (checked with `php-fpm -t`, reloaded, undone when php-fpm refuses it) only
+  // when it differs, so repeating a request that already holds writes and
+  // reloads nothing. The request REPLACES the pool's setting set: a setting
+  // that is not listed returns to the pool's default.
+  // NOT_FOUND when the pool file of that account at that version is absent, so
+  // this rpc can never create a pool (CreateSite and UpdateSitePhpVersion
+  // do). Every override is re-validated against the agent's whitelist and is
+  // refused with INVALID_INPUT when it is not listed, malformed, out of range
+  // or carries a control character, never dropped; so is `max_children` outside
+  // the range the agent bounds it to, and a `post_max_size` smaller than the
+  // `upload_max_filesize` in the same set. A version that is not installed is
+  // VALIDATION_FAILED, a pool php-fpm refuses is VALIDATION_FAILED with the
+  // previous pool restored, and an account whose lock another operation holds
+  // is ACCOUNT_BUSY (nothing written; retry).
+  rpc ApplyPhpPoolSettings(ApplyPhpPoolSettingsRequest) returns (ApplyPhpPoolSettingsResponse);
 }
 
 // Request for ListPhpVersions. Carries no parameters: the list is always
@@ -126,3 +166,124 @@ message InstallablePhpVersion {
   // True when this version is already installed on the host.
   bool installed = 2;
 }
+
+// Request for ListPhpExtensions.
+message ListPhpExtensionsRequest {
+  // Two-component version whose extensions to list, e.g. "8.3". Validated
+  // against the versions this agent supports (7.4 through 8.4) and required to
+  // be installed.
+  string version = 1;
+}
+
+// Response for ListPhpExtensions.
+message ListPhpExtensionsResponse {
+  oneof result {
+    ListPhpExtensionsOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+// Terminal success payload for ListPhpExtensions.
+message ListPhpExtensionsOk {
+  // One entry per catalogue extension, alphabetical by name, whether or not
+  // the extension is loaded. Always thirteen entries.
+  repeated PhpExtension extensions = 1;
+}
+
+// One catalogue extension as one PHP version's php-fpm sees it.
+message PhpExtension {
+  // The catalogue name, lowercase: one of bcmath, curl, gd, gmp, imagick, intl,
+  // mbstring, mysql, opcache, redis, soap, xml, zip.
+  string name = 1;
+  // True when the version's php-fpm has the extension loaded, read from its own
+  // module listing.
+  bool enabled = 2;
+  // What this host's family can do with the extension.
+  PhpExtensionAvailability availability = 3;
+}
+
+// What the panel can do with one catalogue extension on this host's family.
+enum PhpExtensionAvailability {
+  // Not set. A reader treats it as "not known" and offers no action.
+  PHP_EXTENSION_AVAILABILITY_UNSPECIFIED = 0;
+  // The family has a package for it and a switch for both directions: it can be
+  // turned on (installing the package if needed) and turned off.
+  PHP_EXTENSION_AVAILABILITY_AVAILABLE = 1;
+  // The family has a package but no clean switch: it can be turned on, by
+  // installing the package, and not turned off.
+  PHP_EXTENSION_AVAILABILITY_DISABLE_NOT_SUPPORTED = 2;
+  // The family has no separate package for it (built into the base package, or
+  // not offered), so the agent cannot turn it on.
+  PHP_EXTENSION_AVAILABILITY_NOT_PACKAGED = 3;
+}
+
+// Request for SetPhpExtension.
+message SetPhpExtensionRequest {
+  // Two-component version to change, e.g. "8.3". Validated against the
+  // versions this agent supports and required to be installed.
+  string version = 1;
+  // The catalogue name of the extension, exactly as ListPhpExtensions returns
+  // it (lowercase). Anything outside the thirteen names, or carrying a control
+  // character, is INVALID_INPUT: the agent never takes a package name from the
+  // caller.
+  string extension = 2;
+  // True to switch the extension on, false to switch it off.
+  bool enabled = 3;
+}
+
+// Streamed response for SetPhpExtension.
+message SetPhpExtensionResponse {
+  oneof result {
+    // Emitted repeatedly while the change runs.
+    Progress progress = 1;
+    // Terminal success.
+    SetPhpExtensionOk ok = 2;
+    // Terminal failure.
+    AgentError error = 3;
+  }
+}
+
+// Terminal success payload for SetPhpExtension.
+message SetPhpExtensionOk {
+  // The version changed, echoed back so a caller that retried a cancelled
+  // stream can confirm what it got.
+  string version = 1;
+  // The catalogue name of the extension changed.
+  string extension = 2;
+  // The state the extension is now in.
+  bool enabled = 3;
+}
+
+// Request for ApplyPhpPoolSettings.
+message ApplyPhpPoolSettingsRequest {
+  // The hosting account whose pool is rewritten. Re-validated by the agent
+  // against the account-name allow-list; it also names the pool file, so it
+  // never reaches a path unparsed.
+  string account_username = 1;
+  // Two-component PHP version the pool belongs to, e.g. "8.3". Validated
+  // against the versions this agent supports; one account has one pool per
+  // version, so this is half the pool's identity.
+  string version = 2;
+  // The pool's worker budget (`pm.max_children`), a count of processes from
+  // the account's plan. The agent bounds it (1 to 256) and refuses a value
+  // outside, rather than clamping it.
+  uint32 max_children = 3;
+  // The complete set of php.ini settings the pool carries, each checked
+  // against the agent's whitelist and that name's bounds. Empty means the pool
+  // carries none and every setting is at the pool's default. The last
+  // occurrence of a name wins, as in the file.
+  repeated PhpSetting overrides = 4;
+}
+
+// Response for ApplyPhpPoolSettings.
+message ApplyPhpPoolSettingsResponse {
+  oneof result {
+    ApplyPhpPoolSettingsOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+// Terminal success payload for ApplyPhpPoolSettings. Empty: the pool now
+// carries the requested budget and settings, whether this call wrote it or it
+// already did.
+message ApplyPhpPoolSettingsOk {}

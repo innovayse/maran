@@ -5,6 +5,240 @@ than a strict category list: what changed and why it matters to somebody running
 
 ## Unreleased
 
+**Reseller features: branding, API keys with administrator oversight, account transfer, an audit view, rename, invitations and the plan picker (#367, #368, #435, #369, #370, #373, #374, #429, #437).** A reseller sets a name, logo and accent colour that its customers' panel shows (Settings, Branding); the server checks the colour is readable under white text and the logo is a real PNG, JPEG or WebP image (#367). A reseller creates read-only API keys of its own (`plans.read`, `accounts.read`) on Settings, API keys, and an administrator lists and revokes one reseller's keys from the reseller's page, journalled under the administrator (#368, #435). An administrator can move an account to another reseller, or to the administrator, with a plan of the new owner (`PUT /api/v1/accounts/{id}/owner`); the new owner's limits and disk pool are checked, and the former reseller's view-as sessions on the account end (#369). A reseller reads its own part of the audit journal, entries about its accounts and its own logins, under Activity; other accounts answer 404 (#370). An administrator can rename a reseller and change its contact address and language (`PUT /api/v1/resellers/{id}`); the reseller's login follows (#373). An administrator can resend a reseller's invitation by e-mail or create a one-time invitation link from the reseller's page, and a reseller whose login was never created has it rebuilt from its record (#374, #429). The create-account form lists the chosen reseller's plans when an administrator picks a reseller as owner, and clears the chosen plan when the owner changes (#437).
+
+Database users: customers can create additional MySQL logins (local only), choose per database from a closed list of 18 privileges with read-only, read-write and full-access presets, reset their passwords and drop them. A database's dedicated user is dropped with its database and cannot be dropped alone. Existing databases get their dedicated user recorded at start-up (#156). Revoking a user's wildcard grant now sends two statements MariaDB accepts instead of one it rejects (#450).
+
+PHP: an administrator lists and switches PHP extensions per installed version, OPcache is configured through a Maran drop-in reconciled at start, and end-of-life PHP versions are marked with a lifecycle badge and a dashboard attention item for sites still on them (#157).
+
+File manager: browse, edit, upload, download, copy, move, rename, permissions, archives (create and extract) and a trash with restore, all run as the account's own user (#166, #167, #168, #169, #170, #171).
+
+Rules and spec: the operator-run `maran update` / `maran update --check` fetch of a signed release is a documented exception to security item 10 (timer-driven checks are not covered). Release artifacts are stated as signed with ECDSA P-384 / SHA-384 and licences with Ed25519. The update order is stated as API restart, agent restart, then the health gate (#384).
+
+Fixed: the System status heading no longer says "All systems are operational." above a "Needs attention" notice; the sentence now reflects every check (#393).
+
+Fixed: the dev agent container can now check the clock — a timedatectl stand-in in the polygon images replaces the one that needed systemd, so the status page no longer shows "The clock could not be checked" (#392).
+
+Test: the Armenian service names on the status page are now asserted (#394).
+
+**The database restore after an update that added schema now works (#386).** maran rollback --restore-database used to refuse with "already exists" when the update had created a schema or table. It now drops every schema except public and the system ones in the same transaction that replays the dump, so the database returns exactly to the dump's state, and a failure changes nothing. maran panel-restore uses the same code.
+
+`maran dev` now stops on SIGINT as well as SIGTERM when started in the background (#395); `maran signals` proves it.
+
+Added: maran issue-panel-certificate orders, installs and renews the panel's own certificate from the server console, with the operator recorded in the audit journal (#426).
+
+Update manifest: signed `released` date and `notes_url`; `maran update --check` prints both, validated, and `maran release build` gains `--notes-url` (#385).
+
+Added: an administrator can resend a reseller's invitation by e-mail or create a one-time invitation link from the reseller's page (#374).
+
+Added: an administrator can rename a reseller and change its contact address and language (`PUT /api/v1/resellers/{id}`); the reseller's login follows the new name and address (#373).
+
+Accounts: an administrator can move an account to another reseller, or to the administrator, with a plan of the new owner (PUT /api/v1/accounts/{id}/owner); the new owner's limits and disk pool are checked, and the former reseller's view-as sessions on the account end (#369).
+
+Resellers can read their own part of the audit journal (entries about their accounts and their own logins) at Activity; other accounts answer 404 (#370).
+
+Fixed: the `StartupPhpSiteReconciler` doc comment no longer claims the agent keeps on-disk PHP settings when it converges a pool; it rewrites them from the overrides given (#431).
+
+Fixed: customer PHP and reverse-proxy vhosts now set `client_max_body_size 512m` (the PHP override ceiling), so nginx's 1 MiB default no longer cuts uploads and form posts (#430).
+
+Tests: an architecture test records the exact public surface of `Maran.Sdk` and a per-module ceiling on the Sdk types each module uses, so growth of the shared project is a reviewed edit (#105).
+
+Tests: a node-only spec recomputes every design-token contrast ratio from `main.css` in both themes and fails when a pairing drops under its WCAG line (issue #82).
+
+Resellers can set a name, logo and accent colour that their customers' panel shows (Settings, Branding); the server checks the colour is readable under white text and the logo is a real PNG, JPEG or WebP image (#367).
+
+Dropping a database now revokes every grant on it first, so a database recreated under the same name no longer inherits a previous user's access (#432).
+
+ci: the SPA Playwright suite runs in 3 parallel shards (maran test spa --shard i/3) and a verdict job proves the partition and scores the merged rows against the per-spec-file baseline (#289).
+
+Added: architecture tests pin each module's internal layering (Domain depends on no Persistence, Commands, Queries, Controllers or EF Core; Controllers do not reach Persistence), with planted violations and accepting controls (#104).
+
+Added: a reseller can issue API keys that read its own plans and accounts (`plans.read`, `accounts.read`), managed at `api/v1/reseller/api-keys`; the keys are read-only and stop working while the reseller is suspended.
+
+Installer polygon: new account-restore stage (issue #6) backs an account up through the API, damages it, restores it and requires every axis identical, and kills the root agent mid-restore in three windows; `--no-account-restore` skips it. The second review of its threat note is OUTSTANDING.
+
+Added `npm run screens` (every screen at 1440/768/390 px, dark and light) and a 768 px no-horizontal-scroll sweep (#82).
+
+Tests: 390 px sweep for the settings, customer-team, cron-history, updates and reseller screens, a route-coverage census that fails when a routed screen has no sweep row, and axe scans of detail, form, settings, drawer and dialog screens in both themes (#82).
+
+Monitoring: the disk, processor and memory alert thresholds are now editable (50–99, administrators only), with new CPU and RAM alerts that are off by default (#142).
+
+php-fpm pools now set `upload_max_filesize` and `post_max_size` to 32M by default, and an override set with `post_max_size` below `upload_max_filesize` is refused (#434).
+
+Added `maran help --json` and `installer/cli/commands.json`, a machine-readable catalogue of the operator's verbs and installer flags, with a CI gate (`maran operator-commands`) that checks it against the dispatcher, the flag parsers and `docs/operations` (#155).
+
+Firewall: adding a single TCP allow rule for an SSH port whose source excludes the caller's address is refused with 409 FirewallRuleLocksOutCaller when no rule exists for that port; no override (#159).
+
+Tests: a checked customer self-service matrix and a census that fails when a customer-reachable endpoint is missing from it, or names a missing isolation test class (#147).
+
+Added: global search in the jump-to palette. `POST /api/v1/search` finds accounts and sites, grouped, with the text kept in the request body; a group that cannot answer is shown as unavailable and the rest still work (#198).
+
+Administrators get a notification feed: failed background tasks are listed with a per-administrator dismiss, kept for 90 days or the newest 500 (#164).
+
+Removed the unused `Controllers/Requests/` types; endpoints bind their commands directly, and `maran structure` refuses the folder (#436).
+
+Added tenant-isolation integration tests for the global search endpoint (customer, reseller, API key and literal-term cases) (#198).
+
+Fixed: an administrator can now invite a reseller whose login was never created; the login is rebuilt from the reseller's record, and a suspended reseller still gets none (#429).
+
+Database users: the agent can create and drop extra database logins and set a login's privileges on one database from a closed set of 18 (no `GRANT OPTION`, no global privileges). Local logins only; second review outstanding (#331). Contract revision 21.
+
+`maran panel-backup` records the release that took the backup, and `maran panel-restore` refuses, before stopping the panel, an archive taken by a newer release than the installed one (#129).
+
+Alert settings page (#142): several alert recipients and editable disk/CPU/RAM thresholds; the alert address moved out of the outgoing mail form.
+
+Restoring an account now first takes a backup of it as it stands (kind PreRestore) and refuses the restore if that backup cannot be made; the restore dialog says so (#433).
+
+Operator alerts now go through one dispatcher that also publishes a webhook event and a notification-feed entry; alert recipients become a list (#142, #164).
+
+Added: first-run checklist endpoint GET /api/v1/dashboard/first-run (five derived steps; the seeded plans and local backup destination do not count) and the alert-delivery state in the dashboard attention block and its navigation count (#164, #142).
+
+Accounts: an administrator can hand an account to a reseller, or back to the administrator, from the account page, choosing a plan of the new owner and confirming; the panel's refusals are shown as sent (#369).
+
+Fixed: the create-account form now lists the chosen reseller's plans when an administrator picks a reseller as owner, and clears the chosen plan when the owner changes (#437).
+
+Alerts can be mailed to up to 10 recipients instead of one (`api/v1/notifications/alert-recipients`); the dashboard reads whether alert mail is being delivered (`api/v1/notifications/alert-delivery`); `alertRecipient` is removed from the SMTP settings request, and the first recipient is still mirrored into the old column for one release.
+
+Reseller API keys: resellers manage their keys on Settings > API keys, and an administrator lists and revokes one reseller's keys from the reseller's page, journalled under the administrator (#435).
+
+Added a notification bell for administrators in the app bar (a popover with the feed, per-administrator dismiss and dismiss-all, a count badge) and a first-run checklist card on the dashboard (#164).
+
+Customers can set their own backup schedule (daily or weekly, keeping 1–7 copies) on a new My backup schedule page, `GET/PUT /api/v1/me/backup-schedule` (#147).
+
+A caller with no account can no longer read the host-wide backup schedule; the Backups tenant filter now matches no row for a null tenant (#438).
+
+CI: the backend pull-request lane runs six integration shards plus a unit shard from one `SHARDS` setting, packed by per-class weight when `scripts/test-shard-weights.txt` exists; the AlmaLinux 9 polygon image build uses a weekly-scoped layer cache with the fingerprint label unchanged (#289).
+
+New account form: choose between an invitation and an initial password the owner must replace at first sign-in (with a generator), and set per-account process, inode and open-files limits; a reseller may only lower them (#194).
+
+Agent: per-site log retention prune (`PruneSiteLogs`, 1 to 14 rotations, shorten only) and an incremental nginx combined-log traffic reader (`SummariseSiteTraffic`), both bounded and audited; the tail and the summary now share one hardened log opener (#152).
+
+Added the in-memory simulated implementations of the database, SFTP, FTPS, files, cron, firewall and backup agent clients (#95).
+
+Added a machine-readable billing contract (`docs/api/billing-contract/lifecycle.json`) that an integration test replays against the reseller API on every change, plus authorization, IDOR and audit tests for the key-driven account writes and reads (#7).
+
+Per-site options (#151): redirects, canonical host, basic auth (bcrypt hash only), IP allow/deny list, upload size and static cache headers, rendered by the agent into the site's vhost and carried on every re-render; the certificate challenge location stays open.
+
+Per-site options (canonical host, redirects, password protection, IP rules, upload size, static cache lifetime) on the site's new Options tab, kept on every vhost re-render including certificate install and removal (#151).
+
+Sites: a customer can keep 1 to 14 days of a site's rotated logs, and the site's Traffic tab shows requests, bandwidth, status codes and top paths counted hourly from the access log (#152).
+
+Customers set their PHP memory limit, upload size, execution time, input variables and timezone for their whole account within the limits their plan sells; plans carry those limits, and a plan change rewrites the account's pools (#138).
+
+Added: public demo composition root (Maran.Host.Demo), simulated agent, demo guard, deployment, bundle and workflow (#95).
+
+(#439) deleting a site whose vhost is gone now removes the row; (#440) brute-force swallows only unique race; (#441) redelivered code-integrity report no longer counted twice.
+
+Accounts: plans store PHP bounds in four new columns (expand-only migration); an account transfer now re-renders pools when the new plan bounds PHP differently; the plan-change announcement no longer logs a failure when the Sites module is absent (#138).
+
+Creating an account with an initial password now judges the password by the panel's password policy before anything is provisioned; a weak one is refused with `AccountInitialPasswordInvalid` and leaves no account without a login (#194).
+
+Real-host browse suites for the file manager: traversal, symlink, hard link, other-owner, FIFO, size ceilings and concurrency caps (#166).
+
+Agent: the file manager can read a file (up to 512 MiB, hardlinks and links refused) and search entries by name (200k entries scanned, 500 results) inside an account's home (#166).
+
+Added: file manager browser (listing with server paging, search, sort, path bar, hidden-file toggle, row selection) at /files (#170).
+
+File manager: dialogs for create, rename, move, copy, permissions, compress and extract; a trash page with restore and empty; batch actions with a per-item result notice (#170).
+
+File manager: the agent files client now carries create, move, copy, permissions, trash, archive and extract operations (#169).
+
+Added the module contract (kind, minimum panel version, schema, versioned dependencies, permissions, menu and routes) with a manifest validator and semantic version parsers (#182).
+
+Architecture tests now enforce the module contract (manifest, schema ownership, resources, references, SPA routes), with planted violations and accepting controls; contract written in docs/modules/module-contract.md (#182).
+
+Agent: the run-by-hand, browse, archive and bulk-file concurrency bounds are one shared `BoundedSlots` type (#166, #167).
+
+Backend agent client: streamed file upload (`WriteFileStreamAsync`) over the client-streaming `WriteFile` rpc, with byte cap, quota and limit refusals mapped (#169).
+
+Panel recovery proof: the polygon stage now observes the licence file, a restore onto a database holding an extra schema, and the release guard against a real archive (#129).
+
+Sites: per-site request limit (1 to 1000 requests per second per visitor address, burst 0 to 1000, answered 429), rendered as an nginx `limit_req` zone; carried in the site options so every re-render keeps it (#159).
+
+Database users: customers can create additional MySQL logins (local only), choose per database from a closed list of 18 privileges with read-only, read-write and full-access presets, reset their passwords and drop them. A database's dedicated user is dropped with its database and cannot be dropped alone. Existing databases get their dedicated user recorded at start-up.
+
+Agent client: calls are routed per server through an agent target and a per-server channel pool; mutual-TLS channel factory with certificate pinning (issue #180).
+
+Agent clients are routed by target: every call reaches the server the current scope selects, and a refused server is answered as a typed failure (#180).
+
+Backups: optional encryption at rest for the local destination (XChaCha20-Poly1305, panel-held key, per-destination switch `PUT /api/v1/backup-destinations/{id}/encryption`); existing backups stay readable. Second security review outstanding (#331). Keep the panel recovery archive: it is the only place the key can be recovered from.
+
+Fleet (#180, #319): the `Maran.Modules.Fleet` module core, a registry of servers with the local server and enrolled nodes, an approval state machine and the `fleet` schema. Not composed or exposed yet.
+
+Agent: fleet mode groundwork (#180): `--fleet-listen` and `--fleet-dir` options, and `maran-agent --generate-node-identity` creates a node's ECDSA P-256 keypair and self-signed certificate and prints its SHA-256 fingerprint.
+
+Mail: agent distro facts (`MailFacts`) and the panel's `IAgentMailClient` for the mail rpcs (#177).
+
+Backups: an administrator can switch encryption of new backups on or off per destination from the Backup destinations screen, with a warning that the key stays in the panel (#160).
+
+Panel: an administrator can see the version state and start `maran update` from Settings, Panel updates; the request carries no value and runs the signed-release update as root through a root-owned path unit, with progress in the task list (#382). The second security review is outstanding.
+
+Added: `MailService` agent contract (`mail.proto`) and the validated mail types in agent-core (issue #177, phase 1).
+
+Agent: a restricted loader for dumps someone else wrote. A pre-scan refuses client commands, unlisted statements, definers, stored programs and other databases. The dump is then loaded as a temporary user that holds one database only (#127).
+
+feat: restore one database or one site from a local backup (agent scope, restore-choices endpoint, restore dialog picker) (#160)
+
+Mail: SPA pages for mail domains (with DNS records to publish and DKIM rotation), mailboxes (quota, send limit, password) and aliases, forwarders and catch-all, in en/ru/hy (#177).
+
+Marketplace seam (#184): the panel composes packaged modules at start behind the same agent-capability and manifest checks as shipped ones, records loader steps and refusals in the audit journal, and restarts to activate a staged module.
+
+Added: maran ipm package|sign|verify|selftest and the Maran.Host --cli module-manifest and module-verify verbs build, sign and check .ipm module packages (#183); samples/hello-module is the reference packageable module; format in docs/marketplace/ipm-format.md.
+
+Added the Maran.Packaging library: the .ipm module package format (signed manifest, SHA-384 pins), a safe archive reader and ECDSA P-384 signature checking with a caller-supplied key (#183).
+
+DNS: the agent renders, checks and serves zones (PutZone, DeleteZone, GetZone, ListZones), with a start-up pass that re-adds zone files the daemon lost (#178, held).
+
+DNS server (BIND 9, authoritative only), installed and switched off; `EnableDns`/`DisableDns`/`GetDnsStatus` agent rpcs and the zone rpcs declared for the zone phase (issue #178, phase S1). Second review of the DNS surface is outstanding.
+
+Agent: `ExportBackup` / `ImportBackup` (new `TransferService`) move a backup artifact between servers under an ECDSA P-384 signed manifest and an operator-confirmed key fingerprint (#127).
+
+Agent: optional TCP+mutual-TLS fleet listener (off by default), TLS 1.3 only, pinned panel certificate (#180).
+
+Added: a live dashboard stream (`GET /api/v1/dashboard/stream`) for administrators: host readings every 2 s from one shared feed that polls the agent only while a dashboard is open, a 1-hour back-fill, sections pushed on change, and a 15-minute stream lifetime with silent renewal (#199).
+
+Dashboard: live processor, memory, disk and network charts fed by one stream (reconnect, pause when hidden, renew), clickable totals and services, quick-actions bar with ?action=create on the owning screens, per-person customise sheet (#199, slice S1).
+
+Mail host lifecycle (issue #177, phase 2): `EnableMail`, `DisableMail`, mail status and TLS reload in the agent, Postfix, Dovecot 2.3 and 2.4 and Rspamd templates, and installer step 89-mail that installs the mail daemons masked and switched off.
+
+Removed an unused second `UserAgentText` helper (`Utilities/Http/`); the code-point-counting one in `Utilities/Network/` remains the only one (#446).
+
+Internal: the design-time encryption stand-in used by EF migration tooling is now one type in `Maran.SharedKernel/Security` instead of four copies (#444).
+
+Internal: the design-time current user, copied into eleven modules, is now one type in Maran.SharedKernel (Security/DesignTimeCurrentUser) beside DesignTimeEncryptionService; nine module copies removed (#447).
+
+Restoring an imported backup now loads its database dumps through the restricted one-database loader, and a dump the scan refuses fails the restore before anything is dropped (#127).
+
+Dashboard layout: each person's widgets and shortcuts, their order and what they hid, are saved on the panel (`/api/v1/me/dashboard-layout`) (#199).
+
+DNS: zones list, record editor, DNSSEC status, nameserver settings and zone templates in the panel (#178).
+
+A sealed backup that cannot be opened with its destination's key now says so on restore and verify instead of a generic rejected-archive message (#445).
+
+The live streams now write a null member as `null`, exactly as the plain API does (#199).
+
+Added: the agent serves MailService (#177): the host lifecycle rpcs (GetMailStatus, EnableMail, DisableMail, ReloadMailTls) report versions, listeners, password scheme, queue and Sieve availability; the data-plane rpcs answer NOT_IMPLEMENTED until their operations land.
+
+Added the DNS module backend: zones and records API, name-server settings, `MaxDnsZones` plan allowance (#178).
+
+Polygon: the mail uninstall is asserted to stop only the key-value unit the installer recorded, and to leave an operator's own redis or valkey unit running (#177).
+
+Added: a new site gets its DNS zone automatically when the name server is on and the plan allows it; at start-up the panel republishes zones whose served serial differs from the database and removes served zones no account owns (#178).
+
+Mail: hosted mail module with mail domains and DKIM, mailboxes, aliases, forwarders and catch-all, autoresponders and an administrator server/queue API; plans carry mail limits (issue #177)
+
+Agent: temporary database users (`maran_imp_*`) left behind by an interrupted backup import are dropped at start-up (#127). rust.md rows owed. PanelPinFile spawn_blocking done. AgentMailClient 367 lines; CreateUnixSocket DisposeHttpClient.
+
+Agent: a client-streamed upload (WriteFile, ImportBackup) that goes silent for 30 s is dropped with STREAM_DROPPED and releases the account lock; a retried ImportBackup now re-hashes the published artifact instead of trusting its sidecar (#127, #167).
+
+Reseller provisioning API (#7): reseller API keys carry `accounts.write` and `accounts.delete`, can create, read, usage-report and terminate their own accounts under mandatory idempotency keys, rate-limited per key at 60 requests a minute.
+
+Rust dependency refresh for the advisory fixes: rustls 0.23.46, rustls-webpki 0.103.16, tokio 1.54.1, quinn-proto 0.11.19 (#443); `askama` built without default features so three unused crates leave the lock (#448).
+
+Final contract revision: the agent protocol is revision 21 (`PROTO_VERSION`), and the panel's accepted window moved with it.
+
+**Bug batch: thirteen small fixes (#386, #392, #394, #395, #430, #431, #432, #433, #434, #436, #438, #439, #440).** Security: dropping a database now revokes every grant on it first, so a database recreated under the same name no longer inherits a previous user's access (#432); a caller with no account can no longer read the host-wide backup schedule, because the Backups tenant filter now matches no row for a null tenant (#438); restoring an account first takes a backup of it as it stands (kind `PreRestore`) and refuses the restore if that backup cannot be made, and the restore dialog says so (#433). Fixed: `maran rollback --restore-database` used to refuse with "already exists" after an update that added a schema or table; it now drops every schema except `public` and the system ones in the same transaction that replays the dump, so the database returns exactly to the dump's state, and `maran panel-restore` uses the same code (#386); customer PHP and reverse-proxy vhosts now set `client_max_body_size 512m`, the PHP override ceiling, so nginx's 1 MiB default no longer cuts uploads and form posts (#430); php-fpm pools now set `upload_max_filesize` and `post_max_size` to 32M by default, and an override with `post_max_size` below `upload_max_filesize` is refused (#434); the dev agent container can now check the clock, because a `timedatectl` stand-in in the polygon images replaces the one that needed systemd (#392); `maran dev` now stops on SIGINT as well as SIGTERM when started in the background, and `maran signals` proves it (#395); the `StartupPhpSiteReconciler` doc comment no longer claims the agent keeps on-disk PHP settings when it converges a pool (#431). Removed: the unused `Controllers/Requests/` types; endpoints bind their commands directly, and `maran structure` refuses the folder (#436). Fixed: deleting a site whose vhost is already gone now removes the row instead of answering not found (#439), and the brute-force handler swallows only the unique-violation race of a redelivered event, so any other database failure surfaces (#440). Test: the Armenian service names on the status page are now asserted (#394).
+
 **Return the panel to a self-signed certificate on request (#425; #146 closed as delivered by #145's change).** An administrator can replace the panel's trusted certificate with a freshly generated self-signed pair again: a new agent rpc `RestorePanelSelfSigned` (proto revision 20) writes it through the same checked, rolled-back path as `InstallPanelCertificate`, `DELETE /api/v1/panel-certificate` (administrators only, journalled) calls it and forgets the recorded trusted certificate so renewal stops, and the panel certificate page gets a confirmed "Return to a self-signed certificate" action. Browsers warn again until a trusted certificate is installed. **The second security review is OUTSTANDING** (threat note `docs/superpowers/notes/2026-11-07-panel-self-signed-restore-threat-note.md`, tracked under #331); this must not merge to `main`.
 
 **Audit journal: export, filters, retention, a tamper-evidence chain, and personal-data export and erasure (#145, #146).** Two issues share one branch by the owner's batch exception. **The second security review of this change is OUTSTANDING and the branch must not merge to `main`** until a human reviewer has read it; the threat note is `docs/superpowers/notes/2026-11-07-audit-retention-erasure-threat-note.md`. Operator documentation: `docs/operations/audit-journal.md` and `docs/operations/personal-data.md`. **Export:** `GET /api/v1/audit/export?format=csv|json` (administrators only, refused while viewing as a customer) streams the journal oldest first with 14 fixed columns, capped at 500,000 rows (a larger window is refused with a 400, never truncated), at most 6 requests per hour per administrator (`RateLimiting__AuditExportMaxRequests` and `RateLimiting__AuditExportWindowSeconds`), journalled as `AuditExported` before the first byte; a CSV cell starting with `=`, `+`, `-`, `@`, a tab or a carriage return gets a leading apostrophe, and JSON is the lossless format. **Filters:** `actor` (exact, case-insensitive) and `account` join the existing ones on the list and the export. **Known gap:** an administrator-initiated entry from the sites, databases, FTP, SFTP, cron, backups, certificates, firewall and monitoring journals carries no account, so the account filter, the account export and the account erasure rule miss it; only customer-session, view-as and five Accounts operations (create, suspend, reactivate, plan change, owner e-mail change) are stamped, and threading the account through the other journals is a follow-up. **Retention:** `GET/PUT /api/v1/audit/retention`, off by default (keep forever), opt-in from 30 to 3650 days; an hourly scheduler runs it at most once a day, only a sealed prefix is purged and an anchor advances in the same transaction, and every run is journalled whether or not it deleted anything. **Chain:** entries are sealed asynchronously (up to 10,000 per hourly tick) into an HMAC-SHA256 chain verified daily and on demand (`GET /api/v1/audit/chain`, `POST /api/v1/audit/chain/verification`). It detects an altered action, outcome or time, a deleted middle entry, reordering and an insertion. **It does not protect** the actor, address, user agent, subject and account (an erasure and a rewrite look the same), the purged prefix or the tail, anything in the unsealed window (up to an hour, and longer after the upgrade while existing entries are sealed), or anything against a holder of the panel key; its key is derived from `Security__EncryptionKey`, so rotating that key reads as tampering; a break is not mailed to anyone; and a retention window is not a backup. **Personal data:** `GET /api/v1/privacy/accounts/{id}/export` and `GET /api/v1/privacy/users/{id}/export` (JSON, allow-listed fields per module, no secrets, same cap and rate-limit bucket); deleting an account, a sub-user's login or a reseller's login pseudonymises the journal rows about the person and the account in the same transaction, a daily sweep does the same for actors that point at no login, and no endpoint erases by id; the user export has no screen. Backups and dumps keep the pre-erasure data. **Schema:** new nullable columns on `identity.AuditEvents` (account id, chain index, row hash, erasable commitment, commitment salt, erased-at) and two singleton tables, expand-only. **Defaults chosen so they can be changed:** retention off (`AuditRetentionPolicy.DefaultRetentionDays`), the `AccountDeleted` entry keeps the account name, and the chain key is derived from the panel key rather than held as a separate secret.

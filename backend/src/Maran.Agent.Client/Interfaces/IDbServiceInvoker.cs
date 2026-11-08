@@ -34,6 +34,30 @@ internal interface IDbServiceInvoker
         SetDatabasePasswordRequest request,
         CancellationToken cancellationToken);
 
+    /// <summary>Invokes <c>CreateDatabaseUser</c>.</summary>
+    /// <param name="request">The wire request.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The raw wire response, carrying either branch of its oneof.</returns>
+    Task<CreateDatabaseUserResponse> CreateDatabaseUserAsync(
+        CreateDatabaseUserRequest request,
+        CancellationToken cancellationToken);
+
+    /// <summary>Invokes <c>DropDatabaseUser</c>.</summary>
+    /// <param name="request">The wire request.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The raw wire response, carrying either branch of its oneof.</returns>
+    Task<DropDatabaseUserResponse> DropDatabaseUserAsync(
+        DropDatabaseUserRequest request,
+        CancellationToken cancellationToken);
+
+    /// <summary>Invokes <c>SetDatabaseUserPrivileges</c>.</summary>
+    /// <param name="request">The wire request.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The raw wire response, carrying either branch of its oneof.</returns>
+    Task<SetDatabaseUserPrivilegesResponse> SetDatabaseUserPrivilegesAsync(
+        SetDatabaseUserPrivilegesRequest request,
+        CancellationToken cancellationToken);
+
     /// <summary>Invokes <c>ListDatabases</c>.</summary>
     /// <param name="request">The wire request.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>

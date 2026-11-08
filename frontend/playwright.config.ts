@@ -30,8 +30,11 @@ const isCi = process.env.CI === 'true' || process.env.CI === '1'
 export default defineConfig({
   testDir: './e2e',
   // The installed-panel browser stage needs a panel a real installer set up, so it has its own
-  // config (playwright.install.config.ts) and never joins this suite or its baseline.
-  testIgnore: ['**/e2e/install/**'],
+  // config (playwright.install.config.ts) and never joins this suite or its baseline. The public demo's
+  // smoke suite (e2e/demo/) likewise needs a running demo, so it has playwright.demo.config.ts. The screenshot
+  // set (e2e/screens/) is a tool with its own config (playwright.screens.config.ts): it asserts
+  // nothing about layout and would only add rows to the baseline.
+  testIgnore: ['**/e2e/install/**', '**/e2e/screens/**', '**/e2e/demo/**'],
   fullyParallel: true,
   forbidOnly: isCi,
   retries: isCi ? 1 : 0,

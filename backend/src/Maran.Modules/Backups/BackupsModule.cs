@@ -1,4 +1,5 @@
 using System.Resources;
+using Maran.Modules.Backups.Interfaces;
 using Maran.Modules.Backups.Jobs;
 using Maran.Modules.Backups.Persistence;
 using Maran.Modules.Backups.Seeders;
@@ -56,6 +57,10 @@ public sealed class BackupsModule : IPanelModule
             options.UseNpgsql(connectionString);
         });
 
+        // Singleton and stateless: it opens a scope of its own per call, so the Host's migrate verb can bring this
+        // module's schema up to date without knowing BackupsDbContext.
+        services.AddSingleton<IModuleMigrations, BackupsModuleMigrations>();
+
         // This module has no settings of its own, and that is a deliberate absence rather than a
         // gap. It used to bind Backups__LocalRoot, a value the agent never accepts: the agent
         // writes to its own constant root and refuses a local destination that carries a path, so
@@ -69,6 +74,10 @@ public sealed class BackupsModule : IPanelModule
 
         services.AddScoped<BackupAuditJournal>();
 
+        // Scoped, because it saves through the request-scoped context. The one place a schedule row is
+        // created or reconfigured, for the administrator's endpoint and the customer's alike.
+        services.AddScoped<BackupScheduleWriter>();
+
         // The two resolvers that turn a stored value into the words a screen shows. Scoped, because
         // both read the CURRENT REQUEST's culture through IStringLocalizer — a singleton would
         // answer every caller in whichever language happened to be first.
@@ -76,6 +85,10 @@ public sealed class BackupsModule : IPanelModule
         services.AddScoped<BackupDestinationDisplayNames>();
         services.AddScoped<BackupDisplayNames>();
         services.AddScoped<BackupDestinationResolver>();
+
+        // A singleton: it holds nothing and draws randomness from the operating system. The one place
+        // a destination's archive key is made (issue #160).
+        services.AddSingleton<IArchiveKeyGenerator, ArchiveKeyGenerator>();
         services.AddScoped<DefaultBackupDestinationSeeder>();
         services.AddScoped<BackupRunner>();
         services.AddScoped<BackupAlertMailer>();
@@ -89,6 +102,11 @@ public sealed class BackupsModule : IPanelModule
         // the endpoint alike.
         services.AddScoped<BackupVerificationAnnouncer>();
         services.AddScoped<RestoreRunner>();
+
+        // Scoped, because it writes through the request-scoped context and journals as the current
+        // caller. The one path behind both safety backups: the final backup of a deleted account and
+        // the pre-restore copy taken before an account is replaced.
+        services.AddScoped<SafetyBackupService>();
 
         // The one act this module exposes to another (spec §12). Registered against the Sdk
         // interface, because the Accounts module may not reference this one and reaches it through

@@ -69,8 +69,19 @@ use crate::proto::{
 /// `PendingUpdate.classification`, the reboot-required read and the security flag
 /// on a pending update (issue #163). 20 adds `SslService.RestorePanelSelfSigned`, the
 /// panel's own certificate returned to a freshly generated self-signed pair
-/// (issue #425).
-const PROTO_VERSION: u32 = 20;
+/// (issue #425). 21 is one combined revision for the contract growth of the
+/// v1 feature work: the `dns.proto`, `mail.proto` and `transfer.proto` services
+/// (issues #178, #177, #127); `DbService` login rpcs `CreateDatabaseUser`,
+/// `DropDatabaseUser`, `SetDatabaseUserPrivileges` (issue #156); the site
+/// options, traffic summary and log pruning (issues #151, #152, #159); the PHP
+/// extension and pool-settings rpcs (issues #157, #138); the file manager's
+/// search, copy, trash and force-delete rpcs (issues #166, #167, #168);
+/// `AccountsService.SetAccountOpenFilesLimit` and the login shell (issue #194);
+/// the backup `archive_key`, `encrypted` and `RestoreScope` fields (issue #160);
+/// and `ERROR_CODE_TOO_LARGE`, `ERROR_CODE_QUOTA_EXCEEDED`,
+/// `ERROR_CODE_ARCHIVE_UNSAFE` and `ERROR_CODE_ARCHIVE_UNOPENABLE`
+/// (issues #166, #167, #168, #445).
+const PROTO_VERSION: u32 = 21;
 
 /// Answers "what agent is this, and what host is it on?".
 pub struct SystemServiceImpl {

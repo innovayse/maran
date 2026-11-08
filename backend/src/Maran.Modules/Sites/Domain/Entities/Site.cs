@@ -1,5 +1,6 @@
 using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Domain.Policies;
+using Maran.Modules.Sites.Domain.ValueObjects;
 
 namespace Maran.Modules.Sites.Domain.Entities;
 
@@ -77,11 +78,28 @@ public sealed class Site
     /// </remarks>
     public bool HasCertificate { get; private set; }
 
+    /// <summary>
+    /// The site's per-site options, or null while none has ever been set. Loaded together with the site
+    /// (see <c>SiteConfiguration</c>), so no code path that re-renders a vhost can forget them.
+    /// </summary>
+    public SiteOptions? Options { get; private set; }
+
     /// <summary>Whether the site serves its own content or a suspension response.</summary>
     public SiteStatus Status { get; private set; }
 
     /// <summary>The instant the site was created.</summary>
     public DateTimeOffset CreatedAt { get; private set; }
+
+    /// <summary>
+    /// How many days of rotated access and error logs this site keeps, from
+    /// <see cref="SiteLogRetention.MinimumDays"/> to <see cref="SiteLogRetention.MaximumDays"/>.
+    /// </summary>
+    /// <remarks>
+    /// A site keeps the maximum until its owner chooses less, and cannot choose more: the installer's
+    /// shared log rotation is the ceiling, and this number only asks the agent to remove archives
+    /// beyond it (<see cref="SiteLogRetention"/>).
+    /// </remarks>
+    public int LogRetentionDays { get; private set; }
 
     /// <summary>Creates a site in the <see cref="SiteStatus.Enabled"/> state with no certificate.</summary>
     /// <param name="id">The site's identity.</param>
@@ -125,6 +143,7 @@ public sealed class Site
         HasCertificate = false;
         Status = SiteStatus.Enabled;
         CreatedAt = createdAt;
+        LogRetentionDays = SiteLogRetention.DefaultDays;
 
         // Built here and nowhere else: a site that exists has claimed every name it answers for,
         // by construction rather than by a handler remembering to write a second row.
@@ -150,6 +169,28 @@ public sealed class Site
     public void ChangePhpVersion(string version)
     {
         PhpVersion = version;
+    }
+
+    /// <summary>Replaces the site's per-site options with the given set, creating them on first use.</summary>
+    /// <param name="values">The complete new set; anything not in it is removed.</param>
+    public void ReplaceOptions(SiteOptionsValues values)
+    {
+        Options ??= new SiteOptions(this);
+        Options.Replace(values);
+    }
+
+    /// <summary>Sets how many days of rotated logs this site keeps.</summary>
+    /// <param name="days">The number of days, from <see cref="SiteLogRetention.MinimumDays"/> to <see cref="SiteLogRetention.MaximumDays"/>.</param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="days"/> is outside the allowed range. The validator refuses such a request with a
+    /// code before it gets here, so reaching this is a caller that skipped validation, a bug and not an answer.
+    /// </exception>
+    public void ChangeLogRetention(int days)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(days, SiteLogRetention.MinimumDays, nameof(days));
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(days, SiteLogRetention.MaximumDays, nameof(days));
+
+        LogRetentionDays = days;
     }
 
     /// <summary>Returns the site to serving its own content. Idempotent: enabling an enabled site is a no-op.</summary>

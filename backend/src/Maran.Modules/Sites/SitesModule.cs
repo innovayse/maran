@@ -1,5 +1,6 @@
 using System.Resources;
 using Maran.Modules.Sites.Interfaces;
+using Maran.Modules.Sites.Jobs;
 using Maran.Modules.Sites.Options;
 using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Sites.Services;
@@ -53,12 +54,27 @@ public sealed class SitesModule : IPanelModule
         // and serve it to everybody.
         services.AddDbContext<SitesDbContext>(options =>
         {
-            options.UseNpgsql(connectionString);
+            // Split, because a site loads its options with it and the options load three collections:
+            // one joined query would multiply their rows (redirects x users x addresses) for every site.
+            options.UseNpgsql(
+                connectionString,
+                npgsql =>
+                {
+                    npgsql.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
+                });
         });
+
+        // A singleton, because it holds no state: it opens its own scope per call, so the Host can run the
+        // module's migrations through the root provider (rules/architecture.md "The database evolves the same way").
+        services.AddSingleton<IModuleMigrations, SitesModuleMigrations>();
 
         // Scoped, because it reads the request's own tenant-scoped DbContext: this module's answer to the
         // personal-data export, an allow-list of fields and never a secret.
         services.AddScoped<IPersonalDataProvider, SitesPersonalDataProvider>();
+
+        // Scoped, because it reads the request's own tenant-scoped DbContext, ICurrentUser and the two
+        // feature windows: this module's answer to the global search, sites found by any hostname.
+        services.AddScoped<ISearchProvider, SitesSearchProvider>();
 
         // The shared resource pool the panel-wide ResxErrorTextProvider resolves error codes and
         // Manifest.DisplayNameKey against; see AccountsModule for the full reasoning. Module-internal
@@ -68,6 +84,17 @@ public sealed class SitesModule : IPanelModule
 
         // Scoped, because the localizer it wraps resolves the request's own culture.
         services.AddScoped<SiteDisplayNames>();
+
+        // Scoped, because each takes the request's own DbContext or agent client: the settings and
+        // versions of an account's pools for every writer of a pool, the writer that rewrites them
+        // across versions with compensation, and the view of the settings a screen reads (issue #138).
+        services.AddScoped<PhpAccountPoolSettings>();
+        services.AddScoped<PhpPoolApplier>();
+        services.AddScoped<PhpSettingsReader>();
+
+        // Scoped, because it reads the request's own tenant-filtered context and caller: the installed
+        // PHP versions with their support life, and for an administrator the sites using each.
+        services.AddScoped<PhpVersionListing>();
 
         // Scoped, because it takes a transaction on the request's own DbContext connection: the
         // advisory lock it holds is scoped to that transaction and must be released by its commit.
@@ -83,6 +110,10 @@ public sealed class SitesModule : IPanelModule
         // Scoped, because it takes the request's slot gate and compensator.
         services.AddScoped<SiteRecorder>();
 
+        // Scoped, because it invokes the bus on behalf of the request that created the site, so a subscriber
+        // reads as that caller.
+        services.AddScoped<SiteCreationAnnouncer>();
+
         // The stream's settings, validated at startup like every other options class.
         services.AddOptions<SiteLogOptions>()
             .Bind(configuration.GetSection(SiteLogOptions.SectionName))
@@ -97,6 +128,10 @@ public sealed class SitesModule : IPanelModule
         // request-scoped, tenant-filtered context.
         services.AddScoped<ISiteDirectory, SiteDirectory>();
 
+        // The narrow window the DNS module asks whether an account's site serves a host name through (issue
+        // #178). Scoped, because it reads through the request's tenant-filtered context.
+        services.AddScoped<ISiteHostnameDirectory, SiteHostnameDirectory>();
+
         // This module's answer to how many sites an account owns, for the Accounts module's resource
         // summary. Scoped, because it reads through the request-scoped, tenant-filtered context.
         services.AddScoped<IAccountResourceCounter, SiteAccountResourceCounter>();
@@ -104,6 +139,23 @@ public sealed class SitesModule : IPanelModule
         // Scoped, because it reads through the request-scoped, tenant-filtered context and journals
         // as the request's own caller. Resolved by SitesController, which is itself scoped.
         services.AddScoped<SiteLogTailService>();
+
+        // Singleton: it holds the one permit that admits a single site's log maintenance at a time, which
+        // must be the same permit for the hourly pass and for the message a retention change publishes.
+        services.AddSingleton<SiteLogMaintenanceGate>();
+
+        // Scoped, because each reads and writes through the request-scoped context (a background pass
+        // opens its own scope) and drives the agent: the traffic read, the archive prune, the expiry of
+        // old rows, and the per-site order of the first two.
+        services.AddScoped<SiteTrafficIngestor>();
+        services.AddScoped<SiteLogPruner>();
+        services.AddScoped<SiteTrafficPurger>();
+        services.AddScoped<SiteLogMaintainer>();
+
+        // Scoped, because it writes through the request-scoped context — resolved once per Wolverine message,
+        // the same way the Tasks module resolves its own retention handler. The Host schedules
+        // SiteLogMaintenanceRequested every hour.
+        services.AddScoped<SiteLogMaintenanceHandler>();
 
         services.AddSingleton(new ResourceManager(ErrorMessagesResourceBaseName, typeof(SitesModule).Assembly));
         services.AddSingleton(new ResourceManager(DisplayNamesResourceBaseName, typeof(SitesModule).Assembly));

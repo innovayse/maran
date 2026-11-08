@@ -42,6 +42,12 @@ const props = withDefaults(
     modelValue: boolean
     /** Visible label text, always rendered — the box alone names nothing. */
     label: string
+    /**
+     * Keeps the label for assistive technology but does not draw it, for a box repeated on every
+     * row of a list where the row itself already shows what is being ticked. The label still names
+     * the control; only its text leaves the layout.
+     */
+    hideLabel?: boolean
     /** Disables the control and marks it non-interactive for assistive tech. */
     disabled?: boolean
     /**
@@ -53,7 +59,7 @@ const props = withDefaults(
     /** Already-translated validation message; when set, the control renders as invalid. */
     error?: string | null
   }>(),
-  { disabled: false, required: false, error: null },
+  { hideLabel: false, disabled: false, required: false, error: null },
 )
 
 /** Events emitted by {@link UiCheckbox}. */
@@ -130,7 +136,7 @@ const onChange = (event: Event): void => {
           />
         </span>
       </template>
-      <span class="min-w-0 wrap-anywhere">{{ label }}</span>
+      <span class="min-w-0 wrap-anywhere" :class="hideLabel ? 'sr-only' : ''">{{ label }}</span>
     </label>
     <p v-if="hasError" :id="errorId" class="text-sm text-danger wrap-anywhere">{{ error }}</p>
   </div>

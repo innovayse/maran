@@ -1,4 +1,5 @@
 using Grpc.Net.Client;
+using Maran.Agent.Client.Channels;
 using Maran.Agent.Client.Errors;
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Resources;
@@ -38,11 +39,19 @@ public sealed class AgentDbClient : IAgentDbClient
         _logger = logger;
     }
 
-    /// <summary>Creates a client that calls the agent over <paramref name="channel"/>.</summary>
+    /// <summary>Creates a client whose every call goes to the server the current agent target selects.</summary>
+    /// <param name="channels">Hands out the channel of the server each call is aimed at.</param>
+    /// <param name="logger">Sink for the agent's diagnostic text.</param>
+    public AgentDbClient(IAgentChannels channels, ILogger<AgentDbClient> logger)
+        : this(new GrpcDbServiceInvoker(channels), logger)
+    {
+    }
+
+    /// <summary>Creates a client over one fixed <paramref name="channel"/>, whatever the target.</summary>
     /// <param name="channel">A channel to the agent, e.g. from <see cref="Channels.AgentChannel.CreateUnixSocket"/>.</param>
     /// <param name="logger">Sink for the agent's diagnostic text.</param>
     public AgentDbClient(GrpcChannel channel, ILogger<AgentDbClient> logger)
-        : this(new GrpcDbServiceInvoker(new V1.DbService.DbServiceClient(channel)), logger)
+        : this(new FixedAgentChannels(channel), logger)
     {
     }
 
@@ -122,6 +131,82 @@ public sealed class AgentDbClient : IAgentDbClient
             SetDatabasePasswordResponse.ResultOneofCase.Ok => Result.Ok(),
             SetDatabasePasswordResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(SetPasswordAsync), password)),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result<string>> CreateUserAsync(
+        string accountUsername,
+        string dbUsername,
+        SensitiveString password,
+        CancellationToken cancellationToken)
+    {
+        var request = new CreateDatabaseUserRequest
+        {
+            AccountUsername = accountUsername,
+            DbUsername = dbUsername,
+
+            // The one place the value is unwrapped, and it is unwrapped straight onto the wire —
+            // the same shape CreateAsync uses, for the same reason.
+            Password = password.Reveal(),
+        };
+        var response = await _invoker.CreateDatabaseUserAsync(request, cancellationToken);
+
+        return response.ResultCase switch
+        {
+            CreateDatabaseUserResponse.ResultOneofCase.Ok => Result<string>.Ok(response.Ok.DbUsername),
+            CreateDatabaseUserResponse.ResultOneofCase.Error => Result<string>.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(CreateUserAsync), password)),
+            _ => Result<string>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result> DropUserAsync(
+        string accountUsername,
+        string dbUsername,
+        CancellationToken cancellationToken)
+    {
+        var request = new DropDatabaseUserRequest
+        {
+            AccountUsername = accountUsername,
+            DbUsername = dbUsername,
+        };
+        var response = await _invoker.DropDatabaseUserAsync(request, cancellationToken);
+
+        return response.ResultCase switch
+        {
+            DropDatabaseUserResponse.ResultOneofCase.Ok => Result.Ok(),
+            DropDatabaseUserResponse.ResultOneofCase.Error => Result.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(DropUserAsync))),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result> SetPrivilegesAsync(
+        string accountUsername,
+        string dbUsername,
+        string databaseName,
+        IReadOnlyCollection<DatabasePrivilegeKind> privileges,
+        CancellationToken cancellationToken)
+    {
+        var request = new SetDatabaseUserPrivilegesRequest
+        {
+            AccountUsername = accountUsername,
+            DbUsername = dbUsername,
+            DatabaseName = databaseName,
+        };
+        request.Privileges.AddRange(privileges.Select(DatabasePrivilegeMapper.ToWire));
+
+        var response = await _invoker.SetDatabaseUserPrivilegesAsync(request, cancellationToken);
+
+        return response.ResultCase switch
+        {
+            SetDatabaseUserPrivilegesResponse.ResultOneofCase.Ok => Result.Ok(),
+            SetDatabaseUserPrivilegesResponse.ResultOneofCase.Error => Result.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(SetPrivilegesAsync))),
             _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }

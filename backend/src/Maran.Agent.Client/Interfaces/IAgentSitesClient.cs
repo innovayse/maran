@@ -135,6 +135,39 @@ public interface IAgentSitesClient
         uint historyLines,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Counts what a site's access log holds since <paramref name="cursor"/>: requests, bytes, status
+    /// codes and the most requested paths, per UTC day. Read-only on the host.
+    /// </summary>
+    /// <param name="accountUsername">System username of the owning account.</param>
+    /// <param name="domain">Primary domain of the site whose log is read.</param>
+    /// <param name="cursor">Where the last read stopped, or null to start at the previous rotation.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>
+    /// The deltas and the cursor for the next read, or a typed failure. A busy agent answers with a
+    /// failure the caller retries on its next pass; this call is never a customer's request.
+    /// </returns>
+    Task<Result<SiteTrafficReading>> SummariseTrafficAsync(
+        string accountUsername,
+        string domain,
+        SiteTrafficCursor? cursor,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Removes a site's rotated log archives numbered above <paramref name="retainRotations"/>; the live
+    /// files are never touched. Idempotent: repeating it removes nothing more.
+    /// </summary>
+    /// <param name="accountUsername">System username of the owning account.</param>
+    /// <param name="domain">Primary domain of the site whose archives are pruned.</param>
+    /// <param name="retainRotations">How many rotations to keep, from 1 to 14.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>How many archives were removed, or a typed failure.</returns>
+    Task<Result<PrunedSiteLogs>> PruneLogsAsync(
+        string accountUsername,
+        string domain,
+        uint retainRotations,
+        CancellationToken cancellationToken);
+
     /// <summary>Validates the running web-server configuration and reloads it once.</summary>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>Success, or a typed failure; on a validation failure the previous config keeps running.</returns>

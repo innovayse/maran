@@ -1,7 +1,7 @@
 import { fileURLToPath, URL } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 
 /**
  * Vite build/dev configuration for the Maran SPA shell.
@@ -33,7 +33,25 @@ const API_PROXY = {
   },
 }
 
-export default defineConfig({
+/**
+ * Whether this build is the public demo's (`VITE_MARAN_DEMO=1`, set by `npm run build:demo`).
+ *
+ * The flavour is a build-time constant and not a runtime probe, on purpose: the normal bundle
+ * then holds no demo component, store, request or text (the layouts guard every mount with
+ * `__MARAN_DEMO__ ? defineAsyncComponent(() => import(…)) : null`, which folds to `null` here, so
+ * the imports are unreachable and never emitted), and a real panel makes no request to find out
+ * whether it is a demo.
+ * @param mode The Vite mode the build runs in, which selects the `.env.<mode>` files.
+ * @returns Whether `VITE_MARAN_DEMO` is `1` for this build.
+ */
+const isDemoBuild = (mode: string): boolean => {
+  return loadEnv(mode, fileURLToPath(new URL('.', import.meta.url)), 'VITE_').VITE_MARAN_DEMO === '1'
+}
+
+export default defineConfig(({ mode }) => {return {
+  define: {
+    __MARAN_DEMO__: JSON.stringify(isDemoBuild(mode)),
+  },
   plugins: [vue(), tailwindcss()],
   resolve: {
     alias: {
@@ -70,4 +88,4 @@ export default defineConfig({
   preview: {
     proxy: API_PROXY,
   },
-})
+}})

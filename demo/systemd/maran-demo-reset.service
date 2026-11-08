@@ -1,0 +1,30 @@
+[Unit]
+Description=Maran demo reset (return the demonstration to its seed when it is due)
+After=postgresql.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+User=root
+# `--when-due` reads Demo__ResetIntervalHours and the marker, so the cadence has one source (the
+# panel's own settings) and this timer only wakes the script.
+ExecStart=/usr/local/sbin/maran-demo-reset --when-due
+TimeoutStartSec=15min
+UMask=0077
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/maran-demo /run
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native

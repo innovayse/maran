@@ -1,0 +1,77 @@
+[Unit]
+# The demonstration's API. There is no agent unit on this server: the simulated agent lives inside
+# this process, so the only things this unit talks to are PostgreSQL's unix socket and its own
+# listening socket. That is what lets the sandbox below deny the network outright.
+Description=Maran demo API (simulated agent, public demonstration)
+After=network-online.target postgresql.service
+Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=maran-demo
+Group=maran-demo
+EnvironmentFile=/etc/maran-demo/panel.env
+# Where the process stands: Wolverine's code generation and ASP.NET's content root resolve relative
+# paths against it (the same reason the product unit names a working directory).
+WorkingDirectory=/usr/local/maran-demo/api
+ExecStart=/usr/local/maran-demo/api/Maran.Host.Demo
+# The socket directory is built by systemd-tmpfiles (maran-demo-api.tmpfiles.conf) and not by this
+# unit, for the reason installer/systemd/maran-api.service gives at length: the web server's group on
+# the directory must survive the unit's own start. ExecStopPost removes the socket a killed process
+# leaves behind, which Kestrel refuses to bind over.
+ExecStopPost=-/usr/bin/rm -f /run/maran-demo-api/api.sock
+Restart=on-failure
+RestartSec=2
+
+# --- Egress (threat note T5) ---------------------------------------------------------------
+# NO OUTBOUND NETWORK. Everything a visitor can make the process do stays inside it: mail goes to an
+# in-memory sink, ACME is simulated, the installed licence is kept in memory. Should a fault in a
+# dependency hand a visitor code execution, this is the line that keeps the host from becoming a
+# launchpad. PostgreSQL is reached over its unix socket and needs no address. IPAddressAllow=localhost
+# keeps the loopback usable for the process's own diagnostics only. bin/maran-demo-egress-check
+# measures that it holds, with a control.
+IPAddressDeny=any
+IPAddressAllow=localhost
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+# --- Resource caps (threat note T6) --------------------------------------------------------------
+# The application caps (mutation budgets, sign-in allowances, table bounds) are the first line; these are
+# the second, so a fault or a flood the application did not foresee ends in a restart of this one unit and
+# not in a host the demo shares with nothing but still needs to answer. Values are starting points to be
+# re-measured under load.
+MemoryMax=2G
+TasksMax=512
+LimitNOFILE=8192
+CPUQuota=200%
+
+# --- Hardening, the product unit's set --------------------------------------------------------
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/maran-demo /run/maran-demo-api
+NoExecPaths=/var/lib/maran-demo /run/maran-demo-api
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+# MemoryDenyWriteExecute is absent for the reason installer/systemd/maran-api.service documents: the
+# runtime compiles code, and the directive stops the process before it can log a word.
+RemoveIPC=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

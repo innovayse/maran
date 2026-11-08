@@ -17,9 +17,18 @@
  * aside in a container under 26rem instead, which is what 768px of window at a 200% text size is.
  * It is hidden by clipping, not `display: none`, so the link around it keeps its
  * accessible name at every width.
+ *
+ * **A customer of a reseller sees the reseller's mark and name** (issue #367): the logo replaces the
+ * product's mark and the display name replaces the product's name, each independently, so a reseller
+ * that set only a name keeps the mark and one that set only a logo keeps the name. What is shown is
+ * whatever the panel reported (`useBrandingStore`); nothing here decides what a default looks like for
+ * a reseller. The logo is decorative like the mark, because the name is printed beside it.
  */
+import UiBrandLogo from '../ui/UiBrandLogo.vue'
 import UiBrandMark from '../ui/UiBrandMark.vue'
+import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useBrandingStore } from '../../stores/branding'
 
 /** Props accepted by {@link ShellWordmark}. */
 defineProps<{
@@ -28,16 +37,23 @@ defineProps<{
 }>()
 
 const { t } = useI18n()
+const brandingStore = useBrandingStore()
+
+/** The name drawn beside the mark: the reseller's when it set one, otherwise the product's. */
+const name: ComputedRef<string> = computed(() => {
+  return brandingStore.branding.displayName ?? t('app.title')
+})
 </script>
 
 <template>
   <span class="inline-flex min-w-0 items-center gap-2.5">
-    <UiBrandMark :size="30" />
+    <UiBrandLogo v-if="brandingStore.branding.logo !== null" :src="brandingStore.branding.logo" />
+    <UiBrandMark v-else :size="30" />
     <span
       class="font-display text-base font-black text-text-primary"
       :class="collapsible === true ? '@max-xs:sr-only sm:@max-[26rem]:sr-only' : ''"
     >
-      {{ t('app.title') }}
+      {{ name }}
     </span>
   </span>
 </template>

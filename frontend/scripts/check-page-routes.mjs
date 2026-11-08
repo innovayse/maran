@@ -98,6 +98,7 @@ const DELIBERATELY_UNLINKED = new Map([
   ['cron-runs', 'reached from the Run history item of a cron entry\'s actions menu, which pushes with the entry and the account'],
   ['accept-invitation', 'its URL arrives in the invitation mail; nothing in the SPA links it on purpose'],
   ['two-factor-setup', 'the auth guard steers an obliged administrator here; the router documents that nothing links it'],
+  ['file-editor', 'opened from a file row of the file browser, which pushes with the account and the path of the file'],
   ['not-found', 'the catch-all: a page nothing should ever link to'],
   ['not-available', 'the role and module guards redirect a customer here; a page nothing should link to'],
 ])

@@ -37,4 +37,25 @@ public static class ModuleStateResolver
             _ => throw new ArgumentOutOfRangeException(nameof(tier), tier, "Unknown licence tier."),
         };
     }
+
+    /// <summary>
+    /// Resolves the state of a module from its tier and from the state the runtime registry reports for
+    /// it. A module that is <see cref="ModuleLifecycleState.Degraded"/> (its lease lapsed) or
+    /// <see cref="ModuleLifecycleState.Failed"/> is not usable whatever its tier says, so it is
+    /// <see cref="ModuleState.Locked"/>; every other lifecycle state leaves the tier to decide.
+    /// </summary>
+    /// <remarks>
+    /// Presentation only, like the tier arm: a degraded module answers the licence response on every
+    /// request regardless of what the catalogue shows, and a lapse never makes a module in the Core kind
+    /// anything but active (the registry never reports one as degraded).
+    /// </remarks>
+    /// <param name="tier">The tier the module declares in its manifest.</param>
+    /// <param name="lifecycle">The state the runtime registry reports for it.</param>
+    /// <returns>The module's state.</returns>
+    public static ModuleState Of(LicenceTier tier, ModuleLifecycleState lifecycle)
+    {
+        return lifecycle is ModuleLifecycleState.Degraded or ModuleLifecycleState.Failed
+            ? ModuleState.Locked
+            : Of(tier);
+    }
 }

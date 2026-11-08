@@ -128,6 +128,10 @@ const fillPlanInsideEnvelope = async (page: Page, name: string): Promise<void> =
   await page.getByLabel('CPU (% of one core)').fill('150')
   await page.getByLabel('Memory (MB)').fill('1024')
   await page.getByLabel('Processes', { exact: true }).fill('64')
+  await page.getByLabel('PHP memory limit, at most (MB)').fill('256')
+  await page.getByLabel('PHP upload size, at most (MB)').fill('64')
+  await page.getByLabel('PHP execution time, at most (seconds)').fill('120')
+  await page.getByLabel('PHP input variables, at most').fill('3000')
 }
 
 test('the reseller plan form says what its envelope allows for each limit', async ({ page }) => {
@@ -170,6 +174,7 @@ test('a reseller plan is posted as typed, with only the features its envelope al
       cpuQuotaPercent: { kind: 'limited', maximum: 150 },
       memoryMaxMb: { kind: 'limited', maximum: 1024 },
       maxProcesses: { kind: 'limited', maximum: 64 },
+      phpLimits: { memoryLimitMaxMb: 256, uploadMaxMb: 64, maxExecutionSeconds: 120, maxInputVars: 3000 },
       features: NARROWED_FEATURES.map((choice) => {
         return choice.feature
       }),

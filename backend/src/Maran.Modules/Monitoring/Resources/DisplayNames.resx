@@ -78,4 +78,16 @@
   <data name="PendingUpdateClassificationUnmeasured">
     <value>Not measured</value>
   </data>
+  <data name="MonitoringMenuMetrics">
+    <value>Metrics and clock</value>
+  </data>
+  <data name="MonitoringMenuUpdates">
+    <value>Updates</value>
+  </data>
+  <data name="MonitoringRouteMetrics">
+    <value>Monitoring</value>
+  </data>
+  <data name="MonitoringRouteUpdates">
+    <value>Updates</value>
+  </data>
 </root>

@@ -6,14 +6,24 @@ namespace Maran.Agent.Client.Services.FirewallService;
 /// <summary>Production <see cref="IFirewallServiceInvoker"/> backed by the generated gRPC client.</summary>
 internal sealed class GrpcFirewallServiceInvoker : IFirewallServiceInvoker
 {
-    /// <summary>The generated gRPC client this adapter wraps.</summary>
-    private readonly Maran.Agent.V1.FirewallService.FirewallServiceClient _client;
+    /// <summary>Where the channel for the server the current call is aimed at comes from.</summary>
+    private readonly IAgentChannels _channels;
 
-    /// <summary>Wraps <paramref name="client"/> behind the <see cref="IFirewallServiceInvoker"/> seam.</summary>
-    /// <param name="client">The generated client to delegate calls to.</param>
-    public GrpcFirewallServiceInvoker(Maran.Agent.V1.FirewallService.FirewallServiceClient client)
+    /// <summary>Wraps <paramref name="channels"/> behind the <see cref="IFirewallServiceInvoker"/> seam.</summary>
+    /// <param name="channels">Hands out the channel of the server each call is aimed at.</param>
+    public GrpcFirewallServiceInvoker(IAgentChannels channels)
     {
-        _client = client;
+        _channels = channels;
+    }
+
+    /// <summary>
+    /// A generated client over the channel of the server the current call is aimed at, built per use.
+    /// Building it is cheap (it holds the channel and nothing else), and building it per call is what
+    /// lets one invoker serve every server: the target is read when the call starts, never earlier.
+    /// </summary>
+    private Maran.Agent.V1.FirewallService.FirewallServiceClient Client
+    {
+        get { return new Maran.Agent.V1.FirewallService.FirewallServiceClient(_channels.ForCurrent()); }
     }
 
     /// <inheritdoc/>
@@ -21,7 +31,7 @@ internal sealed class GrpcFirewallServiceInvoker : IFirewallServiceInvoker
         ListRulesRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.ListRulesAsync(request, cancellationToken: cancellationToken);
+        return await Client.ListRulesAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -29,7 +39,7 @@ internal sealed class GrpcFirewallServiceInvoker : IFirewallServiceInvoker
         AllowPortRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.AllowPortAsync(request, cancellationToken: cancellationToken);
+        return await Client.AllowPortAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -37,7 +47,7 @@ internal sealed class GrpcFirewallServiceInvoker : IFirewallServiceInvoker
         DenyPortRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.DenyPortAsync(request, cancellationToken: cancellationToken);
+        return await Client.DenyPortAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -45,7 +55,7 @@ internal sealed class GrpcFirewallServiceInvoker : IFirewallServiceInvoker
         BanAddressRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.BanAddressAsync(request, cancellationToken: cancellationToken);
+        return await Client.BanAddressAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -53,7 +63,7 @@ internal sealed class GrpcFirewallServiceInvoker : IFirewallServiceInvoker
         UnbanAddressRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.UnbanAddressAsync(request, cancellationToken: cancellationToken);
+        return await Client.UnbanAddressAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -61,6 +71,6 @@ internal sealed class GrpcFirewallServiceInvoker : IFirewallServiceInvoker
         ListBansRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.ListBansAsync(request, cancellationToken: cancellationToken);
+        return await Client.ListBansAsync(request, cancellationToken: cancellationToken);
     }
 }

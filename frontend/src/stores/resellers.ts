@@ -10,6 +10,7 @@ import type {
   Reseller,
   ResellerChoicesLoad,
   ResellerDetail,
+  UpdateResellerRequest,
 } from '../types/reseller'
 
 /**
@@ -59,10 +60,10 @@ export const useResellersStore = defineStore('resellers', () => {
   /** The panel's message for the last failed read of {@link mine}, or `null`. */
   const mineErrorMessage: Ref<string | null> = ref(null)
 
-  /** True while a create or an envelope change is in flight. */
+  /** True while a create, an update or an envelope change is in flight. */
   const saving: Ref<boolean> = ref(false)
 
-  /** The panel's message for the last refused create or envelope change, or `null`. */
+  /** The panel's message for the last refused create, update or envelope change, or `null`. */
   const saveErrorMessage: Ref<string | null> = ref(null)
 
   /** True while a suspend, reactivate or delete is in flight. */
@@ -211,6 +212,34 @@ export const useResellersStore = defineStore('resellers', () => {
   }
 
   /**
+   * Renames a reseller and replaces its contact address and language, and swaps the opened reseller
+   * for the server's answer. The cached name of the reseller is dropped so a chip naming it reads the
+   * new one.
+   * @param id The reseller's identity.
+   * @param request The reseller's new name, contact address and language.
+   * @returns The reseller as it now stands, or `null` when the panel refused; the reason is in {@link saveErrorMessage}.
+   */
+  const update = async (id: string, request: UpdateResellerRequest): Promise<ResellerDetail | null> => {
+    saving.value = true
+    try {
+      const updated = await api.update(id, request)
+      if (selected.value?.id === id) {
+        selected.value = updated
+      }
+      if (id in resellerNames.value) {
+        resellerNames.value = { ...resellerNames.value, [id]: updated.name }
+      }
+      saveErrorMessage.value = null
+      return updated
+    } catch (error) {
+      saveErrorMessage.value = error instanceof ApiError ? error.message : null
+      return null
+    } finally {
+      saving.value = false
+    }
+  }
+
+  /**
    * Replaces a reseller's envelope and swaps the opened reseller for the server's answer.
    * @param id The reseller's identity.
    * @param request The new envelope.
@@ -322,6 +351,7 @@ export const useResellersStore = defineStore('resellers', () => {
     loadMine,
     clearErrors,
     create,
+    update,
     changeEnvelope,
     suspend,
     reactivate,

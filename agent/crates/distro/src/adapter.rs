@@ -7,10 +7,13 @@
 use crate::account_programs::AccountPrograms;
 use crate::backup_facts::BackupFacts;
 use crate::database_facts::DatabaseFacts;
+use crate::dns_facts::DnsFacts;
 use crate::family::DistroFamily;
 use crate::file_transfer_facts::FileTransferFacts;
 use crate::firewall_facts::FirewallFacts;
+use crate::mail_facts::MailFacts;
 use crate::package_facts::PackageFacts;
+use crate::php_extension_facts::PhpExtensionFacts;
 use crate::php_facts::PhpFacts;
 use crate::scheduling_facts::SchedulingFacts;
 use crate::service_manager_facts::ServiceManagerFacts;
@@ -53,13 +56,16 @@ pub trait DistroAdapter:
     + AccountPrograms
     + WebServerFacts
     + PhpFacts
+    + PhpExtensionFacts
     + PackageFacts
     + FileTransferFacts
+    + DnsFacts
     + BackupFacts
     + DatabaseFacts
     + ServiceManagerFacts
     + SchedulingFacts
     + FirewallFacts
+    + MailFacts
 {
     /// The family this adapter implements.
     fn family(&self) -> DistroFamily;

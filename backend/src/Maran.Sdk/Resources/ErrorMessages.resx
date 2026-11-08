@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="MarketplaceNotAvailable">
+    <value>Installing modules from packages is not available in this build of the panel.</value>
+  </data>
+  <data name="ModuleNotPackageable">
+    <value>The package declares a module that ships with the panel itself, so it cannot be installed from a package.</value>
+  </data>
+  <data name="ModuleIdTaken">
+    <value>A module with this id is already part of the panel.</value>
+  </data>
+  <data name="ModuleAssemblyReserved">
+    <value>The package carries an assembly the panel reserves for itself.</value>
+  </data>
+  <data name="ModuleAssemblyUnreadable">
+    <value>The module's assembly could not be read.</value>
+  </data>
+  <data name="ModuleAgentCapabilityUndeclared">
+    <value>The module uses a part of the agent that its manifest does not declare.</value>
+  </data>
+  <data name="ModuleManifestUnreadable">
+    <value>The module's manifest could not be read.</value>
+  </data>
+  <data name="ModuleManifestInvalid">
+    <value>The module's manifest breaks the module contract.</value>
+  </data>
+</root>

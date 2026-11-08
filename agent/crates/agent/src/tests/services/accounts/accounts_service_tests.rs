@@ -75,6 +75,7 @@ async fn a_second_rpc_answers_while_an_account_creation_is_inside_its_spawn() {
                 .create_account(Request::new(CreateAccountRequest {
                     username: SLOW_ACCOUNT.to_owned(),
                     quota_bytes: 0,
+                    ..Default::default()
                 }))
                 .await
         }

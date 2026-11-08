@@ -11,7 +11,12 @@
         "default": "Yes",
         "notDefault": "No",
         "unknown": "Not established"
-      }
+      },
+      "lifecycle": "Support",
+      "endOfLife": "Security support ends",
+      "sitesUsing": "Sites using it",
+      "extensions": "Extensions",
+      "openExtensions": "Extensions of {version}"
     },
     "empty": {
       "title": "No PHP version is installed",
@@ -26,6 +31,13 @@
       "submit": "Install this version",
       "running": "Installing {version}…",
       "hint": "Only versions this server's package repository offers are listed. The server's package manager does the fetching, which on a slow mirror takes minutes; the tasks screen carries the progress."
+    },
+    "lifecycle": {
+      "daysLeft": "({count} day left) | ({count} days left)"
+    },
+    "eol": {
+      "warning": "{count} site runs on an end-of-life PHP version ({versions}) that no longer receives security fixes. Move it to a supported version. | {count} sites run on end-of-life PHP versions ({versions}) that no longer receive security fixes. Move them to a supported version.",
+      "openSites": "Open the sites list"
     }
   }
 }

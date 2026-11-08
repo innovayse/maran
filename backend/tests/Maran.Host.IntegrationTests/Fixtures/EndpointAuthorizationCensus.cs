@@ -43,6 +43,10 @@ public static class EndpointAuthorizationCensus
     {
         ApiKeyPolicyNames.SelfRead,
         ApiKeyPolicyNames.ServerRead,
+        ApiKeyPolicyNames.PlansRead,
+        ApiKeyPolicyNames.AccountsRead,
+        ApiKeyPolicyNames.AccountsWrite,
+        ApiKeyPolicyNames.AccountsDelete,
     };
 
     /// <summary>Spells an endpoint as <c>VERB /path</c>, constraints stripped.</summary>

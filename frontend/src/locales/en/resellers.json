@@ -38,7 +38,7 @@
       "backToList": "Back to resellers",
       "identitySection": "Who the reseller is",
       "limitsSection": "Envelope",
-      "limitsHint": "The reseller's accounts, plans and disk pool, and the most any one of its plans may give an account. Zero FTPS logins or cron entries lets it sell none. Every other figure must be at least 1.",
+      "limitsHint": "The reseller's accounts, plans and disk pool, and the most any one of its plans may give an account. Zero FTPS logins, cron entries or mailboxes lets it sell none. Every other figure must be at least 1.",
       "runtimeSection": "Runtime ceilings",
       "runtimeHint": "The most CPU, memory and processes a plan of the reseller may give one account. CPU is a share of one core: 50 is half a core, 200 is two cores. Tick no limit to leave a resource uncapped.",
       "noLimit": "No limit",
@@ -60,6 +60,8 @@
         "maxFtpUsers": "FTPS logins per account",
         "maxCronEntries": "Cron entries per account",
         "maxPhpWorkersPerPool": "PHP workers per pool",
+        "maxMailboxes": "Mailboxes per account",
+        "mailboxQuotaPoolMib": "Mailbox quota pool per account (MiB)",
         "cpuQuotaPercent": "CPU (% of one core)",
         "memoryMaxMb": "Memory (MB)",
         "maxProcesses": "Processes"
@@ -69,7 +71,7 @@
         "contactEmail": "owner{'@'}example.com"
       },
       "hints": {
-        "name": "Also the reseller's login name. It cannot be changed later.",
+        "name": "Also the reseller's login name.",
         "language": "The invitation to set a password is written in this language."
       },
       "errors": {
@@ -85,12 +87,26 @@
       "created": "Reseller {name} created. An invitation is on its way to its contact address.",
       "envelopeSaved": "The envelope was saved."
     },
+    "profile": {
+      "heading": "Edit the reseller",
+      "subtitle": "Change the reseller's name, the address its mail goes to and the language of that mail. Its login follows: it signs in with the new name, and its invitation and password resets go to the new address.",
+      "fields": {
+        "language": "Language"
+      },
+      "hints": {
+        "name": "Also the reseller's login name: it signs in with the new name from now on.",
+        "language": "The language of the mails written to the contact."
+      },
+      "submit": "Save changes",
+      "saved": "Reseller {name} was saved."
+    },
     "detail": {
       "heading": "Reseller",
       "notFoundTitle": "Reseller not found",
       "notFoundDescription": "It may have been deleted since this link was made.",
       "statusLabel": "Status",
       "createdAtLabel": "Created",
+      "editProfile": "Edit name and contact",
       "editEnvelope": "Change envelope",
       "showAccounts": "Show its accounts",
       "suspend": "Suspend",
@@ -106,7 +122,8 @@
       "confirmDeleteTitle": "Delete reseller {name}",
       "confirmDelete": "The reseller and its login are removed for good. The panel refuses while the reseller still owns accounts or plans: move or delete those first.",
       "confirmDeleteAction": "Delete reseller",
-      "showPlans": "Show its plans"
+      "showPlans": "Show its plans",
+      "showApiKeys": "API keys"
     },
     "envelope": {
       "heading": "Envelope",
@@ -130,6 +147,21 @@
       "plansAction": "Plans",
       "accountsAction": "Accounts",
       "suspendedNotice": "Your reseller account is suspended. You can read here, but creating or changing plans and accounts is refused. Contact the administrator of this panel."
+    },
+    "invitation": {
+      "heading": "Invitation",
+      "subtitle": "The reseller's contact sets the password from a one-time link. You never see it.",
+      "state": {
+        "none": "No invitation has been issued: this reseller has no login yet. Creating a link sets one up.",
+        "pending": "Waiting for the reseller to set a password. The invitation works until {date}.",
+        "expired": "The invitation expired before the reseller used it. Create a new link to let them in.",
+        "accepted": "The reseller has set a password and can sign in. There is no invitation left to hand over."
+      },
+      "replaceNote": "An e-mail is sent only if this panel has a mail server set up. Sending again or creating a link replaces any invitation already sent: the earlier link stops working.",
+      "linkWarning": "Shown once. Anyone holding this link can set the reseller's password, so give it to the reseller's contact only. It stops working once it is used, or on {date}. Leaving this page forgets it; create another link if you lose it.",
+      "resend": "Resend invitation",
+      "resent": "A new invitation was sent. Delivery is not confirmed: the panel cannot tell whether the mail arrived.",
+      "suspendedNote": "No invitation can be sent or linked while this reseller is suspended. Reactivate the reseller first."
     }
   }
 }

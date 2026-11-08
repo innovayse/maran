@@ -112,4 +112,19 @@ public sealed class CallerTests
         Assert.NotEqual<Caller>(apiKey, AnonymousCaller.Instance);
         Assert.NotEqual<Caller>(apiKey, new AdministratorCaller(keyId, "root"));
     }
+
+    /// <summary>An API key caller carries the reseller that owns it when one does, and none otherwise; it is never a reseller login.</summary>
+    [Fact]
+    public void An_api_key_caller_carries_its_owning_reseller_only_when_a_reseller_owns_it()
+    {
+        var resellerId = Guid.Parse("77777777-7777-7777-7777-777777777777");
+
+        var owned = new ApiKeyCaller(Guid.NewGuid(), ["plans.read"], resellerId);
+        var administrators = new ApiKeyCaller(Guid.NewGuid(), ["server.read"]);
+
+        Assert.Equal(resellerId, owned.ResellerId);
+        Assert.Null(administrators.ResellerId);
+        Assert.IsNotAssignableFrom<ResellerCaller>(owned);
+        Assert.IsNotAssignableFrom<PrincipalCaller>(owned);
+    }
 }

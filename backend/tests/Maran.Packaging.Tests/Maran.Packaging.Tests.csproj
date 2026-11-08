@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Maran.Packaging is the subject; Maran.Sdk and Maran.SharedKernel arrive through it and are the
+         vocabulary its manifests are written in. Nothing else: the library needs no host, and its tests
+         must not either. -->
+    <ProjectReference Include="..\..\src\Maran.Packaging\Maran.Packaging.csproj" />
+  </ItemGroup>
+
+</Project>

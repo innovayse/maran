@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="MarketplaceNotAvailable">
+    <value>Установка модулей из пакетов недоступна в этой сборке панели.</value>
+  </data>
+  <data name="ModuleNotPackageable">
+    <value>Пакет объявляет модуль, который входит в саму панель, поэтому его нельзя установить из пакета.</value>
+  </data>
+  <data name="ModuleIdTaken">
+    <value>Модуль с таким идентификатором уже входит в панель.</value>
+  </data>
+  <data name="ModuleAssemblyReserved">
+    <value>Пакет содержит сборку, которую панель зарезервировала за собой.</value>
+  </data>
+  <data name="ModuleAssemblyUnreadable">
+    <value>Не удалось прочитать сборку модуля.</value>
+  </data>
+  <data name="ModuleAgentCapabilityUndeclared">
+    <value>Модуль использует часть агента, не объявленную в его манифесте.</value>
+  </data>
+  <data name="ModuleManifestUnreadable">
+    <value>Не удалось прочитать манифест модуля.</value>
+  </data>
+  <data name="ModuleManifestInvalid">
+    <value>Манифест модуля нарушает контракт модулей.</value>
+  </data>
+</root>

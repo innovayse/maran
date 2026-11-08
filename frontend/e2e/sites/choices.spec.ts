@@ -9,7 +9,7 @@ import type { PanelModule } from '../../src/types/module'
 import type { Site, SiteChoices } from '../../src/types/site'
 
 const LICENSED_SITES: PanelModule[] = [
-  { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
+  { name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 const OWNER: Account = {
@@ -38,6 +38,8 @@ const PANEL_CHOICES: SiteChoices = {
     { value: 'enabled', label: 'Panel-labelled serving' },
     { value: 'disabled', label: 'Panel-labelled paused' },
   ],
+  trafficWindows: [{ value: '7', label: 'Panel-labelled week' }],
+  logRetentions: [{ value: '14', label: 'Panel-labelled fortnight' }],
 }
 
 /** One site, so the list shows its toolbar: with no site at all the list is the empty state, which has no filters. */
@@ -52,6 +54,7 @@ const ONE_SITE: Site = {
   status: 'enabled',
   statusName: 'Panel-labelled serving',
   createdAt: '2026-08-30T10:00:00Z',
+  logRetentionDays: 14,
 }
 
 /**

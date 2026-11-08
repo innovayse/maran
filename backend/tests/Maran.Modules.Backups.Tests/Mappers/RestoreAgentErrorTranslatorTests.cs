@@ -38,6 +38,31 @@ public sealed class RestoreAgentErrorTranslatorTests
         Assert.Equal("RestoreArtifactRejected", failure.Code);
     }
 
+    /// <summary>
+    /// A sealed archive that did not open under the destination's key is NOT folded into the general
+    /// refused-artifact sentence, although it arrives with the same validation KIND (issue #445).
+    /// </summary>
+    /// <remarks>
+    /// The pinned defect: a wrong or missing archive key told the operator that the copy was "not what
+    /// the panel recorded", which sends them to another copy when the destination's key is what to
+    /// check. The kind is kept, so the endpoint still answers HTTP 400.
+    /// </remarks>
+    [Fact]
+    public void A_sealed_archive_that_cannot_be_opened_is_named_for_its_key_not_as_a_refused_artifact()
+    {
+        var terminal = new BackupRestoreEvent(
+            BackupRestoreEventKind.Failed,
+            0,
+            string.Empty,
+            null,
+            Error.Of("AgentArchiveUnopenable", ErrorType.Validation));
+
+        var failure = RestoreAgentErrorTranslator.ToFailure(terminal);
+
+        Assert.Equal("RestoreArchiveKeyRejected", failure.Code);
+        Assert.Equal(ErrorType.Validation, failure.Type);
+    }
+
     /// <summary>The renaming keeps the KIND, so a refused artifact still answers HTTP 400.</summary>
     /// <remarks>
     /// Stated separately from the code, because the two have been separated before: carrying only
@@ -159,5 +184,68 @@ public sealed class RestoreAgentErrorTranslatorTests
 
         Assert.Equal("AgentSystemFailure", failure.Code);
         Assert.Equal(ErrorType.Failure, failure.Type);
+    }
+
+    /// <summary>The terminal event of an agent that answered "not found".</summary>
+    private static BackupRestoreEvent NotFound()
+    {
+        return new BackupRestoreEvent(
+            BackupRestoreEventKind.Failed,
+            0,
+            string.Empty,
+            null,
+            Error.Of("AgentNotFound", ErrorType.NotFound));
+    }
+
+    /// <summary>
+    /// On a restore narrowed to one database or one site, the agent's not-found is this module's own
+    /// sentence about the part not being in the backup, and keeps the not-found kind.
+    /// </summary>
+    /// <param name="database">Whether the scope is a database (otherwise a site).</param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void A_not_found_on_a_narrowed_restore_means_the_part_is_not_in_the_backup(bool database)
+    {
+        AgentRestoreScope scope = database
+            ? new AgentDatabaseRestoreScope("alice_shop")
+            : new AgentSiteRestoreScope("shop.example.com");
+
+        var failure = RestoreAgentErrorTranslator.ToFailure(NotFound(), scope);
+
+        Assert.Equal("RestoreScopeNotInBackup", failure.Code);
+        Assert.Equal(ErrorType.NotFound, failure.Type);
+    }
+
+    /// <summary>
+    /// The same not-found on a WHOLE restore keeps the shared code: only a narrowed restore has a part
+    /// that can be missing, and the inverse control stops the rename applying to everything.
+    /// </summary>
+    [Fact]
+    public void A_not_found_on_a_whole_restore_keeps_the_code_it_arrived_with()
+    {
+        var failure = RestoreAgentErrorTranslator.ToFailure(NotFound(), new AgentWholeRestoreScope());
+
+        Assert.Equal("AgentNotFound", failure.Code);
+        Assert.Equal(failure.Code, RestoreAgentErrorTranslator.ToFailure(NotFound()).Code);
+    }
+
+    /// <summary>
+    /// Only a not-found is renamed on a narrowed restore: a rollback, a busy account and a refused
+    /// artifact keep their own answers.
+    /// </summary>
+    [Fact]
+    public void A_narrowed_restore_renames_nothing_but_the_not_found()
+    {
+        var busy = new BackupRestoreEvent(
+            BackupRestoreEventKind.Failed,
+            0,
+            string.Empty,
+            null,
+            Error.Of("AgentAlreadyExists", ErrorType.Conflict));
+
+        var failure = RestoreAgentErrorTranslator.ToFailure(busy, new AgentDatabaseRestoreScope("alice_shop"));
+
+        Assert.Equal("AccountBackupOperationRunning", failure.Code);
     }
 }

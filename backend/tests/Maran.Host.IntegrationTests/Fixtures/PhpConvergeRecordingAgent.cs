@@ -85,6 +85,26 @@ public sealed class PhpConvergeRecordingAgent : IAgentSitesClient
         throw new NotSupportedException("This double answers a PHP version change only.");
     }
 
+    /// <inheritdoc/>
+    public Task<Result<SiteTrafficReading>> SummariseTrafficAsync(
+        string accountUsername,
+        string domain,
+        SiteTrafficCursor? cursor,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double answers a PHP version change only.");
+    }
+
+    /// <inheritdoc/>
+    public Task<Result<PrunedSiteLogs>> PruneLogsAsync(
+        string accountUsername,
+        string domain,
+        uint retainRotations,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double answers a PHP version change only.");
+    }
+
     /// <inheritdoc />
     public Task<Result> ReloadWebServerAsync(CancellationToken cancellationToken)
     {

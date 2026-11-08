@@ -64,8 +64,8 @@ use maran_agent_core::validation::system::local_backup_root::LocalBackupRoot;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_distro::{DistroAdapter, adapter_for, detect};
 use maran_ops::backup::{
-    BackupStage, ProcessBackupHost, ProgressSink, RestoreSink, RestoreStage, create_backup,
-    recover_restores, restore_backup,
+    BackupStage, CreationRequest, ProcessBackupHost, ProgressSink, RestoreScope, RestoreSink,
+    RestoreStage, create_backup, recover_restores, restore_backup,
 };
 use maran_ops::db::{CreateDatabaseRequest, ProcessDbHost, create_database};
 
@@ -284,11 +284,14 @@ fn take_the_backup(server: &PolygonMariadb, account: &PolygonAccount) -> (Databa
     let summary = create_backup(
         &ProcessBackupHost::new(polygon_distro()),
         &catalog(),
-        account.name(),
-        &fixture_id(),
-        &root(),
-        &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
-            .expect("a one-mebibyte floor"),
+        &CreationRequest {
+            account: account.name(),
+            backup_id: &fixture_id(),
+            root: &root(),
+            floor: &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+                .expect("a one-mebibyte floor"),
+            key: None,
+        },
         &mut QuietSink,
     )
     .unwrap_or_else(|error| panic!("the backup must succeed: {error}"));
@@ -358,10 +361,12 @@ fn restored_as_the_child() -> bool {
         &fixture_id(),
         &root(),
         std::slice::from_ref(&database),
+        &RestoreScope::Whole,
         &digest,
         group,
         &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
             .expect("a one-mebibyte floor"),
+        None,
         &mut SuicideSink { at },
     );
 
@@ -570,10 +575,12 @@ fn a_completed_restore_is_not_recovered_by_the_next_start() {
         &fixture_id(),
         &root(),
         std::slice::from_ref(&database),
+        &RestoreScope::Whole,
         &digest,
         group,
         &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
             .expect("a one-mebibyte floor"),
+        None,
         &mut QuietSink,
     )
     .unwrap_or_else(|error| panic!("the restore must succeed: {error}"));
@@ -633,10 +640,12 @@ fn a_normal_restore_still_puts_the_home_and_the_database_back() {
         &fixture_id(),
         &root(),
         std::slice::from_ref(&database),
+        &RestoreScope::Whole,
         &digest,
         group,
         &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
             .expect("a one-mebibyte floor"),
+        None,
         &mut QuietSink,
     )
     .unwrap_or_else(|error| panic!("the restore must succeed: {error}"));

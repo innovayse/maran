@@ -12,7 +12,7 @@ use crate::sites::{SitesOpError, delete_site};
 
 use crate::php::fake_php_host::FakePhpHost;
 use crate::sites::fake_site_host::{
-    FakeSiteHost, create_test_site, distro, php_identity, php_input,
+    FakeSiteHost, create_test_site, distro, php_identity, php_input, php_input_with_options,
 };
 
 /// The vhost every test here acts on.
@@ -141,4 +141,25 @@ fn deleting_a_site_leaves_the_pool_alone_when_the_panel_did_not_retire_it() {
         0,
         "no pool may be touched unless the panel retired it"
     );
+}
+
+#[test]
+fn deleting_a_site_takes_its_credential_file_with_it() {
+    let host = FakeSiteHost::passing();
+    let input = php_input_with_options();
+    create_test_site(&host, &input).unwrap();
+    let credential = maran_agent_core::agent_paths::AgentPaths::site_auth_file(&input.domain);
+    assert!(host.auth_file(&credential).is_some());
+
+    delete_site(
+        &host,
+        &FakePhpHost::empty(),
+        distro(),
+        &php_identity(),
+        None,
+    )
+    .unwrap();
+
+    assert!(host.config(Path::new(VHOST)).is_none());
+    assert!(host.auth_file(&credential).is_none());
 }

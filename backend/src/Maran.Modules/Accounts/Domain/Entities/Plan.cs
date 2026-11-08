@@ -7,7 +7,8 @@ namespace Maran.Modules.Accounts.Domain.Entities;
 /// <summary>
 /// A plan an <see cref="Account"/> is created against: the resource limits spec §8 requires — disk
 /// quota, counts for sites, databases, SFTP logins, FTPS logins and cron entries, and the CPU, memory
-/// and process ceilings of <see cref="RuntimeLimits"/>. A fresh panel
+/// and process ceilings of <see cref="RuntimeLimits"/>, and the PHP settings bounds of
+/// <see cref="ValueObjects.PhpLimits"/>, and the mail allowance of <see cref="ValueObjects.MailLimits"/>. A fresh panel
 /// ships three (seeded by <see cref="Seeders.PlanSeeder"/>); an administrator defines, edits and
 /// retires the rest, which is what lets an operator sell something other than what shipped.
 /// </summary>
@@ -39,6 +40,12 @@ public sealed class Plan
     /// screen's field all take this one number from here, so widening it is one edit and a migration.
     /// </summary>
     public const int NameMaxLength = 64;
+
+    /// <summary>
+    /// The DNS zone allowance of a plan that does not state one (issue #178): the figure the migration that
+    /// added the column gave every existing plan, and the one a plan a reseller owns always holds.
+    /// </summary>
+    public const int DefaultMaxDnsZones = 10;
 
     /// <summary>The plan's identity.</summary>
     public Guid Id { get; private set; }
@@ -118,6 +125,37 @@ public sealed class Plan
     /// <see cref="ValueObjects.RuntimeLimits"/>.
     /// </summary>
     public RuntimeLimits RuntimeLimits { get; private set; } = RuntimeLimits.Unlimited();
+
+    /// <summary>
+    /// The largest PHP settings a customer on this plan may choose for their pools (issue #138). The
+    /// conservative <see cref="ValueObjects.PhpLimits.Default"/> until an operator states them, which is
+    /// also what every plan that predates the bounds reads as.
+    /// </summary>
+    /// <remarks>
+    /// Read live through the plan like the other limits. A customer's stored setting above a bound is
+    /// kept and the pool carries it clamped, so editing a bound never loses what a customer chose.
+    /// </remarks>
+    public PhpLimits PhpLimits { get; private set; } = PhpLimits.Default;
+
+    /// <summary>
+    /// What an account on this plan may do with mail (issue #177): how many mailboxes, the default and
+    /// pooled quota and the hourly send limit. The <see cref="ValueObjects.MailLimits.Default"/> until an
+    /// operator states them, which is also what every plan that predates mail reads as.
+    /// </summary>
+    /// <remarks>
+    /// Read live through the plan like the other limits, so an edit reaches every account on the plan on
+    /// its next request. A mailbox that already exists keeps the quota it was given; the figures bound
+    /// what may be created or resized from here on.
+    /// </remarks>
+    public MailLimits MailLimits { get; private set; } = MailLimits.Default;
+
+    /// <summary>The maximum number of DNS zones the account may own (issue #178).</summary>
+    /// <remarks>
+    /// Zero is a coherent product, "this tier does not include DNS zones", and is what an operator's own plan
+    /// holds when they say so. The database default of a plan that predates the allowance is
+    /// <see cref="DefaultMaxDnsZones"/>, set by the migration that added the column.
+    /// </remarks>
+    public int MaxDnsZones { get; private set; } = DefaultMaxDnsZones;
 
     /// <summary>
     /// The features the plan sells: which parts of the panel an account on it may use, as a set.
@@ -391,6 +429,35 @@ public sealed class Plan
     }
 
     /// <summary>
+    /// Replaces the plan's PHP bounds. The value enforces its own rules, so nothing here can leave the
+    /// plan holding a bound of zero or one above the agent's ceiling.
+    /// </summary>
+    /// <param name="phpLimits">The new bounds.</param>
+    public void ChangePhpLimits(PhpLimits phpLimits)
+    {
+        PhpLimits = phpLimits;
+    }
+
+    /// <summary>Replaces the DNS zone allowance (issue #178).</summary>
+    /// <param name="maxDnsZones">The most zones an account on the plan may own; zero sells none.</param>
+    public void ChangeDnsZoneLimit(int maxDnsZones)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxDnsZones);
+
+        MaxDnsZones = maxDnsZones;
+    }
+
+    /// <summary>
+    /// Replaces the plan's mail figures. The value enforces its own rules, so nothing here can leave the
+    /// plan holding a default quota larger than its pool.
+    /// </summary>
+    /// <param name="mailLimits">The new figures.</param>
+    public void ChangeMailLimits(MailLimits mailLimits)
+    {
+        MailLimits = mailLimits;
+    }
+
+    /// <summary>
     /// Replaces the set of features the plan sells. Takes effect for every account on the plan on its
     /// next request, because nothing copies the set onto an account.
     /// </summary>
@@ -428,6 +495,8 @@ public sealed class Plan
             AccountResourceKind.SftpLogins => ResourceLimit.Limited(MaxSftpUsers),
             AccountResourceKind.FtpLogins => ResourceLimit.Limited(MaxFtpUsers),
             AccountResourceKind.CronEntries => ResourceLimit.Limited(MaxCronEntries),
+            AccountResourceKind.Mailboxes => ResourceLimit.Limited(MailLimits.MaxMailboxes),
+            AccountResourceKind.DnsZones => ResourceLimit.Limited(MaxDnsZones),
             AccountResourceKind.Backups => ResourceLimit.Unlimited(),
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "No plan limit is defined for this kind."),
         };

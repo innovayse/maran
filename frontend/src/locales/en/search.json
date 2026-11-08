@@ -1,0 +1,13 @@
+{
+  "search": {
+    "pages": "Pages",
+    "groups": {
+      "account": "Accounts",
+      "site": "Sites"
+    },
+    "unavailable": "Could not search {group} right now.",
+    "failed": "Could not search the panel right now.",
+    "loading": "Searching…",
+    "count": "{count} result | {count} results"
+  }
+}

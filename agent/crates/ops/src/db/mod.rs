@@ -65,31 +65,47 @@
 //! and `model/` for the typed inputs and outputs.
 
 mod create_database;
+mod create_database_user;
 mod database_size;
 mod db_error;
 mod db_host;
 mod drop_account_databases;
 mod drop_database;
+mod drop_database_user;
 #[cfg(test)]
 #[path = "../tests/db/fake_db_host.rs"]
 pub(crate) mod fake_db_host;
+#[cfg(test)]
+#[path = "../tests/db/fake_privilege_host.rs"]
+pub(crate) mod fake_privilege_host;
 mod grant_pattern;
+mod grant_rows;
 mod list_databases;
 pub mod model;
+mod privilege_column;
 mod process_db_host;
 mod repair_grants;
+mod revoke_database_grants;
 mod set_database_password;
+mod set_database_user_privileges;
+mod user_database_grants;
+mod user_exists;
+mod user_host;
 
 pub use create_database::create_database;
+pub use create_database_user::create_database_user;
 pub use database_size::database_size;
 pub use db_error::DbError;
 pub use db_host::DbHost;
 pub use drop_account_databases::drop_account_databases;
 pub use drop_database::drop_database;
+pub use drop_database_user::drop_database_user;
 pub use list_databases::list_databases;
 pub use model::create_database_request::CreateDatabaseRequest;
+pub use model::database_privilege_change::DatabasePrivilegeChange;
 pub use model::database_size_report::DatabaseSizeReport;
 pub use model::database_summary::DatabaseSummary;
+pub use model::database_user_request::DatabaseUserRequest;
 pub use model::grant_repair_refusal::GrantRepairRefusal;
 pub use model::grant_repair_report::GrantRepairReport;
 pub use model::refused_grant::RefusedGrant;
@@ -97,3 +113,4 @@ pub use model::repaired_grant::RepairedGrant;
 pub use process_db_host::ProcessDbHost;
 pub use repair_grants::repair_grants;
 pub use set_database_password::set_database_password;
+pub use set_database_user_privileges::set_database_user_privileges;

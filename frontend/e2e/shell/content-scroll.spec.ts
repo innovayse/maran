@@ -17,7 +17,7 @@ test('the Firewall page scrolls in its panel only, and the app bar does not move
   await page.setViewportSize({ width: 1440, height: 600 })
   await stubSignedIn(page)
   await stubHealthy(page)
-  await stubModules(page, [{ name: 'firewall', displayName: 'Firewall', tier: 'included', state: 'enabled' }])
+  await stubModules(page, [{ name: 'firewall', displayName: 'Firewall', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
   const rules = Array.from({ length: 40 }, (_, index): FirewallRule => {
     return { port: 2000 + index, portTo: null, protocol: 'tcp', sourceCidr: '0.0.0.0/0' }
   })

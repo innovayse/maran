@@ -251,7 +251,7 @@ public sealed class ResellerPlansAndAccountsEndpointTests : IAsyncLifetime
         var offeredToAdministrator = await FeaturesAsync(admin);
 
         Assert.Equal(ResellerEnvelopeSpec.SoldFeatureNames.Order(), offeredToReseller.Order());
-        Assert.Equal(10, offeredToAdministrator.Count);
+        Assert.Equal(11, offeredToAdministrator.Count);
         Assert.Subset(offeredToAdministrator.ToHashSet(), offeredToReseller.ToHashSet());
         Assert.Contains("sites", offeredToAdministrator);
         Assert.DoesNotContain("sites", offeredToReseller);

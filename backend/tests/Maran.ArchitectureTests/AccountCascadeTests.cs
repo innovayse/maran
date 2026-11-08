@@ -535,7 +535,11 @@ public sealed class AccountCascadeTests
         {
             return contexts
                 .SelectMany(context => { return context.Model.GetEntityTypes(); })
-                .Where(entity => { return entity.FindProperty(TenantProperty) is not null; })
+                // An owned type shares its owner's row and is removed with it; its key is a shadow
+                // property that EF may name AccountId (AccountLimitOverrides on Account), which is
+                // the owner's own identity and not a second tenant row. Every other census here
+                // skips owned types for the same reason.
+                .Where(entity => { return !entity.IsOwned() && entity.FindProperty(TenantProperty) is not null; })
                 .Select(entity => { return entity.ClrType.Assembly; })
                 .Distinct()
                 .ToList();

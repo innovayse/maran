@@ -16,7 +16,7 @@ import type { PanelModule } from '../../src/types/module'
 // crontab, so the parameter chooses the picker's account instead of the first one; a customer has
 // no picker and keeps reading their own crontab whatever the URL says.
 
-const LICENSED: PanelModule[] = [{ name: 'cron', displayName: 'Scheduled tasks', tier: 'included', state: 'enabled' }]
+const LICENSED: PanelModule[] = [{ name: 'cron', displayName: 'Scheduled tasks', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }]
 
 const ALICE: Account = {
   id: '22222222-2222-2222-2222-222222222222',

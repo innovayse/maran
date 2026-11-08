@@ -4,7 +4,7 @@ import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubBackupDestinations } from '../fixtures/stub-backup-destination-routes'
 import { stubBackupSchedules } from '../fixtures/stub-backup-schedule-routes'
 import { stubBackups } from '../fixtures/stub-backups-routes'
-import { loaded, stubDashboard, SYNCHRONIZED_CLOCK } from '../fixtures/stub-dashboard-route'
+import { ALERT_DELIVERY_OK, loaded, stubDashboard, SYNCHRONIZED_CLOCK } from '../fixtures/stub-dashboard-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubPlans, THREE_PLANS } from '../fixtures/stub-plans-route'
@@ -40,7 +40,7 @@ const MIN_TITLE_WIDTH = 200
 
 /** Every module, so no screen is gated. */
 const MODULES: PanelModule[] = ['accounts', 'sites', 'databases', 'backups', 'monitoring', 'tasks'].map((name) => {
-  return { name, displayName: name, tier: 'included', state: 'enabled' }
+  return { name, displayName: name, kindDisplayName: 'Core', tier: 'included', state: 'enabled' }
 })
 
 const ACCOUNT: Account = {
@@ -66,6 +66,7 @@ const SITE: Site = {
   status: 'enabled',
   statusName: 'Enabled',
   createdAt: '2026-08-01T10:00:00Z',
+  logRetentionDays: 14,
 }
 
 const BACKUP: Backup = {
@@ -113,7 +114,7 @@ const DASHBOARD: Dashboard = {
     sites: loaded(7),
     databases: loaded(4),
   },
-  attention: { certificatesExpiringSoon: loaded(2), failedBackups: loaded(5), bannedAddresses: loaded(9), failedTasks: loaded(6), clock: SYNCHRONIZED_CLOCK },
+  attention: { certificatesExpiringSoon: loaded(2), failedBackups: loaded(5), sitesOnEndOfLifePhp: loaded(0), alertDelivery: ALERT_DELIVERY_OK, bannedAddresses: loaded(9), failedTasks: loaded(6), clock: SYNCHRONIZED_CLOCK },
   recentAudit: loaded([
     {
       id: '22222222-2222-2222-2222-222222222222',

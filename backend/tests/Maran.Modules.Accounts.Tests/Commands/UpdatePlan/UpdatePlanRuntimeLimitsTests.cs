@@ -110,6 +110,6 @@ public sealed class UpdatePlanRuntimeLimitsTests : IDisposable
     private UpdatePlanCommand Edit(ResourceCeilingDto cpu, ResourceCeilingDto memory)
     {
         return new UpdatePlanCommand(
-            "Agency", 10_240, 10, 5, 4, 2, 3, 8, cpu, memory, ResourceCeilingTestValues.Unlimited, AccountFeature.All.Members(), _plan.Id, "203.0.113.7", "unit-tests");
+            "Agency", 10_240, 10, 5, 4, 2, 3, 8, cpu, memory, ResourceCeilingTestValues.Unlimited, AccountFeature.All.Members(), PlanId: _plan.Id, IpAddress: "203.0.113.7", UserAgent: "unit-tests");
     }
 }

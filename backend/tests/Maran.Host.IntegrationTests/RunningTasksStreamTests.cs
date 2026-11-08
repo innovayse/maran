@@ -151,10 +151,10 @@ public sealed class RunningTasksStreamTests : IAsyncLifetime
         using var response = await client.GetAsync(StreamPath, HttpCompletionOption.ResponseHeadersRead, deadline.Token);
         using var reader = new StreamReader(await response.Content.ReadAsStreamAsync(deadline.Token));
         var (opening, _) = await ReadUntilRunningSetAsync(reader, deadline.Token);
-        // The stream's writer omits a null member, so a running task's frame carries no failure at all.
+        // A running task has no failure, and the stream spells that null exactly as the plain endpoints do.
         Assert.All(opening, task =>
         {
-            Assert.False(task.TryGetProperty("failure", out var failure) && failure.ValueKind != JsonValueKind.Null);
+            Assert.Equal(JsonValueKind.Null, task.GetProperty("failure").ValueKind);
         });
 
         using (var scope = factory.Services.CreateScope())

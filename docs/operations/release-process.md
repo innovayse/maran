@@ -11,7 +11,7 @@ One GitHub release per tag, with these assets:
 
 | Asset | What it is |
 |---|---|
-| `manifest.json` | the release manifest: version, channel, and for every `<component>-<arch>` its address and sha256 |
+| `manifest.json` | the release manifest: version, channel, release date, notes URL, and for every `<component>-<arch>` its address and sha256 |
 | `manifest.json.sig` | the signature of `manifest.json` (ECDSA P-384 over SHA-384, DER) |
 | `integrity-manifest.json` and `.sig` | the signed list of installed-file hashes, signed with the same key |
 | `api-<arch>.tar.gz`, `agent-<arch>.tar.gz`, `frontend-<arch>.tar.gz` | the three components, for `x86_64` and `aarch64` |
@@ -124,6 +124,12 @@ or regenerates it from that tree. The signing job's inputs are unchanged by this
 artifact.
 
 ## Release notes
+
+`maran release build` writes two signed manifest fields next to `channel`: `released`, the UTC date
+(from `SOURCE_DATE_EPOCH` when set, so a reproducible build repeats it), and `notes_url`, by default
+`https://github.com/innovayse/maran/releases/tag/v<version>`, the GitHub release whose body is the
+notes below. `--notes-url <https url>` replaces it; the build refuses a URL `maran update --check`
+would not print (see panel-update.md, "Release date and notes").
 
 `maran release changelog` builds the notes offline from the merged pull requests between the previous
 `v*` tag of ANY channel and this one (so the notes of a stable release cover the betas before it too):

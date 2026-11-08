@@ -34,18 +34,7 @@ import type { OwnerLanguageChoice } from '../../types/account'
 import type { LoadingState } from '../../types/loading'
 import type { PlanFeatureChoice } from '../../types/plan'
 import type { ChangeResellerEnvelopeRequest, CreateResellerRequest, ResellerDetail } from '../../types/reseller'
-
-/** The longest name the form lets through; the server's own bound is the authority. */
-const MAX_NAME_LENGTH = 64
-
-/** The longest contact address the form lets through, mirroring the storage bound of an owner address. */
-const MAX_EMAIL_LENGTH = 256
-
-/**
- * A conservative address shape, not a full RFC 5322 grammar: something, an "@", something with a
- * dot. The server's rule is the authority; this only catches the obvious slip before a round trip.
- */
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+import { isPlausibleResellerEmail, MAX_RESELLER_NAME_LENGTH } from '../../utils/resellerIdentityRules'
 
 /** Props accepted by {@link ResellerForm}. */
 const props = defineProps<{
@@ -115,7 +104,9 @@ const nameError: ComputedRef<string | null> = computed(() => {
   if (trimmed.length === 0) {
     return t('resellers.form.errors.nameRequired')
   }
-  return trimmed.length > MAX_NAME_LENGTH ? t('resellers.form.errors.nameTooLong', { max: MAX_NAME_LENGTH }) : null
+  return trimmed.length > MAX_RESELLER_NAME_LENGTH
+    ? t('resellers.form.errors.nameTooLong', { max: MAX_RESELLER_NAME_LENGTH })
+    : null
 })
 
 /** Validation message for the contact address, or `null`. */
@@ -126,9 +117,7 @@ const contactEmailError: ComputedRef<string | null> = computed(() => {
   if (contactEmail.value.length === 0) {
     return t('resellers.form.errors.contactEmailRequired')
   }
-  return contactEmail.value.length > MAX_EMAIL_LENGTH || !EMAIL_PATTERN.test(contactEmail.value)
-    ? t('resellers.form.errors.contactEmailInvalid')
-    : null
+  return isPlausibleResellerEmail(contactEmail.value) ? null : t('resellers.form.errors.contactEmailInvalid')
 })
 
 /** Whether the identity fields pass; silent until a submit was attempted, and an edit has none to check. */

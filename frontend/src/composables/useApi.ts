@@ -37,6 +37,20 @@ const STANDARD_PROBLEM_MEMBERS: readonly string[] = [
 ]
 
 /**
+ * The media type a request's body goes out as: octet-stream for a raw upload, JSON for a payload,
+ * none for a request without a body.
+ * @param options The request as described to `request`.
+ * @returns The `Content-Type` value, or null when there is no body.
+ */
+const contentTypeOf = (options: RequestOptions): string | null => {
+  if (options.rawBody !== undefined) {
+    return 'application/octet-stream'
+  }
+
+  return options.body === undefined ? null : 'application/json'
+}
+
+/**
  * Error thrown by {@link useApi} when the server responds with a non-2xx
  * status. Carries the backend's own already-localized `title`/`detail` text as
  * `message` (rules/vue.md: "the backend owns their text") so callers render it
@@ -97,7 +111,7 @@ export class ApiError extends Error {
  * request cancellation via `AbortSignal`, and one silent retry after renewing
  * an expired access token. There is exactly one of this composable in the app;
  * feature API composables call it, and nothing else does.
- * @returns The {@link ApiClient} with `get`, `post`, `put`, `patch`, `delete`, `download` and `stream`.
+ * @returns The {@link ApiClient} with `get`, `post`, `put`, `patch`, `delete`, `download`, `upload` and `stream`.
  */
 export const useApi = (): ApiClient => {
   // The locale store is the single source of truth for the interface language;
@@ -144,11 +158,11 @@ export const useApi = (): ApiClient => {
 
   /**
    * Builds the headers every request carries.
-   * @param hasBody Whether the request sends a JSON body.
+   * @param contentType The media type of the body, or null for a request without one.
    * @param accept The media types the caller will take; JSON unless a download asks otherwise.
    * @returns The header map.
    */
-  const buildHeaders = (hasBody: boolean, accept: string): Record<string, string> => {
+  const buildHeaders = (contentType: string | null, accept: string): Record<string, string> => {
     const headers: Record<string, string> = {
       Accept: accept,
       // Lets the backend pick which language to render `title`/`detail` in,
@@ -159,8 +173,8 @@ export const useApi = (): ApiClient => {
       [CSRF_HEADER]: '1',
     }
 
-    if (hasBody) {
-      headers['Content-Type'] = 'application/json'
+    if (contentType !== null) {
+      headers['Content-Type'] = contentType
     }
 
     if (authStore.accessToken !== null) {
@@ -186,8 +200,8 @@ export const useApi = (): ApiClient => {
     const send = (): Promise<Response> => {
       return fetch(path, {
         method: options.method,
-        headers: buildHeaders(options.body !== undefined, options.accept ?? 'application/json'),
-        body: options.body === undefined ? undefined : JSON.stringify(options.body),
+        headers: buildHeaders(contentTypeOf(options), options.accept ?? 'application/json'),
+        body: options.rawBody ?? (options.body === undefined ? undefined : JSON.stringify(options.body)),
         // Sends the refresh cookie on the paths scoped to receive it.
         credentials: 'include',
         signal: options.signal,
@@ -299,6 +313,21 @@ export const useApi = (): ApiClient => {
   }
 
   /**
+   * Performs a POST request whose body is a file's raw bytes, for an upload.
+   *
+   * Sent with `fetch`, so no upload progress is reported (rules/vue.md allows no other client);
+   * the replay after a token renewal re-sends the same `Blob`, which a file keeps readable.
+   * @param path Request path, relative to the app origin.
+   * @param body The file's bytes, sent unchanged as `application/octet-stream`.
+   * @param signal Optional abort signal to cancel the upload.
+   * @returns The parsed JSON response body, cast to `T`.
+   * @throws {ApiError} When the response status is not in the 2xx range.
+   */
+  const upload = async <T>(path: string, body: Blob, signal?: AbortSignal): Promise<T> => {
+    return readJson<T>(await request(path, { method: 'POST', rawBody: body, signal }))
+  }
+
+  /**
    * Performs a GET request for a file and returns it whole, with the name the panel proposed.
    *
    * It goes through the same `request` helper as every other call, so the bearer token, the CSRF
@@ -380,5 +409,5 @@ export const useApi = (): ApiClient => {
     }
   }
 
-  return { get, post, put, patch, delete: deleteResource, download, stream }
+  return { get, post, put, patch, delete: deleteResource, download, upload, stream }
 }

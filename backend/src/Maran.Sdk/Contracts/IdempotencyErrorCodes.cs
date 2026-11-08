@@ -11,6 +11,12 @@ public static class IdempotencyErrorCodes
     /// <summary>The <c>Idempotency-Key</c> header, or the request it travels with, is not acceptable (400).</summary>
     public const string KeyInvalid = "IdempotencyKeyInvalid";
 
+    /// <summary>
+    /// The action requires an <c>Idempotency-Key</c> header and the request carried none (400); see
+    /// <see cref="Filters.IdempotentAttribute.Required"/>.
+    /// </summary>
+    public const string KeyRequired = "IdempotencyKeyRequired";
+
     /// <summary>The key was already used for a different request (422).</summary>
     public const string KeyReused = "IdempotencyKeyReused";
 

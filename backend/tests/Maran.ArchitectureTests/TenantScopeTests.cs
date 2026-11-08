@@ -94,7 +94,9 @@ public sealed class TenantScopeTests
             ["Maran.Modules.Identity.Domain.Entities.AccountMembershipOffer"] =
                 "the offered login's row as much as the account's: the invitee reads, accepts and declines it from a session that speaks for another account or none, so an account filter would hide it from them; every read compares the caller's own user id, and the owner's reads are scoped to the account their token names",
             ["Maran.Modules.Identity.Domain.Entities.AuditEvent"] =
-                "an administrator-only, server-wide journal that carries a nullable AccountId only so the administrator's account filter, export and erasure can find an account's entries; it is also written with no principal at all (a failed sign-in), so a filter keyed on the caller's account would hide those rows from the writer. It is read only through controllers behind AdminOnly and no customer endpoint lists it. A customer-facing view of the journal would NOT be safe under this exemption: it would need a query filter on AccountId first, and this entry removed",
+                "an administrator-only, server-wide journal that carries a nullable AccountId only so the administrator's account filter, export and erasure can find an account's entries; it is also written with no principal at all (a failed sign-in), so a filter keyed on the caller's account would hide those rows from the writer. It is read through controllers behind AdminOnly, and since issue #370 through the reseller's own read (ResellerAuditController), which narrows every query, the action choices and the account filter to the reseller's owned accounts and its own login in AuditEventQuery.Visible (an AuditEventScope the reader derives from the caller, never from a request). That scope is a written predicate and not a query filter, so any NEW read of this table must go through AuditEventQuery with a scope. A customer-facing view of the journal would NOT be safe under this exemption: it would need a query filter on AccountId first, and this entry removed",
+            ["Maran.Modules.Identity.Domain.Entities.ApiKey"] =
+                "carries the reseller id of the RESELLER THAT OWNS THE KEY (null for the administrator's), and is looked up by its public prefix BEFORE any principal exists, to authenticate the very call a filter would need the principal of; a filter keyed on the caller's reseller would hide the row from the authentication that makes the caller. The separation is written into every read and write instead: the list, the revoke and the per-owner ceiling all compare the owner the controller stamped from the signed-in reseller's token, the key's own view reads by the authenticated key id, and a key of another owner answers revoke with the same 404 as an id that does not exist. Reseller isolation of the data a key reads is the Accounts filters' job, not this table's",
             ["Maran.Modules.Identity.Domain.Entities.User"] =
                 "carries the reseller id of a RESELLER LOGIN, which is what a token's reseller claim is minted from; it is read at sign-in, before any principal exists, and by the login's own user id, so a filter keyed on the caller's reseller would hide the row from the very person signing in. Reseller isolation of the data a reseller sells is the Accounts filters' job, not this table's",
         };
@@ -274,14 +276,16 @@ public sealed class TenantScopeTests
     /// <remarks>
     /// Half of the positive control, and the half the old floor could not express. The walk reads
     /// <c>ModuleRegistry.All</c>; this expectation reads the module assemblies that shipped into the
-    /// test run. A context that stops being composed — a registry entry deleted, a module whose
+    /// test run, less the modules <c>ModuleContractCensus.UnregisteredModules</c> names (built and not yet
+    /// composed, so the registry rightly does not walk them). A context that stops being composed — a registry entry
+    /// deleted, a module whose
     /// registration was lost in a merge — is NAMED here, where "at least eight of twelve" said
     /// nothing about four of them.
     /// </remarks>
     [Fact]
     public void Census_walks_every_DbContext_compiled_into_a_module()
     {
-        var expected = TenantScopeCensus.ContextTypesCompiledIntoModules();
+        var expected = TenantScopeCensus.ContextTypesCompiledIntoRegisteredModules();
 
         Assert.True(
             expected.Count > 0,

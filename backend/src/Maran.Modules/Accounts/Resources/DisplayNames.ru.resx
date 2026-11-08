@@ -117,4 +117,61 @@
   <data name="ResellerStatusSuspended">
     <value>Приостановлен</value>
   </data>
+  <data name="AccountFeatureFiles">
+    <value>Файлы</value>
+  </data>
+  <data name="AccountsMenuAccountsList">
+    <value>Все аккаунты</value>
+  </data>
+  <data name="AccountsMenuAccountsNew">
+    <value>Новый аккаунт</value>
+  </data>
+  <data name="AccountsMenuPlans">
+    <value>Тарифы</value>
+  </data>
+  <data name="AccountsMenuResellers">
+    <value>Реселлеры</value>
+  </data>
+  <data name="AccountsMenuResellerOverview">
+    <value>Обзор</value>
+  </data>
+  <data name="AccountsRouteAccounts">
+    <value>Аккаунты</value>
+  </data>
+  <data name="AccountsRouteAccountsNew">
+    <value>Новый аккаунт</value>
+  </data>
+  <data name="AccountsRouteAccountDetail">
+    <value>Аккаунт</value>
+  </data>
+  <data name="AccountsRoutePlans">
+    <value>Тарифы</value>
+  </data>
+  <data name="AccountsRoutePlansNew">
+    <value>Новый тариф</value>
+  </data>
+  <data name="AccountsRoutePlansEdit">
+    <value>Изменение тарифа</value>
+  </data>
+  <data name="AccountsRouteResellers">
+    <value>Реселлеры</value>
+  </data>
+  <data name="AccountsRouteResellersNew">
+    <value>Новый реселлер</value>
+  </data>
+  <data name="AccountsRouteResellerDetail">
+    <value>Реселлер</value>
+  </data>
+  <data name="AccountsRouteResellerProfileEdit">
+    <value>Изменить реселлера</value>
+  </data>
+  <data name="AccountsRouteResellerEdit">
+    <value>Изменение лимитов</value>
+  </data>
+  <data name="AccountsRouteResellerApiKeysOversight">
+    <value>API-ключи реселлера</value>
+  </data>
+  <data name="AccountsRouteResellerOverview">
+    <value>Ваш аккаунт реселлера</value>
+  </data>
 </root>

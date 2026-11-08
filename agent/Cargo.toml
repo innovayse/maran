@@ -22,7 +22,7 @@ license = "BUSL-1.1"
 [workspace.dependencies]
 # The templates crate's render types derive `askama::Template`; the version is
 # pinned here like every other workspace dependency.
-askama = "0.12"
+askama = { version = "0.12", default-features = false }
 # Held on the 0.13 line to match tonic: tonic 0.13.1 requires prost ^0.13, and
 # the 0.14 line moved prost codec support out of tonic into a separate crate.
 prost = "0.13.5"
@@ -47,6 +47,40 @@ serde_json = "1.0.151"
 # to prove exists before 03:00. RustCrypto's implementation, MIT/Apache-2.0,
 # `Digest` only.
 sha2 = "0.11.0"
+# Generates a node's keypair and self-signed certificate (fleet mode, issue #180). A hand-written
+# X.509 encoder in a root process would be worse than a vetted one, and rules/security.md item 9
+# forbids home-grown crypto. rustls organisation, MIT OR Apache-2.0, no advisories on record.
+# `default-features = false` drops `ring` (not compiled today; two providers would break rustls'
+# default-provider selection) and `x509-parser` (the node never parses certificates with it);
+# `aws_lc_rs` is the provider already in the build. Pinned exactly: its DEFAULTS are wrong for
+# us (validity 1975-4096, one constant subject), so every field is set explicitly in
+# `fleet/generate_node_identity.rs`. Brings `yasna`, `pem` and `time` with it.
+rcgen = { version = "=0.14.10", default-features = false, features = ["crypto", "pem", "aws_lc_rs"] }
+# The calendar type rcgen takes a certificate's validity in (`not_before` / `not_after` are
+# `time::OffsetDateTime`), so a caller cannot state a validity without naming it. Already
+# compiled beneath rcgen; `std` only for the conversion from `SystemTime`.
+time = { version = "0.3", default-features = false, features = ["std"] }
+# Constant-time comparison of two certificate fingerprints (`CertificateFingerprint`), so the
+# pin check does not answer faster the more leading bytes agree. Already in the lockfile
+# beneath rustls; a direct dependency so the comparison is visible in this manifest.
+subtle = "2.6.1"
+# The cipher that seals a backup archive at rest (docs/backups/encryption.md,
+# docs/superpowers/notes/2026-11-07-backup-encryption-threat-note.md): XChaCha20-Poly1305,
+# RustCrypto, Apache-2.0 / MIT, one NCC Group audit. It is a dependency and not code of
+# ours for the reason `sha2` and `object_store` are: rules/security.md item 9 forbids
+# home-grown crypto, and spawning `gpg` instead would add a binary to the allow-list and a
+# platform literal to both families. The 192-bit extended nonce is the reason for THIS
+# AEAD over AES-GCM: every archive is sealed in many chunks under one long-lived key, so
+# the nonce is a 128-bit random per-archive prefix plus a chunk counter, and a random
+# prefix of that size never repeats across archives - a 96-bit GCM nonce would need a key
+# derivation step (one more dependency) to be as safe. `alloc` for the `Aead` trait and
+# nothing else: `default-features = false` drops the crate's own `getrandom` feature, the
+# randomness being asked for once, below, where it is used.
+chacha20poly1305 = { version = "0.11.0", default-features = false, features = ["alloc"] }
+# The per-archive random nonce prefix. Already in the lockfile beneath `tempfile` and
+# `rand`; a direct dependency so the call that makes the one value on which sealing's
+# safety rests is visible in this manifest and not inherited by accident.
+getrandom = "0.4.3"
 # The S3-compatible transport, and the ONE new dependency this plan adds. It is
 # here rather than hand-written because SigV4 is signing, and rules/security.md
 # item 9 forbids home-grown crypto outright — a request signer we wrote would be
@@ -91,11 +125,27 @@ base64 = "0.22.1"
 # because tonic asked for it is a feature that disappears on a dependency bump.
 tokio = { version = "1.53", features = ["macros", "net", "rt-multi-thread", "signal", "time"] }
 tokio-stream = { version = "0.1.19", features = ["net"] }
+# Fleet mode (issue #180): the agent's own TLS acceptor, so that the listener can be TLS 1.3 only,
+# time-limited and counted, none of which tonic's built-in TLS lets a caller set
+# (research_notes/fleet-tls-research.md 1.1, 1.3). Both are ALREADY in the build beneath
+# object_store -> reqwest, with the aws-lc-rs provider, so this adds no crate and no C build;
+# `default-features = false` keeps `ring` (a second provider would make `ServerConfig::builder()`
+# panic at run time) out of the selection, and every `ServerConfig` here names its provider
+# explicitly. rustls >= 0.23.46 is the first line past RUSTSEC-2026-0285 (TLS 1.3 handshake
+# messages accepted across encryption-level boundaries), which is the code this listener runs.
+rustls = { version = "0.23.46", default-features = false, features = ["aws_lc_rs", "std"] }
+tokio-rustls = { version = "0.26.5", default-features = false, features = ["aws-lc-rs"] }
 # Held on the 0.13 line deliberately. tonic 0.14 extracted prost codegen into the
 # separate tonic-prost / tonic-prost-build crates, so moving requires new
 # dependencies and a rewritten build.rs — a change that must not land without a
 # real compile behind it.
-tonic = "0.13.1"
+# `tls-aws-lc` (fleet mode, issue #180): tonic's TLS server and the `TlsConnectInfo` a request
+# carries its peer certificate in. aws-lc-rs is the provider rustls is ALREADY compiled with
+# (it arrives through object_store -> reqwest, and `ring` is only a lockfile entry), so this
+# turns on features of crates in the build and adds no crate and no C build. `tls-ring` would
+# compile a second provider and make `ServerConfig::builder()` panic at run time, in code that
+# only runs when the fleet flags are set (research_notes/fleet-tls-research.md 1.1).
+tonic = { version = "0.13.1", features = ["tls-aws-lc"] }
 tonic-build = "0.13.1"
 # The audit layer (issue #106) is a `tower::Layer` on the server builder; tests also use
 # `service_fn` as the connector tonic's Endpoint needs to dial something other than
@@ -111,6 +161,37 @@ pin-project-lite = "0.2.17"
 # Test-only: builds the response bodies the audit body wrapper is driven with.
 http-body-util = "0.1.5"
 tracing = "0.1.44"
+# The three crates that read and write the archive formats the file manager offers
+# (issue #168). All three parse bytes a hosting customer chose, so each is pinned to an
+# exact version, features are the least that works, and none of them is ever asked to
+# touch the filesystem: the agent reads their members and writes every file itself,
+# through descriptors, in a child that has dropped to the account (rules/security.md
+# item 11; docs/superpowers/notes/2026-11-07-file-manager-archives-threat-note.md).
+#
+# `zip`: `deflate-flate2` only. The default features add C-backed bzip2 and zstd, AES
+# decryption, LZMA and PPMd decoders, none of which the contract offers; stored and
+# deflate are all a member may use, and anything else is refused by name. Held at 9.x
+# deliberately: every earlier line carries advisories in its extraction helpers
+# (RUSTSEC-2025-0168, RUSTSEC-2026-0367, -0368, -0369, -0429, all patched in 9.0.0),
+# helpers this agent does not call but a reviewer should not have to prove unreachable.
+zip = { version = "=9.1.3", default-features = false, features = ["deflate-flate2"] }
+# `tar`: `default-features = false` drops `xattr`, which would let an archive member set
+# extended attributes on a file. Entries are read and never unpacked by the crate;
+# RUSTSEC-2026-0067 and -0068 are patched from 0.4.45.
+tar = { version = "=0.4.46", default-features = false }
+# `flate2`: the gzip layer of `.tar.gz`, and the deflate engine behind `zip`'s
+# `deflate-flate2`. Default features: the pure-Rust backend (miniz_oxide), so no C
+# library is linked into the root daemon.
+flate2 = { version = "=1.1.10" }
+# ECDSA P-384 / SHA-384 for the package a backup is moved between servers in (issue #127): the
+# exporting host signs a manifest with the panel's per-server key and the importing host
+# verifies it against the fingerprint the operator confirmed. rules/security.md item 9 names
+# this scheme for artifacts and forbids home-grown crypto, and a hand-written ECDSA is exactly
+# that. It is NOT a new crate: it is already compiled in as the provider beneath `rustls` and
+# `object_store`. `default-features = false` with the non-FIPS backend and `alloc` is the
+# least that signs and verifies; the defaults add `ring-io` and `ring-sig-verify`, which pull
+# in `untrusted` for compatibility shims nothing here calls.
+aws-lc-rs = { version = "1.18.1", default-features = false, features = ["aws-lc-sys", "alloc"] }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 
 [workspace.lints.rust]

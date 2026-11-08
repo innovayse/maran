@@ -1,0 +1,17 @@
+# What a packageable module's project file may reference besides Maran.Sdk, Maran.SharedKernel and
+# (when its manifest declares agent capabilities) Maran.Agent.Client.
+#
+# One entry per line: <kind>|<name>|<reason>. A reason is required. This file is a visible diff on
+# purpose: adding a package a module may use is a reviewed change to what a downloaded module is
+# allowed to bring into the panel process (rules/security.md item 11), and it never happens as a side
+# effect of adding a PackageReference.
+#
+# Read by ModuleSdkOnlyReferenceTests. An entry no packageable module uses fails that suite, so the
+# list cannot keep an allowance nobody needs.
+
+framework|Microsoft.AspNetCore.App|A module contributes controllers to the Host's pipeline; it is a class library, not a web project.
+package|Npgsql.EntityFrameworkCore.PostgreSQL|The module's own DbContext and migrations, in its own schema.
+package|Microsoft.EntityFrameworkCore.Design|Design-time model and migration generation for the module's own DbContext.
+package|WolverineFx|Commands, queries and integration-event handlers are Wolverine messages.
+package|FluentValidation|Command and query validators.
+package|Microsoft.Extensions.Options.DataAnnotations|Typed options validated at start-up.

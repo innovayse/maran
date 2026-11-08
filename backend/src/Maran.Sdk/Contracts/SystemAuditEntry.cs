@@ -1,3 +1,5 @@
+using Maran.SharedKernel.Utilities.Text;
+
 namespace Maran.Sdk.Contracts;
 
 /// <summary>
@@ -28,6 +30,12 @@ public static class SystemAuditEntry
     /// <summary>The prefix every system actor name carries, marking the panel itself as the actor.</summary>
     public const string NamePrefix = "maran-";
 
+    /// <summary>What the address column says for an entry written from the server's own console.</summary>
+    public const string ConsoleOrigin = "local-console";
+
+    /// <summary>Prefix marking the user-agent column of a console entry as an unverified operator claim.</summary>
+    public const string OperatorClaimPrefix = "operator-claim:";
+
     /// <summary>The actor name a module's unattended work is recorded under.</summary>
     /// <param name="module">The module's short lowercase name, such as <c>ssl</c> or <c>firewall</c>.</param>
     /// <returns>The name, as <c>maran-&lt;module&gt;</c>.</returns>
@@ -53,6 +61,38 @@ public static class SystemAuditEntry
             subject,
             string.Empty,
             string.Empty,
+            succeeded);
+    }
+
+    /// <summary>Builds the journal entry for something an operator did from the server's own console.</summary>
+    /// <param name="module">The module acting, as passed to <see cref="NameFor"/>.</param>
+    /// <param name="action">What was done; one of the Sdk's <c>*AuditActions</c> constants.</param>
+    /// <param name="subject">What it was done to — a domain, an address, a service.</param>
+    /// <param name="operatorClaim">
+    /// The operator's name as the console reported it (<c>SUDO_USER</c>), tidied here. Recorded in the
+    /// user-agent column behind <see cref="OperatorClaimPrefix"/> because nothing verified it: shell
+    /// access is the authority, and the name is a hint for whoever reads the row.
+    /// </param>
+    /// <param name="succeeded">Whether it took effect.</param>
+    /// <returns>
+    /// An entry whose actor is the panel itself with no verified user id — the console has no principal,
+    /// and an unproven person does not belong in the "who" column — and whose address column says the
+    /// entry came from the local console.
+    /// </returns>
+    public static AuditEntry CreateFromConsole(
+        string module,
+        string action,
+        string subject,
+        string operatorClaim,
+        bool succeeded)
+    {
+        return new AuditEntry(
+            null,
+            NameFor(module),
+            action,
+            subject,
+            ConsoleOrigin,
+            OperatorClaimPrefix + OperatorClaim.Tidy(operatorClaim),
             succeeded);
     }
 }

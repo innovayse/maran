@@ -21,4 +21,10 @@
   <data name="LicenceTierPlanGated">
     <value>Included in a higher plan</value>
   </data>
+  <data name="ModuleKindCore">
+    <value>Part of the panel's core</value>
+  </data>
+  <data name="ModuleKindPackageable">
+    <value>Installed separately</value>
+  </data>
 </root>

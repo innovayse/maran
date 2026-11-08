@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use crate::validation::system::backup_id::BackupId;
 use crate::validation::system::cron_entry_id::CronEntryId;
 use crate::validation::system::name::AccountName;
+use crate::validation::web::domain::Domain;
 
 /// Locations the agent creates and writes, outside every distribution's
 /// packaged layout.
@@ -29,6 +30,19 @@ impl AgentPaths {
     /// touch files it does not own (spec §9). Both families are configured,
     /// once, to include this directory from their packaged `nginx.conf`.
     pub const NGINX_INCLUDE_DIRECTORY: &'static str = "/etc/maran/nginx/sites";
+
+    /// Directory the credential files of sites with HTTP basic authentication
+    /// are written to, one `<domain>.htpasswd` per site (issue #151).
+    ///
+    /// Outside the `*.conf` glob the web server includes, so nothing here is
+    /// parsed as configuration, and outside every home, so no customer can
+    /// write or swap a file. The agent creates it `root:<web server group>`
+    /// with mode `2750` (setgid, so a file written inside inherits the group):
+    /// the web server's workers read a credential file on every request and
+    /// nobody else on the host can even list the directory. The same on every
+    /// family, which is why it is here and not an adapter method; the web
+    /// server's GROUP is a family fact and is asked of the adapter.
+    pub const SITE_AUTH_DIRECTORY: &'static str = "/etc/maran/nginx/auth";
 
     /// Base directory holding every account's home.
     ///
@@ -171,6 +185,56 @@ impl AgentPaths {
     /// every family, which is why this is here and not on the adapter.
     pub const SFTP_AUTHORIZED_KEYS_DIRECTORY: &'static str = "/etc/ssh/maran-sftp-keys";
 
+    /// Directory the PAM `pam_limits` module reads per-account drop-ins from
+    /// (issue #194): `<this>/maran-<account>.conf` holds one account's
+    /// open-files limit.
+    ///
+    /// `/etc/security/limits.d` is the same path on every family - both ship
+    /// `pam_limits` with its configuration directory there, and `limits.conf`
+    /// documents it as the place for per-package and per-site fragments - which
+    /// is why this is here and not on the adapter. It is root-owned and not
+    /// writable by any account, so a file in it is the agent's decision and
+    /// never a customer's. Only a file whose name ends in `.conf` is read.
+    pub const PAM_LIMITS_DIRECTORY: &'static str = "/etc/security/limits.d";
+
+    /// The one `pam_limits` drop-in the agent writes for an account:
+    /// `<`[`Self::PAM_LIMITS_DIRECTORY`]`>/maran-<account>.conf` (issue #194).
+    ///
+    /// Built from a validated [`AccountName`] and a fixed prefix and suffix, so
+    /// the path can carry no separator, no `..` and no byte the name's
+    /// allow-list refuses. The `maran-` prefix keeps the agent's files apart
+    /// from every package's and every operator's in the same directory, and the
+    /// `.conf` suffix is the one `pam_limits` requires of a fragment it reads.
+    #[must_use]
+    pub fn account_limits_file(account: &AccountName) -> PathBuf {
+        Path::new(Self::PAM_LIMITS_DIRECTORY).join(format!("maran-{}.conf", account.as_str()))
+    }
+
+    /// Name of the file manager's trash directory, directly inside an account's
+    /// home (issue #167): `<home>/.maran-trash/`.
+    ///
+    /// The customer's own data in the customer's own home, owned and written by
+    /// the account, so a move into it is one rename on one filesystem. The same
+    /// on every family, which is why it is here and not on the adapter. The name
+    /// is reserved: `MutablePath` refuses it as the first component, so no other
+    /// rpc can move, copy or delete the trash itself.
+    pub const TRASH_DIRECTORY_NAME: &'static str = ".maran-trash";
+
+    /// Subdirectory of the trash holding one directory per trashed entry:
+    /// `<trash>/entries/<id>/`.
+    pub const TRASH_ENTRIES_DIRECTORY_NAME: &'static str = "entries";
+
+    /// Subdirectory of the trash where a copy is staged before it is renamed
+    /// into place: `<trash>/staging/<id>/`.
+    pub const TRASH_STAGING_DIRECTORY_NAME: &'static str = "staging";
+
+    /// Name, inside a trash entry, of the entry that was moved there.
+    pub const TRASH_PAYLOAD_NAME: &'static str = "payload";
+
+    /// Name, inside a trash entry, of the file recording the original relative
+    /// path, as UTF-8 text.
+    pub const TRASH_ORIGINAL_NAME: &'static str = "original";
+
     /// Base directory holding one root-owned FTPS jail per account.
     ///
     /// The chroot an FTPS login lands in is `<this>/<account>`, and the
@@ -262,6 +326,103 @@ impl AgentPaths {
     ///
     /// An agent decision identical on every family, so it belongs here.
     pub const FTPS_UNIT: &'static str = "maran-ftps.service";
+
+    /// The directory holding the lookup tables the mail stack is driven by.
+    ///
+    /// Root-owned and world-readable on purpose: Postfix reads its maps as the
+    /// `postfix` user. What must NOT be world-readable lives one level down, in
+    /// [`Self::MAIL_DOVECOT_DIRECTORY`]. The tables are rendered whole, never
+    /// appended to, and are derivable from the panel's database.
+    /// `installer/lib/89-mail.sh` creates the directory; the agent only writes
+    /// files into it. An agent decision identical on every family.
+    pub const MAIL_CONFIG_DIRECTORY: &'static str = "/etc/maran/mail";
+
+    /// The list of mail domains Postfix accepts mail for (a Postfix map, written
+    /// in the map type `MailFacts::postfix_map_type` names).
+    pub const MAIL_VIRTUAL_DOMAINS_PATH: &'static str = "/etc/maran/mail/virtual_domains";
+
+    /// The list of mailbox addresses Postfix accepts mail for.
+    pub const MAIL_VIRTUAL_MAILBOXES_PATH: &'static str = "/etc/maran/mail/virtual_mailboxes";
+
+    /// The aliases, forwarders and catch-alls Postfix expands.
+    pub const MAIL_VIRTUAL_ALIASES_PATH: &'static str = "/etc/maran/mail/virtual_aliases";
+
+    /// The map from a sender address to the logins allowed to send as it.
+    ///
+    /// The submission service refuses a sender the authenticated login does not
+    /// own (`reject_sender_login_mismatch`), and this is the table it asks.
+    pub const MAIL_SENDER_LOGIN_MAPS_PATH: &'static str = "/etc/maran/mail/sender_login_maps";
+
+    /// The directory holding what only Dovecot's auth process may read.
+    ///
+    /// `root:<dovecot user>` mode 0750, created by the installer. The file in it
+    /// is world-readable by mode (0644) and protected by this directory, because
+    /// the config-write protocol writes a file at a mode and a root-owned group
+    /// is not something it can set.
+    pub const MAIL_DOVECOT_DIRECTORY: &'static str = "/etc/maran/mail/dovecot";
+
+    /// The Dovecot passwd-file: one line per mailbox with its password hash, its
+    /// uid, gid and home. It holds password hashes, so it sits inside
+    /// [`Self::MAIL_DOVECOT_DIRECTORY`].
+    pub const MAIL_DOVECOT_USERS_PATH: &'static str = "/etc/maran/mail/dovecot/users";
+
+    /// The directory of DKIM private keys, `root:<rspamd user>` mode 0750, created
+    /// by the installer and filled by the data plane (one `<domain>.<selector>.key`
+    /// per signing key). Keys never leave it and are never logged.
+    pub const MAIL_DKIM_DIRECTORY: &'static str = "/etc/maran/mail/dkim";
+
+    /// The Rspamd map from a signing domain to its active selector. Lives beside
+    /// the keys, in the directory Rspamd can read.
+    pub const MAIL_DKIM_SELECTORS_PATH: &'static str = "/etc/maran/mail/dkim/selectors";
+
+    /// The one `named.conf` this panel's DNS daemon is started against.
+    ///
+    /// Maran's own file, never the distribution's: the two families disagree
+    /// about where a packaged BIND keeps its configuration, and nothing here
+    /// reads either, because `installer/lib/89-dns.sh` masks the packaged unit and
+    /// `installer/systemd/maran-dns.service` names this path on its `ExecStart`
+    /// line. An agent decision identical on every family, so it belongs here.
+    ///
+    /// Written WHOLE through `ops::safe_write`, never appended to or merged
+    /// into: the file is the agent's alone, and a statement somebody added
+    /// elsewhere in it would be a decision the rendered text no longer states.
+    pub const DNS_CONFIG_PATH: &'static str = "/etc/maran/bind/named.conf";
+
+    /// The directory holding [`Self::DNS_CONFIG_PATH`] and the control key.
+    ///
+    /// Created by `installer/lib/89-dns.sh`; the agent writes into it and never
+    /// creates it, so a config written by two owners never has one.
+    pub const DNS_CONFIG_DIRECTORY: &'static str = "/etc/maran/bind";
+
+    /// The key file the DNS daemon's control channel and `rndc` both read.
+    ///
+    /// Generated by the installer with `openssl` (so no BIND tool path is
+    /// involved), `root:<daemon group> 0640`. The agent only names it: the
+    /// rendered configuration includes it and every `rndc` run passes it with
+    /// `-k`. It holds a secret, so it is never logged and never rendered.
+    pub const DNS_CONTROL_KEY_PATH: &'static str = "/etc/maran/bind/rndc.key";
+
+    /// The name of the key inside [`Self::DNS_CONTROL_KEY_PATH`].
+    ///
+    /// The rendered `controls` statement names this key, and the installer
+    /// writes the key under it; `docker/polygon/asserts/parts/dns.sh` compares
+    /// the two spellings.
+    pub const DNS_CONTROL_KEY_NAME: &'static str = "maran-rndc";
+
+    /// The loopback TCP port the DNS daemon's control channel listens on.
+    ///
+    /// Bound to `127.0.0.1` only (`controls { inet 127.0.0.1 ... }`), never to a
+    /// public address: it is the local channel the agent drives the daemon
+    /// through, authenticated by the key above.
+    pub const DNS_CONTROL_PORT: u16 = 953;
+
+    /// The systemd unit the DNS daemon runs as.
+    ///
+    /// `installer/systemd/maran-dns.service`, `Type=simple`, BIND in the
+    /// foreground. As for FTPS, starting it is not evidence the daemon is up, so
+    /// `is-active`, the control channel and port 53 are three questions asked
+    /// separately (`ops::dns::get_dns_status`).
+    pub const DNS_UNIT: &'static str = "maran-dns.service";
 
     /// Root-owned directory the agent stages temporary files whose size is the
     /// CUSTOMER's, not the agent's, in.
@@ -372,6 +533,16 @@ impl AgentPaths {
         PathBuf::from(Self::SITE_LOG_ROOT).join(account.as_str())
     }
 
+    /// The credential file of `domain`'s HTTP basic authentication.
+    ///
+    /// Derived from the validated domain, never supplied: a `Domain` holds only
+    /// letters, digits, `-` and `.`, so the join cannot leave
+    /// [`Self::SITE_AUTH_DIRECTORY`], and no option names a path (issue #151).
+    #[must_use]
+    pub fn site_auth_file(domain: &Domain) -> PathBuf {
+        PathBuf::from(Self::SITE_AUTH_DIRECTORY).join(format!("{}.htpasswd", domain.as_str()))
+    }
+
     /// Directory the agent keeps certificate material in.
     ///
     /// A certificate is not part of a site's document root and must not be
@@ -394,6 +565,34 @@ impl AgentPaths {
 
     /// File name of the panel's private key inside [`Self::PANEL_TLS_DIRECTORY`].
     pub const PANEL_KEY_FILE: &'static str = "panel.key";
+
+    /// Directory holding a managed node's fleet identity: its own key and certificate, and the
+    /// certificate of the one panel allowed to drive it (issue #180).
+    ///
+    /// `root:root` `0700`, created by the agent when it generates the identity. The private key
+    /// in it is the node's whole authority to be that node, so nothing but root may enter, and
+    /// the agent refuses to read or write here when the directory is any looser or owned by
+    /// anyone else. Nothing in it is a customer's, and nothing in it is reachable through a
+    /// document root.
+    pub const FLEET_DIRECTORY: &'static str = "/etc/maran/fleet";
+
+    /// File name of the node's private key inside the fleet directory (PKCS#8 PEM, `0600`).
+    pub const FLEET_NODE_KEY_FILE: &'static str = "node.key";
+
+    /// File name of the node's self-signed certificate inside the fleet directory (PEM, `0600`).
+    pub const FLEET_NODE_CERTIFICATE_FILE: &'static str = "node.pem";
+
+    /// File name of the pinned panel certificate inside the fleet directory (PEM).
+    ///
+    /// This file IS the access list: the node admits exactly the client that presents this
+    /// certificate, and removing the file removes the panel's access.
+    pub const FLEET_PANEL_PIN_FILE: &'static str = "panel.pem";
+
+    /// The mode of the fleet directory: owner only.
+    pub const FLEET_DIRECTORY_MODE: u32 = 0o700;
+
+    /// The mode of every file the agent writes into the fleet directory: owner read and write.
+    pub const FLEET_FILE_MODE: u32 = 0o600;
 
     /// Directory the panel's port-80 block serves `/.well-known/acme-challenge/`
     /// from, holding one file per challenge token for the panel's own host name.
@@ -648,6 +847,22 @@ impl AgentPaths {
     pub fn backup_verification_scratch_dir(backup_id: &BackupId) -> PathBuf {
         PathBuf::from(Self::BULK_SCRATCH_ROOT)
             .join("verify")
+            .join(backup_id.as_str())
+    }
+
+    /// The root-only directory one import stages the embedded manifest in:
+    /// `<bulk scratch root>/import/<id>`.
+    ///
+    /// A sibling of [`Self::backup_scratch_dir`]'s `backup/` and of
+    /// [`Self::backup_verification_scratch_dir`], for the reason the second
+    /// gives: an import removes its scratch on every path, and a directory shared
+    /// with a restore's rollback dumps could be emptied by it. Anything under the
+    /// root that is not `backup/` is removed by the start-up reaper, so a scratch
+    /// a killed import leaves behind does not outlive the next start.
+    #[must_use]
+    pub fn backup_import_scratch_dir(backup_id: &BackupId) -> PathBuf {
+        PathBuf::from(Self::BULK_SCRATCH_ROOT)
+            .join("import")
             .join(backup_id.as_str())
     }
 

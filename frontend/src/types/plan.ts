@@ -15,6 +15,23 @@ export interface PlanFeatureChoice {
 }
 
 /**
+ * The PHP bounds a plan sells (issue #138): the most a customer may set for each PHP setting on
+ * their account's pools. Mirrors the backend's `PhpLimitsDto`; every figure is a whole number of at
+ * least 1, and the server refuses one above the agent's own ceiling with a sentence that names it,
+ * so the SPA holds no ceiling of its own.
+ */
+export interface PlanPhpLimits {
+  /** The largest `memory_limit` a customer may set, in mebibytes. */
+  memoryLimitMaxMb: number
+  /** The largest upload size a customer may set (`upload_max_filesize` and `post_max_size`), in mebibytes. */
+  uploadMaxMb: number
+  /** The longest `max_execution_time` a customer may set, in seconds. */
+  maxExecutionSeconds: number
+  /** The largest `max_input_vars` a customer may set. */
+  maxInputVars: number
+}
+
+/**
  * A plan as the administrator's plans screen sees it, mirroring the backend's `PlanDto`
  * field-for-field. The name arrives already resolved for the request's language: a plan the panel
  * shipped is translated, one an operator made is shown as they typed it, and the SPA does not
@@ -48,6 +65,8 @@ export interface ManagedPlan {
   memoryMaxMb: ResourceCeiling
   /** The most processes and threads an account may run at once. */
   maxProcesses: ResourceCeiling
+  /** The PHP bounds the plan sells to its customers. */
+  phpLimits: PlanPhpLimits
   /** The features the plan sells, by name; an empty list sells none. */
   features: AccountFeatureName[]
   /**
@@ -92,6 +111,12 @@ export interface PlanRequest {
   memoryMaxMb: ResourceCeiling
   /** The most processes and threads an account may run at once. */
   maxProcesses: ResourceCeiling
+  /**
+   * The PHP bounds. Optional because the API's is (a request without them gives a new plan the
+   * conservative default and leaves an edited plan's bounds as they are), but this form always
+   * holds all four and always sends them.
+   */
+  phpLimits?: PlanPhpLimits
   /** The features the plan sells, by name; an empty list sells none. Always sent: an edit replaces the set. */
   features: AccountFeatureName[]
 }

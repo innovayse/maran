@@ -262,6 +262,38 @@ export const stubBackupRestore = async (
   }
 }
 
+/** The restore-choices endpoint. `*` never spans a `/`, so this cannot collide with the single-backup one. */
+const RESTORE_CHOICES_PATTERN = '**/api/v1/backups/*/restore-choices'
+
+/**
+ * Fulfils `GET /api/v1/backups/{id}/restore-choices` with the databases and sites an account's
+ * restore can be narrowed to, or with a refusal.
+ * @param page The Playwright page whose network the route is installed on.
+ * @param answer The two lists the stubbed panel names, or `null` for a panel that cannot list them
+ * (it answers 500), which is the case the dialog must stay usable in.
+ * @returns Resolves once the route is installed.
+ */
+export const stubBackupRestoreChoices = async (
+  page: Page,
+  answer: { databases: string[]; sites: string[] } | null,
+): Promise<void> => {
+  await page.route(RESTORE_CHOICES_PATTERN, async (route) => {
+    if (answer === null) {
+      await route.fulfill({
+        status: 500,
+        contentType: 'application/problem+json',
+        body: JSON.stringify({ code: 'ServerError', title: 'Failed', detail: 'The lists could not be read.' }),
+      })
+      return
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(answer),
+    })
+  })
+}
+
 /** The verify endpoint. `*` never spans a `/`, so this cannot collide with the single-backup one. */
 const VERIFY_PATTERN = '**/api/v1/backups/*/verify'
 

@@ -15,11 +15,23 @@
 # the database: a restore discards every write since the dump, so the operator is told the dump's
 # path and the explicit command (`maran rollback --restore-database`) and decides.
 #
+# --security-only (issue #383) adds one decision between the version decision and the floors: the signed
+# manifest must call the release a security release and its major version must be the installed one,
+# else the release is reported and left alone (update-unattended.sh holds that decision, the failed
+# version's memory and the report to the panel). --scheduled is the timer's run: it is --security-only
+# without a terminal, and it reports the outcome to the panel. Every other step is the operator's path.
+#
+# --requested (issue #382) is the run the panel's "Update now" button asks for, started by
+# maran-update-request.service when the panel creates its marker file. It is --yes without a terminal and
+# nothing more: it takes no other flag, it decides nothing the operator's update does not, and it adds
+# only a report to the panel (the task the button opened) and the root-owned facts the panel's screen
+# reads (update-unattended.sh). docs/superpowers/notes/2026-11-07-panel-update-from-panel-threat-note.md.
+#
 # A kill at any point leaves a state cli_layout_check_consistent recognises: `current` and
 # release.state disagree only between the switch and the final state write, and the next run then
 # refuses and names the recovery. A signal handler never starts a rollback.
 
-readonly MARAN_UPDATE_USAGE="Usage: maran update [--check] [--channel stable|beta] [--offline-tarball PATH] [--yes]"
+readonly MARAN_UPDATE_USAGE="Usage: maran update [--check] [--channel stable|beta] [--offline-tarball PATH] [--yes] [--security-only [--scheduled]] | maran update --requested"
 readonly MARAN_UPDATE_DUMP_KEEP=3
 readonly MARAN_UPDATE_MANIFEST_NAME="manifest.json"
 # Room required before an UPDATE downloads anything: the manifest carries no sizes, so this is a
@@ -65,6 +77,19 @@ cli_update_cleanup() {
     fi
   fi
   [ -z "${CLI_UPDATE_OUTCOME:-}" ] || cli_audit_log update "$CLI_UPDATE_OUTCOME"
+  # The scheduled run's report to the panel comes last, after the journal line, and never alters the
+  # status this trap is run for: see cli_unattended_report.
+  [ "${CLI_UPDATE_SCHEDULED:-0}" -eq 0 ] \
+    || cli_unattended_report "${CLI_UPDATE_OUTCOME:-}" "${CLI_UPDATE_INSTALLED:-}" "${CLI_UPDATE_AVAILABLE:-}"
+  # The panel's facts and the panel's task (issue #382). The report of a requested run closes the task
+  # the button opened, and is as unable to alter this status. It goes BEFORE the running state is taken
+  # back: with the order reversed there is a window, as long as the report takes to start the panel's
+  # binary, in which no marker exists, no running state exists and the request's ledger is minutes old,
+  # which is exactly what the panel's reaper reads as "the run ended and reported nothing" - and it
+  # would close the task as unknown a moment before the true result arrived.
+  [ "${CLI_UPDATE_FROM_PANEL:-0}" -eq 0 ] \
+    || cli_requested_report_outcome "${CLI_UPDATE_OUTCOME:-}" "${CLI_UPDATE_INSTALLED:-}" "${CLI_UPDATE_AVAILABLE:-}"
+  cli_update_clear_running
 }
 
 # cli_update_require_space: refuses unless the filesystem holding $1 (or its nearest existing
@@ -86,12 +111,16 @@ cli_update_require_update_space() {
 }
 
 # cli_update_parse: parses the verb's arguments into CLI_UPDATE_CHECK, CLI_UPDATE_YES,
-# CLI_UPDATE_REQUESTED_CHANNEL and CLI_UPDATE_TARBALL (both empty when not given). Every refusal is a
+# CLI_UPDATE_SECURITY_ONLY, CLI_UPDATE_SCHEDULED, CLI_UPDATE_FROM_PANEL, CLI_UPDATE_REQUESTED_CHANNEL and CLI_UPDATE_TARBALL
+# (both empty when not given). Every refusal is a
 # usage failure. No value may start with `-`, so an option is never swallowed as a value.
 cli_update_parse() {
   local opt value
   CLI_UPDATE_CHECK=0
   CLI_UPDATE_YES=0
+  CLI_UPDATE_SECURITY_ONLY=0
+  CLI_UPDATE_SCHEDULED=0
+  CLI_UPDATE_FROM_PANEL=0
   CLI_UPDATE_REQUESTED_CHANNEL=""
   CLI_UPDATE_TARBALL=""
   while [ "$#" -gt 0 ]; do
@@ -104,6 +133,18 @@ cli_update_parse() {
       --yes)
         [ "$CLI_UPDATE_YES" -eq 0 ] || cli_update_usage_fail "--yes was given twice"
         CLI_UPDATE_YES=1
+        ;;
+      --security-only)
+        [ "$CLI_UPDATE_SECURITY_ONLY" -eq 0 ] || cli_update_usage_fail "--security-only was given twice"
+        CLI_UPDATE_SECURITY_ONLY=1
+        ;;
+      --scheduled)
+        [ "$CLI_UPDATE_SCHEDULED" -eq 0 ] || cli_update_usage_fail "--scheduled was given twice"
+        CLI_UPDATE_SCHEDULED=1
+        ;;
+      --requested)
+        [ "$CLI_UPDATE_FROM_PANEL" -eq 0 ] || cli_update_usage_fail "--requested was given twice"
+        CLI_UPDATE_FROM_PANEL=1
         ;;
       --channel|--offline-tarball)
         [ "$#" -ge 2 ] || cli_update_usage_fail "${opt} needs a value"
@@ -126,6 +167,32 @@ cli_update_parse() {
   done
   [ -z "$CLI_UPDATE_REQUESTED_CHANNEL" ] || [ -z "$CLI_UPDATE_TARBALL" ] \
     || cli_update_usage_fail "--offline-tarball and --channel cannot be combined: the bundle names its own channel"
+  cli_update_parse_unattended
+}
+
+# cli_update_parse_unattended: the rules for the two unattended flags, applied once the arguments are
+# read. --security-only decides from a manifest fetched over the network, so it takes no bundle and no
+# --check (a check applies nothing and has no decision to make). --scheduled is the timer's fixed
+# argv: it needs --security-only, takes nothing else, and stands in for the confirmation nobody is
+# there to give. --requested is the panel's fixed argv: it takes no other flag at all, so what the
+# panel's button can cause is exactly the recorded channel's newer signed release and nothing else.
+cli_update_parse_unattended() {
+  if [ "$CLI_UPDATE_SECURITY_ONLY" -eq 1 ]; then
+    [ -z "$CLI_UPDATE_TARBALL" ] || cli_update_usage_fail "--security-only reads the release host; it cannot be combined with --offline-tarball"
+    [ "$CLI_UPDATE_CHECK" -eq 0 ] || cli_update_usage_fail "--security-only cannot be combined with --check"
+  fi
+  if [ "$CLI_UPDATE_SCHEDULED" -eq 1 ]; then
+    [ "$CLI_UPDATE_SECURITY_ONLY" -eq 1 ] || cli_update_usage_fail "--scheduled needs --security-only"
+    [ "$CLI_UPDATE_YES" -eq 0 ] || cli_update_usage_fail "--scheduled cannot be combined with --yes"
+    [ -z "$CLI_UPDATE_REQUESTED_CHANNEL" ] || cli_update_usage_fail "--scheduled uses the recorded channel; it cannot be combined with --channel"
+    CLI_UPDATE_YES=1
+  fi
+  if [ "$CLI_UPDATE_FROM_PANEL" -eq 1 ]; then
+    [ "$CLI_UPDATE_CHECK" -eq 0 ] && [ "$CLI_UPDATE_YES" -eq 0 ] && [ "$CLI_UPDATE_SECURITY_ONLY" -eq 0 ] \
+      && [ "$CLI_UPDATE_SCHEDULED" -eq 0 ] && [ -z "$CLI_UPDATE_REQUESTED_CHANNEL" ] && [ -z "$CLI_UPDATE_TARBALL" ] \
+      || cli_update_usage_fail "--requested is the panel's fixed run and cannot be combined with any other option"
+    CLI_UPDATE_YES=1
+  fi
 }
 
 # cli_update_require_tarball_syntax: refuses unless $1 is an absolute path of plain characters (so
@@ -273,6 +340,9 @@ cli_update_roll_back() {
     CLI_UPDATE_OUTCOME="rolled-back"
     echo "maran: the update did not become healthy and was rolled back: ${previous} is running again." >&2
   fi
+  # An unattended run does not try the same release again tomorrow: it would restart the services
+  # daily on a release already seen to fail. A newer release, or the operator, ends the pause.
+  [ "$CLI_UPDATE_SCHEDULED" -eq 0 ] || cli_unattended_remember_failure "$CLI_UPDATE_AVAILABLE"
   echo "maran: the database was NOT restored. Writes made since the update are kept." >&2
   echo "maran: the pre-update dump is ${CLI_UPDATE_DUMP}" >&2
   echo "maran: to restore it, discarding every write since, run: maran rollback --restore-database" >&2
@@ -288,14 +358,16 @@ cli_update_prune() {
   [ "$CLI_UPDATE_STATUS" -eq 0 ] || echo "maran: could not prune old dumps; the update itself succeeded" >&2
 }
 
-# cli_update_report_check: the whole output of --check: installed, available, channel, and a plain
-# sentence saying whether the available release is newer than the installed one.
-#   $1 = installed version (empty: legacy), $2 = channel.
+# cli_update_report_check: the whole output of --check: installed, available, channel, the release date
+# and notes URL the signed manifest carries (or the line saying it carries none), and a plain sentence
+# saying whether the available release is newer than the installed one.
+#   $1 = installed version (empty: legacy), $2 = channel, $3 = the work directory holding the manifest.
 cli_update_report_check() {
   local shown="${1:-unversioned legacy install}"
   echo "current: ${shown}"
   echo "available: ${CLI_UPDATE_AVAILABLE}"
   echo "channel: ${2}"
+  cli_release_describe_notes "${3}/${MARAN_UPDATE_MANIFEST_NAME}"
   if [ "$CLI_UPDATE_AVAILABLE" = "$1" ]; then
     echo "No update: the installed release is already ${CLI_UPDATE_AVAILABLE}."
   elif cli_update_is_newer "$CLI_UPDATE_AVAILABLE" "$1"; then
@@ -315,13 +387,17 @@ cli_update() {
   CLI_UPDATE_SWITCHING=0
   CLI_UPDATE_DUMP=""
   CLI_UPDATE_AVAILABLE=""
+  CLI_UPDATE_INSTALLED=""
   CLI_UPDATE_RESOLVED_CHANNEL=""
   cli_panel_open_stage cli_update_cleanup
   # Prints the facts itself (and removes stale .partial releases); here it is only a test.
   cli_layout_check_consistent || exit 1
+  # The lock is held: tell the panel an update is changing this server. A --check changes nothing.
+  [ "$CLI_UPDATE_CHECK" -eq 1 ] || cli_update_publish_running
 
   local installed state_channel channel work="${CLI_PANEL_STAGE}/release" legacy=0
   installed="$(cli_layout_current_version)"
+  CLI_UPDATE_INSTALLED="$installed"
   # A real component directory means adoption is still owed, even when `current` already exists
   # (a kill during an earlier adoption): the adoption below resumes it.
   if cli_update_is_legacy_host; then legacy=1; fi
@@ -343,9 +419,15 @@ cli_update() {
   fi
   cli_update_fetch_manifest "$channel" "$work"
   channel="$CLI_UPDATE_RESOLVED_CHANNEL"
+  # What the release host said is what the panel's screen shows as "the last check". Only the panel's own
+  # channel counts (a `--check --channel beta` on a stable server is the operator looking, and must not
+  # show the stable panel a beta as available), and a bundle carried in by hand asked nobody.
+  if [ -z "$CLI_UPDATE_TARBALL" ] && [ "$channel" = "$state_channel" ]; then
+    cli_update_record_check "$CLI_UPDATE_AVAILABLE" "${work}/${MARAN_UPDATE_MANIFEST_NAME}"
+  fi
 
   if [ "$CLI_UPDATE_CHECK" -eq 1 ]; then
-    cli_update_report_check "$installed" "$channel"
+    cli_update_report_check "$installed" "$channel" "$work"
     CLI_UPDATE_OUTCOME="check"
     return 0
   fi
@@ -357,9 +439,17 @@ cli_update() {
   cli_update_is_newer "$CLI_UPDATE_AVAILABLE" "$installed" \
     || cli_fail "the release ${CLI_UPDATE_AVAILABLE} is not newer than ${installed};" \
       "only 'maran rollback' goes backwards"
+  # The unattended decision: a release the signed manifest does not call a security release, or one
+  # that crosses a major version, is reported and left alone before anything is downloaded or asked.
+  if [ "$CLI_UPDATE_SECURITY_ONLY" -eq 1 ]; then
+    cli_unattended_decide "$installed" "$CLI_UPDATE_AVAILABLE" "${work}/${MARAN_UPDATE_MANIFEST_NAME}" \
+      || return 0
+  fi
   # An update is decided: a download must never be what fills the disk, so the full floors apply now.
   cli_update_require_update_space
   cli_update_confirm "${installed:-the unversioned legacy install}" "$CLI_UPDATE_AVAILABLE" "$channel"
+  # The panel's task moves from "requested" to "installing" now that a release is decided.
+  [ "$CLI_UPDATE_FROM_PANEL" -eq 0 ] || cli_requested_report installing "$installed" "$CLI_UPDATE_AVAILABLE"
 
   # The network path downloads and checks sha256 here; an offline bundle was unpacked by its verify.
   if [ -z "$CLI_UPDATE_TARBALL" ]; then
@@ -391,6 +481,7 @@ cli_update() {
   cli_layout_state_write "$channel" "$CLI_UPDATE_AVAILABLE" "$installed"
   CLI_UPDATE_SWITCHING=0
   CLI_UPDATE_OUTCOME="updated"
+  cli_unattended_clear_failure
   cli_update_prune
 
   echo "Panel updated: ${installed} -> ${CLI_UPDATE_AVAILABLE} (${channel}); the health gate passed."

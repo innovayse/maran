@@ -31,6 +31,7 @@ fn local() -> BackupDestination {
         s3_access_key_id: String::new(),
         s3_secret_access_key: String::new(),
         s3_path_style: false,
+        archive_key: String::new(),
     }
 }
 
@@ -45,6 +46,7 @@ fn s3() -> BackupDestination {
         s3_access_key_id: "AKIAEXAMPLE".to_owned(),
         s3_secret_access_key: "s3cr3t".to_owned(),
         s3_path_style: false,
+        archive_key: String::new(),
     }
 }
 
@@ -68,11 +70,35 @@ fn removal(destination: BackupDestination) -> DeleteBackupRequest {
 
 #[test]
 fn a_creation_against_a_local_destination_is_accepted_with_its_account_and_id() {
-    let (account, backup_id, _root) =
+    let (account, backup_id, _root, key) =
         validated_creation(&creation(local())).expect("a local creation is accepted");
 
     assert_eq!(account.as_str(), "alice");
     assert_eq!(backup_id.as_str(), BACKUP_ID);
+    assert!(key.is_none(), "no key was sent, so the archive stays plain");
+}
+
+#[test]
+fn a_creation_carrying_a_well_formed_archive_key_hands_the_key_to_the_operation() {
+    let mut destination = local();
+    destination.archive_key = "ab".repeat(32);
+
+    let (_account, _backup_id, _root, key) =
+        validated_creation(&creation(destination)).expect("a sealed creation is accepted");
+
+    let key = key.expect("the key was sent");
+    assert_eq!(key.expose()[0], 0xab);
+}
+
+#[test]
+fn a_creation_carrying_a_malformed_archive_key_is_refused_without_naming_the_key() {
+    let mut destination = local();
+    destination.archive_key = "not-a-key".to_owned();
+
+    let error = validated_creation(&creation(destination)).expect_err("refused");
+
+    assert_eq!(error.code, ErrorCode::InvalidInput as i32);
+    assert!(!error.message.contains("not-a-key"), "{}", error.message);
 }
 
 #[test]

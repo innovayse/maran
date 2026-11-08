@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="securityPolicy">
+    <value>The security policy is read-only in the demo because the sign-ins are shared by every visitor.</value>
+  </data>
+  <data name="smtp">
+    <value>Mail settings are read-only in the demo: it never sends mail.</value>
+  </data>
+  <data name="panelCertificate">
+    <value>The panel certificate is read-only in the demo: it has no real address to certify.</value>
+  </data>
+  <data name="panelUpdate">
+    <value>Panel updates are turned off in the demo: it is rebuilt from a release instead.</value>
+  </data>
+  <data name="twoFactor">
+    <value>Two-factor authentication is turned off in the demo because the sign-ins are shared by every visitor.</value>
+  </data>
+  <data name="apiKeys">
+    <value>API keys cannot be created in the demo: a key would outlive the reset.</value>
+  </data>
+  <data name="licence">
+    <value>The licence is read-only in the demo: it carries a fixed demonstration licence.</value>
+  </data>
+  <data name="credentials">
+    <value>Passwords and sessions are shared by every visitor of the demo, so they cannot be changed.</value>
+  </data>
+  <data name="accessPaths">
+    <value>Invitations and team members would add new ways to sign in to the demo, so they are unavailable.</value>
+  </data>
+  <data name="externalServices">
+    <value>The demo does not connect to services outside itself.</value>
+  </data>
+  <data name="protectedResource">
+    <value>This account, reseller or plan holds a demo sign-in, so it cannot be suspended, deleted or changed. Create your own to try it.</value>
+  </data>
+  <data name="unclassified">
+    <value>This action is not available in the demo.</value>
+  </data>
+</root>

@@ -45,9 +45,10 @@ public sealed class TaskStreamWriterTests
         Assert.Equal(
             ": open\n\nevent: task\ndata: {\"id\":\"11111111-2222-3333-4444-555555555555\","
             + "\"kind\":\"CertificateIssue\",\"kindDisplayName\":\"Issuing a certificate\","
-            + "\"subject\":\"example.com\",\"status\":\"running\",\"statusName\":\"Running\","
-            + "\"percent\":40,\"log\":\"ordering\",\"logIncluded\":true,"
-            + "\"startedAt\":\"2026-03-01T12:00:00+00:00\",\"revision\":1}\n\n",
+            + "\"subject\":\"example.com\",\"correlationId\":null,\"status\":\"running\","
+            + "\"statusName\":\"Running\",\"percent\":40,\"log\":\"ordering\",\"logIncluded\":true,"
+            + "\"failure\":null,\"startedAt\":\"2026-03-01T12:00:00+00:00\",\"finishedAt\":null,"
+            + "\"revision\":1}\n\n",
             written);
     }
 

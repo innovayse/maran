@@ -40,7 +40,7 @@ answer without both properties — is an error, never `notSynchronized`.
 - **Alert mail.** The sampler reads the clock every round. After ten consecutive rounds that are not
   synchronised the operator is mailed once ("The server's clock is not synchronised"), and once
   more when it is synchronised again. The mail takes the same path as every other operator alert
-  (`OperatorAlertMailer`), and the journal records `Alert raised` / `Alert resolved` with the subject
+  (`OperatorAlertDispatcher`), and the journal records `Alert raised` / `Alert resolved` with the subject
   `ClockUnsynchronized:system-clock`.
 - **A refused two-factor code.** When the latest reading found the clock not synchronised, a
   refused code at sign-in answers `InvalidTwoFactorCodeClockUnsynchronizedUnauthorized` (401)

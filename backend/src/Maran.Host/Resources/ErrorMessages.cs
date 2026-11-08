@@ -6,9 +6,10 @@ namespace Maran.Host.Resources;
 /// are reached through <c>IStringLocalizer&lt;T&gt;</c>"). Carries the failures the composition
 /// root itself produces, which belong to no module: <c>HostUnexpectedError</c> and
 /// <c>HostValidationFailed</c>, written by <see cref="Middleware.ExceptionMiddleware"/>;
-/// <c>HostRateLimited</c>, written by the rejection handler in
-/// <see cref="Extensions.RateLimitingExtensions"/>; and <c>HostForbidden</c> and
-/// <c>HostTwoFactorSetupRequired</c> and <c>HostViewAsNotAllowed</c>, written for a policy refusal by
+/// <c>HostRateLimited</c>, written by
+/// <see cref="RateLimiting.RateLimitedProblemWriter"/> for the rate limiter's rejection and for the dashboard
+/// stream's process-wide limit; and <c>HostForbidden</c>,
+/// <c>HostPasswordChangeRequired</c>, <c>HostTwoFactorSetupRequired</c> and <c>HostViewAsNotAllowed</c>, written for a policy refusal by
 /// <see cref="Authorization.ProblemDetailsAuthorizationResultWriter"/>. Each key equals the machine code placed in the
 /// RFC 7807 payload exactly, so there is one identifier rather than a code plus a separate resource
 /// key that can drift apart.

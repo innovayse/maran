@@ -86,7 +86,7 @@ pub(crate) fn prepare_account_directory(
 /// # Errors
 ///
 /// As documented on [`prepare_account_directory`].
-fn prepare_account_directory_owned_by(
+pub(crate) fn prepare_account_directory_owned_by(
     root: &Path,
     account: &AccountName,
     owner: u32,

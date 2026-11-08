@@ -35,6 +35,10 @@ export interface BackupOptions {
   hours: BackupChoice[]
   /** How many copies a schedule can keep, from the minimum to the ceiling the server enforces. */
   retainCounts: BackupChoice[]
+  /** The cadences a customer may choose for their own schedule: a subset of {@link frequencies}. */
+  customerFrequencies: BackupChoice[]
+  /** How many copies a customer may keep on their own schedule: a subset of {@link retainCounts}. */
+  customerRetainCounts: BackupChoice[]
 }
 
 /**

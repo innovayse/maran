@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
 use maran_agent_core::validation::system::local_backup_root::LocalBackupRoot;
-use maran_ops::backup::{self, BackupHost};
+use maran_ops::backup::{self, BackupHost, CreationRequest};
 use maran_ops::db::DbHost;
 use tokio::sync::mpsc;
 use tokio_stream::Stream;
@@ -142,7 +142,7 @@ impl<B: BackupHost + 'static, D: DbHost + 'static> BackupService for BackupServi
         let (sender, receiver) = mpsc::channel(BACKUP_CHANNEL_CAPACITY);
 
         match validated_creation(&request) {
-            Ok((account, backup_id, root)) => {
+            Ok((account, backup_id, root, key)) => {
                 audit.account(&account);
                 let host = Arc::clone(&self.host);
                 let catalog = DbHostCatalog::new(Arc::clone(&self.db_host));
@@ -154,10 +154,13 @@ impl<B: BackupHost + 'static, D: DbHost + 'static> BackupService for BackupServi
                     let outcome = backup::create_backup(
                         host.as_ref(),
                         &catalog,
-                        &account,
-                        &backup_id,
-                        &root,
-                        &floor,
+                        &CreationRequest {
+                            account: &account,
+                            backup_id: &backup_id,
+                            root: &root,
+                            floor: &floor,
+                            key: key.as_ref(),
+                        },
                         &mut sink,
                     );
 
@@ -225,9 +228,11 @@ impl<B: BackupHost + 'static, D: DbHost + 'static> BackupService for BackupServi
                         &input.backup_id,
                         &input.root,
                         &input.allowed_databases,
+                        &input.scope,
                         &input.expected_sha256,
                         group,
                         &floor,
+                        input.key.as_ref(),
                         &mut sink,
                     );
 
@@ -340,11 +345,18 @@ impl<B: BackupHost + 'static, D: DbHost + 'static> BackupService for BackupServi
         let request = request.into_inner();
 
         let outcome = match validated_verification(&request) {
-            Ok((account, backup_id, root)) => {
+            Ok((account, backup_id, root, key)) => {
                 let host = Arc::clone(&self.host);
                 let floor = self.floor;
                 run_blocking("backup verification", to_agent_error, move || {
-                    backup::verify_backup(host.as_ref(), &account, &backup_id, &root, &floor)
+                    backup::verify_backup(
+                        host.as_ref(),
+                        &account,
+                        &backup_id,
+                        &root,
+                        &floor,
+                        key.as_ref(),
+                    )
                 })
                 .await
             }

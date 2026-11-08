@@ -38,6 +38,13 @@ export interface PanelModule {
    * server-side concepts and the SPA holds no list of them (rules/vue.md).
    */
   tierDisplayName?: string
+  /**
+   * Whether the module is part of the core or installed separately, in the words an operator reads,
+   * already localized by the backend in the request's language. Optional for the same reason as
+   * `tierDisplayName`. The machine `kind` stays on the wire for scripts; the SPA holds no list of
+   * kinds (rules/vue.md).
+   */
+  kindDisplayName: string
   /** Whether the module may be used right now; the backend decides it in one place. */
   state: ModuleState
 }

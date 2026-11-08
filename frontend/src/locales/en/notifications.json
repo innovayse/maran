@@ -1,0 +1,19 @@
+{
+  "notifications": {
+    "title": "Notifications",
+    "label": "Notifications",
+    "labelUnread": "Notifications, {count} not dismissed | Notifications, {count} not dismissed",
+    "labelCapped": "Notifications, more than {count} not dismissed",
+    "capped": "{count}+",
+    "close": "Close notifications",
+    "open": "Open",
+    "dismiss": "Dismiss: {title}",
+    "dismissAll": "Dismiss all",
+    "listLabel": "Notifications",
+    "emptyTitle": "No notifications",
+    "emptyDescription": "Failed tasks, resource alerts and backup problems appear here until you dismiss them.",
+    "unreachable": "The panel could not be reached. Try again in a moment.",
+    "retry": "Try again",
+    "more": "{count} more is not shown. Dismiss these to see it. | {count} more are not shown. Dismiss these to see them."
+  }
+}

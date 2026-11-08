@@ -157,4 +157,32 @@ public sealed class ResellerDeletingHandlerTests : IDisposable
 
         Assert.Equal(RefusingSaveInterceptor.Message, exception.Message);
     }
+
+    /// <summary>Deleting a reseller removes the API keys it owns and leaves the other reseller's and the administrator's.</summary>
+    [Fact]
+    public async Task Deleting_a_reseller_removes_the_api_keys_it_owns_and_no_others()
+    {
+        AddCredentials(NewReseller(ResellerId, "northwind"));
+        await ApiKeySeed.AddAsync(_context, Now, name: "owned", scopes: [ApiKeyScopes.PlansRead], resellerId: ResellerId);
+        await ApiKeySeed.AddAsync(_context, Now, name: "other-reseller", scopes: [ApiKeyScopes.PlansRead], resellerId: OtherResellerId);
+        await ApiKeySeed.AddAsync(_context, Now, name: "administrator");
+        await _context.SaveChangesAsync();
+
+        await ErasureHandlers.ResellerDeleting(_context, new RecordingAuditWriter()).HandleAsync(Deleting(), CancellationToken.None);
+
+        Assert.Equal(
+            ["administrator", "other-reseller"],
+            (await _context.ApiKeys.Select(key => key.Name).ToListAsync()).Order().ToArray());
+    }
+
+    /// <summary>A reseller whose login is already gone still has its keys removed, because a key is a way in on its own.</summary>
+    [Fact]
+    public async Task A_resellers_keys_are_removed_even_when_its_login_is_already_gone()
+    {
+        await ApiKeySeed.AddAsync(_context, Now, name: "owned", scopes: [ApiKeyScopes.AccountsRead], resellerId: ResellerId);
+
+        await ErasureHandlers.ResellerDeleting(_context, new RecordingAuditWriter()).HandleAsync(Deleting(), CancellationToken.None);
+
+        Assert.Empty(await _context.ApiKeys.ToListAsync());
+    }
 }

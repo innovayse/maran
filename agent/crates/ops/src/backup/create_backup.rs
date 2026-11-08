@@ -5,9 +5,6 @@ use std::path::{Path, PathBuf};
 
 use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
-use maran_agent_core::validation::system::backup_id::BackupId;
-use maran_agent_core::validation::system::local_backup_root::LocalBackupRoot;
-use maran_agent_core::validation::system::name::AccountName;
 
 use crate::accounts::take_account_lock;
 use crate::backup::archive::archive_home::archive_home;
@@ -24,12 +21,14 @@ use crate::backup::model::archive_spec::ArchiveSpec;
 use crate::backup::model::backup_manifest::{BackupManifest, MANIFEST_VERSION};
 use crate::backup::model::backup_stage::BackupStage;
 use crate::backup::model::backup_summary::BackupSummary;
+use crate::backup::model::creation_request::CreationRequest;
 use crate::backup::model::manifest_database::ManifestDatabase;
 use crate::backup::model::progress_sink::ProgressSink;
 use crate::backup::object_key::{artifact_file_name, sidecar_file_name};
 use crate::backup::open_backup_scratch::open_backup_scratch;
 use crate::backup::publish_artifact::publish_artifact;
 use crate::backup::scratch_dump_ceiling::scratch_dump_ceiling;
+use crate::backup::seal_partial::seal_partial;
 use crate::backup::write_sidecar::write_sidecar;
 
 /// The largest dump this agent will archive, per database.
@@ -45,7 +44,7 @@ use crate::backup::write_sidecar::write_sidecar;
 const MAXIMUM_DUMP_BYTES: u64 = 8 * 1024 * 1024 * 1024;
 
 /// The largest finished artifact this agent will publish.
-const MAXIMUM_ARCHIVE_BYTES: u64 = 64 * 1024 * 1024 * 1024;
+pub(crate) const MAXIMUM_ARCHIVE_BYTES: u64 = 64 * 1024 * 1024 * 1024;
 
 /// The suffix the artifact wears while it is being written.
 ///
@@ -61,7 +60,7 @@ const ROOT_UID: u32 = 0;
 
 /// Where one creation puts things, and what it will not exceed.
 ///
-/// A struct rather than eight parameters, and it exists for testability as much
+/// A struct rather than a row of parameters, and it exists for testability as much
 /// as for readability: the public entry point fills it from [`AgentPaths`] and
 /// the constants above, and a test fills it with directories it can really
 /// create. Every field is agent-derived — nothing in it comes from a request.
@@ -138,6 +137,18 @@ struct Placement {
 /// 7. Check the artifact's own ownership and mode, then publish it by rename
 ///    and write the sidecar.
 ///
+/// # Sealing, when a key is supplied
+///
+/// With `key` the finished archive is sealed (encrypted) in place between
+/// "`tar` exited zero and the listing passed" and "the artifact was hashed", so
+/// the digest, the size ceiling, the ownership check and the sidecar all
+/// describe the sealed bytes that are published — the bytes a restore will read
+/// back. The listing check runs on the plain archive, before sealing, because it
+/// is the one place the archive's members can be read without the key. Without a
+/// key nothing changes. The summary says which it was
+/// ([`BackupSummary::sealed`]). What sealing does and does not protect is in
+/// docs/superpowers/notes/2026-11-07-backup-encryption-threat-note.md.
+///
 /// The `uploading` stage belongs to a remote destination and is not reported
 /// here: a local creation does not upload, and reporting a stage that did no
 /// work is the kind of progress this product has already been burned by. The
@@ -152,30 +163,25 @@ struct Placement {
 pub fn create_backup(
     host: &dyn BackupHost,
     catalog: &dyn DatabaseCatalog,
-    account: &AccountName,
-    backup_id: &BackupId,
-    root: &LocalBackupRoot,
-    floor: &FreeSpaceFloor,
+    request: &CreationRequest<'_>,
     sink: &mut dyn ProgressSink,
 ) -> Result<BackupSummary, BackupError> {
-    let guard = take_account_lock(account).ok_or(BackupError::AlreadyRunning)?;
+    let guard = take_account_lock(request.account).ok_or(BackupError::AlreadyRunning)?;
 
-    let directory = prepare_account_directory(root, account)?;
+    let directory = prepare_account_directory(request.root, request.account)?;
     let placement = Placement {
         home_root: PathBuf::from(AgentPaths::ACCOUNT_HOME_ROOT),
         scratch_base: PathBuf::from("/"),
         scratch_root: PathBuf::from(AgentPaths::BULK_SCRATCH_ROOT),
-        scratch: AgentPaths::backup_scratch_dir(backup_id),
+        scratch: AgentPaths::backup_scratch_dir(request.backup_id),
         owner: ROOT_UID,
         dump_ceiling: MAXIMUM_DUMP_BYTES,
         member_ceiling: MAXIMUM_MEMBERS as u64,
         archive_ceiling: MAXIMUM_ARCHIVE_BYTES,
-        floor: *floor,
+        floor: *request.floor,
     };
 
-    let outcome = create_in(
-        &placement, host, catalog, account, backup_id, &directory, sink,
-    );
+    let outcome = create_in(&placement, host, catalog, request, &directory, sink);
 
     drop(guard);
     outcome
@@ -197,13 +203,12 @@ fn create_in(
     placement: &Placement,
     host: &dyn BackupHost,
     catalog: &dyn DatabaseCatalog,
-    account: &AccountName,
-    backup_id: &BackupId,
+    request: &CreationRequest<'_>,
     directory: &Path,
     sink: &mut dyn ProgressSink,
 ) -> Result<BackupSummary, BackupError> {
-    let artifact = directory.join(artifact_file_name(backup_id));
-    let sidecar = directory.join(sidecar_file_name(backup_id));
+    let artifact = directory.join(artifact_file_name(request.backup_id));
+    let sidecar = directory.join(sidecar_file_name(request.backup_id));
 
     // Before any work at all: the retry path costs one `stat`.
     if artifact.symlink_metadata().is_ok() {
@@ -219,7 +224,7 @@ fn create_in(
     partial.push(PARTIAL_SUFFIX);
     let partial = PathBuf::from(partial);
 
-    let assembled = assemble(placement, host, catalog, account, backup_id, &partial, sink);
+    let assembled = assemble(placement, host, catalog, request, &partial, sink);
 
     // Always, on every path: the scratch holds a full dump of the customer's
     // databases, and a scratch that outlives the operation that made it is a
@@ -254,8 +259,7 @@ fn assemble(
     placement: &Placement,
     host: &dyn BackupHost,
     catalog: &dyn DatabaseCatalog,
-    account: &AccountName,
-    backup_id: &BackupId,
+    request: &CreationRequest<'_>,
     partial: &Path,
     sink: &mut dyn ProgressSink,
 ) -> Result<BackupSummary, BackupError> {
@@ -269,7 +273,7 @@ fn assemble(
     // listing would, so the panel reads one error whichever check fires. The
     // post-archive listing stays as the authority, and as the only check on the
     // listing's byte cap.
-    let home = placement.home_root.join(account.as_str());
+    let home = placement.home_root.join(request.account.as_str());
     let measure = measure_home_bytes(&home)?;
     if measure.members > placement.member_ceiling {
         return Err(BackupError::ArchiveFailed {
@@ -288,7 +292,7 @@ fn assemble(
         BackupStage::DumpingDatabases,
         BackupStage::DumpingDatabases.start_percent(),
     );
-    let names = catalog.databases_of(account)?;
+    let names = catalog.databases_of(request.account)?;
     let total = names.len() as u64;
     let mut databases: Vec<ManifestDatabase> = Vec::with_capacity(names.len());
     for (index, name) in names.iter().enumerate() {
@@ -306,8 +310,8 @@ fn assemble(
 
     let manifest = BackupManifest {
         version: MANIFEST_VERSION,
-        account: account.as_str().to_owned(),
-        backup_id: backup_id.as_str().to_owned(),
+        account: request.account.as_str().to_owned(),
+        backup_id: request.backup_id.as_str().to_owned(),
         created_at_unix: host.now_unix(),
         home_bytes: measure.bytes,
         databases,
@@ -329,6 +333,12 @@ fn assemble(
         },
     )?;
 
+    // Sealed BEFORE the digest is taken, so the digest, the size ceiling below
+    // and the sidecar all describe the bytes that will be published.
+    if let Some(key) = request.key {
+        seal_partial(partial, key)?;
+    }
+
     let (artifact_sha256, artifact_bytes) = checksum_file(partial)?;
     if artifact_bytes > placement.archive_ceiling {
         return Err(BackupError::ArchiveTooLarge {
@@ -341,12 +351,18 @@ fn assemble(
         BackupStage::ArchivingFiles.end_percent(),
     );
 
-    Ok(BackupSummary::readable(
-        backup_id.as_str().to_owned(),
+    let summary = BackupSummary::readable(
+        request.backup_id.as_str().to_owned(),
         manifest,
         artifact_bytes,
         artifact_sha256,
-    ))
+    );
+
+    Ok(if request.key.is_some() {
+        summary.sealed()
+    } else {
+        summary
+    })
 }
 
 #[cfg(test)]

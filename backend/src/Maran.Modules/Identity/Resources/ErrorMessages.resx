@@ -108,6 +108,12 @@
   <data name="InvitationAccountSuspended">
     <value>No invitation can be issued while this account is suspended. Reactivate the account first.</value>
   </data>
+  <data name="InvitationResellerNotFound">
+    <value>No such reseller.</value>
+  </data>
+  <data name="InvitationResellerSuspended">
+    <value>No invitation can be issued while this reseller is suspended. Reactivate the reseller first.</value>
+  </data>
   <data name="AdminRecoveryUserNotFound">
     <value>No user with that e-mail address or username exists.</value>
   </data>
@@ -137,6 +143,21 @@
   </data>
   <data name="PinnedPageNotFound">
     <value>That page is not pinned.</value>
+  </data>
+  <data name="DashboardLayoutTooLong">
+    <value>A dashboard list may hold at most 32 entries.</value>
+  </data>
+  <data name="DashboardLayoutKeyInvalid">
+    <value>A dashboard entry has an invalid key. Use letters and digits only, starting with a letter, up to 64 characters.</value>
+  </data>
+  <data name="DashboardLayoutKeyRepeated">
+    <value>A dashboard list names the same entry more than once.</value>
+  </data>
+  <data name="DashboardLayoutSaveConflict">
+    <value>Your dashboard layout was changed at the same moment. Try saving it again.</value>
+  </data>
+  <data name="DashboardLayoutListMissing">
+    <value>The dashboard layout must include both the widgets list and the shortcuts list.</value>
   </data>
   <data name="SubUsersOwnerOnly">
     <value>Only the owner of the account can manage its sub-users.</value>
@@ -190,7 +211,7 @@
     <value>The expiry must be a moment in the future.</value>
   </data>
   <data name="ApiKeyLimitReached">
-    <value>The panel already holds the maximum number of API keys. Revoke one that is no longer needed.</value>
+    <value>The maximum number of working API keys is already in use. Revoke one that is no longer needed.</value>
   </data>
   <data name="ApiKeyPrefixUnavailable">
     <value>The key could not be created because no free key prefix was found. Please try again.</value>
@@ -206,6 +227,12 @@
   </data>
   <data name="AuditActorFilterInvalid">
     <value>That is not a valid username to filter the audit journal by.</value>
+  </data>
+  <data name="AuditJournalNotReadable">
+    <value>The audit journal is not readable by this login.</value>
+  </data>
+  <data name="AuditAccountNotFound">
+    <value>There is no such account in your audit journal.</value>
   </data>
   <data name="AuditRetentionOutOfRange">
     <value>Audit entries can be kept for 30 to 3650 days, or kept forever.</value>

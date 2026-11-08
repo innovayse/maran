@@ -223,6 +223,7 @@ public sealed class DisplayNameLawTests
     }
 
     /// <summary>Every exemption anchored to the spa names a file that still mentions the member.</summary>
+    /// <remarks>Only the not-an-operator-facing-name excuses are anchored to a file; the other two kinds cite a locale key template or a screen still to be built.</remarks>
     [Fact]
     public void Every_exemption_anchored_to_the_spa_names_a_file_that_still_mentions_the_member()
     {
@@ -230,8 +231,10 @@ public sealed class DisplayNameLawTests
         var checkedFiles = 0;
         foreach (var exemption in DisplayNameExemptions.Declared)
         {
-            if (exemption.Kind == DisplayNameExemptionKind.SpaOwnedVocabulary)
+            if (exemption.Kind != DisplayNameExemptionKind.NotAnOperatorFacingName)
             {
+                // A locale key template (SpaOwnedVocabulary) is checked above; a PendingFix cites where the
+                // defect will show on screen, which may be a screen that is not built yet, so it names no file.
                 continue;
             }
 

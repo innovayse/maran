@@ -5,6 +5,8 @@ using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Services;
 using Maran.Sdk.Interfaces;
 using Maran.SharedKernel.Interfaces;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Maran.Modules.Accounts.Tests.TestSupport;
 
@@ -42,13 +44,17 @@ public static class PlanHandlerFactory
     /// <param name="audit">The writer the journal records into.</param>
     /// <param name="displayNames">The display names of the shipped plans.</param>
     /// <param name="agent">The agent double that owns quotas and runtime ceilings.</param>
+    /// <param name="bus">The bus a changed PHP bound is announced on; one that accepts everything when not stated.</param>
+    /// <param name="announcerLogger">Where a subscriber's failure is logged; a discarding one when not stated.</param>
     /// <returns>The handler.</returns>
     public static UpdatePlanCommandHandler Update(
         AccountsDbContext dbContext,
         ICurrentUser caller,
         IAuditWriter audit,
         StubDisplayNames displayNames,
-        RecordingAgentAccountsClient agent)
+        RecordingAgentAccountsClient agent,
+        StubMessageBus? bus = null,
+        ILogger<AccountPlanChangeAnnouncer>? announcerLogger = null)
     {
         return new UpdatePlanCommandHandler(
             dbContext,
@@ -59,7 +65,9 @@ public static class PlanHandlerFactory
             new AccountRuntimeLimitsEnforcer(agent),
             new PlanNameDirectory(dbContext, displayNames),
             new AccountAuditJournal(audit, caller),
-            displayNames);
+            displayNames,
+            new AccountPlanChangeAnnouncer(
+                bus ?? new StubMessageBus(), announcerLogger ?? NullLogger<AccountPlanChangeAnnouncer>.Instance));
     }
 
     /// <summary>Builds the deletion handler.</summary>

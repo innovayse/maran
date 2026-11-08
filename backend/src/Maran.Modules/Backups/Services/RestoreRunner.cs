@@ -17,9 +17,10 @@ namespace Maran.Modules.Backups.Services;
 /// <b>The one decision in this module that a wrong answer looks right for.</b> The agent's
 /// <c>RestoreOutcome</c> carries no success field on purpose — three numbers and no verdict — so
 /// that the panel has to state the verdict itself and can be tested on it. That statement is made
-/// HERE, once: a restore is a <c>WholeRestoreOutcome</c> only when <c>FilesRestored &amp;&amp;
-/// DatabasesRestored == DatabasesTotal</c>, and everything downstream matches on the outcome's type
-/// rather than recomputing it. A restore that replaced the home
+/// HERE, once: a whole-account restore is a <c>WholeRestoreOutcome</c> only when <c>FilesRestored
+/// &amp;&amp; DatabasesRestored == DatabasesTotal</c> (a single-database or single-site restore, issue
+/// #160, is judged against the figures its own scope produces, in <c>IsComplete</c>), and everything
+/// downstream matches on the outcome's type rather than recomputing it. A restore that replaced the home
 /// and eleven of twelve databases is a FAILURE, and the account is now a home from one point in time
 /// over a database from another.
 /// </para>
@@ -79,6 +80,10 @@ public sealed class RestoreRunner
     /// never the server's current default — the two are the same today and would not be the day a
     /// second destination exists.
     /// </param>
+    /// <param name="scope">
+    /// What the restore replaces. It decides what a WHOLE outcome is: the verdict compares the agent's
+    /// figures with what this scope set out to do, not with what a whole-account restore would have.
+    /// </param>
     /// <param name="taskId">The panel task this run's progress is reported onto.</param>
     /// <param name="cancellationToken">Cancels the run.</param>
     /// <returns>What the restore did, with the verdict already stated.</returns>
@@ -88,6 +93,7 @@ public sealed class RestoreRunner
         string expectedSha256,
         IReadOnlyList<string> allowedDatabases,
         AgentBackupDestination destination,
+        AgentRestoreScope scope,
         Guid taskId,
         CancellationToken cancellationToken)
     {
@@ -97,6 +103,7 @@ public sealed class RestoreRunner
             destination,
             expectedSha256,
             allowedDatabases,
+            scope,
             cancellationToken))
         {
             if (progress.Kind == BackupRestoreEventKind.Progress)
@@ -107,7 +114,7 @@ public sealed class RestoreRunner
 
             if (progress.Kind != BackupRestoreEventKind.Restored)
             {
-                return Failure(RestoreAgentErrorTranslator.ToFailure(progress));
+                return Failure(RestoreAgentErrorTranslator.ToFailure(progress, scope));
             }
 
             // The arm that promises an outcome and carries none. Refused rather than read as a
@@ -118,7 +125,7 @@ public sealed class RestoreRunner
                 return Failure(Error.Of(nameof(ErrorMessages.RestoreInvalidOutcome), ErrorType.Failure));
             }
 
-            return Reduce(progress.Outcome);
+            return Reduce(progress.Outcome, scope);
         }
 
         // The sequence ended with no terminal event at all. What the account's home and databases
@@ -128,20 +135,32 @@ public sealed class RestoreRunner
 
     /// <summary>States the panel's verdict over the agent's three numbers.</summary>
     /// <param name="outcome">What the agent said it did.</param>
+    /// <param name="scope">What the restore set out to replace.</param>
     /// <returns>
-    /// A <see cref="WholeRestoreOutcome"/> when the files were restored and every database was, and
-    /// a <see cref="PartialRestoreOutcome"/> carrying the agent's own figures otherwise.
+    /// A <see cref="WholeRestoreOutcome"/> when the agent did all of what the scope asked, and a
+    /// <see cref="PartialRestoreOutcome"/> carrying the agent's own figures otherwise.
     /// </returns>
     /// <remarks>
+    /// <para>
     /// The comparison is here and nowhere else. A partial restore is given
     /// <c>RestorePartial</c> — an <see cref="ErrorType.Failure"/>, because the SERVER left the
     /// account half-replaced — rather than no error at all, so that a caller reading only the code still
     /// gets an answer that is not "success" — the failure mode being guarded against is a reader who
     /// checks one field and not the other.
+    /// </para>
+    /// <para>
+    /// <b>"Everything it set out to do" is a different sentence per scope, and it is stated
+    /// exactly.</b> A whole restore replaced the files and every database it counted. A database
+    /// restore replaced exactly one database and no file. A site restore replaced the files of one
+    /// directory and no database. Anything else — a database restore that claims files, a site restore
+    /// that claims a database, a figure the scope cannot produce — is NOT whole, because it is the
+    /// agent describing an operation other than the one that was asked for, and calling that a clean
+    /// restore would be the panel agreeing with a number it cannot account for.
+    /// </para>
     /// </remarks>
-    private static RestoreRunOutcome Reduce(AgentRestoreOutcome outcome)
+    private static RestoreRunOutcome Reduce(AgentRestoreOutcome outcome, AgentRestoreScope scope)
     {
-        if (outcome.FilesRestored && outcome.DatabasesRestored == outcome.DatabasesTotal)
+        if (IsComplete(outcome, scope))
         {
             return new WholeRestoreOutcome(outcome.DatabasesRestored);
         }
@@ -151,6 +170,22 @@ public sealed class RestoreRunner
             outcome.DatabasesRestored,
             outcome.DatabasesTotal,
             Error.Of(nameof(ErrorMessages.RestorePartial), ErrorType.Failure));
+    }
+
+    /// <summary>Whether the agent's figures describe all of what <paramref name="scope"/> asked for.</summary>
+    /// <param name="outcome">What the agent said it did.</param>
+    /// <param name="scope">What the restore set out to replace.</param>
+    /// <returns><c>true</c> only for the exact figures that scope's completion produces.</returns>
+    private static bool IsComplete(AgentRestoreOutcome outcome, AgentRestoreScope scope)
+    {
+        return scope switch
+        {
+            AgentDatabaseRestoreScope =>
+                !outcome.FilesRestored && outcome.DatabasesRestored == 1 && outcome.DatabasesTotal == 1,
+            AgentSiteRestoreScope =>
+                outcome.FilesRestored && outcome.DatabasesRestored == 0 && outcome.DatabasesTotal == 0,
+            _ => outcome.FilesRestored && outcome.DatabasesRestored == outcome.DatabasesTotal,
+        };
     }
 
     /// <summary>Builds the outcome of a run the agent stated nothing usable about.</summary>

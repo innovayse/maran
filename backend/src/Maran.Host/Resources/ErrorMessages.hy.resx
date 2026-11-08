@@ -24,6 +24,9 @@
   <data name="HostForbidden">
     <value>Դուք այս էջի հասանելիություն չունեք։</value>
   </data>
+  <data name="HostPasswordChangeRequired">
+    <value>Շարունակելուց առաջ պետք է ընտրեք նոր գաղտնաբառ։</value>
+  </data>
   <data name="HostTwoFactorSetupRequired">
     <value>Նախ ավարտեք երկգործոն նույնականացման կարգավորումը։</value>
   </data>

@@ -34,8 +34,29 @@ public sealed class RecordingAgentPhpClient : IAgentPhpClient
         }).ToList();
     }
 
+    /// <summary>The extensions this fake reports for any version; empty unless a test sets them.</summary>
+    public List<PhpExtensionDto> Extensions { get; } = [];
+
+    /// <summary>The (version, extension, enabled) triples a switch was asked for, in order.</summary>
+    public List<(string Version, string Extension, bool Enabled)> SetExtensionCalls { get; } = [];
+
+    /// <summary>The events this fake streams for a switch, in order; a Changed event answers when none is staged.</summary>
+    public List<PhpExtensionEvent> ExtensionEvents { get; } = [];
+
+    /// <summary>
+    /// Whether a Changed event also flips the extension in <see cref="Extensions"/>, as the real host
+    /// does. A test sets it to false to stage a stream that claims success over a state that did not change.
+    /// </summary>
+    public bool AppliesExtensionChange { get; set; } = true;
+
     /// <summary>The versions an install was asked for, in order.</summary>
     public List<string> InstallCalls { get; } = [];
+
+    /// <summary>The pool rewrites asked for, in order: account, version, worker budget and the settings sent.</summary>
+    public List<(string Username, string Version, uint MaxChildren, IReadOnlyList<PhpSettingDto> Settings)> PoolCalls { get; } = [];
+
+    /// <summary>The error a pool rewrite at a version answers with; a version not listed succeeds.</summary>
+    public Dictionary<string, Error> PoolFailures { get; } = [];
 
     /// <summary>
     /// Stages the events one install will stream, and whether the version then appears installed.
@@ -141,5 +162,88 @@ public sealed class RecordingAgentPhpClient : IAgentPhpClient
         }
 
         await Task.CompletedTask;
+    }
+
+    /// <inheritdoc/>
+    public Task<Result<IReadOnlyList<PhpExtensionDto>>> ListExtensionsAsync(
+        string version,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult(_failure is null
+            ? Result<IReadOnlyList<PhpExtensionDto>>.Ok(Extensions.ToList())
+            : Result<IReadOnlyList<PhpExtensionDto>>.Fail(_failure));
+    }
+
+    /// <inheritdoc/>
+    public async IAsyncEnumerable<PhpExtensionEvent> SetExtensionAsync(
+        string version,
+        string extension,
+        bool enabled,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        SetExtensionCalls.Add((version, extension, enabled));
+
+        if (ExtensionEvents.Count == 0)
+        {
+            ApplyExtensionChange(extension, enabled);
+
+            yield return new PhpExtensionEvent(
+                PhpExtensionEventKind.Changed,
+                100,
+                string.Empty,
+                version,
+                extension,
+                enabled,
+                null);
+        }
+
+        foreach (var change in ExtensionEvents)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // The state changes AT the event that says so, for the reason the install stream's version
+            // does: a consumer stops enumerating on a terminal event.
+            if (change.Kind == PhpExtensionEventKind.Changed)
+            {
+                ApplyExtensionChange(extension, enabled);
+            }
+
+            yield return change;
+        }
+
+        await Task.CompletedTask;
+    }
+
+    /// <summary>Puts the named extension in the requested state in <see cref="Extensions"/>, when changes are applied.</summary>
+    /// <param name="extension">The catalogue name that was switched.</param>
+    /// <param name="enabled">The state it was switched to.</param>
+    private void ApplyExtensionChange(string extension, bool enabled)
+    {
+        if (!AppliesExtensionChange)
+        {
+            return;
+        }
+
+        var index = Extensions.FindIndex(item =>
+        {
+            return string.Equals(item.Name, extension, StringComparison.Ordinal);
+        });
+        if (index >= 0)
+        {
+            Extensions[index] = Extensions[index] with { Enabled = enabled };
+        }
+    }
+
+    /// <inheritdoc/>
+    public Task<Result> ApplyPoolSettingsAsync(
+        string accountUsername,
+        string version,
+        uint maxChildren,
+        IReadOnlyList<PhpSettingDto> settingOverrides,
+        CancellationToken cancellationToken)
+    {
+        PoolCalls.Add((accountUsername, version, maxChildren, settingOverrides));
+
+        return Task.FromResult(PoolFailures.TryGetValue(version, out var failure) ? Result.Fail(failure) : Result.Ok());
     }
 }

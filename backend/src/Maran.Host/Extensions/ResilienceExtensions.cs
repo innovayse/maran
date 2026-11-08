@@ -14,7 +14,12 @@ namespace Maran.Host.Extensions;
 /// </summary>
 public static class ResilienceExtensions
 {
-    /// <summary>Adds the agent-call pipeline (timeout plus bounded retry on transient failures).</summary>
+    /// <summary>
+    /// Adds the named pipelines: the agent-call and agent-operation pipelines (timeout plus bounded retry
+    /// on transient failures), the cron-run pipeline, and the ACME client's. It decorates no client; that
+    /// is <see cref="AddResilientAgentClients"/>, kept apart so a host that composes a different agent
+    /// registers the pipelines without there being a client of the real agent to wrap.
+    /// </summary>
     /// <param name="services">The application service collection.</param>
     /// <returns>The same collection, for chaining.</returns>
     public static IServiceCollection AddPanelResilience(this IServiceCollection services)
@@ -46,6 +51,17 @@ public static class ResilienceExtensions
                 AcmePipeline.Configure(builder, acmeOptions.RequestTimeout);
             });
 
+        return services;
+    }
+
+    /// <summary>
+    /// Wraps every agent client in <see cref="AgentOperationPipeline"/>. Must run after
+    /// <c>AddAgentClient</c> and <see cref="AddPanelResilience"/>; <c>Program</c> calls them in that order.
+    /// </summary>
+    /// <param name="services">The application service collection.</param>
+    /// <returns>The same collection, for chaining.</returns>
+    public static IServiceCollection AddResilientAgentClients(this IServiceCollection services)
+    {
         // Every agent client is decorated here, and each one is listed once. A client registered
         // without its decorator has no timeout at all — the defect this repository already found
         // when the pipeline was registered and resolved by nobody — so the calls sit together
@@ -81,6 +97,14 @@ public static class ResilienceExtensions
         Decorate<IAgentFtpsClient>(services, (inner, pipelines) =>
         {
             return new ResilientAgentFtpsClient(inner, pipelines);
+        });
+        Decorate<IAgentDnsClient>(services, (inner, pipelines) =>
+        {
+            return new ResilientAgentDnsClient(inner, pipelines);
+        });
+        Decorate<IAgentMailClient>(services, (inner, pipelines) =>
+        {
+            return new ResilientAgentMailClient(inner, pipelines);
         });
         Decorate<IAgentCronClient>(services, (inner, pipelines) =>
         {

@@ -13,6 +13,7 @@ use super::AccountError;
 use crate::db::DbError;
 use crate::ftps::FtpsError;
 use crate::php::PhpOpError;
+use crate::safe_write::SafeWriteError;
 use crate::safe_write::adapter_programs::timed_out;
 use crate::sftp::SftpError;
 use crate::sites::SitesOpError;
@@ -192,4 +193,29 @@ fn the_processes_remain_message_names_the_account_and_no_process_detail() {
         error.to_string(),
         "processes of account 'acme' are still running after being killed"
     );
+}
+
+/// A bound reached while validating the drop-in stays a bound.
+#[test]
+fn a_bound_from_the_limits_file_write_reaches_the_account_area_as_a_bound() {
+    let error = AccountError::from_limits_write(SafeWriteError::Bound(bound()));
+
+    assert!(is_the_bound(&error), "{error:?}");
+}
+
+/// Every other refusal of the write is the one limits-file failure, which holds no
+/// tool output because the wire carries none for this area.
+#[test]
+fn any_other_failure_of_the_limits_file_write_is_the_limits_file_failure() {
+    for refusal in [
+        SafeWriteError::TemporaryWrite,
+        SafeWriteError::Rename,
+        SafeWriteError::ValidationFailed {
+            stderr: "id: 'alice': no such user".to_owned(),
+        },
+    ] {
+        let error = AccountError::from_limits_write(refusal);
+
+        assert!(matches!(error, AccountError::LimitsFileFailed), "{error:?}");
+    }
 }

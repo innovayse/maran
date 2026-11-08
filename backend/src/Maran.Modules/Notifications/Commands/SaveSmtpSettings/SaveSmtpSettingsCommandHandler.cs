@@ -81,8 +81,16 @@ public sealed class SaveSmtpSettingsCommandHandler
                 command.Password ?? string.Empty,
                 command.FromAddress,
                 command.FromName,
-                command.AlertRecipient,
                 now);
+
+            // A first save after recipients were saved: the new row starts with the copy the previous
+            // release would look for, so a rollback right after finds the address.
+            var first = await _dbContext.AlertRecipients
+                .AsNoTracking()
+                .OrderBy(recipient => recipient.Position)
+                .Select(recipient => recipient.Address)
+                .FirstOrDefaultAsync(cancellationToken);
+            settings.MirrorFirstAlertRecipient(first);
 
             _dbContext.SmtpSettings.Add(settings);
         }
@@ -96,7 +104,6 @@ public sealed class SaveSmtpSettingsCommandHandler
                 command.Password,
                 command.FromAddress,
                 command.FromName,
-                command.AlertRecipient,
                 now);
         }
 
@@ -104,7 +111,7 @@ public sealed class SaveSmtpSettingsCommandHandler
         _cache.Invalidate();
 
         await _journal.RecordRequestAsync(
-            MailAuditActions.SmtpSettingsSaved,
+            OutgoingMailAuditActions.SmtpSettingsSaved,
             command.Host,
             command.IpAddress,
             command.UserAgent,

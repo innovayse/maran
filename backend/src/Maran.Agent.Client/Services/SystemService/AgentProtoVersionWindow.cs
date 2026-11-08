@@ -89,6 +89,15 @@ namespace Maran.Agent.Client.Services.SystemService;
 /// Revision 20 adds <c>SslService.RestorePanelSelfSigned</c> (issue #425), and both ends moved to it as
 /// the one-revision default: a revision-19 agent answers the rpc <c>UNIMPLEMENTED</c>, so an
 /// administrator could never return the panel to a self-signed certificate against it.
+/// Revision 21 is one combined revision for the contract growth of the v1 feature work: the DNS, mail
+/// and transfer services (issues #178, #177, #127), the database login rpcs (issue #156), the site
+/// options, traffic and log-pruning rpcs (issues #151, #152, #159), the PHP extension and pool rpcs
+/// (issues #157, #138), the file manager's search, copy and trash rpcs (issues #166, #167, #168),
+/// <c>SetAccountOpenFilesLimit</c> (issue #194), the backup <c>archive_key</c>, <c>encrypted</c> and
+/// <c>RestoreScope</c> fields (issue #160) and four error codes including
+/// <c>ERROR_CODE_ARCHIVE_UNOPENABLE</c> (issue #445). Both ends moved to it as the one-revision
+/// default: a revision-20 agent answers the new rpcs <c>UNIMPLEMENTED</c> and sends none of the new
+/// fields, which protobuf reads as the unset zero, so the panel would act on answers it never received.
 /// </para>
 /// <para>
 /// <b>Both ends are needed, and they move for different reasons.</b> An agent NEWER than
@@ -115,10 +124,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 public static class AgentProtoVersionWindow
 {
     /// <summary>The oldest agent contract revision this panel drives.</summary>
-    public const uint Minimum = 20;
+    public const uint Minimum = 21;
 
     /// <summary>The newest agent contract revision this panel drives: the one it was built against.</summary>
-    public const uint Maximum = 20;
+    public const uint Maximum = 21;
 
     /// <summary>
     /// The machine code a handshake outside the window fails with, so a caller outside this assembly

@@ -1,4 +1,5 @@
 using System.Globalization;
+using Maran.Modules.Databases.Domain.Policies;
 using Maran.Modules.Databases.Persistence;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
@@ -62,6 +63,57 @@ public sealed class DatabasesPersonalDataProvider : IPersonalDataProvider
             })
             .ToList();
 
-        return [new PersonalDataSection("databases", "databases", records)];
+        var userRows = await _dbContext.DatabaseUsers
+            .AsNoTracking()
+            .Include(row => row.Grants)
+            .Where(row => row.AccountId == subject.Id)
+            .OrderBy(row => row.CreatedAt)
+            .ThenBy(row => row.Id)
+            .ToListAsync(ct);
+        var databaseNames = await _dbContext.Databases
+            .AsNoTracking()
+            .Where(row => row.AccountId == subject.Id)
+            .ToDictionaryAsync(row =>
+            {
+                return row.Id;
+            }, row =>
+            {
+                return row.FullName;
+            }, ct);
+
+        // Names and privileges only. A password exists nowhere in this module, so there is none to leave out.
+        var userRecords = userRows
+            .Select(row =>
+            {
+                var grants = row.Grants
+                    .Where(grant =>
+                    {
+                        return databaseNames.ContainsKey(grant.DatabaseId);
+                    })
+                    .OrderBy(grant =>
+                    {
+                        return databaseNames[grant.DatabaseId];
+                    }, StringComparer.Ordinal)
+                    .Select(grant =>
+                    {
+                        var privileges = string.Join(", ", DatabasePrivilegeSets.MembersOf(grant.Privileges));
+                        return $"{databaseNames[grant.DatabaseId]}: {privileges}";
+                    });
+
+                return new PersonalDataRecord(new Dictionary<string, string?>(StringComparer.Ordinal)
+                {
+                    ["id"] = row.Id.ToString(),
+                    ["databaseUserName"] = row.FullName,
+                    ["grants"] = string.Join("; ", grants),
+                    ["createdAt"] = row.CreatedAt.ToString("O", CultureInfo.InvariantCulture),
+                });
+            })
+            .ToList();
+
+        return
+        [
+            new PersonalDataSection("databases", "databases", records),
+            new PersonalDataSection("databases", "databaseUsers", userRecords),
+        ];
     }
 }

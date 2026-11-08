@@ -411,4 +411,58 @@ public sealed class UserTests
         Assert.False(customer.IsSuspended);
         Assert.True(customer.MayAuthenticate);
     }
+
+    /// <summary>A login created with an initial password is usable at once and must change it.</summary>
+    [Fact]
+    public void A_login_created_with_an_initial_password_is_usable_and_must_change_it()
+    {
+        var user = User.CreateWithPassword(Guid.NewGuid(), "acme", "owner@example.com", "initial-hash", Now);
+
+        Assert.True(user.PasswordChangeRequired);
+        Assert.Equal(UserLifecycle.Active, user.Lifecycle);
+        Assert.Equal(UserRole.Customer, user.Role);
+        Assert.Equal("initial-hash", user.PasswordHash);
+        Assert.True(user.MayAuthenticate);
+    }
+
+    /// <summary>Logins made any other way do not owe a password change.</summary>
+    /// <remarks>The accepting control for the flag: a flag that was always true would pass the test above.</remarks>
+    [Fact]
+    public void A_login_made_any_other_way_owes_no_password_change()
+    {
+        var invited = User.Invite(Guid.NewGuid(), "acme", "owner@example.com", Now);
+        invited.Activate("chosen-hash");
+
+        Assert.False(NewUser().PasswordChangeRequired);
+        Assert.False(NewReseller().PasswordChangeRequired);
+        Assert.False(invited.PasswordChangeRequired);
+    }
+
+    /// <summary>Changing the password ends the obligation to change it.</summary>
+    [Fact]
+    public void Changing_the_password_ends_the_obligation_to_change_it()
+    {
+        var user = User.CreateWithPassword(Guid.NewGuid(), "acme", "owner@example.com", "initial-hash", Now);
+
+        user.ChangePassword("chosen-hash");
+
+        Assert.False(user.PasswordChangeRequired);
+        Assert.Equal("chosen-hash", user.PasswordHash);
+    }
+
+    /// <summary>Re-deriving the hash of the same password does not end the obligation.</summary>
+    /// <remarks>
+    /// The refusing half: the sign-in rehash runs with the initial password in hand, and a rehash that
+    /// cleared the flag would let the first sign-in replace the very obligation it is meant to enforce.
+    /// </remarks>
+    [Fact]
+    public void Rehashing_the_same_password_keeps_the_obligation()
+    {
+        var user = User.CreateWithPassword(Guid.NewGuid(), "acme", "owner@example.com", "initial-hash", Now);
+
+        user.Rehash("stronger-hash");
+
+        Assert.True(user.PasswordChangeRequired);
+        Assert.Equal("stronger-hash", user.PasswordHash);
+    }
 }

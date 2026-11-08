@@ -26,7 +26,7 @@ public sealed class LogoutEverywhereCommandHandler
     /// <summary>Revokes every live session the user has, including the one making the request.</summary>
     /// <param name="command">Whose sessions to end, with the caller's address and client.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
-    /// <returns>Always a success; the operation is idempotent.</returns>
+    /// <returns>Always a success. A repeat finds no live session left to end, but journals its own entry.</returns>
     public async Task<Result> HandleAsync(LogoutEverywhereCommand command, CancellationToken cancellationToken)
     {
         await _sessionService.RevokeAllAsync(command.UserId, SessionRevocationReason.LogoutAll, cancellationToken);

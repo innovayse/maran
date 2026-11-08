@@ -39,6 +39,9 @@
   <data name="FinalBackupFailed">
     <value>The account was not deleted: its final backup could not be made.</value>
   </data>
+  <data name="PreRestoreBackupFailed">
+    <value>The account was not restored: a backup of it as it is now could not be made first, so nothing was changed.</value>
+  </data>
   <data name="BackupNotRestorable">
     <value>This backup cannot be restored: it did not finish successfully.</value>
   </data>
@@ -99,6 +102,9 @@
   <data name="RestoreArtifactRejected">
     <value>Your server refused this copy: what it holds is not what the panel recorded when the copy was made. Nothing was restored and the account is unchanged. Restore from another copy, or contact support: this cannot be resolved by submitting the same request again.</value>
   </data>
+  <data name="RestoreArchiveKeyRejected">
+    <value>Your server could not open this copy with the encryption key held for its backup destination. Nothing was restored and the account is unchanged. Check that destination's archive key; if the key is right, the copy itself may be damaged, so restore from another copy or contact support. Submitting the same request again will not change this answer.</value>
+  </data>
   <data name="AccountBackupOperationRunning">
     <value>Your server is still working on another backup or restore for this account. Nothing was changed. Try again once that operation has finished.</value>
   </data>
@@ -129,7 +135,37 @@
   <data name="BackupVerificationFailed">
     <value>The stored archive no longer matches its record.</value>
   </data>
+  <data name="BackupVerificationArchiveKeyRejected">
+    <value>The stored archive cannot be opened with the encryption key held for its destination.</value>
+  </data>
   <data name="BackupVerificationArtifactMissing">
     <value>The stored archive could not be found.</value>
+  </data>
+  <data name="BackupScheduleCustomerFrequencyNotAllowed">
+    <value>Choose a daily or a weekly schedule.</value>
+  </data>
+  <data name="BackupScheduleCustomerRetainTooLow">
+    <value>The number of backups to keep must be at least 1.</value>
+  </data>
+  <data name="BackupScheduleCustomerRetainTooHigh">
+    <value>You can keep at most 7 backups.</value>
+  </data>
+  <data name="RestoreScopeAmbiguous">
+    <value>Name either a database or a site to restore, not both.</value>
+  </data>
+  <data name="RestoreDatabaseInvalid">
+    <value>The database name is not a valid database name.</value>
+  </data>
+  <data name="RestoreSiteInvalid">
+    <value>The site name is not a valid domain name.</value>
+  </data>
+  <data name="RestoreDatabaseNotFound">
+    <value>That database does not exist on this account, so nothing was restored.</value>
+  </data>
+  <data name="RestoreSiteNotFound">
+    <value>That site does not exist on this account, so nothing was restored.</value>
+  </data>
+  <data name="RestoreScopeNotInBackup">
+    <value>This backup does not hold the database or site you chose (it may have been created after the backup was taken), or the backup file is no longer on the server. Nothing was changed.</value>
   </data>
 </root>

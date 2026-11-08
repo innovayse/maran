@@ -32,6 +32,36 @@ cli_panel_restore_cleanup() {
   fi
 }
 
+# cli_panel_restore_require_release: refuses an archive taken by a newer release than the installed
+# one. The archive's schema may hold tables and columns this release's migrations do not know and
+# cannot undo, so restoring it would leave a database the installed panel cannot read. Runs before
+# the panel is stopped, so a refusal changes nothing. An archive with no release= line (taken before
+# the manifest carried it) and an install with no recorded release cannot be compared; both are
+# restored and the operator is told on stderr. The value is checked against the release-name
+# pattern before it is compared or printed.
+#   $1 = the archive's manifest.
+cli_panel_restore_require_release() {
+  local manifest="$1" lines archived installed
+  lines="$(awk '/^release=/ { n++ } END { print n + 0 }' "$manifest")" \
+    || cli_fail "the archive's manifest could not be read"
+  if [ "$lines" = "0" ]; then
+    echo "maran: the archive does not record the release that took it; restoring without a release check" >&2
+    return 0
+  fi
+  [ "$lines" = "1" ] || cli_fail "the archive's manifest names its release ${lines} times, expected once"
+  archived="$(sed -n 's/^release=//p' -- "$manifest")"
+  cli_version_is_release_name "$archived" || cli_fail "the archive's release is not a release name"
+  installed="$(cli_layout_state_read VERSION)"
+  if [ -z "$installed" ]; then
+    echo "maran: this install does not record its release; restoring without a release check" >&2
+    return 0
+  fi
+  if cli_version_gt "$archived" "$installed"; then
+    cli_audit_log panel-restore refused
+    cli_fail "the archive was taken by release ${archived}, newer than the installed ${installed}; install release ${archived} or newer first, then restore"
+  fi
+}
+
 # cli_panel_restore_member: extracts the one member named $2 from tar file $1 into directory $3 and
 # refuses unless what arrived is a regular, non-symlink file. Prints its path.
 cli_panel_restore_member() {
@@ -149,6 +179,7 @@ cli_panel_restore() {
   manifest="$(cli_panel_restore_member "$inner_tar" "$MARAN_PANEL_ARCHIVE_MANIFEST" "$inner")"
   grep -qxF -- "format=${MARAN_PANEL_ARCHIVE_FORMAT}" "$manifest" \
     || cli_fail "the archive's format is not one this release restores (expected ${MARAN_PANEL_ARCHIVE_FORMAT})"
+  cli_panel_restore_require_release "$manifest"
   dump="$(cli_panel_restore_member "$inner_tar" "$MARAN_PANEL_ARCHIVE_DATABASE" "$inner")"
   etc_tar="$(cli_panel_restore_member "$inner_tar" "$MARAN_PANEL_ARCHIVE_ETC" "$inner")"
   state_tar="$(cli_panel_restore_member "$inner_tar" "$MARAN_PANEL_ARCHIVE_STATE" "$inner")"

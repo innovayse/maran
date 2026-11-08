@@ -60,4 +60,13 @@
   <data name="CronRunOutcomeStopped">
     <value>Остановлен</value>
   </data>
+  <data name="CronMenuList">
+    <value>Планировщик</value>
+  </data>
+  <data name="CronRouteList">
+    <value>Планировщик</value>
+  </data>
+  <data name="CronRouteRuns">
+    <value>История запусков</value>
+  </data>
 </root>

@@ -36,9 +36,15 @@ const loadMessages = (locale: AppLocale): Record<string, LocaleMessageValue<VueM
   // Eager, not lazy: the whole panel is one bundle and the entire set of messages is
   // a few kilobytes, so splitting them across network requests would buy nothing and
   // cost a flash of untranslated interface on the first render of every screen.
-  const modules = import.meta.glob<{ default: Record<string, unknown> }>('./locales/*/*.json', {
-    eager: true,
-  })
+  //
+  // `demo.json` is left out on purpose: the public demo's copy is merged by `installDemoMessages`,
+  // which only the demo build ever loads, so the normal bundle carries none of the demo's text.
+  const modules = import.meta.glob<{ default: Record<string, unknown> }>(
+    ['./locales/*/*.json', '!./locales/*/demo.json'],
+    {
+      eager: true,
+    },
+  )
 
   const messages: Record<string, LocaleMessageValue<VueMessageType>> = {}
   for (const [path, module] of Object.entries(modules)) {

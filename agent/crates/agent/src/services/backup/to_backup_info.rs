@@ -73,6 +73,7 @@ fn to_readable(details: ReadableBackup) -> WireReadable {
         manifest: Some(to_manifest(details.manifest)),
         artifact_bytes: details.artifact_bytes,
         artifact_sha256: details.artifact_sha256,
+        encrypted: details.encrypted,
     }
 }
 

@@ -76,6 +76,40 @@ remove_panel_backup_schedule() {
   systemctl reset-failed maran-panel-backup.service 2>/dev/null || true
 }
 
+# remove_update_schedule: takes back the unattended security-patch update's units and nothing else
+# (issue #383).
+#
+# Disabled and stopped first, so the timer cannot fire while the wrapper it runs is being removed. A
+# service run already in progress is stopped too: an update killed here is an interrupted update, but
+# the alternative is a root job rewriting /usr/local/maran while it is being removed. The dumps in
+# /var/backups/maran-update are removed by remove_binaries with the other update state, not here.
+remove_update_schedule() {
+  echo "Removing the automatic security-patch update..."
+  systemctl disable --now maran-update-security.timer 2>/dev/null || true
+  systemctl stop maran-update-security.service 2>/dev/null || true
+  rm -f /etc/systemd/system/maran-update-security.timer /etc/systemd/system/maran-update-security.service
+  systemctl daemon-reload 2>/dev/null || true
+  systemctl reset-failed maran-update-security.service 2>/dev/null || true
+}
+
+# remove_update_request: takes back the units through which the panel's "Update now" button started
+# `maran update --requested` and the request directory (issue #382).
+#
+# The path unit is disabled and stopped first, so a marker cannot start the service while the wrapper
+# it runs is being removed. A run already in progress is stopped too, for the reason
+# remove_update_schedule gives. /run/maran-update-request is a tmpfs directory and goes with the
+# snippet that builds it.
+remove_update_request() {
+  echo "Removing the panel-requested update..."
+  systemctl disable --now maran-update-request.path 2>/dev/null || true
+  systemctl stop maran-update-request.service 2>/dev/null || true
+  rm -f /etc/systemd/system/maran-update-request.path /etc/systemd/system/maran-update-request.service
+  rm -f /etc/tmpfiles.d/maran-update-request.conf
+  rm -rf -- /run/maran-update-request
+  systemctl daemon-reload 2>/dev/null || true
+  systemctl reset-failed maran-update-request.path maran-update-request.service 2>/dev/null || true
+}
+
 # remove_os_security_updates: takes back the one configuration file step 68 wrote, and nothing else
 # (issue #163).
 #
@@ -701,7 +735,7 @@ remove_sftp_group() {
 remove_binaries() {
   echo "Removing Maran binaries..."
   rm -rf /usr/local/maran
-  rm -f /etc/maran/release.state
+  rm -f /etc/maran/release.state /etc/maran/security-update-failed
   rm -rf /var/backups/maran-update
   # The break-glass command and its diagnostics staging directory (the libraries went with
   # /usr/local/maran above).
@@ -847,6 +881,101 @@ remove_ftps() {
     echo "           own files are untouched), then groupdel maran-ftps"
     echo "      Only when step 3 reports nothing mounted: rm -rf /var/lib/maran-ftps"
   fi
+}
+
+# remove_dns: take back everything installer/lib/89-dns.sh added to this host, and nothing else.
+#
+# What goes: Maran's own unit (stopped and disabled first), its environment file, the agent's
+# configuration directory with the control key, the block this installer owns in the AppArmor
+# local override, and the masks on the distribution's unit(s) — a mask is Maran's edit to a unit
+# Maran does not own, and a /dev/null link left behind would leave the operator with a package
+# they cannot start and no clue why.
+#
+# What deliberately STAYS: the BIND package (it may have been on the host before Maran), and the
+# daemon's state directory with the zone files and zone list in it. Those are customer data, the
+# zones a registrar may still delegate to this host, and removing them is the operator's call.
+remove_dns() {
+  local unit
+  echo "Removing DNS (installer/lib/89-dns.sh)..."
+  systemctl stop maran-dns.service 2>/dev/null || true
+  systemctl disable maran-dns.service 2>/dev/null || true
+  rm -f /etc/systemd/system/maran-dns.service
+  rm -rf /etc/maran/bind
+  if [ -f /etc/apparmor.d/local/usr.sbin.named ]; then
+    awk '
+      $0 == "# BEGIN maran-dns (installer/lib/89-dns.sh) - rewritten on every install" { skipping = 1; next }
+      skipping && $0 == "# END maran-dns" { skipping = 0; next }
+      !skipping { print }
+    ' /etc/apparmor.d/local/usr.sbin.named > /etc/apparmor.d/local/usr.sbin.named.maran-staging \
+      && mv -f /etc/apparmor.d/local/usr.sbin.named.maran-staging /etc/apparmor.d/local/usr.sbin.named
+  fi
+  for unit in named.service bind9.service; do
+    systemctl unmask "$unit" 2>/dev/null || true
+    if [ "$(readlink -- "/etc/systemd/system/${unit}" 2>/dev/null || true)" = "/dev/null" ]; then
+      rm -f "/etc/systemd/system/${unit}"
+    fi
+  done
+  systemctl daemon-reload 2>/dev/null || true
+
+  echo "NOTE: the BIND package and the zone files under its state directory (/var/lib/bind/maran or"
+  echo "      /var/named/maran) are NOT removed. Delete them by hand once no registrar delegates to"
+  echo "      this host."
+}
+
+# remove_mail: take back everything installer/lib/89-mail.sh added to this host, and nothing else.
+#
+# What goes: the units Maran started (Postfix, Dovecot, Rspamd and the one key-value server unit
+# 89-mail.sh recorded in /etc/maran/mail/key-value-unit, never a guessed one) are stopped and disabled, and the masks on the distribution's
+# units are removed — a mask is Maran's edit to a unit Maran does not own, and a /dev/null link left
+# behind would leave the operator with a package they cannot start and no clue why — and the
+# directory of lookup tables, passwd-file and DKIM keys the agent derives from the panel's
+# database (rules/architecture.md: truth lives in PostgreSQL), which holds password hashes and
+# private keys and so is not left behind.
+#
+# What deliberately STAYS: the Postfix, Dovecot, Rspamd and key-value packages (they may have been
+# on the host before Maran); the configuration the agent rendered into the packages' own
+# directories, which the packages own and which the operator replaces by hand; and every
+# customer's mailbox under /home/<account>/mail, which is customer data. The packages, once
+# unmasked, are startable again — on Maran's last rendered configuration, which refers to files
+# this step has just removed. Nothing here starts them.
+remove_mail() {
+  local unit kv_unit="" units="postfix dovecot rspamd"
+  echo "Removing mail (installer/lib/89-mail.sh)..."
+  # Nothing is touched on a host this installer never put mail on. The directory below is the
+  # marker: step 89-mail.sh creates it, and it refuses to install over a mail daemon that was
+  # already running, so a unit that is running and unmasked on a host that has the marker is one
+  # EnableMail started.
+  if [ ! -d /etc/maran/mail ]; then
+    echo "No mail stack was installed by Maran on this host; nothing to remove."
+    return
+  fi
+  # The key-value server is the one unit 89-mail.sh recorded when it took it over. It is read,
+  # never guessed: a redis or valkey unit the operator runs is not Maran's to stop. A host
+  # installed before the record existed has no file, and its key-value unit is left alone.
+  if [ -f /etc/maran/mail/key-value-unit ]; then
+    kv_unit="$(head -n 1 /etc/maran/mail/key-value-unit 2>/dev/null || true)"
+    case "$kv_unit" in
+      redis-server|redis|valkey) units="$units $kv_unit" ;;
+      *) kv_unit="" ;;
+    esac
+  fi
+  if [ -z "$kv_unit" ]; then
+    echo "NOTE: no record of a key-value server Maran took over; any redis or valkey unit is left as it is."
+  fi
+  for unit in $units; do
+    if [ "$(readlink -- "/etc/systemd/system/${unit}.service" 2>/dev/null || true)" = "/dev/null" ]; then
+      rm -f "/etc/systemd/system/${unit}.service"
+    else
+      systemctl stop "${unit}.service" 2>/dev/null || true
+      systemctl disable "${unit}.service" 2>/dev/null || true
+    fi
+  done
+  rm -rf /etc/maran/mail
+  systemctl daemon-reload 2>/dev/null || true
+
+  echo "NOTE: the mail packages, the configuration under /etc/postfix, /etc/dovecot and /etc/rspamd,"
+  echo "      and every mailbox under /home/<account>/mail are NOT removed. Delete them by hand once"
+  echo "      nothing needs the mail."
 }
 
 # remove_var_lib: the api's own state directory, created by installer/lib/40-user.sh.
@@ -1097,6 +1226,8 @@ main() {
   # Before the wrapper and /etc/maran go: a timer that fires between those removals would run a
   # backup against a half-removed panel.
   remove_panel_backup_schedule
+  remove_update_schedule
+  remove_update_request
   # The opt-in OS update policy file only; the package and the distribution's timers stay.
   remove_os_security_updates
   remove_systemd_units
@@ -1112,6 +1243,8 @@ main() {
   # away — while deliberately leaving the jails, the logins and the group, each of
   # which still names customer data. See remove_ftps for the argument.
   remove_ftps
+  remove_dns
+  remove_mail
   remove_binaries
   # The database question comes before /etc/maran is deleted: keeping the data while
   # silently destroying the key that decrypts it is the one unrecoverable mistake this

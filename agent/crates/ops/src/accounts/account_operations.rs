@@ -6,6 +6,7 @@ use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
 use maran_agent_core::utils::system_accounts::system_accounts;
+use maran_agent_core::validation::system::inode_limit::InodeLimit;
 use maran_agent_core::validation::system::managed_account::ManagedAccount;
 use maran_agent_core::validation::system::managed_account_error::ManagedAccountError;
 use maran_agent_core::validation::system::name::AccountName;
@@ -15,17 +16,23 @@ use maran_distro::{AdapterBinary, DistroAdapter};
 use crate::accounts::account_lock::take_account_lock;
 use crate::accounts::end_account_processes::end_account_processes;
 use crate::accounts::end_account_user_manager::end_account_user_manager;
+use crate::accounts::login_shell_argument::login_shell_argument;
 use crate::accounts::model::home_group_repair_refusal::HomeGroupRepairRefusal;
 use crate::accounts::model::home_group_repair_report::HomeGroupRepairReport;
+use crate::accounts::model::login_shell::LoginShell;
+use crate::accounts::model::new_account_settings::NewAccountSettings;
 use crate::accounts::model::quota_state::QuotaState;
 use crate::accounts::model::quota_unenforceable_reason::QuotaUnenforceableReason;
 use crate::accounts::model::refused_home::RefusedHome;
 use crate::accounts::model::repaired_home::RepairedHome;
+use crate::accounts::model::resource_ceiling::ResourceCeiling;
 use crate::accounts::quota_blocks::QuotaBlocks;
 use crate::accounts::quota_enforceability::classify as classify_quota_enforceability;
 use crate::accounts::quota_enforceability::quota_device_for;
+use crate::accounts::quota_inodes::QuotaInodes;
 use crate::accounts::remove_account_at_jobs::remove_account_at_jobs;
 use crate::accounts::remove_account_mail_spool::remove_account_mail_spool;
+use crate::accounts::remove_account_open_files_limit::remove_account_open_files_limit;
 use crate::accounts::remove_account_shared_files::remove_account_shared_files;
 use crate::accounts::remove_account_sysv_ipc::remove_account_sysv_ipc;
 use crate::accounts::{
@@ -224,7 +231,8 @@ impl<H: SystemHost> AccountOperations<H> {
         format!("{}/{}", AgentPaths::ACCOUNT_HOME_ROOT, name.as_str())
     }
 
-    /// Creates the system user and its home directory, then applies `quota_bytes`.
+    /// Creates the system user and its home directory, then applies the disk
+    /// and inode quotas and the login shell of `settings`.
     ///
     /// Idempotent in the sense the contract requires: an account that already
     /// exists is reported as [`AccountError::AlreadyExists`] and is left exactly as
@@ -264,7 +272,7 @@ impl<H: SystemHost> AccountOperations<H> {
     pub fn create(
         &self,
         name: &AccountName,
-        quota_bytes: u64,
+        settings: &NewAccountSettings,
     ) -> Result<CreatedAccount, AccountError> {
         ManagedAccount::refuse_reserved(name).map_err(|refusal| {
             tracing::warn!(
@@ -312,7 +320,7 @@ impl<H: SystemHost> AccountOperations<H> {
                 "--home-dir",
                 &home,
                 "--shell",
-                self.distro.nologin_shell(),
+                login_shell_argument(self.distro, settings.shell),
                 "--user-group",
                 END_OF_OPTIONS,
                 username,
@@ -342,7 +350,8 @@ impl<H: SystemHost> AccountOperations<H> {
         // apply_quota, not set_quota: the public one confirms the account exists, and
         // asking that one line after creating it is a second `id` per creation for an
         // answer already known.
-        if let Err(failure) = self.apply_quota(username, quota_bytes) {
+        if let Err(failure) = self.apply_quota(username, settings.quota_bytes, settings.inode_limit)
+        {
             return Err(self.undo_creation(username, failure));
         }
 
@@ -453,9 +462,19 @@ impl<H: SystemHost> AccountOperations<H> {
         Ok(())
     }
 
-    /// Reverses [`AccountOperations::suspend`].
+    /// Reverses [`AccountOperations::suspend`], giving the account back `shell`.
     ///
     /// Idempotent, for the same reason suspension is.
+    ///
+    /// # Which shell comes back
+    ///
+    /// The one the CALLER states. The agent keeps no record of the shell an
+    /// account was created with, and suspension replaces it with the nologin
+    /// shell, so a restore that did not take it as an argument could only put
+    /// back `nologin` and would silently revoke a shell the operator granted
+    /// (issue #194). The panel holds the choice and passes it on every
+    /// unsuspension; a caller older than the argument passes
+    /// [`LoginShell::Nologin`], which is what this operation always restored.
     ///
     /// # Why the unlock is conditional, and why that is not a special case
     ///
@@ -507,7 +526,7 @@ impl<H: SystemHost> AccountOperations<H> {
     ///   was killed with its whole process group. Not a verdict: the step may have taken
     ///   effect on the host, so the caller reads the account again before it believes
     ///   either outcome.
-    pub fn unsuspend(&self, name: &AccountName) -> Result<(), AccountError> {
+    pub fn unsuspend(&self, name: &AccountName, shell: LoginShell) -> Result<(), AccountError> {
         let account = self.resolve_managed(name)?;
         let username = account.name().as_str();
 
@@ -523,7 +542,7 @@ impl<H: SystemHost> AccountOperations<H> {
             &self.distro.usermod_binary(),
             &[
                 "--shell",
-                self.distro.nologin_shell(),
+                login_shell_argument(self.distro, shell),
                 END_OF_OPTIONS,
                 username,
             ],
@@ -852,8 +871,9 @@ impl<H: SystemHost> AccountOperations<H> {
     /// (`end_account_user_manager`), every process of the account's uid
     /// (`end_account_processes`, a bounded kill and verify loop refusing with
     /// [`AccountError::ProcessesRemain`]), SysV IPC (`remove_account_sysv_ipc`)
-    /// and shared temp files (`remove_account_shared_files`). Each `?` returns
-    /// before `userdel`, so a retry converges.
+    /// and shared temp files (`remove_account_shared_files`), then the mail spool
+    /// and the account's open-files drop-in (`remove_account_open_files_limit`,
+    /// issue #194). Each `?` returns before `userdel`, so a retry converges.
     ///
     /// Split from [`AccountOperations::delete`] for the reason
     /// `restore_backup`'s body is split from its entry point: the lock is a
@@ -985,6 +1005,13 @@ impl<H: SystemHost> AccountOperations<H> {
         // re-check, so the freshest fact precedes the irreversible step.
         (self.mail_spool_step)(&account)?;
 
+        // The account's open-files drop-in (issue #194), named after the account
+        // and not after its uid, so it is released for the same reason the mail
+        // spool is: a file that outlived the account would hand its ceiling to
+        // whoever `useradd` gives the name next. A no-op that touches nothing on
+        // an account that never had one.
+        remove_account_open_files_limit(&self.host, &account)?;
+
         // Resolved again, immediately before the irreversible step, and the ids are
         // compared with the first resolution. The lock above excludes every
         // operation of this agent that could have removed the account since the
@@ -1030,9 +1057,14 @@ impl<H: SystemHost> AccountOperations<H> {
     ///   was killed with its whole process group. Not a verdict: the step may have taken
     ///   effect on the host, so the caller reads the account again before it believes
     ///   either outcome.
-    pub fn set_quota(&self, name: &AccountName, quota_bytes: u64) -> Result<(), AccountError> {
+    pub fn set_quota(
+        &self,
+        name: &AccountName,
+        quota_bytes: u64,
+        inode_limit: ResourceCeiling<InodeLimit>,
+    ) -> Result<(), AccountError> {
         let account = self.resolve_managed(name)?;
-        self.apply_quota(account.name().as_str(), quota_bytes)
+        self.apply_quota(account.name().as_str(), quota_bytes, inode_limit)
     }
 
     /// Reads how much the account currently uses, and against what quota.
@@ -1125,12 +1157,19 @@ impl<H: SystemHost> AccountOperations<H> {
     ///
     /// Returns [`AccountError::CommandFailed`] when `setquota` refuses and
     /// [`AccountError::Bound`] when it outlived its deadline and was killed.
-    fn apply_quota(&self, username: &str, quota_bytes: u64) -> Result<(), AccountError> {
+    fn apply_quota(
+        &self,
+        username: &str,
+        quota_bytes: u64,
+        inode_limit: ResourceCeiling<InodeLimit>,
+    ) -> Result<(), AccountError> {
         let blocks = QuotaBlocks::from_bytes(quota_bytes).as_argument();
+        let inodes = QuotaInodes::new(inode_limit).as_argument();
 
-        // Soft and hard limits are set to the same value, and inode limits to zero
-        // (unlimited). A soft limit below the hard one only buys a grace period the
-        // panel has no way to explain to the customer.
+        // Soft and hard limits are set to the same value, blocks and inodes alike.
+        // A soft limit below the hard one only buys a grace period the panel has no
+        // way to explain to the customer. `setquota` replaces both figures in one
+        // call, so a caller that states no inode limit removes it (issue #194).
         // The MOUNT POINT, for the reason quota_enforceability gives: setquota takes a mount point
         // or a device and refuses a plain directory, so passing the home root failed on every
         // server whose /home is not its own filesystem — which is every default Ubuntu install.
@@ -1152,8 +1191,8 @@ impl<H: SystemHost> AccountOperations<H> {
                 username,
                 &blocks,
                 &blocks,
-                "0",
-                "0",
+                &inodes,
+                &inodes,
                 device,
             ],
             CallClass::Mutation,

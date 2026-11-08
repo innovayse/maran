@@ -9,7 +9,7 @@ import type { PanelModule } from '../../src/types/module'
 // The whitelist is server-paged (#196): the page, its size, the search and the sort live in the
 // URL, the panel answers one page of exempt ranges and their total, and the SPA filters nothing.
 
-const LICENSED: PanelModule[] = [{ name: 'firewall', displayName: 'Firewall', tier: 'included', state: 'enabled' }]
+const LICENSED: PanelModule[] = [{ name: 'firewall', displayName: 'Firewall', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }]
 
 /**
  * Builds a catalogue of numbered exemptions: `10.0.1.0/24` noted `site 1`, and so on, oldest first.

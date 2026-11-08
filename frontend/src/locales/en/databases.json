@@ -67,6 +67,76 @@
       "done": "Done",
       "resetHint": "If it is lost, reset the password from the list. That is the only way back — there is nothing to recover."
     },
+    "users": {
+      "list": {
+        "heading": "Database users",
+        "subtitle": "MySQL users and what each of them may do on each database.",
+        "localNote": "These users connect from this server only. A database's own user is listed here too: you can change its privileges and reset its password, and it is dropped together with its database.",
+        "emptyTitle": "No database users yet",
+        "emptyDescription": "Create a user above, then give it privileges on a database from the row menu.",
+        "tableCaption": "MySQL users",
+        "columns": {
+          "fullName": "User",
+          "account": "Account",
+          "kind": "Kind",
+          "databases": "Databases",
+          "createdAt": "Created"
+        },
+        "kindDedicated": "Database user",
+        "kindStandalone": "Extra user",
+        "editPrivileges": "Edit privileges",
+        "resetPassword": "Reset password",
+        "drop": "Drop",
+        "rowActions": "Actions for {name}",
+        "confirmResetPassword": "Set a new password? The current one stops working immediately.",
+        "confirmResetPasswordTitle": "Reset the password for {name}",
+        "confirmResetPasswordAction": "Reset password",
+        "confirmDrop": "Drop this user? It loses every privilege and can no longer connect. The databases it had access to are not touched.",
+        "confirmDropTitle": "Drop user {name}",
+        "confirmDropAction": "Drop user",
+        "working": "Working…",
+        "sectionTitle": "All users",
+        "created": "User created. It has no privileges yet.",
+        "searchLabel": "Search users",
+        "searchPlaceholder": "Search by user name…",
+        "searchClear": "Clear the search",
+        "noResultsTitle": "No users match",
+        "noResultsDescription": "Change the search or the filter, or clear them to see every user.",
+        "filters": {
+          "account": "Account"
+        }
+      },
+      "form": {
+        "heading": "New user",
+        "hint": "Lowercase letters and digits only. The account's name is added in front. The user starts with no privileges.",
+        "fields": {
+          "account": "Account",
+          "name": "User name"
+        },
+        "placeholders": {
+          "account": "Choose an account",
+          "name": "reports"
+        },
+        "submit": "Create user",
+        "errors": {
+          "accountRequired": "Choose the account that will own the user.",
+          "nameRequired": "User name is required.",
+          "nameInvalid": "Use lowercase letters and digits only, up to 30 characters."
+        }
+      },
+      "privileges": {
+        "title": "Privileges of {name}",
+        "heldHeading": "Current privileges",
+        "noneHeld": "This user has no privileges on any database yet.",
+        "count": "{n} privilege | {n} privileges",
+        "databaseLabel": "Database",
+        "databasePlaceholder": "Choose a database",
+        "presetsLabel": "Fill with:",
+        "removesGrant": "With nothing ticked, saving removes this user's access to the database.",
+        "save": "Save privileges",
+        "saved": "Privileges saved."
+      }
+    },
     "grantRepair": {
       "heading": "Grant repair",
       "subtitle": "What this server's database grants hold, and what a repair would narrow.",

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="DemoActionRefused">
+    <value>This action is not available in the demo.</value>
+  </data>
+  <data name="DemoBudgetExhausted">
+    <value>The demo has reached its limit of changes until the next reset. You can keep looking around; changes are accepted again after the reset.</value>
+  </data>
+</root>

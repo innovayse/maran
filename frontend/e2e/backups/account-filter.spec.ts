@@ -15,7 +15,7 @@ import type { Backup } from '../../src/types/backup'
 // for that account's rows only, says so as a chip, and offers the way back; a customer's list is already
 // their own, so the parameter changes nothing for them.
 
-const LICENSED: PanelModule[] = [{ name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' }]
+const LICENSED: PanelModule[] = [{ name: 'backups', displayName: 'Backups', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }]
 
 const ALICE: Account = {
   id: '22222222-2222-2222-2222-222222222222',

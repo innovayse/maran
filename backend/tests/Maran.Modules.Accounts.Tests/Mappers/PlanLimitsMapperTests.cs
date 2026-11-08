@@ -1,4 +1,5 @@
 using Maran.Modules.Accounts.Commands.CreatePlan;
+using Maran.Modules.Accounts.Domain.ValueObjects;
 using Maran.Modules.Accounts.Mappers;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.Sdk.Contracts;
@@ -11,7 +12,7 @@ namespace Maran.Modules.Accounts.Tests.Mappers;
 /// </summary>
 public sealed class PlanLimitsMapperTests
 {
-    /// <summary>Every figure of the definition is copied, the runtime ceilings and the features included.</summary>
+    /// <summary>Every figure of the definition is copied, the runtime ceilings, the features and the resolved mail figures included.</summary>
     [Fact]
     public void Every_figure_of_the_definition_is_copied()
     {
@@ -29,7 +30,7 @@ public sealed class PlanLimitsMapperTests
             MaxProcesses: ResourceCeilingTestValues.Unlimited,
             Features: [AccountFeature.Mail, AccountFeature.Cron]);
 
-        var limits = PlanLimitsMapper.ToLimits(definition);
+        var limits = PlanLimitsMapper.ToLimits(definition, MailLimits.Of(8, 100, 50, 900));
 
         Assert.Equal(1_000, limits.DiskQuotaMb);
         Assert.Equal(2, limits.MaxSites);
@@ -42,6 +43,8 @@ public sealed class PlanLimitsMapperTests
         Assert.Equal(150, limits.RuntimeLimits.CpuQuotaPercent.Maximum);
         Assert.Equal(2_048, limits.RuntimeLimits.MemoryMaxMb.Maximum);
         Assert.Null(limits.RuntimeLimits.MaxProcesses.Maximum);
+        Assert.Equal(8, limits.MaxMailboxes);
+        Assert.Equal(900, limits.MailboxQuotaPoolMib);
     }
 
     /// <summary>A definition selling no feature restates the empty set.</summary>
@@ -55,6 +58,6 @@ public sealed class PlanLimitsMapperTests
             ResourceCeilingTestValues.Unlimited,
             []);
 
-        Assert.Equal(AccountFeature.None, PlanLimitsMapper.ToLimits(definition).Features);
+        Assert.Equal(AccountFeature.None, PlanLimitsMapper.ToLimits(definition, MailLimits.Default).Features);
     }
 }

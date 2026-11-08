@@ -15,6 +15,9 @@
   <data name="IdempotencyKeyInvalid">
     <value>Заголовок Idempotency-Key недопустим. Используйте от 1 до 255 букв, цифр, точек, двоеточий, дефисов или подчёркиваний.</value>
   </data>
+  <data name="IdempotencyKeyRequired">
+    <value>Для этого запроса обязателен заголовок Idempotency-Key. Передайте уникальный ключ, чтобы повтор запроса не выполнил работу дважды.</value>
+  </data>
   <data name="IdempotencyKeyReused">
     <value>Этот Idempotency-Key уже использован для другого запроса. Для нового запроса используйте новый ключ.</value>
   </data>

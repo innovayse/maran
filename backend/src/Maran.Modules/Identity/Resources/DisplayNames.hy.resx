@@ -63,6 +63,9 @@
   <data name="AuditActionAccountPlanChanged">
     <value>Հաշվի սակագինը փոխվեց</value>
   </data>
+  <data name="AuditActionAccountOwnerChanged">
+    <value>Հաշվի սեփականատերը փոխվեց</value>
+  </data>
   <data name="AuditActionAccountOwnerEmailChanged">
     <value>Հաշվի սեփականատիրոջ էլ. հասցեն փոխվեց</value>
   </data>
@@ -87,8 +90,14 @@
   <data name="AuditActionPhpVersionInstalled" xml:space="preserve">
     <value>Տեղադրվել է PHP տարբերակ</value>
   </data>
+  <data name="AuditActionPhpSettingsChanged">
+    <value>PHP-ի կարգավորումները փոխվել են</value>
+  </data>
   <data name="AuditActionSitePhpVersionChanged">
     <value>Փոխվեց կայքի PHP տարբերակը</value>
+  </data>
+  <data name="AuditActionSiteOptionsChanged">
+    <value>Փոխվեցին կայքի պարամետրերը</value>
   </data>
   <data name="AuditActionSiteEnabled">
     <value>Կայքը միացվեց</value>
@@ -110,6 +119,18 @@
   </data>
   <data name="AuditActionDatabasePasswordReset">
     <value>Վերակայվեց տվյալների բազայի գաղտնաբառը</value>
+  </data>
+  <data name="AuditActionDatabaseUserCreated">
+    <value>Ստեղծվեց տվյալների բազայի օգտատեր</value>
+  </data>
+  <data name="AuditActionDatabaseUserDropped">
+    <value>Տվյալների բազայի օգտատերը ջնջվեց</value>
+  </data>
+  <data name="AuditActionDatabaseUserPasswordReset">
+    <value>Վերակայվեց տվյալների բազայի օգտատիրոջ գաղտնաբառը</value>
+  </data>
+  <data name="AuditActionDatabasePrivilegesChanged">
+    <value>Փոխվեցին տվյալների բազայի օգտատիրոջ իրավունքները</value>
   </data>
   <data name="AuditActionDatabaseGrantsRepaired">
     <value>Նեղացվեցին տվյալների բազաների իրավունքները</value>
@@ -174,11 +195,11 @@
   <data name="AuditActionCertificateRenewed">
     <value>Վկայագիրը երկարաձգվեց</value>
   </data>
-  <data name="AuditActionCronEntryCreated">
-    <value>Ստեղծվեց cron գրառում</value>
-  </data>
   <data name="AuditActionCertificateSelfSignedRestored">
     <value>Վահանակի վկայագիրը փոխարինվեց ինքնաստորագրվածով</value>
+  </data>
+  <data name="AuditActionCronEntryCreated">
+    <value>Ստեղծվեց cron գրառում</value>
   </data>
   <data name="AuditActionCronEntryUpdated">
     <value>Փոխվեց cron գրառումը</value>
@@ -231,11 +252,32 @@
   <data name="AuditActionMailSendFailed">
     <value>Չհաջողվեց ուղարկել նամակը</value>
   </data>
+  <data name="AuditActionAlertRecipientsSaved">
+    <value>Զգուշացումների ստացողները պահպանվեցին</value>
+  </data>
+  <data name="AuditActionAlertWebhookSaved">
+    <value>Զգուշացումների վեբհուքը պահպանվեց</value>
+  </data>
+  <data name="AuditActionAlertWebhookSecretRotated">
+    <value>Զգուշացումների վեբհուքի գաղտնիքը փոխարինվեց</value>
+  </data>
+  <data name="AuditActionAlertWebhookTestSent">
+    <value>Վեբհուքին ուղարկվեց փորձնական իրադարձություն</value>
+  </data>
+  <data name="AuditActionWebhookDeliveryFailed">
+    <value>Չհաջողվեց առաքել զգուշացման վեբհուքը</value>
+  </data>
+  <data name="AuditActionNotificationsDismissed">
+    <value>Ծանուցումները փակվեցին</value>
+  </data>
   <data name="AuditActionAlertRaised">
     <value>Բարձրացվեց ահազանգ</value>
   </data>
   <data name="AuditActionAlertResolved">
     <value>Ահազանգը հանվեց</value>
+  </data>
+  <data name="AuditActionAlertThresholdsSaved">
+    <value>Փոխվեցին ահազանգերի շեմերը</value>
   </data>
   <!-- TODO(owner): review naturalness. Least confident of the three languages. -->
   <data name="AuditActionCodeIntegrityReportRejected">
@@ -274,6 +316,12 @@
   <data name="AuditActionBackupVerificationNotPerformed">
     <value>Պահուստային պատճենի ստուգումը չհաջողվեց կատարել</value>
   </data>
+  <data name="AuditActionBackupDestinationEncryptionChanged">
+    <value>Փոխվել է պահուստային պատճենների գաղտնագրման կարգավորումը</value>
+  </data>
+  <data name="AuditActionBackupOptedOut">
+    <value>Հաշիվը դուրս է թողնվել ժամանակացույցով պահուստավորումից</value>
+  </data>
   <data name="AuditActionLicenceStatusRead">
     <value>Կարդացվեց լիցենզիայի կարգավիճակը</value>
   </data>
@@ -282,6 +330,9 @@
   </data>
   <data name="AuditActionCustomerInvited">
     <value>Հրավիրվեց հաճախորդ</value>
+  </data>
+  <data name="AuditActionCustomerCreatedWithPassword">
+    <value>Հաճախորդը ստեղծվեց սկզբնական գաղտնաբառով</value>
   </data>
   <data name="AuditActionInvitationLinkIssued">
     <value>Ստեղծվեց հրավերի հղում</value>
@@ -312,6 +363,9 @@
   </data>
   <data name="AuditActionPageUnpinned">
     <value>Էջն հանվեց վերին վահանակից</value>
+  </data>
+  <data name="AuditActionDashboardLayoutSaved">
+    <value>Վահանակի դասավորությունը պահպանվեց</value>
   </data>
   <data name="AuditActionSubUserInvited">
     <value>Օգտատերը հրավիրվել է</value>
@@ -382,6 +436,9 @@
   <data name="AuditActionResellerCreated">
     <value>Ստեղծվեց ռեսելլեր</value>
   </data>
+  <data name="AuditActionResellerUpdated">
+    <value>Ռեսելլերի տվյալները փոխվեցին</value>
+  </data>
   <data name="AuditActionResellerEnvelopeChanged">
     <value>Ռեսելլերի սահմանաչափերը փոխվեցին</value>
   </data>
@@ -393,6 +450,9 @@
   </data>
   <data name="AuditActionResellerDeleted">
     <value>Ռեսելլերը ջնջվեց</value>
+  </data>
+  <data name="AuditActionResellerBrandingChanged">
+    <value>Ռեսելլերի ձևավորումը փոխվեց</value>
   </data>
   <data name="AuditOutcomeSucceeded">
     <value>Հաջողվեց</value>
@@ -414,6 +474,18 @@
   </data>
   <data name="ApiKeyScopeServerRead">
     <value>Սերվերի տվյալների ընթերցում</value>
+  </data>
+  <data name="ApiKeyScopePlansRead">
+    <value>Վերավաճառողի սակագների ընթերցում</value>
+  </data>
+  <data name="ApiKeyScopeAccountsRead">
+    <value>Վերավաճառողի հաշիվների ընթերցում</value>
+  </data>
+  <data name="ApiKeyScopeAccountsWrite">
+    <value>Վերավաճառողի հաշիվների ստեղծում և փոփոխում</value>
+  </data>
+  <data name="ApiKeyScopeAccountsDelete">
+    <value>Վերավաճառողի հաշիվների ջնջում</value>
   </data>
   <data name="ApiKeyStatusActive">
     <value>Ակտիվ</value>
@@ -441,5 +513,227 @@
   </data>
   <data name="AuditActionPersonalDataErased">
     <value>Անձնական տվյալները ջնջվեցին</value>
+  </data>
+  <data name="AuditActionPanelUpdateApplied">
+    <value>Վահանակը թարմացվեց ինքնուրույն (անվտանգության ավտոմատ թարմացում)</value>
+  </data>
+  <data name="AuditActionPanelUpdateRolledBack">
+    <value>Վահանակի ավտոմատ թարմացումը ձախողվեց և չեղարկվեց</value>
+  </data>
+  <data name="AuditActionPanelUpdateRollbackFailed">
+    <value>Վահանակի ավտոմատ թարմացումը ձախողվեց, հետդարձը նույնպես</value>
+  </data>
+  <data name="AuditActionPanelUpdateInterrupted">
+    <value>Վահանակի ավտոմատ թարմացումը ընդհատվեց</value>
+  </data>
+  <data name="AuditActionSiteLogRetentionChanged">
+    <value>Փոխվեց կայքի մատյանների պահպանման ժամկետը</value>
+  </data>
+  <data name="AuditActionSiteLogsPruned">
+    <value>Հեռացվեցին կայքի հին մատյանները</value>
+  </data>
+  <data name="AuditActionPhpExtensionChanged">
+    <value>Փոխարկվեց PHP-ի ընդլայնումը</value>
+  </data>
+  <data name="AuditActionFileCreated">
+    <value>Ստեղծվել է ֆայլ կամ թղթապանակ</value>
+  </data>
+  <data name="AuditActionFileSaved">
+    <value>Ֆայլը պահպանվել է խմբագրիչում</value>
+  </data>
+  <data name="AuditActionFileUploadStarted">
+    <value>Ֆայլի վերբեռնումը սկսվել է</value>
+  </data>
+  <data name="AuditActionFileUploaded">
+    <value>Ֆայլը վերբեռնվել է</value>
+  </data>
+  <data name="AuditActionFileUploadAborted">
+    <value>Ֆայլի վերբեռնումը ընդհատվել է</value>
+  </data>
+  <data name="AuditActionFileDownloadStarted">
+    <value>Ֆայլի ներբեռնումը սկսվել է</value>
+  </data>
+  <data name="AuditActionFileDownloadCompleted">
+    <value>Ֆայլը ներբեռնվել է</value>
+  </data>
+  <data name="AuditActionFileDownloadAborted">
+    <value>Ֆայլի ներբեռնումը ընդհատվել է</value>
+  </data>
+  <data name="AuditActionFileRenamed">
+    <value>Ֆայլը կամ թղթապանակը վերանվանվել է</value>
+  </data>
+  <data name="AuditActionFileMoved">
+    <value>Ֆայլը կամ թղթապանակը տեղափոխվել է</value>
+  </data>
+  <data name="AuditActionFileCopied">
+    <value>Ֆայլը կամ թղթապանակը պատճենվել է</value>
+  </data>
+  <data name="AuditActionFilePermissionsChanged">
+    <value>Ֆայլի մուտքի իրավունքները փոխվել են</value>
+  </data>
+  <data name="AuditActionFileTrashed">
+    <value>Ֆայլը կամ թղթապանակը տեղափոխվել է աղբարկղ</value>
+  </data>
+  <data name="AuditActionFileRestored">
+    <value>Ֆայլը կամ թղթապանակը վերականգնվել է աղբարկղից</value>
+  </data>
+  <data name="AuditActionFileTrashEmptied">
+    <value>Աղբարկղը մաքրվել է</value>
+  </data>
+  <data name="AuditActionFileDeleted">
+    <value>Ֆայլը կամ թղթապանակը ընդմիշտ ջնջվել է</value>
+  </data>
+  <data name="AuditActionFileArchived">
+    <value>Արխիվը ստեղծվել է</value>
+  </data>
+  <data name="AuditActionFileExtracted">
+    <value>Արխիվը բացվել է</value>
+  </data>
+  <data name="AuditActionFileTrashRetentionPurged">
+    <value>Ժամկետանց աղբարկղը մաքրվել է</value>
+  </data>
+  <data name="AuditActionFileAccessRefused">
+    <value>Ֆայլերի հասանելիությունը մերժվել է</value>
+  </data>
+  <data name="AccountFeatureFiles">
+    <value>Ֆայլեր</value>
+  </data>
+  <data name="IdentityMenuApiKeys">
+    <value>API բանալիներ</value>
+  </data>
+  <data name="IdentityRouteApiKeys">
+    <value>API բանալիներ</value>
+  </data>
+  <data name="AuditActionPanelUpdateRequested">
+    <value>Ադմինիստրատորը պահանջեց վահանակի թարմացում</value>
+  </data>
+  <data name="AuditActionPanelUpdateRunApplied">
+    <value>Պահանջված թարմացումը տեղադրվեց</value>
+  </data>
+  <data name="AuditActionPanelUpdateRunUnchanged">
+    <value>Պահանջված թարմացումը նոր տարբերակ չգտավ</value>
+  </data>
+  <data name="AuditActionPanelUpdateRunRefused">
+    <value>Պահանջված թարմացումը մերժվեց՝ առանց փոփոխության</value>
+  </data>
+  <data name="AuditActionPanelUpdateRunRolledBack">
+    <value>Պահանջված թարմացումը չանցավ ստուգումը և հետ վերադարձվեց</value>
+  </data>
+  <data name="AuditActionPanelUpdateRunRollbackFailed">
+    <value>Պահանջված թարմացումը ձախողվեց, և հետ վերադարձը նույնպես</value>
+  </data>
+  <data name="AuditActionPanelUpdateRunInterrupted">
+    <value>Պահանջված թարմացումն ընդհատվեց անցումից հետո</value>
+  </data>
+  <data name="AuditActionPanelUpdateRunNotStarted">
+    <value>Պահանջված թարմացումը չսկսվեց</value>
+  </data>
+  <data name="AuditActionPanelUpdateRunOutcomeUnknown">
+    <value>Պահանջված թարմացումն ավարտվեց՝ առանց արդյունքի հաղորդման</value>
+  </data>
+  <data name="AuditActionModuleInstalled">
+    <value>Մոդուլը տեղադրվել է (կգործարկվի հաջորդ վերագործարկմանը)</value>
+  </data>
+  <data name="AuditActionModuleUpgraded">
+    <value>Մոդուլը թարմացվել է (կգործարկվի հաջորդ վերագործարկմանը)</value>
+  </data>
+  <data name="AuditActionModuleRolledBack">
+    <value>Մոդուլը վերադարձվել է նախորդ տարբերակին</value>
+  </data>
+  <data name="AuditActionModuleUnloaded">
+    <value>Մոդուլը բեռնաթափվել է</value>
+  </data>
+  <data name="AuditActionModuleDegraded">
+    <value>Մոդուլը դադարել է աշխատել. լիցենզիան այլևս չի ծածկում այն</value>
+  </data>
+  <data name="AuditActionModuleRefused">
+    <value>Մոդուլի փաթեթը մերժվել է</value>
+  </data>
+  <data name="AuditActionModuleRestartRequested">
+    <value>Մոդուլը գործարկելու համար պահանջվել է վահանակի վերագործարկում</value>
+  </data>
+  <data name="AuditActionDnsEnabled">
+    <value>DNS սերվերը միացվեց</value>
+  </data>
+  <data name="AuditActionDnsDisabled">
+    <value>DNS սերվերն անջատվեց</value>
+  </data>
+  <data name="AuditActionDnsSettingsSaved">
+    <value>DNS կարգավորումները պահպանվեցին</value>
+  </data>
+  <data name="AuditActionDnsZoneCreated">
+    <value>Ստեղծվեց DNS գոտի</value>
+  </data>
+  <data name="AuditActionDnsZoneDeleted">
+    <value>DNS գոտին ջնջվեց</value>
+  </data>
+  <data name="AuditActionDnsRecordAdded">
+    <value>Ավելացվեց DNS գրառում</value>
+  </data>
+  <data name="AuditActionDnsRecordChanged">
+    <value>DNS գրառումը փոփոխվեց</value>
+  </data>
+  <data name="AuditActionDnsRecordDeleted">
+    <value>DNS գրառումը ջնջվեց</value>
+  </data>
+  <data name="AuditActionDnsRecordsReplaced">
+    <value>DNS գրառումները փոխարինվեցին</value>
+  </data>
+  <data name="AuditActionMailServerEnabled">
+    <value>Փոստային սերվերը միացվեց</value>
+  </data>
+  <data name="AuditActionMailServerDisabled">
+    <value>Փոստային սերվերն անջատվեց</value>
+  </data>
+  <data name="AuditActionMailServerSettingsUpdated">
+    <value>Փոստային սերվերի կարգավորումները փոխվեցին</value>
+  </data>
+  <data name="AuditActionMailQueueMessageDeleted">
+    <value>Նամակը ջնջվեց հերթից</value>
+  </data>
+  <data name="AuditActionMailQueueFlushed">
+    <value>Փոստի հերթը նորից ուղարկվեց</value>
+  </data>
+  <data name="AuditActionMailDomainCreated">
+    <value>Ավելացվեց փոստային դոմեն</value>
+  </data>
+  <data name="AuditActionMailDomainDeleted">
+    <value>Փոստային դոմենը հեռացվեց</value>
+  </data>
+  <data name="AuditActionMailDkimKeyRotated">
+    <value>DKIM բանալին փոխարինվեց</value>
+  </data>
+  <data name="AuditActionMailboxCreated">
+    <value>Ստեղծվեց փոստարկղ</value>
+  </data>
+  <data name="AuditActionMailboxUpdated">
+    <value>Փոստարկղը փոխվեց</value>
+  </data>
+  <data name="AuditActionMailboxPasswordChanged">
+    <value>Փոստարկղի գաղտնաբառը փոխվեց</value>
+  </data>
+  <data name="AuditActionMailboxDeleted">
+    <value>Փոստարկղը ջնջվեց</value>
+  </data>
+  <data name="AuditActionMailAliasCreated">
+    <value>Ստեղծվեց փոստային այլանուն</value>
+  </data>
+  <data name="AuditActionMailAliasUpdated">
+    <value>Փոստային այլանունը փոխվեց</value>
+  </data>
+  <data name="AuditActionMailAliasDeleted">
+    <value>Փոստային այլանունը ջնջվեց</value>
+  </data>
+  <data name="AuditActionMailCatchAllSet">
+    <value>Ընդհանուր (catch-all) հասցեն փոխվեց</value>
+  </data>
+  <data name="AuditActionMailCatchAllCleared">
+    <value>Ընդհանուր (catch-all) հասցեն հեռացվել է</value>
+  </data>
+  <data name="AuditActionMailAutoresponderSet">
+    <value>Ավտոպատասխանը փոխվեց</value>
+  </data>
+  <data name="AuditActionMailAutoresponderCleared">
+    <value>Ավտոպատասխանը հեռացվել է</value>
   </data>
 </root>

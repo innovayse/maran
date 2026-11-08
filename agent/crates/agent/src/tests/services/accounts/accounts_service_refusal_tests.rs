@@ -13,11 +13,12 @@ use crate::proto::accounts_service_server::AccountsService;
 use crate::proto::{
     AgentError, CreateAccountRequest, DeleteAccountRequest, ErrorCode,
     GetAccountSuspensionStateRequest, GetAccountUsageRequest, ResourceCeiling,
-    ResourceCeilingUnlimited, SetAccountQuotaRequest, SetAccountResourceLimitsRequest,
-    SuspendAccountRequest, UnsuspendAccountRequest, create_account_response,
-    delete_account_response, get_account_suspension_state_response, get_account_usage_response,
-    resource_ceiling, set_account_quota_response, set_account_resource_limits_response,
-    suspend_account_response, unsuspend_account_response,
+    ResourceCeilingUnlimited, SetAccountOpenFilesLimitRequest, SetAccountQuotaRequest,
+    SetAccountResourceLimitsRequest, SuspendAccountRequest, UnsuspendAccountRequest,
+    create_account_response, delete_account_response, get_account_suspension_state_response,
+    get_account_usage_response, resource_ceiling, set_account_open_files_limit_response,
+    set_account_quota_response, set_account_resource_limits_response, suspend_account_response,
+    unsuspend_account_response,
 };
 
 /// The refusal inside an rpc's `oneof`, when it answered with one.
@@ -52,6 +53,7 @@ async fn every_rpc_for(
                     .create_account(Request::new(CreateAccountRequest {
                         username: username.clone(),
                         quota_bytes: 0,
+                        ..Default::default()
                     }))
                     .await
                     .unwrap()
@@ -86,6 +88,7 @@ async fn every_rpc_for(
                 service
                     .unsuspend_account(Request::new(UnsuspendAccountRequest {
                         username: username.clone(),
+                        ..Default::default()
                     }))
                     .await
                     .unwrap()
@@ -121,6 +124,7 @@ async fn every_rpc_for(
                     .set_account_quota(Request::new(SetAccountQuotaRequest {
                         username: username.clone(),
                         quota_bytes: 1024,
+                        ..Default::default()
                     }))
                     .await
                     .unwrap()
@@ -149,6 +153,24 @@ async fn every_rpc_for(
                 |result| match result {
                     set_account_resource_limits_response::Result::Error(error) => Some(error),
                     set_account_resource_limits_response::Result::Ok(_) => None,
+                },
+            ),
+        ),
+        (
+            "open_files_limit",
+            refusal_of(
+                service
+                    .set_account_open_files_limit(Request::new(SetAccountOpenFilesLimitRequest {
+                        username: username.clone(),
+                        open_files: Some(unlimited_ceiling()),
+                    }))
+                    .await
+                    .unwrap()
+                    .into_inner()
+                    .result,
+                |result| match result {
+                    set_account_open_files_limit_response::Result::Error(error) => Some(error),
+                    set_account_open_files_limit_response::Result::Ok(_) => None,
                 },
             ),
         ),
@@ -270,6 +292,7 @@ async fn a_hosting_account_is_still_suspended_and_unsuspended_over_the_rpc() {
     let unsuspended = service
         .unsuspend_account(Request::new(UnsuspendAccountRequest {
             username: FAST_ACCOUNT.to_owned(),
+            ..Default::default()
         }))
         .await
         .unwrap()
@@ -292,5 +315,69 @@ async fn a_hosting_account_is_still_suspended_and_unsuspended_over_the_rpc() {
     assert!(
         *effects.lock().unwrap() > 0,
         "the accepted request must reach the host, or the refusals above prove nothing"
+    );
+}
+
+/// The account the open-files cases address. Its own name, because the rpc takes
+/// the account's process-wide lock and no other case in this file may hold it.
+const OPEN_FILES_ACCOUNT: &str = "openfilesacct";
+
+/// The standard password database plus [`OPEN_FILES_ACCOUNT`].
+fn open_files_passwd() -> String {
+    standard_passwd()
+        + &format!(
+            "{OPEN_FILES_ACCOUNT}:x:1005:1005::/home/{OPEN_FILES_ACCOUNT}:/usr/sbin/nologin\n"
+        )
+}
+
+/// An open-files request that states no ceiling is refused before the host is
+/// touched: an omitted field must never remove an account's limit.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn an_open_files_limit_without_a_ceiling_is_refused_and_runs_nothing() {
+    let (service, _, effects) = service_over(open_files_passwd());
+
+    let response = service
+        .set_account_open_files_limit(Request::new(SetAccountOpenFilesLimitRequest {
+            username: OPEN_FILES_ACCOUNT.to_owned(),
+            open_files: None,
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+
+    let Some(set_account_open_files_limit_response::Result::Error(error)) = response.result else {
+        panic!("an absent ceiling must be refused, got {response:?}");
+    };
+    assert_eq!(error.code, ErrorCode::InvalidInput as i32);
+    assert!(
+        error.message.starts_with("open_files:"),
+        "{}",
+        error.message
+    );
+    assert_eq!(*effects.lock().unwrap(), 0);
+}
+
+/// The inverse control: the same account with a ceiling stated is accepted.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn a_hosting_account_is_given_an_open_files_limit_over_the_rpc() {
+    let (service, _, _) = service_over(open_files_passwd());
+
+    let response = service
+        .set_account_open_files_limit(Request::new(SetAccountOpenFilesLimitRequest {
+            username: OPEN_FILES_ACCOUNT.to_owned(),
+            open_files: Some(ResourceCeiling {
+                ceiling: Some(resource_ceiling::Ceiling::Maximum(4096)),
+            }),
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+
+    assert!(
+        matches!(
+            response.result,
+            Some(set_account_open_files_limit_response::Result::Ok(_))
+        ),
+        "{response:?}"
     );
 }

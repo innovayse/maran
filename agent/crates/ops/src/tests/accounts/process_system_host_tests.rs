@@ -74,3 +74,47 @@ fn a_program_that_succeeds_returns_its_output() {
     assert_eq!(outcome.status, 0);
     assert_eq!(outcome.stdout.trim(), "0");
 }
+
+/// Removing a drop-in that is there takes it away.
+#[test]
+fn a_limits_file_that_is_there_is_removed() {
+    let directory = tempfile::tempdir().unwrap();
+    let file = directory.path().join("maran-acme.conf");
+    std::fs::write(&file, "acme - nofile 1\n").unwrap();
+    let host = ProcessSystemHost::new(&DebianAdapter);
+
+    host.remove_limits_file(&file).unwrap();
+
+    assert!(!file.exists());
+}
+
+/// Removing converges: a drop-in that was never written is success, not a failure.
+#[test]
+fn a_limits_file_that_is_not_there_is_removed_without_complaint() {
+    let directory = tempfile::tempdir().unwrap();
+    let host = ProcessSystemHost::new(&DebianAdapter);
+
+    assert!(
+        host.remove_limits_file(&directory.path().join("maran-absent.conf"))
+            .is_ok()
+    );
+}
+
+/// The failing control: a path that cannot be removed for another reason is the
+/// limits-file failure, so a deletion stops instead of leaving the file behind.
+#[test]
+fn a_limits_path_that_cannot_be_removed_is_the_limits_file_failure() {
+    let directory = tempfile::tempdir().unwrap();
+    let host = ProcessSystemHost::new(&DebianAdapter);
+
+    // A directory is not removable with `remove_file`, and is not "not found".
+    let refusal = host.remove_limits_file(directory.path());
+
+    assert!(
+        matches!(
+            refusal,
+            Err(crate::accounts::AccountError::LimitsFileFailed)
+        ),
+        "expected LimitsFileFailed, got {refusal:?}"
+    );
+}

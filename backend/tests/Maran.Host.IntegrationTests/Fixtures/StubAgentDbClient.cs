@@ -66,6 +66,36 @@ public sealed class StubAgentDbClient : IAgentDbClient
     }
 
     /// <inheritdoc/>
+    public Task<Result<string>> CreateUserAsync(
+        string accountUsername,
+        string dbUsername,
+        SensitiveString password,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double answers the grant repair only.");
+    }
+
+    /// <inheritdoc/>
+    public Task<Result> DropUserAsync(
+        string accountUsername,
+        string dbUsername,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double answers the grant repair only.");
+    }
+
+    /// <inheritdoc/>
+    public Task<Result> SetPrivilegesAsync(
+        string accountUsername,
+        string dbUsername,
+        string databaseName,
+        IReadOnlyCollection<DatabasePrivilegeKind> privileges,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double answers the grant repair only.");
+    }
+
+    /// <inheritdoc/>
     public Task<Result<IReadOnlyList<DatabaseSummaryDto>>> ListAsync(
         string accountUsername,
         CancellationToken cancellationToken)

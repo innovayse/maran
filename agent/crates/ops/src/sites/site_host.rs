@@ -6,6 +6,7 @@ use maran_agent_core::validation::system::name::AccountName;
 
 use crate::safe_write::model::{Reload, Validator};
 use crate::sites::SitesOpError;
+use crate::sites::model::auth_file_placement::AuthFilePlacement;
 
 /// The operating-system operations the site module needs on top of the
 /// config-write protocol's own.
@@ -175,6 +176,61 @@ pub trait SiteHost: Send + Sync {
         validator: &Validator<'_>,
         reload: &Reload<'_>,
     ) -> Result<(), SitesOpError>;
+
+    /// Writes a site's credential file at `target` through the config-write
+    /// protocol: the directory it lives in is made `root:<group>` with the setgid
+    /// bit first, then the content goes to a temporary file at mode `0640`
+    /// beside the target, is flushed, renamed over the target and checked with
+    /// `validator`; a refusal restores the previous file. There is no reload,
+    /// because nginx reads a credential file on every request.
+    ///
+    /// The group, not the mode alone, is what keeps the hashes private: the
+    /// directory's setgid bit makes the file inherit the web server's group, so
+    /// the workers can read it and no other local user can even list the
+    /// directory. The one implementation delegates to
+    /// `crate::safe_write::write_unreloaded_config` and adds nothing of its own
+    /// to the protocol.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SitesOpError::AuthFile`] when the directory cannot be made or
+    /// handed to the group, [`SitesOpError::NginxValidation`] with the previous
+    /// file restored when `validator` refuses, [`SitesOpError::Bound`] when it
+    /// outlived its deadline, and [`SitesOpError::ConfigWrite`] for every other
+    /// failure of the protocol.
+    fn write_auth_file(
+        &self,
+        target: &Path,
+        contents: &str,
+        placement: &AuthFilePlacement<'_>,
+        validator: &Validator<'_>,
+    ) -> Result<(), SitesOpError>;
+
+    /// Removes the credential file at `target`.
+    ///
+    /// Idempotent: a file that is already gone is success, which is what lets a
+    /// site that no longer asks for basic authentication call this on every
+    /// re-render.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SitesOpError::AuthFile`] when the file exists and cannot be
+    /// removed.
+    fn remove_auth_file(&self, target: &Path) -> Result<(), SitesOpError>;
+
+    /// Lists every credential file in the agent's credential directory.
+    ///
+    /// The enumeration exists for the start-up sweep that removes a file whose
+    /// site is gone. A directory that does not exist yet is an empty list, not
+    /// an error: no site has asked for basic authentication on this host.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SitesOpError::AuthFile`] when the directory exists and cannot
+    /// be listed; distinguishing that from an empty one matters, because a sweep
+    /// must not read "could not look" as "nothing to remove" and then report
+    /// success.
+    fn list_auth_files(&self) -> Result<Vec<PathBuf>, SitesOpError>;
 
     /// Resolves `relative` inside `account`'s home and proves it is contained
     /// there, returning the canonical path to use from then on.

@@ -8,6 +8,10 @@ namespace Maran.Modules.Databases.Resources;
 /// <see cref="DatabasesManifest"/>'s <c>DisplayNameKey</c>), and one
 /// <c>GrantRepairRefusal&lt;Reason&gt;</c> plus one <c>GrantRepairAdvice&lt;Reason&gt;</c> entry per
 /// reason the agent can refuse a grant-table row with.
+/// Also carries the labels of the module's menu entries (<c>DatabasesMenu*</c>), the titles of its routes
+/// (<c>DatabasesRoute*</c>), resolved through <see cref="DatabasesManifest"/>'s menu and route lists, and
+/// the names of the privileges and presets a database user can hold (<c>DatabasePrivilege*</c>,
+/// <c>DatabasePrivilegePreset*</c>).
 /// </summary>
 /// <remarks>
 /// The refusal entries come in PAIRS on purpose, and the pairing is the requirement rather than a

@@ -39,6 +39,9 @@
   <data name="FinalBackupFailed">
     <value>Հաշիվը չի ջնջվել՝ չհաջողվեց ստեղծել դրա վերջնական պահուստային պատճենը։</value>
   </data>
+  <data name="PreRestoreBackupFailed">
+    <value>Հաշիվը չի վերականգնվել՝ նախ չհաջողվեց ստեղծել դրա ներկայիս վիճակի պահուստային պատճենը, ուստի ոչինչ չի փոխվել։</value>
+  </data>
   <data name="BackupNotRestorable">
     <value>Այս պահուստային պատճենը հնարավոր չէ վերականգնել՝ այն հաջողությամբ չի ավարտվել։</value>
   </data>
@@ -99,6 +102,9 @@
   <data name="RestoreArtifactRejected">
     <value>Ձեր սերվերը մերժեց այս պատճենը՝ դրա բովանդակությունը չի համապատասխանում այն բանին, ինչ վահանակը գրանցել է պատճենը ստեղծելիս։ Ոչինչ չի վերականգնվել, հաշիվը մնացել է անփոփոխ։ Վերականգնեք այլ պատճենից կամ դիմեք աջակցությանը՝ նույն հարցումը կրկին ուղարկելը ոչինչ չի փոխի։</value>
   </data>
+  <data name="RestoreArchiveKeyRejected">
+    <value>Ձեր սերվերը չկարողացավ բացել այս կրկնօրինակը կրկնօրինակների պահոցի գաղտնագրման բանալիով։ Ոչինչ չի վերականգնվել, հաշիվը չի փոփոխվել։ Ստուգեք այդ պահոցի արխիվի բանալին. եթե բանալին ճիշտ է, հնարավոր է՝ վնասված է հենց կրկնօրինակը, ուստի վերականգնեք մեկ այլ կրկնօրինակից կամ դիմեք աջակցության։ Նույն հարցումը կրկին ուղարկելը պատասխանը չի փոխի։</value>
+  </data>
   <data name="AccountBackupOperationRunning">
     <value>Ձեր սերվերում այս հաշվի համար դեռ կատարվում է պահուստավորման կամ վերականգնման մեկ այլ գործողություն։ Ոչինչ չի փոփոխվել։ Կրկնեք փորձը, երբ այն ավարտվի։</value>
   </data>
@@ -129,7 +135,37 @@
   <data name="BackupVerificationFailed">
     <value>Պահված արխիվն այլևս չի համապատասխանում իր գրառմանը։</value>
   </data>
+  <data name="BackupVerificationArchiveKeyRejected">
+    <value>Պահված արխիվը հնարավոր չէ բացել նրա պահոցի գաղտնագրման բանալիով։</value>
+  </data>
   <data name="BackupVerificationArtifactMissing">
     <value>Պահված արխիվը չի գտնվել։</value>
+  </data>
+  <data name="BackupScheduleCustomerFrequencyNotAllowed">
+    <value>Ընտրեք օրական կամ շաբաթական ժամանակացույց։</value>
+  </data>
+  <data name="BackupScheduleCustomerRetainTooLow">
+    <value>Պահվող կրկնօրինակների քանակը պետք է լինի առնվազն 1։</value>
+  </data>
+  <data name="BackupScheduleCustomerRetainTooHigh">
+    <value>Կարելի է պահել առավելագույնը 7 կրկնօրինակ։</value>
+  </data>
+  <data name="RestoreScopeAmbiguous">
+    <value>Վերականգնելու համար նշեք կամ տվյալների բազա, կամ կայք, բայց ոչ երկուսը միասին։</value>
+  </data>
+  <data name="RestoreDatabaseInvalid">
+    <value>Տվյալների բազայի անունը անվավեր է։</value>
+  </data>
+  <data name="RestoreSiteInvalid">
+    <value>Կայքի անունը վավեր դոմենային անուն չէ։</value>
+  </data>
+  <data name="RestoreDatabaseNotFound">
+    <value>Այս հաշվում նման տվյալների բազա չկա, ուստի ոչինչ չի վերականգնվել։</value>
+  </data>
+  <data name="RestoreSiteNotFound">
+    <value>Այս հաշվում նման կայք չկա, ուստի ոչինչ չի վերականգնվել։</value>
+  </data>
+  <data name="RestoreScopeNotInBackup">
+    <value>Այս պահուստային պատճենում չկա ընտրված տվյալների բազան կամ կայքը (հնարավոր է՝ ստեղծվել են պատճենից հետո), կամ պատճենի ֆայլն այլևս չկա սերվերում։ Ոչինչ չի փոխվել։</value>
   </data>
 </root>

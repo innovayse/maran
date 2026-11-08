@@ -133,8 +133,9 @@ that found nothing is a check"):
 Positive control for the first command: it must print the declaration in
 `Maran.Sdk/Interfaces/IAccountDirectory.cs`, the implementation in
 `Maran.Modules/Accounts/Services/AccountDirectory.cs`, and exactly one call in
-`Maran.Modules/Ssl/Jobs/CertificateRenewalHandler.cs`. A result with only the declaration means the
-renewal change was not made; a result with a fourth file means a new caller, which is the finding.
+`Maran.Modules/Ssl/Jobs/CertificateRenewalHandler.cs` (a second, in `Maran.Modules/Sites/Services/SiteLogMaintainer.cs`,
+landed later: see "Deviations found when the code landed"). A result with only the declaration means the
+renewal change was not made; a result with a file beyond those means a new caller, which is the finding.
 The second command must print 35.
 
 ## Why `Username` only
@@ -313,3 +314,15 @@ the code and no build, test or `maran` command was executed while writing it.
 
 None recorded yet. This note was written before the code; a reviewer who finds a difference between
 this note and the diff should add it here, stated plainly.
+
+**Second caller, found after the code landed (2026-11-07).** `Maran.Modules/Sites/Services/SiteLogMaintainer.cs`
+(`MaintainLoadedAsync`) also calls `FindSystemUserAsync`, so the expected output of the caller grep above is
+two files, not one. It is the same class as the renewal handler: unattended host maintenance (the hourly
+log-retention pass, and the `SiteLogRetentionChanged` message a customer's retention change publishes AFTER
+its commit) that runs with no principal. It never takes the id from a caller: it loads the site by the id in
+its own message, with the tenant filter lifted under a suppression carrying its reason, and asks only for
+that site's own `AccountId`, to learn the system user the agent addresses that account's own log files by.
+The request path (`ChangeSiteLogRetentionCommandHandler`) only publishes the site id after it has authorised
+the site through the tenant filter; it does not call the window. `SystemUserWindowCallerCensusTests` lists
+the file in `ExpectedCallers` with that reason. A reviewer should still confirm that no other path reaches
+`SiteLogMaintainer.MaintainAsync` with an id a caller chose.

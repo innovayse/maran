@@ -61,6 +61,13 @@ public interface IAgentBackupClient
     /// this list and the archive's manifest and refuses a manifest naming anything outside it, so an
     /// empty list restores no database at all.
     /// </param>
+    /// <param name="scope">
+    /// What the restore replaces: the whole account (<see cref="AgentWholeRestoreScope"/>), one
+    /// database (<see cref="AgentDatabaseRestoreScope"/>) or one site's directory
+    /// (<see cref="AgentSiteRestoreScope"/>). A partial scope replaces that part alone and touches
+    /// nothing else of the account. An agent older than scopes ignores the field and would restore the
+    /// whole account, which is why the handshake window moves with the contract revision that added it.
+    /// </param>
     /// <param name="cancellationToken">Cancellation for the stream.</param>
     /// <returns>
     /// Progress events followed by exactly one terminal event. The terminal event's kind says whether
@@ -73,6 +80,7 @@ public interface IAgentBackupClient
         AgentBackupDestination destination,
         string expectedSha256,
         IReadOnlyList<string> allowedDatabases,
+        AgentRestoreScope scope,
         CancellationToken cancellationToken);
 
     /// <summary>Lists the backups the agent knows of for an account.</summary>

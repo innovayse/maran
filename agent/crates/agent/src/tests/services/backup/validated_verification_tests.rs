@@ -19,6 +19,7 @@ fn destination(kind: BackupDestinationKind) -> BackupDestination {
         s3_access_key_id: String::new(),
         s3_secret_access_key: String::new(),
         s3_path_style: false,
+        archive_key: String::new(),
     }
 }
 
@@ -33,7 +34,7 @@ fn request(account: &str, backup_id: &str, destination: BackupDestination) -> Ve
 
 #[test]
 fn a_verification_against_a_local_destination_is_accepted_with_its_account_and_id() {
-    let (account, backup_id, _root) = validated_verification(&request(
+    let (account, backup_id, _root, key) = validated_verification(&request(
         "alice",
         BACKUP_ID,
         destination(BackupDestinationKind::Local),
@@ -42,6 +43,22 @@ fn a_verification_against_a_local_destination_is_accepted_with_its_account_and_i
 
     assert_eq!(account.as_str(), "alice");
     assert_eq!(backup_id.as_str(), BACKUP_ID);
+    assert!(key.is_none());
+}
+
+#[test]
+fn a_verification_carrying_an_archive_key_hands_it_to_the_operation_and_a_malformed_one_is_refused()
+{
+    let mut sealed = destination(BackupDestinationKind::Local);
+    sealed.archive_key = "cd".repeat(32);
+    let (_account, _backup_id, _root, key) =
+        validated_verification(&request("alice", BACKUP_ID, sealed)).unwrap();
+    assert_eq!(key.unwrap().expose()[31], 0xcd);
+
+    let mut malformed = destination(BackupDestinationKind::Local);
+    malformed.archive_key = "CD".repeat(32);
+    let error = validated_verification(&request("alice", BACKUP_ID, malformed)).unwrap_err();
+    assert_eq!(error.code, ErrorCode::InvalidInput as i32);
 }
 
 #[test]

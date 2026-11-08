@@ -23,8 +23,17 @@ public sealed class ResellerDirectoryTests
         var first = await directory.FindAsync(active.Id, CancellationToken.None);
         var second = await directory.FindAsync(suspended.Id, CancellationToken.None);
 
-        Assert.Equal(new ResellerSnapshot(active.Id, "active", ResellerState.Active), first);
-        Assert.Equal(new ResellerSnapshot(suspended.Id, "suspended", ResellerState.Suspended), second);
+        Assert.Equal(
+            new ResellerSnapshot(active.Id, "active", "active@example.com", ResellerState.Active, active.Language),
+            first);
+        Assert.Equal(
+            new ResellerSnapshot(
+                suspended.Id,
+                "suspended",
+                "suspended@example.com",
+                ResellerState.Suspended,
+                suspended.Language),
+            second);
     }
 
     /// <summary>A reseller reads itself and not another reseller.</summary>

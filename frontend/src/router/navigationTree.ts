@@ -89,10 +89,17 @@ const RESELLER: readonly NavigationRole[] = ['reseller']
  * protects, `identity` is the signed-in person's own screens (the account menu), and
  * `notifications` is the outgoing-mail page, which carries no module so that a licence cannot
  * switch off password-reset mail, and `idempotency` is a backend facility (the store behind the
- * Idempotency-Key header) with no screen at all. Any OTHER module the catalogue reports and the
+ * Idempotency-Key header) with no screen at all, and `updates` serves the "Panel updates" page the Settings
+ * section already links (issue #382). Any OTHER module the catalogue reports and the
  * tree does not name — a module newer than this bundle — still gets an entry, in the fallback group.
  */
-export const MODULES_WITHOUT_ITEM: ReadonlySet<string> = new Set(['ssl', 'identity', 'notifications', 'idempotency'])
+export const MODULES_WITHOUT_ITEM: ReadonlySet<string> = new Set([
+  'ssl',
+  'identity',
+  'notifications',
+  'idempotency',
+  'updates',
+])
 
 /** Group a catalogue module the tree does not know is drawn under. */
 export const FALLBACK_GROUP = 'panel'
@@ -141,7 +148,7 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
           page('sites-list', 'app.nav.children.sitesList', routed('sites'), ACCOUNT_HOLDERS, 'sites'),
           page('site-domains', 'app.nav.children.siteDomains', planned(null), ACCOUNT_HOLDERS, null),
           page('site-certificates', 'app.nav.children.siteCertificates', planned(null), ACCOUNT_HOLDERS, null),
-          page('site-php', 'app.nav.children.sitePhp', planned(null), CUSTOMER, null),
+          page('site-php', 'app.nav.children.sitePhp', routed('php-settings'), CUSTOMER, 'sites', 'php'),
           page('php-versions', 'app.nav.phpVersions', routed('php-versions'), ADMIN, null),
         ],
       },
@@ -151,10 +158,13 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
         labelKey: 'app.nav.items.dns',
         icon: 'globe',
         children: [
-          page('dns-zones', 'app.nav.children.dnsZones', planned(178), MANAGERS, null, 'dns'),
-          page('dns-my-zones', 'app.nav.children.dnsMyZones', planned(178), CUSTOMER, null, 'dns'),
-          page('dns-templates', 'app.nav.children.dnsTemplates', planned(178), MANAGERS, null, 'dns'),
-          page('dns-nameservers', 'app.nav.children.dnsNameservers', planned(178), MANAGERS, null, 'dns'),
+          // One zones page in two menus, the way tasks is: the administrator's "Zones" lists every
+          // account's, the customer's "My zones" their own. Offered to administrators only and not
+          // to resellers, whose context shows no DNS rows (issue #178).
+          page('dns-zones', 'app.nav.children.dnsZones', routed('dns-zones'), ADMIN, 'dns', 'dns'),
+          page('dns-my-zones', 'app.nav.children.dnsMyZones', routed('dns-zones'), CUSTOMER, 'dns', 'dns'),
+          page('dns-templates', 'app.nav.children.dnsTemplates', planned(178), ADMIN, 'dns'),
+          page('dns-nameservers', 'app.nav.children.dnsNameservers', routed('dns-nameservers'), ADMIN, 'dns'),
         ],
       },
       {
@@ -163,8 +173,9 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
         labelKey: 'app.nav.items.mail',
         icon: 'mail',
         children: [
-          page('mailboxes', 'app.nav.children.mailboxes', planned(177), ACCOUNT_HOLDERS, null, 'mail'),
-          page('mail-forwarders', 'app.nav.children.mailForwarders', planned(177), ACCOUNT_HOLDERS, null, 'mail'),
+          page('mail-domains', 'app.nav.children.mailDomains', routed('mail-domains'), ACCOUNT_HOLDERS, 'mail', 'mail'),
+          page('mailboxes', 'app.nav.children.mailboxes', routed('mailboxes'), ACCOUNT_HOLDERS, 'mail', 'mail'),
+          page('mail-forwarders', 'app.nav.children.mailForwarders', routed('mail-aliases'), ACCOUNT_HOLDERS, 'mail', 'mail'),
           page('mail-autoresponders', 'app.nav.children.mailAutoresponders', planned(177), CUSTOMER, null, 'mail'),
           page('mail-spam-filter', 'app.nav.children.mailSpamFilter', planned(177), CUSTOMER, null, 'mail'),
           page('webmail', 'app.nav.children.webmail', planned(177), CUSTOMER, null, 'mail'),
@@ -186,6 +197,14 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
             'databases-list',
             'app.nav.children.databasesList',
             routed('databases'),
+            ACCOUNT_HOLDERS,
+            'databases',
+            'databases',
+          ),
+          page(
+            'databases-users',
+            'app.nav.children.databasesUsers',
+            routed('database-users'),
             ACCOUNT_HOLDERS,
             'databases',
             'databases',
@@ -225,7 +244,7 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
           ),
           page('sftp-ssh-keys', 'app.nav.children.sshKeys', planned(135), CUSTOMER, null, 'fileTransfer'),
           page('cron', 'cron.list.heading', routed('cron'), ACCOUNT_HOLDERS, 'cron', 'cron'),
-          page('file-manager', 'app.nav.children.fileManager', planned(141), CUSTOMER, null),
+          page('file-manager', 'app.nav.children.fileManager', routed('file-manager'), ACCOUNT_HOLDERS, 'files', 'files'),
         ],
       },
       {
@@ -240,6 +259,17 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
             'app.nav.children.backupsSchedule',
             routed('backup-schedule'),
             ADMIN,
+            'backups',
+            'backups',
+          ),
+          // The customer's own schedule (issue #147). The operator's item above edits a host-wide policy
+          // and any account's override; this one edits the signed-in customer's own, so the two never
+          // share a route.
+          page(
+            'backups-my-schedule',
+            'app.nav.children.backupsSchedule',
+            routed('my-backup-schedule'),
+            CUSTOMER,
             'backups',
             'backups',
           ),
@@ -311,11 +341,14 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
         children: [
           page('settings-panel', 'app.nav.children.settingsPanel', planned(null), ADMIN, null),
           page('panel-certificate', 'panelCertificate.heading', routed('panel-certificate'), ADMIN, null),
+          page('panel-update', 'panelUpdate.heading', routed('panel-update'), ADMIN, null),
           page('smtp-settings', 'app.smtp.heading', routed('smtp-settings'), ADMIN, null),
+          page('alert-settings', 'alertSettings.heading', routed('alert-settings'), ADMIN, null),
           page('settings-administrators', 'app.nav.children.settingsAdministrators', planned(null), ADMIN, null),
           page('settings-modules', 'app.nav.children.settingsModules', planned(null), ADMIN, null),
           page('profile', 'app.profile.heading', routed('profile'), RESELLER, null),
-          page('settings-branding', 'app.nav.children.settingsBranding', planned(179), RESELLER, null),
+          page('settings-branding', 'branding.heading', routed('reseller-branding'), RESELLER, null),
+          page('settings-api-keys', 'app.nav.apiKeys', routed('reseller-api-keys'), RESELLER, null),
           page('two-factor', 'app.twoFactor.heading', routed('two-factor'), RESELLER, null),
         ],
       },
@@ -324,6 +357,7 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
   {
     // The customer's own activity and account (issue #312). The tasks page is the same page the
     // operators reach under Monitoring; a customer has no Monitoring, so it is listed here for them.
+    // A reseller has none either, and its audit journal is listed here for the same reason.
     key: 'account',
     nodes: [
       {
@@ -334,6 +368,9 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
         children: [
           { ...page('activity-tasks', 'tasks.list.heading', routed('tasks'), CUSTOMER, 'tasks'), badge: 'failedTasks' },
           page('site-logs', 'app.nav.children.siteLogs', planned(152), CUSTOMER, null),
+          // A reseller's own part of the journal (issue #370): the entries about its accounts and its login.
+          // It is listed here and not under Monitoring, whose pages are the host's and answer a reseller nothing.
+          page('reseller-audit', 'app.nav.auditJournal', routed('reseller-audit'), RESELLER, null),
         ],
       },
       {

@@ -30,6 +30,18 @@ internal sealed class StubSitesService : ISitesServiceInvoker
     /// <summary>Response returned from <see cref="ReloadWebServerAsync"/>.</summary>
     public ReloadWebServerResponse ReloadResponse { get; set; } = new();
 
+    /// <summary>Response returned from <see cref="SummariseSiteTrafficAsync"/>.</summary>
+    public SummariseSiteTrafficResponse SummariseResponse { get; set; } = new();
+
+    /// <summary>The last request <see cref="SummariseSiteTrafficAsync"/> received.</summary>
+    public SummariseSiteTrafficRequest? LastSummariseRequest { get; private set; }
+
+    /// <summary>Response returned from <see cref="PruneSiteLogsAsync"/>.</summary>
+    public PruneSiteLogsResponse PruneResponse { get; set; } = new();
+
+    /// <summary>The last request <see cref="PruneSiteLogsAsync"/> received.</summary>
+    public PruneSiteLogsRequest? LastPruneRequest { get; private set; }
+
     /// <summary>How many times the batch reload was invoked.</summary>
     public int ReloadCallCount { get; private set; }
 
@@ -95,6 +107,24 @@ internal sealed class StubSitesService : ISitesServiceInvoker
     {
         LastDeleteRequest = request;
         return Task.FromResult(DeleteResponse);
+    }
+
+    /// <inheritdoc/>
+    public Task<SummariseSiteTrafficResponse> SummariseSiteTrafficAsync(
+        SummariseSiteTrafficRequest request,
+        CancellationToken cancellationToken)
+    {
+        LastSummariseRequest = request;
+        return Task.FromResult(SummariseResponse);
+    }
+
+    /// <inheritdoc/>
+    public Task<PruneSiteLogsResponse> PruneSiteLogsAsync(
+        PruneSiteLogsRequest request,
+        CancellationToken cancellationToken)
+    {
+        LastPruneRequest = request;
+        return Task.FromResult(PruneResponse);
     }
 
     /// <inheritdoc/>

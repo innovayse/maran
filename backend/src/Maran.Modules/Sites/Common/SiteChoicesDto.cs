@@ -7,4 +7,10 @@ namespace Maran.Modules.Sites.Common;
 /// </summary>
 /// <param name="BackendTypes">What can serve a site, in the order the form offers them.</param>
 /// <param name="Statuses">Whether a site serves its own content, in the order the filter offers them.</param>
-public sealed record SiteChoicesDto(IReadOnlyList<SiteChoiceDto> BackendTypes, IReadOnlyList<SiteChoiceDto> Statuses);
+/// <param name="TrafficWindows">The periods the traffic summary may be read over, the one to open on first.</param>
+/// <param name="LogRetentions">The numbers of days a site may keep its logs, fewest first.</param>
+public sealed record SiteChoicesDto(
+    IReadOnlyList<SiteChoiceDto> BackendTypes,
+    IReadOnlyList<SiteChoiceDto> Statuses,
+    IReadOnlyList<SiteChoiceDto> TrafficWindows,
+    IReadOnlyList<SiteChoiceDto> LogRetentions);

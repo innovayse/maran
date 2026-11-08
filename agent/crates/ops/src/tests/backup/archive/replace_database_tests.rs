@@ -36,7 +36,7 @@ fn a_database_is_dropped_before_its_dump_is_loaded() {
     let host = RecordingBackupHost::new();
     let (_scratch, path) = dump();
 
-    replace_database(&host, &database(), &path).unwrap();
+    replace_database(&host, &database(), &path, DumpOrigin::Own).unwrap();
 
     assert_eq!(host.calls_to(DROP_PROGRAM).len(), 1);
     assert_eq!(host.calls_to(LOAD_PROGRAM).len(), 1);
@@ -52,7 +52,7 @@ fn a_load_that_fails_is_reported_to_the_caller() {
     host.fail_archive_load_for(database().as_str());
     let (_scratch, path) = dump();
 
-    let error = replace_database(&host, &database(), &path).unwrap_err();
+    let error = replace_database(&host, &database(), &path, DumpOrigin::Own).unwrap_err();
 
     assert_eq!(error, BackupError::LoadFailed { status: 1 });
     assert_eq!(host.dropped(), vec![database().as_str().to_owned()]);
@@ -67,8 +67,67 @@ fn a_load_that_times_out_is_a_bound_and_leaves_the_database_dropped() {
     host.time_out_archive_load_for(database().as_str());
     let (_scratch, path) = dump();
 
-    let error = replace_database(&host, &database(), &path).unwrap_err();
+    let error = replace_database(&host, &database(), &path, DumpOrigin::Own).unwrap_err();
 
     assert!(matches!(error, BackupError::Bound(_)), "{error:?}");
     assert_eq!(host.dropped(), vec![database().as_str().to_owned()]);
+}
+
+/// A clean dump of the fixture's database.
+const CLEAN_DUMP: &str =
+    "USE `alice_shop`;\nCREATE TABLE `t` (`a` int);\nINSERT INTO `t` VALUES (1);\n";
+
+/// An imported dump is loaded by the restricted loader's temporary user and
+/// never by the superuser client.
+#[test]
+fn an_imported_dump_is_loaded_through_the_restricted_loader_and_not_as_the_superuser() {
+    let host = RecordingBackupHost::new();
+    let (_scratch, path) = dump();
+    write(&path, CLEAN_DUMP).unwrap();
+
+    replace_database(&host, &database(), &path, DumpOrigin::Imported).unwrap();
+
+    assert_eq!(host.dropped(), vec![database().as_str().to_owned()]);
+    assert_eq!(
+        host.restricted_calls(),
+        vec![
+            "create alice_shop".to_owned(),
+            "load".to_owned(),
+            "drop".to_owned()
+        ]
+    );
+    assert_eq!(host.restricted_loaded(), vec![CLEAN_DUMP.to_owned()]);
+    assert!(
+        host.loaded().is_empty(),
+        "the superuser client must not have been handed the imported dump"
+    );
+}
+
+/// An imported dump that cannot be opened is refused before the drop, on the
+/// recoverable side of the line, and the superuser is not tried instead.
+#[test]
+fn an_imported_dump_that_cannot_be_opened_is_refused_before_the_drop() {
+    let host = RecordingBackupHost::new();
+    let (scratch, _path) = dump();
+    let missing = scratch.path().join("databases").join("absent.sql");
+
+    let error = replace_database(&host, &database(), &missing, DumpOrigin::Imported).unwrap_err();
+
+    assert!(matches!(error, BackupError::LoadFailed { .. }), "{error:?}");
+    assert!(host.dropped().is_empty());
+    assert!(host.restricted_calls().is_empty());
+    assert!(host.loaded().is_empty());
+}
+
+/// A dump this host wrote is loaded exactly as before: by the superuser client,
+/// with the restricted loader never consulted.
+#[test]
+fn an_own_dump_never_touches_the_restricted_loader() {
+    let host = RecordingBackupHost::new();
+    let (_scratch, path) = dump();
+
+    replace_database(&host, &database(), &path, DumpOrigin::Own).unwrap();
+
+    assert!(host.restricted_calls().is_empty());
+    assert_eq!(host.loaded().len(), 1);
 }

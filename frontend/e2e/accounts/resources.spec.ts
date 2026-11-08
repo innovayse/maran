@@ -74,7 +74,7 @@ const CUSTOMER: AuthenticatedUser = {
 const stubDetail = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
-  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' }])
+  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
   await stubInvitation(page, ACCOUNT.id, 'pending')
   await page.route(`**/api/v1/accounts/${ACCOUNT.id}`, async (route) => {
     if (route.request().method() !== 'GET') {

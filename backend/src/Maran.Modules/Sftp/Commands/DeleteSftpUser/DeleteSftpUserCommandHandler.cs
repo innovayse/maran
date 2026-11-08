@@ -74,7 +74,10 @@ public sealed class DeleteSftpUserCommandHandler
         _journal = journal;
     }
 
-    /// <summary>Removes the login. Idempotent from the customer's side: a second attempt is not found.</summary>
+    /// <summary>
+    /// Removes the login. Not idempotent: the end state repeats, but a second attempt finds no row and
+    /// answers not found.
+    /// </summary>
     /// <param name="command">Which login to remove.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>Success, or <c>SftpUserNotFound</c>, <c>AccountNotFound</c>, or the agent's own typed failure.</returns>

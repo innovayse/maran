@@ -1,5 +1,4 @@
 using Maran.Modules.Accounts.Common;
-using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Mappers;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Resources;
@@ -22,7 +21,7 @@ namespace Maran.Modules.Accounts.Commands.ChangeAccountPlan;
 /// is below what the account already holds is REFUSED, whole (<c>AccountPlanQuotaBelowUsage</c>):
 /// the quota is a hard kernel limit, and an account put under one smaller than its files stops being
 /// able to write anything (<c>UpdatePlanCommandHandler</c>'s remarks give the full argument). The
-/// measurement and the push are <see cref="AccountDiskQuotaEnforcer"/>'s, shared with that edit. A
+/// measurement and the push are <see cref="AccountPlanHostSynchronizer"/>'s, shared with the transfer of an account to another owner. A
 /// usage that cannot be read is refused with the agent's own failure, never assumed to fit.
 /// </para>
 /// <para>
@@ -36,7 +35,8 @@ namespace Maran.Modules.Accounts.Commands.ChangeAccountPlan;
 /// repeating the change converges, the agent's quota call being a replacement. Nothing is pushed
 /// when both plans sell the same disk. The new plan's runtime ceilings (CPU, memory, processes) are
 /// pushed after the quota and before the row, when they differ from the current plan's, and are not
-/// refused for the reason <see cref="AccountRuntimeLimitsEnforcer"/> gives.
+/// refused for the reason <see cref="AccountRuntimeLimitsEnforcer"/> gives; all of it is
+/// <see cref="AccountPlanHostSynchronizer"/>'s.
 /// </para>
 /// <para>
 /// <b>The target plan can be deleted between the check and the save.</b> <c>Accounts.PlanId</c> is a
@@ -71,11 +71,8 @@ public sealed class ChangeAccountPlanCommandHandler
     /// <summary>Names the owning reseller in the answer.</summary>
     private readonly ResellerNameDirectory _resellerNames;
 
-    /// <summary>Measures and applies the disk quota on the host.</summary>
-    private readonly AccountDiskQuotaEnforcer _quotas;
-
-    /// <summary>Applies the runtime ceilings on the host.</summary>
-    private readonly AccountRuntimeLimitsEnforcer _runtimeLimits;
+    /// <summary>Measures and applies the new plan's disk quota and runtime ceilings on the host.</summary>
+    private readonly AccountPlanHostSynchronizer _host;
 
     /// <summary>This module's audit journal.</summary>
     private readonly AccountAuditJournal _journal;
@@ -83,33 +80,36 @@ public sealed class ChangeAccountPlanCommandHandler
     /// <summary>Resolves a shipped plan's name in the request's culture.</summary>
     private readonly IStringLocalizer<DisplayNames> _displayNames;
 
+    /// <summary>Tells the other modules, after the save, that the account's PHP bounds changed.</summary>
+    private readonly AccountPlanChangeAnnouncer _announcer;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Accounts module's database context.</param>
     /// <param name="scope">Refuses a write by a suspended reseller.</param>
     /// <param name="allocation">Holds the move to the owner's plan ownership and disk pool, and claims the owner's row.</param>
     /// <param name="resellerNames">Names the owning reseller in the answer.</param>
-    /// <param name="quotas">Measures and applies the disk quota on the host.</param>
-    /// <param name="runtimeLimits">Applies the runtime ceilings on the host.</param>
+    /// <param name="host">Measures and applies the new plan's disk quota and runtime ceilings on the host.</param>
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="displayNames">Resolves a shipped plan's name in the request's culture.</param>
+    /// <param name="announcer">Tells the other modules, after the save, that the account's PHP bounds changed.</param>
     public ChangeAccountPlanCommandHandler(
         AccountsDbContext dbContext,
         ResellerScope scope,
         ResellerAllocationGuard allocation,
         ResellerNameDirectory resellerNames,
-        AccountDiskQuotaEnforcer quotas,
-        AccountRuntimeLimitsEnforcer runtimeLimits,
+        AccountPlanHostSynchronizer host,
         AccountAuditJournal journal,
-        IStringLocalizer<DisplayNames> displayNames)
+        IStringLocalizer<DisplayNames> displayNames,
+        AccountPlanChangeAnnouncer announcer)
     {
         _dbContext = dbContext;
         _scope = scope;
         _allocation = allocation;
         _resellerNames = resellerNames;
-        _quotas = quotas;
-        _runtimeLimits = runtimeLimits;
+        _host = host;
         _journal = journal;
         _displayNames = displayNames;
+        _announcer = announcer;
     }
 
     /// <summary>Moves the account, or refuses the move whole.</summary>
@@ -171,20 +171,10 @@ public sealed class ChangeAccountPlanCommandHandler
             return await FailAsync(command, subject, refusal.Error, cancellationToken);
         }
 
-        var quotaFailure = await ReconcileDiskQuotaAsync(account, current, target, cancellationToken);
-        if (quotaFailure is not null)
+        var hostFailure = await _host.ApplyAsync(account, current, target, cancellationToken);
+        if (hostFailure is not null)
         {
-            return await FailAsync(command, subject, quotaFailure, cancellationToken);
-        }
-
-        // Pushed only when the two plans differ: the slice already holds the current plan's ceilings.
-        if (target.RuntimeLimits != current.RuntimeLimits)
-        {
-            var runtimeFailure = await _runtimeLimits.ApplyAsync([account.Name], target.RuntimeLimits, cancellationToken);
-            if (runtimeFailure is not null)
-            {
-                return await FailAsync(command, subject, runtimeFailure, cancellationToken);
-            }
+            return await FailAsync(command, subject, hostFailure, cancellationToken);
         }
 
         account.ChangePlan(target.Id);
@@ -198,7 +188,7 @@ public sealed class ChangeAccountPlanCommandHandler
             // so the pool the admission counted is no longer the pool. The host already holds the
             // target's figures and the row still says the current plan, which an account over its
             // sold disk must not be left in: the current plan's figures are put back.
-            await RestoreCurrentPlanAsync(account, current, target, cancellationToken);
+            await _host.RestoreAsync(account, current, target, cancellationToken);
 
             return await FailAsync(
                 command,
@@ -214,6 +204,14 @@ public sealed class ChangeAccountPlanCommandHandler
                 command, subject, Error.Of(nameof(ErrorMessages.PlanNotFound), ErrorType.NotFound), cancellationToken);
         }
 
+        if (current.PhpLimits != target.PhpLimits)
+        {
+            // After the commit, and only when the two plans bound PHP differently: the account's pools
+            // carry the customer's settings clamped to the plan, so only then is there anything to
+            // re-render. A subscriber's failure is logged and never fails the move that already happened.
+            await _announcer.AnnounceAsync([account.Id], cancellationToken);
+        }
+
         await _journal.RecordSuccessAsync(
             AccountAuditActions.AccountPlanChanged,
             subject,
@@ -223,72 +221,6 @@ public sealed class ChangeAccountPlanCommandHandler
             account.Id);
 
         return Result<AccountDetailDto>.Ok(AccountDetailMapper.ToDto(account, target, _displayNames, resellerName));
-    }
-
-    /// <summary>
-    /// Puts the host back on the current plan's disk quota and runtime ceilings after a move whose row
-    /// could not be written. Best effort: the failure the caller answers with is the refused move, and a
-    /// restore that fails too converges when the move is repeated or the plan edited, the agent's
-    /// calls being replacements.
-    /// </summary>
-    /// <param name="account">The account that was being moved.</param>
-    /// <param name="current">The plan the row still says it is on.</param>
-    /// <param name="target">The plan whose figures were pushed ahead of the row.</param>
-    /// <param name="cancellationToken">Cancels the work.</param>
-    private async Task RestoreCurrentPlanAsync(
-        Account account,
-        Plan current,
-        Plan target,
-        CancellationToken cancellationToken)
-    {
-        IReadOnlyList<string> accountNames = [account.Name];
-        if (target.DiskQuotaMb != current.DiskQuotaMb)
-        {
-            await _quotas.ApplyAsync(accountNames, current.DiskQuotaMb, cancellationToken);
-        }
-
-        if (target.RuntimeLimits != current.RuntimeLimits)
-        {
-            await _runtimeLimits.ApplyAsync(accountNames, current.RuntimeLimits, cancellationToken);
-        }
-    }
-
-    /// <summary>
-    /// Puts the target plan's disk quota on the host for this account, after proving a smaller one
-    /// does not put the account over its limit. Does nothing when both plans sell the same disk.
-    /// </summary>
-    /// <param name="account">The account being moved.</param>
-    /// <param name="current">The plan it is on now.</param>
-    /// <param name="target">The plan it is moving to.</param>
-    /// <param name="cancellationToken">Cancels the work.</param>
-    /// <returns><c>null</c> when the host holds the target quota (or needed nothing); otherwise the failure.</returns>
-    private async Task<Error?> ReconcileDiskQuotaAsync(
-        Account account,
-        Plan current,
-        Plan target,
-        CancellationToken cancellationToken)
-    {
-        if (target.DiskQuotaMb == current.DiskQuotaMb)
-        {
-            return null;
-        }
-
-        IReadOnlyList<string> accountNames = [account.Name];
-        if (target.DiskQuotaMb < current.DiskQuotaMb)
-        {
-            var fits = await _quotas.AllFitAsync(accountNames, target.DiskQuotaMb, cancellationToken);
-            if (!fits.IsSuccess)
-            {
-                return fits.Error!;
-            }
-
-            if (!fits.Value)
-            {
-                return Error.Of(nameof(ErrorMessages.AccountPlanQuotaBelowUsage), ErrorType.Conflict);
-            }
-        }
-
-        return await _quotas.ApplyAsync(accountNames, target.DiskQuotaMb, cancellationToken);
     }
 
     /// <summary>Journals a refused move and returns it as the typed failure.</summary>

@@ -121,21 +121,7 @@ pub(crate) fn extract_home_as_account(
     uid: u32,
     gid: u32,
 ) -> Result<(), BackupError> {
-    let _ = remove_dir_all(staging);
-
-    if let Some(root) = staging.parent() {
-        repair_staging_root(root)?;
-    }
-
-    // NOT recursive: a recursive builder applies this `0700` to every parent it
-    // has to create as well, which is exactly how the root above came to be
-    // root-only. The root is made traversable on the line before, deliberately
-    // and with its own mode.
-    DirBuilder::new()
-        .mode(STAGING_MODE)
-        .create(staging)
-        .map_err(|_| BackupError::StagingUnusable)?;
-    chown(staging, Some(uid), Some(gid)).map_err(|_| BackupError::StagingUnusable)?;
+    make_staging_directory(staging, uid, gid)?;
 
     host.extract(&ExtractSpec {
         artifact: artifact.to_path_buf(),
@@ -146,6 +132,43 @@ pub(crate) fn extract_home_as_account(
             account: account.clone(),
         },
     })
+}
+
+/// Creates one account-owned, empty working directory under the restore staging
+/// root: removes whatever stale tree is at `directory`, repairs the root above it,
+/// makes the directory `0700` and hands it to `uid`/`gid`.
+///
+/// The home restore's staging tree, and the single-directory restore's staging
+/// and parking directories (issue #160), are all made here, so "how a directory
+/// under the root is made safe" has one answer. See [`extract_home_as_account`]
+/// for why the root is repaired rather than merely created, why the directory is
+/// made by root and then handed over, and why a stale tree at the path is
+/// removed first.
+///
+/// # Errors
+///
+/// [`BackupError::StagingUnusable`] when the root is not a directory, its mode
+/// cannot be repaired, or the directory cannot be made or handed over.
+pub(crate) fn make_staging_directory(
+    directory: &Path,
+    uid: u32,
+    gid: u32,
+) -> Result<(), BackupError> {
+    let _ = remove_dir_all(directory);
+
+    if let Some(root) = directory.parent() {
+        repair_staging_root(root)?;
+    }
+
+    // NOT recursive: a recursive builder applies this `0700` to every parent it
+    // has to create as well, which is exactly how the root above came to be
+    // root-only. The root is made traversable on the line before, deliberately
+    // and with its own mode.
+    DirBuilder::new()
+        .mode(STAGING_MODE)
+        .create(directory)
+        .map_err(|_| BackupError::StagingUnusable)?;
+    chown(directory, Some(uid), Some(gid)).map_err(|_| BackupError::StagingUnusable)
 }
 
 /// Makes sure `root` exists and carries [`STAGING_ROOT_MODE`], creating it or

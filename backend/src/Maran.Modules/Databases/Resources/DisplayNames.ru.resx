@@ -39,4 +39,85 @@
   <data name="GrantRepairAdvicePartiallyOrUnfamiliarlyEscaped">
     <value>Сохранённое имя экранировано так, как эта панель никогда не пишет, поэтому повторное экранирование могло бы разрушить работающее право. Ничего не изменено. Сравните его с правом, выданным панелью, и исправьте вручную, если оно неверно.</value>
   </data>
+  <data name="DatabasesMenuDatabasesList">
+    <value>Все базы данных</value>
+  </data>
+  <data name="DatabasesMenuDatabasesGrantRepair">
+    <value>Восстановление прав</value>
+  </data>
+  <data name="DatabasesRouteDatabases">
+    <value>Базы данных</value>
+  </data>
+  <data name="DatabasesRouteDatabaseGrantRepair">
+    <value>Восстановление прав</value>
+  </data>
+  <data name="DatabasesMenuDatabasesUsers">
+    <value>Пользователи баз данных</value>
+  </data>
+  <data name="DatabasesRouteDatabaseUsers">
+    <value>Пользователи и привилегии баз данных</value>
+  </data>
+  <data name="DatabasePrivilegePresetReadOnly">
+    <value>Только чтение</value>
+  </data>
+  <data name="DatabasePrivilegePresetReadWrite">
+    <value>Чтение и запись</value>
+  </data>
+  <data name="DatabasePrivilegePresetFullAccess">
+    <value>Полный доступ</value>
+  </data>
+  <data name="DatabasePrivilegeSelect">
+    <value>Чтение строк (SELECT)</value>
+  </data>
+  <data name="DatabasePrivilegeInsert">
+    <value>Добавление строк (INSERT)</value>
+  </data>
+  <data name="DatabasePrivilegeUpdate">
+    <value>Изменение строк (UPDATE)</value>
+  </data>
+  <data name="DatabasePrivilegeDelete">
+    <value>Удаление строк (DELETE)</value>
+  </data>
+  <data name="DatabasePrivilegeCreate">
+    <value>Создание таблиц (CREATE)</value>
+  </data>
+  <data name="DatabasePrivilegeDrop">
+    <value>Удаление таблиц (DROP)</value>
+  </data>
+  <data name="DatabasePrivilegeAlter">
+    <value>Изменение структуры таблиц (ALTER)</value>
+  </data>
+  <data name="DatabasePrivilegeIndex">
+    <value>Управление индексами (INDEX)</value>
+  </data>
+  <data name="DatabasePrivilegeReferences">
+    <value>Создание внешних ключей (REFERENCES)</value>
+  </data>
+  <data name="DatabasePrivilegeCreateTemporaryTables">
+    <value>Создание временных таблиц (CREATE TEMPORARY TABLES)</value>
+  </data>
+  <data name="DatabasePrivilegeLockTables">
+    <value>Блокировка таблиц (LOCK TABLES)</value>
+  </data>
+  <data name="DatabasePrivilegeCreateView">
+    <value>Создание представлений (CREATE VIEW)</value>
+  </data>
+  <data name="DatabasePrivilegeShowView">
+    <value>Просмотр определений представлений (SHOW VIEW)</value>
+  </data>
+  <data name="DatabasePrivilegeCreateRoutine">
+    <value>Создание процедур и функций (CREATE ROUTINE)</value>
+  </data>
+  <data name="DatabasePrivilegeAlterRoutine">
+    <value>Изменение процедур и функций (ALTER ROUTINE)</value>
+  </data>
+  <data name="DatabasePrivilegeExecute">
+    <value>Запуск процедур и функций (EXECUTE)</value>
+  </data>
+  <data name="DatabasePrivilegeTrigger">
+    <value>Управление триггерами (TRIGGER)</value>
+  </data>
+  <data name="DatabasePrivilegeEvent">
+    <value>Управление событиями по расписанию (EVENT)</value>
+  </data>
 </root>

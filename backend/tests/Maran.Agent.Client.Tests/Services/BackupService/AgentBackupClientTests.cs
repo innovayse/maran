@@ -298,6 +298,28 @@ public sealed class AgentBackupClientTests
         Assert.Equal("AgentValidationFailed", result.Error!.Code);
     }
 
+    /// <summary>
+    /// A sealed archive that does not open under the destination's key reaches the caller under its own
+    /// code and kind, not as the shared validation refusal (issue #445).
+    /// </summary>
+    [Fact]
+    public async Task A_verification_of_an_archive_that_cannot_be_opened_carries_its_own_code()
+    {
+        var stub = new StubBackupService
+        {
+            VerifyResponse = new VerifyBackupResponse
+            {
+                Error = new AgentError { Code = ErrorCode.ArchiveUnopenable, Message = "cannot be opened" },
+            },
+        };
+
+        var result = await NewClient(stub).VerifyBackupAsync("alice", "b1", Local(), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentArchiveUnopenable", result.Error!.Code);
+        Assert.Equal(ErrorType.Validation, result.Error.Type);
+    }
+
     /// <summary>A verification response naming neither branch is an invalid response, never a success.</summary>
     [Fact]
     public async Task A_verification_response_with_neither_branch_set_is_an_invalid_response()
@@ -448,6 +470,93 @@ public sealed class AgentBackupClientTests
         Assert.Equal(2ul, events[1].DatabaseCount);
     }
 
+    /// <summary>The 64-character archive key the destinations in the key tests carry.</summary>
+    private const string ArchiveKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+    /// <summary>A local destination that carries an archive key.</summary>
+    /// <returns>The destination.</returns>
+    private static AgentLocalBackupDestination Sealed()
+    {
+        return new AgentLocalBackupDestination(new SensitiveString(ArchiveKey));
+    }
+
+    /// <summary>
+    /// The three calls that seal or open an archive carry the key on the wire — creation seals with
+    /// it, restore and verification open with it.
+    /// </summary>
+    [Fact]
+    public async Task The_archive_key_reaches_the_agent_on_create_restore_and_verify()
+    {
+        var stub = new StubBackupService();
+        stub.CreateResponses.Add(
+            new CreateBackupResponse { Ok = new CreateBackupOk { Sha256 = "deadbeef", Encrypted = true } });
+        stub.RestoreResponses.Add(new RestoreBackupResponse { Ok = new RestoreBackupOk() });
+        stub.VerifyResponse = new VerifyBackupResponse { Ok = new VerifyBackupOk() };
+        var client = NewClient(stub);
+
+        await DrainAsync(client.CreateAsync("alice", "b1", Sealed(), CancellationToken.None));
+        await DrainAsync(client.RestoreAsync(
+            "alice", "b1", Sealed(), "deadbeef", [], new AgentWholeRestoreScope(), CancellationToken.None));
+        await client.VerifyBackupAsync("alice", "b1", Sealed(), CancellationToken.None);
+
+        Assert.Equal(ArchiveKey, stub.LastCreateRequest!.Destination.ArchiveKey);
+        Assert.Equal(ArchiveKey, stub.LastRestoreRequest!.Destination.ArchiveKey);
+        Assert.Equal(ArchiveKey, stub.LastVerifyRequest!.Destination.ArchiveKey);
+    }
+
+    /// <summary>
+    /// A deletion, a probe and a listing never open an archive, so the key is not sent: the agent
+    /// would ignore it, and a field the agent ignores is a field a caller believes in.
+    /// </summary>
+    [Fact]
+    public async Task The_archive_key_is_not_sent_on_delete_or_probe()
+    {
+        var stub = new StubBackupService
+        {
+            DeleteResponse = new DeleteBackupResponse { Ok = new DeleteBackupOk() },
+            ProbeResponse = new ProbeDestinationResponse
+            {
+                Error = new AgentError { Code = ErrorCode.NotImplemented, Message = "no probe" },
+            },
+        };
+        var client = NewClient(stub);
+
+        await client.DeleteAsync("alice", "b1", Sealed(), CancellationToken.None);
+        await client.ProbeAsync(Sealed(), CancellationToken.None);
+
+        Assert.Equal(string.Empty, stub.LastDeleteRequest!.Destination.ArchiveKey);
+        Assert.Equal(string.Empty, stub.LastProbeRequest!.Destination.ArchiveKey);
+    }
+
+    /// <summary>
+    /// A creation that carried a key and is answered "not sealed" is a failure, never a completed backup:
+    /// the agent left a plain archive where a sealed one was asked for (backup.proto, CreateBackupOk.encrypted).
+    /// </summary>
+    [Fact]
+    public async Task A_creation_that_sent_a_key_and_is_answered_not_sealed_is_failed()
+    {
+        var stub = new StubBackupService();
+        stub.CreateResponses.Add(new CreateBackupResponse { Ok = new CreateBackupOk { Sha256 = "deadbeef" } });
+
+        var events = await DrainAsync(NewClient(stub).CreateAsync("alice", "b1", Sealed(), CancellationToken.None));
+
+        var terminal = Assert.Single(events);
+        Assert.Equal(BackupCreateEventKind.Failed, terminal.Kind);
+        Assert.Equal("AgentInvalidResponse", terminal.ErrorCode);
+    }
+
+    /// <summary>The inverse control: a destination with no key sends none, so a plain backup stays plain.</summary>
+    [Fact]
+    public async Task A_destination_with_no_key_sends_no_key()
+    {
+        var stub = new StubBackupService();
+        stub.CreateResponses.Add(new CreateBackupResponse { Ok = new CreateBackupOk { Sha256 = "deadbeef" } });
+
+        await DrainAsync(NewClient(stub).CreateAsync("alice", "b1", Local(), CancellationToken.None));
+
+        Assert.Equal(string.Empty, stub.LastCreateRequest!.Destination.ArchiveKey);
+    }
+
     /// <summary>A create stream that stops without an outcome is a truncation.</summary>
     /// <remarks>
     /// Not a completion: there may or may not be an artifact on the destination, and a panel that
@@ -535,6 +644,7 @@ public sealed class AgentBackupClientTests
             S3(),
             "deadbeef",
             [],
+            new AgentWholeRestoreScope(),
             CancellationToken.None));
 
         var terminal = Assert.Single(events);
@@ -579,6 +689,7 @@ public sealed class AgentBackupClientTests
             Local(),
             "deadbeef",
             ["alice_shop"],
+            new AgentWholeRestoreScope(),
             CancellationToken.None));
 
         var terminal = Assert.Single(events);
@@ -604,6 +715,7 @@ public sealed class AgentBackupClientTests
             Local(),
             "deadbeef",
             [],
+            new AgentWholeRestoreScope(),
             CancellationToken.None));
 
         Assert.Equal(BackupRestoreEventKind.Truncated, events[^1].Kind);
@@ -636,6 +748,7 @@ public sealed class AgentBackupClientTests
             Local(),
             "deadbeef",
             [],
+            new AgentWholeRestoreScope(),
             CancellationToken.None));
 
         var terminal = Assert.Single(events);
@@ -661,10 +774,93 @@ public sealed class AgentBackupClientTests
             Local(),
             "deadbeef",
             ["alice_shop", "alice_blog"],
+            new AgentWholeRestoreScope(),
             CancellationToken.None));
 
         Assert.Equal("deadbeef", stub.LastRestoreRequest!.ExpectedSha256);
         Assert.Equal(["alice_shop", "alice_blog"], stub.LastRestoreRequest.AllowedDatabases);
+    }
+
+    /// <summary>
+    /// A whole restore sends no scope at all, so it is byte-for-byte the request an agent from before
+    /// scopes existed reads.
+    /// </summary>
+    [Fact]
+    public async Task A_whole_restore_sends_no_scope()
+    {
+        var stub = new StubBackupService();
+        stub.RestoreResponses.Add(new RestoreBackupResponse { Ok = new RestoreBackupOk() });
+
+        await DrainAsync(NewClient(stub).RestoreAsync(
+            "alice", "b1", Local(), "deadbeef", [], new AgentWholeRestoreScope(), CancellationToken.None));
+
+        Assert.Null(stub.LastRestoreRequest!.Scope);
+    }
+
+    /// <summary>A database restore sends the database's name, and no site.</summary>
+    [Fact]
+    public async Task A_database_restore_sends_that_database_and_no_site()
+    {
+        var stub = new StubBackupService();
+        stub.RestoreResponses.Add(new RestoreBackupResponse { Ok = new RestoreBackupOk() });
+
+        await DrainAsync(NewClient(stub).RestoreAsync(
+            "alice",
+            "b1",
+            Local(),
+            "deadbeef",
+            ["alice_shop"],
+            new AgentDatabaseRestoreScope("alice_shop"),
+            CancellationToken.None));
+
+        var scope = stub.LastRestoreRequest!.Scope;
+        Assert.Equal(RestoreScope.TargetOneofCase.DatabaseName, scope.TargetCase);
+        Assert.Equal("alice_shop", scope.DatabaseName);
+        Assert.Equal(string.Empty, scope.SiteDomain);
+    }
+
+    /// <summary>A site restore sends the site's domain, and no path and no database.</summary>
+    [Fact]
+    public async Task A_site_restore_sends_that_domain_and_no_database()
+    {
+        var stub = new StubBackupService();
+        stub.RestoreResponses.Add(new RestoreBackupResponse { Ok = new RestoreBackupOk() });
+
+        await DrainAsync(NewClient(stub).RestoreAsync(
+            "alice",
+            "b1",
+            Local(),
+            "deadbeef",
+            [],
+            new AgentSiteRestoreScope("shop.example.com"),
+            CancellationToken.None));
+
+        var scope = stub.LastRestoreRequest!.Scope;
+        Assert.Equal(RestoreScope.TargetOneofCase.SiteDomain, scope.TargetCase);
+        Assert.Equal("shop.example.com", scope.SiteDomain);
+        Assert.Equal(string.Empty, scope.DatabaseName);
+    }
+
+    /// <summary>The figures of a partial restore reach the caller as the agent stated them.</summary>
+    [Fact]
+    public async Task The_figures_of_a_database_restore_are_carried_as_stated()
+    {
+        var stub = new StubBackupService();
+        stub.RestoreResponses.Add(new RestoreBackupResponse
+        {
+            Ok = new RestoreBackupOk { FilesRestored = false, DatabasesRestored = 1, DatabasesTotal = 1 },
+        });
+
+        var events = await DrainAsync(NewClient(stub).RestoreAsync(
+            "alice",
+            "b1",
+            Local(),
+            "deadbeef",
+            ["alice_shop"],
+            new AgentDatabaseRestoreScope("alice_shop"),
+            CancellationToken.None));
+
+        Assert.Equal(new AgentRestoreOutcome(false, 1, 1), Assert.Single(events).Outcome);
     }
 
     /// <summary>An S3 destination reaches the wire with its credentials.</summary>

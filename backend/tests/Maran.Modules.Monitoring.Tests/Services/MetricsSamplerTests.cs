@@ -208,6 +208,64 @@ public sealed class MetricsSamplerTests
         });
     }
 
+    /// <summary>Memory use is judged as the in-use share of the total, so ten rounds above the threshold alert.</summary>
+    /// <remarks>
+    /// The sampler turns the agent's two byte counts into the percentage the observer compares: 900
+    /// of 1000 bytes in use is 90%, above the 80% threshold saved here, while the processor reading
+    /// (5%) is below its own. The inverse control is the next test, with the same agent and no
+    /// threshold saved.
+    /// </remarks>
+    [Fact]
+    public async Task Ten_rounds_of_memory_above_the_saved_threshold_send_one_memory_alert()
+    {
+        await using var dbContext = MonitoringTestContext.Create();
+        var thresholds = Monitoring.Domain.Entities.AlertThresholds.CreateDefault(new FakeClock().UtcNow);
+        thresholds.Replace(90, 70, 80, new FakeClock().UtcNow);
+        dbContext.AlertThresholds.Add(thresholds);
+        await dbContext.SaveChangesAsync();
+        var agent = new StubAgentMonitorClient
+        {
+            Metrics = Result<AgentHostMetrics>.Ok(
+                new AgentHostMetrics(5, 900, 1_000, 200, 50, 750, 1_000, 10, 20, 0.1, 0.2, 0.3, 1)),
+        };
+        using var scopes = new TestScopeFactory(
+            dbContext, agent, new StubAlertRecipientDirectory("ops@example.com"), new RecordingAuditWriter());
+        var sampler = Sampler(scopes, new FakeClock());
+
+        for (var round = 0; round < Monitoring.Domain.Entities.AlertState.BreachesBeforeAlert; round++)
+        {
+            Assert.True(await sampler.SampleOnceAsync(CancellationToken.None));
+        }
+
+        var mail = Assert.IsType<Maran.Sdk.Contracts.SendMailRequested>(Assert.Single(scopes.Bus.Mail));
+        Assert.StartsWith("AlertMemoryUsageRaisedSubject", mail.Subject, StringComparison.Ordinal);
+    }
+
+    /// <summary>The same memory with no threshold saved raises nothing: processor and memory start unwatched.</summary>
+    [Fact]
+    public async Task The_same_memory_with_no_threshold_saved_raises_nothing()
+    {
+        await using var dbContext = MonitoringTestContext.Create();
+        var agent = new StubAgentMonitorClient
+        {
+            Metrics = Result<AgentHostMetrics>.Ok(
+                new AgentHostMetrics(5, 900, 1_000, 200, 50, 750, 1_000, 10, 20, 0.1, 0.2, 0.3, 1)),
+        };
+        using var scopes = new TestScopeFactory(
+            dbContext, agent, new StubAlertRecipientDirectory("ops@example.com"), new RecordingAuditWriter());
+        var sampler = Sampler(scopes, new FakeClock());
+
+        for (var round = 0; round < Monitoring.Domain.Entities.AlertState.BreachesBeforeAlert; round++)
+        {
+            Assert.True(await sampler.SampleOnceAsync(CancellationToken.None));
+        }
+
+        Assert.DoesNotContain(dbContext.AlertStates, state =>
+        {
+            return state.Kind == Monitoring.Domain.Enums.AlertKind.MemoryUsage;
+        });
+    }
+
     /// <summary>Builds the sampler over the container a test set up.</summary>
     /// <param name="scopes">The container each round opens a scope from.</param>
     /// <param name="clock">The clock every sample is stamped with.</param>

@@ -156,6 +156,7 @@ public sealed class MetricsSampler : BackgroundService
             quotaStatus,
             clockSync,
             codeIntegrityVerdict: null,
+            HostLoadOf(metrics.Value),
             observedAt,
             cancellationToken);
 
@@ -239,6 +240,24 @@ public sealed class MetricsSampler : BackgroundService
         }
 
         return UnwritableByAccounts(metrics) * 100.0 / metrics.DiskTotalBytes;
+    }
+
+    /// <summary>How busy the processor and the memory are, as the alert observer reads them (issue #142).</summary>
+    /// <param name="metrics">The reading the agent returned.</param>
+    /// <returns>The processor's utilisation and the memory's in-use percentage.</returns>
+    /// <remarks>
+    /// The agent's memory figure is the total minus the kernel's <c>MemAvailable</c> estimate and not
+    /// minus <c>MemFree</c> (<c>agent/crates/ops/src/monitor/model/memory_usage.rs</c>), so a host
+    /// whose page cache is full reads as the idle host it is. A total of zero is memory the agent
+    /// could not measure and reads as no percentage rather than as a full or an empty one.
+    /// </remarks>
+    private static HostLoadReading HostLoadOf(AgentHostMetrics metrics)
+    {
+        double? memoryUsedPercent = metrics.MemoryTotalBytes == 0
+            ? null
+            : metrics.MemoryUsedBytes * 100.0 / metrics.MemoryTotalBytes;
+
+        return new HostLoadReading(metrics.CpuPercent, memoryUsedPercent);
     }
 
     /// <summary>Samples on the interval until the host shuts down.</summary>

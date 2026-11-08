@@ -5,6 +5,7 @@ use maran_agent_core::utils::bound_exceeded::BoundExceeded;
 use maran_agent_core::validation::fs::path_error::PathError;
 
 use crate::safe_write::SafeWriteError;
+use crate::sites::model::site_options_error::SiteOptionsError;
 
 /// What can go wrong while creating, deleting, enabling or disabling a site.
 ///
@@ -134,6 +135,31 @@ pub enum SitesOpError {
         reason: String,
     },
 
+    /// The site's options cannot be rendered for this site.
+    ///
+    /// The caller's input being wrong, decided before the host is touched: a
+    /// canonical host the site does not serve, an upload size on a static site,
+    /// a cache rule on a reverse-proxied one. The service layer has already
+    /// refused every one of these on the wire; an operation checks again
+    /// (rules/rust.md "Validation first") so a caller that skipped the service
+    /// cannot render a vhost the options do not fit.
+    #[error("the site's options were refused: {0}")]
+    InvalidOptions(#[from] SiteOptionsError),
+
+    /// The credential file of a site's HTTP basic authentication, or the
+    /// directory it lives in, could not be created, written, listed or removed.
+    ///
+    /// Separate from [`SitesOpError::ConfigWrite`], which is the config-write
+    /// protocol's own refusal: this one is the work around it — making the
+    /// directory, resolving the web server's group, taking a file away. A site
+    /// that asks for basic authentication is never left serving without its
+    /// credential file: the vhost that names it is written after it.
+    #[error("failed to maintain the site's credential file: {reason}")]
+    AuthFile {
+        /// What went wrong, for an operator's log. Never holds a hash.
+        reason: String,
+    },
+
     /// The document root resolved outside the account's home.
     ///
     /// Reached when the path exists but a symlink on the way to it leaves the
@@ -185,6 +211,27 @@ pub enum SitesOpError {
         /// The path that could not be read.
         path: String,
     },
+
+    /// Another traffic summary is already being read by as many calls as the
+    /// host allows at once.
+    ///
+    /// A refusal and never a queue: the caller is the panel's hourly pass, which
+    /// asks again on its next turn, and a queued read would hold a thread of the
+    /// agent's blocking pool for as long as the busy ones take. Nothing was read.
+    #[error("too many traffic summaries are being read at once")]
+    TrafficBusy,
+}
+
+impl SitesOpError {
+    /// The refusal to read a log file, named after the file.
+    ///
+    /// One spelling shared by the tail and the traffic summary, so the same
+    /// refusal reads the same in an operator's log whichever of them met it.
+    pub(crate) fn unreadable_log(file_name: &std::ffi::OsStr) -> Self {
+        Self::LogUnreadable {
+            path: std::path::Path::new(file_name).display().to_string(),
+        }
+    }
 }
 
 impl From<SafeWriteError> for SitesOpError {

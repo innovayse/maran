@@ -11,6 +11,7 @@ use crate::sites::model::site_kind::SiteKind;
 use crate::sites::remove_site_pool::remove_site_pool;
 use crate::sites::render_vhost::render_vhost;
 use crate::sites::resolved_site_paths::resolved_site_paths;
+use crate::sites::sync_site_auth_file::sync_site_auth_file;
 use crate::sites::write_site_pool::write_site_pool;
 use crate::sites::write_vhost::write_vhost;
 use crate::sites::{SiteHost, SitesOpError};
@@ -112,6 +113,8 @@ pub fn update_site_php_version(
             ..input.clone()
         };
         let contents = render_vhost(&switched, &paths)?;
+        // The credential file the new vhost names, ahead of it.
+        sync_site_auth_file(host, distro, &switched)?;
 
         write_vhost(host, distro, &paths.config_path, &contents)?;
     }

@@ -11,7 +11,7 @@ import type { Backup } from '../../src/types/backup'
 import type { PanelModule } from '../../src/types/module'
 
 const LICENSED: PanelModule[] = [
-  { name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' },
+  { name: 'backups', displayName: 'Backups', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 const ALICE: Account = {
@@ -117,11 +117,11 @@ test('the confirmation field is never prefilled', async ({ page }) => {
 // A restore is replace-within-scope, not undo, and the panel takes no copy of the account as it
 // stands. Both sentences are the difference between an informed decision and a surprised one, and
 // both have been deleted from screens before for being long.
-test('the dialog says a restore is not an undo and that no copy is taken first', async ({ page }) => {
+test('the dialog says a restore is not an undo and that a backup of the account is taken first', async ({ page }) => {
   await openDialog(page)
 
   await expect(page.getByText('It is not an undo')).toBeVisible()
-  await expect(page.getByText('No copy is taken of the account as it stands now')).toBeVisible()
+  await expect(page.getByText('Before it replaces anything, the panel takes a backup of the account as it stands now')).toBeVisible()
   await expect(page.getByText('The point of no return is the first database that is dropped')).toBeVisible()
 })
 

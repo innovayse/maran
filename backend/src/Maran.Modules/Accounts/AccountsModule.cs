@@ -51,9 +51,17 @@ public sealed class AccountsModule : IPanelModule
             options.UseNpgsql(connectionString);
         });
 
+        // A singleton, because it holds no state: it opens its own scope per call, so the Host can run the
+        // module's migrations through the root provider (rules/architecture.md "The database evolves the same way").
+        services.AddSingleton<IModuleMigrations, AccountsModuleMigrations>();
+
         // Scoped, because it reads the request's own tenant-scoped DbContext: this module's answer to the
         // personal-data export, an allow-list of fields and never a secret.
         services.AddScoped<IPersonalDataProvider, AccountsPersonalDataProvider>();
+
+        // Scoped, because it reads the request's own tenant-scoped DbContext and ICurrentUser: this module's
+        // answer to the global search, accounts found by name, domain or owner e-mail.
+        services.AddScoped<ISearchProvider, AccountsSearchProvider>();
 
         // Scoped, because it reads the request's own ICurrentUser for the journal's actor.
         services.AddScoped<AccountAuditJournal>();
@@ -86,6 +94,18 @@ public sealed class AccountsModule : IPanelModule
         // edit and an account's plan change, so both measure and refuse the same way.
         services.AddScoped<AccountDiskQuotaEnforcer>();
         services.AddScoped<AccountRuntimeLimitsEnforcer>();
+
+        // Holds the inode, process and open-files ceilings a creator states for one account to its plan
+        // and to who is creating. Scoped, because it asks the request's own reseller scope.
+        services.AddScoped<AccountLimitOverrideResolver>();
+
+        // Puts a plan's disk quota and runtime ceilings on the host and puts the former ones back: the
+        // one sequence an account's plan change and its transfer to another owner both run.
+        services.AddScoped<AccountPlanHostSynchronizer>();
+
+        // Announces a committed plan change to the modules that render something from the plan (the
+        // PHP pools), logging a subscriber's failure instead of failing a change that already happened.
+        services.AddScoped<AccountPlanChangeAnnouncer>();
 
         // The one window other modules have onto this module's data (rules/architecture.md
         // "Cross-module needs go through Wolverine messages or Sdk abstractions"). Scoped, because

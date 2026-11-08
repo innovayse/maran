@@ -32,13 +32,21 @@ public static class BackupVerificationAgentErrorTranslator
     /// <summary>The agent client's code for an artifact the agent refused as corrupt, changed or inconsistent.</summary>
     private const string AgentValidationFailedCode = "AgentValidationFailed";
 
+    /// <summary>
+    /// The agent client's code for a sealed artifact that did not open under the destination's key, or
+    /// that was sent none (issue #445).
+    /// </summary>
+    private const string AgentArchiveUnopenableCode = "AgentArchiveUnopenable";
+
     /// <summary>The agent client's code for an artifact the agent could not find under the account.</summary>
     private const string AgentNotFoundCode = "AgentNotFound";
 
     /// <summary>Names the finding an agent refusal states about the artifact, if it states one.</summary>
     /// <param name="error">The agent client's typed failure for the verification.</param>
     /// <returns>
-    /// <c>BackupVerificationFailed</c> for a damaged artifact, <c>BackupVerificationArtifactMissing</c>
+    /// <c>BackupVerificationFailed</c> for a damaged artifact, <c>BackupVerificationArchiveKeyRejected</c>
+    /// for a sealed one that does not open with the destination's key (or was sent none: the stored
+    /// copy cannot be read either way), <c>BackupVerificationArtifactMissing</c>
     /// for one the agent could not find, and <c>null</c> for every refusal that is not about the
     /// artifact.
     /// </returns>
@@ -49,6 +57,11 @@ public static class BackupVerificationAgentErrorTranslator
         if (string.Equals(error.Code, AgentValidationFailedCode, StringComparison.Ordinal))
         {
             return nameof(ErrorMessages.BackupVerificationFailed);
+        }
+
+        if (string.Equals(error.Code, AgentArchiveUnopenableCode, StringComparison.Ordinal))
+        {
+            return nameof(ErrorMessages.BackupVerificationArchiveKeyRejected);
         }
 
         if (string.Equals(error.Code, AgentNotFoundCode, StringComparison.Ordinal))

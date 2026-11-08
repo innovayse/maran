@@ -102,6 +102,7 @@ public sealed class ScriptedVerificationAgentBackupClient : IAgentBackupClient
     /// <param name="destination">Where the artifact resides.</param>
     /// <param name="expectedSha256">The digest the panel recorded.</param>
     /// <param name="allowedDatabases">The databases the panel still knows the account owns.</param>
+    /// <param name="scope">What the restore replaces.</param>
     /// <param name="cancellationToken">Cancellation for the stream.</param>
     /// <returns>An empty stream, which no handler may read as a restore having happened.</returns>
     public async IAsyncEnumerable<BackupRestoreEvent> RestoreAsync(
@@ -110,6 +111,7 @@ public sealed class ScriptedVerificationAgentBackupClient : IAgentBackupClient
         AgentBackupDestination destination,
         string expectedSha256,
         IReadOnlyList<string> allowedDatabases,
+        AgentRestoreScope scope,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         await Task.CompletedTask;

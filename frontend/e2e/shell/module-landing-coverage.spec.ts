@@ -150,9 +150,9 @@ test('every module the backend composes has a sidebar destination that is not th
   await stubModules(page, [
     ...ids.map((name): PanelModule => {
       // A distinctive label per module, so a failure names the module rather than a position.
-      return { name, displayName: `Module ${name}`, tier: 'included', state: 'enabled' }
+      return { name, displayName: `Module ${name}`, kindDisplayName: 'Core', tier: 'included', state: 'enabled' }
     }),
-    { name: UNKNOWN_MODULE, displayName: `Module ${UNKNOWN_MODULE}`, tier: 'included', state: 'enabled' },
+    { name: UNKNOWN_MODULE, displayName: `Module ${UNKNOWN_MODULE}`, kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
   ])
 
   await page.goto('/')
@@ -221,6 +221,7 @@ test('the notifications module reaches the outgoing-mail screen from the Setting
       name: 'notifications',
       displayName: 'Уведомления',
       tierDisplayName: 'Входит в поставку',
+      kindDisplayName: 'Core',
       tier: 'included',
       state: 'enabled',
     },

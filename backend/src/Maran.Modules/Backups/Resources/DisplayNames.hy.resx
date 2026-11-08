@@ -159,7 +159,43 @@
   <data name="BackupFailureBackupVerificationFailed">
     <value>Արխիվը չի համապատասխանում իր գրառմանը</value>
   </data>
+  <data name="BackupFailureBackupVerificationArchiveKeyRejected">
+    <value>Արխիվը հնարավոր չէ բացել նրա պահոցի գաղտնագրման բանալիով</value>
+  </data>
   <data name="BackupFailureBackupVerificationArtifactMissing">
     <value>Արխիվը չի գտնվել</value>
+  </data>
+  <data name="BackupFailureAgentTooLarge">
+    <value>Ֆայլը կամ թղթապանակը չափազանց մեծ էր բացելու համար</value>
+  </data>
+  <data name="BackupFailureAgentQuotaExceeded">
+    <value>Հաշվի սկավառակի քվոտան սպառվել էր</value>
+  </data>
+  <data name="BackupFailureAgentArchiveUnsafe">
+    <value>Արխիվը պարունակում էր տարրեր, որոնք անվտանգ չէ բացել</value>
+  </data>
+  <data name="BackupFailureAgentArchiveUnopenable">
+    <value>Արխիվը հնարավոր չեղավ բացել նրա պահոցի գաղտնագրման բանալիով</value>
+  </data>
+  <data name="BackupsMenuList">
+    <value>Բոլոր պահուստները</value>
+  </data>
+  <data name="BackupsMenuSchedule">
+    <value>Ժամանակացույց</value>
+  </data>
+  <data name="BackupsMenuDestinations">
+    <value>Պահոցներ</value>
+  </data>
+  <data name="BackupsRouteList">
+    <value>Պահուստային պատճեններ</value>
+  </data>
+  <data name="BackupsRouteSchedule">
+    <value>Պահուստային պատճենների ժամանակացույց</value>
+  </data>
+  <data name="BackupsRouteMySchedule">
+    <value>Իմ պահուստային պատճենների ժամանակացույցը</value>
+  </data>
+  <data name="BackupsRouteDestinations">
+    <value>Պատճենների պահման վայրեր</value>
   </data>
 </root>

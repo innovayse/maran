@@ -24,6 +24,9 @@
   <data name="HostForbidden">
     <value>У вас нет доступа к этой странице.</value>
   </data>
+  <data name="HostPasswordChangeRequired">
+    <value>Прежде чем продолжить, необходимо задать новый пароль.</value>
+  </data>
   <data name="HostTwoFactorSetupRequired">
     <value>Сначала завершите настройку двухфакторной аутентификации.</value>
   </data>

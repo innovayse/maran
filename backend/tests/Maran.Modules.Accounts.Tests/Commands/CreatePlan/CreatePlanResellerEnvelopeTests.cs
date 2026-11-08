@@ -24,6 +24,8 @@ public sealed class CreatePlanResellerEnvelopeTests : IDisposable
         maxFtpUsers: 5,
         maxCronEntries: 5,
         maxPhpWorkersPerPool: 5,
+        maxMailboxes: 10,
+        mailboxQuotaPoolMib: 10_240,
         features: AccountFeature.Mail,
         runtimeLimits: RuntimeLimits.Of(
             ResourceLimit.Limited(100), ResourceLimit.Limited(512), ResourceLimit.Limited(50))));
@@ -121,6 +123,32 @@ public sealed class CreatePlanResellerEnvelopeTests : IDisposable
     public async Task A_worker_count_one_over_the_ceiling_is_refused_naming_it()
     {
         await AssertRefusedForAsync(OnTheCeilings() with { MaxPhpWorkersPerPool = 6 }, "maxPhpWorkersPerPool");
+    }
+
+    /// <summary>A mailbox count one over the ceiling is refused naming it.</summary>
+    [Fact]
+    public async Task A_mailbox_count_one_over_the_ceiling_is_refused_naming_it()
+    {
+        await AssertRefusedForAsync(
+            OnTheCeilings() with { MailLimits = new MailLimitsDto(11, 1_024, 100, 10_240) }, "maxMailboxes");
+    }
+
+    /// <summary>A mailbox quota pool one over the ceiling is refused naming it.</summary>
+    [Fact]
+    public async Task A_mailbox_quota_pool_one_over_the_ceiling_is_refused_naming_it()
+    {
+        await AssertRefusedForAsync(
+            OnTheCeilings() with { MailLimits = new MailLimitsDto(10, 1_024, 100, 10_241) }, "mailboxQuotaPoolMib");
+    }
+
+    /// <summary>A plan stating mail figures exactly on the ceilings is accepted.</summary>
+    [Fact]
+    public async Task A_plan_stating_mail_figures_exactly_on_the_ceilings_is_accepted()
+    {
+        var result = await _scenario.CreateAsReseller().HandleAsync(
+            OnTheCeilings() with { MailLimits = new MailLimitsDto(10, 1_024, 100, 10_240) }, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
     }
 
     /// <summary>A feature the reseller was not sold is refused naming the feature set.</summary>

@@ -9,6 +9,7 @@ use maran_distro::AdapterBinary;
 use crate::accounts::model::home_metadata::HomeMetadata;
 use crate::accounts::model::sysv_ipc_kind::SysvIpcKind;
 use crate::accounts::{AccountError, CommandOutcome};
+use crate::safe_write::model::{ConfigFile, Validator};
 
 /// The operating-system operations the account module needs.
 ///
@@ -142,4 +143,29 @@ pub trait SystemHost: Send + Sync {
     /// Returns the underlying error when the filesystem cannot be measured;
     /// the caller refuses the creation rather than assuming room.
     fn available_bytes(&self, directory: &Path) -> Result<u64, std::io::Error>;
+
+    /// Writes one account's `pam_limits` drop-in through the config-write
+    /// protocol, with no reload: `pam_limits` opens its configuration afresh at
+    /// every session, so the renamed file is live the moment it is in place
+    /// (issue #194).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AccountError::LimitsFileFailed`] when the file could not be
+    /// written, validated or flushed (the previous file is restored), and
+    /// [`AccountError::Bound`] when the validator outran its deadline.
+    fn write_limits_file(
+        &self,
+        file: &ConfigFile<'_>,
+        validator: &Validator<'_>,
+    ) -> Result<(), AccountError>;
+
+    /// Removes one account's `pam_limits` drop-in. A file that is not there is
+    /// success: removing converges, it does not report.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AccountError::LimitsFileFailed`] when the file exists and
+    /// could not be removed.
+    fn remove_limits_file(&self, path: &Path) -> Result<(), AccountError>;
 }

@@ -206,11 +206,18 @@ public sealed class InstallPhpVersionCommandHandlerTests
         RecordingTaskRecorder tasks,
         RecordingAuditWriter audit)
     {
+        var administrator = FakeCurrentUser.Admin();
+
         return new InstallPhpVersionCommandHandler(
             php,
             tasks,
             new StubCorrelationIdAccessor("correlation-1"),
-            new SiteAuditJournal(audit, FakeCurrentUser.Admin()));
+            new SiteAuditJournal(audit, administrator),
+            new PhpVersionListing(
+                SitesTestContext.Create(administrator),
+                new FakeClock(new DateTimeOffset(2026, 11, 7, 0, 0, 0, TimeSpan.Zero)),
+                administrator,
+                SitesTestContext.SiteNames()));
     }
 
     /// <summary>Builds the command for a version.</summary>

@@ -91,6 +91,8 @@ public static class ResellerMapper
             envelope.MaxFtpUsers,
             envelope.MaxCronEntries,
             envelope.MaxPhpWorkersPerPool,
+            envelope.MaxMailboxes,
+            envelope.MailboxQuotaPoolMib,
             envelope.Features.Members(),
             RuntimeLimitsMapper.ToDto(envelope.RuntimeLimits.CpuQuotaPercent),
             RuntimeLimitsMapper.ToDto(envelope.RuntimeLimits.MemoryMaxMb),
@@ -113,6 +115,8 @@ public static class ResellerMapper
             envelope.MaxFtpUsers,
             envelope.MaxCronEntries,
             envelope.MaxPhpWorkersPerPool,
+            envelope.MaxMailboxes,
+            envelope.MailboxQuotaPoolMib,
             envelope.Features.ToSet(),
             RuntimeLimits.Of(
                 RuntimeLimitsMapper.ToDomain(envelope.CpuQuotaPercent),

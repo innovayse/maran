@@ -27,7 +27,7 @@ const CUSTOMER: AuthenticatedUser = {
 }
 
 /** An address of a reseller's own detail and edit pages, which only an administrator may open. */
-const RESELLER_PAGES = [`/resellers/${ACME_HOSTING.id}`, `/resellers/${ACME_HOSTING.id}/edit`]
+const RESELLER_PAGES = [`/resellers/${ACME_HOSTING.id}`, `/resellers/${ACME_HOSTING.id}/edit`, `/resellers/${ACME_HOSTING.id}/api-keys`]
 
 /** Every screen only an administrator may open: the role guard sends anyone else away. */
 const ADMIN_ONLY_PATHS = [
@@ -44,9 +44,11 @@ const ADMIN_ONLY_PATHS = [
   '/servers/updates',
   '/settings/security-policy',
   '/settings/smtp',
+  '/settings/alerts',
   '/settings/php',
   '/settings/audit',
   '/settings/panel-certificate',
+  '/settings/panel-update',
 ]
 
 /**
@@ -65,11 +67,11 @@ const ADMIN_ENTRIES: RegExp[] = [
   /^Firewall/,
   /^Servers/,
   /^Monitoring/,
-  /^Audit journal/,
   /^PHP versions/,
   /^Grant repair/,
   /^Panel/,
   /^Outgoing mail/,
+  /^Alert settings/,
   /^Administrators and roles/,
   /^Modules and licence/,
 ]
@@ -143,6 +145,16 @@ test('a reseller Settings section, where it exists, offers only its own pages', 
   for (const entry of [/^Panel/, /^Outgoing mail/, /^Administrators and roles/, /^Modules and licence/]) {
     await expect(navigation.getByRole('link', { name: entry }), `${String(entry)} is offered to a reseller`).toHaveCount(0)
   }
+})
+
+test('a reseller is offered its own audit journal, under Activity and not under Monitoring', async ({ page }) => {
+  await stubResellerSession(page, ACME_HOSTING, ADMIN_MODULES)
+  await page.goto('/')
+
+  // A section with one page is drawn as that page under the section's name: "Activity" is the journal.
+  const navigation = mainNavigation(page)
+  await expect(navigation.getByRole('link', { name: 'Activity', exact: true })).toHaveAttribute('href', '/reseller/audit')
+  await expect(navigation.getByRole('link', { name: /^Monitoring/ })).toHaveCount(0)
 })
 
 test('an administrator is still offered the entries a reseller is not', async ({ page }) => {

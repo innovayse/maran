@@ -31,6 +31,9 @@ fn every_variant() -> Vec<BackupError> {
         BackupError::AlreadyRunning,
         BackupError::AlreadyExists,
         BackupError::BackupRootUnsafe { uid: 1000, mode: 0 },
+        BackupError::RestrictedLoadRefused {
+            reason: maran_ops::backup::DumpRefusal::ClientCommand,
+        },
         BackupError::BackupRootUnusable,
         BackupError::UnmintedArtifactName {
             name: "notes.tar.gz".to_owned(),
@@ -82,6 +85,12 @@ fn every_variant() -> Vec<BackupError> {
         BackupError::HomeParkedAt {
             path: "/var/lib/maran/restore/alice.previous".to_owned(),
         },
+        BackupError::DirectoryParkedAt {
+            path: "/home/.maran-restore/alice.previous.b1/previous".to_owned(),
+        },
+        BackupError::DirectoryUnusable,
+        BackupError::DatabaseNotInBackup,
+        BackupError::DirectoryNotInBackup,
         BackupError::DestinationInsecure,
         BackupError::ObjectNotFound,
         BackupError::ObjectStoreFailed {
@@ -95,6 +104,24 @@ fn every_variant() -> Vec<BackupError> {
         BackupError::ManifestTooLarge,
         BackupError::MemberNotRegularFile,
         BackupError::DumpMissing,
+        BackupError::EncryptionKeyRequired,
+        BackupError::ArtifactDecryptionFailed,
+        BackupError::ArtifactEncryptionFailed,
+        BackupError::PackageSigningKeyRejected,
+        BackupError::PackageSignatureInvalid,
+        BackupError::PackageFingerprintMismatch,
+        BackupError::PackageManifestMalformed,
+        BackupError::ImportAccountExists,
+        BackupError::ImportBackupIdTaken,
+        BackupError::ImportTooLarge {
+            declared: 2,
+            limit: 1,
+        },
+        BackupError::ImportLengthMismatch,
+        BackupError::ImportDigestMismatch,
+        BackupError::ImportInterrupted,
+        BackupError::SealedArtifactNotTransferable,
+        BackupError::ExportStopped,
     ]
 }
 
@@ -152,6 +179,29 @@ fn a_backup_that_is_not_there_is_not_found() {
     }
 }
 
+/// A single-database or single-directory restore asking for a part the archive
+/// does not hold is NOT_FOUND, and a parked directory or a refused walk is a
+/// system failure: the three are told apart because the first changed nothing and
+/// the others may have.
+#[test]
+fn a_part_the_archive_does_not_hold_is_not_found_and_a_failed_directory_swap_is_a_system_failure() {
+    for error in [
+        BackupError::DatabaseNotInBackup,
+        BackupError::DirectoryNotInBackup,
+    ] {
+        assert_eq!(code_of(&error), ErrorCode::NotFound as i32);
+    }
+
+    for error in [
+        BackupError::DirectoryUnusable,
+        BackupError::DirectoryParkedAt {
+            path: "/home/.maran-restore/alice.previous.b1/previous".to_owned(),
+        },
+    ] {
+        assert_eq!(code_of(&error), ErrorCode::SystemFailure as i32);
+    }
+}
+
 #[test]
 fn what_the_caller_asked_for_and_the_agent_will_not_act_on_is_invalid_input() {
     for error in [
@@ -162,6 +212,30 @@ fn what_the_caller_asked_for_and_the_agent_will_not_act_on_is_invalid_input() {
     ] {
         assert_eq!(code_of(&error), ErrorCode::InvalidInput as i32);
     }
+}
+
+#[test]
+fn a_sealed_archive_that_cannot_be_opened_with_the_key_is_archive_unopenable() {
+    // No key at all and a key it does not open under are one answer on the
+    // wire (issue #445): the panel's remedy is the same, to look at the
+    // destination's key. Neither is INVALID_INPUT (the request was well formed)
+    // or VALIDATION_FAILED (the plain artifact agrees with its record).
+    for error in [
+        BackupError::EncryptionKeyRequired,
+        BackupError::ArtifactDecryptionFailed,
+    ] {
+        assert_eq!(code_of(&error), ErrorCode::ArchiveUnopenable as i32);
+    }
+}
+
+#[test]
+fn the_archive_unopenable_message_does_not_claim_the_key_is_wrong() {
+    // A damaged sealed file fails exactly as a wrong key does, so the sentence
+    // may say what is known (it does not open with this key) and no more.
+    let message = to_agent_error(&BackupError::ArtifactDecryptionFailed).message;
+
+    assert!(!message.to_lowercase().contains("wrong"), "{message}");
+    assert!(message.contains("key"), "{message}");
 }
 
 #[test]
@@ -197,6 +271,9 @@ fn the_checks_that_refuse_before_anything_is_destroyed_are_validation_failed() {
             name: "notes.tar.gz".to_owned(),
         },
         BackupError::BackupRootUnsafe { uid: 1000, mode: 0 },
+        BackupError::RestrictedLoadRefused {
+            reason: maran_ops::backup::DumpRefusal::ClientCommand,
+        },
     ] {
         assert_eq!(code_of(&error), ErrorCode::ValidationFailed as i32);
     }
@@ -252,6 +329,7 @@ fn this_machine_failing_at_what_it_was_told_is_a_system_failure() {
         BackupError::ObjectStoreFailed {
             message: "the bucket refused".to_owned(),
         },
+        BackupError::ArtifactEncryptionFailed,
     ] {
         assert_eq!(code_of(&error), ErrorCode::SystemFailure as i32);
     }
@@ -343,4 +421,43 @@ fn the_bound_variant_is_mapped_by_name_ahead_of_the_wildcard() {
     // Positive control: the scan does find the wildcard it is measured against.
     let wildcard = wildcard.expect("the mapping ends in a wildcard arm");
     assert!(bound.expect("the bound variant has its own arm") < wildcard);
+}
+
+/// The refusals of a moved backup (issue #127) left the host as it was, so they are
+/// VALIDATION_FAILED; a signing key that is not one is a bad request; a package
+/// over the ceiling is TOO_LARGE; and a stream that broke or a consumer that left
+/// is a fault of the transfer, not a verdict on the package.
+#[test]
+fn the_refusals_of_a_moved_backup_are_told_apart_from_its_faults() {
+    for error in [
+        BackupError::PackageSignatureInvalid,
+        BackupError::PackageFingerprintMismatch,
+        BackupError::PackageManifestMalformed,
+        BackupError::ImportAccountExists,
+        BackupError::ImportBackupIdTaken,
+        BackupError::ImportLengthMismatch,
+        BackupError::ImportDigestMismatch,
+        BackupError::SealedArtifactNotTransferable,
+    ] {
+        assert_eq!(
+            code_of(&error),
+            ErrorCode::ValidationFailed as i32,
+            "{error}"
+        );
+    }
+
+    assert_eq!(
+        code_of(&BackupError::PackageSigningKeyRejected),
+        ErrorCode::InvalidInput as i32
+    );
+    assert_eq!(
+        code_of(&BackupError::ImportTooLarge {
+            declared: 2,
+            limit: 1
+        }),
+        ErrorCode::TooLarge as i32
+    );
+    for error in [BackupError::ImportInterrupted, BackupError::ExportStopped] {
+        assert_eq!(code_of(&error), ErrorCode::SystemFailure as i32, "{error}");
+    }
 }

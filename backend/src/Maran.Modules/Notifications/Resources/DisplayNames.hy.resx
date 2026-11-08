@@ -24,4 +24,10 @@
   <data name="SmtpSecurityImplicitTls">
     <value>Անուղղակի TLS (գաղտնագրված սկզբից)</value>
   </data>
+  <data name="NotificationsRouteSmtp">
+    <value>Ելքային փոստ</value>
+  </data>
+  <data name="NotificationsRouteAlerts">
+    <value>Ծանուցումների կարգավորումներ</value>
+  </data>
 </root>

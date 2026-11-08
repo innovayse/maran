@@ -57,6 +57,44 @@ public sealed class ProblemDetailsAuthorizationResultWriterTests
         Assert.Equal("HostTwoFactorSetupRequired", body.RootElement.GetProperty("code").GetString());
     }
 
+    /// <summary>An unreplaced first password gets its own code, in the request culture.</summary>
+    [Theory]
+    [InlineData("en", "You must choose a new password before you can continue.")]
+    [InlineData("ru", "Прежде чем продолжить, необходимо задать новый пароль.")]
+    [InlineData("hy", "Շարունակելուց առաջ պետք է ընտրեք նոր գաղտնաբառ։")]
+    public async Task An_unreplaced_first_password_gets_its_own_code_in_the_request_culture(string language, string expected)
+    {
+        using var body = await RefuseAsync(language, new PasswordChangeCompleteRequirement());
+
+        Assert.Equal("HostPasswordChangeRequired", body.RootElement.GetProperty("code").GetString());
+        Assert.Equal(403, body.RootElement.GetProperty("status").GetInt32());
+        Assert.Equal(expected, body.RootElement.GetProperty("title").GetString());
+    }
+
+    /// <summary>The password-change code wins over a role refusal on the same request.</summary>
+    [Fact]
+    public async Task The_password_change_code_wins_over_a_role_refusal()
+    {
+        using var body = await RefuseAsync(
+            "en",
+            new RolesAuthorizationRequirement(["Admin"]),
+            new PasswordChangeCompleteRequirement());
+
+        Assert.Equal("HostPasswordChangeRequired", body.RootElement.GetProperty("code").GetString());
+    }
+
+    /// <summary>The two-factor steering still ranks first when both gates are unmet.</summary>
+    [Fact]
+    public async Task The_two_factor_steering_ranks_before_the_password_change()
+    {
+        using var body = await RefuseAsync(
+            "en",
+            new PasswordChangeCompleteRequirement(),
+            new TwoFactorEnrolmentCompleteRequirement());
+
+        Assert.Equal("HostTwoFactorSetupRequired", body.RootElement.GetProperty("code").GetString());
+    }
+
     /// <summary>A view-as token refused by the allow-list gets its own code, in the request culture.</summary>
     [Theory]
     [InlineData("en", "This action is not available while you are viewing as this account.")]

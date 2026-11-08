@@ -28,7 +28,10 @@ namespace Maran.Modules.Identity.Services;
 /// leak is whether a 32-bit public index value exists, which names no secret (threat note, section 2).
 /// </para>
 /// <para>
-/// <b>No cache.</b> The row is read on every request, so a revocation takes effect on the next call.
+/// <b>No cache.</b> The row is read on every request, so a revocation takes effect on the next call. A
+/// key a reseller owns is additionally refused while its reseller has no login that may authenticate,
+/// judged after the digest comparison and for a matching key only, so it adds no difference between an
+/// unknown prefix and a known one.
 /// </para>
 /// <para>
 /// <b>Last use</b> is recorded only after a successful validation, so wrong keys cannot move a real
@@ -74,6 +77,17 @@ public sealed class ApiKeyAuthenticator : IApiKeyAuthenticator
             LogLevel.Information,
             new EventId(3, nameof(ApiKeyAuthenticator)),
             "API key {KeyId} refused: usable {Usable}, address allowed {AddressAllowed} (address {Address}).");
+
+    /// <summary>
+    /// Pre-compiled log delegate for a key a reseller owns whose owner has no login that may sign in
+    /// (suspended, not yet active, or gone); it carries the key id and the caller's address, never the
+    /// presented value.
+    /// </summary>
+    private static readonly Action<ILogger, Guid, string, Exception?> LogOwnerInactive =
+        LoggerMessage.Define<Guid, string>(
+            LogLevel.Information,
+            new EventId(5, nameof(ApiKeyAuthenticator)),
+            "API key {KeyId} refused: its reseller has no login that may authenticate (address {Address}).");
 
     /// <summary>
     /// Pre-compiled log delegate for a last-use stamp that could not be saved; the exception is attached
@@ -134,9 +148,33 @@ public sealed class ApiKeyAuthenticator : IApiKeyAuthenticator
             return ApiKeyDenied.Instance;
         }
 
+        if (key.ResellerId is { } resellerId && !await OwnerMayAuthenticateAsync(resellerId, cancellationToken))
+        {
+            LogOwnerInactive(_logger, key.Id, clientAddress, null);
+            return ApiKeyDenied.Instance;
+        }
+
         await RecordUseAsync(key, now, clientAddress, cancellationToken);
 
-        return new ApiKeyAuthenticated(key.Id, ApiKeyScopePolicy.EffectiveOf(key));
+        return new ApiKeyAuthenticated(key.Id, ApiKeyScopePolicy.EffectiveOf(key), key.ResellerId);
+    }
+
+    /// <summary>
+    /// Whether the reseller that owns a key still has a login that may authenticate. A key a reseller
+    /// owns lives only as long as that reseller does: suspending the reseller suspends its login, and a
+    /// reseller with no login (deleted, or never accepted its invitation) cannot have a working key. Read
+    /// on every call, with no cache, so a suspension takes effect on the next request.
+    /// </summary>
+    /// <param name="resellerId">The reseller that owns the key.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>True when the reseller's login exists and may sign in.</returns>
+    private async Task<bool> OwnerMayAuthenticateAsync(Guid resellerId, CancellationToken cancellationToken)
+    {
+        var login = await _dbContext.Users
+            .AsNoTracking()
+            .SingleOrDefaultAsync(candidate => candidate.ResellerId == resellerId, cancellationToken);
+
+        return login is { MayAuthenticate: true };
     }
 
     /// <summary>

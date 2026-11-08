@@ -16,6 +16,7 @@ export type AccountFeatureName =
   | 'databases'
   | 'cron'
   | 'fileTransfer'
+  | 'files'
   | 'backups'
   | 'sites'
   | 'ssl'

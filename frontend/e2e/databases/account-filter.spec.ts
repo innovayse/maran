@@ -14,7 +14,7 @@ import type { Database } from '../../src/types/database'
 // for that account's rows only, says so with a removable chip, and offers the way back; a customer's list is already
 // their own, so the parameter changes nothing for them.
 
-const LICENSED: PanelModule[] = [{ name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' }]
+const LICENSED: PanelModule[] = [{ name: 'databases', displayName: 'Databases', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }]
 
 const ALICE: Account = {
   id: '22222222-2222-2222-2222-222222222222',

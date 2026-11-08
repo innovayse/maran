@@ -100,7 +100,11 @@ public sealed class ReactivateAccountCommandHandler
         _displayNames = displayNames;
     }
 
-    /// <summary>Reactivates the account. Idempotent: reactivating an active account changes nothing.</summary>
+    /// <summary>
+    /// Reactivates the account. Not short-circuited on the current status: reactivating an already
+    /// active account runs the whole operation again (the module cascade, the agent unlock and its
+    /// attestation, the journal entry and a new task) and ends in the same state.
+    /// </summary>
     /// <remarks>
     /// <para>
     /// <b>What is restored, and what is only restored SELECTIVELY.</b> The account's own Linux login
@@ -210,7 +214,11 @@ public sealed class ReactivateAccountCommandHandler
 
         await _tasks.ReportAsync(taskId, 50, "unlocking the account's own login", cancellationToken);
 
-        var started = await _agent.UnsuspendAsync(account.Name, cancellationToken);
+        // The agent keeps no record of the shell an account was given and returns nologin on every
+        // unsuspension unless told otherwise, so the shell the account was created with is stated here:
+        // without it the first suspend and reactivate cycle would silently take the shell away.
+        var started = await _agent.UnsuspendAsync(
+            account.Name, AccountLoginShellMapper.ToAgent(account.ShellAccess), cancellationToken);
         if (!started.IsSuccess)
         {
             return await FailAsync(command, account.Name, started.Error!, taskId, cancellationToken);

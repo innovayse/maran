@@ -1,0 +1,18 @@
+server {
+    listen 80;
+    listen [::]:80;
+    server_name {% for name in names %}{% if !loop.first %} {% endif %}{{ name }}{% endfor %};
+
+    # The ACME challenge of a redirected name is answered here, not redirected.
+    location ^~ /.well-known/acme-challenge/ {
+        root {{ document_root }};
+        # A link is followed only when it and its target share an owner
+        # (see SiteBody).
+        disable_symlinks if_not_owner;
+        default_type "text/plain";
+    }
+
+{{ body }}
+}
+{% if ssl.is_some() %}{{ ssl.as_ref().unwrap().render_into_server()? }}
+{% endif %}

@@ -19,6 +19,36 @@ rotates it. A file sink you add there needs a policy of its own.
 
 Read the panel's log with `journalctl -u maran-api`, the agent's with `journalctl -u maran-agent`.
 
+## A site's log retention and its traffic summary
+
+Issue #152. Each site has two logs (`<domain>.access.log` and `<domain>.error.log`), rotated daily
+by `/etc/logrotate.d/maran-sites` with fourteen archives kept. That policy is the hard bound on what
+the host keeps, and it is unchanged.
+
+**Retention.** A customer can choose to keep fewer days for one site: 1 to 14, on the site's **Logs**
+tab (`PUT /api/v1/sites/{id}/log-retention`, body `{"days": 7}`). A new site keeps 14. The choice can
+only shorten what the host keeps, never lengthen it, so it cannot raise the disk the logs use; raising
+the ceiling means changing `rotate` in the installer file, with `SiteLogRetention.MaximumDays` following
+it (a unit test reads that file and fails when the two disagree). The panel saves the number and records
+"Site log retention changed" in the audit log; the archives beyond it are removed by the hourly pass, or
+at once by the message the change publishes. When files are removed the panel records "Old site logs
+removed" under its own name, with the site's domain. An hour that removes nothing writes nothing.
+
+**Traffic summary.** The site's **Traffic** tab shows requests, bandwidth, status codes and the most
+requested paths for the last 7, 30 or 90 days, per UTC day. The numbers are counted from the access
+log by the agent in a read-only pass each hour and stored in the panel's database (90 days are kept).
+Visitor addresses are never stored. What the figures are, and are not:
+
+- They are read from the live log and the newest rotation only (no archive is decompressed), from a
+  stored position, so a log line is counted once. A site that was never read starts with about two
+  days of history; earlier days are not backfilled.
+- When logrotate moved the log twice between two passes the lines in between are lost; the tab then
+  says the figures may be incomplete since that day.
+- The top paths of several days are the sum of each day's list (50 kept per day), so ranks beyond the
+  first few are approximate. Query strings are removed before a path is kept.
+- Only the access log is summarised, not the error log.
+- A customer's request for the summary reads the panel's database and never reaches the agent.
+
 ## Changing how much the panel writes, without a restart
 
 Monitoring → **Panel log level** shows the level the panel's logger is writing at right now and lets

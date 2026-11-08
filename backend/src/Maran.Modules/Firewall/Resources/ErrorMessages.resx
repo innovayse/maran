@@ -24,6 +24,9 @@
   <data name="RuleSourceCidrInvalid">
     <value>The source range must be written in CIDR notation, with no host bits beyond the prefix.</value>
   </data>
+  <data name="FirewallRuleLocksOutCaller">
+    <value>This rule would stop the address you are connected from reaching the SSH port of this server, and there is no way back in from outside once that port is closed to you. Open the SSH port to a range that includes your address (or to every source), or make this change from an address inside the range.</value>
+  </data>
   <data name="BanAddressInvalid">
     <value>This is not an address the firewall can ban.</value>
   </data>

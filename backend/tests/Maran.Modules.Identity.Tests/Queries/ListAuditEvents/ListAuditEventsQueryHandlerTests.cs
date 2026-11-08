@@ -205,7 +205,11 @@ public sealed class ListAuditEventsQueryHandlerTests : IDisposable
     /// <returns>The handler.</returns>
     private ListAuditEventsQueryHandler Handler()
     {
-        return new ListAuditEventsQueryHandler(new AuditEventQuery(_context), IdentityTestContext.ActionNames(), IdentityTestContext.OutcomeNames());
+        return new ListAuditEventsQueryHandler(
+            new AuditEventQuery(_context),
+            new AuditEventScopeReader(new StubCurrentUser(), new StubResellerDirectory()),
+            IdentityTestContext.ActionNames(),
+            IdentityTestContext.OutcomeNames());
     }
 
     /// <summary>Reads one page and answers the subjects on it, in order.</summary>

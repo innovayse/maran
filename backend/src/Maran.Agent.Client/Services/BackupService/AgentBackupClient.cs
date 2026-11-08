@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using Grpc.Net.Client;
+using Maran.Agent.Client.Channels;
 using Maran.Agent.Client.Errors;
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Resources;
@@ -57,11 +58,19 @@ public sealed class AgentBackupClient : IAgentBackupClient
         _logger = logger;
     }
 
-    /// <summary>Creates a client that calls the agent over <paramref name="channel"/>.</summary>
+    /// <summary>Creates a client whose every call goes to the server the current agent target selects.</summary>
+    /// <param name="channels">Hands out the channel of the server each call is aimed at.</param>
+    /// <param name="logger">Sink for the agent's diagnostic text.</param>
+    public AgentBackupClient(IAgentChannels channels, ILogger<AgentBackupClient> logger)
+        : this(new GrpcBackupServiceInvoker(channels), logger)
+    {
+    }
+
+    /// <summary>Creates a client over one fixed <paramref name="channel"/>, whatever the target.</summary>
     /// <param name="channel">A channel to the agent, e.g. from <see cref="Channels.AgentChannel.CreateUnixSocket"/>.</param>
     /// <param name="logger">Sink for the agent's diagnostic text.</param>
     public AgentBackupClient(GrpcChannel channel, ILogger<AgentBackupClient> logger)
-        : this(new GrpcBackupServiceInvoker(new V1.BackupService.BackupServiceClient(channel)), logger)
+        : this(new FixedAgentChannels(channel), logger)
     {
     }
 
@@ -79,7 +88,7 @@ public sealed class AgentBackupClient : IAgentBackupClient
     {
         return AgentStreamGuard.EndOnTransportFailureAsync(
             CreateEventsAsync(accountUsername, backupId, destination, cancellationToken),
-            exception =>
+            error =>
             {
                 return new BackupCreateEvent(
                     BackupCreateEventKind.Failed,
@@ -88,7 +97,7 @@ public sealed class AgentBackupClient : IAgentBackupClient
                     0,
                     string.Empty,
                     0,
-                    AgentTransportFailure.ToError(exception).Code);
+                    error.Code);
             },
             cancellationToken);
     }
@@ -109,7 +118,7 @@ public sealed class AgentBackupClient : IAgentBackupClient
         {
             AccountUsername = accountUsername,
             BackupId = backupId,
-            Destination = ToWireDestination(destination),
+            Destination = ToWireDestination(destination, includeArchiveKey: true),
         };
 
         await foreach (var response in _invoker.CreateBackupAsync(request, cancellationToken))
@@ -137,6 +146,22 @@ public sealed class AgentBackupClient : IAgentBackupClient
 
             if (response.ResultCase == CreateBackupResponse.ResultOneofCase.Ok)
             {
+                // The contract (backup.proto, CreateBackupOk.encrypted) obliges a caller that sent a key and
+                // reads "not sealed" to treat the creation as failed: that agent predates sealing and left a
+                // plain archive on disk where a sealed one was asked for. Never recorded as a completed backup.
+                if (destination is AgentLocalBackupDestination { ArchiveKey: not null } && !response.Ok.Encrypted)
+                {
+                    yield return new BackupCreateEvent(
+                        BackupCreateEventKind.Failed,
+                        0,
+                        string.Empty,
+                        0,
+                        string.Empty,
+                        0,
+                        nameof(ErrorMessages.AgentInvalidResponse));
+                    yield break;
+                }
+
                 yield return new BackupCreateEvent(
                     BackupCreateEventKind.Created,
                     100,
@@ -188,6 +213,7 @@ public sealed class AgentBackupClient : IAgentBackupClient
         AgentBackupDestination destination,
         string expectedSha256,
         IReadOnlyList<string> allowedDatabases,
+        AgentRestoreScope scope,
         CancellationToken cancellationToken)
     {
         return AgentStreamGuard.EndOnTransportFailureAsync(
@@ -197,15 +223,16 @@ public sealed class AgentBackupClient : IAgentBackupClient
                 destination,
                 expectedSha256,
                 allowedDatabases,
+                scope,
                 cancellationToken),
-            exception =>
+            error =>
             {
                 return new BackupRestoreEvent(
                     BackupRestoreEventKind.Failed,
                     0,
                     string.Empty,
                     null,
-                    AgentTransportFailure.ToError(exception));
+                    error);
             },
             cancellationToken);
     }
@@ -216,6 +243,7 @@ public sealed class AgentBackupClient : IAgentBackupClient
     /// <param name="destination">Where the artifact currently resides.</param>
     /// <param name="expectedSha256">The digest the panel recorded when the artifact was created.</param>
     /// <param name="allowedDatabases">Every database the panel still knows this account owns.</param>
+    /// <param name="scope">What the restore replaces.</param>
     /// <param name="cancellationToken">Cancellation for the stream.</param>
     /// <returns>Progress events followed by exactly one terminal event.</returns>
     private async IAsyncEnumerable<BackupRestoreEvent> RestoreEventsAsync(
@@ -224,14 +252,16 @@ public sealed class AgentBackupClient : IAgentBackupClient
         AgentBackupDestination destination,
         string expectedSha256,
         IReadOnlyList<string> allowedDatabases,
+        AgentRestoreScope scope,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var request = new RestoreBackupRequest
         {
             AccountUsername = accountUsername,
             BackupId = backupId,
-            Destination = ToWireDestination(destination),
+            Destination = ToWireDestination(destination, includeArchiveKey: true),
             ExpectedSha256 = expectedSha256,
+            Scope = ToWireScope(scope),
         };
         request.AllowedDatabases.AddRange(allowedDatabases);
 
@@ -333,7 +363,7 @@ public sealed class AgentBackupClient : IAgentBackupClient
         {
             AccountUsername = accountUsername,
             BackupId = backupId,
-            Destination = ToWireDestination(destination),
+            Destination = ToWireDestination(destination, includeArchiveKey: true),
         };
         var response = await _invoker.VerifyBackupAsync(request, cancellationToken);
 
@@ -366,7 +396,7 @@ public sealed class AgentBackupClient : IAgentBackupClient
         {
             AccountUsername = accountUsername,
             BackupId = backupId,
-            Destination = ToWireDestination(destination),
+            Destination = ToWireDestination(destination, includeArchiveKey: false),
         };
         var response = await _invoker.DeleteBackupAsync(request, cancellationToken);
 
@@ -384,7 +414,7 @@ public sealed class AgentBackupClient : IAgentBackupClient
         AgentBackupDestination destination,
         CancellationToken cancellationToken)
     {
-        var request = new ProbeDestinationRequest { Destination = ToWireDestination(destination) };
+        var request = new ProbeDestinationRequest { Destination = ToWireDestination(destination, includeArchiveKey: false) };
         var response = await _invoker.ProbeDestinationAsync(request, cancellationToken);
 
         return response.ResultCase switch
@@ -415,6 +445,10 @@ public sealed class AgentBackupClient : IAgentBackupClient
 
     /// <summary>Projects a panel destination onto the wire message, revealing the secrets it holds.</summary>
     /// <param name="destination">The destination the caller named.</param>
+    /// <param name="includeArchiveKey">
+    /// True for the three calls that seal or open an archive, the only ones that carry a local destination's
+    /// archive key; false for every other call, which the agent would ignore the key on.
+    /// </param>
     /// <returns>The wire message, which never leaves this project.</returns>
     /// <remarks>
     /// The two credentials are revealed here and nowhere else in this client, which is what makes
@@ -423,7 +457,7 @@ public sealed class AgentBackupClient : IAgentBackupClient
     /// refuses a local destination that names anything, and a branch that blanked a field would be a
     /// second place the shape of a local destination is decided.
     /// </remarks>
-    private static BackupDestination ToWireDestination(AgentBackupDestination destination)
+    private static BackupDestination ToWireDestination(AgentBackupDestination destination, bool includeArchiveKey)
     {
         if (destination is AgentS3BackupDestination s3)
         {
@@ -440,17 +474,56 @@ public sealed class AgentBackupClient : IAgentBackupClient
             };
         }
 
-        return new BackupDestination { Kind = BackupDestinationKind.Local };
+        var local = new BackupDestination { Kind = BackupDestinationKind.Local };
+
+        // Only the three calls that seal or open an archive carry the key; the agent reads it from no
+        // other (backup.proto), and a field it would ignore is a field a caller believes in.
+        if (includeArchiveKey && destination is AgentLocalBackupDestination { ArchiveKey: { } archiveKey })
+        {
+            local.ArchiveKey = archiveKey.Reveal();
+        }
+
+        return local;
+    }
+
+    /// <summary>Projects a panel restore scope onto the wire message.</summary>
+    /// <param name="scope">What the restore replaces.</param>
+    /// <returns>
+    /// <c>null</c> for the whole account, which is the absent message an agent from before scopes
+    /// existed reads the same way; otherwise a message carrying the one name the scope holds.
+    /// </returns>
+    /// <remarks>
+    /// An unknown case is refused rather than collapsed to the whole account: a scope this client was
+    /// never taught is a bug, and sending the widest restore for it would replace more than was asked.
+    /// </remarks>
+    private static RestoreScope? ToWireScope(AgentRestoreScope scope)
+    {
+        ArgumentNullException.ThrowIfNull(scope);
+
+        return scope switch
+        {
+            AgentWholeRestoreScope => null,
+            AgentDatabaseRestoreScope database => new RestoreScope { DatabaseName = database.DatabaseName },
+            AgentSiteRestoreScope site => new RestoreScope { SiteDomain = site.Domain },
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(scope), scope, "Unknown restore scope; the hierarchy is closed to three cases."),
+        };
     }
 
     /// <summary>Names the one secret a destination holds, so a translator can redact it from a quote.</summary>
     /// <param name="destination">The destination the caller named.</param>
     /// <returns>
-    /// The secret access key of an object store, or <c>null</c> for a local destination, which holds none.
+    /// The secret access key of an object store, the archive key of a local destination that carries
+    /// one, or <c>null</c> for a destination that holds neither.
     /// </returns>
     private static SensitiveString? SecretOf(AgentBackupDestination destination)
     {
-        return destination is AgentS3BackupDestination s3 ? s3.SecretAccessKey : null;
+        return destination switch
+        {
+            AgentS3BackupDestination s3 => s3.SecretAccessKey,
+            AgentLocalBackupDestination { ArchiveKey: { } archiveKey } => archiveKey,
+            _ => null,
+        };
     }
 
     /// <summary>Projects the wire listing onto the panel's summaries, refusing an entry the contract forbids.</summary>

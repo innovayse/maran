@@ -15,6 +15,7 @@ use tower::{Layer, Service, ServiceExt, service_fn};
 
 use crate::audit::audit_layer::AuditLayer;
 use crate::audit::audit_slot::AuditSlot;
+use crate::audit::disclosing_rpcs::DISCLOSING_RPCS;
 use crate::audit::line_capture::LineCapture;
 use crate::audit::mutating_rpcs::MUTATING_RPCS;
 use crate::audit::read_only_rpcs::READ_ONLY_RPCS;
@@ -128,6 +129,47 @@ async fn a_read_only_path_writes_nothing_and_gets_no_slot() {
 
     assert!(capture.audit_lines().is_empty());
     assert!(!had_slot.load(Ordering::SeqCst));
+}
+
+#[tokio::test]
+async fn a_disclosing_path_writes_one_line_with_the_account_and_no_path() {
+    let capture = LineCapture::start();
+    assert!(
+        !DISCLOSING_RPCS.is_empty(),
+        "positive control: the list has paths"
+    );
+    let path = DISCLOSING_RPCS[0];
+    let mut service = AuditLayer.layer(service_fn(|request: Request<()>| async move {
+        let audit = AuditSlot::of(request.extensions());
+        audit.account(&AccountName::parse("alice_01").unwrap());
+        audit.ok();
+        Ok::<_, Infallible>(Response::new(ScriptedBody::new([Step::Data("x")])))
+    }));
+
+    let response = service
+        .ready()
+        .await
+        .unwrap()
+        .call(request(path))
+        .await
+        .unwrap();
+    let mut body = response.into_body();
+    while body.frame().await.is_some() {}
+    drop(body);
+
+    let lines = capture.audit_lines();
+    assert_eq!(lines.len(), 1, "{lines:?}");
+    assert!(
+        lines[0].starts_with(&format!("event=rpc method={} ", &path[1..])),
+        "{}",
+        lines[0]
+    );
+    assert!(lines[0].contains(" outcome=ok "), "{}", lines[0]);
+    assert!(
+        lines[0].ends_with(" account=alice_01 site=-"),
+        "{}",
+        lines[0]
+    );
 }
 
 #[tokio::test]

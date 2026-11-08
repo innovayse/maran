@@ -30,6 +30,78 @@ public sealed class ResellerScopeTests
         Assert.Null(ScopeFor(FakeCurrentUser.Anonymous()).CallerResellerId);
     }
 
+    /// <summary>A key a reseller owns acts for that reseller, the same one the context's filter narrows it to.</summary>
+    [Fact]
+    public void A_key_a_reseller_owns_acts_for_that_reseller()
+    {
+        var resellerId = Guid.NewGuid();
+
+        var scope = ScopeFor(FakeCurrentUser.ApiKey(resellerId));
+
+        Assert.Equal(resellerId, scope.CallerResellerId);
+    }
+
+    /// <summary>The inverse control: a key the administrator owns acts for no reseller.</summary>
+    [Fact]
+    public void A_key_the_administrator_owns_acts_for_no_reseller()
+    {
+        Assert.Null(ScopeFor(FakeCurrentUser.ApiKey(null)).CallerResellerId);
+    }
+
+    /// <summary>A key naming another reseller as the owner of what it creates is answered as for a reseller that does not exist.</summary>
+    [Fact]
+    public void A_key_that_names_another_owner_is_told_the_reseller_is_not_found()
+    {
+        var result = ScopeFor(FakeCurrentUser.ApiKey(Guid.NewGuid())).ResolveOwner(Guid.NewGuid());
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("ResellerNotFound", result.Error!.Code);
+        Assert.Equal(ErrorType.NotFound, result.Error.Type);
+    }
+
+    /// <summary>A key that names no owner, or its own reseller, creates for the reseller that owns it.</summary>
+    [Fact]
+    public void A_key_creates_for_the_reseller_that_owns_it()
+    {
+        var resellerId = Guid.NewGuid();
+        var scope = ScopeFor(FakeCurrentUser.ApiKey(resellerId));
+
+        Assert.Equal(resellerId, scope.ResolveOwner(null).Value);
+        Assert.Equal(resellerId, scope.ResolveOwner(resellerId).Value);
+    }
+
+    /// <summary>The write floor refuses a key whose reseller has been suspended, as it does the reseller's login.</summary>
+    [Fact]
+    public async Task A_key_of_a_suspended_reseller_is_refused_with_a_conflict()
+    {
+        var reseller = ResellerTestData.Reseller();
+        reseller.Suspend();
+        var currentUser = FakeCurrentUser.ApiKey(reseller.Id);
+        await using var dbContext = AccountsTestContext.Create(currentUser);
+        dbContext.Resellers.Add(reseller);
+        await dbContext.SaveChangesAsync();
+        var scope = new ResellerScope(dbContext, currentUser);
+
+        var error = await scope.RequireActiveAsync(CancellationToken.None);
+
+        Assert.Equal("ResellerSuspended", error!.Code);
+        Assert.Equal(ErrorType.Conflict, error.Type);
+    }
+
+    /// <summary>The inverse control: a key of an active reseller may write.</summary>
+    [Fact]
+    public async Task A_key_of_an_active_reseller_may_write()
+    {
+        var reseller = ResellerTestData.Reseller();
+        var currentUser = FakeCurrentUser.ApiKey(reseller.Id);
+        await using var dbContext = AccountsTestContext.Create(currentUser);
+        dbContext.Resellers.Add(reseller);
+        await dbContext.SaveChangesAsync();
+        var scope = new ResellerScope(dbContext, currentUser);
+
+        Assert.Null(await scope.RequireActiveAsync(CancellationToken.None));
+    }
+
     /// <summary>A reseller always creates for itself when it names no owner.</summary>
     [Fact]
     public void A_reseller_that_names_no_owner_creates_for_itself()

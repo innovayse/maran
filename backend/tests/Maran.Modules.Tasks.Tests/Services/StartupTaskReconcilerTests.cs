@@ -34,6 +34,26 @@ public sealed class StartupTaskReconcilerTests
         Assert.Equal(Now, stored.FinishedAt);
     }
 
+    /// <summary>A panel-update task from before the restart survives it, while a task of any other kind is closed.</summary>
+    /// <remarks>
+    /// The update restarts the very process that would close the task, so closing it here would report
+    /// every successful update as "the panel restarted". The control in the same table is a task of
+    /// another kind from the same time, which must still be closed, so the exclusion is known to be
+    /// about the kind and not about the pass having stopped looking.
+    /// </remarks>
+    [Fact]
+    public async Task A_panel_update_task_from_before_the_restart_survives_it_while_any_other_kind_is_closed()
+    {
+        var update = TasksTestContext.Row(kind: "PanelUpdate", subject: "panel", startedAt: Now.AddMinutes(-5));
+        var other = TasksTestContext.Row(startedAt: Now.AddMinutes(-5));
+        using var world = new ReconcilerWorld([update, other]);
+
+        Assert.Equal(1, await world.Reconciler.ReconcileAsync(CancellationToken.None));
+
+        Assert.Equal(PanelTaskStatus.Running, (await world.ReadAsync(update.Id)).Status);
+        Assert.Equal(PanelTaskStatus.Failed, (await world.ReadAsync(other.Id)).Status);
+    }
+
     /// <summary>A task started by this process is never closed by the pass.</summary>
     /// <remarks>
     /// A hosted service starts alongside the web server, not strictly before it, so the first

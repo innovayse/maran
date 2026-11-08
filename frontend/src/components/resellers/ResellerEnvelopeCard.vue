@@ -94,6 +94,10 @@ const countText = (figure: number): string => {
       <UiDescriptionItem :term="t('resellers.form.fields.maxPhpWorkersPerPool')" mono>
         {{ envelope?.maxPhpWorkersPerPool }}
       </UiDescriptionItem>
+      <UiDescriptionItem :term="t('resellers.form.fields.maxMailboxes')" mono>{{ envelope?.maxMailboxes }}</UiDescriptionItem>
+      <UiDescriptionItem :term="t('resellers.form.fields.mailboxQuotaPoolMib')" mono>
+        {{ envelope === null ? '' : formatMegabytes(envelope.mailboxQuotaPoolMib) }}
+      </UiDescriptionItem>
       <UiDescriptionItem :term="t('resellers.form.fields.cpuQuotaPercent')" mono>
         {{ envelope === null ? '' : ceilingText(envelope.cpuQuotaPercent, percentText) }}
       </UiDescriptionItem>

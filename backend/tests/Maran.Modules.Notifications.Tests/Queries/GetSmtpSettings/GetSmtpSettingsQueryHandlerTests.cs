@@ -53,7 +53,6 @@ public sealed class GetSmtpSettingsQueryHandlerTests
         Assert.Equal(NotificationsTestContext.SecurityNames().Of(SmtpSecurity.StartTls), result.Value.SecurityName);
         Assert.Equal("panel", result.Value.Username);
         Assert.Equal("panel@example.com", result.Value.FromAddress);
-        Assert.Equal("ops@example.com", result.Value.AlertRecipient);
         Assert.Equal(Saved, result.Value.UpdatedAt);
     }
 
@@ -84,7 +83,7 @@ public sealed class GetSmtpSettingsQueryHandlerTests
         await using var dbContext = NotificationsTestContext.Create();
         dbContext.SmtpSettings.Add(new SmtpSettings(
             "127.0.0.1", 25, SmtpSecurity.None, string.Empty, string.Empty,
-            "panel@example.com", "Panel", "ops@example.com", Saved));
+            "panel@example.com", "Panel", Saved));
         await dbContext.SaveChangesAsync(CancellationToken.None);
 
         var handler = new GetSmtpSettingsQueryHandler(dbContext, NotificationsTestContext.SecurityNames());
@@ -106,7 +105,6 @@ public sealed class GetSmtpSettingsQueryHandlerTests
             "hunter2",
             "panel@example.com",
             "Panel",
-            "ops@example.com",
             Saved);
     }
 }

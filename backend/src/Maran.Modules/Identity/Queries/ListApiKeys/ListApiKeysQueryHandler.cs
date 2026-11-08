@@ -52,7 +52,10 @@ public sealed class ListApiKeysQueryHandler
         CancellationToken cancellationToken)
     {
         var now = _clock.UtcNow;
-        IQueryable<ApiKey> keys = _dbContext.ApiKeys.AsNoTracking();
+        // Only the asking owner's keys: the administrator's list (no owner) never holds a reseller's, and a
+        // reseller's never holds another's or the administrator's.
+        IQueryable<ApiKey> keys = _dbContext.ApiKeys.AsNoTracking()
+            .Where(key => key.ResellerId == query.OwnerResellerId);
 
         if (!query.Status.IsNone)
         {

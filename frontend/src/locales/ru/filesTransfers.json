@@ -1,0 +1,32 @@
+{
+  "filesTransfers": {
+    "queueLabel": "Очередь загрузки",
+    "queueHeading": "Загрузки",
+    "limitHint": "Файлы до {limit}",
+    "dropLabel": "Перетащите файлы сюда",
+    "pickLabel": "Выбрать файлы",
+    "state": {
+      "queued": "Ожидает",
+      "uploading": "Загружается",
+      "done": "Загружен",
+      "failed": "Ошибка",
+      "cancelled": "Отменён"
+    },
+    "uploadingLabel": "Загружается {name}",
+    "cancel": "Отмена",
+    "cancelLabel": "Отменить загрузку {name}",
+    "retry": "Повторить",
+    "retryLabel": "Повторить загрузку {name}",
+    "replace": "Заменить существующий файл",
+    "replaceLabel": "Заменить существующий {name} этим файлом",
+    "dismiss": "Убрать",
+    "dismissLabel": "Убрать {name} из списка",
+    "clearFinished": "Очистить завершённые",
+    "failedNoAnswer": "Загрузка не дошла до панели.",
+    "download": "Скачать",
+    "downloadFolder": "Скачать архивом",
+    "downloadLabel": "Скачать {name}",
+    "downloadFolderLabel": "Скачать папку {name} архивом",
+    "downloading": "Подготовка загрузки…"
+  }
+}

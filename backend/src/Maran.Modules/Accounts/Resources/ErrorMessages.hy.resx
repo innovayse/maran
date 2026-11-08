@@ -78,6 +78,9 @@
   <data name="PlanFeatureUnknown">
     <value>Սակագնային պլանի հնարավորությունը պետք է լինի վահանակում նշվածներից մեկը։</value>
   </data>
+  <data name="PlanMailLimitsInvalid">
+    <value>Սակագնային պլանում փոստարկղի լռելյայն քվոտան չպետք է գերազանցի այն ֆոնդը, որից վերցվում են փոստարկղերի քվոտաները։</value>
+  </data>
   <data name="ResellerNotFound">
     <value>Վերավաճառողը չի գտնվել։</value>
   </data>
@@ -116,5 +119,44 @@
   </data>
   <data name="ResellerEnvelopeInvalid">
     <value>Վերավաճառողի սահմանաչափերը վավեր չեն։ Յուրաքանչյուր արժեք պետք է լինի ոչ բացասական և չգերազանցի թույլատրելի առավելագույնը, իսկ ռեսուրսների սահմանաչափերը՝ դրական։</value>
+  </data>
+  <data name="BrandingDisplayNameInvalid">
+    <value>Անունը պետք է լինի առավելագույնը 40 նիշ և չպարունակի կառավարման նիշեր։</value>
+  </data>
+  <data name="BrandingAccentColorInvalid">
+    <value>Գույնը պետք է գրվի որպես # և վեց տասնվեցական թվանշան, օրինակ՝ #2468dc։</value>
+  </data>
+  <data name="BrandingAccentColorLowContrast">
+    <value>Այս գույնը չափազանց բաց է․ սպիտակ տեքստը դրա վրա դժվար է կարդալ։ Ընտրեք ավելի մուգ գույն։</value>
+  </data>
+  <data name="BrandingLogoInvalid">
+    <value>Լոգոն պետք է լինի PNG, JPEG կամ WebP պատկեր։</value>
+  </data>
+  <data name="BrandingLogoTooLarge">
+    <value>Լոգոն չափազանց մեծ է։ Օգտագործեք առավելագույնը 100 ԿԲ պատկեր։</value>
+  </data>
+  <data name="BrandingChangedConcurrently">
+    <value>Ձևավորումը հենց նոր պահպանվել է մեկ այլ հարցմամբ։ Թարմացրեք էջը և պահպանեք նորից։</value>
+  </data>
+  <data name="AccountOwnerUnchanged">
+    <value>Հաշիվն արդեն պատկանում է այս սեփականատիրոջը։ Նույն սեփականատիրոջ մեկ այլ սակագնին այն տեղափոխելու համար փոխեք հաշվի սակագինը։</value>
+  </data>
+  <data name="ResellerAllocationChanged">
+    <value>Վերավաճառողի ռեսուրսների բաշխումը փոխվեց հաշվի տեղափոխման ընթացքում։ Կրկնեք փորձը։</value>
+  </data>
+  <data name="AccountInitialPasswordInvalid">
+    <value>Ընտրեք, թե ինչպես է սեփականատերը մուտք գործելու․ ուղարկեք հրավեր կամ սահմանեք սկզբնական գաղտնաբառ և մուտքագրեք այն։</value>
+  </data>
+  <data name="AccountProcessLimitInvalid">
+    <value>Պրոցեսների սահմանաչափը պետք է լինի 1-ից 4194304 ամբողջ թիվ։ Դատարկ թողեք՝ սակագնի արժեքը կիրառելու համար։</value>
+  </data>
+  <data name="AccountInodeLimitInvalid">
+    <value>Inode-ների սահմանաչափը պետք է լինի 0-ից 4294967295 ամբողջ թիվ, որտեղ 0-ն նշանակում է առանց սահմանաչափի։ Դատարկ թողեք՝ սակագնի արժեքը կիրառելու համար։</value>
+  </data>
+  <data name="AccountOpenFilesLimitInvalid">
+    <value>Բաց ֆայլերի սահմանաչափը պետք է լինի 0-ից 1048576 ամբողջ թիվ, որտեղ 0-ն նշանակում է առանց սահմանաչափի։ Դատարկ թողեք՝ սակագնի արժեքը կիրառելու համար։</value>
+  </data>
+  <data name="AccountLimitAbovePlan">
+    <value>Այս սահմանաչափը գերազանցում է սակագնով թույլատրվածը։ Վերավաճառողը կարող է միայն իջեցնել սակագնի սահմանաչափերը։</value>
   </data>
 </root>

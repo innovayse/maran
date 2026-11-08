@@ -4,11 +4,13 @@ using Maran.Modules.Sites.Commands.DeleteSite;
 using Maran.Modules.Sites.Commands.DisableSite;
 using Maran.Modules.Sites.Commands.EnableSite;
 using Maran.Modules.Sites.Commands.InstallPhpVersion;
+using Maran.Modules.Sites.Commands.SetPhpExtension;
 using Maran.Modules.Sites.Common;
 using Maran.Modules.Sites.Queries.GetSite;
 using Maran.Modules.Sites.Queries.GetSiteChoices;
 using Maran.Modules.Sites.Queries.GetSiteLimits;
 using Maran.Modules.Sites.Queries.ListInstallablePhpVersions;
+using Maran.Modules.Sites.Queries.ListPhpExtensions;
 using Maran.Modules.Sites.Queries.ListPhpVersions;
 using Maran.Modules.Sites.Queries.ListSites;
 using Maran.Modules.Sites.Services;
@@ -301,6 +303,73 @@ public sealed class SitesController : BaseApiController
         command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
         return ToActionResult(
             await _bus.InvokeAsync<Result<IReadOnlyList<PhpVersionDto>>>(command, cancellationToken));
+    }
+
+    /// <summary>
+    /// Lists the catalogue PHP extensions of one installed version and whether each is loaded. A
+    /// customer sees name, label and state; an administrator also sees what this host can do with each.
+    /// </summary>
+    /// <remarks>
+    /// Host-level reference data like the version list beside it, open to anyone who may see the
+    /// versions, because choosing a version means knowing whether it has what their code needs. The
+    /// availability is left out of a customer's answer.
+    /// </remarks>
+    /// <param name="version">The installed PHP version, e.g. <c>8.3</c>.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpGet("php-versions/{version}/extensions")]
+    [ViewAsAccess(ViewAsAccess.Read)]
+    [ProducesResponseType(typeof(IReadOnlyList<PhpExtensionDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetPhpExtensionsAsync(string version, CancellationToken cancellationToken)
+    {
+        var query = new ListPhpExtensionsQuery(version);
+        return ToActionResult(await _bus.InvokeAsync<Result<IReadOnlyList<PhpExtensionDto>>>(query, cancellationToken));
+    }
+
+    /// <summary>
+    /// Switches one catalogue PHP extension on or off for one installed version, for every account
+    /// that uses it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Administrator only.</b> The attribute below is ADDED to the class-level policy, so a customer
+    /// who may manage their own sites cannot change what every site on a PHP version loads. The change
+    /// is host-wide: it ends in a php-fpm reload that reaches every account's pool of the version, and
+    /// switching one on may install a package. It is recorded as a task an administrator can watch.
+    /// </para>
+    /// <para>
+    /// It answers the version's extensions AFTER the attempt, read back from the agent, as installing a
+    /// version answers the versions the server has after it. The route's version and name are stamped
+    /// onto the command, so a body that carries either is ignored.
+    /// </para>
+    /// </remarks>
+    /// <param name="version">The installed PHP version, e.g. <c>8.3</c>.</param>
+    /// <param name="name">The catalogue name of the extension, e.g. <c>gd</c>.</param>
+    /// <param name="command">The state to put the extension in.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpPut("php-versions/{version}/extensions/{name}")]
+    [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
+    [ViewAsAccess(ViewAsAccess.Refused)]
+    [ProducesResponseType(typeof(IReadOnlyList<PhpExtensionDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> SetPhpExtensionAsync(
+        string version,
+        string name,
+        [FromBody] SetPhpExtensionCommand command,
+        CancellationToken cancellationToken)
+    {
+        command = command with
+        {
+            Version = version,
+            Extension = name,
+            IpAddress = ClientIpAddress,
+            UserAgent = CallerUserAgent,
+        };
+        return ToActionResult(
+            await _bus.InvokeAsync<Result<IReadOnlyList<PhpExtensionDto>>>(command, cancellationToken));
     }
 
     /// <summary>

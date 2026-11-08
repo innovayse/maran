@@ -8,14 +8,24 @@ namespace Maran.Agent.Client.Services.BackupService;
 /// <summary>Production <see cref="IBackupServiceInvoker"/> backed by the generated gRPC client.</summary>
 internal sealed class GrpcBackupServiceInvoker : IBackupServiceInvoker
 {
-    /// <summary>The generated gRPC client this adapter wraps.</summary>
-    private readonly Maran.Agent.V1.BackupService.BackupServiceClient _client;
+    /// <summary>Where the channel for the server the current call is aimed at comes from.</summary>
+    private readonly IAgentChannels _channels;
 
-    /// <summary>Wraps <paramref name="client"/> behind the <see cref="IBackupServiceInvoker"/> seam.</summary>
-    /// <param name="client">The generated client to delegate calls to.</param>
-    public GrpcBackupServiceInvoker(Maran.Agent.V1.BackupService.BackupServiceClient client)
+    /// <summary>Wraps <paramref name="channels"/> behind the <see cref="IBackupServiceInvoker"/> seam.</summary>
+    /// <param name="channels">Hands out the channel of the server each call is aimed at.</param>
+    public GrpcBackupServiceInvoker(IAgentChannels channels)
     {
-        _client = client;
+        _channels = channels;
+    }
+
+    /// <summary>
+    /// A generated client over the channel of the server the current call is aimed at, built per use.
+    /// Building it is cheap (it holds the channel and nothing else), and building it per call is what
+    /// lets one invoker serve every server: the target is read when the call starts, never earlier.
+    /// </summary>
+    private Maran.Agent.V1.BackupService.BackupServiceClient Client
+    {
+        get { return new Maran.Agent.V1.BackupService.BackupServiceClient(_channels.ForCurrent()); }
     }
 
     /// <inheritdoc/>
@@ -23,7 +33,7 @@ internal sealed class GrpcBackupServiceInvoker : IBackupServiceInvoker
         CreateBackupRequest request,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        using var call = _client.CreateBackup(request, cancellationToken: cancellationToken);
+        using var call = Client.CreateBackup(request, cancellationToken: cancellationToken);
 
         await foreach (var response in call.ResponseStream.ReadAllAsync(cancellationToken))
         {
@@ -36,7 +46,7 @@ internal sealed class GrpcBackupServiceInvoker : IBackupServiceInvoker
         RestoreBackupRequest request,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        using var call = _client.RestoreBackup(request, cancellationToken: cancellationToken);
+        using var call = Client.RestoreBackup(request, cancellationToken: cancellationToken);
 
         await foreach (var response in call.ResponseStream.ReadAllAsync(cancellationToken))
         {
@@ -49,7 +59,7 @@ internal sealed class GrpcBackupServiceInvoker : IBackupServiceInvoker
         ListBackupsRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.ListBackupsAsync(request, cancellationToken: cancellationToken);
+        return await Client.ListBackupsAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -57,7 +67,7 @@ internal sealed class GrpcBackupServiceInvoker : IBackupServiceInvoker
         VerifyBackupRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.VerifyBackupAsync(request, cancellationToken: cancellationToken);
+        return await Client.VerifyBackupAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -65,7 +75,7 @@ internal sealed class GrpcBackupServiceInvoker : IBackupServiceInvoker
         DeleteBackupRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.DeleteBackupAsync(request, cancellationToken: cancellationToken);
+        return await Client.DeleteBackupAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -73,6 +83,6 @@ internal sealed class GrpcBackupServiceInvoker : IBackupServiceInvoker
         ProbeDestinationRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.ProbeDestinationAsync(request, cancellationToken: cancellationToken);
+        return await Client.ProbeDestinationAsync(request, cancellationToken: cancellationToken);
     }
 }

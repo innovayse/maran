@@ -77,7 +77,7 @@ public sealed class SendTestMailCommandHandler
         if (sent.IsSuccess)
         {
             await _journal.RecordRequestAsync(
-                MailAuditActions.TestMailSent,
+                OutgoingMailAuditActions.TestMailSent,
                 command.Recipient,
                 command.IpAddress,
                 command.UserAgent,
@@ -88,8 +88,8 @@ public sealed class SendTestMailCommandHandler
         }
 
         var action = sent.Error!.Code == nameof(ErrorMessages.SmtpNotConfigured)
-            ? MailAuditActions.MailSkippedNoSmtp
-            : MailAuditActions.MailSendFailed;
+            ? OutgoingMailAuditActions.MailSkippedNoSmtp
+            : OutgoingMailAuditActions.MailSendFailed;
 
         // FAILED even when the action is `MailSkippedNoSmtp`, and the difference from the two
         // background senders is deliberate. There, nobody asked for mail: an alert had nowhere to

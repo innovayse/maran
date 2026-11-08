@@ -102,7 +102,6 @@ public sealed class SaveSmtpSettingsCommandHandlerTests
 
         Assert.NotNull(profile);
         Assert.Equal("smtp.example.com", profile!.Host);
-        Assert.Equal("ops@example.com", profile.AlertRecipient);
     }
 
     /// <summary>The audit entry names the mail server and never the credential.</summary>
@@ -122,7 +121,7 @@ public sealed class SaveSmtpSettingsCommandHandlerTests
         await handler.HandleAsync(Command(), CancellationToken.None);
 
         var entry = Assert.Single(audit.Entries);
-        Assert.Equal(MailAuditActions.SmtpSettingsSaved, entry.Action);
+        Assert.Equal(OutgoingMailAuditActions.SmtpSettingsSaved, entry.Action);
         Assert.Equal("smtp.example.com", entry.Subject);
 
         var serialized = System.Text.Json.JsonSerializer.Serialize(audit.Entries);
@@ -141,7 +140,6 @@ public sealed class SaveSmtpSettingsCommandHandlerTests
             "hunter2",
             "panel@example.com",
             "Maran Panel",
-            "ops@example.com",
             "203.0.113.7",
             "curl/8");
     }

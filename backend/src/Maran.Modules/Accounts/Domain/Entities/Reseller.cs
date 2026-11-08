@@ -99,7 +99,36 @@ public sealed class Reseller
         ContactEmail = string.Empty;
         Language = PanelLanguages.English;
         Envelope = ResellerEnvelope.Of(
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, AccountFeature.None, RuntimeLimits.Unlimited());
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, AccountFeature.None, RuntimeLimits.Unlimited());
+    }
+
+    /// <summary>
+    /// Gives the reseller a new name. The name is also its login name, so the caller has already
+    /// asked that the login follow it and that no account or reseller holds the name.
+    /// </summary>
+    /// <param name="name">The new, login-name-safe short name.</param>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="name"/> is empty or white space.</exception>
+    public void Rename(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        Name = name;
+    }
+
+    /// <summary>
+    /// Replaces where the reseller is reached and in which language: the address its login's mails go
+    /// to and the language of the mails written to it.
+    /// </summary>
+    /// <param name="contactEmail">The new contact address.</param>
+    /// <param name="language">The new language, one of <see cref="PanelLanguages.Supported"/>.</param>
+    /// <exception cref="ArgumentException">Thrown when a text argument is empty or white space.</exception>
+    public void UpdateContact(string contactEmail, string language)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(contactEmail);
+        ArgumentException.ThrowIfNullOrWhiteSpace(language);
+
+        ContactEmail = contactEmail;
+        Language = language;
     }
 
     /// <summary>

@@ -29,6 +29,10 @@
  * unlimited ceiling is sent as a case with no figure at all. A new plan starts with neither, so the administrator
  * decides; a changed ceiling is written to every account on the plan at once.
  *
+ * **PHP bounds** (issue #138) are four whole numbers (`PlanPhpLimitsField`): the most a customer may
+ * set for memory, upload size, execution time and input variables. Each must be at least 1; the
+ * agent's ceiling is the server's to enforce and its refusal is shown as it arrives.
+ *
  * **Features** (issue #316) are one checkbox per feature the panel lists (`PlanFeaturesField`); an
  * unticked box is a feature the plan leaves out, which hides it from its customers' menu and makes
  * the panel refuse their requests for it. The list is the panel's, so a new plan cannot be sent
@@ -57,15 +61,16 @@ import UiInput from '../ui/UiInput.vue'
 import UiSectionHeading from '../ui/UiSectionHeading.vue'
 import PlanCeilingField from './PlanCeilingField.vue'
 import PlanFeaturesField from './PlanFeaturesField.vue'
+import PlanPhpLimitsField from './PlanPhpLimitsField.vue'
 import { formatMegabytes } from '../../utils/formatBytes'
 import { usePlanCeilings, type PlanCeilingKey } from '../../composables/usePlanCeilings'
 import { usePlanFeatures } from '../../composables/usePlanFeatures'
 import type { LoadingState } from '../../types/loading'
-import type { ManagedPlan, PlanFeatureChoice, PlanRequest } from '../../types/plan'
+import type { ManagedPlan, PlanFeatureChoice, PlanPhpLimits, PlanRequest } from '../../types/plan'
 import type { ResellerEnvelope } from '../../types/reseller'
 
 /** The count and disk limits a plan states, by the name the request and the locale file both use. */
-type LimitKey = Exclude<keyof PlanRequest, 'name' | 'features' | PlanCeilingKey>
+type LimitKey = Exclude<keyof PlanRequest, 'name' | 'features' | 'phpLimits' | PlanCeilingKey>
 
 /** One limit's bounds, as the server's validator states them. */
 interface LimitField {
@@ -105,6 +110,14 @@ const ENVELOPE_CEILING: Readonly<Record<LimitKey, keyof ResellerEnvelope>> = {
   maxCronEntries: 'maxCronEntries',
   maxPhpWorkersPerPool: 'maxPhpWorkersPerPool',
 }
+
+/** The PHP bounds in the order the form draws them; each is a whole number of at least 1. */
+const PHP_LIMIT_KEYS: readonly (keyof PlanPhpLimits)[] = [
+  'memoryLimitMaxMb',
+  'uploadMaxMb',
+  'maxExecutionSeconds',
+  'maxInputVars',
+]
 
 /** A control character anywhere in a name (the server refuses them). */
 const CONTROL_CHARACTER = /\p{Cc}/u
@@ -164,6 +177,17 @@ const values: Ref<Record<LimitKey, string>> = ref({
   maxPhpWorkersPerPool: props.plan === null ? '' : String(props.plan.maxPhpWorkersPerPool),
 })
 
+/**
+ * Each PHP bound as typed text, starting from the plan's current figure. Empty for a new plan, for
+ * the reason the limits above are: a default is a domain value and comes from the backend.
+ */
+const phpValues: Ref<Record<keyof PlanPhpLimits, string>> = ref({
+  memoryLimitMaxMb: props.plan === null ? '' : String(props.plan.phpLimits.memoryLimitMaxMb),
+  uploadMaxMb: props.plan === null ? '' : String(props.plan.phpLimits.uploadMaxMb),
+  maxExecutionSeconds: props.plan === null ? '' : String(props.plan.phpLimits.maxExecutionSeconds),
+  maxInputVars: props.plan === null ? '' : String(props.plan.phpLimits.maxInputVars),
+})
+
 /** Whether a submit has been attempted, so nothing turns red before the administrator has tried. */
 const submitted: Ref<boolean> = ref(false)
 
@@ -203,6 +227,9 @@ const isValid: ComputedRef<boolean> = computed(() => {
       return limitError(field) === null
     }) &&
     runtime.isValid.value &&
+    PHP_LIMIT_KEYS.every((key) => {
+      return phpLimitError(key) === null
+    }) &&
     features.isReady.value
   )
 })
@@ -284,6 +311,36 @@ const limitError = (field: LimitField): string | null => {
 }
 
 /**
+ * Validates one PHP bound the way the server's validator does: a whole number of at least 1. The
+ * upper bound is the agent's ceiling, which only the server knows; its refusal says what it is.
+ * @param key Which bound.
+ * @returns The message to show, or `null` when the figure is acceptable (or nothing was tried yet).
+ */
+const phpLimitError = (key: keyof PlanPhpLimits): string | null => {
+  if (!submitted.value) {
+    return null
+  }
+  const figure = parseWhole(phpValues.value[key])
+  if (figure === null) {
+    return t('plans.form.errors.whole')
+  }
+  return figure < 1 ? t('plans.form.errors.atLeastOne') : null
+}
+
+/**
+ * The message of each PHP bound, in the shape the field draws.
+ * @returns One message, or `null`, per bound.
+ */
+const phpErrors = (): Record<keyof PlanPhpLimits, string | null> => {
+  return {
+    memoryLimitMaxMb: phpLimitError('memoryLimitMaxMb'),
+    uploadMaxMb: phpLimitError('uploadMaxMb'),
+    maxExecutionSeconds: phpLimitError('maxExecutionSeconds'),
+    maxInputVars: phpLimitError('maxInputVars'),
+  }
+}
+
+/**
  * Validates, and emits only when the request is one the server has a chance of accepting.
  * @returns Nothing; emits synchronously when the form is valid.
  */
@@ -302,6 +359,12 @@ const submit = (): void => {
     maxCronEntries: figureOf('maxCronEntries'),
     maxPhpWorkersPerPool: figureOf('maxPhpWorkersPerPool'),
     ...runtime.toRequest(),
+    phpLimits: {
+      memoryLimitMaxMb: parseWhole(phpValues.value.memoryLimitMaxMb) ?? 0,
+      uploadMaxMb: parseWhole(phpValues.value.uploadMaxMb) ?? 0,
+      maxExecutionSeconds: parseWhole(phpValues.value.maxExecutionSeconds) ?? 0,
+      maxInputVars: parseWhole(phpValues.value.maxInputVars) ?? 0,
+    },
     features: features.selected.value,
   })
 }
@@ -327,6 +390,7 @@ const cancel = (): void => {
         <p class="mt-1">{{ t('plans.form.reach.disk') }}</p>
         <p class="mt-1">{{ t('plans.form.reach.counts') }}</p>
         <p class="mt-1">{{ t('plans.form.reach.runtime') }}</p>
+        <p class="mt-1">{{ t('plans.form.reach.php') }}</p>
       </template>
       <p v-else class="mt-1">{{ t('plans.form.reach.none') }}</p>
     </UiAlert>
@@ -392,6 +456,19 @@ const cancel = (): void => {
             :hint="envelopeCeilingHintOf(field.key)"
           />
         </div>
+
+        <UiSectionHeading
+          class="mt-6 mb-4"
+          :title="t('plans.form.phpSection')"
+          :subtitle="t('plans.form.phpHint')"
+        />
+        <PlanPhpLimitsField
+          v-model:memory-limit-max-mb="phpValues.memoryLimitMaxMb"
+          v-model:upload-max-mb="phpValues.uploadMaxMb"
+          v-model:max-execution-seconds="phpValues.maxExecutionSeconds"
+          v-model:max-input-vars="phpValues.maxInputVars"
+          :errors="phpErrors()"
+        />
 
         <UiSectionHeading
           class="mt-6 mb-4"

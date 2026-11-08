@@ -60,6 +60,8 @@ struct State {
     start_status: Mutex<i32>,
     /// The stderr `start` answers with.
     start_stderr: Mutex<String>,
+    /// The files an install wrote, by path: the OPcache drop-in is the one it ends with.
+    written: Mutex<Vec<(std::path::PathBuf, String)>>,
     /// Whether a successful `start` leaves the version's pool directory behind,
     /// as the install unit's package manager does.
     start_installs: Mutex<Option<String>>,
@@ -84,6 +86,7 @@ impl FakeHost {
             directories: Mutex::new(Vec::new()),
             start_status: Mutex::new(0),
             start_stderr: Mutex::new(String::new()),
+            written: Mutex::new(Vec::new()),
             start_installs: Mutex::new(None),
             start_times_out: Mutex::new(false),
         });
@@ -183,8 +186,14 @@ impl PhpHost for FakeHost {
             .any(|directory| Path::new(directory) == path)
     }
 
-    fn read_config(&self, _path: &Path) -> Option<String> {
-        None
+    fn read_config(&self, path: &Path) -> Option<String> {
+        self.state
+            .written
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|(target, _)| target == path)
+            .map(|(_, contents)| contents.clone())
     }
 
     fn create_directory(&self, _path: &Path, _mode: u32) -> Result<(), PhpOpError> {
@@ -206,14 +215,22 @@ impl PhpHost for FakeHost {
 
     fn write_config(
         &self,
-        _target: &Path,
-        _contents: &str,
+        target: &Path,
+        contents: &str,
         _validator: &Validator<'_>,
         _reload: &Reload<'_>,
     ) -> Result<(), PhpOpError> {
-        Err(PhpOpError::ConfigWrite {
-            reason: "an install writes no file".to_owned(),
-        })
+        if !target.ends_with("99-maran-opcache.ini") {
+            return Err(PhpOpError::ConfigWrite {
+                reason: "an install writes no file but the OPcache drop-in".to_owned(),
+            });
+        }
+        self.state
+            .written
+            .lock()
+            .unwrap()
+            .push((target.to_path_buf(), contents.to_owned()));
+        Ok(())
     }
 
     fn remove_config(

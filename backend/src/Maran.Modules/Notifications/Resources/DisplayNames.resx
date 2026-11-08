@@ -24,4 +24,10 @@
   <data name="SmtpSecurityImplicitTls">
     <value>Implicit TLS (encrypted from the start)</value>
   </data>
+  <data name="NotificationsRouteSmtp">
+    <value>Outgoing mail</value>
+  </data>
+  <data name="NotificationsRouteAlerts">
+    <value>Alert settings</value>
+  </data>
 </root>

@@ -1,0 +1,53 @@
+{
+  "liveDashboard": {
+    "chart": {
+      "legend": "Lines shown",
+      "tableCaption": "{label}: the latest {count} readings",
+      "openAt": "Open {time} in monitoring"
+    },
+    "cpu": {
+      "title": "Processor",
+      "load": "Load {one} · {five} · {fifteen}"
+    },
+    "memory": {
+      "title": "Memory"
+    },
+    "disk": {
+      "title": "Disk",
+      "sizeOnly": "{total} in size"
+    },
+    "network": {
+      "title": "Network",
+      "received": "Received",
+      "sent": "Sent",
+      "figure": "Received {received} · sent {sent}"
+    },
+    "status": {
+      "live": "Live",
+      "connecting": "Connecting",
+      "reconnecting": "Reconnecting",
+      "paused": "Paused",
+      "stopped": "Not live"
+    },
+    "customize": {
+      "open": "Customize",
+      "title": "Customize the dashboard",
+      "widgets": "Widgets",
+      "actions": "Shortcuts",
+      "moveUp": "Move {name} up",
+      "moveDown": "Move {name} down",
+      "save": "Save"
+    },
+    "widgets": {
+      "attention": "Needs attention",
+      "firstRun": "Get this server ready",
+      "cpu": "Processor",
+      "memory": "Memory",
+      "disk": "Disk",
+      "network": "Network",
+      "services": "Services",
+      "totals": "On this server",
+      "activity": "Latest activity"
+    }
+  }
+}

@@ -1,3 +1,5 @@
+using Maran.Modules.Backups.Domain.Entities;
+using Maran.Modules.Backups.Domain.ValueObjects;
 using Maran.Modules.Backups.Tests.TestSupport;
 using Microsoft.EntityFrameworkCore;
 
@@ -110,5 +112,165 @@ public sealed class BackupsDbContextTenantFilterTests
         await using var reading = BackupsTestContext.Create(FakeCurrentUser.Admin(), database);
 
         Assert.Equal(2, await reading.Backups.CountAsync());
+    }
+
+    /// <summary>A caller with no account does not see the host-wide schedule (issue #438).</summary>
+    /// <remarks>
+    /// The refusing half, and the one the defect lived in: the host-wide row has a null
+    /// <c>AccountId</c>, and a filter comparing it to a null tenant matches it. Its inverse controls
+    /// are <see cref="An_administrator_sees_the_host_wide_schedule_and_every_accounts_own"/> and
+    /// <see cref="A_customer_sees_only_their_own_schedule"/>: a filter mutated to hide everything
+    /// would satisfy this test alone, and the seeding audit below proves the row is there to be hidden.
+    /// </remarks>
+    [Fact]
+    public async Task A_caller_with_no_account_does_not_see_the_host_wide_schedule()
+    {
+        var database = Guid.NewGuid().ToString();
+
+        await using (var seeding = BackupsTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            seeding.BackupSchedules.Add(NewSchedule(null));
+            seeding.BackupSchedules.Add(NewSchedule(Guid.NewGuid()));
+            await seeding.SaveChangesAsync();
+        }
+
+        await using (var auditing = BackupsTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            Assert.Equal(1, await auditing.BackupSchedules.CountAsync(row => row.AccountId == null));
+        }
+
+        var accountless = new FakeCurrentUser(Guid.NewGuid(), null, isAdmin: false);
+
+        await using var accountlessReading = BackupsTestContext.Create(accountless, database);
+        Assert.Empty(await accountlessReading.BackupSchedules.ToListAsync());
+
+        await using var resellerReading = BackupsTestContext.Create(
+            FakeCurrentUser.Reseller(Guid.NewGuid()),
+            database);
+        Assert.Empty(await resellerReading.BackupSchedules.ToListAsync());
+    }
+
+    /// <summary>A customer sees only their own schedule, never the host-wide one nor another account's.</summary>
+    [Fact]
+    public async Task A_customer_sees_only_their_own_schedule()
+    {
+        var mine = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        var mySchedule = NewSchedule(mine);
+
+        await using (var seeding = BackupsTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            seeding.BackupSchedules.Add(NewSchedule(null));
+            seeding.BackupSchedules.Add(mySchedule);
+            seeding.BackupSchedules.Add(NewSchedule(Guid.NewGuid()));
+            await seeding.SaveChangesAsync();
+        }
+
+        await using var reading = BackupsTestContext.Create(FakeCurrentUser.Customer(mine), database);
+
+        var visible = await reading.BackupSchedules.ToListAsync();
+
+        Assert.Equal([mySchedule.Id], visible.Select(row =>
+        {
+            return row.Id;
+        }));
+    }
+
+    /// <summary>An administrator sees the host-wide schedule and every account's own.</summary>
+    [Fact]
+    public async Task An_administrator_sees_the_host_wide_schedule_and_every_accounts_own()
+    {
+        var database = Guid.NewGuid().ToString();
+
+        await using (var seeding = BackupsTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            seeding.BackupSchedules.Add(NewSchedule(null));
+            seeding.BackupSchedules.Add(NewSchedule(Guid.NewGuid()));
+            await seeding.SaveChangesAsync();
+        }
+
+        await using var reading = BackupsTestContext.Create(FakeCurrentUser.Admin(), database);
+
+        Assert.Equal(2, await reading.BackupSchedules.CountAsync());
+        Assert.Equal(1, await reading.BackupSchedules.CountAsync(row => row.AccountId == null));
+    }
+
+    /// <summary>Builds a daily schedule for an account, or the host-wide one when none is named.</summary>
+    /// <param name="accountId">The account, or <c>null</c> for the host-wide policy.</param>
+    /// <returns>A new schedule row.</returns>
+    private static BackupSchedule NewSchedule(Guid? accountId)
+    {
+        return new BackupSchedule(Guid.NewGuid(), accountId, null, new DailyBackupCadence(3), 7);
+    }
+
+    /// <summary>A customer sees only their own account's opt-out row, never another's.</summary>
+    /// <remarks>
+    /// The IDOR test for the entity: the other account's row is hidden (not found, so any handler would
+    /// answer 404), and the inverse control hands the same row to its owner.
+    /// </remarks>
+    [Fact]
+    public async Task A_customer_sees_only_their_own_opt_out_row()
+    {
+        var mine = Guid.NewGuid();
+        var theirs = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+
+        await using (var seeding = BackupsTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            seeding.AccountBackupOptOuts.Add(new AccountBackupOptOut(mine, BackupsTestContext.SeedInstant));
+            seeding.AccountBackupOptOuts.Add(new AccountBackupOptOut(theirs, BackupsTestContext.SeedInstant));
+            await seeding.SaveChangesAsync();
+        }
+
+        // The vacuity guard: both rows exist for an administrator, so the narrowing below is the filter.
+        await using (var auditing = BackupsTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            Assert.Equal(2, await auditing.AccountBackupOptOuts.CountAsync());
+        }
+
+        await using var reading = BackupsTestContext.Create(FakeCurrentUser.Customer(mine), database);
+        var visible = await reading.AccountBackupOptOuts.ToListAsync();
+
+        Assert.Equal([mine], visible.Select(row => { return row.AccountId; }));
+        Assert.Null(await reading.AccountBackupOptOuts.FirstOrDefaultAsync(row => row.AccountId == theirs));
+    }
+
+    /// <summary>A caller with no account, and a reseller, see no opt-out row at all.</summary>
+    [Fact]
+    public async Task A_caller_with_no_account_sees_no_opt_out_row()
+    {
+        var database = Guid.NewGuid().ToString();
+
+        await using (var seeding = BackupsTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            seeding.AccountBackupOptOuts.Add(new AccountBackupOptOut(Guid.NewGuid(), BackupsTestContext.SeedInstant));
+            await seeding.SaveChangesAsync();
+        }
+
+        var accountless = new FakeCurrentUser(Guid.NewGuid(), null, isAdmin: false);
+
+        await using var accountlessReading = BackupsTestContext.Create(accountless, database);
+        Assert.Empty(await accountlessReading.AccountBackupOptOuts.ToListAsync());
+
+        await using var resellerReading = BackupsTestContext.Create(FakeCurrentUser.Reseller(Guid.NewGuid()), database);
+        Assert.Empty(await resellerReading.AccountBackupOptOuts.ToListAsync());
+    }
+
+    /// <summary>An administrator sees every account's opt-out row.</summary>
+    [Fact]
+    public async Task An_administrator_sees_every_opt_out_row()
+    {
+        var database = Guid.NewGuid().ToString();
+
+        await using (var seeding = BackupsTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            seeding.AccountBackupOptOuts.Add(new AccountBackupOptOut(Guid.NewGuid(), BackupsTestContext.SeedInstant));
+            seeding.AccountBackupOptOuts.Add(new AccountBackupOptOut(Guid.NewGuid(), BackupsTestContext.SeedInstant));
+            await seeding.SaveChangesAsync();
+        }
+
+        await using var reading = BackupsTestContext.Create(FakeCurrentUser.Admin(), database);
+
+        Assert.Equal(2, await reading.AccountBackupOptOuts.CountAsync());
     }
 }

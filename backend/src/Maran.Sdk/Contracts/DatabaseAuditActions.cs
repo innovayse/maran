@@ -26,6 +26,33 @@ public static class DatabaseAuditActions
     public const string DatabasePasswordReset = "DatabasePasswordReset";
 
     /// <summary>
+    /// An extra database user was created for an account. The entry names the user, never the password
+    /// that was minted for it.
+    /// </summary>
+    public const string DatabaseUserCreated = "DatabaseUserCreated";
+
+    /// <summary>
+    /// An extra database user was dropped, and every privilege it held with it. A database's dedicated
+    /// user is dropped with its database and is recorded as <see cref="DatabaseDropped"/>, not here.
+    /// </summary>
+    public const string DatabaseUserDropped = "DatabaseUserDropped";
+
+    /// <summary>
+    /// A database user was given a new password through the users screen. The entry names the user,
+    /// never the value, for the reason <see cref="DatabasePasswordReset"/> gives.
+    /// </summary>
+    public const string DatabaseUserPasswordReset = "DatabaseUserPasswordReset";
+
+    /// <summary>
+    /// The set of privileges a database user holds on one database was replaced. Recorded because it
+    /// is the change that widens or narrows what a credential can read and write, so a customer whose
+    /// application started failing, or an operator asking who widened a login, finds it here. The
+    /// subject names the user and the database; the privileges themselves are not copied into the
+    /// journal, which is never deleted.
+    /// </summary>
+    public const string DatabasePrivilegesChanged = "DatabasePrivilegesChanged";
+
+    /// <summary>
     /// The database server's grant table was rewritten so that every pattern this panel had issued
     /// names one database again. Recorded on the refusals as well as on the repairs, and the reason
     /// each is worth a line differs.

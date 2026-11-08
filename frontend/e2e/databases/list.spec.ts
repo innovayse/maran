@@ -14,12 +14,12 @@ import type { PanelModule } from '../../src/types/module'
 // the SPA filters nothing.
 
 const LICENSED: PanelModule[] = [
-  { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
-  { name: 'sftp', displayName: 'File transfer', tier: 'included', state: 'enabled' },
+  { name: 'databases', displayName: 'Databases', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'sftp', displayName: 'File transfer', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
   // A module the navigation tree does not name, so the sidebar draws it in the fallback group with
   // the neutral glyph. A control has to be a module this bundle really does not draw, or the
   // comparison compares two chosen glyphs and passes for the wrong reason.
-  { name: 'reports', displayName: 'Reports', tier: 'included', state: 'enabled' },
+  { name: 'reports', displayName: 'Reports', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 const ALICE: Account = {

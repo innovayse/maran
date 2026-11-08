@@ -1,4 +1,5 @@
 using Maran.Modules.Accounts.Domain.Entities;
+using Maran.Modules.Accounts.Domain.ValueObjects;
 using Maran.Modules.Accounts.Persistence;
 
 namespace Maran.Modules.Accounts.Seeders;
@@ -22,6 +23,23 @@ namespace Maran.Modules.Accounts.Seeders;
 /// <item><b>Unlimited</b> — 1&#160;048&#160;576&#160;MB (1&#160;TB) disk, 500 sites, 500 databases,
 /// 100 SFTP logins, 100 FTPS logins, 200 cron entries. High enough that no real customer hits it in
 /// practice, without pretending the server has infinite resources.</item>
+/// </list>
+///
+/// The PHP bounds of the tiers (issue #138, owner decision O2) climb with the tier, as the worker figures do:
+/// <list type="bullet">
+/// <item><b>Starter</b> — 128&#160;MiB memory, 32&#160;MiB uploads, 60&#160;s, 1&#160;000 input variables.</item>
+/// <item><b>Business</b> — 256&#160;MiB, 64&#160;MiB, 120&#160;s, 3&#160;000: <see cref="PhpLimits.Default"/>.</item>
+/// <item><b>Unlimited</b> — 512&#160;MiB, 128&#160;MiB, 300&#160;s, 10&#160;000: the agent's own ceilings for
+/// memory, execution time and input variables, which no plan may exceed.</item>
+/// </list>
+/// They are written only when a fresh panel is seeded, so a plan an operator edited keeps its bounds.
+///
+/// The mail allowance of the tiers (issue #177, plan decision D13) climbs the same way, as mailboxes,
+/// the quota a new mailbox gets, messages per mailbox per hour and the pool of all the quotas:
+/// <list type="bullet">
+/// <item><b>Starter</b> — 5 mailboxes, 1&#160;024&#160;MiB each by default, 100 an hour, a 5&#160;120&#160;MiB pool.</item>
+/// <item><b>Business</b> — 10, 1&#160;024&#160;MiB, 100, 10&#160;240&#160;MiB: <see cref="MailLimits.Default"/>.</item>
+/// <item><b>Unlimited</b> — 100, 2&#160;048&#160;MiB, 500, 204&#160;800&#160;MiB.</item>
 /// </list>
 ///
 /// Every shipped tier includes every feature (<see cref="Maran.Sdk.Contracts.AccountFeature.All"/>), by
@@ -103,19 +121,36 @@ public sealed class PlanSeeder
     /// <summary>Builds the standard plan set described in this type's own documentation.</summary>
     private static IReadOnlyList<Plan> StandardPlans()
     {
-        return [
-            new Plan(
-                StarterPlanId, "PlanStarterName",
-                diskQuotaMb: 5_120, maxSites: 5, maxDatabases: 2, maxSftpUsers: 3, maxCronEntries: 5,
-                maxPhpWorkersPerPool: 5, maxFtpUsers: 3),
-            new Plan(
-                BusinessPlanId, "PlanBusinessName",
-                diskQuotaMb: 25_600, maxSites: 25, maxDatabases: 10, maxSftpUsers: 10, maxCronEntries: 20,
-                maxPhpWorkersPerPool: 10, maxFtpUsers: 10),
-            new Plan(
-                UnlimitedPlanId, "PlanUnlimitedName",
-                diskQuotaMb: 1_048_576, maxSites: 500, maxDatabases: 500, maxSftpUsers: 100, maxCronEntries: 200,
-                maxPhpWorkersPerPool: 20, maxFtpUsers: 100),
-        ];
+        var starter = new Plan(
+            StarterPlanId, "PlanStarterName",
+            diskQuotaMb: 5_120, maxSites: 5, maxDatabases: 2, maxSftpUsers: 3, maxCronEntries: 5,
+            maxPhpWorkersPerPool: 5, maxFtpUsers: 3);
+        starter.ChangePhpLimits(PhpLimits.Of(
+            memoryLimitMaxMb: 128, uploadMaxMb: 32, maxExecutionSeconds: 60, maxInputVars: 1_000));
+        starter.ChangeMailLimits(MailLimits.Of(
+            maxMailboxes: 5, defaultMailboxQuotaMib: 1_024, mailboxSendLimitPerHour: 100, mailboxQuotaPoolMib: 5_120));
+
+        // The middle tier's bounds are PhpLimits.Default: what a plan that predates the bounds reads as.
+        var business = new Plan(
+            BusinessPlanId, "PlanBusinessName",
+            diskQuotaMb: 25_600, maxSites: 25, maxDatabases: 10, maxSftpUsers: 10, maxCronEntries: 20,
+            maxPhpWorkersPerPool: 10, maxFtpUsers: 10);
+        business.ChangePhpLimits(PhpLimits.Of(
+            memoryLimitMaxMb: 256, uploadMaxMb: 64, maxExecutionSeconds: 120, maxInputVars: 3_000));
+
+        // Likewise the middle tier's mail allowance is MailLimits.Default.
+        business.ChangeMailLimits(MailLimits.Of(
+            maxMailboxes: 10, defaultMailboxQuotaMib: 1_024, mailboxSendLimitPerHour: 100, mailboxQuotaPoolMib: 10_240));
+
+        var unlimited = new Plan(
+            UnlimitedPlanId, "PlanUnlimitedName",
+            diskQuotaMb: 1_048_576, maxSites: 500, maxDatabases: 500, maxSftpUsers: 100, maxCronEntries: 200,
+            maxPhpWorkersPerPool: 20, maxFtpUsers: 100);
+        unlimited.ChangePhpLimits(PhpLimits.Of(
+            memoryLimitMaxMb: 512, uploadMaxMb: 128, maxExecutionSeconds: 300, maxInputVars: 10_000));
+        unlimited.ChangeMailLimits(MailLimits.Of(
+            maxMailboxes: 100, defaultMailboxQuotaMib: 2_048, mailboxSendLimitPerHour: 500, mailboxQuotaPoolMib: 204_800));
+
+        return [starter, business, unlimited];
     }
 }

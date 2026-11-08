@@ -48,6 +48,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Maran.Sdk\Maran.Sdk.csproj" />
+    <ProjectReference Include="..\Maran.Packaging\Maran.Packaging.csproj" />
     <ProjectReference Include="..\Maran.SharedKernel\Maran.SharedKernel.csproj" />
     <ProjectReference Include="..\Maran.Agent.Client\Maran.Agent.Client.csproj" />
     <ProjectReference Include="..\Maran.Modules\Accounts\Maran.Modules.Accounts.csproj" />
@@ -57,14 +58,18 @@
     <ProjectReference Include="..\Maran.Modules\Ssl\Maran.Modules.Ssl.csproj" />
     <ProjectReference Include="..\Maran.Modules\Databases\Maran.Modules.Databases.csproj" />
     <ProjectReference Include="..\Maran.Modules\Sftp\Maran.Modules.Sftp.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Dns\Maran.Modules.Dns.csproj" />
     <ProjectReference Include="..\Maran.Modules\Ftp\Maran.Modules.Ftp.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Mail\Maran.Modules.Mail.csproj" />
     <ProjectReference Include="..\Maran.Modules\Idempotency\Maran.Modules.Idempotency.csproj" />
     <ProjectReference Include="..\Maran.Modules\Cron\Maran.Modules.Cron.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Files\Maran.Modules.Files.csproj" />
     <ProjectReference Include="..\Maran.Modules\Firewall\Maran.Modules.Firewall.csproj" />
     <ProjectReference Include="..\Maran.Modules\Tasks\Maran.Modules.Tasks.csproj" />
     <ProjectReference Include="..\Maran.Modules\Monitoring\Maran.Modules.Monitoring.csproj" />
     <ProjectReference Include="..\Maran.Modules\Notifications\Maran.Modules.Notifications.csproj" />
     <ProjectReference Include="..\Maran.Modules\Backups\Maran.Modules.Backups.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Updates\Maran.Modules.Updates.csproj" />
   </ItemGroup>
 
   <ItemGroup>

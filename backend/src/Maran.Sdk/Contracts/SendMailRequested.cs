@@ -46,4 +46,13 @@ namespace Maran.Sdk.Contracts;
 /// is the first example — so nothing that handles this message may log it, journal it, or attach it
 /// to an error travelling outward.
 /// </param>
-public sealed record SendMailRequested(string Recipient, string Subject, string Body);
+/// <param name="Purpose">
+/// Why the mail is sent. Defaults to <see cref="MailPurpose.Transactional"/>, so every existing
+/// publisher is unchanged; only the operator-alert dispatcher sets <see cref="MailPurpose.OperatorAlert"/>,
+/// which is how the sending module tells an alert's delivery from a password reset's.
+/// </param>
+public sealed record SendMailRequested(
+    string Recipient,
+    string Subject,
+    string Body,
+    MailPurpose Purpose = MailPurpose.Transactional);

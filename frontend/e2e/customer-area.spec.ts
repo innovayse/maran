@@ -30,7 +30,7 @@ const CUSTOMER: AuthenticatedUser = {
 
 /** The one module a customer's own account can reach in this story. */
 const CUSTOMER_MODULES: PanelModule[] = [
-  { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
+  { name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 /**
@@ -48,6 +48,7 @@ const OWN_SITE: Site = {
   status: 'enabled',
   statusName: 'Enabled',
   createdAt: '2026-09-01T10:00:00Z',
+  logRetentionDays: 14,
 }
 
 /**

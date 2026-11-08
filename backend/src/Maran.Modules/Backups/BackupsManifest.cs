@@ -1,4 +1,5 @@
 using Maran.Sdk.Contracts;
+using Maran.Sdk.Navigation;
 
 namespace Maran.Modules.Backups;
 
@@ -25,13 +26,68 @@ public static class BackupsManifest
     /// <c>AgentInfo.backup_root</c> when a screen shows it, rather than keeping a copy it cannot
     /// check. It is a read of the agent's own identity — it mutates nothing — and an administrator
     /// installing this module sees that it asks to know what agent it is talking to.
+    ///
+    /// The customer's own schedule route (<c>my-backup-schedule</c>) has no menu entry here: a menu
+    /// entry carries a <see cref="ModuleAudience"/>, which cannot say "customers only", and offering it
+    /// to administrators would send them to a screen their endpoint answers with "account not found".
     /// </remarks>
     public static Manifest Instance { get; } = new(
         Id: "backups",
         DisplayNameKey: "BackupsModuleDisplayName",
         Version: "1.0.0",
         Tier: LicenceTier.Included,
-        Dependencies: ["accounts"],
+        Kind: ModuleKind.Packageable,
+        MinPanelVersion: "1.0.0-beta.4",
+        SchemaName: "backups",
+        Dependencies: [
+            new ModuleDependency(Id: "accounts", Range: ">=1.0.0 <2.0.0"),
+        ],
         AgentCapabilities: [AgentCapability.Backup, AgentCapability.System],
+        Permissions: [AuthorizationPolicies.AdminOnly, AuthorizationPolicies.AnyAuthenticated],
+        Menu: [
+            new ModuleMenuItem(
+                Key: "backups-list",
+                RouteName: "backups",
+                IconKey: ModuleIconKeys.Archive,
+                LabelKey: "BackupsMenuList",
+                Order: 10,
+                Audience: ModuleAudience.Everyone),
+            new ModuleMenuItem(
+                Key: "backups-schedule",
+                RouteName: "backup-schedule",
+                IconKey: ModuleIconKeys.Archive,
+                LabelKey: "BackupsMenuSchedule",
+                Order: 20,
+                Audience: ModuleAudience.AdministratorOnly),
+            new ModuleMenuItem(
+                Key: "backups-destinations",
+                RouteName: "backup-destinations",
+                IconKey: ModuleIconKeys.Archive,
+                LabelKey: "BackupsMenuDestinations",
+                Order: 30,
+                Audience: ModuleAudience.AdministratorOnly),
+        ],
+        Routes: [
+            new ModuleRoute(
+                Name: "backups",
+                Path: "/backups",
+                TitleKey: "BackupsRouteList",
+                RequiresModule: null),
+            new ModuleRoute(
+                Name: "backup-schedule",
+                Path: "/backups/schedule",
+                TitleKey: "BackupsRouteSchedule",
+                RequiresModule: null),
+            new ModuleRoute(
+                Name: "my-backup-schedule",
+                Path: "/backups/my-schedule",
+                TitleKey: "BackupsRouteMySchedule",
+                RequiresModule: null),
+            new ModuleRoute(
+                Name: "backup-destinations",
+                Path: "/backups/destinations",
+                TitleKey: "BackupsRouteDestinations",
+                RequiresModule: null),
+        ],
         Audience: ModuleAudience.Everyone);
 }

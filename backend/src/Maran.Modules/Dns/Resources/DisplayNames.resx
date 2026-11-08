@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="DnsModuleDisplayName">
+    <value>DNS zones</value>
+  </data>
+  <data name="DnsMenuZones">
+    <value>DNS zones</value>
+  </data>
+  <data name="DnsMenuNameservers">
+    <value>Name servers</value>
+  </data>
+  <data name="DnsRouteZones">
+    <value>DNS zones</value>
+  </data>
+  <data name="DnsRouteNameservers">
+    <value>Name servers</value>
+  </data>
+  <data name="DnsRecordTypeADescription">
+    <value>Points a name to an IPv4 address.</value>
+  </data>
+  <data name="DnsRecordTypeAaaaDescription">
+    <value>Points a name to an IPv6 address.</value>
+  </data>
+  <data name="DnsRecordTypeCnameDescription">
+    <value>Makes a name an alias of another name.</value>
+  </data>
+  <data name="DnsRecordTypeMxDescription">
+    <value>Names the server that receives mail for the domain, with a preference.</value>
+  </data>
+  <data name="DnsRecordTypeTxtDescription">
+    <value>Holds text, such as SPF, DKIM and verification values.</value>
+  </data>
+  <data name="DnsRecordTypeSrvDescription">
+    <value>Locates a service by priority, weight, port and host.</value>
+  </data>
+  <data name="DnsRecordTypeCaaDescription">
+    <value>Says which certificate authorities may issue certificates for the domain.</value>
+  </data>
+  <data name="DnsRecordTypeNsDescription">
+    <value>Delegates a name below the zone to other name servers.</value>
+  </data>
+  <data name="DnsOriginCustomer">
+    <value>Added by hand</value>
+  </data>
+  <data name="DnsOriginTemplate">
+    <value>From a template</value>
+  </data>
+  <data name="DnsOriginSystem">
+    <value>Managed by the panel</value>
+  </data>
+  <data name="DnsOriginMail">
+    <value>Managed by mail</value>
+  </data>
+  <data name="DnsOriginAcmeChallenge">
+    <value>Certificate validation</value>
+  </data>
+</root>

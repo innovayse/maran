@@ -18,7 +18,7 @@ public sealed class AgentSitesClientTests
     /// to be interesting.
     /// </summary>
     private static readonly SiteDescriptor Descriptor =
-        new(["www.example.com"], SiteBackendKind.Php, "8.3", "127.0.0.1:3000", true);
+        new(["www.example.com"], SiteBackendKind.Php, "8.3", "127.0.0.1:3000", true, SiteOptionsDescriptor.None);
 
     /// <summary>Create ok payload maps to success result.</summary>
     [Fact]
@@ -599,6 +599,136 @@ public sealed class AgentSitesClientTests
             return item is SiteLogEnded { Kind: SiteLogEndKind.Completed };
         });
         Assert.True(stub.TailYieldedCount < 10, $"kept pulling after cancellation: {stub.TailYieldedCount} messages");
+    }
+
+    /// <summary>A traffic summary maps its days, cursor and flags into the panel's mirror types.</summary>
+    [Fact]
+    public async Task A_traffic_summary_maps_days_cursor_and_flags()
+    {
+        var day = new TrafficDay { Date = "2026-11-06", Requests = 7, BodyBytes = 900, OtherPathRequests = 2 };
+        day.Statuses.Add(new TrafficStatus { Code = 200, Requests = 5 });
+        day.Paths.Add(new TrafficPath { Path = "/index.php", Requests = 4 });
+        var ok = new SummariseSiteTrafficOk
+        {
+            Cursor = new TrafficCursor { FileId = "1:2:abc", Offset = 4096 },
+            CaughtUp = true,
+            Gap = true,
+            UnparsedLines = 3,
+        };
+        ok.Days.Add(day);
+        var stub = new StubSitesService { SummariseResponse = new SummariseSiteTrafficResponse { Ok = ok } };
+
+        var result = await NewClient(stub).SummariseTrafficAsync(
+            "acc1", "example.com", new SiteTrafficCursor("0:1:old", 10), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(new SiteTrafficCursor("1:2:abc", 4096), result.Value.Cursor);
+        Assert.True(result.Value.CaughtUp);
+        Assert.True(result.Value.Gap);
+        Assert.Equal(3u, result.Value.UnparsedLines);
+        var mapped = Assert.Single(result.Value.Days);
+        Assert.Equal(new DateOnly(2026, 11, 6), mapped.Date);
+        Assert.Equal(7ul, mapped.Requests);
+        Assert.Equal(900ul, mapped.BodyBytes);
+        Assert.Equal(2ul, mapped.OtherPathRequests);
+        Assert.Equal(new SiteTrafficStatus(200, 5), Assert.Single(mapped.Statuses));
+        Assert.Equal(new SiteTrafficPath("/index.php", 4), Assert.Single(mapped.Paths));
+    }
+
+    /// <summary>The request carries the account, the domain and the stored cursor, and an absent cursor stays absent.</summary>
+    [Fact]
+    public async Task A_traffic_request_carries_the_account_the_domain_and_the_cursor()
+    {
+        var stub = new StubSitesService();
+
+        await NewClient(stub).SummariseTrafficAsync(
+            "acc1", "example.com", new SiteTrafficCursor("0:1:old", 10), CancellationToken.None);
+
+        Assert.Equal("acc1", stub.LastSummariseRequest!.AccountUsername);
+        Assert.Equal("example.com", stub.LastSummariseRequest.Domain);
+        Assert.Equal("0:1:old", stub.LastSummariseRequest.Cursor.FileId);
+        Assert.Equal(10ul, stub.LastSummariseRequest.Cursor.Offset);
+
+        await NewClient(stub).SummariseTrafficAsync("acc1", "example.com", null, CancellationToken.None);
+
+        Assert.Null(stub.LastSummariseRequest.Cursor);
+    }
+
+    /// <summary>A summary whose cursor is missing, or whose date cannot be read, is refused rather than read as a fact.</summary>
+    [Fact]
+    public async Task A_traffic_summary_the_mapper_cannot_read_is_refused()
+    {
+        var withoutCursor = new StubSitesService
+        {
+            SummariseResponse = new SummariseSiteTrafficResponse { Ok = new SummariseSiteTrafficOk() },
+        };
+        var badDate = new SummariseSiteTrafficOk { Cursor = new TrafficCursor { FileId = "x", Offset = 1 } };
+        badDate.Days.Add(new TrafficDay { Date = "yesterday" });
+
+        var first = await NewClient(withoutCursor).SummariseTrafficAsync("a", "b.com", null, CancellationToken.None);
+        var second = await NewClient(new StubSitesService
+        {
+            SummariseResponse = new SummariseSiteTrafficResponse { Ok = badDate },
+        }).SummariseTrafficAsync("a", "b.com", null, CancellationToken.None);
+
+        Assert.Equal("AgentInvalidResponse", first.Error!.Code);
+        Assert.Equal("AgentInvalidResponse", second.Error!.Code);
+    }
+
+    /// <summary>A traffic error payload maps to the agent's code, and an unset oneof is refused.</summary>
+    [Fact]
+    public async Task A_traffic_error_payload_maps_to_the_agent_code_and_an_unset_oneof_is_refused()
+    {
+        var busy = new StubSitesService
+        {
+            SummariseResponse = new SummariseSiteTrafficResponse
+            {
+                Error = new AgentError { Code = ErrorCode.AgentSaturated, Message = "two reads already running" },
+            },
+        };
+
+        var refused = await NewClient(busy).SummariseTrafficAsync("a", "b.com", null, CancellationToken.None);
+        var unset = await NewClient(new StubSitesService()).SummariseTrafficAsync("a", "b.com", null, CancellationToken.None);
+
+        Assert.Equal("AgentSaturated", refused.Error!.Code);
+        Assert.Equal("AgentInvalidResponse", unset.Error!.Code);
+    }
+
+    /// <summary>A prune request carries its retained count, and the removed count maps back.</summary>
+    [Fact]
+    public async Task A_prune_request_carries_the_retained_count_and_the_removed_count_maps_back()
+    {
+        var stub = new StubSitesService
+        {
+            PruneResponse = new PruneSiteLogsResponse { Ok = new PruneSiteLogsOk { RemovedFiles = 4 } },
+        };
+
+        var result = await NewClient(stub).PruneLogsAsync("acc1", "example.com", 7, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(4u, result.Value.RemovedFiles);
+        Assert.Equal("acc1", stub.LastPruneRequest!.AccountUsername);
+        Assert.Equal("example.com", stub.LastPruneRequest.Domain);
+        Assert.Equal(7u, stub.LastPruneRequest.RetainRotations);
+    }
+
+    /// <summary>A prune error payload maps to the agent's code, and an unset oneof is refused.</summary>
+    [Fact]
+    public async Task A_prune_error_payload_maps_to_the_agent_code_and_an_unset_oneof_is_refused()
+    {
+        var failing = new StubSitesService
+        {
+            PruneResponse = new PruneSiteLogsResponse
+            {
+                Error = new AgentError { Code = ErrorCode.ValidationFailed, Message = "retain out of range" },
+            },
+        };
+
+        var refused = await NewClient(failing).PruneLogsAsync("a", "b.com", 99, CancellationToken.None);
+        var unset = await NewClient(new StubSitesService()).PruneLogsAsync("a", "b.com", 7, CancellationToken.None);
+
+        Assert.Equal("AgentValidationFailed", refused.Error!.Code);
+        Assert.Equal("AgentInvalidResponse", unset.Error!.Code);
     }
 
     /// <summary>Builds a client over the stub with a logger that discards its output.</summary>

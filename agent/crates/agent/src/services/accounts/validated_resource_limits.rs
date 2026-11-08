@@ -1,16 +1,13 @@
 //! Revalidating the three slice ceilings a `SetAccountResourceLimits` request
 //! carries.
 
-use std::fmt::Display;
-
 use maran_agent_core::validation::system::cpu_quota_percent::CpuQuotaPercent;
 use maran_agent_core::validation::system::memory_max_mib::MemoryMaxMib;
 use maran_agent_core::validation::system::tasks_max::TasksMax;
-use maran_ops::accounts::{AccountResourceLimits, ResourceCeiling};
+use maran_ops::accounts::AccountResourceLimits;
 
-use crate::proto::resource_ceiling::Ceiling;
-use crate::proto::{AgentError, ResourceCeiling as WireCeiling, SetAccountResourceLimitsRequest};
-use crate::services::wire::invalid_input::invalid_input;
+use crate::proto::{AgentError, SetAccountResourceLimitsRequest};
+use crate::services::accounts::validated_ceiling::validated_ceiling;
 
 /// Turns the request's three wire ceilings into validated ones.
 ///
@@ -32,40 +29,18 @@ pub fn validated_resource_limits(
     request: &SetAccountResourceLimitsRequest,
 ) -> Result<AccountResourceLimits, AgentError> {
     Ok(AccountResourceLimits {
-        cpu: ceiling(
+        cpu: validated_ceiling(
             "cpu_quota_percent",
             request.cpu_quota_percent.as_ref(),
             CpuQuotaPercent::parse,
         )?,
-        memory: ceiling(
+        memory: validated_ceiling(
             "memory_max_mib",
             request.memory_max_mib.as_ref(),
             MemoryMaxMib::parse,
         )?,
-        tasks: ceiling("tasks_max", request.tasks_max.as_ref(), TasksMax::parse)?,
+        tasks: validated_ceiling("tasks_max", request.tasks_max.as_ref(), TasksMax::parse)?,
     })
-}
-
-/// Reads one wire ceiling through `parse`, naming `field` in any refusal.
-///
-/// # Errors
-///
-/// Returns the wire's invalid-input error when the ceiling is absent, sets
-/// neither case, or `parse` refuses its figure.
-fn ceiling<T, E: Display>(
-    field: &str,
-    wire: Option<&WireCeiling>,
-    parse: impl Fn(u32) -> Result<T, E>,
-) -> Result<ResourceCeiling<T>, AgentError> {
-    match wire.and_then(|ceiling| ceiling.ceiling.as_ref()) {
-        Some(Ceiling::Unlimited(_)) => Ok(ResourceCeiling::Unlimited),
-        Some(Ceiling::Maximum(figure)) => parse(*figure)
-            .map(ResourceCeiling::Limited)
-            .map_err(|error| invalid_input(format!("{field}: {error}"))),
-        None => Err(invalid_input(format!(
-            "{field}: a ceiling is required; send `unlimited` for none"
-        ))),
-    }
 }
 
 #[cfg(test)]

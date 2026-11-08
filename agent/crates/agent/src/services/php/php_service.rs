@@ -1,5 +1,5 @@
 //! `PhpService`: which PHP runtimes this host has, which it could install, and
-//! installing another.
+//! installing another, and which extensions each version loads.
 
 use std::pin::Pin;
 use std::sync::Arc;
@@ -21,8 +21,21 @@ use crate::proto::{
     install_php_version_response, list_installable_php_versions_response,
     list_php_versions_response,
 };
+use crate::proto::{
+    ApplyPhpPoolSettingsOk, ApplyPhpPoolSettingsRequest, ApplyPhpPoolSettingsResponse,
+    apply_php_pool_settings_response,
+};
+use crate::proto::{
+    ListPhpExtensionsOk, ListPhpExtensionsRequest, ListPhpExtensionsResponse, SetPhpExtensionOk,
+    SetPhpExtensionRequest, SetPhpExtensionResponse, list_php_extensions_response,
+    set_php_extension_response,
+};
 use crate::services::php::php_status::to_agent_error;
+use crate::services::php::reported_php_extension::reported_php_extension;
+use crate::services::php::validated_extension_request::validated_extension_request;
+use crate::services::php::validated_pool_settings::validated_pool_settings;
 use crate::services::wire::run_blocking::run_blocking;
+use crate::services::wire::validated_account::validated_account;
 
 /// How many messages an installation may run ahead of the client.
 ///
@@ -36,9 +49,20 @@ const INSTALL_CHANNEL_CAPACITY: usize = 8;
 /// The stream `InstallPhpVersion` returns.
 type InstallStream = Pin<Box<dyn Stream<Item = Result<InstallPhpVersionResponse, Status>> + Send>>;
 
+/// How many messages an extension change may run ahead of the client.
+///
+/// The operation emits at most six progress messages and one terminal message,
+/// so this is never a constraint in practice; it is bounded all the same, for
+/// the reason `INSTALL_CHANNEL_CAPACITY` is.
+const SET_EXTENSION_CHANNEL_CAPACITY: usize = 8;
+
+/// The stream `SetPhpExtension` returns.
+type SetExtensionStream =
+    Pin<Box<dyn Stream<Item = Result<SetPhpExtensionResponse, Status>> + Send>>;
+
 /// Serves the PHP operations over the wire.
 ///
-/// Two rpcs and the same three steps in each: revalidate what the panel sent,
+/// Every rpc takes the same three steps: revalidate what the panel sent,
 /// run one operation, and map the outcome into the response's `oneof`.
 /// Failures travel in the payload rather than as a gRPC status, because they
 /// are answers the panel acts on — an unsupported version is information, not
@@ -87,6 +111,9 @@ impl<H: PhpHost + 'static> PhpServiceImpl<H> {
 impl<H: PhpHost + 'static> PhpService for PhpServiceImpl<H> {
     /// The stream `InstallPhpVersion` returns.
     type InstallPhpVersionStream = InstallStream;
+
+    /// The stream `SetPhpExtension` returns.
+    type SetPhpExtensionStream = SetExtensionStream;
 
     /// Lists the versions installed on this host, newest first.
     async fn list_php_versions(
@@ -246,6 +273,171 @@ impl<H: PhpHost + 'static> PhpService for PhpServiceImpl<H> {
         }
 
         Ok(Response::new(Box::pin(ReceiverStream::new(receiver))))
+    }
+
+    /// Lists the thirteen catalogue extensions of one installed version,
+    /// alphabetical, each with whether php-fpm has it loaded and what this
+    /// host can do with it. Read-only: it yields no audit line.
+    async fn list_php_extensions(
+        &self,
+        request: Request<ListPhpExtensionsRequest>,
+    ) -> Result<Response<ListPhpExtensionsResponse>, Status> {
+        let request = request.into_inner();
+
+        let result = match Self::validated(&request.version) {
+            Err(error) => list_php_extensions_response::Result::Error(error),
+            Ok(version) => {
+                let (host, distro) = (Arc::clone(&self.host), self.distro);
+
+                match run_blocking("PHP operation", to_agent_error, move || {
+                    php::list_php_extensions(host.as_ref(), distro, &version)
+                })
+                .await
+                {
+                    Ok(extensions) => {
+                        list_php_extensions_response::Result::Ok(ListPhpExtensionsOk {
+                            extensions: extensions.iter().map(reported_php_extension).collect(),
+                        })
+                    }
+                    Err(error) => list_php_extensions_response::Result::Error(error),
+                }
+            }
+        };
+
+        Ok(Response::new(ListPhpExtensionsResponse {
+            result: Some(result),
+        }))
+    }
+
+    /// Switches one catalogue extension on or off for one version, streaming
+    /// `Progress` and ending with a terminal message.
+    ///
+    /// The stream is produced by `ops` and this only wraps it, exactly as for
+    /// `install_php_version`: the progress callback is the only thing that turns
+    /// a stage into a message, and the stream always ends with exactly one
+    /// terminal message, the ok or the error. The audit slot names no account or
+    /// site (the change is host-wide for the version) and is settled with the
+    /// result that becomes the terminal message.
+    ///
+    /// **Cancellation class: run to completion** (rules/rust.md, "Async and
+    /// blocking"), with nothing to reclaim afterwards. Turning an extension on
+    /// runs a package manager in its own unit and then a switch and a reload;
+    /// abandoning that part-way leaves a broken host or a switch applied but not
+    /// checked, and a dropped client cannot stop the unit anyway. The rpc is
+    /// idempotent, so the panel's remedy for a stream it lost is to ask again.
+    /// The channel is bounded and a dropped client makes each remaining send
+    /// fail at once rather than block.
+    async fn set_php_extension(
+        &self,
+        request: Request<SetPhpExtensionRequest>,
+    ) -> Result<Response<Self::SetPhpExtensionStream>, Status> {
+        let audit = AuditSlot::of(request.extensions());
+        let request = request.into_inner();
+        let (sender, receiver) = mpsc::channel(SET_EXTENSION_CHANNEL_CAPACITY);
+
+        match validated_extension_request(&request.version, &request.extension) {
+            Ok((version, extension)) => {
+                let (host, distro) = (Arc::clone(&self.host), self.distro);
+                let progress = sender.clone();
+                let enabled = request.enabled;
+
+                tokio::task::spawn_blocking(move || {
+                    let outcome = php::set_php_extension(
+                        host.as_ref(),
+                        distro,
+                        &version,
+                        extension,
+                        enabled,
+                        |percent, stage| {
+                            let _ = progress.blocking_send(Ok(SetPhpExtensionResponse {
+                                result: Some(set_php_extension_response::Result::Progress(
+                                    Progress {
+                                        percent,
+                                        stage: stage.to_owned(),
+                                    },
+                                )),
+                            }));
+                        },
+                    );
+
+                    let outcome = outcome.map_err(|error| to_agent_error(&error));
+                    // Settled on the terminal message, before it is sent.
+                    audit.settle(&outcome);
+
+                    let terminal = match outcome {
+                        Ok(()) => set_php_extension_response::Result::Ok(SetPhpExtensionOk {
+                            version: version.as_str().to_owned(),
+                            extension: extension.as_str().to_owned(),
+                            enabled,
+                        }),
+                        Err(error) => set_php_extension_response::Result::Error(error),
+                    };
+
+                    let _ = sender.blocking_send(Ok(SetPhpExtensionResponse {
+                        result: Some(terminal),
+                    }));
+                });
+            }
+            Err(error) => {
+                audit.settle::<()>(&Err(error.clone()));
+                let _ = sender
+                    .send(Ok(SetPhpExtensionResponse {
+                        result: Some(set_php_extension_response::Result::Error(error)),
+                    }))
+                    .await;
+            }
+        }
+
+        Ok(Response::new(Box::pin(ReceiverStream::new(receiver))))
+    }
+
+    /// Rewrites one account's existing pool with a new worker budget and a new
+    /// set of php.ini settings, or answers that it already carries them.
+    ///
+    /// Takes the three steps and nothing more: the account, version, budget and
+    /// settings are revalidated (the account is named on the audit slot as soon
+    /// as it exists, so a refused request is still attributed), one operation
+    /// decides whether the pool exists and differs and writes it through the
+    /// shared config-write path, and the result is settled on the slot with the
+    /// same `Result` that becomes the response.
+    ///
+    /// Cancellation class: run to completion. The write is one pool file
+    /// swapped in, checked with `php-fpm -t` and reloaded, with the previous
+    /// bytes restored on a refusal; stopping between the swap and the check
+    /// would leave an unchecked pool live. The rpc is idempotent, so a client
+    /// that lost the answer asks again, and there is nothing to reclaim.
+    async fn apply_php_pool_settings(
+        &self,
+        request: Request<ApplyPhpPoolSettingsRequest>,
+    ) -> Result<Response<ApplyPhpPoolSettingsResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
+        let request = request.into_inner();
+
+        let validated = validated_account(&request.account_username).and_then(|account| {
+            audit.account(&account);
+            validated_pool_settings(account, &request)
+        });
+
+        let result = match validated {
+            Ok(input) => {
+                let (host, distro) = (Arc::clone(&self.host), self.distro);
+                run_blocking("PHP operation", to_agent_error, move || {
+                    php::apply_php_pool_settings(host.as_ref(), distro, &input)
+                })
+                .await
+            }
+            Err(error) => Err(error),
+        };
+
+        audit.settle(&result);
+        let result = match result {
+            Ok(()) => apply_php_pool_settings_response::Result::Ok(ApplyPhpPoolSettingsOk {}),
+            Err(error) => apply_php_pool_settings_response::Result::Error(error),
+        };
+
+        Ok(Response::new(ApplyPhpPoolSettingsResponse {
+            result: Some(result),
+        }))
     }
 }
 

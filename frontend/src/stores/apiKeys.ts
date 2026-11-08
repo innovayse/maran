@@ -2,11 +2,13 @@ import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useApiKeysApi } from '../composables/apis/useApiKeysApi'
 import { ApiError } from '../composables/useApi'
-import type { ApiKey, ApiKeyChoice, CreateApiKeyRequest, RevealedApiKey } from '../types/apiKey'
+import type { ApiKey, ApiKeyChoice, ApiKeyOwner, CreateApiKeyRequest, IssuingApiKeyOwner, RevealedApiKey } from '../types/apiKey'
 import type { ListLoad, ListRequest } from '../types/list'
 
 /**
- * Owns one page of the panel's API keys, the choices the create form and the status filter offer,
+ * Owns one page of an owner's API keys (the administrator's own, a signed-in reseller's own, or one
+ * reseller's as the administrator oversees them; the {@link ApiKeyOwner} each action takes says which),
+ * the choices the create form and the status filter offer,
  * the create and revoke workflows, and the one-time secret a create produces. The API keys page
  * reads state from here and calls its actions; it never touches the API layer (rules/vue.md).
  *
@@ -50,12 +52,13 @@ export const useApiKeysStore = defineStore('apiKeys', () => {
   /**
    * Loads one page of keys into {@link keys} and reports how the read ended, for the page's
    * `useServerTable`.
+   * @param owner Whose keys to read.
    * @param request The page, size, search, sort and status filter, as the URL describes them.
    * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
-  const list = async (request: ListRequest): Promise<ListLoad<ApiKey>> => {
+  const list = async (owner: ApiKeyOwner, request: ListRequest): Promise<ListLoad<ApiKey>> => {
     try {
-      const page = await api.list(request)
+      const page = await api.list(owner, request)
       keys.value = page.items
       return { kind: 'loaded', page }
     } catch (error) {
@@ -66,11 +69,12 @@ export const useApiKeysStore = defineStore('apiKeys', () => {
   /**
    * Reads the grantable scopes into {@link scopes}. A failure leaves the form without choices; the
    * server refuses what it does not know either way.
+   * @param owner The issuing owner: each is offered its own set.
    * @returns Resolves once the request has settled, successfully or not.
    */
-  const loadScopes = async (): Promise<void> => {
+  const loadScopes = async (owner: IssuingApiKeyOwner): Promise<void> => {
     try {
-      scopes.value = await api.scopes()
+      scopes.value = await api.scopes(owner)
     } catch {
       // The choices are an aid to the form, not the list: an unreadable set leaves it empty.
       scopes.value = []
@@ -80,11 +84,12 @@ export const useApiKeysStore = defineStore('apiKeys', () => {
   /**
    * Reads the filterable states into {@link statuses}. The names are language-dependent, so the
    * page asks again when the interface language changes.
+   * @param owner Whose keys the filter is for.
    * @returns Resolves once the request has settled, successfully or not.
    */
-  const loadStatuses = async (): Promise<void> => {
+  const loadStatuses = async (owner: ApiKeyOwner): Promise<void> => {
     try {
-      statuses.value = await api.statuses()
+      statuses.value = await api.statuses(owner)
     } catch {
       // The filter is an aid, not the list: an unreadable set leaves the filter without choices.
       statuses.value = []
@@ -143,13 +148,14 @@ export const useApiKeysStore = defineStore('apiKeys', () => {
   /**
    * Creates a key and holds its secret for exactly one showing. The held page is not patched: where
    * the new row falls is the server's sort to say, so the page reads again.
+   * @param owner The issuing owner; the panel takes the owner from the token, never from the body.
    * @param request The name, scopes, allowed ranges and expiry.
    * @returns True when the panel created the key; otherwise {@link createErrorMessage} says why.
    */
-  const create = async (request: CreateApiKeyRequest): Promise<boolean> => {
+  const create = async (owner: IssuingApiKeyOwner, request: CreateApiKeyRequest): Promise<boolean> => {
     creating.value = true
     try {
-      const created = await api.create(request)
+      const created = await api.create(owner, request)
       // Only the name and the secret are kept: the row itself comes back through the list.
       revealedKey.value = { name: created.key.name, secret: created.secret }
       createErrorMessage.value = null
@@ -164,13 +170,14 @@ export const useApiKeysStore = defineStore('apiKeys', () => {
 
   /**
    * Revokes a key. The page then reads again, because the key's state changed on the server.
+   * @param owner Whose key it is.
    * @param id The key to revoke.
    * @returns True when the panel revoked it.
    */
-  const revoke = async (id: string): Promise<boolean> => {
+  const revoke = async (owner: ApiKeyOwner, id: string): Promise<boolean> => {
     revoking.value = true
     try {
-      await api.revoke(id)
+      await api.revoke(owner, id)
       revokeErrorMessage.value = null
       return true
     } catch (error) {

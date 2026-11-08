@@ -1,0 +1,206 @@
+{
+  "mail": {
+    "working": "Working…",
+    "domains": {
+      "heading": "Mail domains",
+      "subtitle": "Domains this server receives and sends mail for. A domain must be a hostname of one of the account's sites.",
+      "emptyTitle": "No mail domains yet",
+      "emptyDescription": "Add the first domain above, then create its mailboxes and publish the DNS records it needs.",
+      "noResultsTitle": "No mail domains match",
+      "noResultsDescription": "Change the search or the filters, or clear them to see every mail domain.",
+      "tableCaption": "Mail domains",
+      "searchLabel": "Search mail domains",
+      "searchPlaceholder": "Search by domain…",
+      "searchClear": "Clear the search",
+      "columns": {
+        "name": "Domain",
+        "account": "Account",
+        "status": "State",
+        "mailboxes": "Mailboxes",
+        "createdAt": "Added"
+      },
+      "filters": {
+        "account": "Account",
+        "status": "State"
+      },
+      "form": {
+        "heading": "Add a mail domain",
+        "fields": {
+          "account": "Account",
+          "name": "Domain"
+        },
+        "placeholders": {
+          "account": "Choose an account",
+          "name": "example.com"
+        },
+        "errors": {
+          "accountRequired": "Choose an account.",
+          "nameRequired": "Enter the domain name."
+        },
+        "hint": "The domain must already be a hostname of one of this account's sites. Mail will not be delivered until its DNS records are published.",
+        "submit": "Add domain"
+      },
+      "created": "Mail domain {name} added.",
+      "rotated": "A new DKIM key was started for {name}. Publish the new DKIM record.",
+      "dnsRecords": "DNS records",
+      "rotateDkim": "Rotate DKIM key",
+      "remove": "Remove",
+      "rowActions": "Actions for {name}",
+      "confirmRemoveTitle": "Remove mail domain {name}",
+      "confirmRemove": "Remove this domain? Its mailboxes, aliases and forwarders stop working and the mail they hold is deleted.",
+      "confirmRemoveAction": "Remove domain",
+      "confirmRotateTitle": "Rotate the DKIM key of {name}",
+      "confirmRotate": "Start a new signing key? Mail is signed with the new key at once, so its DKIM record must be published before it is trusted.",
+      "confirmRotateAction": "Rotate key"
+    },
+    "dns": {
+      "title": "DNS records for {name}",
+      "intro": "Publish these records where the domain's DNS is managed. This panel does not publish them for you.",
+      "tableCaption": "DNS records for {name}",
+      "columns": {
+        "purpose": "Purpose",
+        "type": "Type",
+        "name": "Name",
+        "value": "Value"
+      },
+      "copyValue": "Copy the value of {name}",
+      "emptyTitle": "No records to publish",
+      "emptyDescription": "The panel has no records for this domain yet."
+    },
+    "mailboxes": {
+      "heading": "Mailboxes",
+      "subtitle": "Mailboxes of your mail domains. The login is the full address.",
+      "emptyTitle": "No mailboxes yet",
+      "emptyDescription": "Create the first mailbox above. Add its domain first if you have none.",
+      "noResultsTitle": "No mailboxes match",
+      "noResultsDescription": "Change the search or the filters, or clear them to see every mailbox.",
+      "tableCaption": "Mailboxes",
+      "searchLabel": "Search mailboxes",
+      "searchPlaceholder": "Search by address…",
+      "searchClear": "Clear the search",
+      "columns": {
+        "address": "Address",
+        "account": "Account",
+        "status": "State",
+        "usage": "Space used",
+        "sendLimit": "Sends per hour"
+      },
+      "filters": {
+        "account": "Account",
+        "domain": "Domain",
+        "status": "State"
+      },
+      "form": {
+        "heading": "Create a mailbox",
+        "fields": {
+          "domain": "Domain",
+          "localPart": "Name before the at sign",
+          "password": "Password",
+          "quota": "Size limit (MiB)"
+        },
+        "placeholders": {
+          "domain": "Choose a domain",
+          "localPart": "info"
+        },
+        "errors": {
+          "domainRequired": "Choose a domain.",
+          "localPartRequired": "Enter the name before the at sign.",
+          "passwordRequired": "Enter a password.",
+          "passwordShort": "The password must be at least {n} characters.",
+          "quotaInvalid": "Enter the size limit as a whole number of MiB.",
+          "quotaRange": "The size limit must be between {min} and {max} MiB."
+        },
+        "hint": "You choose the password and it is never shown again. Use the full address as the login in a mail client.",
+        "submit": "Create mailbox"
+      },
+      "created": "Mailbox created.",
+      "usage": "{used} of {quota}",
+      "quotaOnly": "Limit {quota}",
+      "usageLabel": "Space used by {address}",
+      "rowEdit": "Edit limits",
+      "rowChangePassword": "Change password",
+      "rowRemove": "Remove",
+      "rowActions": "Actions for {name}",
+      "edit": {
+        "title": "Edit {name}",
+        "sendLimit": "Messages it may send per hour",
+        "enabled": "Mailbox switched on",
+        "suspendedHint": "The panel has suspended this mailbox, so it cannot be switched on from here.",
+        "errors": {
+          "sendLimitInvalid": "Enter the send limit as a whole number.",
+          "sendLimitRange": "The send limit cannot exceed {max} per hour."
+        },
+        "submit": "Save changes",
+        "saved": "{name} was updated."
+      },
+      "password": {
+        "title": "New password for {name}",
+        "hint": "The new password works at once. A mail client that is already connected stays connected until it reconnects.",
+        "field": "New password",
+        "submit": "Set password",
+        "saved": "The password of {name} was changed."
+      },
+      "confirmRemoveTitle": "Remove mailbox {name}",
+      "confirmRemove": "Remove this mailbox? The mail it holds is deleted and cannot be recovered.",
+      "confirmRemoveAction": "Remove mailbox"
+    },
+    "aliases": {
+      "heading": "Forwarders and aliases",
+      "subtitle": "Addresses that deliver to other mailboxes or forward to outside addresses, and the catch-all for a domain.",
+      "emptyTitle": "No aliases or forwarders yet",
+      "emptyDescription": "Create the first one above.",
+      "noResultsTitle": "No aliases match",
+      "noResultsDescription": "Change the search or the filters, or clear them to see every alias.",
+      "tableCaption": "Aliases and forwarders",
+      "searchLabel": "Search aliases",
+      "searchPlaceholder": "Search by address…",
+      "searchClear": "Clear the search",
+      "columns": {
+        "address": "Address",
+        "account": "Account",
+        "kind": "Type",
+        "targets": "Delivers to"
+      },
+      "filters": {
+        "account": "Account",
+        "domain": "Domain",
+        "kind": "Type"
+      },
+      "form": {
+        "heading": "Create an alias or forwarder",
+        "fields": {
+          "domain": "Domain",
+          "kind": "Type",
+          "localPart": "Name before the at sign",
+          "targets": "Deliver to (one address per line)"
+        },
+        "placeholders": {
+          "domain": "Choose a domain",
+          "localPart": "sales",
+          "targets": "you{'@'}example.com"
+        },
+        "errors": {
+          "domainRequired": "Choose a domain.",
+          "localPartRequired": "Enter the name before the at sign.",
+          "targetsRequired": "Enter at least one address to deliver to.",
+          "targetsTooMany": "An alias can deliver to at most {n} addresses."
+        },
+        "hint": "A catch-all takes every message sent to the domain that no other address claims, so it has no name of its own.",
+        "submit": "Create"
+      },
+      "created": "Alias created.",
+      "rowEdit": "Change destinations",
+      "rowRemove": "Remove",
+      "rowActions": "Actions for {name}",
+      "edit": {
+        "title": "Destinations of {name}",
+        "hint": "The new list replaces the old one. The address and the type stay as they are.",
+        "submit": "Save destinations",
+        "saved": "{name} was updated."
+      },
+      "confirmRemoveTitle": "Remove {name}",
+      "confirmRemove": "Remove this address? Mail sent to it is refused afterwards.",
+      "confirmRemoveAction": "Remove address"
+    }
+  }
+}

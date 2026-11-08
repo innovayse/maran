@@ -169,7 +169,7 @@ public sealed class PlanFeaturesEndpointTests : IAsyncLifetime
         using var body = JsonDocument.Parse(await listed.Content.ReadAsStringAsync());
         var rows = body.RootElement.EnumerateArray().ToList();
         Assert.Equal(
-            ["mail", "dns", "databases", "cron", "fileTransfer", "backups", "sites", "ssl", "tasks", "php"],
+            ["mail", "dns", "databases", "cron", "fileTransfer", "backups", "sites", "ssl", "tasks", "php", "files"],
             rows.Select(row =>
             {
                 return row.GetProperty("feature").GetString();

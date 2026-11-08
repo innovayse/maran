@@ -93,6 +93,11 @@ const optionsIn = (language: Language): BackupOptions => {
     retainCounts: Array.from({ length: 365 }, (_, index) => {
       return { value: String(index + 1), label: String(index + 1) }
     }),
+    // A customer's own schedule: the same two cadences, and copies up to the customer ceiling.
+    customerFrequencies: named(VALUES.frequencies, names.frequencies),
+    customerRetainCounts: Array.from({ length: 7 }, (_, index) => {
+      return { value: String(index + 1), label: String(index + 1) }
+    }),
   }
 }
 

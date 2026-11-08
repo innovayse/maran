@@ -3,6 +3,7 @@ using Maran.Modules.Accounts.Commands.CreateReseller;
 using Maran.Modules.Accounts.Commands.DeleteReseller;
 using Maran.Modules.Accounts.Commands.ReactivateReseller;
 using Maran.Modules.Accounts.Commands.SuspendReseller;
+using Maran.Modules.Accounts.Commands.UpdateReseller;
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Queries.GetReseller;
 using Maran.Modules.Accounts.Queries.ListResellerChoices;
@@ -118,6 +119,30 @@ public sealed class ResellersController : BaseApiController
         return ToCreatedActionResult(
             result,
             $"/api/v1/resellers/{(result.IsSuccess ? result.Value.Id : Guid.Empty)}");
+    }
+
+    /// <summary>
+    /// Renames a reseller and replaces its contact address and language. The reseller's login follows
+    /// the name and the address, so the new name is what it signs in with.
+    /// </summary>
+    /// <param name="id">The reseller to change.</param>
+    /// <param name="command">The new name, contact address and language. Its reseller id, address and agent are stamped here.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpPut("{id:guid}")]
+    [ProducesResponseType(typeof(ResellerDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> UpdateAsync(
+        Guid id,
+        [FromBody] UpdateResellerCommand command,
+        CancellationToken cancellationToken)
+    {
+        var stamped = command with { ResellerId = id, IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
+        var result = await _bus.InvokeAsync<Result<ResellerDetailDto>>(stamped, cancellationToken);
+        return ToActionResult(result);
     }
 
     /// <summary>

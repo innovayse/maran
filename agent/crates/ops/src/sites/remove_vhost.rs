@@ -2,11 +2,11 @@
 
 use std::path::Path;
 
-use maran_agent_core::utils::call_class::CallClass;
 use maran_distro::DistroAdapter;
 
-use crate::safe_write::model::{Reload, Validator};
-use crate::sites::write_vhost::{RELOAD_SUBCOMMAND, VALIDATE_ARGUMENT};
+use crate::safe_write::model::Reload;
+use crate::sites::nginx_validator::nginx_validator;
+use crate::sites::write_vhost::RELOAD_SUBCOMMAND;
 use crate::sites::{SiteHost, SitesOpError};
 use maran_agent_core::end_of_options::END_OF_OPTIONS;
 
@@ -33,12 +33,7 @@ pub(crate) fn remove_vhost(
 ) -> Result<(), SitesOpError> {
     let nginx = distro.nginx_binary();
     let service_manager = distro.service_manager();
-    // A pure check, so the short class: `nginx -t` reads the tree and changes nothing.
-    let validator = Validator {
-        program: &nginx,
-        arguments: &[VALIDATE_ARGUMENT],
-        class: CallClass::Validate,
-    };
+    let validator = nginx_validator(&nginx);
     // `--` before the unit: `systemctl` reads its options with `getopt_long`, which ends
     // option parsing at `--`. The program is the adapter's absolute path, and a bare
     // `"systemctl"` would be worse than a literal, because a root process would then

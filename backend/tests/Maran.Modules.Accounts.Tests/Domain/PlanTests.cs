@@ -278,6 +278,7 @@ public sealed class PlanTests
     [InlineData(AccountResourceKind.SftpLogins, 4)]
     [InlineData(AccountResourceKind.FtpLogins, 2)]
     [InlineData(AccountResourceKind.CronEntries, 3)]
+    [InlineData(AccountResourceKind.Mailboxes, 10)]
     public void Every_counted_kind_is_capped_by_the_plan_column_that_sells_it(AccountResourceKind kind, int maximum)
     {
         var plan = Plan.Define(Guid.NewGuid(), "Agency", 10_240, 10, 5, 4, 2, 3, 8);

@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AccountNotFound">
+    <value>Аккаунт не найден.</value>
+  </data>
+  <data name="ZoneNotFound">
+    <value>DNS-зона не найдена.</value>
+  </data>
+  <data name="RecordNotFound">
+    <value>DNS-запись не найдена.</value>
+  </data>
+  <data name="ZoneNameInvalid">
+    <value>Имя зоны должно быть доменным именем не короче двух частей, например example.com.</value>
+  </data>
+  <data name="ZoneNameTaken">
+    <value>Зона с таким именем уже существует.</value>
+  </data>
+  <data name="ZoneNameReserved">
+    <value>Это имя использует сама панель, оно не может быть зоной.</value>
+  </data>
+  <data name="ZoneOverlapsForeignZone">
+    <value>Это имя пересекается с зоной другого аккаунта.</value>
+  </data>
+  <data name="ZoneApexNotClaimed">
+    <value>Этот домен не обслуживает ни один из ваших сайтов. Сначала добавьте его к сайту.</value>
+  </data>
+  <data name="ZoneLimitReached">
+    <value>Ваш тариф не позволяет создавать больше DNS-зон.</value>
+  </data>
+  <data name="ZoneLimitReachedConcurrently">
+    <value>Другая зона заняла последнее место, которое допускает ваш тариф. Ничего не создано.</value>
+  </data>
+  <data name="ZoneChangedMeanwhile">
+    <value>Зону одновременно изменил кто-то другой. Обновите страницу и повторите.</value>
+  </data>
+  <data name="DnsNotEnabled">
+    <value>Сервер имён на этом сервере не включён.</value>
+  </data>
+  <data name="DnsSettingsIncomplete">
+    <value>Перед включением сервера имён нужно указать серверы имён и почтовый ящик hostmaster.</value>
+  </data>
+  <data name="ZoneRecordLimitReached">
+    <value>В этой зоне уже максимально допустимое для сервера число записей.</value>
+  </data>
+  <data name="RecordNameInvalid">
+    <value>Имя записи недопустимо. Используйте @ для самой зоны или буквы, цифры, дефисы и подчёркивания в частях до 63 символов.</value>
+  </data>
+  <data name="RecordTtlOutOfRange">
+    <value>Время жизни записи должно быть от 60 секунд до одной недели.</value>
+  </data>
+  <data name="RecordValueInvalid">
+    <value>Значение недопустимо для этого типа записи.</value>
+  </data>
+  <data name="RecordPriorityOutOfRange">
+    <value>Приоритет должен быть целым числом от 0 до 65535, и он есть только у записей MX и SRV.</value>
+  </data>
+  <data name="RecordWeightOutOfRange">
+    <value>Вес должен быть целым числом от 0 до 65535, и он есть только у записей SRV.</value>
+  </data>
+  <data name="RecordPortOutOfRange">
+    <value>Порт должен быть целым числом от 0 до 65535, и он есть только у записей SRV.</value>
+  </data>
+  <data name="RecordFlagsInvalid">
+    <value>Флаги должны быть равны 0 или 128, и они есть только у записей CAA.</value>
+  </data>
+  <data name="RecordTagInvalid">
+    <value>Тег должен быть issue, issuewild или iodef, и он есть только у записей CAA.</value>
+  </data>
+  <data name="RecordCnameBesideOtherData">
+    <value>Запись CNAME не может делить имя с другими записями.</value>
+  </data>
+  <data name="RecordOtherDataBesideCname">
+    <value>Это имя уже является псевдонимом (CNAME), поэтому на нём не может быть других записей.</value>
+  </data>
+  <data name="RecordCnameAtApex">
+    <value>Сама зона не может быть записью CNAME.</value>
+  </data>
+  <data name="RecordNsAtApex">
+    <value>Серверы имён самой зоны управляются панелью и не редактируются.</value>
+  </data>
+  <data name="RecordDuplicate">
+    <value>В зоне уже есть точно такая же запись.</value>
+  </data>
+  <data name="RecordNotEditable">
+    <value>Эта запись управляется панелью и не редактируется здесь.</value>
+  </data>
+  <data name="DnsNameserverInvalid">
+    <value>Сервер имён должен быть именем хоста, например ns1.example.com.</value>
+  </data>
+  <data name="DnsHostmasterInvalid">
+    <value>Почтовый ящик hostmaster пишется через точки, например hostmaster.example.com для hostmaster@example.com.</value>
+  </data>
+  <data name="DnsAddressInvalid">
+    <value>Адрес не является корректным IP-адресом нужного вида.</value>
+  </data>
+  <data name="DnsDefaultTtlOutOfRange">
+    <value>Время жизни по умолчанию должно быть от 60 секунд до одной недели.</value>
+  </data>
+</root>

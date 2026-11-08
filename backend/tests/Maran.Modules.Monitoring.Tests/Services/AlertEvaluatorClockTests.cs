@@ -34,7 +34,7 @@ public sealed class AlertEvaluatorClockTests
             await EvaluateAsync(evaluator, state, Start.AddMinutes(observation));
         }
 
-        var mail = Assert.IsType<SendMailRequested>(Assert.Single(scopes.Bus.Published));
+        var mail = Assert.IsType<SendMailRequested>(Assert.Single(scopes.Bus.Mail));
         Assert.Equal("ops@example.com", mail.Recipient);
         Assert.StartsWith("AlertClockUnsynchronizedRaisedSubject", mail.Subject, StringComparison.Ordinal);
         var row = await dbContext.AlertStates.SingleAsync();
@@ -56,7 +56,7 @@ public sealed class AlertEvaluatorClockTests
             await EvaluateAsync(evaluator, AgentClockSyncState.Synchronized, Start.AddMinutes(observation));
         }
 
-        Assert.Empty(scopes.Bus.Published);
+        Assert.Empty(scopes.Bus.Mail);
     }
 
     /// <summary>A raised warning resolves, with one more mail, once the clock is synchronised.</summary>
@@ -74,7 +74,7 @@ public sealed class AlertEvaluatorClockTests
 
         await EvaluateAsync(evaluator, AgentClockSyncState.Synchronized, Start.AddMinutes(30));
 
-        Assert.Equal(2, scopes.Bus.Published.Count);
+        Assert.Equal(2, scopes.Bus.Mail.Count);
         Assert.NotEqual(AlertPhase.Firing, (await dbContext.AlertStates.SingleAsync()).Phase);
     }
 
@@ -121,6 +121,7 @@ public sealed class AlertEvaluatorClockTests
             quotaStatus: null,
             clockSync: clockSync,
             codeIntegrityVerdict: null,
+            hostLoad: null,
             observedAt,
             CancellationToken.None);
     }

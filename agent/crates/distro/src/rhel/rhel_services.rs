@@ -570,3 +570,205 @@ pub fn managed_units() -> [&'static str; 4] {
 pub fn machine_id_path() -> &'static str {
     "/etc/machine-id"
 }
+
+/// Absolute path of `postfix` on the RHEL family.
+///
+/// See [`MailFacts::postfix_binary`](crate::MailFacts::postfix_binary) for what the value is for and how far it is verified.
+#[must_use]
+pub fn postfix_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/sbin/postfix")
+}
+
+/// Absolute path of `postconf` on the RHEL family.
+///
+/// See [`MailFacts::postconf_binary`](crate::MailFacts::postconf_binary) for what the value is for and how far it is verified.
+#[must_use]
+pub fn postconf_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/sbin/postconf")
+}
+
+/// Absolute path of `postmap` on the RHEL family.
+///
+/// See [`MailFacts::postmap_binary`](crate::MailFacts::postmap_binary) for what the value is for and how far it is verified.
+#[must_use]
+pub fn postmap_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/sbin/postmap")
+}
+
+/// Absolute path of `postqueue` on the RHEL family.
+///
+/// See [`MailFacts::postqueue_binary`](crate::MailFacts::postqueue_binary) for what the value is for and how far it is verified.
+#[must_use]
+pub fn postqueue_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/sbin/postqueue")
+}
+
+/// Absolute path of `postsuper` on the RHEL family.
+///
+/// See [`MailFacts::postsuper_binary`](crate::MailFacts::postsuper_binary) for what the value is for and how far it is verified.
+#[must_use]
+pub fn postsuper_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/sbin/postsuper")
+}
+
+/// Absolute path of `doveadm` on the RHEL family.
+///
+/// See [`MailFacts::doveadm_binary`](crate::MailFacts::doveadm_binary) for what the value is for and how far it is verified.
+#[must_use]
+pub fn doveadm_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/doveadm")
+}
+
+/// Absolute path of `doveconf` on the RHEL family.
+///
+/// See [`MailFacts::doveconf_binary`](crate::MailFacts::doveconf_binary) for what the value is for and how far it is verified.
+#[must_use]
+pub fn doveconf_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/doveconf")
+}
+
+/// Absolute path of `rspamadm` on the RHEL family.
+///
+/// See [`MailFacts::rspamadm_binary`](crate::MailFacts::rspamadm_binary) for what the value is for and how far it is verified.
+#[must_use]
+pub fn rspamadm_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/rspamadm")
+}
+
+/// Name of the Postfix unit on the RHEL family.
+///
+/// See [`MailFacts::postfix_service`](crate::MailFacts::postfix_service) for what the value is for and how far it is verified.
+#[must_use]
+pub fn postfix_service() -> &'static str {
+    "postfix"
+}
+
+/// Name of the Dovecot unit on the RHEL family.
+///
+/// See [`MailFacts::dovecot_service`](crate::MailFacts::dovecot_service) for what the value is for and how far it is verified.
+#[must_use]
+pub fn dovecot_service() -> &'static str {
+    "dovecot"
+}
+
+/// Name of the Rspamd unit on the RHEL family.
+///
+/// See [`MailFacts::rspamd_service`](crate::MailFacts::rspamd_service) for what the value is for and how far it is verified.
+#[must_use]
+pub fn rspamd_service() -> &'static str {
+    "rspamd"
+}
+
+/// Name of the ClamAV scanning daemon's unit on the RHEL family.
+///
+/// See [`MailFacts::clamd_service`](crate::MailFacts::clamd_service) for what the value is for and how far it is verified.
+#[must_use]
+pub fn clamd_service() -> &'static str {
+    "clamd@scan"
+}
+
+/// Name of the ClamAV signature updater's unit on the RHEL family.
+///
+/// See [`MailFacts::freshclam_service`](crate::MailFacts::freshclam_service) for what the value is for and how far it is verified.
+#[must_use]
+pub fn freshclam_service() -> &'static str {
+    "clamav-freshclam"
+}
+
+/// The Postfix system user on the RHEL family.
+///
+/// See [`MailFacts::postfix_user`](crate::MailFacts::postfix_user) for what the value is for and how far it is verified.
+#[must_use]
+pub fn postfix_user() -> &'static str {
+    "postfix"
+}
+
+/// The group owning Postfix's drop directory on the RHEL family.
+///
+/// See [`MailFacts::postdrop_group`](crate::MailFacts::postdrop_group) for what the value is for and how far it is verified.
+#[must_use]
+pub fn postdrop_group() -> &'static str {
+    "postdrop"
+}
+
+/// The Dovecot system user on the RHEL family.
+///
+/// See [`MailFacts::dovecot_user`](crate::MailFacts::dovecot_user) for what the value is for and how far it is verified.
+#[must_use]
+pub fn dovecot_user() -> &'static str {
+    "dovecot"
+}
+
+/// The user Dovecot's login processes run as on the RHEL family.
+///
+/// See [`MailFacts::dovecot_login_user`](crate::MailFacts::dovecot_login_user) for what the value is for and how far it is verified.
+#[must_use]
+pub fn dovecot_login_user() -> &'static str {
+    "dovenull"
+}
+
+/// The Rspamd system user on the RHEL family.
+///
+/// See [`MailFacts::rspamd_user`](crate::MailFacts::rspamd_user) for what the value is for and how far it is verified.
+#[must_use]
+pub fn rspamd_user() -> &'static str {
+    "_rspamd"
+}
+
+/// The ClamAV scanning daemon's user on the RHEL family.
+///
+/// See [`MailFacts::clamd_user`](crate::MailFacts::clamd_user) for what the value is for and how far it is verified.
+#[must_use]
+pub fn clamd_user() -> &'static str {
+    "clamscan"
+}
+
+/// Absolute path of `named-checkconf` on the RHEL family.
+///
+/// Taken from the RHEL packaging spec (research_notes/dns-stack-inventory.md section 2.3). UNMEASURED on a host, and on EL9 the `bind9.18` package's file split is not verified; the installer step checks existence after the install and fails by name.
+#[must_use]
+pub fn dns_checkconf_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/sbin/named-checkconf")
+}
+
+/// Absolute path of `named-checkzone` on the RHEL family; the same file-list
+/// source and the same measurement status as [`dns_checkconf_binary`].
+#[must_use]
+pub fn dns_checkzone_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/sbin/named-checkzone")
+}
+
+/// Absolute path of `rndc` on the RHEL family; the same file-list source and
+/// the same measurement status as [`dns_checkconf_binary`].
+#[must_use]
+pub fn dns_control_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/sbin/rndc")
+}
+
+/// The system user BIND drops to on the RHEL family: `named`.
+#[must_use]
+pub fn dns_user() -> &'static str {
+    "named"
+}
+
+/// The system group BIND runs in on the RHEL family: `named`, the group of the
+/// user above.
+#[must_use]
+pub fn dns_group() -> &'static str {
+    "named"
+}
+
+/// The daemon's working directory and zone-list directory on the RHEL family.
+///
+/// Below `/var/named`, which SELinux labels for `named`. Whether `named_t` may WRITE the `maran` subdirectory is UNMEASURED: `installer/lib/89-dns.sh` labels the state directory `named_cache_t` when SELinux tooling is present, and the polygon has not proved it with an AVC check.
+#[must_use]
+pub fn dns_state_directory() -> &'static str {
+    "/var/named/maran"
+}
+
+/// The directory zone files are written into on the RHEL family: `zones/`
+/// below [`dns_state_directory`].
+#[must_use]
+pub fn dns_zone_directory() -> &'static str {
+    "/var/named/maran/zones"
+}

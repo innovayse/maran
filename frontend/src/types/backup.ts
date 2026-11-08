@@ -132,12 +132,16 @@ export interface CreateBackupRequest {
  * Request body for `POST /api/v1/backups/{id}/restore`, binding the backend's
  * `RestoreBackupCommand`.
  *
- * One field, and it is the whole of the confirmation. The command declares three more —
- * `backupId`, `ipAddress`, `userAgent` — and every one of them is `[BindNever]` and `JsonIgnore`
- * on the backend, stamped by the controller from the route and the connection. Sending any of them
- * would be sending a value the server discards, and a `backupId` in the body is precisely the
- * attack the server's stamping exists to refuse: it would let a caller type one account's name and
- * have another account's backup restored.
+ * The typed confirmation is the whole of the confirmation, and at most one more field narrows what
+ * is restored. The command declares three more — `backupId`, `ipAddress`, `userAgent` — and every
+ * one of them is `[BindNever]` and `JsonIgnore` on the backend, stamped by the controller from the
+ * route and the connection. Sending any of them would be sending a value the server discards, and a
+ * `backupId` in the body is precisely the attack the server's stamping exists to refuse: it would
+ * let a caller type one account's name and have another account's backup restored.
+ *
+ * **Neither narrowing field is a path.** A database is named, a site is named by its domain, and the
+ * server derives the directory itself; at most one is sent, and neither being sent is the whole
+ * account.
  */
 export interface RestoreBackupRequest {
   /**
@@ -146,7 +150,64 @@ export interface RestoreBackupRequest {
    * so an administrator restoring on a customer's behalf types the customer's name.
    */
   confirmAccountUsername: string
+  /**
+   * The full name of the one database to restore, taken from the account's own list
+   * (`RestoreChoices.databases`). Left out for a whole-account or a site restore.
+   */
+  databaseName?: string
+  /**
+   * The primary domain of the one site to restore, taken from the account's own list
+   * (`RestoreChoices.sites`). Left out for a whole-account or a database restore.
+   */
+  siteDomain?: string
 }
+
+/**
+ * Which part of an account a restore replaces: all of it, one database, or one site.
+ *
+ * What the operator picks in the dialog, not something sent as such: the request carries a name
+ * for the two narrower kinds and nothing for the whole account (see `RestoreBackupRequest`).
+ */
+export type RestoreScopeKind = 'whole' | 'database' | 'site'
+
+/**
+ * The parts of an account a restore can be narrowed to, mirroring the backend's
+ * `RestoreChoicesDto` field for field.
+ *
+ * These are the account's CURRENT databases and sites, not what the copy holds: the panel does not
+ * read inside an archive, so a name listed here can still be refused as not in the backup. The list
+ * is advice about what is worth asking and the server's refusal is the authority.
+ */
+export interface RestoreChoices {
+  /** The full, account-prefixed names of the account's databases, in ascending order. */
+  databases: string[]
+  /** The primary domains of the account's sites, in ascending order. */
+  sites: string[]
+}
+
+/**
+ * Where the lists the restore dialog narrows by stand: being fetched, in hand, or not obtainable.
+ *
+ * `unavailable` is its own arm and not an empty list, because "the account has no database" and "the
+ * list could not be fetched" are different facts, and the dialog must neither offer a choice it has
+ * no names for nor claim the account has none. The whole-account restore needs neither list, so the
+ * dialog stays usable on every arm.
+ */
+export type RestoreChoicesLoad =
+  | {
+      /** The request is in flight. */
+      state: 'loading'
+    }
+  | {
+      /** The lists were fetched. */
+      state: 'loaded'
+      /** The account's databases and sites. */
+      choices: RestoreChoices
+    }
+  | {
+      /** The lists could not be fetched; only the whole-account restore is offered. */
+      state: 'unavailable'
+    }
 
 /**
  * What a restore did, mirroring the backend's `RestoreOutcomeDto` field for field.
@@ -343,4 +404,12 @@ export interface BackupsApi {
     request: RestoreBackupRequest,
     signal?: AbortSignal,
   ) => Promise<RestoreOutcome>
+
+  /**
+   * Reads the databases and sites a restore of one backup could be narrowed to.
+   * @param id The backup about to be restored. Another customer's answers 404, never 403.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The account's databases and sites.
+   */
+  restoreChoices: (id: string, signal?: AbortSignal) => Promise<RestoreChoices>
 }

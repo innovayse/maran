@@ -15,7 +15,7 @@
  * message on every navigation, so a refusal from the invitation or reset screen never
  * greets the visitor here as if the sign-in had failed.
  */
-import { ref, watch, type Ref } from 'vue'
+import { defineAsyncComponent, ref, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
@@ -26,11 +26,20 @@ import UiIcon from '../../components/ui/UiIcon.vue'
 import UiInput from '../../components/ui/UiInput.vue'
 import UiPasswordInput from '../../components/ui/UiPasswordInput.vue'
 import { useAuthStore } from '../../stores/auth'
+import type { DemoIdentity } from '../../types/demo'
 
 const { t } = useI18n()
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+
+/**
+ * The public demo's published logins, or `null` in every other build. Written inline so the
+ * build-time `__MARAN_DEMO__` literal folds the ternary and drops the `import()` (vite.config.ts).
+ */
+const DemoCredentials = __MARAN_DEMO__
+  ? defineAsyncComponent(() => {return import('../../components/demo/DemoCredentials.vue')})
+  : null
 
 /** The login name being typed. */
 const username: Ref<string> = ref('')
@@ -43,6 +52,17 @@ const usernameError: Ref<string | null> = ref(null)
 
 /** The password field's own message, or `null` while it is not flagged. */
 const passwordError: Ref<string | null> = ref(null)
+
+/**
+ * Fills the form with one of the demo's published logins. The visitor still presses Sign in, so
+ * nothing is submitted on their behalf.
+ * @param identity The login the visitor chose.
+ * @returns Nothing.
+ */
+const fillFrom = (identity: DemoIdentity): void => {
+  username.value = identity.username
+  password.value = identity.password
+}
 
 /**
  * Signs in, then goes wherever the visitor was originally headed.
@@ -128,6 +148,8 @@ watch(password, (): void => {
       <UiButton variant="ghost" class="justify-center" :to="{ name: 'forgot-password' }">
         {{ t('app.passwordReset.forgotPassword') }}
       </UiButton>
+
+      <component :is="DemoCredentials" v-if="DemoCredentials !== null" @use="fillFrom" />
     </div>
   </UiForm>
 </template>

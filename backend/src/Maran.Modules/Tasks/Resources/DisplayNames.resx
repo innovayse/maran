@@ -45,4 +45,13 @@
   <data name="TaskStatusFailed">
     <value>Failed</value>
   </data>
+  <data name="TasksMenuList">
+    <value>Background tasks</value>
+  </data>
+  <data name="TasksRouteList">
+    <value>Background tasks</value>
+  </data>
+  <data name="TaskKindPanelUpdate">
+    <value>Updating the panel</value>
+  </data>
 </root>

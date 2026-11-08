@@ -38,7 +38,7 @@ public sealed class ResilientAgentSitesClientTests
 
     /// <summary>A site descriptor with every field set, to check it arrives unchanged.</summary>
     private static readonly SiteDescriptor Descriptor =
-        new(["www.example.com"], SiteBackendKind.Php, "8.3", "127.0.0.1:3000", true);
+        new(["www.example.com"], SiteBackendKind.Php, "8.3", "127.0.0.1:3000", true, SiteOptionsDescriptor.None);
 
     /// <summary>Create retries a transport failure through the pipeline.</summary>
     [Fact]

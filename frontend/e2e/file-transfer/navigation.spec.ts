@@ -17,8 +17,8 @@ import type { PanelModule } from '../../src/types/module'
 // rather than turning into a 404.
 
 const LICENSED: PanelModule[] = [
-  { name: 'sftp', displayName: 'File transfer', tier: 'included', state: 'enabled' },
-  { name: 'ftp', displayName: 'FTPS', tier: 'included', state: 'enabled' },
+  { name: 'sftp', displayName: 'File transfer', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'ftp', displayName: 'FTPS', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 const ALICE: Account = {
@@ -179,8 +179,8 @@ test('with the ftp module disabled the FTPS logins child is locked and the entry
   await signIn(page)
   // Registered after the catalogue `signIn` installed, so this one answers.
   await stubModules(page, [
-    { name: 'sftp', displayName: 'File transfer', tier: 'included', state: 'enabled' },
-    { name: 'ftp', displayName: 'FTPS', tier: 'included', state: 'locked' },
+    { name: 'sftp', displayName: 'File transfer', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+    { name: 'ftp', displayName: 'FTPS', kindDisplayName: 'Core', tier: 'included', state: 'locked' },
   ])
 
   await page.goto('/')

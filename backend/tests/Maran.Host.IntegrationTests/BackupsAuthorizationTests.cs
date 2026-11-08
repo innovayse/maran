@@ -9,9 +9,11 @@ using Maran.Modules.Backups.Controllers;
 using Maran.Modules.Backups.Domain.Entities;
 using Maran.Modules.Backups.Domain.Enums;
 using Maran.Modules.Backups.Persistence;
+using Maran.Modules.Databases.Persistence;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
+using Maran.Modules.Sites.Persistence;
 using Maran.SharedKernel.Interfaces;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -66,6 +68,7 @@ public sealed class BackupsAuthorizationTests : IAsyncLifetime
         return new TheoryData<string, string>
         {
             { "GET", "/api/v1/backups/{id}" },
+            { "GET", "/api/v1/backups/{id}/restore-choices" },
             { "DELETE", "/api/v1/backups/{id}" },
             { "POST", "/api/v1/backups/{id}/restore" },
             { "POST", "/api/v1/backups/{id}/verify" },
@@ -82,6 +85,7 @@ public sealed class BackupsAuthorizationTests : IAsyncLifetime
             { "POST", "/api/v1/backups" },
             { "GET", "/api/v1/backups/attention" },
             { "GET", "/api/v1/backups/{id}" },
+            { "GET", "/api/v1/backups/{id}/restore-choices" },
             { "DELETE", "/api/v1/backups/{id}" },
             { "POST", "/api/v1/backups/{id}/restore" },
             { "POST", "/api/v1/backups/{id}/verify" },
@@ -189,6 +193,25 @@ public sealed class BackupsAuthorizationTests : IAsyncLifetime
         Assert.Equal(
             JsonNamingPolicy.CamelCase.ConvertName(nameof(BackupStatus.Completed)),
             body.RootElement.GetProperty("status").GetString());
+    }
+
+    /// <summary>A customer asking for the restore choices of their own backup is answered with them.</summary>
+    [Fact]
+    public async Task A_customer_asking_for_the_restore_choices_of_their_own_backup_is_answered_with_them()
+    {
+        // The inverse control of the restore-choices row in the 404 theory: a route that answered
+        // 404 to everybody would pass that theory, and fails here.
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        var world = await SeedAsync(factory);
+        using var client = await SignInAsync(factory, "customer");
+
+        var response = await client.GetAsync($"/api/v1/backups/{world.OwnBackupId}/restore-choices");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(JsonValueKind.Array, body.RootElement.GetProperty("databases").ValueKind);
+        Assert.Equal(JsonValueKind.Array, body.RootElement.GetProperty("sites").ValueKind);
     }
 
     /// <summary>Listing backups shows a customer only their own.</summary>
@@ -378,6 +401,10 @@ public sealed class BackupsAuthorizationTests : IAsyncLifetime
         await scope.ServiceProvider.GetRequiredService<IdentityDbContext>().Database.MigrateAsync();
         await scope.ServiceProvider.GetRequiredService<AccountsDbContext>().Database.MigrateAsync();
         await scope.ServiceProvider.GetRequiredService<BackupsDbContext>().Database.MigrateAsync();
+
+        // The restore choices list the account's databases and sites.
+        await scope.ServiceProvider.GetRequiredService<DatabasesDbContext>().Database.MigrateAsync();
+        await scope.ServiceProvider.GetRequiredService<SitesDbContext>().Database.MigrateAsync();
     }
 
     /// <summary>Seeds two accounts, their logins, and one completed backup each.</summary>

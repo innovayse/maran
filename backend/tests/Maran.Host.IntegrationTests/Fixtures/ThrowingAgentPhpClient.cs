@@ -40,4 +40,47 @@ public sealed class ThrowingAgentPhpClient : IAgentPhpClient
     {
         throw new NotSupportedException("Creating a site never installs a PHP runtime.");
     }
+
+    /// <summary>Never answers.</summary>
+    /// <param name="version">Ignored.</param>
+    /// <param name="cancellationToken">Ignored.</param>
+    /// <returns>Never returns.</returns>
+    public Task<Result<IReadOnlyList<PhpExtensionDto>>> ListExtensionsAsync(
+        string version,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("A static site must not ask the host which PHP extensions a version has.");
+    }
+
+    /// <summary>Never answers.</summary>
+    /// <param name="version">Ignored.</param>
+    /// <param name="extension">Ignored.</param>
+    /// <param name="enabled">Ignored.</param>
+    /// <param name="cancellationToken">Ignored.</param>
+    /// <returns>Never returns.</returns>
+    public IAsyncEnumerable<PhpExtensionEvent> SetExtensionAsync(
+        string version,
+        string extension,
+        bool enabled,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("Creating a site never switches a PHP extension.");
+    }
+
+    /// <summary>Never answers.</summary>
+    /// <param name="accountUsername">Ignored.</param>
+    /// <param name="version">Ignored.</param>
+    /// <param name="maxChildren">Ignored.</param>
+    /// <param name="settingOverrides">Ignored.</param>
+    /// <param name="cancellationToken">Ignored.</param>
+    /// <returns>Never returns.</returns>
+    public Task<Result> ApplyPoolSettingsAsync(
+        string accountUsername,
+        string version,
+        uint maxChildren,
+        IReadOnlyList<PhpSettingDto> settingOverrides,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("A static site never rewrites a PHP pool.");
+    }
 }

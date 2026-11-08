@@ -159,6 +159,9 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                         .HasMaxLength(8)
                         .HasColumnType("character varying(8)");
 
+                    b.Property<Guid?>("ResellerId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset?>("RevokedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -176,6 +179,9 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                     b.HasIndex("Prefix")
                         .IsUnique()
                         .HasDatabaseName("UX_ApiKeys_Prefix");
+
+                    b.HasIndex("ResellerId")
+                        .HasDatabaseName("IX_ApiKeys_ResellerId");
 
                     b.ToTable("ApiKeys", "identity");
                 });
@@ -307,6 +313,40 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("AuditRetentionPolicies", "identity");
+                });
+
+            modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.DashboardPreference", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Hidden")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "Kind", "Key")
+                        .IsUnique()
+                        .HasDatabaseName("IX_DashboardPreferences_UserId_Kind_Key");
+
+                    b.ToTable("DashboardPreferences", "identity");
                 });
 
             modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.FailedLoginByIp", b =>
@@ -612,6 +652,11 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                     b.Property<DateTimeOffset?>("LockedUntil")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool>("PasswordChangeRequired")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasMaxLength(256)
@@ -703,6 +748,16 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                         });
 
                     b.Navigation("Impersonator");
+                });
+
+            modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.DashboardPreference", b =>
+                {
+                    b.HasOne("Maran.Modules.Identity.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_DashboardPreferences_Users_UserId");
                 });
 
             modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.InvitationToken", b =>

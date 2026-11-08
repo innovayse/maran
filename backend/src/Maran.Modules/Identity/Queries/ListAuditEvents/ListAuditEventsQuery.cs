@@ -21,8 +21,11 @@ namespace Maran.Modules.Identity.Queries.ListAuditEvents;
 /// names a user who never existed.
 /// </para>
 /// <para>
-/// The journal is administrators-only and server-wide; the controller's policy decides who may read
-/// it, and nothing here narrows by tenant.
+/// The same query serves two screens, and what narrows it is the CALLER, never a member of this record:
+/// an administrator reads the whole journal, and a reseller only the entries about the accounts it owns
+/// and its own login's (issue #370), so a reseller's <paramref name="Account"/> must be one of its own
+/// or the answer is a 404. The controllers' policies decide who may ask; <c>AuditEventScopeReader</c>
+/// decides what they see.
 /// </para>
 /// </remarks>
 /// <param name="Page">The 1-based page requested; a page past the end answers empty with the true total.</param>

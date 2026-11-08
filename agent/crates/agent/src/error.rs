@@ -14,6 +14,10 @@ pub enum StartupError {
     /// The host distribution is unsupported or undetectable.
     #[error("cannot detect the host distribution: {0}")]
     Distro(#[from] maran_distro::DetectError),
+    /// The fleet listener (issue #180) could not be set up: its address cannot be bound or its
+    /// TLS identity is unusable. Only possible when fleet mode is configured.
+    #[error("cannot start the fleet listener: {0}")]
+    Fleet(#[from] crate::fleet::fleet_listener_error::FleetListenerError),
     /// The gRPC server stopped with an error.
     #[error("the agent server failed: {0}")]
     Server(#[from] tonic::transport::Error),

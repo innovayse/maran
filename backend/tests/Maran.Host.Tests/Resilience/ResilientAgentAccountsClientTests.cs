@@ -34,4 +34,22 @@ public sealed class ResilientAgentAccountsClientTests
         Assert.Equal("AgentUnavailable", result.Error!.Code);
         Assert.Equal(ErrorType.Unavailable, result.Error.Type);
     }
+
+    /// <summary>A transport outage on an open-files change is answered as an unavailable agent, not thrown.</summary>
+    /// <returns>A task that completes when the assertions have run.</returns>
+    [Fact]
+    public async Task A_transport_outage_on_an_open_files_change_answers_agent_unavailable_instead_of_throwing()
+    {
+        using var agent = UnixSocketAgentDouble.Missing();
+        using var channel = AgentChannel.CreateUnixSocket(agent.SocketPath);
+        var client = new ResilientAgentAccountsClient(
+            new AgentAccountsClient(channel, NullLogger<AgentAccountsClient>.Instance),
+            OperationPipelineRegistry.WithOperationTimeout(30));
+
+        var result = await client.SetOpenFilesLimitAsync("alice", 4096, default).WaitAsync(TestTimeout);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentUnavailable", result.Error!.Code);
+        Assert.Equal(ErrorType.Unavailable, result.Error.Type);
+    }
 }

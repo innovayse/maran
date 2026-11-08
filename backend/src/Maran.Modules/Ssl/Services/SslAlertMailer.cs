@@ -17,7 +17,7 @@ namespace Maran.Modules.Ssl.Services;
 /// <para>
 /// <b>It owns the words and the decision; the path is shared.</b> Only this module knows what the
 /// mail is about and when it is due. Journalling the alert, finding where operator alerts go and
-/// publishing the mail are <see cref="OperatorAlertMailer"/>'s, the one implementation Monitoring
+/// publishing the mail are <see cref="OperatorAlertDispatcher"/>'s, the one implementation Monitoring
 /// and Backups call too. The entries are written through this module's own journal.
 /// </para>
 /// <para>
@@ -50,7 +50,7 @@ public sealed class SslAlertMailer : ISslAlertMailer
     private const string AuditSubjectKind = "CertificateExpiry";
 
     /// <summary>The panel's one path for an operator alert: journal, recipient, mail.</summary>
-    private readonly OperatorAlertMailer _operatorAlerts;
+    private readonly OperatorAlertDispatcher _operatorAlerts;
 
     /// <summary>This module's audit journal.</summary>
     private readonly CertificateAuditJournal _journal;
@@ -67,7 +67,7 @@ public sealed class SslAlertMailer : ISslAlertMailer
     /// <param name="text">The localized subjects and bodies of the alert mail.</param>
     /// <param name="failures">Describes a stored renewal failure as a sentence.</param>
     public SslAlertMailer(
-        OperatorAlertMailer operatorAlerts,
+        OperatorAlertDispatcher operatorAlerts,
         CertificateAuditJournal journal,
         IStringLocalizer<NotificationMessages> text,
         CertificateRenewalFailureMessages failures)
@@ -102,10 +102,18 @@ public sealed class SslAlertMailer : ISslAlertMailer
             body = $"{body} {_text[ExpiryLastFailure, failure].Value}";
         }
 
+        var alert = new OperatorAlert(
+            AlertSource.Ssl,
+            AuditSubjectKind,
+            AlertTransition.Occurred,
+            certificate.Domain,
+            $"daysLeft={daysLeft} notAfter={certificate.NotAfter.ToUniversalTime().ToString(InstantFormat, CultureInfo.InvariantCulture)}");
+
         await _operatorAlerts.AlertAsync(
             _journal,
             MonitoringAuditActions.AlertRaised,
             $"{AuditSubjectKind}:{certificate.Domain}",
+            alert,
             _text[ExpirySubject, certificate.Domain].Value,
             body,
             cancellationToken);

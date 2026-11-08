@@ -25,6 +25,14 @@ namespace Maran.Modules.Sites.Services;
 /// stores.
 /// </para>
 /// <para>
+/// <b>It carries the customer's PHP settings.</b> The agent's converge does NOT keep the settings
+/// already on disk: it renders the pool from exactly the overrides it is given and rewrites the file
+/// whenever that differs from disk, so a setting present on disk but absent from the call is dropped.
+/// Every call therefore sends the account's stored settings cut to its plan's bounds
+/// (<see cref="PhpAccountPoolSettings"/>), the same answer a site creation, a version switch and a
+/// plan change send, so a start-up pass can never undo what they wrote (issue #138).
+/// </para>
+/// <para>
 /// <b>It runs on EVERY start, not once.</b> The panel keeps no record of which site has been
 /// converged, deliberately: such a record is a second source of truth that goes stale the moment
 /// someone edits a file by hand, and it would be the very thing that made a site look done when it
@@ -54,13 +62,6 @@ public sealed class StartupPhpSiteReconciler : BackgroundService
 
     /// <summary>How long between attempts.</summary>
     public static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(30);
-
-    /// <summary>Customer php.ini overrides, of which the panel stores none.</summary>
-    /// <remarks>
-    /// The same true-and-complete empty set the version change uses; the agent's converge keeps the
-    /// settings already on disk and does not take them from this argument.
-    /// </remarks>
-    private static readonly IReadOnlyList<PhpSettingDto> NoSettingOverrides = [];
 
     /// <summary>Pre-compiled log delegate for a completed pass.</summary>
     private static readonly Action<ILogger, int, int, int, int, Exception?> LogReconciled =
@@ -141,6 +142,7 @@ public sealed class StartupPhpSiteReconciler : BackgroundService
         var dbContext = scope.ServiceProvider.GetRequiredService<SitesDbContext>();
         var agent = scope.ServiceProvider.GetRequiredService<IAgentSitesClient>();
         var accountDirectory = scope.ServiceProvider.GetRequiredService<IAccountDirectory>();
+        var poolSettings = scope.ServiceProvider.GetRequiredService<PhpAccountPoolSettings>();
 
 #pragma warning disable RS0030 // startup has no principal; every tenant's PHP sites are converged
         var sites = await dbContext.Sites
@@ -157,6 +159,8 @@ public sealed class StartupPhpSiteReconciler : BackgroundService
                 return account.Id;
             });
 
+        // One read per account and not per site: an account's sites share their pools' settings.
+        var settingsOfAccount = new Dictionary<Guid, IReadOnlyList<PhpSettingDto>>();
         var converged = 0;
         var failed = 0;
         var skipped = 0;
@@ -171,7 +175,13 @@ public sealed class StartupPhpSiteReconciler : BackgroundService
                 continue;
             }
 
-            if (await ConvergeAsync(agent, site, account, cancellationToken))
+            if (!settingsOfAccount.TryGetValue(account.Id, out var settings))
+            {
+                settings = await poolSettings.EffectiveAsync(account.Id, account.PhpLimits, cancellationToken);
+                settingsOfAccount[account.Id] = settings;
+            }
+
+            if (await ConvergeAsync(agent, site, account, settings, cancellationToken))
             {
                 converged++;
             }
@@ -216,6 +226,7 @@ public sealed class StartupPhpSiteReconciler : BackgroundService
     /// <param name="agent">The agent's site operations.</param>
     /// <param name="site">The stored PHP site.</param>
     /// <param name="account">The site's owning account.</param>
+    /// <param name="settings">The settings the account's pools carry, cut to its plan's bounds.</param>
     /// <param name="cancellationToken">Cancels the call.</param>
     /// <returns>True when the agent answered success.</returns>
     /// <remarks>
@@ -227,6 +238,7 @@ public sealed class StartupPhpSiteReconciler : BackgroundService
         IAgentSitesClient agent,
         Site site,
         AccountSnapshot account,
+        IReadOnlyList<PhpSettingDto> settings,
         CancellationToken cancellationToken)
     {
         try
@@ -237,7 +249,7 @@ public sealed class StartupPhpSiteReconciler : BackgroundService
                 site.PhpVersion,
                 SiteDescriptorMapper.From(site),
                 (uint)account.MaxPhpWorkersPerPool,
-                NoSettingOverrides,
+                settings,
                 removePreviousPool: false,
                 cancellationToken);
             if (result.IsSuccess)

@@ -20,6 +20,7 @@ interface Destination {
 const DESTINATIONS: Destination[] = [
   { label: 'Audit journal', path: '/settings/audit', section: 'Monitoring' },
   { label: 'Outgoing mail', path: '/settings/smtp', section: 'Settings' },
+  { label: 'Alert settings', path: '/settings/alerts', section: 'Settings' },
   { label: 'Security policy', path: '/settings/security-policy', section: 'Security' },
   { label: 'PHP versions', path: '/settings/php', section: 'Sites and domains' },
   // The firewall's paged lists (#196) are named by their page titles too.

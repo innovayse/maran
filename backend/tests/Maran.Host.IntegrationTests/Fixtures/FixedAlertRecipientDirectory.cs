@@ -18,8 +18,8 @@ public sealed class FixedAlertRecipientDirectory : IAlertRecipientDirectory
     /// <summary>Answers the fixed address.</summary>
     /// <param name="cancellationToken">Cancellation for the read.</param>
     /// <returns>The address operator alerts are sent to.</returns>
-    public Task<string?> GetAlertRecipientAsync(CancellationToken cancellationToken)
+    public Task<IReadOnlyList<string>> GetAlertRecipientsAsync(CancellationToken cancellationToken)
     {
-        return Task.FromResult<string?>(Address);
+        return Task.FromResult<IReadOnlyList<string>>([Address]);
     }
 }

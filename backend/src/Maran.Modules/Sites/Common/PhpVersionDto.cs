@@ -18,4 +18,16 @@ namespace Maran.Modules.Sites.Common;
 /// the agent did not establish it; that is not the same answer as
 /// <see cref="PhpDefaultStatus.NotDefault"/> and is never rendered as it.
 /// </param>
-public sealed record PhpVersionDto(string Version, PhpDefaultStatus DefaultStatus);
+/// <param name="Lifecycle">
+/// Where the version stands in its upstream support life, from the panel's own table; the date it
+/// ends is shown with the word so the reader is never asked to compare dates themselves.
+/// </param>
+/// <param name="SitesUsing">
+/// How many sites are bound to this version, for the administrator deciding whether it can be retired;
+/// <see langword="null"/> for a customer, who is told nothing about other accounts' sites.
+/// </param>
+public sealed record PhpVersionDto(
+    string Version,
+    PhpDefaultStatus DefaultStatus,
+    PhpLifecycleDto Lifecycle,
+    int? SitesUsing);

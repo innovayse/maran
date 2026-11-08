@@ -108,6 +108,12 @@
   <data name="InvitationAccountSuspended">
     <value>Пока аккаунт приостановлен, приглашение выдать нельзя. Сначала возобновите аккаунт.</value>
   </data>
+  <data name="InvitationResellerNotFound">
+    <value>Такой реселлер не найден.</value>
+  </data>
+  <data name="InvitationResellerSuspended">
+    <value>Пока реселлер приостановлен, приглашение выдать нельзя. Сначала возобновите реселлера.</value>
+  </data>
   <data name="AdminRecoveryUserNotFound">
     <value>Пользователь с таким адресом электронной почты или именем не найден.</value>
   </data>
@@ -137,6 +143,21 @@
   </data>
   <data name="PinnedPageNotFound">
     <value>Эта страница не закреплена.</value>
+  </data>
+  <data name="DashboardLayoutTooLong">
+    <value>Список на панели может содержать не более 32 записей.</value>
+  </data>
+  <data name="DashboardLayoutKeyInvalid">
+    <value>У записи панели недопустимый ключ. Допустимы только буквы и цифры, начиная с буквы, не более 64 символов.</value>
+  </data>
+  <data name="DashboardLayoutKeyRepeated">
+    <value>В списке панели одна и та же запись указана несколько раз.</value>
+  </data>
+  <data name="DashboardLayoutSaveConflict">
+    <value>Раскладка панели была изменена одновременно. Попробуйте сохранить её ещё раз.</value>
+  </data>
+  <data name="DashboardLayoutListMissing">
+    <value>В раскладке панели должны быть оба списка: виджеты и ярлыки.</value>
   </data>
   <data name="SubUsersOwnerOnly">
     <value>Управлять пользователями аккаунта может только его владелец.</value>
@@ -190,7 +211,7 @@
     <value>Срок действия должен быть моментом в будущем.</value>
   </data>
   <data name="ApiKeyLimitReached">
-    <value>В панели уже создано максимальное число API-ключей. Отзовите ключ, который больше не нужен.</value>
+    <value>Максимальное число действующих API-ключей уже создано. Отзовите ключ, который больше не нужен.</value>
   </data>
   <data name="ApiKeyPrefixUnavailable">
     <value>Не удалось создать ключ: не найден свободный префикс ключа. Повторите попытку.</value>
@@ -206,6 +227,12 @@
   </data>
   <data name="AuditActorFilterInvalid">
     <value>Это недопустимое имя пользователя для фильтра журнала аудита.</value>
+  </data>
+  <data name="AuditJournalNotReadable">
+    <value>Журнал аудита недоступен для этого входа.</value>
+  </data>
+  <data name="AuditAccountNotFound">
+    <value>В вашем журнале аудита нет такой учётной записи.</value>
   </data>
   <data name="AuditRetentionOutOfRange">
     <value>Записи аудита можно хранить от 30 до 3650 дней или бессрочно.</value>

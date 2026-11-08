@@ -55,6 +55,24 @@ service SitesService {
   // tailing have been sent. Read-only; safe to call repeatedly.
   rpc TailSiteLog(TailSiteLogRequest) returns (stream TailSiteLogResponse);
 
+  // Reads a site's access log from a cursor onward and returns what it holds as
+  // per-UTC-day counters: requests, body bytes, status codes and the most
+  // requested paths. Read-only; no visitor address, query string or user agent
+  // leaves the agent. Reads the live file and the previous rotation (".1") only,
+  // at most 64 MiB per call, so a busy site is caught up over several calls
+  // (caught_up false). Concurrent calls are bounded: a call beyond the host's
+  // small ceiling is refused SYSTEM_FAILURE and is safe to repeat later.
+  // Cancellation class: stop - the read is bounded by its byte budget and ends
+  // on its own if the caller goes away.
+  rpc SummariseSiteTraffic(SummariseSiteTrafficRequest) returns (SummariseSiteTrafficResponse);
+
+  // Removes a site's rotated log archives numbered above retain_rotations
+  // (access and error, compressed or not). Never touches the live log or any
+  // file that is not exactly `<domain>.<access|error>.log.<N>[.gz]` with N above
+  // the retained count. Idempotent: repeating it removes nothing more.
+  // Cancellation class: run to completion - deleting has no unsafe midpoint.
+  rpc PruneSiteLogs(PruneSiteLogsRequest) returns (PruneSiteLogsResponse);
+
   // Validates the current web-server configuration and reloads it.
   // Used after a batch of site changes to apply them in one reload instead
   // of one per change. Idempotent: reloading with no pending changes is a
@@ -108,6 +126,14 @@ message SiteSpec {
   // plain HTTP. The caller knows this and the renderer must not guess: a
   // guess drops a live site back to port 80 on the next unrelated edit.
   bool has_certificate = 5;
+  // The customer's per-site options (redirects, basic auth, IP rules, request
+  // limit, upload size, cache headers). Panel-owned like every other field here: the panel
+  // stores them and sends them on EVERY re-render, because a vhost rendered
+  // without them silently drops a site's redirects, credentials and IP rules.
+  // Every field of SiteOptions has a zero value meaning "absent", so a caller
+  // that predates this field renders exactly the vhost it rendered before.
+  // Added 2026-11-07.
+  SiteOptions options = 6;
 }
 
 message CreateSiteRequest {
@@ -144,6 +170,9 @@ message CreateSiteRequest {
   // rewrite that omitted the settings would silently drop them.
   // Added 2026-09-01.
   repeated PhpSetting overrides = 8;
+  // The site's per-site options, as in SiteSpec. Absent = none.
+  // Added 2026-11-07.
+  SiteOptions options = 9;
 }
 
 message CreateSiteResponse {
@@ -310,3 +339,196 @@ message ReloadWebServerResponse {
 }
 
 message ReloadWebServerOk {}
+
+// Where the next SummariseSiteTraffic call continues.
+message TrafficCursor {
+  // Opaque identity of the log file the offset belongs to. The panel stores it
+  // and sends it back unchanged; it never interprets it.
+  string file_id = 1;
+  // Bytes of that file already counted (always at a line boundary).
+  uint64 offset = 2;
+}
+
+message SummariseSiteTrafficRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Primary domain of the site whose access log is summarised.
+  string domain = 2;
+  // Where the previous call ended. Absent: start at the previous rotation
+  // (".1") if present, then the live file.
+  TrafficCursor cursor = 3;
+}
+
+message SummariseSiteTrafficResponse {
+  oneof result {
+    SummariseSiteTrafficOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message SummariseSiteTrafficOk {
+  // Deltas read since the cursor, bucketed by UTC date, oldest first. The
+  // panel adds them to what it holds; they are not totals.
+  repeated TrafficDay days = 1;
+  // Where the next call starts. Absent when the site has no access log yet.
+  TrafficCursor cursor = 2;
+  // False when the 64 MiB budget stopped the read early; call again.
+  bool caught_up = 3;
+  // True when the file the request's cursor named is gone: the lines between
+  // the cursor and what was read are lost, and the figures may be incomplete.
+  bool gap = 4;
+  // Lines the tokenizer refused (over 8 KiB, or not in the combined format).
+  uint32 unparsed_lines = 5;
+}
+
+// One UTC day's deltas.
+message TrafficDay {
+  // "YYYY-MM-DD" in UTC.
+  string date = 1;
+  // Requests counted for the day.
+  uint64 requests = 2;
+  // Response body bytes sent, summed.
+  uint64 body_bytes = 3;
+  // Requests per status code; at most 64 distinct codes, so the sum can be
+  // lower than requests.
+  repeated TrafficStatus statuses = 4;
+  // Most requested paths, highest first, at most 50; the query string is
+  // already removed.
+  repeated TrafficPath paths = 5;
+  // Requests whose path is not in paths (beyond the cap, too long, or not a
+  // path).
+  uint64 other_path_requests = 6;
+}
+
+message TrafficStatus {
+  // HTTP status code.
+  uint32 code = 1;
+  // Requests answered with it.
+  uint64 requests = 2;
+}
+
+message TrafficPath {
+  // Request path without its query string, at most 512 bytes.
+  string path = 1;
+  // Requests for it.
+  uint64 requests = 2;
+}
+
+message PruneSiteLogsRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Primary domain of the site whose rotated logs are pruned.
+  string domain = 2;
+  // How many rotations to keep, 1 to 14. Archives numbered above it are removed.
+  uint32 retain_rotations = 3;
+}
+
+message PruneSiteLogsResponse {
+  oneof result {
+    PruneSiteLogsOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message PruneSiteLogsOk {
+  // How many archive files were removed by this call.
+  uint32 removed_files = 1;
+}
+
+// Which host name a site answers canonically. A non-default value makes the
+// other of the apex / "www." pair redirect (permanently) to the canonical one.
+enum CanonicalHost {
+  // No canonical redirect: the site answers on every name it claims.
+  CANONICAL_HOST_UNSPECIFIED = 0;
+  // The "www." name is canonical; the apex redirects to it.
+  CANONICAL_HOST_WWW = 1;
+  // The apex name is canonical; the "www." name redirects to it.
+  CANONICAL_HOST_APEX = 2;
+}
+
+// How a redirect rule's path is compared with the request path.
+enum RedirectMatch {
+  // Refused by the agent.
+  REDIRECT_MATCH_UNSPECIFIED = 0;
+  // The request path equals the rule's path.
+  REDIRECT_MATCH_EXACT = 1;
+  // The request path starts with the rule's path, which ends in "/".
+  REDIRECT_MATCH_PREFIX = 2;
+}
+
+// Whether the listed networks are the only ones allowed or the ones refused.
+enum IpAccessMode {
+  // Only valid when the list is empty (no IP rules); refused otherwise.
+  IP_ACCESS_MODE_UNSPECIFIED = 0;
+  // Only the listed networks may reach the site; everyone else is refused.
+  IP_ACCESS_MODE_ALLOW_LIST = 1;
+  // The listed networks are refused; everyone else may reach the site.
+  IP_ACCESS_MODE_DENY_LIST = 2;
+}
+
+// The per-site options the vhost is rendered with. Every value is re-validated
+// by the agent against its own types; none is written into configuration
+// unvalidated. All fields default to "absent".
+message SiteOptions {
+  // Canonical host redirect; UNSPECIFIED means none.
+  CanonicalHost canonical_host = 1;
+  // Largest request body nginx accepts, in MiB, 1 to 1024; 0 leaves nginx's
+  // default.
+  uint32 client_max_body_size_mib = 2;
+  // How many days browsers may cache static files, 1 to 365; 0 sends no cache
+  // headers.
+  uint32 static_cache_days = 3;
+  // Redirect rules, at most 25, rendered in the order given.
+  repeated RedirectRule redirects = 4;
+  // HTTP basic authentication in front of the whole site; absent when it has
+  // no users.
+  BasicAuth basic_auth = 5;
+  // IP allow / deny list; absent when it has no networks.
+  IpAccess ip_access = 6;
+  // How many requests per second one visitor address may make to the site,
+  // 1 to 1000; 0 means no limit. Rendered as an nginx `limit_req` zone keyed on
+  // the connecting address, which behind a proxy or CDN is the proxy's address.
+  // A request over the limit is answered 429. Added 2026-11-07 (issue #159).
+  uint32 request_rate_per_second = 7;
+  // How many requests above request_rate_per_second one visitor address may
+  // send in a burst before being refused, 0 to 1000. Meaningful only with a
+  // request_rate_per_second; a burst with no rate is refused as INVALID_INPUT
+  // rather than read as "no limit". Added 2026-11-07 (issue #159).
+  uint32 request_burst = 8;
+}
+
+// One redirect rule.
+message RedirectRule {
+  // The path the rule applies to: starts with "/", at most 255 bytes, no query
+  // string. A PREFIX rule's path ends in "/".
+  string path = 1;
+  // How the path is compared.
+  RedirectMatch match = 2;
+  // Where to send the request: an absolute http(s) URL or a path on this site.
+  string target = 3;
+  // HTTP status of the redirect: 301 or 302. Any other value is refused.
+  uint32 status = 4;
+}
+
+// HTTP basic authentication.
+message BasicAuth {
+  // Users allowed in, at most 10.
+  repeated BasicAuthUser users = 1;
+}
+
+// One basic-authentication user. The agent never sees a password.
+message BasicAuthUser {
+  // The login name: 1 to 32 characters of [A-Za-z0-9._-].
+  string name = 1;
+  // The bcrypt hash ("$2y$", "$2a$" or "$2b$", cost 10 to 14), computed by the
+  // panel. Secret: never logged, never echoed back in any response.
+  string password_hash = 2;
+}
+
+// The IP rules of a site.
+message IpAccess {
+  // Whether the list allows or refuses.
+  IpAccessMode mode = 1;
+  // Addresses or CIDR ranges ("203.0.113.0/24", "2001:db8::/32"), at most 25.
+  repeated string cidrs = 2;
+}

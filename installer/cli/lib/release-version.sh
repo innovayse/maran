@@ -100,3 +100,26 @@ cli_version_gt() {
   done
   [ "${#a_parts[@]}" -gt "${#b_parts[@]}" ]
 }
+
+# cli_version_major V: prints the major number of the SemVer version V. Refuses (cli_fail) a V that is
+# not a strict SemVer version, a legacy name included: a legacy install has no major number, and an
+# answer made up for it would let an unattended update compare against nothing.
+cli_version_major() {
+  local LC_ALL=C v="${1-}"
+  cli_version_is_semver "$v" || cli_fail "not a SemVer version: '${v}'"
+  printf '%s\n' "${v%%.*}"
+}
+
+# cli_version_same_major A B: succeeds when the SemVer versions A and B have the same major number and
+# fails when they differ. Pre-release text and the minor and patch numbers are not compared. Refuses
+# (cli_fail) an argument that is not a SemVer version, like cli_version_gt, so a malformed value can
+# never compare as "different" and be mistaken for an answer.
+cli_version_same_major() {
+  local a_major b_major
+  # A refusal inside a command substitution ends only the substitution, and a caller that tests this
+  # function in an `if` has errexit off: the explicit returns keep a malformed argument from comparing
+  # two empty strings as equal. Failing here reads as "different", the side an unattended update skips.
+  a_major="$(cli_version_major "$1")" || return 1
+  b_major="$(cli_version_major "$2")" || return 1
+  [ "$a_major" = "$b_major" ]
+}

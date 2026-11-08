@@ -12,7 +12,7 @@
 // workspace-wide bans on unwrap/expect/panic are lifted here only.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
@@ -29,6 +29,9 @@ use crate::php::{PhpHost, PhpOpError};
 use crate::safe_write::model::{Reload, Validator};
 use crate::safe_write::{ConfigHost, SafeWriteError};
 use crate::test_support::recording_commands::RecordingCommands;
+
+/// One canned answer of a program: status, stdout, stderr.
+type CannedAnswer = (i32, String, String);
 
 /// A [`PhpHost`] that keeps the pool directory, the installed versions and the
 /// spawned commands in memory.
@@ -54,7 +57,11 @@ pub(crate) struct FakePhpHost {
     modes: Mutex<BTreeMap<PathBuf, u32>>,
     /// Per-subcommand answers that override the recording's single outcome,
     /// keyed by the first argument: status, stdout, stderr.
-    answers: Mutex<BTreeMap<String, (i32, String, String)>>,
+    answers: Mutex<BTreeMap<String, CannedAnswer>>,
+    /// Per-subcommand answers given one per call, in order, the last one
+    /// repeating; they win over `answers`. For a command whose answer changes
+    /// across one operation, such as the module listing before and after a switch.
+    answers_in_turn: Mutex<BTreeMap<String, VecDeque<CannedAnswer>>>,
     /// Subcommands whose program "cannot be started".
     spawn_failures: Mutex<BTreeSet<String>>,
     /// The version whose pool directory appears once a `start` succeeds, which
@@ -90,6 +97,7 @@ impl FakePhpHost {
             created_as_account: Mutex::new(Vec::new()),
             modes: Mutex::new(BTreeMap::new()),
             answers: Mutex::new(BTreeMap::new()),
+            answers_in_turn: Mutex::new(BTreeMap::new()),
             spawn_failures: Mutex::new(BTreeSet::new()),
             installs_on_start: Mutex::new(None),
             timeouts: Mutex::new(BTreeSet::new()),
@@ -115,6 +123,19 @@ impl FakePhpHost {
         host
     }
 
+    /// A host with `versions` installed as `adapter` spells their pool
+    /// directories, for a test that runs against the other family.
+    pub(crate) fn with_installed_on(adapter: &dyn DistroAdapter, versions: &[&str]) -> Self {
+        let host = Self::empty();
+        {
+            let mut directories = host.directories.lock().unwrap();
+            for version in versions {
+                directories.insert(PathBuf::from(adapter.php_fpm_pool_directory(version)));
+            }
+        }
+        host
+    }
+
     /// Makes every spawned command fail, with `stderr` as the reason an
     /// operator would read in the log.
     pub(crate) fn reject_commands(&self, stderr: &str) {
@@ -127,6 +148,21 @@ impl FakePhpHost {
         self.answers.lock().unwrap().insert(
             subcommand.to_owned(),
             (status, stdout.to_owned(), stderr.to_owned()),
+        );
+    }
+
+    /// Answers the commands whose first argument is `subcommand` one outcome
+    /// per call, in the order given, the last repeating. Each outcome is
+    /// `(status, stdout, stderr)`.
+    pub(crate) fn answer_in_turn(&self, subcommand: &str, outcomes: &[(i32, &str, &str)]) {
+        self.answers_in_turn.lock().unwrap().insert(
+            subcommand.to_owned(),
+            outcomes
+                .iter()
+                .map(|(status, stdout, stderr)| {
+                    (*status, (*stdout).to_owned(), (*stderr).to_owned())
+                })
+                .collect(),
         );
     }
 
@@ -277,6 +313,20 @@ impl ConfigHost for FakePhpHost {
                 stdout: stdout.clone(),
                 stderr: stderr.clone(),
             };
+        }
+        if let Some(queue) = self.answers_in_turn.lock().unwrap().get_mut(subcommand) {
+            let next = if queue.len() > 1 {
+                queue.pop_front()
+            } else {
+                queue.front().cloned()
+            };
+            if let Some((status, stdout, stderr)) = next {
+                outcome = CommandOutcome {
+                    status,
+                    stdout,
+                    stderr,
+                };
+            }
         }
         let installed = self.installs_on_start.lock().unwrap().clone();
         if let Some(version) = installed.filter(|_| subcommand == "start" && outcome.status == 0) {

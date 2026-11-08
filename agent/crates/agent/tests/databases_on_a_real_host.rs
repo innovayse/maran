@@ -364,6 +364,66 @@ fn dropping_a_database_takes_its_user_with_it_and_a_second_drop_reports_not_foun
 }
 
 #[test]
+#[ignore = "drops and recreates a real database on a real MariaDB: polygon only"]
+fn a_database_recreated_under_a_dropped_ones_name_inherits_no_grant() {
+    let server = PolygonMariadb::start();
+    let account = PolygonAccount::create("polydbsgone");
+    clear(&server, account.name());
+    let name = account.name().as_str();
+    let stranger = format!("{name}_stranger");
+    server.run(&format!("DROP USER IF EXISTS '{stranger}'@'localhost'"));
+
+    let host = ProcessDbHost::new(polygon_distro());
+    create_database(&host, &request_for(account.name(), CUSTOMER_PASSWORD))
+        .unwrap_or_else(|error| panic!("the create must succeed: {error}"));
+
+    // A grant on the database held by a user the drop is NOT told about, which
+    // is the shape the defect needs: only the named dedicated user is dropped.
+    let database = format!("{name}_shop");
+    server.run(&format!(
+        "CREATE USER '{stranger}'@'localhost' IDENTIFIED BY '{SECOND_PASSWORD}'"
+    ));
+    server.run(&format!(
+        "GRANT ALL PRIVILEGES ON `{}`.* TO '{stranger}'@'localhost'",
+        database.replace('_', "\\_")
+    ));
+
+    // POSITIVE CONTROL: the stranger really reaches the database before the drop,
+    // or the refusal asserted below proves nothing.
+    let before = server.run_as(
+        &stranger,
+        SECOND_PASSWORD,
+        &format!("SHOW TABLES FROM `{database}`"),
+    );
+    assert!(
+        before.status.success(),
+        "the seeded grant must give access before the drop:\n{}",
+        String::from_utf8_lossy(&before.stderr)
+    );
+
+    let database_name = DatabaseName::for_account(account.name(), "shop").expect("valid");
+    let user = DbUserName::for_account(account.name(), "shop").expect("valid");
+    drop_database(&host, &database_name, &user)
+        .unwrap_or_else(|error| panic!("the drop must succeed: {error}"));
+    create_database(&host, &request_for(account.name(), CUSTOMER_PASSWORD))
+        .unwrap_or_else(|error| panic!("the recreate must succeed: {error}"));
+
+    let after = server.run_as(
+        &stranger,
+        SECOND_PASSWORD,
+        &format!("SHOW TABLES FROM `{database}`"),
+    );
+    let complaint = String::from_utf8_lossy(&after.stderr);
+    assert!(
+        !after.status.success() && complaint.contains("denied"),
+        "the recreated database must not be reachable with the old grant:\n{complaint}"
+    );
+
+    server.run(&format!("DROP USER IF EXISTS '{stranger}'@'localhost'"));
+    clear(&server, account.name());
+}
+
+#[test]
 #[ignore = "resets a real password on a real MariaDB: polygon only"]
 fn a_reset_password_authenticates_and_the_previous_one_stops_working() {
     let server = PolygonMariadb::start();

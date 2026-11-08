@@ -63,6 +63,9 @@
   <data name="AuditActionAccountPlanChanged">
     <value>Account plan changed</value>
   </data>
+  <data name="AuditActionAccountOwnerChanged">
+    <value>Account owner changed</value>
+  </data>
   <data name="AuditActionAccountOwnerEmailChanged">
     <value>Account owner email changed</value>
   </data>
@@ -87,8 +90,14 @@
   <data name="AuditActionPhpVersionInstalled" xml:space="preserve">
     <value>PHP version installed</value>
   </data>
+  <data name="AuditActionPhpSettingsChanged">
+    <value>PHP settings changed</value>
+  </data>
   <data name="AuditActionSitePhpVersionChanged">
     <value>Site PHP version changed</value>
+  </data>
+  <data name="AuditActionSiteOptionsChanged">
+    <value>Site options changed</value>
   </data>
   <data name="AuditActionSiteEnabled">
     <value>Site enabled</value>
@@ -110,6 +119,18 @@
   </data>
   <data name="AuditActionDatabasePasswordReset">
     <value>Database password reset</value>
+  </data>
+  <data name="AuditActionDatabaseUserCreated">
+    <value>Database user created</value>
+  </data>
+  <data name="AuditActionDatabaseUserDropped">
+    <value>Database user dropped</value>
+  </data>
+  <data name="AuditActionDatabaseUserPasswordReset">
+    <value>Database user password reset</value>
+  </data>
+  <data name="AuditActionDatabasePrivilegesChanged">
+    <value>Database user privileges changed</value>
   </data>
   <data name="AuditActionDatabaseGrantsRepaired">
     <value>Database grants narrowed</value>
@@ -174,11 +195,11 @@
   <data name="AuditActionCertificateRenewed">
     <value>Certificate renewed</value>
   </data>
-  <data name="AuditActionCronEntryCreated">
-    <value>Cron entry created</value>
-  </data>
   <data name="AuditActionCertificateSelfSignedRestored">
     <value>Panel certificate replaced by a self-signed one</value>
+  </data>
+  <data name="AuditActionCronEntryCreated">
+    <value>Cron entry created</value>
   </data>
   <data name="AuditActionCronEntryUpdated">
     <value>Cron entry updated</value>
@@ -231,11 +252,32 @@
   <data name="AuditActionMailSendFailed">
     <value>Mail delivery failed</value>
   </data>
+  <data name="AuditActionAlertRecipientsSaved">
+    <value>Alert recipients saved</value>
+  </data>
+  <data name="AuditActionAlertWebhookSaved">
+    <value>Alert webhook saved</value>
+  </data>
+  <data name="AuditActionAlertWebhookSecretRotated">
+    <value>Alert webhook secret replaced</value>
+  </data>
+  <data name="AuditActionAlertWebhookTestSent">
+    <value>Alert webhook test sent</value>
+  </data>
+  <data name="AuditActionWebhookDeliveryFailed">
+    <value>Alert webhook delivery failed</value>
+  </data>
+  <data name="AuditActionNotificationsDismissed">
+    <value>Notifications dismissed</value>
+  </data>
   <data name="AuditActionAlertRaised">
     <value>Alert raised</value>
   </data>
   <data name="AuditActionAlertResolved">
     <value>Alert resolved</value>
+  </data>
+  <data name="AuditActionAlertThresholdsSaved">
+    <value>Alert thresholds changed</value>
   </data>
   <data name="AuditActionCodeIntegrityReportRejected">
     <value>Code-integrity report rejected (malformed)</value>
@@ -273,6 +315,12 @@
   <data name="AuditActionBackupVerificationNotPerformed">
     <value>Backup verification could not be performed</value>
   </data>
+  <data name="AuditActionBackupDestinationEncryptionChanged">
+    <value>Backup encryption setting changed</value>
+  </data>
+  <data name="AuditActionBackupOptedOut">
+    <value>Account left out of scheduled backups</value>
+  </data>
   <data name="AuditActionLicenceStatusRead">
     <value>Licence status read</value>
   </data>
@@ -281,6 +329,9 @@
   </data>
   <data name="AuditActionCustomerInvited">
     <value>Customer invited</value>
+  </data>
+  <data name="AuditActionCustomerCreatedWithPassword">
+    <value>Customer created with an initial password</value>
   </data>
   <data name="AuditActionInvitationLinkIssued">
     <value>Invitation link created</value>
@@ -311,6 +362,9 @@
   </data>
   <data name="AuditActionPageUnpinned">
     <value>Page removed from the app bar</value>
+  </data>
+  <data name="AuditActionDashboardLayoutSaved">
+    <value>Dashboard layout saved</value>
   </data>
   <data name="AuditActionSubUserInvited">
     <value>Sub-user invited</value>
@@ -381,6 +435,9 @@
   <data name="AuditActionResellerCreated">
     <value>Reseller created</value>
   </data>
+  <data name="AuditActionResellerUpdated">
+    <value>Reseller updated</value>
+  </data>
   <data name="AuditActionResellerEnvelopeChanged">
     <value>Reseller envelope changed</value>
   </data>
@@ -392,6 +449,9 @@
   </data>
   <data name="AuditActionResellerDeleted">
     <value>Reseller deleted</value>
+  </data>
+  <data name="AuditActionResellerBrandingChanged">
+    <value>Reseller branding changed</value>
   </data>
   <data name="AuditOutcomeSucceeded">
     <value>Succeeded</value>
@@ -413,6 +473,18 @@
   </data>
   <data name="ApiKeyScopeServerRead">
     <value>Read server information</value>
+  </data>
+  <data name="ApiKeyScopePlansRead">
+    <value>Read the plans the reseller owns</value>
+  </data>
+  <data name="ApiKeyScopeAccountsRead">
+    <value>Read the accounts the reseller owns</value>
+  </data>
+  <data name="ApiKeyScopeAccountsWrite">
+    <value>Create and change the accounts the reseller owns</value>
+  </data>
+  <data name="ApiKeyScopeAccountsDelete">
+    <value>Terminate the accounts the reseller owns</value>
   </data>
   <data name="ApiKeyStatusActive">
     <value>Active</value>
@@ -440,5 +512,227 @@
   </data>
   <data name="AuditActionPersonalDataErased">
     <value>Personal data erased</value>
+  </data>
+  <data name="AuditActionPanelUpdateApplied">
+    <value>Panel updated itself (unattended security update)</value>
+  </data>
+  <data name="AuditActionPanelUpdateRolledBack">
+    <value>Unattended panel update failed and was rolled back</value>
+  </data>
+  <data name="AuditActionPanelUpdateRollbackFailed">
+    <value>Unattended panel update failed and the rollback failed</value>
+  </data>
+  <data name="AuditActionPanelUpdateInterrupted">
+    <value>Unattended panel update was interrupted</value>
+  </data>
+  <data name="AuditActionSiteLogRetentionChanged">
+    <value>Site log retention changed</value>
+  </data>
+  <data name="AuditActionSiteLogsPruned">
+    <value>Old site logs removed</value>
+  </data>
+  <data name="AuditActionPhpExtensionChanged">
+    <value>PHP extension switched</value>
+  </data>
+  <data name="AuditActionFileCreated">
+    <value>File or folder created</value>
+  </data>
+  <data name="AuditActionFileSaved">
+    <value>File saved in the editor</value>
+  </data>
+  <data name="AuditActionFileUploadStarted">
+    <value>File upload started</value>
+  </data>
+  <data name="AuditActionFileUploaded">
+    <value>File uploaded</value>
+  </data>
+  <data name="AuditActionFileUploadAborted">
+    <value>File upload interrupted</value>
+  </data>
+  <data name="AuditActionFileDownloadStarted">
+    <value>File download started</value>
+  </data>
+  <data name="AuditActionFileDownloadCompleted">
+    <value>File downloaded</value>
+  </data>
+  <data name="AuditActionFileDownloadAborted">
+    <value>File download interrupted</value>
+  </data>
+  <data name="AuditActionFileRenamed">
+    <value>File or folder renamed</value>
+  </data>
+  <data name="AuditActionFileMoved">
+    <value>File or folder moved</value>
+  </data>
+  <data name="AuditActionFileCopied">
+    <value>File or folder copied</value>
+  </data>
+  <data name="AuditActionFilePermissionsChanged">
+    <value>File permissions changed</value>
+  </data>
+  <data name="AuditActionFileTrashed">
+    <value>File or folder moved to trash</value>
+  </data>
+  <data name="AuditActionFileRestored">
+    <value>File or folder restored from trash</value>
+  </data>
+  <data name="AuditActionFileTrashEmptied">
+    <value>Trash emptied</value>
+  </data>
+  <data name="AuditActionFileDeleted">
+    <value>File or folder deleted permanently</value>
+  </data>
+  <data name="AuditActionFileArchived">
+    <value>Archive created</value>
+  </data>
+  <data name="AuditActionFileExtracted">
+    <value>Archive extracted</value>
+  </data>
+  <data name="AuditActionFileTrashRetentionPurged">
+    <value>Expired trash removed</value>
+  </data>
+  <data name="AuditActionFileAccessRefused">
+    <value>File access refused</value>
+  </data>
+  <data name="AccountFeatureFiles">
+    <value>Files</value>
+  </data>
+  <data name="IdentityMenuApiKeys">
+    <value>API keys</value>
+  </data>
+  <data name="IdentityRouteApiKeys">
+    <value>API keys</value>
+  </data>
+  <data name="AuditActionPanelUpdateRequested">
+    <value>An administrator requested a panel update</value>
+  </data>
+  <data name="AuditActionPanelUpdateRunApplied">
+    <value>The requested panel update was installed</value>
+  </data>
+  <data name="AuditActionPanelUpdateRunUnchanged">
+    <value>The requested panel update found nothing newer to install</value>
+  </data>
+  <data name="AuditActionPanelUpdateRunRefused">
+    <value>The requested panel update was refused before any change</value>
+  </data>
+  <data name="AuditActionPanelUpdateRunRolledBack">
+    <value>The requested panel update failed its health check and was rolled back</value>
+  </data>
+  <data name="AuditActionPanelUpdateRunRollbackFailed">
+    <value>The requested panel update failed and its rollback failed too</value>
+  </data>
+  <data name="AuditActionPanelUpdateRunInterrupted">
+    <value>The requested panel update was interrupted after the switch</value>
+  </data>
+  <data name="AuditActionPanelUpdateRunNotStarted">
+    <value>The requested panel update never started</value>
+  </data>
+  <data name="AuditActionPanelUpdateRunOutcomeUnknown">
+    <value>The requested panel update ended without reporting its result</value>
+  </data>
+  <data name="AuditActionModuleInstalled">
+    <value>Module installed (starts at next restart)</value>
+  </data>
+  <data name="AuditActionModuleUpgraded">
+    <value>Module upgraded (starts at next restart)</value>
+  </data>
+  <data name="AuditActionModuleRolledBack">
+    <value>Module rolled back to its previous version</value>
+  </data>
+  <data name="AuditActionModuleUnloaded">
+    <value>Module unloaded</value>
+  </data>
+  <data name="AuditActionModuleDegraded">
+    <value>Module stopped serving: licence no longer covers it</value>
+  </data>
+  <data name="AuditActionModuleRefused">
+    <value>Module package refused</value>
+  </data>
+  <data name="AuditActionModuleRestartRequested">
+    <value>Panel restart requested to activate a module</value>
+  </data>
+  <data name="AuditActionDnsEnabled">
+    <value>DNS server enabled</value>
+  </data>
+  <data name="AuditActionDnsDisabled">
+    <value>DNS server disabled</value>
+  </data>
+  <data name="AuditActionDnsSettingsSaved">
+    <value>DNS settings saved</value>
+  </data>
+  <data name="AuditActionDnsZoneCreated">
+    <value>DNS zone created</value>
+  </data>
+  <data name="AuditActionDnsZoneDeleted">
+    <value>DNS zone deleted</value>
+  </data>
+  <data name="AuditActionDnsRecordAdded">
+    <value>DNS record added</value>
+  </data>
+  <data name="AuditActionDnsRecordChanged">
+    <value>DNS record changed</value>
+  </data>
+  <data name="AuditActionDnsRecordDeleted">
+    <value>DNS record deleted</value>
+  </data>
+  <data name="AuditActionDnsRecordsReplaced">
+    <value>DNS records replaced</value>
+  </data>
+  <data name="AuditActionMailServerEnabled">
+    <value>Mail server turned on</value>
+  </data>
+  <data name="AuditActionMailServerDisabled">
+    <value>Mail server turned off</value>
+  </data>
+  <data name="AuditActionMailServerSettingsUpdated">
+    <value>Mail server settings changed</value>
+  </data>
+  <data name="AuditActionMailQueueMessageDeleted">
+    <value>Queued message deleted</value>
+  </data>
+  <data name="AuditActionMailQueueFlushed">
+    <value>Mail queue flushed</value>
+  </data>
+  <data name="AuditActionMailDomainCreated">
+    <value>Mail domain added</value>
+  </data>
+  <data name="AuditActionMailDomainDeleted">
+    <value>Mail domain removed</value>
+  </data>
+  <data name="AuditActionMailDkimKeyRotated">
+    <value>DKIM key rotated</value>
+  </data>
+  <data name="AuditActionMailboxCreated">
+    <value>Mailbox created</value>
+  </data>
+  <data name="AuditActionMailboxUpdated">
+    <value>Mailbox changed</value>
+  </data>
+  <data name="AuditActionMailboxPasswordChanged">
+    <value>Mailbox password changed</value>
+  </data>
+  <data name="AuditActionMailboxDeleted">
+    <value>Mailbox deleted</value>
+  </data>
+  <data name="AuditActionMailAliasCreated">
+    <value>Mail alias created</value>
+  </data>
+  <data name="AuditActionMailAliasUpdated">
+    <value>Mail alias changed</value>
+  </data>
+  <data name="AuditActionMailAliasDeleted">
+    <value>Mail alias deleted</value>
+  </data>
+  <data name="AuditActionMailCatchAllSet">
+    <value>Catch-all address changed</value>
+  </data>
+  <data name="AuditActionMailCatchAllCleared">
+    <value>Catch-all address removed</value>
+  </data>
+  <data name="AuditActionMailAutoresponderSet">
+    <value>Automatic reply changed</value>
+  </data>
+  <data name="AuditActionMailAutoresponderCleared">
+    <value>Automatic reply removed</value>
   </data>
 </root>

@@ -4,6 +4,7 @@ using System.Text.Json;
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.PhpService;
 using Maran.Host.IntegrationTests.Fixtures;
+using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Tasks.Persistence;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
@@ -73,6 +74,14 @@ public sealed class PhpVersionInstallEndpointTests : IAsyncLifetime
         }));
         Assert.True(audit.GetProperty("succeeded").GetBoolean());
         Assert.Equal("8.4", audit.GetProperty("subject").GetString());
+
+        // The list the install answers is the one the versions page reads: every entry states where the
+        // version stands in its support life, and the administrator is told how many sites use it.
+        Assert.All(document.RootElement.EnumerateArray(), entry =>
+        {
+            Assert.Equal(JsonValueKind.String, entry.GetProperty("lifecycle").GetProperty("status").ValueKind);
+            Assert.Equal(0, entry.GetProperty("sitesUsing").GetInt32());
+        });
     }
 
     /// <summary>Installing a version that is already installed answers 200 and asks the agent for nothing.</summary>
@@ -136,6 +145,9 @@ public sealed class PhpVersionInstallEndpointTests : IAsyncLifetime
         using (var scope = factory.Services.CreateScope())
         {
             await scope.ServiceProvider.GetRequiredService<TasksDbContext>().Database.MigrateAsync();
+
+            // The list the install answers counts the sites on each version for an administrator.
+            await scope.ServiceProvider.GetRequiredService<SitesDbContext>().Database.MigrateAsync();
         }
 
         await EndpointHarness.SeedAdministratorAsync(factory);

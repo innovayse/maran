@@ -12,7 +12,8 @@ public static class ApiKeyScopePolicy
     /// <summary>
     /// The scopes a key holds: the stored ones this build still knows, plus the implicit
     /// <see cref="ApiKeyScopes.SelfRead"/> every valid key has. A stored scope the running build does
-    /// not know (a rollback, a scope removed since) grants nothing.
+    /// not know (a rollback, a scope removed since), or that its owner may not be granted (an
+    /// administrator-grade scope on a reseller's key, or the reverse), grants nothing.
     /// </summary>
     /// <param name="key">The key row.</param>
     /// <returns>The effective scopes, without duplicates, in the vocabulary's order.</returns>
@@ -20,7 +21,7 @@ public static class ApiKeyScopePolicy
     {
         ArgumentNullException.ThrowIfNull(key);
 
-        return ApiKeyScopes.All
+        return ApiKeyScopes.GrantableTo(key.ResellerId)
             .Where(scope =>
             {
                 return scope == ApiKeyScopes.SelfRead || key.Scopes.Contains(scope);

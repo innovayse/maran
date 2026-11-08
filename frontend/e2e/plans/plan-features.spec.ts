@@ -126,6 +126,10 @@ test('unticking a feature leaves it out of the plan that is created', async ({ p
   await page.getByLabel('CPU (% of one core)').fill('150')
   await page.getByRole('checkbox', { name: 'No limit' }).nth(1).check({ force: true })
   await page.getByLabel('Processes', { exact: true }).fill('64')
+  await page.getByLabel('PHP memory limit, at most (MB)').fill('256')
+  await page.getByLabel('PHP upload size, at most (MB)').fill('64')
+  await page.getByLabel('PHP execution time, at most (seconds)').fill('120')
+  await page.getByLabel('PHP input variables, at most').fill('3000')
   await page.getByRole('group', { name: 'Features' }).getByRole('checkbox', { name: 'Mail' }).uncheck({ force: true })
   await page.getByRole('button', { name: 'Create plan' }).click()
 

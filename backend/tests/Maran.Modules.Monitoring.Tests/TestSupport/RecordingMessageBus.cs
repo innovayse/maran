@@ -1,3 +1,4 @@
+using Maran.Sdk.Contracts;
 using Wolverine;
 
 namespace Maran.Modules.Monitoring.Tests.TestSupport;
@@ -12,6 +13,15 @@ public sealed class RecordingMessageBus : IMessageBus
 {
     /// <summary>Everything published on this bus, in order.</summary>
     public List<object> Published { get; } = [];
+
+    /// <summary>
+    /// The mail requests among <see cref="Published"/>, in order. An operator alert also publishes its
+    /// webhook and feed messages, so a test that counts mail reads this rather than everything.
+    /// </summary>
+    public List<SendMailRequested> Mail
+    {
+        get { return [.. Published.OfType<SendMailRequested>()]; }
+    }
 
     /// <inheritdoc />
     public string? TenantId { get; set; }

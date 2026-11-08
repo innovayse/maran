@@ -24,4 +24,10 @@ public enum AccountResourceKind
 
     /// <summary>The backups the panel holds for the account, counted by the Backups module.</summary>
     Backups,
+
+    /// <summary>The DNS zones the account owns, counted by the Dns module.</summary>
+    DnsZones,
+
+    /// <summary>The mailboxes the account holds, counted by the Mail module.</summary>
+    Mailboxes,
 }

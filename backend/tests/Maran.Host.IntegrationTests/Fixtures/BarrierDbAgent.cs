@@ -135,8 +135,41 @@ public sealed class BarrierDbAgent : IAgentDbClient
 
     /// <summary>Not exercised by a database creation.</summary>
     /// <param name="accountUsername">Ignored.</param>
+    /// <param name="dbUsername"></param>
+    /// <param name="password"></param>
     /// <param name="cancellationToken">Ignored.</param>
     /// <returns>Never returns.</returns>
+    /// <inheritdoc/>
+    public Task<Result<string>> CreateUserAsync(
+        string accountUsername,
+        string dbUsername,
+        SensitiveString password,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double answers database creation and dropping only.");
+    }
+
+    /// <inheritdoc/>
+    public Task<Result> DropUserAsync(
+        string accountUsername,
+        string dbUsername,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double answers database creation and dropping only.");
+    }
+
+    /// <inheritdoc/>
+    public Task<Result> SetPrivilegesAsync(
+        string accountUsername,
+        string dbUsername,
+        string databaseName,
+        IReadOnlyCollection<DatabasePrivilegeKind> privileges,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double answers database creation and dropping only.");
+    }
+
+    /// <inheritdoc/>
     public Task<Result<IReadOnlyList<DatabaseSummaryDto>>> ListAsync(
         string accountUsername,
         CancellationToken cancellationToken)

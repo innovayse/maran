@@ -12,6 +12,7 @@ import type {
   MyAccount,
   OwnerLanguageChoice,
   Plan,
+  TransferAccountRequest,
 } from '../../types/account'
 import type { AccountResourceSummary } from '../../types/accountResourceSummary'
 import type { ListRequest, Paged } from '../../types/list'
@@ -89,11 +90,21 @@ export const useAccountsApi = (): AccountsApi => {
    * (rules/architecture.md, "the backend owns the data").
    * @param search Narrows by name; empty for the first plans.
    * @param pageSize How many choices to ask for; one of the sizes the panel accepts.
+   * @param forResellerId The reseller whose plans are offered, or `null` for the administrator's own.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The matching plans, already localized by the backend, with how many match in all.
    */
-  const planChoices = (search: string, pageSize: number, signal?: AbortSignal): Promise<Paged<Plan>> => {
+  const planChoices = (
+    search: string,
+    pageSize: number,
+    forResellerId: string | null,
+    signal?: AbortSignal,
+  ): Promise<Paged<Plan>> => {
     const params = new URLSearchParams({ pageSize: String(pageSize) })
+    // Left out for the administrator's own plans: the panel offers those when no reseller is named.
+    if (forResellerId !== null) {
+      params.set('forResellerId', forResellerId)
+    }
     // An empty search is left out: the panel refuses an empty parameter rather than reading it as none.
     if (search !== '') {
       params.set('search', search)
@@ -130,6 +141,17 @@ export const useAccountsApi = (): AccountsApi => {
    */
   const changePlan = (id: string, request: ChangeAccountPlanRequest, signal?: AbortSignal): Promise<AccountDetail> => {
     return api.put<AccountDetail>(`${ACCOUNTS_PATH}/${id}/plan`, request, signal)
+  }
+
+  /**
+   * Hands an account to another owner, together with a plan of that owner. Administrator only.
+   * @param id The account's identity.
+   * @param request The new owner (`null` for the administrator) and the plan of that owner.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The account as it now stands.
+   */
+  const transfer = (id: string, request: TransferAccountRequest, signal?: AbortSignal): Promise<AccountDetail> => {
+    return api.put<AccountDetail>(`${ACCOUNTS_PATH}/${id}/owner`, request, signal)
   }
 
   /**
@@ -233,6 +255,7 @@ export const useAccountsApi = (): AccountsApi => {
     getPlan,
     get,
     changePlan,
+    transfer,
     changeOwnerEmail,
     suspend,
     reactivate,

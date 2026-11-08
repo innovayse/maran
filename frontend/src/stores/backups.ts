@@ -11,6 +11,7 @@ import type {
   BackupAttentionLoad,
   CreateBackupRequest,
   RestoreBackupRequest,
+  RestoreChoicesLoad,
   RestoreRun,
 } from '../types/backup'
 
@@ -88,6 +89,16 @@ export const useBackupsStore = defineStore('backups', () => {
    * `restoreChangedTheAccount` (`src/utils/restoreChangedTheAccount.ts`).
    */
   const restoreRun: Ref<RestoreRun> = ref({ state: 'idle' })
+
+  /**
+   * The databases and sites the open restore dialog can narrow to (issue #160): loading until asked
+   * for, then the account's lists or `unavailable`. Cleared with the restore run, so a dialog opening
+   * on a second row never offers the first row's account's names.
+   */
+  const restoreChoices: Ref<RestoreChoicesLoad> = ref({ state: 'loading' })
+
+  /** The backup whose lists were asked for last; a reply for any other is stale and dropped. */
+  let wantedRestoreChoices: string | null = null
 
   /**
    * Loads one page of the backup history into {@link backups} and reports how the read ended, for
@@ -196,6 +207,32 @@ export const useBackupsStore = defineStore('backups', () => {
    */
   const clearRestore = (): void => {
     restoreRun.value = { state: 'idle' }
+    restoreChoices.value = { state: 'loading' }
+  }
+
+  /**
+   * Fetches the databases and sites a restore of this backup could be narrowed to.
+   *
+   * A failure is the `unavailable` arm and never a thrown error: the lists only widen what the
+   * dialog offers, and the whole-account restore, which needs neither, must stay possible when the
+   * lists cannot be had. A reply that arrives after the dialog moved to another backup is dropped,
+   * so the names of one account are never offered for another's restore.
+   * @param id The backup about to be restored.
+   * @returns Resolves once the lists are in hand or known to be unobtainable.
+   */
+  const loadRestoreChoices = async (id: string): Promise<void> => {
+    restoreChoices.value = { state: 'loading' }
+    wantedRestoreChoices = id
+    try {
+      const choices = await api.restoreChoices(id)
+      if (wantedRestoreChoices === id) {
+        restoreChoices.value = { state: 'loaded', choices }
+      }
+    } catch {
+      if (wantedRestoreChoices === id) {
+        restoreChoices.value = { state: 'unavailable' }
+      }
+    }
   }
 
   /**
@@ -247,12 +284,14 @@ export const useBackupsStore = defineStore('backups', () => {
     verifyingId,
     verifyErrorMessage,
     restoreRun,
+    restoreChoices,
     list,
     loadAttention,
     create,
     remove,
     verify,
     clearRestore,
+    loadRestoreChoices,
     restore,
   }
 })

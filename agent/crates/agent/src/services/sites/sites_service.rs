@@ -6,7 +6,8 @@ use std::sync::Arc;
 use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_ops::php::PhpHost;
 use maran_ops::sites::{
-    self, CreateSiteInput, PhpSwitch, SiteIdentity, SiteLogKind, SiteMaintenanceHost,
+    self, CreateSiteInput, PhpSwitch, ProcessSiteLogHost, SiteIdentity, SiteLogKind,
+    SiteMaintenanceHost,
 };
 use maran_ops::ssl::{self, SslHost};
 use tokio::sync::mpsc;
@@ -19,20 +20,26 @@ use crate::proto::sites_service_server::SitesService;
 use crate::proto::{
     AgentError, CreateSiteOk, CreateSiteRequest, CreateSiteResponse, DeleteSiteOk,
     DeleteSiteRequest, DeleteSiteResponse, DisableSiteOk, DisableSiteRequest, DisableSiteResponse,
-    EnableSiteOk, EnableSiteRequest, EnableSiteResponse, ErrorCode, ReloadWebServerOk,
-    ReloadWebServerRequest, ReloadWebServerResponse, SiteLogKind as ProtoSiteLogKind, SiteSpec,
-    TailSiteLogRequest, TailSiteLogResponse, UpdateSitePhpVersionOk, UpdateSitePhpVersionRequest,
+    EnableSiteOk, EnableSiteRequest, EnableSiteResponse, ErrorCode, PruneSiteLogsOk,
+    PruneSiteLogsRequest, PruneSiteLogsResponse, ReloadWebServerOk, ReloadWebServerRequest,
+    ReloadWebServerResponse, SiteLogKind as ProtoSiteLogKind, SiteSpec,
+    SummariseSiteTrafficRequest, SummariseSiteTrafficResponse, TailSiteLogRequest,
+    TailSiteLogResponse, UpdateSitePhpVersionOk, UpdateSitePhpVersionRequest,
     UpdateSitePhpVersionResponse, create_site_response, delete_site_response,
-    disable_site_response, enable_site_response, reload_web_server_response,
-    tail_site_log_response, update_site_php_version_response,
+    disable_site_response, enable_site_response, prune_site_logs_response,
+    reload_web_server_response, summarise_site_traffic_response, tail_site_log_response,
+    update_site_php_version_response,
 };
 use crate::services::sites::site_status::to_agent_error;
 use crate::services::sites::stream_log_sink::StreamLogSink;
 use crate::services::sites::tail_terminal::tail_terminal;
+use crate::services::sites::to_wire_traffic_summary::to_wire_traffic_summary;
 use crate::services::sites::validated_existing_identity::validated_existing_identity;
 use crate::services::sites::validated_existing_site::validated_existing_site;
 use crate::services::sites::validated_overrides::validated_overrides;
+use crate::services::sites::validated_prune_request::validated_prune_request;
 use crate::services::sites::validated_site::validated_site;
+use crate::services::sites::validated_traffic_request::validated_traffic_request;
 use crate::services::wire::invalid_input::invalid_input;
 use crate::services::wire::run_blocking::run_blocking;
 
@@ -145,6 +152,7 @@ where
             // A site is created before it has a certificate: SSL is installed
             // afterwards, by `SslService`, which re-renders this same vhost.
             has_certificate: false,
+            options: request.options,
         };
 
         let validated = Self::site(&request.account_username, &request.domain, Some(&spec))
@@ -504,6 +512,81 @@ where
         }
 
         Ok(Response::new(Box::pin(ReceiverStream::new(receiver))))
+    }
+
+    /// Reads a site's access log from a cursor onward and answers the
+    /// per-UTC-day figures.
+    ///
+    /// Read-only, so it yields no audit line. Cancellation class: **run to
+    /// completion**, with nothing to reclaim. The whole read runs inside
+    /// `spawn_blocking`, which a dropped future cannot cancel, so a client that
+    /// goes away does not end it early; it ends on its own because the operation
+    /// is bounded by a byte budget (64 MiB), and the host admits only a couple of
+    /// these at once, so a caller cannot stack them. It changes nothing on the
+    /// host, and the cursor the panel keeps moves only when the panel hears the
+    /// answer. A refused admission is a system failure the panel retries on its
+    /// next turn.
+    async fn summarise_site_traffic(
+        &self,
+        request: Request<SummariseSiteTrafficRequest>,
+    ) -> Result<Response<SummariseSiteTrafficResponse>, Status> {
+        let request = request.into_inner();
+        let result = match validated_traffic_request(&request) {
+            Ok(input) => {
+                run_blocking("traffic summary", to_agent_error, move || {
+                    sites::summarise_site_traffic(&ProcessSiteLogHost::new(), &input)
+                })
+                .await
+            }
+            Err(error) => Err(error),
+        };
+
+        let result = match result {
+            Ok(summary) => {
+                summarise_site_traffic_response::Result::Ok(to_wire_traffic_summary(summary))
+            }
+            Err(error) => summarise_site_traffic_response::Result::Error(error),
+        };
+
+        Ok(Response::new(SummariseSiteTrafficResponse {
+            result: Some(result),
+        }))
+    }
+
+    /// Removes a site's rotated log archives above the requested retention.
+    ///
+    /// Cancellation class: **run to completion**. Removing a file has no unsafe
+    /// midpoint and the rpc is idempotent, so a client that goes away leaves at
+    /// worst some archives for the next call to remove.
+    async fn prune_site_logs(
+        &self,
+        request: Request<PruneSiteLogsRequest>,
+    ) -> Result<Response<PruneSiteLogsResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
+        let request = request.into_inner();
+        let result = match validated_prune_request(&request) {
+            Ok(input) => {
+                audit.account(&input.account);
+                audit.site(&input.domain);
+                run_blocking("log prune", to_agent_error, move || {
+                    sites::prune_site_logs(&ProcessSiteLogHost::new(), &input)
+                })
+                .await
+            }
+            Err(error) => Err(error),
+        };
+
+        audit.settle(&result);
+        let result = match result {
+            Ok(pruned) => prune_site_logs_response::Result::Ok(PruneSiteLogsOk {
+                removed_files: pruned.removed_files,
+            }),
+            Err(error) => prune_site_logs_response::Result::Error(error),
+        };
+
+        Ok(Response::new(PruneSiteLogsResponse {
+            result: Some(result),
+        }))
     }
 
     /// Validates the configuration on disk and reloads the web server.

@@ -5,6 +5,7 @@ use maran_agent_core::validation::web::domain::Domain;
 
 use crate::sites::model::site_certificate::SiteCertificate;
 use crate::sites::model::site_kind::SiteKind;
+use crate::sites::model::site_options::SiteOptions;
 
 /// Everything `create_site` needs, already validated.
 ///
@@ -34,4 +35,13 @@ pub struct CreateSiteInput {
     /// `None` renders a plain-HTTP vhost; `Some` renders the redirect plus the
     /// TLS block, both serving the one rendered body.
     pub certificate: Option<SiteCertificate>,
+    /// The site's per-site options (issue #151).
+    ///
+    /// Carried by the input and not stored beside the vhost, for the reason
+    /// the certificate is: every operation that re-renders the vhost —
+    /// enabling, a PHP version switch, a certificate installed or removed —
+    /// renders from this value, so a re-render for an unrelated reason keeps
+    /// the redirects, credentials and IP rules instead of dropping them.
+    /// [`SiteOptions::default`] is a site with none.
+    pub options: SiteOptions,
 }

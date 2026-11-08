@@ -95,4 +95,48 @@ public sealed class AccountTests
 
         Assert.Equal(AccountStatus.Active, account.Status);
     }
+
+    /// <summary>Transferring an account sets its owner and its plan together.</summary>
+    [Fact]
+    public void Transferring_an_account_sets_its_owner_and_its_plan_together()
+    {
+        var account = new Account(Guid.NewGuid(), "acme", "acme.example.com", Guid.NewGuid(), SomeInstant);
+        var reseller = Guid.NewGuid();
+        var plan = Guid.NewGuid();
+
+        account.TransferTo(reseller, plan);
+
+        Assert.Equal(reseller, account.ResellerId);
+        Assert.Equal(plan, account.PlanId);
+    }
+
+    /// <summary>Transferring an account to the administrator clears its reseller.</summary>
+    [Fact]
+    public void Transferring_an_account_to_the_administrator_clears_its_reseller()
+    {
+        var account = new Account(
+            Guid.NewGuid(), "acme", "acme.example.com", Guid.NewGuid(), SomeInstant, resellerId: Guid.NewGuid());
+        var plan = Guid.NewGuid();
+
+        account.TransferTo(null, plan);
+
+        Assert.Null(account.ResellerId);
+        Assert.Equal(plan, account.PlanId);
+    }
+
+    /// <summary>Transferring an account leaves its identity, status and contact alone.</summary>
+    [Fact]
+    public void Transferring_an_account_leaves_its_identity_status_and_contact_alone()
+    {
+        var id = Guid.NewGuid();
+        var account = new Account(id, "acme", "acme.example.com", Guid.NewGuid(), SomeInstant, "owner@example.com");
+        account.Suspend();
+
+        account.TransferTo(Guid.NewGuid(), Guid.NewGuid());
+
+        Assert.Equal(id, account.Id);
+        Assert.Equal("acme", account.Name);
+        Assert.Equal(AccountStatus.Suspended, account.Status);
+        Assert.Equal("owner@example.com", account.OwnerEmail);
+    }
 }

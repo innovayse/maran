@@ -39,13 +39,14 @@ publish=""
 browser="no"
 panel_recovery="yes"
 update_rollback="yes"
+account_restore="yes"
 arch="x86_64"
 
 usage() {
   cat >&2 <<'USAGE'
 usage: maran installer [--os <version>] [--mode local|get|offline] [--bundle PATH] [--arch <a>]
                        [--publish PORT] [--browser] [--no-panel-recovery]
-                       [--no-update-rollback] [--keep]
+                       [--no-update-rollback] [--no-account-restore] [--keep]
 
   --os <version>  any folder under docker/polygon/images (default: ubuntu24). An unknown value
                   prints the list rather than guessing at a family.
@@ -87,6 +88,16 @@ usage: maran installer [--os <version>] [--mode local|get|offline] [--bundle PAT
                   requires the automatic rollback, and bundles with a flipped artifact byte, another
                   signing key or no signature, which must change nothing. The network fetch path is
                   NOT exercised. It costs a third full install; skip it while iterating elsewhere.
+  --no-account-restore
+                  skip the account destroy-and-restore stage (issue #6). By default, after the stages
+                  above, the harness installs a FOURTH server, seeds an account (a site, a database
+                  with rows, a tree of files of every kind), proves its own snapshot can see a real
+                  chmod, chown, flipped byte, removed file and altered row, backs the account up
+                  through the API, damages it, restores it through the API with the real typed
+                  confirmation and requires the account identical on every axis. It then kills the
+                  root agent with SIGKILL while a restore is extracting, replacing databases and
+                  swapping, and compares what the agent's restart leaves with the backup. It costs a
+                  fourth full install and a few minutes of data; skip it while iterating elsewhere.
   --keep          leave the containers running afterwards for inspection.
 
 The verdict is built from systemd and the panel, never from the installer's exit code alone:
@@ -105,6 +116,7 @@ while [ $# -gt 0 ]; do
     --browser) browser="yes"; shift ;;
     --no-panel-recovery) panel_recovery="no"; shift ;;
     --no-update-rollback) update_rollback="no"; shift ;;
+    --no-account-restore) account_restore="no"; shift ;;
     --keep) keep="yes"; shift ;;
     -h|--help) usage ;;
     *) echo "install-polygon.sh: unknown argument '$1'" >&2; usage ;;
@@ -408,10 +420,21 @@ recovery_expect() {
 . "${root}/scripts/lib/install-polygon-schedule.sh"
 # shellcheck source=install-polygon-recovery.sh
 . "${root}/scripts/lib/install-polygon-recovery.sh"
+# shellcheck source=install-polygon-recovery-guards.sh
+. "${root}/scripts/lib/install-polygon-recovery-guards.sh"
 # The update-and-rollback stage (issue #128): its own signed bundles, its own third server, and the
 # recovery stage's API helpers to seed and read the panel.
 # shellcheck source=install-polygon-update.sh
 . "${root}/scripts/lib/install-polygon-update.sh"
+# The account destroy-and-restore stage (issue #6): the snapshot and comparison it judges by, the
+# whole-account leg, and the interrupted-restore leg. Sourced after the recovery stage because it
+# seeds and talks to the panel with that stage's helpers.
+# shellcheck source=install-polygon-account-snapshot.sh
+. "${root}/scripts/lib/install-polygon-account-snapshot.sh"
+# shellcheck source=install-polygon-account-restore.sh
+. "${root}/scripts/lib/install-polygon-account-restore.sh"
+# shellcheck source=install-polygon-account-restore-kill.sh
+. "${root}/scripts/lib/install-polygon-account-restore-kill.sh"
 
 # stage_lockout_recovery: first-admin setup, a locked account, the recovery command, and a link
 # that works exactly once.
@@ -694,6 +717,13 @@ MINIMUM_PANEL_RECOVERY_CHECKS=100
 # be observed. 150 sits below both and above where a stage that stopped after seeding ends (about 50).
 MINIMUM_UPDATE_CHECKS=150
 
+# The account-restore stage makes about 150 checks when nothing stops it early (counted by reading
+# scripts/lib/install-polygon-account-*.sh: the comparison's own selftest, the live controls, the
+# whole-account leg, the uninterrupted bulk restore and three kill windows with their retries) and
+# about 60 when it stops after the whole-account leg. 100 sits between: a stage that returned before
+# the kill leg observed little. Re-measure it from the first real run and write the figure here.
+MINIMUM_ACCOUNT_RESTORE_CHECKS=100
+
 if [ "$failures" -eq 0 ]; then
   if [ "$browser" = "yes" ]; then
     stage_browser
@@ -718,8 +748,16 @@ if [ "$failures" -eq 0 ]; then
   else
     echo "    update-rollback stage SKIPPED by --no-update-rollback: the issue #128 closing criterion (update, rollback, automatic rollback of a broken release, refusal of untrusted bundles) was not run."
   fi
+  if [ "$account_restore" = "yes" ]; then
+    checks_before_account_restore="$recovery_checks"
+    stage_account_restore
+    [ $((recovery_checks - checks_before_account_restore)) -ge "$MINIMUM_ACCOUNT_RESTORE_CHECKS" ] \
+      || note "the account-restore stage made only $((recovery_checks - checks_before_account_restore)) checks, fewer than the ${MINIMUM_ACCOUNT_RESTORE_CHECKS} it makes when nothing stops it early; a stage that returned early observed little"
+  else
+    echo "    account-restore stage SKIPPED by --no-account-restore: the issue #6 closing criterion (destroy an account, restore it through the API, find it identical; kill the agent mid-restore) was not run."
+  fi
 else
-  echo "    browser (when asked), lockout-recovery, diagnostics, panel-recovery and update-rollback stages NOT RUN: the install itself failed above, and a recovery stage scored on a half-installed panel would be reporting on the install."
+  echo "    browser (when asked), lockout-recovery, diagnostics, panel-recovery, update-rollback and account-restore stages NOT RUN: the install itself failed above, and a recovery stage scored on a half-installed panel would be reporting on the install."
 fi
 
 if [ "$keep" = "yes" ]; then

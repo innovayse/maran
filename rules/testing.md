@@ -385,10 +385,14 @@ Each row names the workflow that runs it, so this list can be checked against
   own first sentence exists to prevent.
 - C# on PostgreSQL 13 and 16: the integration tests are the only ones that open a database, and the
   supported systems span both (rules/architecture.md). `backend.yml` has three lanes (issue #289):
-  - **pull request**: four `shard` jobs run `maran test backend --shard i/4` on PostgreSQL 16, and
-    `verdict` runs `maran test backend --combine` over their results. A shard is a deterministic
-    slice of the integration assembly's test classes, packed by listed test count; shard 1 also runs
-    every other test assembly. The combine step proves the partition — every shard present, one
+  - **pull request**: a `plan` job fixes the shard count in one place (`SHARDS`, now 6), the `shard`
+    jobs run `maran test backend --shard i/N` on PostgreSQL 16 — shard 0 is the unit shard, 1..N the
+    integration shards — and `verdict` runs `maran test backend --combine` over their results. An
+    integration shard is a deterministic slice of the integration assembly's test classes, packed by
+    the per-class weight in `scripts/test-shard-weights.txt` when that file exists (it does not yet; a
+    class it does not list weighs its listed test count times the median seconds per test, and with no
+    file at all, its test count); shard 0
+    runs every other test assembly and no integration class. The combine step proves the partition — every shard present, one
     enumeration, class lists disjoint, their union the enumeration, and the integration assembly's
     summed total no larger than the listing allows — then sums the rows and compares every main-part
     baseline row. A shard prints no verdict; only the combine does.
@@ -418,9 +422,12 @@ Each row names the workflow that runs it, so this list can be checked against
   A gate not named in a workflow is not a gate, and a gate named here and nowhere else is
   worse than none, because it stops the next reader from looking. Wanting them back means
   adding the step, not the sentence.
-- Frontend: oxlint + eslint, vue-tsc, build, and `maran test spa` — the Playwright suite scored
-  against its per-spec-file baseline and gated on the printed verdict line (`frontend.yml`) — no
-  unit runner, by design (see above).
+- Frontend: oxlint + eslint, vue-tsc, build (job `lint`), and `maran test spa` — the Playwright suite
+  scored against its per-spec-file baseline and gated on the printed verdict line (`frontend.yml`) — no
+  unit runner, by design (see above). Since issue #289 the suite runs in three `shard` jobs
+  (`maran test spa --shard i/3`, spec files packed by the baseline's test counts) and a `verdict` job
+  runs `maran test spa --combine`, which proves every file ran exactly once before it scores the sum;
+  `maran test spa --shards-selftest` plants every way that can lie and runs in `lint`.
 - Cross: proto lint, and the handshake E2E (built agent ↔ built API over a real unix socket),
   gated on the printed `HANDSHAKE VERDICT: OK` line rather than on a status (`cross.yml`) — the same
   shape the format and migration steps in `backend.yml` settled, and for the same measured reason: the

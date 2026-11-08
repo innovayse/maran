@@ -18,5 +18,17 @@ namespace Maran.Modules.Backups.Models;
 /// </para>
 /// </remarks>
 /// <param name="Id">The recorded destination's identity, stamped onto the backup row.</param>
-/// <param name="Agent">The destination the agent call carries.</param>
-public sealed record ResolvedBackupDestination(Guid Id, AgentBackupDestination Agent);
+/// <param name="Agent">
+/// The destination an agent call that READS a backup (restore, verify, list, delete) carries: it holds
+/// the archive key whenever the destination has one, so an archive sealed earlier can still be opened.
+/// </param>
+/// <param name="AgentForNewBackup">
+/// The destination a call that CREATES a backup carries: it holds the archive key only while the
+/// destination is set to encrypt, because on a creation the key is the instruction to seal. The two
+/// are different values on purpose and a creation that used <paramref name="Agent"/> would seal archives
+/// of a destination whose encryption was switched off.
+/// </param>
+public sealed record ResolvedBackupDestination(
+    Guid Id,
+    AgentBackupDestination Agent,
+    AgentBackupDestination AgentForNewBackup);

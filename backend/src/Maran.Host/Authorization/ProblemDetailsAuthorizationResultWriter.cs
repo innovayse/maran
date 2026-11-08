@@ -29,6 +29,13 @@ namespace Maran.Host.Authorization;
 /// The threat argument is in docs/superpowers/notes/2026-10-30-forbidden-problem-details-threat-note.md.
 /// </para>
 /// <para>
+/// <b>An unreplaced first password has its own code too.</b> When
+/// <see cref="PasswordChangeCompleteRequirement"/> is among the failed requirements the code is
+/// <see cref="PasswordChangeRequiredCode"/> (status 403), so the SPA sends the person to the password
+/// change; it ranks just below the two-factor steering and above everything else, and discloses only
+/// what the caller's own token says.
+/// </para>
+/// <para>
 /// <b>A suspended account is the one refusal that is not a 403.</b> When
 /// <see cref="AccountMembershipActiveRequirement"/> is among the unmet requirements the answer is the 409
 /// <see cref="AccountSuspendedCode"/> that sign-in, refresh and account switching already give for the
@@ -49,6 +56,12 @@ public sealed class ProblemDetailsAuthorizationResultWriter : IAuthorizationMidd
 
     /// <summary>Code and resource key of a refusal caused by an unfinished forced two-factor enrolment.</summary>
     public const string TwoFactorSetupRequiredCode = "HostTwoFactorSetupRequired";
+
+    /// <summary>
+    /// Code and resource key of a refusal because the caller still holds a first password somebody else
+    /// chose and has not replaced it.
+    /// </summary>
+    public const string PasswordChangeRequiredCode = "HostPasswordChangeRequired";
 
     /// <summary>
     /// Code and resource key of a refusal because the account the token speaks for is suspended; the
@@ -95,6 +108,7 @@ public sealed class ProblemDetailsAuthorizationResultWriter : IAuthorizationMidd
     /// <param name="failure">What failed, when the framework reports it.</param>
     /// <returns>
     /// <see cref="TwoFactorSetupRequiredCode"/> when enrolment is unfinished, else
+    /// <see cref="PasswordChangeRequiredCode"/> when a first password is unreplaced, else
     /// <see cref="AccountSuspendedCode"/> when the account is suspended, else <see cref="ViewAsNotAllowedCode"/>
     /// when a view-as token reached an endpoint that does not allow it, otherwise <see cref="ForbiddenCode"/>.
     /// </returns>
@@ -103,6 +117,11 @@ public sealed class ProblemDetailsAuthorizationResultWriter : IAuthorizationMidd
         if (failure?.FailedRequirements.OfType<TwoFactorEnrolmentCompleteRequirement>().Any() == true)
         {
             return TwoFactorSetupRequiredCode;
+        }
+
+        if (failure?.FailedRequirements.OfType<PasswordChangeCompleteRequirement>().Any() == true)
+        {
+            return PasswordChangeRequiredCode;
         }
 
         if (failure?.FailedRequirements.OfType<AccountMembershipActiveRequirement>().Any() == true)

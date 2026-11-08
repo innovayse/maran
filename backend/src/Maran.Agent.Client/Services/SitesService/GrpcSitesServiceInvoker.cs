@@ -8,14 +8,24 @@ namespace Maran.Agent.Client.Services.SitesService;
 /// <summary>Production <see cref="ISitesServiceInvoker"/> backed by the generated gRPC client.</summary>
 internal sealed class GrpcSitesServiceInvoker : ISitesServiceInvoker
 {
-    /// <summary>The generated gRPC client this adapter wraps.</summary>
-    private readonly Maran.Agent.V1.SitesService.SitesServiceClient _client;
+    /// <summary>Where the channel for the server the current call is aimed at comes from.</summary>
+    private readonly IAgentChannels _channels;
 
-    /// <summary>Wraps <paramref name="client"/> behind the <see cref="ISitesServiceInvoker"/> seam.</summary>
-    /// <param name="client">The generated client to delegate calls to.</param>
-    public GrpcSitesServiceInvoker(Maran.Agent.V1.SitesService.SitesServiceClient client)
+    /// <summary>Wraps <paramref name="channels"/> behind the <see cref="ISitesServiceInvoker"/> seam.</summary>
+    /// <param name="channels">Hands out the channel of the server each call is aimed at.</param>
+    public GrpcSitesServiceInvoker(IAgentChannels channels)
     {
-        _client = client;
+        _channels = channels;
+    }
+
+    /// <summary>
+    /// A generated client over the channel of the server the current call is aimed at, built per use.
+    /// Building it is cheap (it holds the channel and nothing else), and building it per call is what
+    /// lets one invoker serve every server: the target is read when the call starts, never earlier.
+    /// </summary>
+    private Maran.Agent.V1.SitesService.SitesServiceClient Client
+    {
+        get { return new Maran.Agent.V1.SitesService.SitesServiceClient(_channels.ForCurrent()); }
     }
 
     /// <inheritdoc/>
@@ -23,7 +33,7 @@ internal sealed class GrpcSitesServiceInvoker : ISitesServiceInvoker
         CreateSiteRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.CreateSiteAsync(request, cancellationToken: cancellationToken);
+        return await Client.CreateSiteAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -31,7 +41,7 @@ internal sealed class GrpcSitesServiceInvoker : ISitesServiceInvoker
         UpdateSitePhpVersionRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.UpdateSitePhpVersionAsync(request, cancellationToken: cancellationToken);
+        return await Client.UpdateSitePhpVersionAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -39,7 +49,7 @@ internal sealed class GrpcSitesServiceInvoker : ISitesServiceInvoker
         EnableSiteRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.EnableSiteAsync(request, cancellationToken: cancellationToken);
+        return await Client.EnableSiteAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -47,7 +57,7 @@ internal sealed class GrpcSitesServiceInvoker : ISitesServiceInvoker
         DisableSiteRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.DisableSiteAsync(request, cancellationToken: cancellationToken);
+        return await Client.DisableSiteAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -55,7 +65,23 @@ internal sealed class GrpcSitesServiceInvoker : ISitesServiceInvoker
         DeleteSiteRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.DeleteSiteAsync(request, cancellationToken: cancellationToken);
+        return await Client.DeleteSiteAsync(request, cancellationToken: cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<SummariseSiteTrafficResponse> SummariseSiteTrafficAsync(
+        SummariseSiteTrafficRequest request,
+        CancellationToken cancellationToken)
+    {
+        return await Client.SummariseSiteTrafficAsync(request, cancellationToken: cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<PruneSiteLogsResponse> PruneSiteLogsAsync(
+        PruneSiteLogsRequest request,
+        CancellationToken cancellationToken)
+    {
+        return await Client.PruneSiteLogsAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -63,7 +89,7 @@ internal sealed class GrpcSitesServiceInvoker : ISitesServiceInvoker
         ReloadWebServerRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.ReloadWebServerAsync(request, cancellationToken: cancellationToken);
+        return await Client.ReloadWebServerAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -71,7 +97,7 @@ internal sealed class GrpcSitesServiceInvoker : ISitesServiceInvoker
         TailSiteLogRequest request,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        using var call = _client.TailSiteLog(request, cancellationToken: cancellationToken);
+        using var call = Client.TailSiteLog(request, cancellationToken: cancellationToken);
 
         await foreach (var response in call.ResponseStream.ReadAllAsync(cancellationToken))
         {

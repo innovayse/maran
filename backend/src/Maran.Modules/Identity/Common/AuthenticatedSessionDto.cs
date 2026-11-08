@@ -2,7 +2,7 @@ namespace Maran.Modules.Identity.Common;
 
 /// <summary>
 /// The body of every answer in which the panel has actually signed somebody in: the access token,
-/// when it dies, who it belongs to, and whether it is confined to two-factor enrolment.
+/// when it dies, who it belongs to, and whether it is confined to a mandatory step (two-factor enrolment or a first password change).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -36,8 +36,17 @@ namespace Maran.Modules.Identity.Common;
 /// It is copied from the issued token rather than recomputed — see
 /// <see cref="Mappers.AuthenticatedSessionMapper"/>, which is the only thing that builds this.
 /// </param>
+/// <param name="RequiresPasswordChange">
+/// True when the login's password was chosen by whoever created the account and has not been replaced
+/// yet. Exactly like <paramref name="RequiresTwoFactorSetup"/>: the sign-in SUCCEEDED, the token is real,
+/// but it reaches only the password change (and sign-out) until the person has chosen their own password,
+/// which <c>PasswordChangeCompleteHandler</c> enforces by reading the claim inside the token. This field
+/// only tells the SPA which screen to render. After the change the SPA refreshes the session, and the
+/// refreshed token no longer carries the restriction.
+/// </param>
 public sealed record AuthenticatedSessionDto(
     string AccessToken,
     DateTimeOffset ExpiresAt,
     AuthenticatedUserDto User,
-    bool RequiresTwoFactorSetup);
+    bool RequiresTwoFactorSetup,
+    bool RequiresPasswordChange);

@@ -5,6 +5,7 @@ using Maran.Modules.Backups.Commands.VerifyBackup;
 using Maran.Modules.Backups.Common;
 using Maran.Modules.Backups.Queries.GetBackup;
 using Maran.Modules.Backups.Queries.GetBackupAttention;
+using Maran.Modules.Backups.Queries.GetRestoreChoices;
 using Maran.Modules.Backups.Queries.ListBackups;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
@@ -97,6 +98,27 @@ public sealed class BackupsController : BaseApiController
     public async Task<IActionResult> GetAsync(Guid id, CancellationToken cancellationToken)
     {
         return ToActionResult(await _bus.InvokeAsync<Result<BackupDto>>(new GetBackupQuery(id), cancellationToken));
+    }
+
+    /// <summary>
+    /// Names the databases and sites a restore of one backup could be narrowed to. Another customer's
+    /// backup answers 404, not 403.
+    /// </summary>
+    /// <param name="id">The backup about to be restored.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <remarks>
+    /// The account's CURRENT databases and sites, not what the archive holds: the panel does not read
+    /// inside an archive, and a name listed here can still be refused by the agent as not in the backup.
+    /// </remarks>
+    [HttpGet("{id:guid}/restore-choices")]
+    [ViewAsAccess(ViewAsAccess.Read)]
+    [ProducesResponseType(typeof(RestoreChoicesDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetRestoreChoicesAsync(Guid id, CancellationToken cancellationToken)
+    {
+        return ToActionResult(
+            await _bus.InvokeAsync<Result<RestoreChoicesDto>>(new GetRestoreChoicesQuery(id), cancellationToken));
     }
 
     /// <summary>

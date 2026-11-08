@@ -36,7 +36,7 @@ use std::process::Command;
 
 use maran_agent_core::validation::secrets::password::Password;
 use maran_agent_core::validation::system::sftp_user_name::SftpUserName;
-use maran_ops::accounts::{AccountOperations, ProcessSystemHost, StoredPassword};
+use maran_ops::accounts::{AccountOperations, LoginShell, ProcessSystemHost, StoredPassword};
 use maran_ops::cron::ProcessCronHost;
 use maran_ops::logins::{ProcessLoginsHost, account_logins, set_account_logins_locked};
 use maran_ops::sftp::{ProcessSftpHost, set_sftp_password};
@@ -143,7 +143,7 @@ fn suspending_the_account_refuses_the_sftp_login_that_worked_before_it() {
     // proposition a reversal rather than half of one. If that fix regressed,
     // this line is what would see it, on the RHEL image, as a failed resume.
     operations
-        .unsuspend(account.name())
+        .unsuspend(account.name(), LoginShell::Nologin)
         .unwrap_or_else(|error| panic!("reactivating the account must succeed: {error}"));
     set_account_logins_locked(
         &ProcessLoginsHost::new(),
@@ -276,7 +276,7 @@ fn changing_an_sftp_password_while_suspended_does_not_hand_the_login_back() {
     // which is the promise the fix makes: the customer's new credential was
     // stored, not thrown away.
     operations
-        .unsuspend(account.name())
+        .unsuspend(account.name(), LoginShell::Nologin)
         .unwrap_or_else(|error| panic!("reactivating the account must succeed: {error}"));
     set_account_logins_locked(
         &ProcessLoginsHost::new(),
@@ -335,12 +335,14 @@ fn reactivating_an_account_leaves_a_hand_set_password_working_and_a_passwordless
     operations
         .suspend(plain.name())
         .unwrap_or_else(|error| panic!("suspending the passwordless account: {error}"));
-    operations.unsuspend(plain.name()).unwrap_or_else(|error| {
-        panic!(
-            "reactivating a passwordless account must succeed on BOTH families, and the \
+    operations
+        .unsuspend(plain.name(), LoginShell::Nologin)
+        .unwrap_or_else(|error| {
+            panic!(
+                "reactivating a passwordless account must succeed on BOTH families, and the \
              call this used to make exits 1 on the RHEL one: {error}"
-        )
-    });
+            )
+        });
     assert_eq!(
         shadow_password_field(plain.name().as_str()),
         plain_before,
@@ -369,7 +371,7 @@ fn reactivating_an_account_leaves_a_hand_set_password_working_and_a_passwordless
     );
 
     operations
-        .unsuspend(credited.name())
+        .unsuspend(credited.name(), LoginShell::Nologin)
         .unwrap_or_else(|error| panic!("reactivating the credited account: {error}"));
     assert_eq!(
         shadow_password_field(credited.name().as_str()),
@@ -639,7 +641,7 @@ fn an_authenticated_sftp_session_is_ended_when_the_account_is_suspended() {
     )
     .unwrap_or_else(|error| panic!("unlocking the account's logins must succeed: {error}"));
     operations
-        .unsuspend(account.name())
+        .unsuspend(account.name(), LoginShell::Nologin)
         .unwrap_or_else(|error| panic!("reactivating the account must succeed: {error}"));
 
     drop(session);

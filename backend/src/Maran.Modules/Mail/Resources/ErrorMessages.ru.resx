@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AccountNotFound">
+    <value>Аккаунт не найден.</value>
+  </data>
+  <data name="MailNotEnabled">
+    <value>Почта на этом сервере не включена. Попросите администратора сервера включить её.</value>
+  </data>
+  <data name="MailServerHostnameInvalidFormat">
+    <value>Это недопустимое имя хоста. Введите имя вида mail.example.com.</value>
+  </data>
+  <data name="MailServerHostnameTooLong">
+    <value>Имя хоста слишком длинное. Допускается не более 253 символов.</value>
+  </data>
+  <data name="MailServerHostnameReserved">
+    <value>Это имя нельзя использовать для почтового сервера: оно зарезервировано и не обозначает публичный хост.</value>
+  </data>
+  <data name="MailMessageSizeOutOfRange">
+    <value>Максимальный размер письма должен быть от 1 до 512 МиБ.</value>
+  </data>
+  <data name="MailSpamScoresInvalid">
+    <value>Баллы спама должны быть целыми числами от 0 до 100 и возрастать по порядку: отложить, пометить как спам, отклонить.</value>
+  </data>
+  <data name="MailQueueIdInvalid">
+    <value>Это недопустимый идентификатор очереди почты.</value>
+  </data>
+  <data name="MailQueueEntryNotFound">
+    <value>Этого письма больше нет в очереди.</value>
+  </data>
+  <data name="MailDomainNotFound">
+    <value>Почтовый домен не найден.</value>
+  </data>
+  <data name="MailDomainTaken">
+    <value>Этот домен уже используется для почты на этом сервере.</value>
+  </data>
+  <data name="MailDomainNotOwnedSite">
+    <value>Почту можно настроить только для основного домена одного из ваших сайтов. Сначала добавьте сайт.</value>
+  </data>
+  <data name="MailDomainInvalid">
+    <value>Это недопустимый домен. Введите имя вида example.com.</value>
+  </data>
+  <data name="MailDomainTooLong">
+    <value>Имя домена слишком длинное для почтового домена.</value>
+  </data>
+  <data name="MailDomainProvisioningFailed">
+    <value>Не удалось настроить почтовый домен на сервере. Ничего не сохранено, попробуйте ещё раз.</value>
+  </data>
+  <data name="MailboxNotFound">
+    <value>Почтовый ящик не найден.</value>
+  </data>
+  <data name="MailboxTaken">
+    <value>Этот адрес уже занят почтовым ящиком или псевдонимом.</value>
+  </data>
+  <data name="MailboxLocalPartInvalid">
+    <value>Часть до @ может содержать строчные буквы, цифры, точки, дефисы и подчёркивания (до 64 символов) и должна начинаться и заканчиваться буквой или цифрой.</value>
+  </data>
+  <data name="MailboxQuotaOutOfRange">
+    <value>Размер почтового ящика вне допустимого диапазона.</value>
+  </data>
+  <data name="MailboxSendLimitOutOfRange">
+    <value>Лимит отправки в час вне допустимого диапазона.</value>
+  </data>
+  <data name="MailboxSendLimitAbovePlan">
+    <value>Лимит отправки в час выше, чем разрешает ваш тариф.</value>
+  </data>
+  <data name="MailboxLimitReached">
+    <value>Ваш тариф не позволяет создать больше почтовых ящиков. Удалите один или выберите больший тариф.</value>
+  </data>
+  <data name="MailboxLimitReachedConcurrently">
+    <value>Ваш тариф заполнился, пока создавался этот ящик, поэтому он не сохранён. Удалите ненужный ящик и попробуйте ещё раз.</value>
+  </data>
+  <data name="MailQuotaPoolExhausted">
+    <value>Размеры почтовых ящиков в сумме превысили бы объём, разрешённый вашим тарифом.</value>
+  </data>
+  <data name="MailboxProvisioningFailed">
+    <value>Не удалось создать почтовый ящик на сервере. Ничего не сохранено, попробуйте ещё раз.</value>
+  </data>
+  <data name="MailPasswordTooWeak">
+    <value>Пароль должен содержать от 12 до 128 символов, без управляющих символов.</value>
+  </data>
+  <data name="MailPasswordSchemeUnsupported">
+    <value>Почтовый сервер пока не может проверять тип защиты паролей, который создаёт эта панель. Обратитесь к администратору сервера.</value>
+  </data>
+  <data name="MailAliasNotFound">
+    <value>Псевдоним не найден.</value>
+  </data>
+  <data name="MailAliasTaken">
+    <value>Этот адрес уже занят псевдонимом или почтовым ящиком.</value>
+  </data>
+  <data name="MailAliasTargetInvalid">
+    <value>Укажите хотя бы один допустимый адрес назначения. Каждый адрес должен быть вида name@example.com.</value>
+  </data>
+  <data name="MailAliasTargetLimit">
+    <value>У псевдонима может быть не более 20 адресов назначения.</value>
+  </data>
+  <data name="MailAliasKindMismatch">
+    <value>Тип не соответствует адресам: псевдоним доставляет только в ваши домены, а пересылке нужен хотя бы один внешний адрес.</value>
+  </data>
+  <data name="MailAliasExternalTargetNotAllowed">
+    <value>Администратор сервера не разрешил пересылку на адреса вне ваших доменов.</value>
+  </data>
+  <data name="MailCatchAllConflict">
+    <value>У этого домена уже есть адрес «для всей почты».</value>
+  </data>
+  <data name="MailAliasProvisioningFailed">
+    <value>Не удалось настроить псевдоним на сервере. Ничего не сохранено, попробуйте ещё раз.</value>
+  </data>
+  <data name="MailAutoresponderInvalid">
+    <value>Автоответ недопустим: тема должна быть одной строкой до 200 символов, текст не должен превышать 4096 байт, и ни одна строка не должна начинаться с точки.</value>
+  </data>
+  <data name="MailAutoresponderNotFound">
+    <value>У этого почтового ящика нет автоответа.</value>
+  </data>
+</root>

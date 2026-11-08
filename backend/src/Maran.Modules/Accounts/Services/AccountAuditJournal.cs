@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Maran.Modules.Accounts.Models;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 using Maran.SharedKernel.Callers;
@@ -32,6 +33,17 @@ namespace Maran.Modules.Accounts.Services;
 /// its own accounts and plans: the entry's actor is the reseller's login, and an administrator viewing
 /// as that reseller is recorded beside it by the audit writer, not by this type. The subject of a
 /// reseller entry is the reseller's NAME and never its envelope's figures or its contact address.
+///
+/// A reseller's API key writes through the same journal (issue #7): its entry names the key as the
+/// actor (<see cref="ApiKeyCaller.ActorName"/>, <c>api-key:</c> and the key id) with no user id, because
+/// a key id is not a user id and must not be searched for as one. The entry carries the key id and
+/// never the secret, which this module never sees; the reseller that owns the key is read from the
+/// key's own row, and the account the entry is about is on the entry.
+///
+/// An account's creation lists what its creator chose beyond the name (<see cref="RecordCreatedAsync"/>):
+/// how the owner was given a way in, the shell, the backup choice and every ceiling the account states
+/// for itself. It names the MODE of the owner's login and never the password: this journal is never
+/// deleted, and a password in it would outlive every reason to know it.
 ///
 /// For an account, the subject is always the account's NAME, never the agent's output and never a path: the agent's
 /// text names absolute paths, uids and mounts on the host, the home directory is derived from the
@@ -76,6 +88,37 @@ public sealed class AccountAuditJournal
         await WriteAsync(action, name, ipAddress, userAgent, succeeded: true, accountId, cancellationToken);
     }
 
+    /// <summary>Records the creation of an account, listing the options its creator chose.</summary>
+    /// <remarks>
+    /// The subject is the account's name, followed by <c>[option, option]</c> for each choice that is
+    /// not the default (an owner given an initial password, a login shell, no backups, and every
+    /// ceiling the account states for itself), so an account created with the defaults reads exactly as
+    /// it always did. The password is never recorded, only the mode.
+    /// </remarks>
+    /// <param name="name">The account's name.</param>
+    /// <param name="options">What the creator chose beyond the name, domain and plan.</param>
+    /// <param name="ipAddress">The caller's address.</param>
+    /// <param name="userAgent">The caller's user agent.</param>
+    /// <param name="accountId">The account that was created.</param>
+    /// <param name="cancellationToken">Cancellation token for the write.</param>
+    public async Task RecordCreatedAsync(
+        string name,
+        AccountCreationOptions options,
+        string ipAddress,
+        string userAgent,
+        Guid accountId,
+        CancellationToken cancellationToken)
+    {
+        await WriteAsync(
+            AccountAuditActions.AccountCreated,
+            DescribeCreation(name, options),
+            ipAddress,
+            userAgent,
+            succeeded: true,
+            accountId,
+            cancellationToken);
+    }
+
     /// <summary>Records an operation that was refused, and why in machine terms.</summary>
     /// <param name="action">The action that was attempted.</param>
     /// <param name="subject">
@@ -99,6 +142,46 @@ public sealed class AccountAuditJournal
         Guid? accountId = null)
     {
         await WriteAsync(action, subject, ipAddress, userAgent, succeeded: false, accountId, cancellationToken);
+    }
+
+    /// <summary>States an account's name followed by the creation options that are not the defaults.</summary>
+    /// <param name="name">The account's name.</param>
+    /// <param name="options">What the creator chose.</param>
+    /// <returns>For example <c>acme</c> or <c>acme [login: initial password, shell, no backups, inodes: 50000]</c>.</returns>
+    private static string DescribeCreation(string name, AccountCreationOptions options)
+    {
+        var chosen = new List<string>();
+        if (options.LoginMode == OwnerLoginMode.InitialPassword)
+        {
+            chosen.Add("login: initial password");
+        }
+
+        if (options.ShellAccess)
+        {
+            chosen.Add("shell");
+        }
+
+        if (!options.BackupEnabled)
+        {
+            chosen.Add("no backups");
+        }
+
+        if (options.Limits.InodeLimit is { } inodes)
+        {
+            chosen.Add($"inodes: {inodes}");
+        }
+
+        if (options.Limits.ProcessLimit is { } processes)
+        {
+            chosen.Add($"processes: {processes}");
+        }
+
+        if (options.Limits.OpenFilesLimit is { } openFiles)
+        {
+            chosen.Add($"open files: {openFiles}");
+        }
+
+        return chosen.Count == 0 ? name : $"{name} [{string.Join(", ", chosen)}]";
     }
 
     /// <summary>Builds and stores one entry.</summary>

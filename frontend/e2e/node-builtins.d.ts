@@ -1,5 +1,5 @@
 /**
- * The four Node built-ins the end-to-end suite reads the repository with, declared here rather
+ * The five Node built-ins the end-to-end suite reads the repository with, declared here rather
  * than pulled in from `@types/node`.
  *
  * Why a declaration and not `"types": ["node"]` in `tsconfig.app.json`: that file compiles `src/`
@@ -72,4 +72,29 @@ declare module 'node:path' {
    * @returns The absolute path.
    */
   export const resolve: (...segments: string[]) => string
+}
+
+declare module 'node:buffer' {
+  /** A Node byte buffer: the type Playwright requires for an in-memory file payload. */
+  export class Buffer extends Uint8Array {
+    /**
+     * Encodes text as bytes.
+     * @param text The text to encode (UTF-8).
+     * @returns A buffer holding the encoded bytes.
+     */
+    static from(text: string): Buffer
+    /**
+     * Decodes base64 text into the bytes it stands for.
+     * @param encoded The base64 text, without a data-URL prefix.
+     * @param encoding Always `'base64'`.
+     * @returns A buffer holding the decoded bytes.
+     */
+    static from(encoded: string, encoding: 'base64'): Buffer
+    /**
+     * Counts the bytes text takes once encoded.
+     * @param text The text to measure (UTF-8).
+     * @returns The number of bytes.
+     */
+    static byteLength(text: string): number
+  }
 }

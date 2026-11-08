@@ -95,6 +95,36 @@ public static class TenantScopeCensus
             .ToList();
     }
 
+    /// <summary>
+    /// Every <c>DbContext</c> compiled into a module assembly the panel composes: the contexts of
+    /// <see cref="ContextTypesCompiledIntoModules"/> except those of the modules
+    /// <see cref="ModuleContractCensus.UnregisteredModules"/> names.
+    /// </summary>
+    /// <remarks>
+    /// The one list of modules built but not yet composed is <see cref="ModuleContractCensus.UnregisteredModules"/>;
+    /// this method subtracts it rather than keeping a second list, so the day a module is composed and leaves
+    /// that list its context is expected here, and walked, in the same change. The walk
+    /// (<see cref="ModuleDbContexts"/>) reads <c>ModuleRegistry.All</c>, so a registered module whose context
+    /// stopped being walked is still named by the comparison against this set.
+    /// </remarks>
+    /// <returns>The context types of the composed modules, in a stable order.</returns>
+    public static List<Type> ContextTypesCompiledIntoRegisteredModules()
+    {
+        var unregistered = ModuleContractCensus.UnregisteredModules()
+            .Select(module =>
+            {
+                return module.GetType().Assembly;
+            })
+            .ToHashSet();
+
+        return ContextTypesCompiledIntoModules()
+            .Where(type =>
+            {
+                return !unregistered.Contains(type.Assembly);
+            })
+            .ToList();
+    }
+
     /// <summary>Every module entity CLR type that declares the tenant property.</summary>
     /// <returns>The entity types, in a stable order.</returns>
     public static List<Type> EntityTypesDeclaringTenantProperty()
@@ -125,7 +155,8 @@ public static class TenantScopeCensus
             .ToList();
     }
 
-    /// <summary>The mapped entities that carry the tenant property themselves.</summary>
+    /// <summary>The mapped entities that carry the tenant property themselves, owned types excepted.</summary>
+    /// <remarks>An owned type's key is its owner's key, so an owned value of an account carries <c>AccountId</c> as a shadow foreign key; it is read only through its owner, whose filter scopes it, and EF refuses a filter on it.</remarks>
     /// <param name="contexts">The module models to read.</param>
     /// <returns>The tenant entity types.</returns>
     public static List<IEntityType> CarryingTenantProperty(IReadOnlyList<DbContext> contexts)
@@ -137,7 +168,7 @@ public static class TenantScopeCensus
             })
             .Where(entity =>
             {
-                return entity.FindProperty(TenantProperty) is not null;
+                return !entity.IsOwned() && entity.FindProperty(TenantProperty) is not null;
             })
             .ToList();
     }

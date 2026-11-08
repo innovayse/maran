@@ -36,6 +36,7 @@ public static class AuthenticatedSessionMapper
             authenticated.AccessToken.ExpiresAt,
             new AuthenticatedUserDto(
                 user.Id, user.Username, user.Email, user.Role, authenticated.Session.ActiveAccountId),
-            authenticated.AccessToken.RequiresTwoFactorSetup);
+            authenticated.AccessToken.RequiresTwoFactorSetup,
+            authenticated.AccessToken.RequiresPasswordChange);
     }
 }

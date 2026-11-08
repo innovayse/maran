@@ -51,6 +51,25 @@ public sealed class AccountConfiguration : IEntityTypeConfiguration<Account>
             .HasMaxLength(8)
             .HasDefaultValue(PanelLanguages.English);
 
+        // Required with a database default: every account that predates the column was created with no
+        // login shell, so false is the honest value to give a row nobody chose a shell for (issue #194).
+        builder.Property(a => a.ShellAccess)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        // Three nullable columns, named here because the provider's default would put an
+        // implementation detail into a schema an operator reads with psql. Null is "follows the plan",
+        // which is what every account that predates them does, so the migration backfills nothing; the
+        // navigation is required so an account whose three columns are all null still reads as a value
+        // and not as a missing one.
+        builder.OwnsOne(a => a.LimitOverrides, overrides =>
+        {
+            overrides.Property(o => o.InodeLimit).HasColumnName("InodeLimitOverride");
+            overrides.Property(o => o.ProcessLimit).HasColumnName("ProcessLimitOverride");
+            overrides.Property(o => o.OpenFilesLimit).HasColumnName("OpenFilesLimitOverride");
+        });
+        builder.Navigation(a => a.LimitOverrides).IsRequired();
+
         builder.Property(a => a.CreatedAt)
             .IsRequired();
 

@@ -1,4 +1,5 @@
 using Maran.Sdk.Contracts;
+using Maran.Sdk.Navigation;
 
 namespace Maran.Modules.Cron;
 
@@ -21,7 +22,32 @@ public static class CronManifest
         DisplayNameKey: "CronModuleDisplayName",
         Version: "1.0.0",
         Tier: LicenceTier.Included,
+        Kind: ModuleKind.Packageable,
+        MinPanelVersion: "1.0.0-beta.4",
+        SchemaName: "cron",
         Dependencies: [],
         AgentCapabilities: [AgentCapability.Cron],
+        Permissions: [AuthorizationPolicies.AnyAuthenticated],
+        Menu: [
+            new ModuleMenuItem(
+                Key: "cron",
+                RouteName: "cron",
+                IconKey: ModuleIconKeys.FolderKey,
+                LabelKey: "CronMenuList",
+                Order: 10,
+                Audience: ModuleAudience.Everyone),
+        ],
+        Routes: [
+            new ModuleRoute(
+                Name: "cron",
+                Path: "/cron",
+                TitleKey: "CronRouteList",
+                RequiresModule: null),
+            new ModuleRoute(
+                Name: "cron-runs",
+                Path: "/cron/:entryId/runs",
+                TitleKey: "CronRouteRuns",
+                RequiresModule: null),
+        ],
         Audience: ModuleAudience.Everyone);
 }

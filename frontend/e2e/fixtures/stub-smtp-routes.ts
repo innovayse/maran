@@ -14,7 +14,6 @@ export const storedSmtpSettings: SmtpSettings = {
   hasPassword: true,
   fromAddress: 'panel@example.net',
   fromName: 'Maran',
-  alertRecipient: 'ops@example.net',
   updatedAt: '2026-09-01T10:00:00+00:00',
 }
 

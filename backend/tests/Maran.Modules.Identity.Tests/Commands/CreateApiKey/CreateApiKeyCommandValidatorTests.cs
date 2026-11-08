@@ -101,4 +101,44 @@ public sealed class CreateApiKeyCommandValidatorTests
         Assert.True(_validator.Validate(Command(cidrs: atLimit)).IsValid);
         Assert.Equal("ApiKeyCidrInvalid", Assert.Single(_validator.Validate(Command(cidrs: overLimit)).Errors).ErrorCode);
     }
+
+    /// <summary>A reseller's key accepts the reseller-grade scopes and refuses the administrator-grade one.</summary>
+    [Fact]
+    public void A_resellers_key_accepts_reseller_grade_scopes_and_refuses_the_administrator_grade_one()
+    {
+        var owner = Guid.NewGuid();
+
+        Assert.True(_validator.Validate(Command(scopes: [ApiKeyScopes.PlansRead, ApiKeyScopes.AccountsRead]) with { OwnerResellerId = owner }).IsValid);
+        Assert.Equal(
+            "ApiKeyScopeUnknown",
+            Assert.Single(_validator.Validate(Command(scopes: [ApiKeyScopes.ServerRead]) with { OwnerResellerId = owner }).Errors).ErrorCode);
+    }
+
+    /// <summary>A reseller's key accepts the provisioning write scopes, the accepting control for the administrator refusal below.</summary>
+    [Fact]
+    public void A_resellers_key_accepts_the_provisioning_write_scopes()
+    {
+        var owner = Guid.NewGuid();
+
+        Assert.True(_validator.Validate(
+            Command(scopes: [ApiKeyScopes.AccountsRead, ApiKeyScopes.AccountsWrite, ApiKeyScopes.AccountsDelete]) with { OwnerResellerId = owner }).IsValid);
+    }
+
+    /// <summary>The administrator's key refuses the reseller-grade scopes, the inverse of the reseller rule above.</summary>
+    [Fact]
+    public void The_administrators_key_refuses_the_reseller_grade_scopes()
+    {
+        Assert.Equal(
+            "ApiKeyScopeUnknown",
+            Assert.Single(_validator.Validate(Command(scopes: [ApiKeyScopes.AccountsRead])).Errors).ErrorCode);
+        Assert.Equal(
+            "ApiKeyScopeUnknown",
+            Assert.Single(_validator.Validate(Command(scopes: [ApiKeyScopes.PlansRead])).Errors).ErrorCode);
+        Assert.Equal(
+            "ApiKeyScopeUnknown",
+            Assert.Single(_validator.Validate(Command(scopes: [ApiKeyScopes.AccountsWrite])).Errors).ErrorCode);
+        Assert.Equal(
+            "ApiKeyScopeUnknown",
+            Assert.Single(_validator.Validate(Command(scopes: [ApiKeyScopes.AccountsDelete])).Errors).ErrorCode);
+    }
 }

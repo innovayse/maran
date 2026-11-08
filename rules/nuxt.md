@@ -40,6 +40,13 @@ The layout is flat, the same way the panel's is — there is no `app/modules/`:
 - `app/components/ui/Ui*.vue` — the site's UI kit, the only home of raw HTML controls.
 - `app/components/marketing/`, `app/components/docs/` — feature components, PascalCase files.
 - `app/composables/use<X>.ts` — flat, one composable per file, the file named after its export.
+- `app/plugins/<name>.client.ts` — client-only runtime registration that must happen once, at
+  hydration, before any component asks (the icon bundle is the example: `iconBundle.client.ts`
+  registers every bundled icon so one chosen after hydration is found locally rather than fetched).
+  A plugin registers and returns; it holds no business logic, no content reading and no state a
+  page depends on — that belongs in a composable or a util. The `.client` suffix is mandatory for
+  anything touching the browser, and each plugin carries a doc comment saying what would break
+  without it.
 - `app/utils/<purpose>.ts` — pure helpers, one purpose per file, and the file is named for the
   PURPOSE rather than for one function inside it: `content.ts`, `format.ts`, `navigation.ts`,
   `seo.ts`. A file named after a single helper (`formatContentDate.ts`) has nowhere to put the
@@ -105,11 +112,20 @@ difference is invisible until a crawler finds it.
 prefix into the file would be wrong the moment that file is translated, and a link that drops the
 reader back into English is how a localized site quietly stops being one.
 
-**Language is offered at the site root only** (`redirectOn: 'root'`). A deep link stays in the
-language it was shared in: under the looser setting, a returning reader whose cookie said `ru` was
-redirected away from `/docs/installation` — the English canonical URL — to the Russian one, which
-is both a shared link changing language under the person who followed it and a canonical URL that
-answers with a redirect.
+**Language is offered at the site root only, and by the server.** The choice for `/` is made by the
+web server in `public/.htaccess`, before any HTML exists: the `maran_locale` cookie first (`ru` or
+`hy` redirect, `en` stays), then the primary language of `Accept-Language`, then English as served.
+The redirect is a 302, because the answer depends on the reader. The language picker records an
+explicit pick through `useLocaleCookie`, and nothing else writes that cookie.
+
+**The browser never detects, switches or redirects by language** (`detectBrowserLanguage: false`).
+The site is prerendered, so a client-side redirect decided during hydration swaps the language under
+markup the server wrote in English, produces hydration mismatches, and lands on a page whose content
+was in no payload — Russian and Armenian visitors got the not-found page. A deep link stays in the
+language it was shared in: a returning reader whose cookie said `ru` must not be moved away from
+`/docs/installation`, the English canonical URL, which is both a shared link changing language under
+the person who followed it and a canonical URL that answers with a redirect. Any new locale
+redirect is a server rule scoped to the exact path `/`, never client code.
 
 ## SEO is a build gate, not a later pass
 
@@ -179,14 +195,23 @@ nothing in the dark theme, where surfaces separate by hairline border and a shad
 invisible, and carry real weight in the light theme, where a border alone leaves every card flat on
 the page.
 
-## Typefaces are downloaded at build and served from this origin
+## Typefaces are vendored and served from this origin
 
-`@nuxt/fonts` fetches the families at build time and serves them from this domain. Two reasons, and
-the second is a promise the site makes in writing: a font fetched from a third party is a
-render-blocking request to somebody else's uptime, and it tells them who is reading the site, which
-the privacy page states plainly does not happen.
+The font files are committed in `public/fonts/<family>/`, each family with its licence text
+(`OFL.txt`) beside it, and declared in `app/assets/css/fonts.css`, one `@font-face` per
+`unicode-range` subset. They are served from this domain, for two reasons, and the second is a
+promise the site makes in writing: a font fetched from a third party is a render-blocking request to
+somebody else's uptime, and it tells them who is reading the site, which the privacy page states
+plainly does not happen.
 
-This was not a refinement. Until it was wired, the stylesheet asked for typefaces the browser had
+**No remote font provider is allowed, at build or at runtime.** `@nuxt/fonts` is configured with
+every provider off and each family set to `provider: 'none'`, so the build needs no network and a
+CDN outage cannot fail the pipeline — it did: the build failed whenever `fonts.gstatic.com` was
+unreachable from the CI runner (#75). A family added later is declared in `fonts.css` with its files
+and licence in the same change; one without a source warns as unresolved and is not fetched. Updating
+a family means replacing the committed files, keeping the publisher's `unicode-range` per subset.
+
+This was not a refinement. Until fonts were wired, the stylesheet asked for typefaces the browser had
 never heard of and every page rendered in the system font — `document.fonts.size` was zero, and the
 site looked exactly as unconsidered as that sounds. A `font-family` declaration is not a font; if
 nothing loads it, it is a comment.

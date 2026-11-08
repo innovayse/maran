@@ -19,6 +19,7 @@ import UiCard from '../../components/ui/UiCard.vue'
 import UiForm from '../../components/ui/UiForm.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
 import UiInput from '../../components/ui/UiInput.vue'
+import UiLink from '../../components/ui/UiLink.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiPasswordInput from '../../components/ui/UiPasswordInput.vue'
@@ -63,9 +64,6 @@ const fromAddress: Ref<string> = ref('')
 
 /** The display name beside the sender address, as typed. */
 const fromName: Ref<string> = ref('')
-
-/** Where alert mail goes, as typed. */
-const alertRecipient: Ref<string> = ref('')
 
 /** Where a test message should be sent, as typed. */
 const testRecipient: Ref<string> = ref('')
@@ -113,7 +111,6 @@ const fill = (settings: SmtpSettings | null): void => {
   password.value = ''
   fromAddress.value = settings.fromAddress
   fromName.value = settings.fromName
-  alertRecipient.value = settings.alertRecipient
 }
 
 /**
@@ -134,7 +131,6 @@ const submit = async (): Promise<void> => {
     ...(password.value === '' ? {} : { password: password.value }),
     fromAddress: fromAddress.value,
     fromName: fromName.value,
-    alertRecipient: alertRecipient.value,
   })
 }
 
@@ -239,7 +235,11 @@ void smtpStore.loadSecurityModes()
               <div class="flex flex-col gap-3">
                 <UiInput v-model="fromAddress" :label="t('app.smtp.fromAddressLabel')" required />
                 <UiInput v-model="fromName" :label="t('app.smtp.fromNameLabel')" />
-                <UiInput v-model="alertRecipient" :label="t('app.smtp.alertRecipientLabel')" required />
+                <!-- Alert recipients are their own list now; this screen only points at it. -->
+                <p class="flex items-start gap-2 text-sm text-text-secondary">
+                  <span>{{ t('app.smtp.alertsPointer') }}</span>
+                  <UiLink :to="{ name: 'alert-settings' }">{{ t('app.smtp.alertsLink') }}</UiLink>
+                </p>
               </div>
             </UiCard>
 

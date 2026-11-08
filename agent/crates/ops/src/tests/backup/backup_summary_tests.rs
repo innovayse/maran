@@ -110,8 +110,8 @@ fn a_readable_state_missing_the_manifest_does_not_parse() {
 }
 
 /// The same document in the readable state's own shape, but with the digest
-/// left out: still refused, because `ReadableBackup`'s fields are not
-/// optional. The control that says the refusal above is about the missing
+/// left out: still refused, because `ReadableBackup`'s facts are not
+/// optional (the one defaulted field is the sealed label, tested below). The control that says the refusal above is about the missing
 /// facts and not about the outer key name.
 #[test]
 fn a_readable_state_missing_the_digest_does_not_parse() {
@@ -138,4 +138,77 @@ fn a_readable_summary_round_trips_through_json() {
         serde_json::from_str(&json).expect("a readable summary's own JSON parses back");
 
     assert_eq!(parsed, summary);
+}
+
+/// A sidecar written before archives could be sealed has no `encrypted` field,
+/// and reads as a plain archive — the only field of a readable state a
+/// document may leave out, and the reason every earlier backup stays readable.
+#[test]
+fn a_sidecar_from_before_sealing_existed_reads_as_plain() {
+    let earlier = serde_json::json!({
+        "backup_id": "b1",
+        "version": SUMMARY_VERSION,
+        "state": { "readable": {
+            "manifest": manifest(),
+            "artifact_bytes": 123,
+            "artifact_sha256": "a".repeat(64),
+        } },
+    })
+    .to_string();
+
+    let parsed: BackupSummary = serde_json::from_str(&earlier).expect("an earlier sidecar parses");
+
+    assert!(
+        !parsed
+            .readable_details()
+            .expect("a readable summary")
+            .encrypted
+    );
+}
+
+/// `sealed` marks a readable summary, round-trips through the sidecar, and
+/// leaves a plain one and an unreadable one as they were.
+#[test]
+fn a_sealed_summary_round_trips_and_sealing_changes_nothing_else() {
+    let plain = BackupSummary::readable("b1".to_owned(), manifest(), 123, "a".repeat(64));
+    let sealed = plain.clone().sealed();
+
+    let parsed: BackupSummary =
+        serde_json::from_str(&serde_json::to_string(&sealed).unwrap()).unwrap();
+
+    assert!(parsed.readable_details().unwrap().encrypted);
+    assert!(!plain.readable_details().unwrap().encrypted);
+    let mut unmarked = parsed.clone();
+    if let BackupState::Readable(details) = &mut unmarked.state {
+        details.encrypted = false;
+    }
+    assert_eq!(unmarked, plain, "sealing must change only the label");
+
+    let unreadable = BackupSummary::unreadable("b1".to_owned(), UnreadableReason::Corrupt);
+    assert_eq!(unreadable.clone().sealed(), unreadable);
+}
+
+/// An imported mark is carried by the sidecar, is absent from every summary made
+/// here, and is what a sidecar written before artifacts could be moved reads as.
+#[test]
+fn imported_changes_only_the_label_and_an_old_sidecar_reads_as_not_imported() {
+    let plain = BackupSummary::readable("b1".to_owned(), manifest(), 1, "a".repeat(64));
+    let imported = plain.clone().imported();
+
+    assert!(!plain.readable_details().unwrap().imported);
+    assert!(imported.readable_details().unwrap().imported);
+    let mut unmarked = imported.clone();
+    if let BackupState::Readable(details) = &mut unmarked.state {
+        details.imported = false;
+    }
+    assert_eq!(unmarked, plain, "marking must change only the label");
+
+    let mut value = serde_json::to_value(&imported).unwrap();
+    let details = value["state"]["readable"].as_object_mut().unwrap();
+    assert!(details.remove("imported").is_some(), "positive control");
+    let old: BackupSummary = serde_json::from_value(value).unwrap();
+    assert!(!old.readable_details().unwrap().imported);
+
+    let unreadable = BackupSummary::unreadable("b1".to_owned(), UnreadableReason::Corrupt);
+    assert_eq!(unreadable.clone().imported(), unreadable);
 }

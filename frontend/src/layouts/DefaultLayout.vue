@@ -33,6 +33,7 @@
  */
 import {
   computed,
+  defineAsyncComponent,
   onBeforeUnmount,
   onMounted,
   provide,
@@ -54,6 +55,7 @@ import ShellTabBar from '../components/shell/ShellTabBar.vue'
 import ShellViewingAsBanner from '../components/shell/ShellViewingAsBanner.vue'
 import { useNavigationState } from '../composables/useNavigationState'
 import { useNavigationRole } from '../composables/useNavigationRole'
+import { useShellBranding } from '../composables/useShellBranding'
 import { useShellLiveReads } from '../composables/useShellLiveReads'
 import { useLocaleStore } from '../stores/locale'
 import { useModulesStore } from '../stores/modules'
@@ -91,6 +93,18 @@ const localeStore = useLocaleStore()
 // The shell's polls and streams (running tasks, failed-task count, needs-attention and updates
 // figures), started only for the roles that may call them and dropped with the identity (issue #415).
 useShellLiveReads()
+
+/**
+ * The public demo's banner and read-only notice, or `null` in every other build. Written inline so
+ * the build-time `__MARAN_DEMO__` literal folds the ternary and drops the `import()` (vite.config.ts).
+ */
+const DemoBanner = __MARAN_DEMO__ ? defineAsyncComponent(() => {return import('../components/demo/DemoBanner.vue')}) : null
+const DemoReadOnlyNote = __MARAN_DEMO__
+  ? defineAsyncComponent(() => {return import('../components/demo/DemoReadOnlyNote.vue')})
+  : null
+
+// The reseller's name, logo and accent colour on a customer's shell (issue #367).
+useShellBranding()
 
 /** Live match for {@link WIDE_QUERY}; kept so its listener can be removed. */
 const wideQuery: MediaQueryList = window.matchMedia(WIDE_QUERY)
@@ -316,6 +330,8 @@ onBeforeUnmount((): void => {
     <!-- The desktop: panels floating 12px apart (8px on a phone). `inert` while the drawer is
          open makes the drawer genuinely modal. -->
     <div class="flex h-full flex-col gap-2 p-2 sm:gap-3 sm:p-3" :inert="drawerOpen">
+      <component :is="DemoBanner" v-if="DemoBanner !== null" />
+
       <ShellHeader
         :entries="entries"
         :navigation-open="drawerOpen"
@@ -357,6 +373,7 @@ onBeforeUnmount((): void => {
           <!-- RouterView, not a slot: this layout is a route component with child routes, so the
                page for the active child renders here. A <slot/> would silently render nothing. -->
           <ShellViewingAsBanner class="mb-4" />
+          <component :is="DemoReadOnlyNote" v-if="DemoReadOnlyNote !== null" class="mb-4" />
           <!-- Keyed on the interface language (issue #414): the backend localizes the text a page
                shows (status names, feature names, plan choices) per request, so a language switch
                remounts the routed page and its loaders ask again with the new `Accept-Language`.

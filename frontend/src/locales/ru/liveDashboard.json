@@ -1,0 +1,53 @@
+{
+  "liveDashboard": {
+    "chart": {
+      "legend": "Показанные линии",
+      "tableCaption": "{label}: последние показания ({count})",
+      "openAt": "Открыть {time} в мониторинге"
+    },
+    "cpu": {
+      "title": "Процессор",
+      "load": "Нагрузка {one} · {five} · {fifteen}"
+    },
+    "memory": {
+      "title": "Память"
+    },
+    "disk": {
+      "title": "Диск",
+      "sizeOnly": "Размер: {total}"
+    },
+    "network": {
+      "title": "Сеть",
+      "received": "Получено",
+      "sent": "Отправлено",
+      "figure": "Получено {received} · отправлено {sent}"
+    },
+    "status": {
+      "live": "В реальном времени",
+      "connecting": "Подключение",
+      "reconnecting": "Повторное подключение",
+      "paused": "Приостановлено",
+      "stopped": "Не в реальном времени"
+    },
+    "customize": {
+      "open": "Настроить",
+      "title": "Настройка панели",
+      "widgets": "Виджеты",
+      "actions": "Быстрые действия",
+      "moveUp": "Переместить «{name}» выше",
+      "moveDown": "Переместить «{name}» ниже",
+      "save": "Сохранить"
+    },
+    "widgets": {
+      "attention": "Требует внимания",
+      "firstRun": "Подготовка сервера",
+      "cpu": "Процессор",
+      "memory": "Память",
+      "disk": "Диск",
+      "network": "Сеть",
+      "services": "Службы",
+      "totals": "На этом сервере",
+      "activity": "Последние действия"
+    }
+  }
+}

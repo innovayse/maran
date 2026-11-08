@@ -1,5 +1,5 @@
-using Maran.Modules.Databases.Domain.Entities;
 using Maran.Modules.Databases.Interfaces;
+using Maran.Modules.Databases.Models;
 using Maran.Modules.Databases.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -46,7 +46,7 @@ public sealed class LocklessDatabaseSlotGate : IDatabaseSlotGate
     public bool RefuseNextClaim { get; set; }
 
     /// <inheritdoc />
-    public async Task<bool> TryTakeAsync(Database database, int allowance, CancellationToken cancellationToken)
+    public async Task<bool> TryTakeAsync(ProvisionedDatabaseRecords records, int allowance, CancellationToken cancellationToken)
     {
         if (RefuseNextClaim)
         {
@@ -56,13 +56,14 @@ public sealed class LocklessDatabaseSlotGate : IDatabaseSlotGate
         }
 
         var taken = await _dbContext.Databases
-            .CountAsync(existing => existing.AccountId == database.AccountId, cancellationToken);
+            .CountAsync(existing => existing.AccountId == records.Database.AccountId, cancellationToken);
         if (taken >= allowance)
         {
             return false;
         }
 
-        _dbContext.Databases.Add(database);
+        _dbContext.Databases.Add(records.Database);
+        _dbContext.DatabaseUsers.Add(records.DedicatedUser);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         return true;

@@ -3,6 +3,7 @@ using System.Text.Json;
 using Maran.Modules.Backups.Common;
 using Maran.Modules.Backups.Domain.Entities;
 using Maran.Modules.Backups.Domain.Enums;
+using Maran.Modules.Backups.Domain.Policies;
 using Maran.Modules.Backups.Resources;
 using Microsoft.Extensions.Localization;
 
@@ -65,7 +66,9 @@ public sealed class GetBackupOptionsQueryHandler
             NamedEnum<BackupFrequency>("BackupFrequency"),
             Weekdays(),
             Hours(),
-            RetainCounts());
+            RetainCounts(BackupSchedule.MaximumRetainCount),
+            CustomerFrequencies(),
+            RetainCounts(CustomerBackupLimits.MaximumRetainCount));
 
         return Task.FromResult(Result<BackupOptionsDto>.Ok(options));
     }
@@ -116,11 +119,26 @@ public sealed class GetBackupOptionsQueryHandler
             .ToList();
     }
 
-    /// <summary>Lists every retention count the validator accepts.</summary>
-    /// <returns>One choice per count from the minimum to the ceiling.</returns>
-    private static List<BackupChoiceDto> RetainCounts()
+    /// <summary>Lists the cadences a customer may choose, valued as the schedule stores them.</summary>
+    /// <returns>One choice per cadence on the customer allow-list.</returns>
+    private List<BackupChoiceDto> CustomerFrequencies()
     {
-        var span = BackupSchedule.MaximumRetainCount - BackupSchedule.MinimumRetainCount + 1;
+        return CustomerBackupLimits.AllowedFrequencies()
+            .Select(frequency =>
+            {
+                return new BackupChoiceDto(
+                    JsonNamingPolicy.CamelCase.ConvertName(frequency.ToString()),
+                    _displayNames["BackupFrequency" + frequency].Value);
+            })
+            .ToList();
+    }
+
+    /// <summary>Lists every retention count up to a ceiling.</summary>
+    /// <param name="maximum">The most copies the list offers: the administrator's ceiling or the customer's.</param>
+    /// <returns>One choice per count from the minimum to <paramref name="maximum"/>.</returns>
+    private static List<BackupChoiceDto> RetainCounts(int maximum)
+    {
+        var span = maximum - BackupSchedule.MinimumRetainCount + 1;
         return Enumerable.Range(BackupSchedule.MinimumRetainCount, span)
             .Select(copies =>
             {

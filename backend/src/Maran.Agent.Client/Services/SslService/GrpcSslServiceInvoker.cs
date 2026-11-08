@@ -6,14 +6,24 @@ namespace Maran.Agent.Client.Services.SslService;
 /// <summary>Production <see cref="ISslServiceInvoker"/> backed by the generated gRPC client.</summary>
 internal sealed class GrpcSslServiceInvoker : ISslServiceInvoker
 {
-    /// <summary>The generated gRPC client this adapter wraps.</summary>
-    private readonly Maran.Agent.V1.SslService.SslServiceClient _client;
+    /// <summary>Where the channel for the server the current call is aimed at comes from.</summary>
+    private readonly IAgentChannels _channels;
 
-    /// <summary>Wraps <paramref name="client"/> behind the <see cref="ISslServiceInvoker"/> seam.</summary>
-    /// <param name="client">The generated client to delegate calls to.</param>
-    public GrpcSslServiceInvoker(Maran.Agent.V1.SslService.SslServiceClient client)
+    /// <summary>Wraps <paramref name="channels"/> behind the <see cref="ISslServiceInvoker"/> seam.</summary>
+    /// <param name="channels">Hands out the channel of the server each call is aimed at.</param>
+    public GrpcSslServiceInvoker(IAgentChannels channels)
     {
-        _client = client;
+        _channels = channels;
+    }
+
+    /// <summary>
+    /// A generated client over the channel of the server the current call is aimed at, built per use.
+    /// Building it is cheap (it holds the channel and nothing else), and building it per call is what
+    /// lets one invoker serve every server: the target is read when the call starts, never earlier.
+    /// </summary>
+    private Maran.Agent.V1.SslService.SslServiceClient Client
+    {
+        get { return new Maran.Agent.V1.SslService.SslServiceClient(_channels.ForCurrent()); }
     }
 
     /// <inheritdoc/>
@@ -21,7 +31,7 @@ internal sealed class GrpcSslServiceInvoker : ISslServiceInvoker
         InstallCertificateRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.InstallCertificateAsync(request, cancellationToken: cancellationToken);
+        return await Client.InstallCertificateAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -29,7 +39,7 @@ internal sealed class GrpcSslServiceInvoker : ISslServiceInvoker
         RemoveCertificateRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.RemoveCertificateAsync(request, cancellationToken: cancellationToken);
+        return await Client.RemoveCertificateAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -37,7 +47,7 @@ internal sealed class GrpcSslServiceInvoker : ISslServiceInvoker
         InstallPanelCertificateRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.InstallPanelCertificateAsync(request, cancellationToken: cancellationToken);
+        return await Client.InstallPanelCertificateAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -45,7 +55,7 @@ internal sealed class GrpcSslServiceInvoker : ISslServiceInvoker
         RestorePanelSelfSignedRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.RestorePanelSelfSignedAsync(request, cancellationToken: cancellationToken);
+        return await Client.RestorePanelSelfSignedAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -53,7 +63,7 @@ internal sealed class GrpcSslServiceInvoker : ISslServiceInvoker
         WritePanelChallengeRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.WritePanelChallengeAsync(request, cancellationToken: cancellationToken);
+        return await Client.WritePanelChallengeAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -61,6 +71,6 @@ internal sealed class GrpcSslServiceInvoker : ISslServiceInvoker
         RemovePanelChallengeRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.RemovePanelChallengeAsync(request, cancellationToken: cancellationToken);
+        return await Client.RemovePanelChallengeAsync(request, cancellationToken: cancellationToken);
     }
 }

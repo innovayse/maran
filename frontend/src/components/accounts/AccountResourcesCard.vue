@@ -71,6 +71,7 @@ const ROUTE_OF_KIND: Readonly<Record<AccountResourceKind, string>> = {
   ftpLogins: 'file-transfer-ftps',
   cronEntries: 'cron',
   backups: 'backups',
+  mailboxes: 'mailboxes',
 }
 
 const { t } = useI18n()

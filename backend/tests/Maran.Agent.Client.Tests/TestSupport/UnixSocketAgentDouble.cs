@@ -32,8 +32,21 @@ internal sealed class UnixSocketAgentDouble : IDisposable
     private readonly TaskCompletionSource _requestReceived =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+    /// <summary>Completes when a client closes a connection it had opened.</summary>
+    private readonly TaskCompletionSource _clientClosed =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+
     /// <summary>Filesystem path of the socket the agent would listen on.</summary>
     public string SocketPath { get; }
+
+    /// <summary>Completes once a client has closed a connection, so a test sees a transport released.</summary>
+    public Task ClientClosed
+    {
+        get
+        {
+            return _clientClosed.Task;
+        }
+    }
 
     /// <summary>Completes once a client has sent its first bytes, so a test cancels a call that is in flight.</summary>
     public Task RequestReceived
@@ -153,6 +166,8 @@ internal sealed class UnixSocketAgentDouble : IDisposable
             {
                 _requestReceived.TrySetResult();
             }
+
+            _clientClosed.TrySetResult();
         }
         catch (OperationCanceledException)
         {
@@ -165,6 +180,7 @@ internal sealed class UnixSocketAgentDouble : IDisposable
         catch (SocketException)
         {
             // The client reset the connection: the loop ends.
+            _clientClosed.TrySetResult();
         }
     }
 }

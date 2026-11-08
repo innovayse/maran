@@ -26,6 +26,8 @@ namespace Maran.Host.IntegrationTests.Fixtures;
 /// <param name="MaxFtpUsers">The most FTPS logins any one plan may allow.</param>
 /// <param name="MaxCronEntries">The most cron entries any one plan may allow.</param>
 /// <param name="MaxPhpWorkersPerPool">The most PHP workers per pool any one plan may allow.</param>
+/// <param name="MaxMailboxes">The most mailboxes any one plan may allow; the default plan's, so a plan stating no mail figures fits.</param>
+/// <param name="MailboxQuotaPoolMib">The largest mailbox quota pool any one plan may state; the default plan's.</param>
 /// <param name="CpuQuotaPercent">The CPU ceiling any one plan must stay at or under; always limited.</param>
 /// <param name="MaxProcesses">The process ceiling any one plan must stay at or under; always limited.</param>
 public sealed record ResellerEnvelopeSpec(
@@ -39,6 +41,8 @@ public sealed record ResellerEnvelopeSpec(
     int MaxFtpUsers = 2,
     int MaxCronEntries = 3,
     int MaxPhpWorkersPerPool = 8,
+    int MaxMailboxes = 10,
+    int MailboxQuotaPoolMib = 10_240,
     int CpuQuotaPercent = 200,
     int MaxProcesses = 128)
 {
@@ -68,6 +72,8 @@ public sealed record ResellerEnvelopeSpec(
             MaxFtpUsers,
             MaxCronEntries,
             MaxPhpWorkersPerPool,
+            MaxMailboxes,
+            MailboxQuotaPoolMib,
             SoldFeatures,
             RuntimeLimits.Of(
                 ResourceLimit.Limited(CpuQuotaPercent),
@@ -91,6 +97,8 @@ public sealed record ResellerEnvelopeSpec(
             MaxFtpUsers,
             MaxCronEntries,
             MaxPhpWorkersPerPool,
+            MaxMailboxes,
+            MailboxQuotaPoolMib,
             Features = SoldFeatureNames,
             CpuQuotaPercent = new { Kind = "limited", Maximum = CpuQuotaPercent },
             MemoryMaxMb = new { Kind = "unlimited" },

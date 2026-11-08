@@ -11,8 +11,9 @@ namespace Maran.Modules.Notifications.Persistence;
 /// <remarks>
 /// <para>
 /// <b>There is no tenant query filter here, and there must not be one.</b> The one row this schema
-/// holds describes the PANEL — the single mail server every module's mail leaves through. It belongs
-/// to no customer and has no <c>AccountId</c> to scope by, its whole HTTP surface is
+/// holds describes the PANEL — the single mail server every module's mail leaves through, the
+/// addresses its operator alerts go to, how those alerts last fared, and the administrators' feed.
+/// None of it belongs to a customer or has an <c>AccountId</c> to scope by, its whole HTTP surface is
 /// <c>[Authorize(AdminOnly)]</c>, and a filter closing over the account of <c>ICurrentUser.Caller</c> would hide
 /// the row from the background sender, which runs off a queue with no request and no principal at
 /// all. The visible failure would be that password-reset mail stopped being sent whenever nobody was
@@ -53,12 +54,52 @@ public sealed class NotificationsDbContext : DbContext
         }
     }
 
+    /// <summary>The addresses operator alerts are mailed to; at most <c>AlertRecipient.MaxCount</c> rows.</summary>
+    public DbSet<AlertRecipient> AlertRecipients
+    {
+        get
+        {
+            return Set<AlertRecipient>();
+        }
+    }
+
+    /// <summary>How the last operator alerts fared on each channel; one row per channel.</summary>
+    public DbSet<AlertChannelState> AlertChannelStates
+    {
+        get
+        {
+            return Set<AlertChannelState>();
+        }
+    }
+
+    /// <summary>The administrators' notification feed.</summary>
+    public DbSet<PanelNotification> PanelNotifications
+    {
+        get
+        {
+            return Set<PanelNotification>();
+        }
+    }
+
+    /// <summary>Which administrator has dismissed which notification.</summary>
+    public DbSet<NotificationDismissal> NotificationDismissals
+    {
+        get
+        {
+            return Set<NotificationDismissal>();
+        }
+    }
+
     /// <summary>Applies the schema and the entity configurations.</summary>
     /// <param name="modelBuilder">The model builder supplied by EF Core.</param>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(SchemaName);
         modelBuilder.ApplyConfiguration(new SmtpSettingsConfiguration(_encryptionService));
+        modelBuilder.ApplyConfiguration(new AlertRecipientConfiguration());
+        modelBuilder.ApplyConfiguration(new AlertChannelStateConfiguration());
+        modelBuilder.ApplyConfiguration(new PanelNotificationConfiguration());
+        modelBuilder.ApplyConfiguration(new NotificationDismissalConfiguration());
 
         base.OnModelCreating(modelBuilder);
     }

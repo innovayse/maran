@@ -7,8 +7,9 @@
  * is the whole of it; a restore replaces an account's home and drops every database in the copy,
  * and the point of no return is the first `DROP DATABASE` — after which the only thing that can put
  * a database back is a reload of a dump the agent took moments earlier, and that reload can itself
- * fail. So this dialog states what is replaced, what is NOT, and that no copy is taken of the
- * account as it is now, before it will accept anything at all.
+ * fail. So this dialog states what is replaced, what is NOT, and what the safety net is (a backup
+ * of the account as it is now, taken first, without which the restore does not start), before it
+ * will accept anything at all.
  *
  * **The confirmation is the account's own system user name, typed.** A second click is satisfied by
  * the same muscle that made the first one and by a mis-aimed row; typing the name is not, and the
@@ -39,6 +40,14 @@
  * recovery, to the one thing that cannot help. The instruction to retype is shown for the two
  * confirmation codes only; every other untouched ending is told that nothing was changed and that
  * retyping will not change the answer.
+ *
+ * **A restore can be narrowed to one database or one site (issue #160), and nothing else about the
+ * ceremony changes.** The copy is still replaced over what is there, the account name is still
+ * typed, the safety copy is still taken first and the point of no return is still the first drop,
+ * so the warnings stay and only the "what is replaced / what is kept" lists change with the choice.
+ * The names come from the panel (`BackupRestoreScopeFields`), the request carries at most one of
+ * them, and whichever kind was sent is remembered for the report, because the store's outcome says
+ * how many databases were replaced and not which kind of restore it was.
  */
 import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -50,11 +59,12 @@ import UiInput from '../ui/UiInput.vue'
 import UiModal from '../ui/UiModal.vue'
 import UiSectionHeading from '../ui/UiSectionHeading.vue'
 import UiSpinner from '../ui/UiSpinner.vue'
+import BackupRestoreScopeFields from './BackupRestoreScopeFields.vue'
 import { useBackupsStore } from '../../stores/backups'
 import { useLocaleStore } from '../../stores/locale'
 import { formatIsoTimestamp } from '../../utils/formatIsoTimestamp'
 import { restoreConfirmationWasRefused } from '../../utils/restoreConfirmationWasRefused'
-import type { Backup } from '../../types/backup'
+import type { Backup, RestoreBackupRequest, RestoreScopeKind } from '../../types/backup'
 
 /** What the dialog is being opened for. */
 const props = defineProps<{
@@ -82,6 +92,21 @@ const localeStore = useLocaleStore()
 
 /** What the operator has typed into the confirmation field. Never prefilled. */
 const typed: Ref<string> = ref('')
+
+/** Which part of the account the restore replaces; the whole account until the operator chooses otherwise. */
+const scopeKind: Ref<RestoreScopeKind> = ref('whole')
+
+/** The database chosen for a database restore, or an empty string. */
+const chosenDatabase: Ref<string> = ref('')
+
+/** The site chosen for a site restore, or an empty string. */
+const chosenSite: Ref<string> = ref('')
+
+/**
+ * The kind and the name of the restore last sent, kept for the report: the store's outcome says how
+ * many databases were replaced and not which kind of restore was asked for.
+ */
+const sent: Ref<{ kind: RestoreScopeKind; name: string }> = ref({ kind: 'whole', name: '' })
 
 /** Whether a restore is in flight, which holds the dialog open and the form out of reach. */
 const running: ComputedRef<boolean> = computed(() => {
@@ -124,6 +149,28 @@ const confirmed: ComputedRef<boolean> = computed(() => {
   return typed.value === props.accountUsername
 })
 
+/**
+ * Whether the part to restore is fully chosen: a whole restore always is, a narrower one once its
+ * name is picked. Advice only — the server re-checks the name against the account's own rows.
+ */
+const scopeChosen: ComputedRef<boolean> = computed(() => {
+  if (scopeKind.value === 'database') {
+    return chosenDatabase.value !== ''
+  }
+  if (scopeKind.value === 'site') {
+    return chosenSite.value !== ''
+  }
+  return true
+})
+
+/** The name of the chosen part, or an empty string for the whole account. */
+const chosenName: ComputedRef<string> = computed(() => {
+  if (scopeKind.value === 'database') {
+    return chosenDatabase.value
+  }
+  return scopeKind.value === 'site' ? chosenSite.value : ''
+})
+
 /** When the copy about to be restored was taken, as an instant an operator can compare. */
 const takenAt: ComputedRef<string> = computed(() => {
   return formatIsoTimestamp(props.backup.finishedAt ?? props.backup.startedAt, localeStore.current)
@@ -143,10 +190,19 @@ const subject: ComputedRef<string> = computed(() => {
  * @returns Resolves once the request has settled.
  */
 const submit = async (): Promise<void> => {
-  if (!confirmed.value || running.value) {
+  if (!confirmed.value || !scopeChosen.value || running.value) {
     return
   }
-  await store.restore(props.backup.id, { confirmAccountUsername: typed.value })
+  // At most one narrowing field, and none for the whole account: the body of a whole restore is
+  // exactly what it was before restores could be narrowed.
+  const request: RestoreBackupRequest = { confirmAccountUsername: typed.value }
+  if (scopeKind.value === 'database') {
+    request.databaseName = chosenDatabase.value
+  } else if (scopeKind.value === 'site') {
+    request.siteDomain = chosenSite.value
+  }
+  sent.value = { kind: scopeKind.value, name: chosenName.value }
+  await store.restore(props.backup.id, request)
   // Cleared whatever happened: a confirmation is spent once used, and leaving it filled would put a
   // second restore one click away — including on the arm where the account has just been changed.
   typed.value = ''
@@ -179,7 +235,11 @@ watch(
   (isOpen: boolean): void => {
     if (isOpen) {
       typed.value = ''
+      scopeKind.value = 'whole'
+      chosenDatabase.value = ''
+      chosenSite.value = ''
       store.clearRestore()
+      void store.loadRestoreChoices(props.backup.id)
     }
   },
   { immediate: true },
@@ -245,9 +305,15 @@ watch(
          directory is stated as replaced without a flag to read, and the databases line is the one
          figure that varies. -->
     <div v-else-if="store.restoreRun.state === 'restored'" class="flex flex-col gap-4">
-      <UiSectionHeading :title="t('backups.restore.doneTitle', { account: subject })" />
+      <UiSectionHeading
+        :title="
+          sent.kind === 'whole'
+            ? t('backups.restore.doneTitle', { account: subject })
+            : t('backups.restore.donePartTitle', { name: sent.name })
+        "
+      />
       <div class="rounded-control border border-border-subtle bg-surface-2 p-4">
-        <UiDescriptionList>
+        <UiDescriptionList v-if="sent.kind === 'whole'">
           <UiDescriptionItem :term="t('backups.restore.doneFiles')">
             {{ t('backups.restore.doneFilesReplaced') }}
           </UiDescriptionItem>
@@ -255,8 +321,18 @@ watch(
             {{ t('backups.restore.doneDatabasesValue', { count: store.restoreRun.outcome.databasesRestored }) }}
           </UiDescriptionItem>
         </UiDescriptionList>
+        <UiDescriptionList v-else>
+          <UiDescriptionItem
+            :term="sent.kind === 'database' ? t('backups.restore.doneDatabase') : t('backups.restore.doneSite')"
+            mono
+          >
+            {{ sent.name }}: {{ t('backups.restore.doneReplaced') }}
+          </UiDescriptionItem>
+        </UiDescriptionList>
       </div>
-      <p class="text-text-muted">{{ t('backups.restore.doneNote') }}</p>
+      <p class="text-text-muted">
+        {{ sent.kind === 'whole' ? t('backups.restore.doneNote') : t('backups.restore.donePartNote') }}
+      </p>
     </div>
 
     <div v-else class="flex flex-col gap-4">
@@ -283,23 +359,42 @@ watch(
         <p>{{ t('backups.restore.lostSince') }}</p>
       </div>
 
+      <!-- What to restore comes before what it replaces, because the two lists below follow from it. -->
+      <BackupRestoreScopeFields
+        v-model:kind="scopeKind"
+        v-model:database="chosenDatabase"
+        v-model:site="chosenSite"
+        :choices="store.restoreChoices"
+        :disabled="running"
+      />
+
       <div class="flex flex-col gap-2">
         <UiSectionHeading :title="t('backups.restore.replacedHeading')" />
         <ul class="list-disc space-y-1 pl-5 marker:text-text-muted">
-          <li>{{ t('backups.restore.replacedHome') }}</li>
-          <li>
-            {{
-              backup.databaseCount === 0
-                ? t('backups.restore.replacedNoDatabases')
-                : t('backups.restore.replacedDatabases', { count: backup.databaseCount }, backup.databaseCount)
-            }}
+          <li v-if="scopeKind === 'database'">
+            {{ t('backups.restore.replacedOneDatabase', { name: chosenName || t('backups.restore.theChosenPart') }) }}
           </li>
+          <li v-else-if="scopeKind === 'site'">
+            {{ t('backups.restore.replacedOneSite', { name: chosenName || t('backups.restore.theChosenPart') }) }}
+          </li>
+          <template v-else>
+            <li>{{ t('backups.restore.replacedHome') }}</li>
+            <li>
+              {{
+                backup.databaseCount === 0
+                  ? t('backups.restore.replacedNoDatabases')
+                  : t('backups.restore.replacedDatabases', { count: backup.databaseCount }, backup.databaseCount)
+              }}
+            </li>
+          </template>
         </ul>
       </div>
 
       <div class="flex flex-col gap-2">
         <UiSectionHeading :title="t('backups.restore.keptHeading')" />
         <ul class="list-disc space-y-1 pl-5 marker:text-text-muted">
+          <li v-if="scopeKind === 'database'">{{ t('backups.restore.keptRestOfDatabase') }}</li>
+          <li v-else-if="scopeKind === 'site'">{{ t('backups.restore.keptRestOfSite') }}</li>
           <li>{{ t('backups.restore.keptSites') }}</li>
           <li>{{ t('backups.restore.keptOwnership') }}</li>
         </ul>
@@ -307,15 +402,16 @@ watch(
       </div>
 
       <!-- The two sentences that decide whether this dialog is worth anything: there is a point
-           after which nothing here can undo the operation, and there is no copy of the account as
-           it stands now to fall back on. Nothing in the panel takes a pre-restore backup today —
-           `BackupKind.PreRestore` exists and no code path produces one — so a screen implying a
-           safety net would be inventing it. They are the one thing that needs attention, so they
-           are the amber notice, directly above the field that commits to them. -->
+           after which the restore itself cannot be undone, and what the safety net is. The panel
+           takes a `PreRestore` backup of the account as it stands now and refuses the restore if it
+           cannot be made; the net holds the home and the databases only, which the sentence says.
+           They are the one thing that needs attention, so they are the amber notice, directly above
+           the field that commits to them. -->
       <UiAlert variant="warning">
         <div class="flex flex-col gap-2 font-medium">
-          <p>{{ t('backups.restore.pointOfNoReturn') }}</p>
-          <p>{{ t('backups.restore.noSafetyCopy') }}</p>
+          <p v-if="scopeKind === 'site'">{{ t('backups.restore.pointOfNoReturnSite') }}</p>
+          <p v-else>{{ t('backups.restore.pointOfNoReturn') }}</p>
+          <p>{{ t('backups.restore.preRestoreCopy') }}</p>
         </div>
       </UiAlert>
 
@@ -340,8 +436,8 @@ watch(
     <template #footer>
       <template v-if="asking">
         <UiButton variant="secondary" @click="close">{{ t('common.cancel') }}</UiButton>
-        <UiButton variant="destructive" :disabled="!confirmed" @click="submit">
-          {{ t('backups.restore.submit') }}
+        <UiButton variant="destructive" :disabled="!confirmed || !scopeChosen" @click="submit">
+          {{ scopeKind === 'whole' ? t('backups.restore.submit') : t('backups.restore.submitPart') }}
         </UiButton>
       </template>
       <!-- The changed arm offers exactly one control, and it is not a retry. -->

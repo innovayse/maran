@@ -11,7 +11,7 @@ use std::process::Command;
 use maran_agent_core::privs::account_ids::AccountIds;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_distro::{DistroAdapter, adapter_for, detect};
-use maran_ops::accounts::{AccountOperations, ProcessSystemHost};
+use maran_ops::accounts::{AccountOperations, NewAccountSettings, ProcessSystemHost};
 use maran_ops::php::{ProcessPhpHost, remove_account_pools};
 
 /// The environment variable each polygon image sets, naming itself.
@@ -95,7 +95,7 @@ impl PolygonAccount {
         remove_account(distro, &name);
 
         let created = operations
-            .create(&name, 0)
+            .create(&name, &NewAccountSettings::with_quota(0))
             .unwrap_or_else(|error| panic!("useradd must succeed in the polygon: {error}"));
         let ids = AccountIds::resolve(&name)
             .unwrap_or_else(|error| panic!("a just-created account must resolve: {error}"));

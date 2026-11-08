@@ -44,11 +44,12 @@
 #   dev-readiness.sh       the gates each stage ends at, answered by what the process reports
 #   dev-socket.sh          the stale-socket guard: is anything LISTENING, and may the file go
 #   dev-teardown-plan.sh   the teardown DECISION, as data, so a check can read it
+#   dev-signals.sh         SIGINT stays deliverable when the command was started in the background
 #   dev-teardown.sh        the execution of that decision, and `--stop` beside it
 #   dev-selfcheck.sh       stages 6-9, the verdict, and the `--break` inverse control
 #
 # Usage:
-#   scripts/maran dev              start everything, stream logs, stop cleanly on Ctrl+C
+#   scripts/maran dev              start everything, stream logs, stop cleanly on Ctrl+C or SIGINT/SIGTERM
 #   scripts/maran dev --no-agent   start without the agent (API and SPA work only, loudly)
 #   scripts/maran dev --stop       stop every container this compose file describes, the SHARED
 #                                  database included — the one exit path that reaches past what a
@@ -67,6 +68,12 @@ set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 compose="$root/docker/docker-compose.dev.yml"
+
+# FIRST, before anything is started: a background start (`maran dev &`) leaves SIGINT ignored, and
+# a trap on an ignored signal never fires (dev-signals.sh; issue #395). Re-executes once if so.
+# shellcheck disable=SC1091
+. "$root/scripts/lib/dev-signals.sh"
+dev_signals_restore_int "$0" "$@"
 
 # shellcheck disable=SC1091
 . "$root/scripts/dev"

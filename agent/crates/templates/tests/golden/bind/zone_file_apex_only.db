@@ -1,0 +1,12 @@
+; Maran DNS zone. Rendered by maran-agent from the panel's records and replaced
+; whole on every change; an edit made here does not survive.
+$ORIGIN example.com.
+$TTL 3600
+@ IN SOA ns1.example.com. hostmaster.example.com. (
+        2026110701 ; serial
+        3600 ; refresh
+        600 ; retry
+        1209600 ; expire
+        300 ) ; negative caching ttl
+@ IN NS ns1.example.com.
+@ IN NS ns2.example.com.

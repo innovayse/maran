@@ -7,6 +7,7 @@ using Maran.Modules.Firewall.Persistence;
 using Maran.Modules.Firewall.Services;
 using Maran.Sdk.Contracts;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 
 namespace Maran.Modules.Firewall.IntegrationEvents.Handlers;
 
@@ -36,7 +37,8 @@ namespace Maran.Modules.Firewall.IntegrationEvents.Handlers;
 /// twenty-four-hour ban on its first mistake. The check is a read followed by a write, so two
 /// SIMULTANEOUS deliveries can both pass it; the database's unique index on (IpAddress, WindowStart)
 /// is what actually enforces the rule, and the loser of that race is caught and logged here rather
-/// than thrown, for the reason in the next paragraph.
+/// than thrown, for the reason in the next paragraph. Only that unique violation is caught — a
+/// database that is down or a column that overflowed is a fault, not a race, and surfaces.
 /// </para>
 /// <para>
 /// <b>An automatic ban never shortens one that is already standing.</b> The host holds one set
@@ -98,10 +100,9 @@ public sealed class BruteForceDetectedHandler
 
     /// <summary>Pre-compiled log delegate for an episode the database would not store.</summary>
     /// <remarks>
-    /// Warning and not Error, with the exception attached: the ordinary cause is the unique index
-    /// refusing a concurrent redelivery, which is correct behaviour and needs no action — and the
-    /// rarer cause, a database that has gone away, is then visible with its own message rather than
-    /// swallowed.
+    /// Warning and not Error, with the exception attached: the only cause that reaches this line is
+    /// the unique index refusing a concurrent redelivery, which is correct behaviour and needs no
+    /// action. Every other database failure is not caught here.
     /// </remarks>
     private static readonly Action<ILogger, Exception?> LogEpisodeNotStored =
         LoggerMessage.Define(
@@ -235,6 +236,7 @@ public sealed class BruteForceDetectedHandler
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
         catch (DbUpdateException exception)
+            when (exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
             // The redelivery check above is a read followed by a write, so two concurrent deliveries
             // of one detection both pass it and the database's unique index on (IpAddress,
@@ -242,7 +244,8 @@ public sealed class BruteForceDetectedHandler
             // escape would break this class's one promise: an exception here returns the message to
             // the queue, and the retry climbs the escalation ladder in place of the attacker.
             // Nothing is journalled, because the delivery that won the race has already recorded the
-            // ban that exists.
+            // ban that exists. Only the unique violation is caught (SqlState 23505); any other
+            // database failure escapes, so the message is retried instead of the fault being hidden.
             LogEpisodeNotStored(_logger, exception);
             return;
         }

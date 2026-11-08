@@ -1,4 +1,5 @@
 using Maran.Modules.Backups.Services;
+using Maran.Modules.Dns.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -59,6 +60,23 @@ public sealed class BackgroundWorkRegistrationTests : IClassFixture<ValidatingPa
         Assert.Contains(hosted, service =>
         {
             return service is StartupBackupReconciler;
+        });
+    }
+
+    /// <summary>The DNS zone reconciliation pass is registered and resolves from the root provider.</summary>
+    /// <remarks>
+    /// Without this line a save that failed after the agent applied a zone edit leaves the name server
+    /// serving data the database does not have, and a zone file lost from the host stays lost: the class
+    /// exists, its doc comments describe a reconciliation, and nothing ever runs it.
+    /// </remarks>
+    [Fact]
+    public void The_dns_zone_reconciliation_pass_is_registered_as_a_hosted_service()
+    {
+        var hosted = _factory.Services.GetServices<IHostedService>().ToList();
+
+        Assert.Contains(hosted, service =>
+        {
+            return service is DnsZoneReconciler;
         });
     }
 }

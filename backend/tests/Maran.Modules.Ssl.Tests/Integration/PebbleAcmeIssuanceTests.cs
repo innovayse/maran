@@ -2,6 +2,7 @@ using System.Net;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using Maran.Agent.Client.Interfaces;
+using Maran.Agent.Client.Services.FilesService;
 using Maran.Modules.Ssl.Models;
 using Maran.Modules.Ssl.Options;
 using Maran.Modules.Ssl.Services;
@@ -326,6 +327,17 @@ public sealed class PebbleAcmeIssuanceTests
             return Task.FromResult(Result<ulong>.Ok((ulong)content.Length));
         }
 
+        public Task<Result<ulong>> WriteFileStreamAsync(
+            string accountUsername,
+            string path,
+            uint mode,
+            Stream body,
+            ulong maxBytes,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException("This double does not model streamed uploads.");
+        }
+
         public Task<Result> DeleteEntryAsync(
             string accountUsername, string path, bool recursive, CancellationToken cancellationToken)
         {
@@ -337,6 +349,161 @@ public sealed class PebbleAcmeIssuanceTests
 
             _log($"[challenge-writer] removed {fullPath} for account={accountUsername}");
             return Task.FromResult(Result.Ok());
+        }
+
+        public Task<Result<DirectoryListingDto>> ListDirectoryAsync(
+            string accountUsername,
+            string path,
+            uint offset,
+            uint limit,
+            bool includeHidden,
+            DirectorySortOrder sort,
+            bool descending,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException("This double does not model browsing or reading.");
+        }
+
+        public Task<Result<FileSearchResultDto>> SearchEntriesAsync(
+            string accountUsername,
+            string path,
+            string query,
+            uint maxDepth,
+            uint maxResults,
+            bool includeHidden,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException("This double does not model browsing or reading.");
+        }
+
+        public Task<Result<OpenedFileRead>> ReadFileAsync(
+            string accountUsername,
+            string path,
+            ulong maxBytes,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException("This double does not model browsing or reading.");
+        }
+
+        public Task<Result> CreateDirectoryAsync(
+            string accountUsername,
+            string path,
+            uint mode,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException("This double does not model changing a customer's tree.");
+        }
+
+        public Task<Result> CreateFileAsync(
+            string accountUsername,
+            string path,
+            uint mode,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException("This double does not model changing a customer's tree.");
+        }
+
+        public Task<Result> MoveEntryAsync(
+            string accountUsername,
+            string sourcePath,
+            string destinationPath,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException("This double does not model changing a customer's tree.");
+        }
+
+        public Task<Result> CopyEntryAsync(
+            string accountUsername,
+            string sourcePath,
+            string destinationPath,
+            ulong maxEntries,
+            ulong maxBytes,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException("This double does not model changing a customer's tree.");
+        }
+
+        public Task<Result<PermissionChangeDto>> ChangePermissionsAsync(
+            string accountUsername,
+            string path,
+            uint mode,
+            bool recursive,
+            uint directoryMode,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException("This double does not model changing a customer's tree.");
+        }
+
+        public Task<Result<string>> TrashEntryAsync(
+            string accountUsername,
+            string path,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException("This double does not model changing a customer's tree.");
+        }
+
+        public Task<Result<IReadOnlyList<TrashedEntryDto>>> ListTrashAsync(
+            string accountUsername,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException("This double does not model changing a customer's tree.");
+        }
+
+        public Task<Result<string>> RestoreTrashEntryAsync(
+            string accountUsername,
+            string trashId,
+            string destinationPath,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException("This double does not model changing a customer's tree.");
+        }
+
+        public Task<Result<ulong>> EmptyTrashAsync(
+            string accountUsername,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException("This double does not model changing a customer's tree.");
+        }
+
+        public Task<Result<ulong>> PurgeExpiredTrashAsync(
+            string accountUsername,
+            uint olderThanDays,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException("This double does not model changing a customer's tree.");
+        }
+
+        public Task<Result> ForceDeleteEntryAsync(
+            string accountUsername,
+            string path,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException("This double does not model changing a customer's tree.");
+        }
+
+        public Task<Result<ulong>> CreateArchiveAsync(
+            string accountUsername,
+            IReadOnlyList<string> sourcePaths,
+            string destinationPath,
+            AgentArchiveFormat format,
+            ulong maxEntries,
+            ulong maxSourceBytes,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException("This double does not model changing a customer's tree.");
+        }
+
+        public Task<Result<uint>> ExtractArchiveAsync(
+            string accountUsername,
+            string archivePath,
+            string destinationPath,
+            AgentArchiveFormat format,
+            ulong maxEntries,
+            ulong maxExpandedBytes,
+            uint maxRatio,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException("This double does not model changing a customer's tree.");
         }
 
         private static string StripSitesPrefix(string path)

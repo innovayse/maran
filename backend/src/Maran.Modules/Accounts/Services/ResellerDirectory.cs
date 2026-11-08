@@ -9,7 +9,8 @@ namespace Maran.Modules.Accounts.Services;
 
 /// <summary>
 /// The Accounts module's implementation of <see cref="IResellerDirectory"/>: the one place another
-/// module may learn a reseller's name and whether it may act, without referencing this module
+/// module may learn a reseller's name, contact address and language, whether it may act, and which
+/// accounts it owns, without referencing this module
 /// (rules/architecture.md "Backend: modular monolith").
 /// </summary>
 /// <remarks>
@@ -53,8 +54,31 @@ public sealed class ResellerDirectory : IResellerDirectory
             .Select(reseller => new ResellerSnapshot(
                 reseller.Id,
                 reseller.Name,
-                reseller.Status == ResellerStatus.Suspended ? ResellerState.Suspended : ResellerState.Active))
+                reseller.ContactEmail,
+                reseller.Status == ResellerStatus.Suspended ? ResellerState.Suspended : ResellerState.Active,
+                reseller.Language))
             .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// The reseller comes from the caller's own token and the predicate is written out beside the
+    /// context's query filter, as <see cref="AccountDirectory.FindForViewAsAsync"/> does for the same
+    /// reason: a window another module's rows are scoped by should not rest on one mechanism alone.
+    /// </remarks>
+    public async Task<IReadOnlyList<Guid>> ListOwnedAccountIdsAsync(CancellationToken cancellationToken)
+    {
+        if (_currentUser.Caller is not ResellerCaller reseller)
+        {
+            return [];
+        }
+
+        var resellerId = reseller.ResellerId;
+        return await _dbContext.Accounts
+            .AsNoTracking()
+            .Where(account => account.ResellerId == resellerId)
+            .Select(account => account.Id)
+            .ToListAsync(cancellationToken);
     }
 
     /// <summary>

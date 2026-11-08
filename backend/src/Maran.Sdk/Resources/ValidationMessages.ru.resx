@@ -24,6 +24,9 @@
   <data name="ListSearchInvalid">
     <value>Текст поиска содержит недопустимые символы.</value>
   </data>
+  <data name="SearchTermTooShort">
+    <value>Текст поиска должен содержать не менее 2 символов.</value>
+  </data>
   <data name="ListSortUnknown">
     <value>Этот список нельзя отсортировать таким образом.</value>
   </data>

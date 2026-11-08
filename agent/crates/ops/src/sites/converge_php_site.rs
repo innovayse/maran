@@ -11,6 +11,7 @@ use crate::sites::model::create_site_input::CreateSiteInput;
 use crate::sites::model::php_switch::PhpSwitch;
 use crate::sites::render_vhost::render_vhost;
 use crate::sites::resolved_site_paths::resolved_site_paths;
+use crate::sites::sync_site_auth_file::sync_site_auth_file;
 use crate::sites::write_site_pool::write_site_pool;
 use crate::sites::write_vhost::write_vhost;
 use crate::sites::{SiteHost, SitesOpError};
@@ -99,6 +100,9 @@ pub(crate) fn converge_php_site(
     }
 
     let wanted_vhost = render_vhost(input, &paths)?;
+    // After the pool and before the vhost: the vhost names the credential file,
+    // and the options that changed are what this call is often made for.
+    sync_site_auth_file(host, distro, input)?;
     if current != wanted_vhost {
         write_vhost(host, distro, &paths.config_path, &wanted_vhost)?;
     }

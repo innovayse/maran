@@ -103,6 +103,12 @@ SQL
 )"
 }
 
+# upd_later_objects: how many of the objects the legacy phase plants after the dump exist now: the
+# schema zz_later_schema and the tables named zz_later_table in any schema (3 when all are present).
+upd_later_objects() {
+  rec_psql "select (select count(*) from pg_namespace where nspname = 'zz_later_schema') + (select count(*) from pg_class where relname = 'zz_later_table' and relkind = 'r')"
+}
+
 # upd_snapshot: everything a refused or rolled-back update must leave as it found it, as one text.
 upd_snapshot() {
   printf 'current=%s\nstate=%s\nreleases=%s\ndumps=%s\ndata=%s\n' \
@@ -721,6 +727,11 @@ rm -f current; rm -rf releases /etc/maran/release.state; systemctl start maran-a
   rec_psql "update accounts.\"Accounts\" set \"PrimaryDomain\" = 'polyrestore.test' where \"Name\" = '${REC_ACCOUNT_NAME}'" >/dev/null
   upd_expect "the write made after the update is visible in the fingerprint (control for the restore)" \
     "$([ "$(upd_fingerprint)" != "$UPD_FINGERPRINT" ] && echo differs || echo same)" differs
+  # What a newer release's migrations leave behind: a schema and a table in it, and a table in an
+  # existing schema, owned by the service role as migrations make them. Neither is in the dump, so
+  # `pg_restore --clean` alone cannot remove them and refused the restore (issue #386).
+  rec_psql "set role maran; create schema zz_later_schema; create table zz_later_schema.zz_later_table (id int); create table accounts.zz_later_table (id int)" >/dev/null
+  upd_expect "a schema and two tables absent from the dump exist before the restore (control: the probe finds them)" "$(upd_later_objects)" 3
   before="$(upd_snapshot)"
   upd_rollback --restore-database
   after="$(upd_snapshot)"
@@ -734,6 +745,7 @@ rm -f current; rm -rf releases /etc/maran/release.state; systemctl start maran-a
   upd_expect "current and VERSION are the adopted release; PREVIOUS is empty" \
     "$(upd_current_version)/$(upd_state VERSION)/$(upd_q grep -c '^PREVIOUS=$' /etc/maran/release.state)" "${UPD_LEGACY_NAME}/${UPD_LEGACY_NAME}/1"
   upd_expect "the restore discarded the post-update write: the fingerprint is the one the dump held" "$(upd_fingerprint)" "$UPD_FINGERPRINT"
+  upd_expect "the restore also removed the schema and the tables a newer release added after the dump" "$(upd_later_objects)" 0
   upd_assert_runs "after the restoring rollback" "$UPD_LEGACY_NAME" "$UPD_VERSION_FIXED"
   upd_assert_healthy "after the restoring rollback"
   upd_assert_data "after the restoring rollback"
@@ -745,7 +757,7 @@ upd_print_blind_spots() {
   echo "    UNOBSERVED HERE: the NETWORK fetch path. \`maran update\` and \`--check\` were never run against a release host: no TLS fetch, no manifest.json download, no channel flag, and so no refusal of a manifest signed for the other channel (an offline bundle keeps the channel it names). Every update here used --offline-tarball, because a local host cannot be given a certificate the product trusts without an override the product deliberately lacks."
   echo "    UNOBSERVED HERE: the production release key. Bundles are signed by throwaway keys whose public half replaced the package's key inside this container only; that the shipped key verifies a real release is proved by \`maran release verify\`, not here."
   echo "    UNOBSERVED HERE: a real schema migration. The artifacts are the ones already installed, so --migrate had nothing to apply; expand-then-contract against a changed schema, and a failed migration half way, were not exercised."
-  echo "    UNOBSERVED HERE: the restore of the OTHER rollback shape, where an automatic rollback left PREVIOUS equal to the running release (only its refusal is observed); the restore was exercised once, on the adopted legacy release, and its proof is one changed column, not a full comparison of the database."
+  echo "    UNOBSERVED HERE: the restore of the OTHER rollback shape, where an automatic rollback left PREVIOUS equal to the running release (only its refusal is observed); the restore was exercised once, on the adopted legacy release, and its proof is one changed column plus a schema and two tables added after the dump, not a full comparison of the database."
   echo "    UNOBSERVED HERE: the retention of releases (every release made here is among the 3 newest, current or previous, so nothing is pruned), a kill during an update (the interrupted-update recovery), a full disk, the lock against a concurrent panel-backup, and SELinux enforcing."
   echo "    UNOBSERVED HERE: a release built from different code. B is A's own binaries with a marker file added to the frontend; the proof of 'B runs' is the real path of each daemon's executable and the marker nginx serves."
   if [ "$UPD_SITE_OK" != "yes" ]; then

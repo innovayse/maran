@@ -29,7 +29,6 @@ public sealed class SmtpSettingsTests
             password: null,
             "panel@example.net",
             "Panel",
-            "ops@example.net",
             Saved.AddDays(1));
 
         Assert.Equal("hunter2", settings.BasicPassword);
@@ -53,7 +52,6 @@ public sealed class SmtpSettingsTests
             password: string.Empty,
             "panel@example.net",
             "Panel",
-            "ops@example.net",
             Saved.AddDays(1));
 
         Assert.Equal(SmtpAuthentication.Anonymous, settings.AuthenticationMode);
@@ -84,7 +82,6 @@ public sealed class SmtpSettingsTests
             password: string.Empty,
             "panel@example.net",
             "Panel",
-            "ops@example.net",
             Saved.AddDays(1));
 
         Assert.IsType<AnonymousSmtpCredentials>(settings.Credentials);
@@ -102,7 +99,6 @@ public sealed class SmtpSettingsTests
             string.Empty,
             "panel@example.com",
             "Panel",
-            string.Empty,
             Saved);
 
         Assert.Equal(SmtpAuthentication.Anonymous, settings.AuthenticationMode);
@@ -117,9 +113,9 @@ public sealed class SmtpSettingsTests
     public void Moving_from_anonymous_to_basic_without_a_password_stores_an_empty_one()
     {
         var settings = Existing();
-        settings.Replace("127.0.0.1", 25, SmtpSecurity.None, string.Empty, null, "panel@example.com", "Panel", "ops@example.com", Saved);
+        settings.Replace("127.0.0.1", 25, SmtpSecurity.None, string.Empty, null, "panel@example.com", "Panel", Saved);
 
-        settings.Replace("smtp.example.com", 587, SmtpSecurity.StartTls, "panel", null, "panel@example.com", "Panel", "ops@example.com", Saved);
+        settings.Replace("smtp.example.com", 587, SmtpSecurity.StartTls, "panel", null, "panel@example.com", "Panel", Saved);
 
         var credentials = Assert.IsType<BasicSmtpCredentials>(settings.Credentials);
         Assert.Equal("panel", credentials.Username);
@@ -136,25 +132,38 @@ public sealed class SmtpSettingsTests
         Assert.DoesNotContain("hunter2", text, StringComparison.Ordinal);
     }
 
-    /// <summary>A blank stored alert recipient reads as no address, and a set one as itself.</summary>
+    /// <summary>The first recipient is mirrored into the column the previous release reads, and a blank one clears it.</summary>
     [Fact]
-    public void A_blank_alert_recipient_reads_as_no_address()
+    public void The_first_alert_recipient_is_mirrored_and_a_blank_one_clears_it()
     {
         var settings = Existing();
+        Assert.Null(settings.AlertRecipientAddress);
+
+        settings.MirrorFirstAlertRecipient("ops@example.com");
         Assert.Equal("ops@example.com", settings.AlertRecipientAddress);
 
+        settings.MirrorFirstAlertRecipient("  ");
+        Assert.Null(settings.AlertRecipientAddress);
+    }
+
+    /// <summary>Saving the mail settings leaves the mirrored recipient alone.</summary>
+    [Fact]
+    public void Saving_the_mail_settings_keeps_the_mirrored_alert_recipient()
+    {
+        var settings = Existing();
+        settings.MirrorFirstAlertRecipient("ops@example.com");
+
         settings.Replace(
-            "smtp.example.com",
-            587,
-            SmtpSecurity.StartTls,
-            "panel",
+            "smtp.example.net",
+            465,
+            SmtpSecurity.ImplicitTls,
+            "postmaster",
             password: null,
-            "panel@example.com",
+            "panel@example.net",
             "Panel",
-            "  ",
             Saved.AddDays(1));
 
-        Assert.Null(settings.AlertRecipientAddress);
+        Assert.Equal("ops@example.com", settings.AlertRecipientAddress);
     }
 
     /// <summary>The row's key is the fixed singleton id, which is what makes a second row impossible.</summary>
@@ -176,7 +185,6 @@ public sealed class SmtpSettingsTests
             "hunter2",
             "panel@example.com",
             "Panel",
-            "ops@example.com",
             Saved);
     }
 }

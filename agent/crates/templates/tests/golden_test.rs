@@ -15,9 +15,11 @@ use maran_templates::nftables::nftables_ssh_port::NftablesSshPort;
 use maran_templates::nginx::php_site::PhpSite;
 use maran_templates::nginx::proxy_site::ProxySite;
 use maran_templates::nginx::site_body::SiteBody;
+use maran_templates::nginx::site_options_block::SiteOptionsBlock;
 use maran_templates::nginx::ssl_block::SslBlock;
 use maran_templates::nginx::static_site::StaticSite;
 use maran_templates::nginx::suspended_site::SuspendedSite;
+use maran_templates::pam_limits::account_limits::AccountLimits;
 use maran_templates::php_fpm::pool::Pool;
 use maran_templates::php_fpm::pool_override::PoolOverride;
 use maran_templates::sshd::authorized_keys::AuthorizedKeys;
@@ -38,6 +40,7 @@ fn php_body() -> String {
         document_root: "/home/acme/sites/example.com",
         fpm_socket: Some("/run/maran-php/acme-8.3.sock"),
         upstream: None,
+        options: &SiteOptionsBlock::NONE,
     }
     .render_config()
     .unwrap()
@@ -52,6 +55,7 @@ fn a_php_site_renders_its_golden() {
         aliases: &aliases,
         document_root: "/home/acme/sites/example.com",
         body: &body,
+        options: &SiteOptionsBlock::NONE,
         ssl: None,
     };
 
@@ -74,6 +78,7 @@ fn a_php_site_with_ssl_renders_its_golden() {
         aliases: &aliases,
         document_root: "/home/acme/sites/example.com",
         body: &body,
+        options: &SiteOptionsBlock::NONE,
         ssl: Some(ssl),
     };
 
@@ -92,6 +97,7 @@ fn a_static_site_renders_its_golden() {
         document_root: "/home/acme/sites/static.example",
         fpm_socket: None,
         upstream: None,
+        options: &SiteOptionsBlock::NONE,
     }
     .render_config()
     .unwrap();
@@ -100,6 +106,7 @@ fn a_static_site_renders_its_golden() {
         aliases: &aliases,
         document_root: "/home/acme/sites/static.example",
         body: &body,
+        options: &SiteOptionsBlock::NONE,
         ssl: None,
     };
 
@@ -118,6 +125,7 @@ fn a_proxy_site_renders_its_golden() {
         document_root: "/home/acme/sites/app.example",
         fpm_socket: None,
         upstream: Some("127.0.0.1:3000"),
+        options: &SiteOptionsBlock::NONE,
     }
     .render_config()
     .unwrap();
@@ -126,6 +134,7 @@ fn a_proxy_site_renders_its_golden() {
         aliases: &aliases,
         document_root: "/home/acme/sites/app.example",
         body: &body,
+        options: &SiteOptionsBlock::NONE,
         ssl: None,
     };
 
@@ -165,6 +174,7 @@ fn a_static_site_with_ssl_renders_its_golden() {
         document_root: "/home/acme/sites/static.example",
         fpm_socket: None,
         upstream: None,
+        options: &SiteOptionsBlock::NONE,
     }
     .render_config()
     .unwrap();
@@ -180,6 +190,7 @@ fn a_static_site_with_ssl_renders_its_golden() {
         aliases: &aliases,
         document_root: "/home/acme/sites/static.example",
         body: &body,
+        options: &SiteOptionsBlock::NONE,
         ssl: Some(ssl),
     };
 
@@ -202,6 +213,7 @@ fn a_proxy_site_with_ssl_renders_its_golden() {
         document_root: "/home/acme/sites/app.example",
         fpm_socket: None,
         upstream: Some("127.0.0.1:3000"),
+        options: &SiteOptionsBlock::NONE,
     }
     .render_config()
     .unwrap();
@@ -217,6 +229,7 @@ fn a_proxy_site_with_ssl_renders_its_golden() {
         aliases: &aliases,
         document_root: "/home/acme/sites/app.example",
         body: &body,
+        options: &SiteOptionsBlock::NONE,
         ssl: Some(ssl),
     };
 
@@ -252,8 +265,8 @@ fn a_suspended_site_renders_the_stub_released_agents_wrote() {
 #[test]
 fn a_pool_renders_its_golden() {
     let overrides = vec![PoolOverride {
-        name: "upload_max_filesize",
-        value: "32M",
+        name: "memory_limit",
+        value: "256M",
     }];
     let pool = Pool {
         pool_name: "acme-8.3",
@@ -268,6 +281,7 @@ fn a_pool_renders_its_golden() {
         session_directory: "/home/acme/.maran/sessions",
         upload_temporary_directory: "/home/acme/.maran/tmp",
         request_terminate_timeout: 300,
+        default_size: "32M",
         overrides: &overrides,
     };
 
@@ -304,6 +318,34 @@ fn an_authorized_keys_file_renders_its_golden() {
         file.render_config().unwrap(),
         golden("sshd/authorized_keys")
     );
+}
+
+#[test]
+fn an_account_limits_file_renders_its_golden() {
+    let file = AccountLimits {
+        account: "acme",
+        open_files: 4096,
+    };
+
+    assert_eq!(
+        file.render_config().unwrap(),
+        golden("pam_limits/account_limits.conf")
+    );
+}
+
+#[test]
+fn an_account_limits_file_carries_exactly_one_rule_line() {
+    let file = AccountLimits {
+        account: "acme",
+        open_files: 4096,
+    };
+    let rendered = file.render_config().unwrap();
+    let rules: Vec<&str> = rendered
+        .lines()
+        .filter(|line| !line.starts_with('#'))
+        .collect();
+
+    assert_eq!(rules, ["acme - nofile 4096"]);
 }
 
 // Ruling 26 — a golden's parameter value must never equal what a

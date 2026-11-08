@@ -10,7 +10,7 @@ import type { CronEnvironmentVariable } from '../../src/types/cronEnvironmentVar
 import type { PanelModule } from '../../src/types/module'
 
 const LICENSED: PanelModule[] = [
-  { name: 'cron', displayName: 'Scheduled tasks', tier: 'included', state: 'enabled' },
+  { name: 'cron', displayName: 'Scheduled tasks', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 const ALICE: Account = {

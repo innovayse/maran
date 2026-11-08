@@ -24,6 +24,9 @@
   <data name="HostForbidden">
     <value>You do not have access to this page.</value>
   </data>
+  <data name="HostPasswordChangeRequired">
+    <value>You must choose a new password before you can continue.</value>
+  </data>
   <data name="HostTwoFactorSetupRequired">
     <value>Finish setting up two-factor authentication first.</value>
   </data>

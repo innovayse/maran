@@ -1,10 +1,11 @@
 <script setup lang="ts">
 /**
  * What on this server is asking to be looked at: certificates near expiry, backups that failed,
- * addresses the firewall is refusing, panel tasks that failed.
+ * addresses the firewall is refusing, panel tasks that failed, sites running on a PHP version that
+ * no longer receives security fixes.
  *
  * **Only the rows that are not zero are shown, and when none of them is, the notice says so in a
- * sentence.** That is the opposite of {@link DashboardCountGrid}, where every tile is always drawn,
+ * sentence.** That is the opposite of {@link DashboardTotalsGrid}, where every tile is always drawn,
  * and the difference is deliberate: a count of accounts is information at any value, while a list of
  * four permanent zeros trains a reader to stop looking at the one card whose whole purpose is to be
  * noticed when it changes.
@@ -35,14 +36,15 @@ import { RouterLink } from 'vue-router'
 import UiAlert from '../ui/UiAlert.vue'
 import UiIcon from '../ui/UiIcon.vue'
 import type { DashboardAttention, DashboardSection } from '../../types/dashboard'
+import { attentionIsClear } from '../../utils/attentionIsClear'
 
 /** Which attention source a row is about; the list key and the i18n leaf it is worded by. */
-type AttentionKey = 'certificates' | 'backups' | 'tasks' | 'bans'
+type AttentionKey = 'certificates' | 'backups' | 'tasks' | 'bans' | 'endOfLifePhp'
 
-/** A source the panel could not read: a counted one, or the clock. */
+/** A source the panel could not read: a counted one, the clock, or the alert delivery state. */
 interface UncheckedSource {
   /** Which source; worded under `app.status.attention.unchecked`. */
-  key: AttentionKey | 'clock'
+  key: AttentionKey | 'clock' | 'alertDelivery'
   /** The route the row links to. */
   to: string
 }
@@ -75,6 +77,17 @@ const props = defineProps<{
 /** Where the clock's own explanation is shown. */
 const CLOCK_ROUTE = '/monitoring'
 
+/** Where an alert channel's settings, and so the way to fix its delivery, are. */
+const ALERT_SETTINGS_ROUTE = '/settings/alerts'
+
+/** One alert channel whose last delivery failed. */
+interface FailingChannel {
+  /** Which channel; worded under `app.status.attention`. */
+  key: 'alertMail' | 'alertWebhook'
+  /** The panel's reason, already localized. */
+  message: string | null
+}
+
 const { t } = useI18n()
 
 /** Every source the panel reported, read or not, in the order they are judged below. */
@@ -84,6 +97,7 @@ const sources: ComputedRef<AttentionSource[]> = computed(() => {
     { key: 'backups', section: props.attention.failedBackups, to: '/backups' },
     { key: 'tasks', section: props.attention.failedTasks, to: '/tasks' },
     { key: 'bans', section: props.attention.bannedAddresses, to: '/firewall/bans' },
+    { key: 'endOfLifePhp', section: props.attention.sitesOnEndOfLifePhp, to: '/settings/php' },
   ]
 })
 
@@ -101,6 +115,22 @@ const clockNeedsAttention: ComputedRef<boolean> = computed(() => {
   return props.attention.clock.state === 'loaded' && props.attention.clock.data.state !== 'synchronized'
 })
 
+/** The alert channels whose last delivery failed; none while the state is unread or both are fine. */
+const failingChannels: ComputedRef<FailingChannel[]> = computed(() => {
+  const delivery = props.attention.alertDelivery
+  if (delivery.state !== 'loaded') {
+    return []
+  }
+  const channels: FailingChannel[] = []
+  if (delivery.data.mail.state === 'failing') {
+    channels.push({ key: 'alertMail', message: delivery.data.mail.failureMessage })
+  }
+  if (delivery.data.webhook.state === 'failing') {
+    channels.push({ key: 'alertWebhook', message: delivery.data.webhook.failureMessage })
+  }
+  return channels
+})
+
 /** The sources the panel could not read, each of which is named rather than counted as zero. */
 const unchecked: ComputedRef<UncheckedSource[]> = computed(() => {
   const counted = sources.value
@@ -110,12 +140,16 @@ const unchecked: ComputedRef<UncheckedSource[]> = computed(() => {
     .map((source): UncheckedSource => {
       return { key: source.key, to: source.to }
     })
-  return props.attention.clock.state === 'unavailable' ? [...counted, { key: 'clock', to: CLOCK_ROUTE }] : counted
+  const withClock: UncheckedSource[] =
+    props.attention.clock.state === 'unavailable' ? [...counted, { key: 'clock', to: CLOCK_ROUTE }] : counted
+  return props.attention.alertDelivery.state === 'unavailable'
+    ? [...withClock, { key: 'alertDelivery', to: ALERT_SETTINGS_ROUTE }]
+    : withClock
 })
 
 /** Whether everything was read and nothing needs attention — the only case the all-clear is true. */
 const allClear: ComputedRef<boolean> = computed(() => {
-  return rows.value.length === 0 && unchecked.value.length === 0 && !clockNeedsAttention.value
+  return attentionIsClear(props.attention)
 })
 </script>
 
@@ -144,6 +178,20 @@ const allClear: ComputedRef<boolean> = computed(() => {
           class="inline-flex items-center gap-2 rounded-control text-text-secondary transition-colors hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none motion-reduce:transition-none"
         >
           <span>{{ t('app.status.attention.clock') }}</span>
+          <UiIcon name="arrowRight" size="sm" />
+        </RouterLink>
+      </li>
+    </ul>
+
+    <!-- A failing alert channel is not a count either: it names the channel and the panel's reason (issue #142). -->
+    <ul v-if="failingChannels.length > 0" class="mt-1.5 flex flex-wrap gap-x-6 gap-y-1">
+      <li v-for="channel in failingChannels" :key="channel.key">
+        <RouterLink
+          :to="ALERT_SETTINGS_ROUTE"
+          class="inline-flex items-center gap-2 rounded-control text-text-secondary transition-colors hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none motion-reduce:transition-none"
+        >
+          <span>{{ t(`app.status.attention.${channel.key}`) }}</span>
+          <span v-if="channel.message !== null">{{ channel.message }}</span>
           <UiIcon name="arrowRight" size="sm" />
         </RouterLink>
       </li>

@@ -226,4 +226,75 @@ public sealed class CreateApiKeyCommandHandlerTests : IDisposable
 
         Assert.Equal(0, _lock.Begins);
     }
+
+    /// <summary>A key created for a reseller stores the reseller as its owner and the journal names the creating login.</summary>
+    [Fact]
+    public async Task A_key_created_for_a_reseller_stores_the_reseller_as_its_owner()
+    {
+        var reseller = Guid.NewGuid();
+        var login = Guid.NewGuid();
+        var command = Command(scopes: [ApiKeyScopes.AccountsRead]) with { CreatedByUserId = login, OwnerResellerId = reseller };
+
+        var result = await NewHandler().HandleAsync(command, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var stored = Assert.Single(_context.ApiKeys);
+        Assert.Equal(reseller, stored.ResellerId);
+        Assert.Equal(login, stored.CreatedByUserId);
+        Assert.Equal(login, Assert.Single(_audit.Written).ActorUserId);
+    }
+
+    /// <summary>A reseller's ceiling is its own: at it creation is refused, while the administrator and another reseller still create.</summary>
+    [Fact]
+    public async Task A_resellers_ceiling_is_its_own_and_fills_neither_the_administrators_nor_anothers()
+    {
+        var reseller = Guid.NewGuid();
+        for (var i = 0; i < ApiKeyLimits.MaxKeysPerReseller; i++)
+        {
+            await ApiKeySeed.AddAsync(_context, Now.AddDays(-1), name: $"r{i}", scopes: [ApiKeyScopes.PlansRead], resellerId: reseller);
+        }
+
+        var refused = await NewHandler().HandleAsync(
+            Command(scopes: [ApiKeyScopes.PlansRead]) with { OwnerResellerId = reseller }, CancellationToken.None);
+        var other = await NewHandler().HandleAsync(
+            Command(scopes: [ApiKeyScopes.PlansRead]) with { OwnerResellerId = Guid.NewGuid() }, CancellationToken.None);
+        var administrator = await NewHandler().HandleAsync(Command(), CancellationToken.None);
+
+        Assert.Equal("ApiKeyLimitReached", refused.Error!.Code);
+        Assert.Equal(ErrorType.Conflict, refused.Error.Type);
+        Assert.True(other.IsSuccess);
+        Assert.True(administrator.IsSuccess);
+    }
+
+    /// <summary>A revoked or expired key of a reseller frees its place, as it does for the administrator.</summary>
+    [Fact]
+    public async Task A_revoked_or_expired_reseller_key_frees_its_place()
+    {
+        var reseller = Guid.NewGuid();
+        await ApiKeySeed.AddAsync(_context, Now.AddDays(-2), name: "revoked", scopes: [ApiKeyScopes.PlansRead], resellerId: reseller, revoked: true);
+        await ApiKeySeed.AddAsync(_context, Now.AddDays(-2), name: "expired", scopes: [ApiKeyScopes.PlansRead], resellerId: reseller, expiresAt: Now.AddDays(-1));
+        for (var i = 0; i < ApiKeyLimits.MaxKeysPerReseller - 1; i++)
+        {
+            await ApiKeySeed.AddAsync(_context, Now.AddDays(-1), name: $"w{i}", scopes: [ApiKeyScopes.PlansRead], resellerId: reseller);
+        }
+
+        var result = await NewHandler().HandleAsync(
+            Command(scopes: [ApiKeyScopes.PlansRead]) with { OwnerResellerId = reseller }, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    /// <summary>The administrator's ceiling counts only the administrator's keys, so resellers' keys never fill it.</summary>
+    [Fact]
+    public async Task The_administrators_ceiling_ignores_resellers_keys()
+    {
+        for (var i = 0; i < ApiKeyLimits.MaxKeys; i++)
+        {
+            await ApiKeySeed.AddAsync(_context, Now.AddDays(-1), name: $"r{i}", scopes: [ApiKeyScopes.PlansRead], resellerId: Guid.NewGuid());
+        }
+
+        var result = await NewHandler().HandleAsync(Command(), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+    }
 }

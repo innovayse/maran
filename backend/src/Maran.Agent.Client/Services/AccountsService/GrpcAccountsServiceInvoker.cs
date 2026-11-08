@@ -6,14 +6,24 @@ namespace Maran.Agent.Client.Services.AccountsService;
 /// <summary>Production <see cref="IAccountsServiceInvoker"/> backed by the generated gRPC client.</summary>
 internal sealed class GrpcAccountsServiceInvoker : IAccountsServiceInvoker
 {
-    /// <summary>The generated gRPC client this adapter wraps.</summary>
-    private readonly Maran.Agent.V1.AccountsService.AccountsServiceClient _client;
+    /// <summary>Where the channel for the server the current call is aimed at comes from.</summary>
+    private readonly IAgentChannels _channels;
 
-    /// <summary>Wraps <paramref name="client"/> behind the <see cref="IAccountsServiceInvoker"/> seam.</summary>
-    /// <param name="client">The generated client to delegate calls to.</param>
-    public GrpcAccountsServiceInvoker(Maran.Agent.V1.AccountsService.AccountsServiceClient client)
+    /// <summary>Wraps <paramref name="channels"/> behind the <see cref="IAccountsServiceInvoker"/> seam.</summary>
+    /// <param name="channels">Hands out the channel of the server each call is aimed at.</param>
+    public GrpcAccountsServiceInvoker(IAgentChannels channels)
     {
-        _client = client;
+        _channels = channels;
+    }
+
+    /// <summary>
+    /// A generated client over the channel of the server the current call is aimed at, built per use.
+    /// Building it is cheap (it holds the channel and nothing else), and building it per call is what
+    /// lets one invoker serve every server: the target is read when the call starts, never earlier.
+    /// </summary>
+    private Maran.Agent.V1.AccountsService.AccountsServiceClient Client
+    {
+        get { return new Maran.Agent.V1.AccountsService.AccountsServiceClient(_channels.ForCurrent()); }
     }
 
     /// <inheritdoc/>
@@ -21,7 +31,7 @@ internal sealed class GrpcAccountsServiceInvoker : IAccountsServiceInvoker
         CreateAccountRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.CreateAccountAsync(request, cancellationToken: cancellationToken);
+        return await Client.CreateAccountAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -29,7 +39,7 @@ internal sealed class GrpcAccountsServiceInvoker : IAccountsServiceInvoker
         SuspendAccountRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.SuspendAccountAsync(request, cancellationToken: cancellationToken);
+        return await Client.SuspendAccountAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -37,7 +47,7 @@ internal sealed class GrpcAccountsServiceInvoker : IAccountsServiceInvoker
         UnsuspendAccountRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.UnsuspendAccountAsync(request, cancellationToken: cancellationToken);
+        return await Client.UnsuspendAccountAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -45,7 +55,7 @@ internal sealed class GrpcAccountsServiceInvoker : IAccountsServiceInvoker
         GetAccountSuspensionStateRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.GetAccountSuspensionStateAsync(request, cancellationToken: cancellationToken);
+        return await Client.GetAccountSuspensionStateAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -53,7 +63,7 @@ internal sealed class GrpcAccountsServiceInvoker : IAccountsServiceInvoker
         DeleteAccountRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.DeleteAccountAsync(request, cancellationToken: cancellationToken);
+        return await Client.DeleteAccountAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -61,7 +71,7 @@ internal sealed class GrpcAccountsServiceInvoker : IAccountsServiceInvoker
         SetAccountQuotaRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.SetAccountQuotaAsync(request, cancellationToken: cancellationToken);
+        return await Client.SetAccountQuotaAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -69,7 +79,15 @@ internal sealed class GrpcAccountsServiceInvoker : IAccountsServiceInvoker
         SetAccountResourceLimitsRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.SetAccountResourceLimitsAsync(request, cancellationToken: cancellationToken);
+        return await Client.SetAccountResourceLimitsAsync(request, cancellationToken: cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<SetAccountOpenFilesLimitResponse> SetAccountOpenFilesLimitAsync(
+        SetAccountOpenFilesLimitRequest request,
+        CancellationToken cancellationToken)
+    {
+        return await Client.SetAccountOpenFilesLimitAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -77,7 +95,7 @@ internal sealed class GrpcAccountsServiceInvoker : IAccountsServiceInvoker
         GetAccountUsageRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.GetAccountUsageAsync(request, cancellationToken: cancellationToken);
+        return await Client.GetAccountUsageAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -85,6 +103,6 @@ internal sealed class GrpcAccountsServiceInvoker : IAccountsServiceInvoker
         RepairAccountHomeGroupsRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.RepairAccountHomeGroupsAsync(request, cancellationToken: cancellationToken);
+        return await Client.RepairAccountHomeGroupsAsync(request, cancellationToken: cancellationToken);
     }
 }

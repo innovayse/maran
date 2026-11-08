@@ -42,3 +42,21 @@ fn a_bound_from_the_php_area_reaches_the_sites_area_as_a_bound() {
 
     assert!(matches!(error, SitesOpError::Bound(_)), "{error:?}");
 }
+
+/// A busy host is a refusal with its own variant, named in the operator's log.
+#[test]
+fn a_busy_traffic_summary_says_so() {
+    assert_eq!(
+        SitesOpError::TrafficBusy.to_string(),
+        "too many traffic summaries are being read at once"
+    );
+}
+
+/// One spelling of the refusal to read a log, named after the file.
+#[test]
+fn an_unreadable_log_is_named_after_the_file() {
+    match SitesOpError::unreadable_log(std::ffi::OsStr::new("a.com.access.log")) {
+        SitesOpError::LogUnreadable { path } => assert_eq!(path, "a.com.access.log"),
+        other => panic!("expected LogUnreadable, got {other:?}"),
+    }
+}

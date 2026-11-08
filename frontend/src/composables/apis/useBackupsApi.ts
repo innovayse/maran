@@ -10,6 +10,7 @@ import type {
   BackupsApi,
   CreateBackupRequest,
   RestoreBackupRequest,
+  RestoreChoices,
   RestoreOutcome,
 } from '../../types/backup'
 
@@ -124,5 +125,15 @@ export const useBackupsApi = (): BackupsApi => {
     return api.post<RestoreOutcome>(`${BACKUPS_PATH}/${id}/restore`, request, signal)
   }
 
-  return { list, attention, get, create, remove, verify, restore }
+  /**
+   * Reads the databases and sites a restore of one backup could be narrowed to.
+   * @param id The backup about to be restored.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The account's databases and sites.
+   */
+  const restoreChoices = (id: string, signal?: AbortSignal): Promise<RestoreChoices> => {
+    return api.get<RestoreChoices>(`${BACKUPS_PATH}/${id}/restore-choices`, signal)
+  }
+
+  return { list, attention, get, create, remove, verify, restore, restoreChoices }
 }

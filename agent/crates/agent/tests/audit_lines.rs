@@ -30,10 +30,11 @@ use maran_agent::proto::{
     AllowPortRequest, BackupDestination, BackupDestinationKind, CreateAccountRequest,
     CreateBackupRequest, CreateCronEntryRequest, CreateSiteRequest, CronSchedule,
     DropDatabaseRequest, ErrorCode, GetAgentInfoRequest, InstallPhpVersionRequest,
-    ListCronEntriesRequest, ListDatabasesRequest, Protocol, SetSftpPasswordRequest,
-    SiteBackendType, WriteFileRequest, allow_port_response, create_account_response,
-    create_backup_response, create_cron_entry_response, create_site_response,
-    drop_database_response, install_php_version_response, set_sftp_password_response,
+    ListCronEntriesRequest, ListDatabasesRequest, Protocol, PruneSiteLogsRequest,
+    SetSftpPasswordRequest, SiteBackendType, SummariseSiteTrafficRequest, WriteFileRequest,
+    allow_port_response, create_account_response, create_backup_response,
+    create_cron_entry_response, create_site_response, drop_database_response,
+    install_php_version_response, prune_site_logs_response, set_sftp_password_response,
     write_file_response,
 };
 use tonic::transport::Channel;
@@ -81,7 +82,11 @@ macro_rules! refusal {
 async fn audit_lines_after_waiting_for(log: &CapturedLog, count: usize) -> Vec<String> {
     let deadline = Instant::now() + LINE_BUDGET;
     loop {
-        let lines = log.audit_lines();
+        let lines: Vec<String> = log
+            .lines()
+            .into_iter()
+            .filter(|line| line.contains("event=rpc"))
+            .collect();
         if lines.len() >= count {
             return lines;
         }
@@ -124,6 +129,7 @@ async fn refused_create_account(channel: Channel) -> String {
         .create_account(CreateAccountRequest {
             username: "root".to_owned(),
             quota_bytes: 0,
+            ..Default::default()
         })
         .await
         .unwrap()
@@ -244,6 +250,23 @@ async fn every_refused_mutating_rpc_yields_exactly_one_line_with_its_refusal_cod
         "maran.agent.v1.FilesService/WriteFile",
         refusal!(response, write_file_response),
     ));
+    audit_lines_after_waiting_for(&log, expected.len()).await;
+
+    // A retention of zero is what an absent field decodes to, and is refused before the
+    // host is touched (the case that would otherwise remove every archive).
+    let response = SitesServiceClient::new(channel.clone())
+        .prune_site_logs(PruneSiteLogsRequest {
+            account_username: UNKNOWN_ACCOUNT.to_owned(),
+            domain: "example.com".to_owned(),
+            retain_rotations: 0,
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    expected.push((
+        "maran.agent.v1.SitesService/PruneSiteLogs",
+        refusal!(response, prune_site_logs_response),
+    ));
 
     let lines = audit_lines_after_waiting_for(&log, expected.len()).await;
     assert_eq!(
@@ -289,7 +312,16 @@ async fn read_only_rpcs_yield_no_line() {
         .await
         .unwrap();
 
-    // Without a mutating rpc after them the three requests above could be "no line
+    SitesServiceClient::new(channel.clone())
+        .summarise_site_traffic(SummariseSiteTrafficRequest {
+            account_username: INVALID_NAME.to_owned(),
+            domain: "example.com".to_owned(),
+            cursor: None,
+        })
+        .await
+        .unwrap();
+
+    // Without a mutating rpc after them the requests above could be "no line
     // yet" and look identical to "no line ever". The barrier's own line is written
     // after theirs would have been, so finding exactly one proves they wrote none.
     refused_create_account(channel).await;
@@ -464,6 +496,7 @@ async fn a_peer_the_guard_refuses_still_leaves_a_line_for_a_mutating_path() {
         .create_account(CreateAccountRequest {
             username: "root".to_owned(),
             quota_bytes: 0,
+            ..Default::default()
         })
         .await
         .unwrap_err();

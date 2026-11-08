@@ -1,0 +1,20 @@
+{
+  "phpSettings": {
+    "heading": "PHP settings",
+    "subtitle": "Set how PHP runs for your account, within what your plan allows.",
+    "appliesTo": "These settings apply to all your sites on PHP: {count} site. | These settings apply to all your sites on PHP: {count} sites.",
+    "saved": "PHP settings saved.",
+    "form": {
+      "useDefault": "PHP default",
+      "planMaximum": "Your plan allows at most {max}.",
+      "exceedsPlan": "The value you saved is above your plan's maximum, so the plan's maximum of {max} applies instead.",
+      "effective": "In effect now: {value}.",
+      "reset": "Reset to default",
+      "resetNamed": "Reset to default: {label}",
+      "save": "Save PHP settings",
+      "errors": {
+        "whole": "Enter a whole number."
+      }
+    }
+  }
+}

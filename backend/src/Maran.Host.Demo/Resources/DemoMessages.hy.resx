@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="securityPolicy">
+    <value>Անվտանգության քաղաքականությունը դեմոյում միայն կարդալու համար է, քանի որ մուտքերը ընդհանուր են բոլոր այցելուների համար։</value>
+  </data>
+  <data name="smtp">
+    <value>Փոստի կարգավորումները դեմոյում միայն կարդալու համար են․ այն երբեք փոստ չի ուղարկում։</value>
+  </data>
+  <data name="panelCertificate">
+    <value>Վահանակի վկայականը դեմոյում միայն կարդալու համար է․ այն իրական հասցե չունի։</value>
+  </data>
+  <data name="panelUpdate">
+    <value>Վահանակի թարմացումները դեմոյում անջատված են․ այն վերակառուցվում է թողարկումից։</value>
+  </data>
+  <data name="twoFactor">
+    <value>Երկգործոն նույնականացումը դեմոյում անջատված է, քանի որ մուտքերը ընդհանուր են բոլոր այցելուների համար։</value>
+  </data>
+  <data name="apiKeys">
+    <value>API բանալիները դեմոյում չեն կարող ստեղծվել․ բանալին կգոյատևեր վերակայումից հետո։</value>
+  </data>
+  <data name="licence">
+    <value>Լիցենզիան դեմոյում միայն կարդալու համար է․ այն ունի ֆիքսված ցուցադրական լիցենզիա։</value>
+  </data>
+  <data name="credentials">
+    <value>Գաղտնաբառերը և սեսիաները ընդհանուր են դեմոյի բոլոր այցելուների համար, ուստի դրանք հնարավոր չէ փոխել։</value>
+  </data>
+  <data name="accessPaths">
+    <value>Հրավերները և թիմի անդամները դեմո մուտք գործելու նոր եղանակներ կավելացնեին, ուստի դրանք հասանելի չեն։</value>
+  </data>
+  <data name="externalServices">
+    <value>Դեմոն չի միանում իրենից դուրս գտնվող ծառայություններին։</value>
+  </data>
+  <data name="protectedResource">
+    <value>Այս հաշիվը, վերավաճառողը կամ սակագինը կապված է դեմո մուտքի հետ, ուստի դրանք հնարավոր չէ կասեցնել, ջնջել կամ փոխել։ Փորձելու համար ստեղծեք ձերը։</value>
+  </data>
+  <data name="unclassified">
+    <value>Այս գործողությունը հասանելի չէ դեմոյում։</value>
+  </data>
+</root>

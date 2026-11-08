@@ -1,7 +1,11 @@
 import { useApi } from '../useApi'
 import { listQuery } from '../../utils/listQuery'
 import type { ListRequest, Paged } from '../../types/list'
-import type { BackupDestination, BackupDestinationsApi } from '../../types/backupDestination'
+import type {
+  BackupDestination,
+  BackupDestinationsApi,
+  SetBackupDestinationEncryptionRequest,
+} from '../../types/backupDestination'
 
 /** The route the recorded destinations are read from. */
 const BACKUP_DESTINATIONS_PATH = '/api/v1/backup-destinations'
@@ -14,7 +18,7 @@ const LIST_FILTER_PARAMS: Readonly<Record<string, string>> = {
 /**
  * Builds the backup-destinations API on top of the shared low-level client.
  *
- * One call, matching the one route this panel can act on. See {@link BackupDestinationsApi} for why
+ * Two calls: the read, and the encryption switch (issue #160). See {@link BackupDestinationsApi} for why
  * the controller's `POST` is deliberately not wrapped here.
  * @returns The {@link BackupDestinationsApi} bound to the panel's destinations endpoint.
  */
@@ -33,5 +37,18 @@ export const useBackupDestinationsApi = (): BackupDestinationsApi => {
     return api.get<Paged<BackupDestination>>(`${BACKUP_DESTINATIONS_PATH}${listQuery(request, LIST_FILTER_PARAMS)}`, signal)
   }
 
-  return { list }
+  /**
+   * Switches encryption of new backups on or off for one destination. The answer is 204, so there
+   * is nothing to parse.
+   * @param id The destination.
+   * @param enabled Whether new backups written there are sealed.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns Resolves once the panel recorded the change.
+   */
+  const setEncryption = async (id: string, enabled: boolean, signal?: AbortSignal): Promise<void> => {
+    const body: SetBackupDestinationEncryptionRequest = { enabled }
+    await api.put<void>(`${BACKUP_DESTINATIONS_PATH}/${id}/encryption`, body, signal)
+  }
+
+  return { list, setEncryption }
 }

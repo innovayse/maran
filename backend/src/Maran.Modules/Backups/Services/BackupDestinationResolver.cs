@@ -87,6 +87,9 @@ public sealed class BackupDestinationResolver
         }
 
         return Result<ResolvedBackupDestination>.Ok(
-            new ResolvedBackupDestination(destination.Id, BackupDestinationMapper.ForAgent(destination)));
+            new ResolvedBackupDestination(
+                destination.Id,
+                BackupDestinationMapper.ForAgent(destination),
+                BackupDestinationMapper.ForNewBackup(destination)));
     }
 }

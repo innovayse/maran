@@ -1,5 +1,6 @@
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Domain.Entities;
+using Maran.Modules.Accounts.Domain.ValueObjects;
 using Maran.Modules.Accounts.Mappers;
 using Maran.Modules.Accounts.Models;
 using Maran.Modules.Accounts.Persistence;
@@ -117,8 +118,11 @@ public sealed class CreatePlanCommandHandler
             return Result<PlanDto>.Fail(Error.Of(nameof(ErrorMessages.PlanNameTaken), ErrorType.Conflict));
         }
 
+        // A request that states no mail figures sells MailLimits.Default; the envelope judges what the plan would hold.
+        var mailLimits = command.MailLimits is null ? MailLimits.Default : MailLimitsMapper.ToDomain(command.MailLimits);
+
         var refusal = await _allocation.AdmitNewPlanAsync(
-            ownerId, PlanLimitsMapper.ToLimits(command), cancellationToken);
+            ownerId, PlanLimitsMapper.ToLimits(command, mailLimits), cancellationToken);
         if (refusal is not null)
         {
             return await RefuseAsync(command, name, refusal, cancellationToken);
@@ -137,6 +141,21 @@ public sealed class CreatePlanCommandHandler
             command.Features.ToSet(),
             resellerId: ownerId);
         plan.ChangeRuntimeLimits(RuntimeLimitsMapper.ToDomain(command));
+
+        // A request that states no PHP bounds leaves the plan on PhpLimits.Default, which it was built with.
+        if (command.PhpLimits is not null)
+        {
+            plan.ChangePhpLimits(PhpLimitsMapper.ToDomain(command.PhpLimits));
+        }
+
+        plan.ChangeMailLimits(mailLimits);
+
+        // The reseller envelope does not bound DNS zones yet, so a reseller's plan cannot state them: it holds
+        // the default, and only the administrator's own plans carry a chosen allowance.
+        if (ownerId is null && command.MaxDnsZones is { } maxDnsZones)
+        {
+            plan.ChangeDnsZoneLimit(maxDnsZones);
+        }
 
         _dbContext.Plans.Add(plan);
         try

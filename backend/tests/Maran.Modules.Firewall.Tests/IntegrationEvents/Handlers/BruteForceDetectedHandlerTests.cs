@@ -9,6 +9,7 @@ using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
+using Npgsql;
 
 namespace Maran.Modules.Firewall.Tests.IntegrationEvents.Handlers;
 
@@ -217,6 +218,21 @@ public sealed class BruteForceDetectedHandlerTests
         // journalled as a ban that succeeded and nothing is journalled as a failure either.
         Assert.Single(world.Agent.Bans);
         Assert.Empty(world.Audit.Entries);
+    }
+
+    /// <summary>A database failure that is not the unique violation escapes the handler.</summary>
+    [Fact]
+    public async Task A_database_failure_that_is_not_the_unique_violation_escapes_the_handler()
+    {
+        // The inverse control of the test above. Only SqlState 23505 is the redelivery race; a
+        // database that is down is a fault, and swallowing it would report a ban whose record was
+        // never stored as if it had been handled.
+        var world = await WorldAsync();
+
+        await Assert.ThrowsAsync<DbUpdateException>(async () =>
+        {
+            await world.HandleAsync("203.0.113.7", interceptor: new RefusingSaveChanges(PostgresErrorCodes.ConnectionFailure));
+        });
     }
 
     /// <summary>A ban the agent refuses is journalled as a failure and leaves no row.</summary>

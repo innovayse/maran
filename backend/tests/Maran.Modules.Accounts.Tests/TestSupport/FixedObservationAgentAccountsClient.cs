@@ -64,9 +64,10 @@ public sealed class FixedObservationAgentAccountsClient : IAgentAccountsClient
 
     /// <summary>Succeeds, as the repaired agent's unsuspend now does on both families.</summary>
     /// <param name="username">Unused.</param>
+    /// <param name="shell">Unused.</param>
     /// <param name="cancellationToken">Unused.</param>
     /// <returns>Success.</returns>
-    public Task<Result> UnsuspendAsync(string username, CancellationToken cancellationToken)
+    public Task<Result> UnsuspendAsync(string username, AccountLoginShell shell, CancellationToken cancellationToken)
     {
         return Task.FromResult(Result.Ok());
     }
@@ -85,11 +86,13 @@ public sealed class FixedObservationAgentAccountsClient : IAgentAccountsClient
     /// <summary>Not exercised by these tests; a call would be a test asking the wrong question.</summary>
     /// <param name="username">Unused.</param>
     /// <param name="quotaBytes">Unused.</param>
+    /// <param name="provisioning">Unused.</param>
     /// <param name="cancellationToken">Unused.</param>
     /// <returns>Never returns.</returns>
     public Task<Result<CreatedAccountDto>> CreateAsync(
         string username,
         ulong quotaBytes,
+        AccountProvisioningDto provisioning,
         CancellationToken cancellationToken)
     {
         throw new NotSupportedException();
@@ -120,9 +123,14 @@ public sealed class FixedObservationAgentAccountsClient : IAgentAccountsClient
     /// <summary>Not exercised by these tests.</summary>
     /// <param name="username">Unused.</param>
     /// <param name="quotaBytes">Unused.</param>
+    /// <param name="inodeLimit">Unused.</param>
     /// <param name="cancellationToken">Unused.</param>
     /// <returns>Never returns.</returns>
-    public Task<Result> SetQuotaAsync(string username, ulong quotaBytes, CancellationToken cancellationToken)
+    public Task<Result> SetQuotaAsync(
+        string username,
+        ulong quotaBytes,
+        ulong? inodeLimit,
+        CancellationToken cancellationToken)
     {
         throw new NotSupportedException();
     }
@@ -141,6 +149,16 @@ public sealed class FixedObservationAgentAccountsClient : IAgentAccountsClient
     /// <param name="cancellationToken">Unused.</param>
     /// <returns>Never returns.</returns>
     public Task<Result<HomeGroupRepairReportDto>> RepairHomeGroupsAsync(bool reportOnly, CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException();
+    }
+
+    /// <summary>Not exercised by these tests.</summary>
+    /// <param name="username">Unused.</param>
+    /// <param name="openFiles">Unused.</param>
+    /// <param name="cancellationToken">Unused.</param>
+    /// <returns>Never returns.</returns>
+    public Task<Result> SetOpenFilesLimitAsync(string username, ulong? openFiles, CancellationToken cancellationToken)
     {
         throw new NotSupportedException();
     }

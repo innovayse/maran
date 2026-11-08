@@ -53,7 +53,19 @@ public static class InvalidModelStateRefusal
             })
             .FirstOrDefault() ?? string.Empty;
 
+        throw ForParameter(parameter);
+    }
+
+    /// <summary>
+    /// The refusal for one request parameter whose value could not be read, for a caller that parses a
+    /// value itself and so never reaches MVC's binders. The code is the same one <see cref="Refuse"/> raises.
+    /// </summary>
+    /// <param name="parameter">The name of the parameter that failed, shown as the failure's field.</param>
+    /// <returns>The exception to throw; the Host's exception middleware answers it with the 400.</returns>
+    public static ValidationException ForParameter(string parameter)
+    {
         const string code = nameof(ValidationMessages.RequestParameterInvalid);
-        throw new ValidationException([new ValidationFailure(parameter, code) { ErrorCode = code }]);
+
+        return new ValidationException([new ValidationFailure(parameter, code) { ErrorCode = code }]);
     }
 }

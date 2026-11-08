@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- The resx triple's neutral file is English (rules/csharp.md "The backend owns all
+         user-facing message text"); declaring it spares the runtime a probe for an "en"
+         satellite assembly that will never exist, and satisfies CA1824. -->
+    <NeutralLanguage>en</NeutralLanguage>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Maran.Sdk: Manifest, AgentCapability, LicenceTier, ModuleMenuItem and the manifest rules a
+         package is judged by. Maran.SharedKernel: Result, Error and SemanticVersion. Nothing else of
+         ours, and no package reference at all: the format is read and checked with the BCL only
+         (System.IO.Compression, System.Security.Cryptography, System.Text.Json), so the tooling verb and
+         a third-party author's offline check run the same code the panel does. Not Maran.Host and not a
+         module: the loader that calls this library lives elsewhere and is the one that loads code. -->
+    <ProjectReference Include="..\Maran.Sdk\Maran.Sdk.csproj" />
+    <ProjectReference Include="..\Maran.SharedKernel\Maran.SharedKernel.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ErrorMessages defines the codes a refused package answers with; the generated class makes a
+         code that is not a resx key a build error (rules/csharp.md "ErrorMessages.resx is where error
+         codes are defined"). -->
+    <EmbeddedResource Update="Resources\ErrorMessages.resx">
+      <Generator>MSBuild:Compile</Generator>
+      <StronglyTypedLanguage>CSharp</StronglyTypedLanguage>
+      <StronglyTypedNamespace>Maran.Packaging.Resources</StronglyTypedNamespace>
+      <StronglyTypedClassName>ErrorMessages</StronglyTypedClassName>
+      <StronglyTypedFileName>$(IntermediateOutputPath)ErrorMessages.Designer.cs</StronglyTypedFileName>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\ErrorMessages.ru.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\ErrorMessages.hy.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+  </ItemGroup>
+
+</Project>

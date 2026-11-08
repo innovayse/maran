@@ -554,3 +554,205 @@ pub fn managed_units() -> [&'static str; 4] {
 pub fn machine_id_path() -> &'static str {
     "/etc/machine-id"
 }
+
+/// Absolute path of `postfix` on the Debian family.
+///
+/// See [`MailFacts::postfix_binary`](crate::MailFacts::postfix_binary) for what the value is for and how far it is verified.
+#[must_use]
+pub fn postfix_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/sbin/postfix")
+}
+
+/// Absolute path of `postconf` on the Debian family.
+///
+/// See [`MailFacts::postconf_binary`](crate::MailFacts::postconf_binary) for what the value is for and how far it is verified.
+#[must_use]
+pub fn postconf_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/sbin/postconf")
+}
+
+/// Absolute path of `postmap` on the Debian family.
+///
+/// See [`MailFacts::postmap_binary`](crate::MailFacts::postmap_binary) for what the value is for and how far it is verified.
+#[must_use]
+pub fn postmap_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/sbin/postmap")
+}
+
+/// Absolute path of `postqueue` on the Debian family.
+///
+/// See [`MailFacts::postqueue_binary`](crate::MailFacts::postqueue_binary) for what the value is for and how far it is verified.
+#[must_use]
+pub fn postqueue_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/sbin/postqueue")
+}
+
+/// Absolute path of `postsuper` on the Debian family.
+///
+/// See [`MailFacts::postsuper_binary`](crate::MailFacts::postsuper_binary) for what the value is for and how far it is verified.
+#[must_use]
+pub fn postsuper_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/sbin/postsuper")
+}
+
+/// Absolute path of `doveadm` on the Debian family.
+///
+/// See [`MailFacts::doveadm_binary`](crate::MailFacts::doveadm_binary) for what the value is for and how far it is verified.
+#[must_use]
+pub fn doveadm_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/doveadm")
+}
+
+/// Absolute path of `doveconf` on the Debian family.
+///
+/// See [`MailFacts::doveconf_binary`](crate::MailFacts::doveconf_binary) for what the value is for and how far it is verified.
+#[must_use]
+pub fn doveconf_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/doveconf")
+}
+
+/// Absolute path of `rspamadm` on the Debian family.
+///
+/// See [`MailFacts::rspamadm_binary`](crate::MailFacts::rspamadm_binary) for what the value is for and how far it is verified.
+#[must_use]
+pub fn rspamadm_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/rspamadm")
+}
+
+/// Name of the Postfix unit on the Debian family.
+///
+/// See [`MailFacts::postfix_service`](crate::MailFacts::postfix_service) for what the value is for and how far it is verified.
+#[must_use]
+pub fn postfix_service() -> &'static str {
+    "postfix"
+}
+
+/// Name of the Dovecot unit on the Debian family.
+///
+/// See [`MailFacts::dovecot_service`](crate::MailFacts::dovecot_service) for what the value is for and how far it is verified.
+#[must_use]
+pub fn dovecot_service() -> &'static str {
+    "dovecot"
+}
+
+/// Name of the Rspamd unit on the Debian family.
+///
+/// See [`MailFacts::rspamd_service`](crate::MailFacts::rspamd_service) for what the value is for and how far it is verified.
+#[must_use]
+pub fn rspamd_service() -> &'static str {
+    "rspamd"
+}
+
+/// Name of the ClamAV scanning daemon's unit on the Debian family.
+///
+/// See [`MailFacts::clamd_service`](crate::MailFacts::clamd_service) for what the value is for and how far it is verified.
+#[must_use]
+pub fn clamd_service() -> &'static str {
+    "clamav-daemon"
+}
+
+/// Name of the ClamAV signature updater's unit on the Debian family.
+///
+/// See [`MailFacts::freshclam_service`](crate::MailFacts::freshclam_service) for what the value is for and how far it is verified.
+#[must_use]
+pub fn freshclam_service() -> &'static str {
+    "clamav-freshclam"
+}
+
+/// The Postfix system user on the Debian family.
+///
+/// See [`MailFacts::postfix_user`](crate::MailFacts::postfix_user) for what the value is for and how far it is verified.
+#[must_use]
+pub fn postfix_user() -> &'static str {
+    "postfix"
+}
+
+/// The group owning Postfix's drop directory on the Debian family.
+///
+/// See [`MailFacts::postdrop_group`](crate::MailFacts::postdrop_group) for what the value is for and how far it is verified.
+#[must_use]
+pub fn postdrop_group() -> &'static str {
+    "postdrop"
+}
+
+/// The Dovecot system user on the Debian family.
+///
+/// See [`MailFacts::dovecot_user`](crate::MailFacts::dovecot_user) for what the value is for and how far it is verified.
+#[must_use]
+pub fn dovecot_user() -> &'static str {
+    "dovecot"
+}
+
+/// The user Dovecot's login processes run as on the Debian family.
+///
+/// See [`MailFacts::dovecot_login_user`](crate::MailFacts::dovecot_login_user) for what the value is for and how far it is verified.
+#[must_use]
+pub fn dovecot_login_user() -> &'static str {
+    "dovenull"
+}
+
+/// The Rspamd system user on the Debian family.
+///
+/// See [`MailFacts::rspamd_user`](crate::MailFacts::rspamd_user) for what the value is for and how far it is verified.
+#[must_use]
+pub fn rspamd_user() -> &'static str {
+    "_rspamd"
+}
+
+/// The ClamAV scanning daemon's user on the Debian family.
+///
+/// See [`MailFacts::clamd_user`](crate::MailFacts::clamd_user) for what the value is for and how far it is verified.
+#[must_use]
+pub fn clamd_user() -> &'static str {
+    "clamav"
+}
+
+/// Absolute path of `named-checkconf` on the Debian family.
+///
+/// UNMEASURED. Written from the `bind9-utils` file list as recalled; this repository has not run `dpkg -L bind9-utils` on a host (research_notes/dns-stack-inventory.md section 2.1 marks it unverified). `installer/lib/89-dns.sh` requires each of the three binaries to exist and be executable after the package install and fails the install by name when one is not, so a wrong cell is a loud install failure and not a silent one.
+#[must_use]
+pub fn dns_checkconf_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/named-checkconf")
+}
+
+/// Absolute path of `named-checkzone` on the Debian family; the same file-list
+/// source and the same measurement status as [`dns_checkconf_binary`].
+#[must_use]
+pub fn dns_checkzone_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/named-checkzone")
+}
+
+/// Absolute path of `rndc` on the Debian family; the same file-list source and
+/// the same measurement status as [`dns_checkconf_binary`].
+#[must_use]
+pub fn dns_control_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/sbin/rndc")
+}
+
+/// The system user BIND drops to on the Debian family: `bind`.
+#[must_use]
+pub fn dns_user() -> &'static str {
+    "bind"
+}
+
+/// The system group BIND runs in on the Debian family: `bind`, the group of the
+/// user above.
+#[must_use]
+pub fn dns_group() -> &'static str {
+    "bind"
+}
+
+/// The daemon's working directory and zone-list directory on the Debian family.
+///
+/// Below `/var/lib/bind`, the one location the Debian packaging makes writable by the `bind` group (research_notes/dns-stack-inventory.md section 2.1). Whether Ubuntu's AppArmor profile for `named` allows writing the `maran` subdirectory is UNMEASURED: the profile text was not read.
+#[must_use]
+pub fn dns_state_directory() -> &'static str {
+    "/var/lib/bind/maran"
+}
+
+/// The directory zone files are written into on the Debian family: `zones/`
+/// below [`dns_state_directory`].
+#[must_use]
+pub fn dns_zone_directory() -> &'static str {
+    "/var/lib/bind/maran/zones"
+}

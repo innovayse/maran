@@ -233,6 +233,25 @@ done < <(registered_types_in_common)
 #     Same scope as 6d — the whole Common/ subtree. Comments and doc comments are
 #     stripped before matching, so a remark explaining why a handler has no HttpContext (as
 #     LoginOutcome.cs carries) is not a violation; only real code is.
+#
+#     The web framework's status-code constants are matched by what they ARE -- `StatusCodes.Status404NotFound`
+#     (or a bare `Status404NotFound` through a static using) -- and not by the bare word. `StatusCodes`
+#     is also a perfectly good name for a DTO member holding the requests counted per status code
+#     (SiteTrafficDto), which touches no HTTP surface at all; a coder once renamed such a member and
+#     bent its wire name around this check, which is the crutch matching the word caused.
+http_surface_pattern='using[[:space:]]+Microsoft\.AspNetCore\.|\b(HttpResponse|HttpRequest|HttpContext|IHttpContextAccessor|CookieOptions|IHeaderDictionary|IResponseCookies|IRequestCookieCollection|IActionResult|ActionResult|ControllerBase)\b|\bStatusCodes\.Status[0-9]{3}|\bStatus[0-9]{3}[A-Z][A-Za-z]*\b'
+# Controls, run before the pattern is trusted. Positive: each real use of the surface must match.
+# Inverse: a DTO member named StatusCodes must be accepted, or the check would refuse the member again.
+for planted in 'using Microsoft.AspNetCore.Http;' 'int x = StatusCodes.Status404NotFound;' 'var y = Status200OK;' \
+  'void F(HttpContext c) {}'; do
+  printf '%s\n' "$planted" | grep -qE "$http_surface_pattern" \
+    || report "scripts/lib/check-structure.sh: check 6e's pattern did not match the planted \`${planted}\`, so it is blind (rules/testing.md)"
+done
+for accepted in 'IReadOnlyList<SiteTrafficStatusDto> StatusCodes,' 'public int StatusCodes { get; init; }' 'var n = dto.StatusCodes.Count;'; do
+  if printf '%s\n' "$accepted" | grep -qE "$http_surface_pattern"; then
+    report "scripts/lib/check-structure.sh: check 6e's pattern flagged \`${accepted}\`, a DTO member named StatusCodes, so it would refuse the member (rules/testing.md)"
+  fi
+done
 while IFS= read -r file; do
   report "$file: touches the HTTP surface — Common/ is inert furniture, HTTP behaviour belongs in Controllers/ (rules/csharp.md)"
 done < <(find backend/src/Maran.Modules -mindepth 3 -path '*/Common/*.cs' \
@@ -246,8 +265,7 @@ done < <(find backend/src/Maran.Modules -mindepth 3 -path '*/Common/*.cs' \
     #     the whole gate. `using Microsoft.AspNetCore.` is the one observation that cannot be
     #     spelt around — inert furniture references the web framework not at all — and the type
     #     list stays beside it for a file reaching the surface through a global using.
-    if sed -E 's://.*::g' "$file" \
-      | grep -qE 'using[[:space:]]+Microsoft\.AspNetCore\.|\b(HttpResponse|HttpRequest|HttpContext|IHttpContextAccessor|CookieOptions|IHeaderDictionary|IResponseCookies|IRequestCookieCollection|IActionResult|ActionResult|ControllerBase|StatusCodes)\b'; then
+    if sed -E 's://.*::g' "$file" | grep -qE "$http_surface_pattern"; then
       printf '%s\n' "$file"
     fi
   done)
@@ -267,6 +285,11 @@ done < <(find backend/src/Maran.Modules -mindepth 3 -path '*/Common/*.cs' \
 #     A vacuity guard sits on the axis that can go blind — the folder list. If no module has a
 #     Common/ at all, this check compared nothing, and that reads exactly like a clean run
 #     (rules/testing.md).
+# What 6f rejects in one Common/: every file that is not a *Dto.cs, except the zero-byte .gitkeep that
+# holds an otherwise empty folder in git (rules/architecture.md "Skeleton policy").
+common_non_dto_files() {
+  find "$1" -type f ! -name '*Dto.cs' ! \( -name '.gitkeep' -size 0 \) -not -path '*/obj/*' -not -path '*/bin/*'
+}
 common_dirs="$(find backend/src/Maran.Modules -maxdepth 2 -type d -name Common \
   -not -path '*/obj/*' -not -path '*/bin/*' 2>/dev/null | sort)"
 if [ -z "$common_dirs" ]; then
@@ -277,8 +300,23 @@ while IFS= read -r file; do
   report "$file: not a *Dto.cs — a module's Common/ holds the wire shapes and nothing else (rules/csharp.md)"
 done < <(printf '%s\n' "$common_dirs" | while IFS= read -r common_dir; do
     [ -n "$common_dir" ] || continue
-    find "$common_dir" -type f ! -name '*Dto.cs' -not -path '*/obj/*' -not -path '*/bin/*'
+    common_non_dto_files "$common_dir"
   done | sort)
+
+# Controls for 6f's matcher. The skeleton policy (rules/architecture.md) holds an empty folder with a
+# zero-byte .gitkeep, so a freshly scaffolded Common/ carrying one must be accepted -- while a .gitkeep
+# with content, or any other non-DTO file, must still be found.
+common_control="$(mktemp -d)"
+mkdir -p "${common_control}/empty" "${common_control}/filled"
+: > "${common_control}/empty/.gitkeep"
+: > "${common_control}/empty/SiteDto.cs"
+printf 'x' > "${common_control}/filled/.gitkeep"
+: > "${common_control}/filled/Helper.cs"
+[ -z "$(common_non_dto_files "${common_control}/empty")" ] \
+  || report "scripts/lib/check-structure.sh: check 6f refused a Common/ holding only a zero-byte .gitkeep and a *Dto.cs, so a new module would fail at once (rules/testing.md)"
+[ "$(common_non_dto_files "${common_control}/filled" | wc -l)" -eq 2 ] \
+  || report "scripts/lib/check-structure.sh: check 6f did not find a non-empty .gitkeep and a non-DTO file, so it is blind (rules/testing.md)"
+rm -rf "$common_control"
 
 # 6g. No logic on a DTO (rules/csharp.md "Common/ holds *Dto.cs and nothing else, and a DTO carries
 #     no logic. No methods, no factories"). Check 6f polices the folder's file names; a file can
@@ -443,27 +481,6 @@ while IFS="$(printf '\t')" read -r file module_file; do
   report "$file: registered in $module_file — a type with a DI lifetime belongs in the module's Services/ (rules/csharp.md)"
 done < <(registered_types_in_common)
 
-# 6e. Nothing anywhere under a module's Common/ touches the HTTP surface. Check 6d's measurement is a
-#     DI registration, and a static class never has one — so a static class escapes 6d whatever it
-#     does. RefreshCookie passed both written tests (Identity-specific, never registered) and still
-#     did not belong: it took an HttpResponse and MUTATED it, owning the refresh cookie's name,
-#     path, HttpOnly/Secure/SameSite flags and expiry. Inert means NO EFFECT, not merely no DI
-#     lifetime, and behaviour on the HTTP surface belongs in Controllers/ (rules/csharp.md
-#     "Common/ versus Services/", the effect test).
-#
-#     Same scope as 6d — the whole Common/ subtree. Comments and doc comments are
-#     stripped before matching, so a remark explaining why a handler has no HttpContext (as
-#     LoginOutcome.cs carries) is not a violation; only real code is.
-while IFS= read -r file; do
-  report "$file: touches the HTTP surface — Common/ is inert furniture, HTTP behaviour belongs in Controllers/ (rules/csharp.md)"
-done < <(find backend/src/Maran.Modules -mindepth 3 -path '*/Common/*.cs' \
-  -not -path '*/obj/*' -not -path '*/bin/*' | sort | while IFS= read -r file; do
-    if sed -E 's://.*::g' "$file" \
-      | grep -qE '\b(HttpResponse|HttpRequest|HttpContext|CookieOptions|IHeaderDictionary|IResponseCookies|IRequestCookieCollection)\b'; then
-      printf '%s\n' "$file"
-    fi
-  done)
-
 # 7. Rust obeys the same law as C#: exactly one public unit per file, and a crate root or
 #    mod.rs declares modules rather than defining anything (rules/rust.md). Until this check
 #    existed the Rust side of the rule rested on review alone, which is how a type and its
@@ -475,7 +492,7 @@ done < <(find backend/src/Maran.Modules -mindepth 3 -path '*/Common/*.cs' \
 #    home for every path/package/service fact of their concern, so each answers several
 #    related platform-fact functions rather than growing a file per function. Listed here
 #    rather than inferred, same as the subject-named single-item exceptions below.
-concern_files='debian_paths|debian_packages|debian_services|rhel_paths|rhel_packages|rhel_services'
+concern_files='debian_paths|debian_packages|debian_services|debian_php_extensions|rhel_paths|rhel_packages|rhel_services|rhel_php_extensions'
 while IFS= read -r file; do
   units=$(grep -cE '^pub (struct|enum|trait|fn|async fn) ' "$file")
   base="$(basename "$file" .rs)"
@@ -665,7 +682,7 @@ done < <(find frontend/src \( -name '*.vue' -o -name '*.ts' -o -name '*.css' \) 
 subject_named='adapter|adapter_for|detect|distro_info|os_release|family|path|name|domain|port'
 subject_named="$subject_named|directory|current_uid|unit|pool|error|server"
 subject_named="$subject_named|agent_options|options_error|peer_policy|peer_guard|render_validate_swap|rollback_guard"
-subject_named="$subject_named|debian_paths|debian_packages|debian_services|rhel_paths|rhel_packages|rhel_services"
+subject_named="$subject_named|debian_paths|debian_packages|debian_services|debian_php_extensions|rhel_paths|rhel_packages|rhel_services|rhel_php_extensions"
 
 # 16b. Every name in that list still has a file. An exemption for a file that does not exist is
 #      not harmless housekeeping: it is a named hole, and the day somebody adds a file of that
@@ -795,7 +812,7 @@ done < <(find agent/crates/ops/src agent/crates/agent/src -name '*.rs' -not -pat
 #      in every sanctioned file, and an `#[allow]` written to make a gate pass is the thing the
 #      rules avoid.
 #
-#      CENSUS (rules/testing.md): the 15 listed files are exactly what this prints, and it is the
+#      CENSUS (rules/testing.md): the listed files are exactly what this prints, and it is the
 #      positive control -- each of them must still hit the pattern, so a pattern that stopped
 #      matching fails the stale-entry check below instead of passing silently:
 #        grep -rlE '\b(spawn_argv|run_bounded|run_unthreaded|run_for_window|run_discarding)\(|SpawnRequest \{' \
@@ -806,13 +823,16 @@ sanctioned_spawn_hosts=(
   agent/crates/ops/src/accounts/process_system_host.rs
   agent/crates/ops/src/backup/list_archive_members.rs
   agent/crates/ops/src/backup/process_backup_host.rs
+  agent/crates/ops/src/backup/process_restricted_dump_host.rs
   agent/crates/ops/src/backup/run_discarding.rs
   agent/crates/ops/src/cron/crontab_spool.rs
   agent/crates/ops/src/cron/process_cron_host.rs
   agent/crates/ops/src/db/process_db_host.rs
+  agent/crates/ops/src/dns/process_dns_host.rs
   agent/crates/ops/src/firewall/process_firewall_host.rs
   agent/crates/ops/src/ftps/process_ftps_host.rs
   agent/crates/ops/src/logins/process_logins_host.rs
+  agent/crates/ops/src/mail/process_mail_host.rs
   agent/crates/ops/src/monitor/process_monitor_host.rs
   agent/crates/ops/src/php/process_php_host.rs
   agent/crates/ops/src/sftp/process_sftp_host.rs
@@ -1337,9 +1357,9 @@ fi
 # renamed template leaves the agent asking systemd for a unit that does not exist, so every PHP
 # install fails on a real host while each side is green on its own (issue #93).
 #
-# The agent's side is read from the string constant in ops/src/php/install_php_version.rs, so this
+# The agent's side is read from the string constant in ops/src/php/run_install_unit.rs (shared by the version install and the extension switch, issue #157), so this
 # check follows a rename there instead of holding a fifth copy of the name.
-php_unit_rust="agent/crates/ops/src/php/install_php_version.rs"
+php_unit_rust="agent/crates/ops/src/php/run_install_unit.rs"
 php_unit_prefix="$(sed -n 's/^const INSTALL_UNIT_PREFIX: &str = "\(.*\)";$/\1/p' "$php_unit_rust" 2>/dev/null | head -1)"
 if [ -z "$php_unit_prefix" ]; then
   report "scripts/lib/check-structure.sh: check 27 could not read INSTALL_UNIT_PREFIX from ${php_unit_rust}, so it is not a statement about the package-install unit's name (rules/testing.md)"
@@ -1475,6 +1495,28 @@ else
     [ -n "$unit" ] && report "${units_ceilings}: lists '${unit}' more than once (issue #107)"
   done < <(printf '%s\n' "$ceiling_names" | duplicate_names)
 fi
+
+# 32. No Controllers/Requests/ folder. An endpoint binds its Command or Query directly (rules/csharp.md,
+#     "An endpoint binds its command directly"): one shape crosses the wire, is validated and is handled,
+#     so a per-endpoint request model is a second copy of the command that can drift from it. The folder
+#     existed in every module until issue #436; this is what keeps it from coming back.
+requests_folders() {
+  find "$1" -type d -path '*/Controllers/Requests' -not -path '*/obj/*' -not -path '*/bin/*' 2>/dev/null
+}
+while IFS= read -r folder; do
+  [ -n "$folder" ] || continue
+  report "${folder}: a Controllers/Requests/ folder is abolished — bind the Command or Query directly in the action (rules/csharp.md, issue #436)"
+done < <(requests_folders backend/src)
+
+# Controls, run before the check is trusted. Positive: a planted Controllers/Requests/ must be found.
+# Inverse: a Controllers/ folder without one must be accepted, or the check would refuse every module.
+requests_control="$(mktemp -d)"
+mkdir -p "${requests_control}/planted/Controllers/Requests" "${requests_control}/clean/Controllers"
+[ -n "$(requests_folders "${requests_control}/planted")" ] \
+  || report "scripts/lib/check-structure.sh: check 32 did not find a planted Controllers/Requests/ folder, so it is blind (rules/testing.md)"
+[ -z "$(requests_folders "${requests_control}/clean")" ] \
+  || report "scripts/lib/check-structure.sh: check 32 flagged a Controllers/ folder with no Requests/, so it would refuse every module (rules/testing.md)"
+rm -rf "$requests_control"
 
 if [ "$violations" -gt 0 ]; then
   echo

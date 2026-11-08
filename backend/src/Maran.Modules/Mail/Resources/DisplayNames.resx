@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="MailModuleDisplayName">
+    <value>Mail</value>
+  </data>
+  <data name="MailMenuDomains">
+    <value>Mail domains</value>
+  </data>
+  <data name="MailMenuMailboxes">
+    <value>Mailboxes</value>
+  </data>
+  <data name="MailMenuAliases">
+    <value>Aliases and forwarders</value>
+  </data>
+  <data name="MailRouteDomains">
+    <value>Mail domains</value>
+  </data>
+  <data name="MailRouteMailboxes">
+    <value>Mailboxes</value>
+  </data>
+  <data name="MailRouteAliases">
+    <value>Aliases and forwarders</value>
+  </data>
+  <data name="MailDnsRecordPurposeDelivery">
+    <value>Mail delivery</value>
+  </data>
+  <data name="MailDnsRecordPurposeSpf">
+    <value>Sender policy (SPF)</value>
+  </data>
+  <data name="MailDnsRecordPurposeDkimKey">
+    <value>DKIM signing key</value>
+  </data>
+  <data name="MailDnsRecordPurposeDmarc">
+    <value>Receiver policy (DMARC)</value>
+  </data>
+  <data name="MailDomainStatusActive">
+    <value>Active</value>
+  </data>
+  <data name="MailDomainStatusSuspended">
+    <value>Suspended</value>
+  </data>
+  <data name="MailboxStatusActive">
+    <value>Active</value>
+  </data>
+  <data name="MailboxStatusSuspended">
+    <value>Suspended</value>
+  </data>
+  <data name="MailboxStatusDisabled">
+    <value>Switched off</value>
+  </data>
+  <data name="MailAliasKindAlias">
+    <value>Alias</value>
+  </data>
+  <data name="MailAliasKindForwarder">
+    <value>Forwarder</value>
+  </data>
+  <data name="MailAliasKindCatchAll">
+    <value>Catch-all</value>
+  </data>
+</root>

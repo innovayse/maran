@@ -119,13 +119,13 @@ public sealed class SmtpSettingsCacheTests
         {
             dbContext.SmtpSettings.Add(new SmtpSettings(
                 host, 587, SmtpSecurity.StartTls, "panel", "hunter2",
-                "panel@example.com", "Panel", "ops@example.com", Saved));
+                "panel@example.com", "Panel", Saved));
         }
         else
         {
             existing.Replace(
                 host, 587, SmtpSecurity.StartTls, "panel", "hunter2",
-                "panel@example.com", "Panel", "ops@example.com", Saved);
+                "panel@example.com", "Panel", Saved);
         }
 
         await dbContext.SaveChangesAsync(CancellationToken.None);

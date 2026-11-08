@@ -52,10 +52,14 @@ static ACCOUNT_LOCKS: Mutex<Option<HashMap<String, Arc<AsyncMutex<()>>>>> = Mute
 ///
 /// # Who takes it, and what it therefore excludes
 ///
-/// `AccountOperations::delete`; the two transfer daemons' login operations
+/// `AccountOperations::delete`; `set_account_open_files_limit` (issue #194, which
+/// writes a file named after the account and so must not interleave with the
+/// deletion that removes it); the two transfer daemons' login operations
 /// (`sftp::create_sftp_user`, `sftp::set_sftp_password`, `sftp::delete_sftp_user`,
 /// `ftps::create_ftps_user`, `ftps::set_ftps_password`, `ftps::delete_ftps_user`);
-/// `logins::set_account_logins_locked`; `php::write_pool`; and the four backup
+/// `logins::set_account_logins_locked`; `php::write_pool`; `php::apply_php_pool_settings`
+/// (issue #138, which reads the pool file and decides on what it read, so the read and the
+/// write it authorises are one critical section); and the four backup
 /// operations (`create_backup`, `restore_backup`, `delete_backup`,
 /// `recover_restores`). Those are the operations that make or unmake the
 /// account's identity on this host, or write a file that names it, and all three

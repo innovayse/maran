@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="PanelUpdateRunning">
+    <value>Թարմացումն արդեն հերթագրված է կամ կատարվում է։</value>
+  </data>
+  <data name="PanelUpdateUnavailable">
+    <value>Վահանակը հիմա չի կարող թարմացում սկսել այս սերվերում։</value>
+  </data>
+  <data name="PanelUpdateRefused">
+    <value>Թարմացումը մերժվեց՝ նախքան որևէ փոփոխություն կատարելը։ Պատճառը տեսնելու համար թարմացումը գործարկեք սերվերի հրամանային տողից։</value>
+  </data>
+  <data name="PanelUpdateRolledBack">
+    <value>Թարմացումը չանցավ աշխատունակության ստուգումը, և վահանակը վերադարձավ նախորդ տարբերակին։ Տվյալների բազան չի վերականգնվել։</value>
+  </data>
+  <data name="PanelUpdateRollbackFailed">
+    <value>Թարմացումը ձախողվեց, և նախորդ տարբերակն էլ չաշխատեց ճիշտ։ Ստուգեք սերվերը հրամանային տողից։</value>
+  </data>
+  <data name="PanelUpdateInterrupted">
+    <value>Թարմացումն ընդհատվեց նոր տարբերակին անցնելուց հետո։ Ստուգեք սերվերը հրամանային տողից։</value>
+  </data>
+  <data name="PanelUpdateNotStarted">
+    <value>Թարմացումը չսկսվեց. սերվերի թարմացման ծառայությունը հարցումը չընդունեց։</value>
+  </data>
+  <data name="PanelUpdateOutcomeUnknown">
+    <value>Թարմացումն ավարտվեց՝ առանց արդյունքը հաղորդելու։ Ստուգեք, թե վահանակի որ տարբերակն է հիմա աշխատում։</value>
+  </data>
+</root>

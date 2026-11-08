@@ -58,6 +58,7 @@ import { cronRunResultOf } from '../../utils/cronRunResultOf'
 import type { CronEntry, CronSchedule } from '../../types/cronEntry'
 import type { CronEnvironmentVariable } from '../../types/cronEnvironmentVariable'
 import { usePlanLimit } from '../../composables/usePlanLimit'
+import { useQueryAction } from '../../composables/useQueryAction'
 
 const { t } = useI18n()
 const store = useCronStore()
@@ -72,6 +73,9 @@ const { pendingRemovalId, confirmationTitle, askRemove, cancelRemove, confirmRem
 
 /** The form, so an accepted install can empty the field it owns. */
 const form = useTemplateRef<{ reset: () => void }>('form')
+
+/** A dashboard shortcut (`?action=create`) brings this form into view and focuses its first field. */
+useQueryAction(form)
 
 /** The entry being rewritten, or `null` while the form is installing a new one. */
 const editing: Ref<{ entryId: string; schedule: CronSchedule; command: string } | null> = ref(null)

@@ -15,8 +15,17 @@ namespace Maran.Modules.Accounts.Services;
 /// <b>It states the caller's identity and never narrows a read.</b> Which rows a reseller sees is the
 /// <see cref="AccountsDbContext"/> query filter's decision and <see cref="AccountDirectory"/>'s
 /// explicit predicate; this type is for the two questions a write asks that a filter cannot answer.
-/// The owner is read from the caller's own token (<see cref="ResellerCaller.ResellerId"/>), never from
-/// the request, so a reseller cannot create what another reseller owns by naming its id.
+/// The owner is read from the caller's own identity — the reseller's token
+/// (<see cref="ResellerCaller.ResellerId"/>) or, for an integration, the API key a reseller owns
+/// (<see cref="ApiKeyCaller.ResellerId"/>) — never from the request, so neither can create what another
+/// reseller owns by naming its id.
+/// </para>
+/// <para>
+/// <b>A reseller's API key is a reseller here.</b> It agrees with <see cref="AccountsDbContext"/>, which
+/// narrows the same key to the same reseller's rows: a key that could read only its reseller's accounts
+/// but was treated as nobody by the write floor would create for any owner it named, would not be refused
+/// once its reseller was suspended, and could skip the final backup of a deletion. A key the
+/// administrator owns carries no reseller and stays nobody.
 /// </para>
 /// <para>
 /// <b>Why a suspended reseller is refused here and not only at sign-in.</b> An access token lives up
@@ -43,8 +52,9 @@ public sealed class ResellerScope
     }
 
     /// <summary>
-    /// The reseller the caller acts for: the id its token names for a <see cref="ResellerCaller"/>,
-    /// and <c>null</c> for every other case, none of which is a reseller.
+    /// The reseller the caller acts for: the id its token names for a <see cref="ResellerCaller"/>, the
+    /// reseller that owns the key for an <see cref="ApiKeyCaller"/> a reseller owns, and <c>null</c> for
+    /// every other case — an administrator's key included — none of which is a reseller.
     /// </summary>
     public Guid? CallerResellerId
     {
@@ -56,7 +66,7 @@ public sealed class ResellerScope
                 AdministratorCaller => null,
                 CustomerCaller => null,
                 AccountlessCustomerCaller => null,
-                ApiKeyCaller => null,
+                ApiKeyCaller key => key.ResellerId,
                 AnonymousCaller => null,
                 _ => throw new UnreachableException("Caller is sealed to SharedKernel: six cases exist."),
             };

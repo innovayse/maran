@@ -53,6 +53,22 @@ internal interface ISitesServiceInvoker
         TailSiteLogRequest request,
         CancellationToken cancellationToken);
 
+    /// <summary>Invokes <c>SummariseSiteTraffic</c>.</summary>
+    /// <param name="request">The wire request.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The raw wire response, carrying either branch of its oneof.</returns>
+    Task<SummariseSiteTrafficResponse> SummariseSiteTrafficAsync(
+        SummariseSiteTrafficRequest request,
+        CancellationToken cancellationToken);
+
+    /// <summary>Invokes <c>PruneSiteLogs</c>.</summary>
+    /// <param name="request">The wire request.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The raw wire response, carrying either branch of its oneof.</returns>
+    Task<PruneSiteLogsResponse> PruneSiteLogsAsync(
+        PruneSiteLogsRequest request,
+        CancellationToken cancellationToken);
+
     /// <summary>Invokes <c>ReloadWebServer</c>.</summary>
     /// <param name="request">The wire request; it carries no fields.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>

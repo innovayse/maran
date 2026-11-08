@@ -54,7 +54,8 @@ public static class BackupDestinationViewMapper
             destination.Kind,
             path,
             destination.IsDefault,
-            destination.CreatedAt);
+            destination.CreatedAt,
+            destination.EncryptArchives);
     }
 
     /// <summary>Renders an absent or empty path as the one value that means "not established".</summary>

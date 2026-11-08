@@ -121,7 +121,15 @@ public sealed class DatabasesResourceTextTests
             {
                 var translated = Pairs(keys[locale], values[locale]);
                 Assert.NotEmpty(translated);
-                Assert.Equal(translated.Count, translated.Values.Distinct(StringComparer.Ordinal).Count());
+
+                // A route title repeats the menu label or module name it is reached from, because the
+                // breadcrumb must read like the link that led to it, so a route title may equal another
+                // entry. Every other entry keeps its own sentence.
+                var ownSentences = translated
+                    .Where(entry => { return !entry.Key.Contains("Route", StringComparison.Ordinal); })
+                    .Select(entry => { return entry.Value; })
+                    .ToList();
+                Assert.Equal(ownSentences.Count, ownSentences.Distinct(StringComparer.Ordinal).Count());
 
                 foreach (var entry in translated)
                 {

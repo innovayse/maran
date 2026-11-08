@@ -1,0 +1,163 @@
+# The customer self-service matrix (issue #147): every operation a customer's token can reach.
+# Checked by CustomerOperationMatrixTests: an operation missing from here, a line naming an operation that no
+# longer exists, a wrong module, or an isolation class no integration test file declares fails the build.
+# Columns, separated by a tab: METHOD route | module | integration test class holding the "another account's
+# resource is answered not found" case, or "-" followed by the reason the operation reaches no other account's
+# resource. UNOBSERVED HERE: that the named class asserts 404 for THIS operation; the content is the reviewer's.
+DELETE api/v1/backups/{id:guid}	Backups	BackupsAuthorizationTests
+DELETE api/v1/certificates/{id:guid}	Ssl	CertificatesAuthorizationTests
+DELETE api/v1/cron-entries/{entryId}	Cron	CronAuthorizationTests
+DELETE api/v1/database-users/{id:guid}	Databases	DatabaseUsersAuthorizationTests
+DELETE api/v1/databases/{id:guid}	Databases	DatabasesAuthorizationTests
+DELETE api/v1/dns-zones/{id:guid}	Dns	DnsAuthorizationTests
+DELETE api/v1/dns-zones/{zoneId:guid}/records/{recordId:guid}	Dns	DnsAuthorizationTests
+DELETE api/v1/files/trash	Files	FilesAuthorizationTests
+DELETE api/v1/ftp-users/{id:guid}	Ftp	FtpAuthorizationTests
+DELETE api/v1/mail-aliases/{id:guid}	Mail	MailAuthorizationTests
+DELETE api/v1/mail-domains/{id:guid}	Mail	MailAuthorizationTests
+DELETE api/v1/mailboxes/{id:guid}	Mail	MailAuthorizationTests
+DELETE api/v1/mailboxes/{mailboxId:guid}/autoresponder	Mail	MailAuthorizationTests
+DELETE api/v1/me/pinned-pages/{itemKey}	Identity	PinnedPagesEndpointTests
+DELETE api/v1/me/sub-users/{id:guid}	Identity	SubUsersEndpointTests
+DELETE api/v1/sessions/{id:guid}	Identity	SessionEndpointTests
+DELETE api/v1/sftp-users/{id:guid}	Sftp	SftpAuthorizationTests
+DELETE api/v1/sftp-users/{id:guid}/keys/{keyId:guid}	Sftp	SftpAuthorizationTests
+DELETE api/v1/sites/{id:guid}	Sites	SitesAuthorizationTests
+DELETE api/v1/view-as	Identity	ViewAsEndpointTests
+GET api/v1/accounts/me	Accounts	AccountsMeAndInvitationsAuthorizationTests
+GET api/v1/accounts/me/branding	Accounts	AccountsMeAndInvitationsAuthorizationTests
+GET api/v1/accounts/me/resource-summary	Accounts	AccountsMeAndInvitationsAuthorizationTests
+GET api/v1/accounts/statuses	Accounts	-	returns the account-status vocabulary, no account's row
+GET api/v1/backup-options	Backups	BackupsAuthorizationTests
+GET api/v1/backups	Backups	BackupsAuthorizationTests
+GET api/v1/backups/attention	Backups	BackupsAuthorizationTests
+GET api/v1/backups/{id:guid}	Backups	BackupsAuthorizationTests
+GET api/v1/backups/{id:guid}/restore-choices	Backups	BackupsAuthorizationTests
+GET api/v1/certificates	Ssl	CertificatesAuthorizationTests
+GET api/v1/cron-entries	Cron	CronAuthorizationTests
+GET api/v1/cron-entries/{entryId}/output	Cron	CronAuthorizationTests
+GET api/v1/cron-entries/{entryId}/runs	Cron	CronAuthorizationTests
+GET api/v1/cron-entries/{entryId}/runs/{runId:guid}	Cron	CronAuthorizationTests
+GET api/v1/cron-environment	Cron	CronAuthorizationTests
+GET api/v1/cron-options	Cron	CronAuthorizationTests
+GET api/v1/database-users	Databases	DatabaseUsersAuthorizationTests
+GET api/v1/database-users/privilege-presets	Databases	-	returns the closed privilege set and the presets over it, no account's row
+GET api/v1/database-users/{id:guid}	Databases	DatabaseUsersAuthorizationTests
+GET api/v1/databases	Databases	DatabasesAuthorizationTests
+GET api/v1/databases/{id:guid}	Databases	DatabasesAuthorizationTests
+GET api/v1/dns-zones	Dns	DnsAuthorizationTests
+GET api/v1/dns-zones/record-types	Dns	-	returns the record types and bounds, no account's row
+GET api/v1/dns-zones/{id:guid}	Dns	DnsAuthorizationTests
+GET api/v1/dns-zones/{zoneId:guid}/records	Dns	DnsAuthorizationTests
+GET api/v1/files/content	Files	FilesAuthorizationTests
+GET api/v1/files/download	Files	FilesAuthorizationTests
+GET api/v1/files/entries	Files	FilesAuthorizationTests
+GET api/v1/files/entries/info	Files	FilesAuthorizationTests
+GET api/v1/files/options	Files	-	returns the panel's transfer and trash limits, no account's row
+GET api/v1/files/search	Files	FilesAuthorizationTests
+GET api/v1/files/trash	Files	FilesAuthorizationTests
+GET api/v1/ftp-users	Ftp	FtpAuthorizationTests
+GET api/v1/ftp-users/{id:guid}	Ftp	FtpAuthorizationTests
+GET api/v1/mail-aliases	Mail	MailAuthorizationTests
+GET api/v1/mail-domains	Mail	MailAuthorizationTests
+GET api/v1/mail-domains/{id:guid}/dns-records	Mail	MailAuthorizationTests
+GET api/v1/mail/choices	Mail	-	returns the closed vocabularies of the mail screens and the caller's own plan bounds, no account's row
+GET api/v1/mailboxes	Mail	MailAuthorizationTests
+GET api/v1/mailboxes/{mailboxId:guid}/autoresponder	Mail	MailAuthorizationTests
+GET api/v1/me/accounts	Identity	ActiveAccountEndpointTests
+GET api/v1/me/backup-schedule	Backups	BackupScheduleSelfServiceTests
+GET api/v1/me/dashboard-layout	Identity	-	reads only the caller's own saved dashboard layout
+GET api/v1/me/membership-offers	Identity	MembershipOffersEndpointTests
+GET api/v1/me/pinned-pages	Identity	PinnedPagesEndpointTests
+GET api/v1/me/sub-users	Identity	SubUsersEndpointTests
+GET api/v1/me/sub-users/features	Identity	SubUsersEndpointTests
+GET api/v1/php-settings	Sites	PhpSettingsTenantIsolationEndpointTests
+GET api/v1/profile	Identity	-	reads only the caller's own login
+GET api/v1/sessions	Identity	SessionEndpointTests
+GET api/v1/sftp-users	Sftp	SftpAuthorizationTests
+GET api/v1/sftp-users/{id:guid}	Sftp	SftpAuthorizationTests
+GET api/v1/sftp-users/{id:guid}/keys	Sftp	SftpAuthorizationTests
+GET api/v1/sites	Sites	SitesAuthorizationTests
+GET api/v1/sites/choices	Sites	SitesAuthorizationTests
+GET api/v1/sites/limits	Sites	SitesAuthorizationTests
+GET api/v1/sites/php-versions	Sites	SitesAuthorizationTests
+GET api/v1/sites/php-versions/{version}/extensions	Sites	-	reads one host-level PHP version's extensions, no account's row
+GET api/v1/sites/{id:guid}	Sites	SitesAuthorizationTests
+GET api/v1/sites/{id:guid}/logs	Sites	SitesAuthorizationTests
+GET api/v1/sites/{id:guid}/options	Sites	SitesAuthorizationTests
+GET api/v1/sites/{id:guid}/traffic	Sites	SiteTrafficEndpointTests
+GET api/v1/tasks	Tasks	TasksCustomerScopeTests
+GET api/v1/tasks/failed-count	Tasks	TasksCustomerScopeTests
+GET api/v1/tasks/kinds	Tasks	TasksCustomerScopeTests
+GET api/v1/tasks/running	Tasks	TasksCustomerScopeTests
+GET api/v1/tasks/running/stream	Tasks	TasksCustomerScopeTests
+GET api/v1/tasks/statuses	Tasks	TasksCustomerScopeTests
+GET api/v1/tasks/{id:guid}	Tasks	TasksCustomerScopeTests
+GET api/v1/tasks/{id:guid}/stream	Tasks	TasksCustomerScopeTests
+GET api/v1/view-as	Identity	ViewAsEndpointTests
+POST api/v1/auth/change-password	Identity	-	acts only on the caller's own login
+POST api/v1/auth/logout-all	Identity	-	acts only on the caller's own login
+POST api/v1/auth/two-factor/confirm	Identity	-	acts only on the caller's own login
+POST api/v1/auth/two-factor/disable	Identity	-	acts only on the caller's own login
+POST api/v1/auth/two-factor/enrol	Identity	-	acts only on the caller's own login
+POST api/v1/backups	Backups	BackupsAuthorizationTests
+POST api/v1/backups/{id:guid}/restore	Backups	BackupsAuthorizationTests
+POST api/v1/backups/{id:guid}/verify	Backups	BackupsAuthorizationTests
+POST api/v1/certificates	Ssl	CertificatesAuthorizationTests
+POST api/v1/certificates/custom	Ssl	CertificatesAuthorizationTests
+POST api/v1/cron-entries	Cron	CronAuthorizationTests
+POST api/v1/cron-entries/{entryId}/enabled	Cron	CronAuthorizationTests
+POST api/v1/cron-entries/{entryId}/runs	Cron	CronAuthorizationTests
+POST api/v1/database-users	Databases	DatabaseUsersAuthorizationTests
+POST api/v1/database-users/{id:guid}/password	Databases	DatabaseUsersAuthorizationTests
+POST api/v1/databases	Databases	DatabasesAuthorizationTests
+POST api/v1/databases/{id:guid}/password	Databases	DatabasesAuthorizationTests
+POST api/v1/dns-zones	Dns	DnsAuthorizationTests
+POST api/v1/dns-zones/{zoneId:guid}/records	Dns	DnsAuthorizationTests
+POST api/v1/files/archive	Files	FilesAuthorizationTests
+POST api/v1/files/copy	Files	FilesAuthorizationTests
+POST api/v1/files/delete	Files	FilesAuthorizationTests
+POST api/v1/files/entries	Files	FilesAuthorizationTests
+POST api/v1/files/extract	Files	FilesAuthorizationTests
+POST api/v1/files/move	Files	FilesAuthorizationTests
+POST api/v1/files/permissions	Files	FilesAuthorizationTests
+POST api/v1/files/rename	Files	FilesAuthorizationTests
+POST api/v1/files/trash	Files	FilesAuthorizationTests
+POST api/v1/files/trash/restore	Files	FilesAuthorizationTests
+POST api/v1/files/upload	Files	FilesAuthorizationTests
+POST api/v1/ftp-users	Ftp	FtpAuthorizationTests
+POST api/v1/ftp-users/{id:guid}/password	Ftp	FtpAuthorizationTests
+POST api/v1/mail-aliases	Mail	MailAuthorizationTests
+POST api/v1/mail-domains	Mail	MailAuthorizationTests
+POST api/v1/mail-domains/{id:guid}/dkim-rotation	Mail	MailAuthorizationTests
+POST api/v1/mailboxes	Mail	MailAuthorizationTests
+POST api/v1/me/active-account	Identity	ActiveAccountEndpointTests
+POST api/v1/me/membership-offers/{id:guid}/accept	Identity	MembershipOffersEndpointTests
+POST api/v1/me/membership-offers/{id:guid}/decline	Identity	MembershipOffersEndpointTests
+POST api/v1/me/pinned-pages	Identity	PinnedPagesEndpointTests
+POST api/v1/me/sub-users	Identity	SubUsersEndpointTests
+POST api/v1/me/sub-users/existing	Identity	SubUsersEndpointTests
+POST api/v1/me/sub-users/{id:guid}/invitation	Identity	SubUsersEndpointTests
+POST api/v1/sftp-users	Sftp	SftpAuthorizationTests
+POST api/v1/sftp-users/{id:guid}/keys	Sftp	SftpAuthorizationTests
+POST api/v1/sftp-users/{id:guid}/password	Sftp	SftpAuthorizationTests
+POST api/v1/sites	Sites	SitesAuthorizationTests
+POST api/v1/sites/{id:guid}/disable	Sites	SitesAuthorizationTests
+POST api/v1/sites/{id:guid}/enable	Sites	SitesAuthorizationTests
+POST api/v1/sites/{id:guid}/php-version	Sites	SitesAuthorizationTests
+PUT api/v1/cron-entries/{entryId}	Cron	CronAuthorizationTests
+PUT api/v1/cron-environment	Cron	CronAuthorizationTests
+PUT api/v1/database-users/{id:guid}/grants/{databaseId:guid}	Databases	DatabaseUsersAuthorizationTests
+PUT api/v1/dns-zones/{zoneId:guid}/records	Dns	DnsAuthorizationTests
+PUT api/v1/dns-zones/{zoneId:guid}/records/{recordId:guid}	Dns	DnsAuthorizationTests
+PUT api/v1/files/content	Files	FilesAuthorizationTests
+PUT api/v1/mail-aliases/{id:guid}	Mail	MailAuthorizationTests
+PUT api/v1/mailboxes/{id:guid}	Mail	MailAuthorizationTests
+PUT api/v1/mailboxes/{id:guid}/password	Mail	MailAuthorizationTests
+PUT api/v1/mailboxes/{mailboxId:guid}/autoresponder	Mail	MailAuthorizationTests
+PUT api/v1/me/backup-schedule	Backups	BackupScheduleSelfServiceTests
+PUT api/v1/me/dashboard-layout	Identity	-	changes only the caller's own saved dashboard layout
+PUT api/v1/me/sub-users/{id:guid}/features	Identity	SubUsersEndpointTests
+PUT api/v1/php-settings	Sites	PhpSettingsTenantIsolationEndpointTests
+PUT api/v1/sites/{id:guid}/log-retention	Sites	SiteLogRetentionEndpointTests
+PUT api/v1/sites/{id:guid}/options	Sites	SitesAuthorizationTests

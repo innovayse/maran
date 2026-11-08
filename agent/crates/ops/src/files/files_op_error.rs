@@ -2,7 +2,10 @@
 
 use maran_agent_core::privs::priv_error::PrivError;
 use maran_agent_core::utils::floor_refusal::FloorRefusal;
+use maran_agent_core::utils::slots_full::SlotsFull;
 use maran_agent_core::validation::fs::path_error::PathError;
+
+use crate::files::model::limit_kind::LimitKind;
 
 /// Failures of the customer-file operations.
 ///
@@ -58,10 +61,85 @@ pub enum FilesOpError {
     /// right kind of thing.
     #[error("the entry could not be removed")]
     RemoveFailed,
+    /// A directory held more entries than one listing will read (100 000), or an
+    /// answer from the dropped child outgrew its ceiling. Nothing is returned:
+    /// a partial listing would pass for the whole directory.
+    #[error("the directory or its answer is too large")]
+    TooLarge,
+    /// Too many browse or bulk file operations were already running, for this
+    /// account or for the host. Refused immediately, never queued; the caller may retry.
+    #[error("too many browse operations are running")]
+    Saturated,
+    /// A read of a file that passed every check failed part-way: the operating
+    /// system refused a `read`. Nothing is carried; the stream ends in this error
+    /// and the panel discards the partial body.
+    #[error("the file could not be read")]
+    ReadFailed,
+    /// The destination of a move, copy, restore or directory creation is already
+    /// held by an entry (any kind, a link included). Nothing was replaced.
+    #[error("the destination already exists")]
+    AlreadyExists,
+    /// A rename or a walk would cross onto another filesystem. There is no
+    /// copy-and-delete fallback, so nothing was moved.
+    #[error("the entry lies on another filesystem")]
+    CrossesDevice,
+    /// A tree is deeper than the agent will walk (128 levels). Refused rather
+    /// than half done.
+    #[error("the tree is deeper than the agent will walk")]
+    TooDeep,
+    /// A directory was needed and something else was found.
+    #[error("a directory was expected")]
+    NotADirectory,
+    /// The entry is a symlink or a special file where the operation accepts only
+    /// regular files and directories (or, for a move, anything but a link).
+    #[error("the entry is a link or a special file")]
+    UnsupportedEntry,
+    /// The entry, or a directory the operation had to enter, is not owned by the
+    /// account. Ownership is the claim that survives an account handing write
+    /// access around inside its own home.
+    #[error("the entry is not owned by the account")]
+    NotOwned,
+    /// A destination lies inside the entry being moved or copied.
+    #[error("the destination lies inside the source")]
+    IntoItself,
+    /// The request stated an allowance and the operation reached it. Nothing
+    /// partial is left behind by a copy; a removal may be re-run to finish.
+    #[error("a stated limit was reached: {0:?}")]
+    LimitReached(LimitKind),
+    /// The account's disk quota ended the operation (`EDQUOT`). `ENOSPC` is not
+    /// this: a full filesystem is the host's problem, not the account's.
+    #[error("the account's disk quota is exhausted")]
+    QuotaExceeded,
+    /// A trash entry is not in the shape the agent writes: no payload, or an
+    /// original-path record that does not validate.
+    #[error("the trash entry is not in the shape the agent writes")]
+    InvalidTrashEntry,
+    /// A rename, directory creation or permission change was refused by the
+    /// operating system for a reason no other variant names.
+    #[error("the change could not be made")]
+    MutationFailed,
+    /// An archive holds something the extraction will not write: a link, a device
+    /// or other special member, a name that leaves the destination, a collision
+    /// between members, an encrypted member, or an expansion past the ratio the
+    /// request allowed. The archive was refused as a whole (issue #168).
+    #[error("the archive holds a member the agent will not write")]
+    ArchiveUnsafe,
+    /// A file named as an archive is not the format stated, or is damaged.
+    /// Distinct from [`FilesOpError::ArchiveUnsafe`]: nothing hostile was found,
+    /// the bytes are simply not what was said.
+    #[error("the file is not a readable archive of the stated format")]
+    ArchiveUnreadable,
     /// The write was refused at the free-space floor before anything was
     /// created (issue #148).
     #[error(transparent)]
     FreeSpace(#[from] FloorRefusal),
+}
+
+impl From<SlotsFull> for FilesOpError {
+    /// A bounded count with no slot left is [`FilesOpError::Saturated`].
+    fn from(_: SlotsFull) -> Self {
+        Self::Saturated
+    }
 }
 
 impl From<PathError> for FilesOpError {

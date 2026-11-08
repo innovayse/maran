@@ -1,11 +1,13 @@
+using System.Globalization;
 using System.Text.Json;
 using Maran.Modules.Sites.Common;
 using Maran.Modules.Sites.Domain.Enums;
+using Maran.Modules.Sites.Domain.Policies;
 using Maran.Modules.Sites.Services;
 
 namespace Maran.Modules.Sites.Queries.GetSiteChoices;
 
-/// <summary>Handles <see cref="GetSiteChoicesQuery"/> from the module's own enums and resource tables.</summary>
+/// <summary>Handles <see cref="GetSiteChoicesQuery"/> from the module's own enums, policies and resource tables.</summary>
 /// <remarks>
 /// Server-wide reference data, not tenant data: the sets are the same for every account, so nothing
 /// is read from the database and there is nothing to scope. Each list is built from the enum the
@@ -26,7 +28,10 @@ public sealed class GetSiteChoicesQueryHandler
         _siteNames = siteNames;
     }
 
-    /// <summary>Returns the backend types and serving states, labelled in the caller's language.</summary>
+    /// <summary>
+    /// Returns the backend types, serving states, traffic windows and log retentions, labelled in the
+    /// caller's language. The windows and retentions come from the policies the validators use.
+    /// </summary>
     /// <param name="query">The (parameterless) request.</param>
     /// <param name="cancellationToken">Unused: nothing is read.</param>
     /// <returns>A successful result carrying the choices; this operation never fails.</returns>
@@ -34,7 +39,17 @@ public sealed class GetSiteChoicesQueryHandler
     {
         var choices = new SiteChoicesDto(
             ChoicesOf<SiteBackendType>(_siteNames.Of),
-            ChoicesOf<SiteStatus>(_siteNames.Of));
+            ChoicesOf<SiteStatus>(_siteNames.Of),
+            TrafficHistory.Windows.Select(days =>
+            {
+                return new SiteChoiceDto(days.ToString(CultureInfo.InvariantCulture), _siteNames.OfTrafficWindow(days));
+            }).ToList(),
+            Enumerable.Range(SiteLogRetention.MinimumDays, SiteLogRetention.MaximumDays - SiteLogRetention.MinimumDays + 1)
+                .Select(days =>
+                {
+                    return new SiteChoiceDto(days.ToString(CultureInfo.InvariantCulture), _siteNames.OfLogRetention(days));
+                })
+                .ToList());
 
         return Task.FromResult(Result<SiteChoicesDto>.Ok(choices));
     }

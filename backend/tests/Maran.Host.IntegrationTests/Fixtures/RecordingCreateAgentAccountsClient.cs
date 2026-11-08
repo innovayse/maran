@@ -22,13 +22,21 @@ public sealed class RecordingCreateAgentAccountsClient : IAgentAccountsClient
     /// <summary>The account names the panel asked the agent to create, in order.</summary>
     public List<string> Created { get; } = [];
 
+    /// <summary>What each creation asked the agent to provision beyond the name and the quota, in order.</summary>
+    public List<AccountProvisioningDto> Provisioned { get; } = [];
+
+    /// <summary>The open-files ceilings the panel asked the agent to set, by account, in order.</summary>
+    public List<(string Username, ulong? OpenFiles)> OpenFilesLimits { get; } = [];
+
     /// <inheritdoc />
     public Task<Result<CreatedAccountDto>> CreateAsync(
         string username,
         ulong quotaBytes,
+        AccountProvisioningDto provisioning,
         CancellationToken cancellationToken)
     {
         Created.Add(username);
+        Provisioned.Add(provisioning);
 
         return Task.FromResult(Result<CreatedAccountDto>.Ok(new CreatedAccountDto(Home, FirstUid)));
     }
@@ -40,7 +48,7 @@ public sealed class RecordingCreateAgentAccountsClient : IAgentAccountsClient
     }
 
     /// <inheritdoc />
-    public Task<Result> UnsuspendAsync(string username, CancellationToken cancellationToken)
+    public Task<Result> UnsuspendAsync(string username, AccountLoginShell shell, CancellationToken cancellationToken)
     {
         throw new NotSupportedException();
     }
@@ -73,7 +81,11 @@ public sealed class RecordingCreateAgentAccountsClient : IAgentAccountsClient
     }
 
     /// <inheritdoc />
-    public Task<Result> SetQuotaAsync(string username, ulong quotaBytes, CancellationToken cancellationToken)
+    public Task<Result> SetQuotaAsync(
+        string username,
+        ulong quotaBytes,
+        ulong? inodeLimit,
+        CancellationToken cancellationToken)
     {
         throw new NotSupportedException();
     }
@@ -90,5 +102,17 @@ public sealed class RecordingCreateAgentAccountsClient : IAgentAccountsClient
         CancellationToken cancellationToken)
     {
         throw new NotSupportedException();
+    }
+
+    /// <summary>Records the ceiling and succeeds.</summary>
+    /// <param name="username">The account's system user name.</param>
+    /// <param name="openFiles">The ceiling asked for, or <c>null</c> for none.</param>
+    /// <param name="cancellationToken">Unused.</param>
+    /// <returns>Success.</returns>
+    public Task<Result> SetOpenFilesLimitAsync(string username, ulong? openFiles, CancellationToken cancellationToken)
+    {
+        OpenFilesLimits.Add((username, openFiles));
+
+        return Task.FromResult(Result.Ok());
     }
 }

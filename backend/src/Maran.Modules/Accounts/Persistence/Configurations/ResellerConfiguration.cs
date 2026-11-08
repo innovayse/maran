@@ -65,6 +65,8 @@ public sealed class ResellerConfiguration : IEntityTypeConfiguration<Reseller>
             envelope.Property(e => e.MaxFtpUsers).HasColumnName("MaxFtpUsers").IsRequired();
             envelope.Property(e => e.MaxCronEntries).HasColumnName("MaxCronEntries").IsRequired();
             envelope.Property(e => e.MaxPhpWorkersPerPool).HasColumnName("MaxPhpWorkersPerPool").IsRequired();
+            envelope.Property(e => e.MaxMailboxes).HasColumnName("MaxMailboxes").IsRequired();
+            envelope.Property(e => e.MailboxQuotaPoolMib).HasColumnName("MailboxQuotaPoolMib").IsRequired();
             envelope.Property(e => e.Features).HasColumnName("Features").IsRequired();
 
             // Each runtime ceiling is ONE nullable column: the cap, or null when the envelope states

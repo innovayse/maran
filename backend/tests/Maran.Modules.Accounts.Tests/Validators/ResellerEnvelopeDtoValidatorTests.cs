@@ -41,6 +41,8 @@ public sealed class ResellerEnvelopeDtoValidatorTests
             MaxFtpUsers = 0,
             MaxCronEntries = 0,
             MaxPhpWorkersPerPool = 0,
+            MaxMailboxes = 0,
+            MailboxQuotaPoolMib = 0,
             Features = [],
         };
 
@@ -77,6 +79,8 @@ public sealed class ResellerEnvelopeDtoValidatorTests
             (nameof(ResellerEnvelopeDto.MaxFtpUsers), valid with { MaxFtpUsers = -1 }),
             (nameof(ResellerEnvelopeDto.MaxCronEntries), valid with { MaxCronEntries = -1 }),
             (nameof(ResellerEnvelopeDto.MaxPhpWorkersPerPool), valid with { MaxPhpWorkersPerPool = -1 }),
+            (nameof(ResellerEnvelopeDto.MaxMailboxes), valid with { MaxMailboxes = -1 }),
+            (nameof(ResellerEnvelopeDto.MailboxQuotaPoolMib), valid with { MailboxQuotaPoolMib = -1 }),
         };
 
         foreach (var (name, envelope) in negatives)
@@ -173,6 +177,14 @@ public sealed class ResellerEnvelopeDtoValidatorTests
         yield return (
             nameof(ResellerEnvelopeDto.MaxPhpWorkersPerPool),
             (e, v) => { return e with { MaxPhpWorkersPerPool = (int)v }; }
+        );
+        yield return (
+            nameof(ResellerEnvelopeDto.MaxMailboxes),
+            (e, v) => { return e with { MaxMailboxes = (int)v }; }
+        );
+        yield return (
+            nameof(ResellerEnvelopeDto.MailboxQuotaPoolMib),
+            (e, v) => { return e with { MailboxQuotaPoolMib = (int)v }; }
         );
     }
 }

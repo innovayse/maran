@@ -26,7 +26,7 @@ import type { ResellerDetail, ResellerEnvelope } from '../../src/types/reseller'
 
 /** The catalogue the spec starts from: the accounts module, which carries the reseller screens. */
 const LICENSED_ACCOUNTS: PanelModule[] = [
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
+  { name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 /** The envelope the create form is filled with, and the request body it must produce. */
@@ -41,6 +41,8 @@ const NEW_ENVELOPE: ResellerEnvelope = {
   maxFtpUsers: 0,
   maxCronEntries: 0,
   maxPhpWorkersPerPool: 4,
+  maxMailboxes: 0,
+  mailboxQuotaPoolMib: 0,
   cpuQuotaPercent: { kind: 'limited', maximum: 100 },
   memoryMaxMb: { kind: 'limited', maximum: 1024 },
   maxProcesses: { kind: 'unlimited' },
@@ -135,6 +137,8 @@ const fillValidReseller = async (page: Page, name: string): Promise<void> => {
   await page.getByLabel('FTPS logins per account', { exact: true }).fill('0')
   await page.getByLabel('Cron entries per account', { exact: true }).fill('0')
   await page.getByLabel('PHP workers per pool', { exact: true }).fill('4')
+  await page.getByLabel('Mailboxes per account', { exact: true }).fill('0')
+  await page.getByLabel('Mailbox quota pool per account (MiB)', { exact: true }).fill('0')
   await page.getByLabel('CPU (% of one core)', { exact: true }).fill('100')
   await page.getByLabel('Memory (MB)', { exact: true }).fill('1024')
   // Processes is left uncapped on purpose: "No limit" is a case of its own, never a zero.
@@ -363,6 +367,56 @@ test('changing the envelope starts from the current figures and puts the whole e
   expect(requests.envelopes).toHaveLength(1)
   expect(requests.envelopes[0]?.body.envelope.maxAccounts).toBe(30)
   await expect(page.getByText('The envelope was saved.')).toBeVisible()
+})
+
+test('renaming a reseller starts from its current identity and puts the whole identity', async ({ page }) => {
+  const requests = await openAccounts(page)
+  await openReseller(page, 'acmehosting')
+
+  await page.getByRole('link', { name: 'Edit name and contact' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Edit the reseller' })).toBeVisible()
+  await expect(page.getByLabel('Name', { exact: true })).toHaveValue('acmehosting')
+  await expect(page.getByLabel('Contact address', { exact: true })).toHaveValue('owner@acmehosting.example.com')
+
+  await page.getByLabel('Name', { exact: true }).fill('globexhosting')
+  await page.getByLabel('Contact address', { exact: true }).fill('owner@globexhosting.example.com')
+  await page.getByRole('button', { name: 'Save changes' }).click()
+
+  await expect(page).toHaveURL(`/resellers/${ACME_HOSTING.id}`)
+  expect(requests.updated).toEqual([
+    {
+      id: ACME_HOSTING.id,
+      body: { name: 'globexhosting', contactEmail: 'owner@globexhosting.example.com', language: 'en' },
+    },
+  ])
+  await expect(page.getByText('Reseller globexhosting was saved.')).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'globexhosting' })).toBeVisible()
+})
+
+test('a refused rename shows the panel sentence verbatim and keeps what was typed', async ({ page }) => {
+  const detail = 'This name is already used by another reseller or by a hosting account.'
+  await openAccounts(page, { update: detail })
+  await openReseller(page, 'acmehosting')
+
+  await page.getByRole('link', { name: 'Edit name and contact' }).click()
+  await page.getByLabel('Name', { exact: true }).fill('house')
+  await page.getByRole('button', { name: 'Save changes' }).click()
+
+  await expect(page.getByText(detail, { exact: true })).toBeVisible()
+  await expect(page).toHaveURL(`/resellers/${ACME_HOSTING.id}/profile`)
+  await expect(page.getByLabel('Name', { exact: true })).toHaveValue('house')
+})
+
+test('submitting the rename form with an empty name shows the field message and sends nothing', async ({ page }) => {
+  const requests = await openAccounts(page)
+  await openReseller(page, 'acmehosting')
+
+  await page.getByRole('link', { name: 'Edit name and contact' }).click()
+  await page.getByLabel('Name', { exact: true }).fill('')
+  await page.getByRole('button', { name: 'Save changes' }).click()
+
+  await expect(page.getByText('Name is required.')).toBeVisible()
+  expect(requests.updated).toHaveLength(0)
 })
 
 for (const locale of ['ru', 'hy'] as const) {

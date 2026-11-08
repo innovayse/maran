@@ -14,7 +14,7 @@ import type { PanelModule } from '../../src/types/module'
 // The plan edit form while the plan is on the way (#243): a stand-in form with the real labels over
 // placeholder controls, replaced by the form created from the plan once it is known.
 
-const LICENSED: PanelModule[] = [{ name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' }]
+const LICENSED: PanelModule[] = [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }]
 
 /** Starter has accounts on it, so its edit notice is the loaded-only content. */
 const STARTER = MANAGED_PLANS[0]

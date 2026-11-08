@@ -18,6 +18,11 @@ import type { AccountStatus } from '../../types/account'
 defineProps<{
   /** The account's lifecycle state; `null` is the one state in which it is still on its way. */
   status: AccountStatus | null
+  /**
+   * Whether the hand-over to another owner is offered: an administrator only. Advice for the
+   * screen; the endpoint refuses everyone else.
+   */
+  canChangeOwner: boolean
 }>()
 
 /** Events emitted by {@link AccountActionsCard}; the page owns every dialog they open. */
@@ -37,6 +42,11 @@ const emit = defineEmits<{
    * @param e The event name.
    */
   (e: 'editPlan'): void
+  /**
+   * Fired when the operator asks to hand the account to another owner.
+   * @param e The event name.
+   */
+  (e: 'editOwner'): void
   /**
    * Fired when the operator asks to change the owner's address.
    * @param e The event name.
@@ -67,6 +77,9 @@ const { t } = useI18n()
       </UiButton>
       <UiButton variant="secondary" @click="emit('editPlan')">
         {{ t('accounts.edit.planAction') }}
+      </UiButton>
+      <UiButton v-if="canChangeOwner" variant="secondary" @click="emit('editOwner')">
+        {{ t('accounts.edit.ownerAction') }}
       </UiButton>
       <UiButton variant="secondary" @click="emit('editOwnerEmail')">
         {{ t('accounts.edit.ownerEmailAction') }}

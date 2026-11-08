@@ -6,8 +6,8 @@ using Maran.Sdk.Interfaces;
 namespace Maran.Modules.Backups.Services;
 
 /// <summary>
-/// This module's answer to <see cref="IPersonalDataProvider"/>: the backups taken for an account and the
-/// schedules that take them.
+/// This module's answer to <see cref="IPersonalDataProvider"/>: the backups taken for an account, the
+/// schedules that take them, and whether the account was left out of the schedule.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -57,6 +57,12 @@ public sealed class BackupsPersonalDataProvider : IPersonalDataProvider
             .Select(row => new { row.Id, row.RetainCount, row.EnabledAt, row.LastRunAt })
             .ToListAsync(ct);
 
+        var optedOutAt = await _dbContext.AccountBackupOptOuts
+            .AsNoTracking()
+            .Where(row => row.AccountId == subject.Id)
+            .Select(row => (DateTimeOffset?)row.OptedOutAt)
+            .SingleOrDefaultAsync(ct);
+
         var backupRecords = backups
             .Select(backup =>
             {
@@ -85,10 +91,23 @@ public sealed class BackupsPersonalDataProvider : IPersonalDataProvider
             })
             .ToList();
 
+        // One record when the account was left out of scheduled backups, none otherwise: the choice is a
+        // fact the panel holds about the account, and an export that omitted it would hide why the account
+        // has no scheduled backups.
+        var optOutRecords = new List<PersonalDataRecord>();
+        if (optedOutAt is { } at)
+        {
+            optOutRecords.Add(new PersonalDataRecord(new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                ["optedOutAt"] = at.ToString("O", CultureInfo.InvariantCulture),
+            }));
+        }
+
         return
         [
             new PersonalDataSection("backups", "backups", backupRecords),
             new PersonalDataSection("backups", "schedules", scheduleRecords),
+            new PersonalDataSection("backups", "scheduleOptOut", optOutRecords),
         ];
     }
 }

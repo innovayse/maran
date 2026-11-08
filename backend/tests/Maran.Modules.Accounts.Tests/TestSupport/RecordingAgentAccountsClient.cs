@@ -48,6 +48,21 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
     public AccountSuspensionStateDto SuspensionState { get; set; } =
         new AccountSuspensionStateDto(AccountLoginPasswordState.Usable, true, [], 0, 0, 0, [], new MeasuredUnmanagedLogins(0));
 
+    /// <summary>What every creation asked the agent to provision beyond the name and the quota, in order.</summary>
+    public List<AccountProvisioningDto> Provisioned { get; } = [];
+
+    /// <summary>The account and the login shell of every unsuspension, in order.</summary>
+    public List<(string Username, AccountLoginShell Shell)> Unsuspended { get; } = [];
+
+    /// <summary>The inode ceiling pushed with each quota change, by account, in order.</summary>
+    public List<(string Username, ulong? InodeLimit)> QuotaInodeLimits { get; } = [];
+
+    /// <summary>The open-files ceiling each account was given, in order; <c>null</c> is the ceiling removed.</summary>
+    public List<(string Username, ulong? OpenFiles)> OpenFilesLimits { get; } = [];
+
+    /// <summary>Accounts whose open-files ceiling the agent refuses, with the error it refuses with.</summary>
+    public Dictionary<string, Error> OpenFilesRefusals { get; } = [];
+
     /// <summary>Creates a client that succeeds at everything.</summary>
     public RecordingAgentAccountsClient()
     {
@@ -64,9 +79,11 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
     public Task<Result<CreatedAccountDto>> CreateAsync(
         string username,
         ulong quotaBytes,
+        AccountProvisioningDto provisioning,
         CancellationToken cancellationToken)
     {
         Calls.Add($"create:{username}:{quotaBytes}");
+        Provisioned.Add(provisioning);
         return Task.FromResult(_failure is null
             ? Result<CreatedAccountDto>.Ok(new CreatedAccountDto($"/home/{username}", 1001))
             : Result<CreatedAccountDto>.Fail(_failure));
@@ -89,9 +106,10 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
     }
 
     /// <inheritdoc/>
-    public Task<Result> UnsuspendAsync(string username, CancellationToken cancellationToken)
+    public Task<Result> UnsuspendAsync(string username, AccountLoginShell shell, CancellationToken cancellationToken)
     {
         Calls.Add($"unsuspend:{username}");
+        Unsuspended.Add((username, shell));
         var answer = Answer();
         if (answer.IsSuccess)
         {
@@ -163,10 +181,28 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
     }
 
     /// <inheritdoc/>
-    public Task<Result> SetQuotaAsync(string username, ulong quotaBytes, CancellationToken cancellationToken)
+    public Task<Result> SetQuotaAsync(
+        string username,
+        ulong quotaBytes,
+        ulong? inodeLimit,
+        CancellationToken cancellationToken)
     {
         Calls.Add($"quota:{username}:{quotaBytes}");
+        QuotaInodeLimits.Add((username, inodeLimit));
         if (QuotaRefusals.TryGetValue(username, out var refusal))
+        {
+            return Task.FromResult(Result.Fail(refusal));
+        }
+
+        return Task.FromResult(Answer());
+    }
+
+    /// <inheritdoc/>
+    public Task<Result> SetOpenFilesLimitAsync(string username, ulong? openFiles, CancellationToken cancellationToken)
+    {
+        Calls.Add($"open-files:{username}:{openFiles}");
+        OpenFilesLimits.Add((username, openFiles));
+        if (OpenFilesRefusals.TryGetValue(username, out var refusal))
         {
             return Task.FromResult(Result.Fail(refusal));
         }

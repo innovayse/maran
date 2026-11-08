@@ -71,7 +71,7 @@ const refuse = async (page: Page, pattern: string): Promise<void> => {
 const stubShell = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
-  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' }])
+  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
   await stubInvitation(page, ACCOUNT.id, 'pending')
 }
 

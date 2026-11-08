@@ -24,7 +24,8 @@ namespace Maran.Modules.Identity.Commands.CreateApiKey;
 /// ever holds it.
 /// </para>
 /// <para>
-/// The panel-wide ceiling counts keys that still work: a revoked or expired key frees its place, so
+/// The ceiling counts keys that still work, per owner (the administrator's against the panel's ceiling, a
+/// reseller's against its own): a revoked or expired key frees its place, so
 /// the limit bounds the standing credentials and not the history. A minted prefix that already exists
 /// (a one in four billion draw) is discarded and minted again, and the collision is never surfaced
 /// as a prefix; if every redraw collides the creation fails with <c>ApiKeyPrefixUnavailable</c>
@@ -79,11 +80,11 @@ public sealed class CreateApiKeyCommandHandler
     }
 
     /// <summary>Creates the key.</summary>
-    /// <param name="command">The validated key parameters and the administrator creating it.</param>
+    /// <param name="command">The validated key parameters, the login creating it and the reseller that will own it, if any.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <returns>
     /// The key and its plaintext, or <c>ApiKeyExpiryInvalid</c> for an expiry that is not in the
-    /// future, <c>ApiKeyLimitReached</c> when the panel already holds its maximum of working keys, or
+    /// future, <c>ApiKeyLimitReached</c> when the owner already holds its maximum of working keys, or
     /// <c>ApiKeyPrefixUnavailable</c> when every drawn prefix collided.
     /// </returns>
     public async Task<Result<ApiKeyCreatedDto>> HandleAsync(
@@ -106,10 +107,14 @@ public sealed class CreateApiKeyCommandHandler
         string plaintext;
         await using (var transaction = await _creationLock.BeginAsync(cancellationToken))
         {
+            // Counted per owner: the administrator's keys against the panel's ceiling, one reseller's
+            // keys against that reseller's own, so neither can fill the other's room.
             var working = await _dbContext.ApiKeys
+                .Where(existing => existing.ResellerId == command.OwnerResellerId)
                 .CountAsync(existing => existing.RevokedAt == null && (existing.ExpiresAt == null || existing.ExpiresAt > now), cancellationToken);
 
-            if (working >= ApiKeyLimits.MaxKeys)
+            var ceiling = command.OwnerResellerId is null ? ApiKeyLimits.MaxKeys : ApiKeyLimits.MaxKeysPerReseller;
+            if (working >= ceiling)
             {
                 return Result<ApiKeyCreatedDto>.Fail(Error.Of(nameof(ErrorMessages.ApiKeyLimitReached), ErrorType.Conflict));
             }
@@ -137,7 +142,8 @@ public sealed class CreateApiKeyCommandHandler
                 allowedCidrs,
                 command.CreatedByUserId,
                 now,
-                command.ExpiresAt);
+                command.ExpiresAt,
+                command.OwnerResellerId);
 
             _dbContext.ApiKeys.Add(key);
             await _dbContext.SaveChangesAsync(cancellationToken);

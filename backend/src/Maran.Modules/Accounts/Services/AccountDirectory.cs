@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Domain.Enums;
+using Maran.Modules.Accounts.Mappers;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
@@ -279,7 +280,18 @@ public sealed class AccountDirectory : IAccountDirectory
                 account.Status == AccountStatus.Suspended ? AccountState.Suspended : AccountState.Active,
                 plan.MaxFtpUsers,
                 account.OwnerEmail,
-                account.OwnerLanguage));
+                account.OwnerLanguage)
+            {
+                // The one place the plan's PHP bounds leave this module; every read of a snapshot, the
+                // scoped ones and the host-wide list alike, goes through this projection.
+                PhpLimits = PhpLimitsMapper.ToSnapshot(plan.PhpLimits),
+
+                // Likewise the plan's mail allowance (issue #177).
+                MailLimits = MailLimitsMapper.ToSnapshot(plan.MailLimits),
+
+                // Likewise the plan's DNS zone allowance (issue #178).
+                MaxDnsZones = plan.MaxDnsZones,
+            });
     }
 
     /// <summary>Restricts accounts to those owned by one reseller; the id is a captured parameter, never inlined.</summary>

@@ -15,12 +15,13 @@ same outgoing-mail settings and alert address as the monitoring alerts, for each
 | Scheduled run missed | a schedule started more than 30 minutes after its named hour — the panel was not running then, or the sweep before it was still busy | `ScheduledRunMissed:<schedule id>` |
 | Backup verification failed | the re-read of a finished run's artifact found a problem with it (changed digest, refused member, disagreeing records, missing dump member); raised for scheduled and manual runs alike, see [verification](verification.md) | `VerificationFailed:<backup id>` |
 
-Each alert is journalled as `AlertRaised` by the Backups module before the mail is requested. With
+Each alert is journalled as `AlertRaised` by the Backups module before anything else happens, then
+asked for as one mail per alert address, as a webhook event and as a notification-feed entry. With
 no alert address configured the mail is skipped and a second entry, `MailSkippedNoSmtp`, records
 that, as succeeded. These steps are not the Backups module's own: they are
-`Maran.Sdk/Alerts/OperatorAlertMailer`, the one path the monitoring alerts take too (issue #290),
+`Maran.Sdk/Alerts/OperatorAlertDispatcher`, the one path the monitoring alerts take too (issue #290),
 writing through the Backups journal so the entries carry its actor. The module supplies only the
-words of the mail.
+words of the mail and the description of the alert (`OperatorAlert`).
 
 Every alert is one event, so none is deduplicated: a schedule is stamped as run before any alert
 is sent, which is what keeps the next tick from meeting the same occurrence again. A panel that was

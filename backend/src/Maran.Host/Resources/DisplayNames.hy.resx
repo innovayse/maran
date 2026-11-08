@@ -21,4 +21,10 @@
   <data name="LicenceTierPlanGated">
     <value>Ներառված է ավելի բարձր փաթեթում</value>
   </data>
+  <data name="ModuleKindCore">
+    <value>Վահանակի միջուկի մաս</value>
+  </data>
+  <data name="ModuleKindPackageable">
+    <value>Տեղադրվում է առանձին</value>
+  </data>
 </root>

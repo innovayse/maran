@@ -24,11 +24,11 @@ const CUSTOMER: AuthenticatedUser = {
 // The catalogue an administrator would see, so the guard cannot pass merely because the module
 // guard already redirected: every admin-only route below belongs to a listed, enabled module.
 const MODULES: PanelModule[] = [
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
-  { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
-  { name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' },
-  { name: 'firewall', displayName: 'Firewall', tier: 'included', state: 'enabled' },
-  { name: 'monitoring', displayName: 'Monitoring', tier: 'included', state: 'enabled' },
+  { name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'databases', displayName: 'Databases', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'backups', displayName: 'Backups', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'firewall', displayName: 'Firewall', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'monitoring', displayName: 'Monitoring', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 const ADMIN_ONLY_PATHS = [
@@ -44,6 +44,7 @@ const ADMIN_ONLY_PATHS = [
   '/monitoring',
   '/settings/security-policy',
   '/settings/smtp',
+  '/settings/alerts',
   '/settings/php',
   '/settings/audit',
 ]
@@ -88,7 +89,7 @@ test('a module missing from a customer catalogue is not available, not an upgrad
   // The panel filters the catalogue by role, so "absent" means "not part of your area".
   await stubSignedIn(page, CUSTOMER)
   await stubHealthy(page)
-  await stubModules(page, [{ name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' }])
+  await stubModules(page, [{ name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
 
   await page.goto('/cron')
 
@@ -98,7 +99,7 @@ test('a module missing from a customer catalogue is not available, not an upgrad
 test('a module the licence locks still sends a customer to the upgrade page', async ({ page }) => {
   await stubSignedIn(page, CUSTOMER)
   await stubHealthy(page)
-  await stubModules(page, [{ name: 'cron', displayName: 'Cron', tier: 'business', state: 'locked' }])
+  await stubModules(page, [{ name: 'cron', displayName: 'Cron', kindDisplayName: 'Core', tier: 'business', state: 'locked' }])
 
   await page.goto('/cron')
 

@@ -19,7 +19,7 @@ namespace Maran.Modules.Monitoring.Tests.TestSupport;
 /// let a sampler that captured a context pass.
 ///
 /// Registrations mirror <c>MonitoringModule.ConfigureServices</c> — the journal and the evaluator
-/// scoped — plus the <c>OperatorAlertMailer</c> the Host registers through <c>AddSdk</c>, so a round
+/// scoped — plus the <c>OperatorAlertDispatcher</c> the Host registers through <c>AddSdk</c>, so a round
 /// that resolves something the panel does not register fails here rather than on a customer's
 /// server at midnight. Nothing about mail sending is registered: the alert path publishes a request
 /// and the Notifications module sends it, so what this container serves for mail is a recording bus
@@ -63,10 +63,12 @@ public sealed class TestScopeFactory : IDisposable
         Bus = new RecordingMessageBus();
         services.AddSingleton<IMessageBus>(Bus);
 
-        services.AddScoped<OperatorAlertMailer>();
+        services.AddSingleton<IClock>(new FakeClock());
+        services.AddScoped<OperatorAlertDispatcher>();
         services.AddScoped<MonitoringAuditJournal>();
         services.AddScoped<AlertObserver>();
         services.AddScoped<AlertEvaluator>();
+        services.AddScoped<PanelUpdateReporter>();
 
         _provider = services.BuildServiceProvider();
         Scopes = _provider.GetRequiredService<IServiceScopeFactory>();

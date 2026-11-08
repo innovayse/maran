@@ -20,15 +20,15 @@ public sealed class ListApiKeyScopesQueryHandler
         _scopeNames = scopeNames;
     }
 
-    /// <summary>Returns every scope a key can be granted, named, in the vocabulary's order.</summary>
-    /// <param name="query">The (parameterless) request.</param>
+    /// <summary>Returns every scope the asking owner can grant a key, named, in the vocabulary's order.</summary>
+    /// <param name="query">The request, carrying the reseller asking or none for the administrator.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>A successful result carrying the choices; the vocabulary is in code, so this never fails.</returns>
     public Task<Result<IReadOnlyList<ApiKeyChoiceDto>>> HandleAsync(
         ListApiKeyScopesQuery query,
         CancellationToken cancellationToken)
     {
-        IReadOnlyList<ApiKeyChoiceDto> choices = ApiKeyScopes.All
+        IReadOnlyList<ApiKeyChoiceDto> choices = ApiKeyScopes.GrantableTo(query.OwnerResellerId)
             .Select(scope =>
             {
                 return new ApiKeyChoiceDto(scope, _scopeNames.Of(scope));

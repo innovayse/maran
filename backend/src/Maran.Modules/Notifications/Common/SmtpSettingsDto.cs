@@ -33,7 +33,6 @@ namespace Maran.Modules.Notifications.Common;
 /// <param name="HasPassword">Whether a password is stored. Never the value, in any form.</param>
 /// <param name="FromAddress">The address the panel's mail is sent from.</param>
 /// <param name="FromName">The display name beside the sender address; may be empty.</param>
-/// <param name="AlertRecipient">Where alert mail goes.</param>
 /// <param name="UpdatedAt">
 /// When the settings were last saved, or <c>null</c> when the panel has never had any. A null is
 /// what a fresh installation reads back, alongside blank fields: the panel does not invent a
@@ -49,5 +48,4 @@ public sealed record SmtpSettingsDto(
     bool HasPassword,
     string FromAddress,
     string FromName,
-    string AlertRecipient,
     DateTimeOffset? UpdatedAt);

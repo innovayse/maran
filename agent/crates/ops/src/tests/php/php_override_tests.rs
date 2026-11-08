@@ -232,3 +232,89 @@ fn a_non_numeric_count_is_refused() {
         Err(PhpOpError::OverrideMalformed { .. })
     ));
 }
+
+/// Parses the named settings into one override set.
+fn overrides(settings: &[(&str, &str)]) -> Vec<PhpOverride> {
+    settings
+        .iter()
+        .map(|(name, value)| PhpOverride::parse(name, value).unwrap())
+        .collect()
+}
+
+#[test]
+fn a_set_naming_neither_size_is_consistent() {
+    assert!(PhpOverride::ensure_consistent(&overrides(&[("memory_limit", "256M")])).is_ok());
+    assert!(PhpOverride::ensure_consistent(&[]).is_ok());
+}
+
+#[test]
+fn a_post_size_equal_to_the_upload_size_is_consistent() {
+    let set = overrides(&[("upload_max_filesize", "64M"), ("post_max_size", "64M")]);
+
+    assert!(PhpOverride::ensure_consistent(&set).is_ok());
+}
+
+#[test]
+fn a_post_size_below_the_upload_size_is_refused_with_both_figures() {
+    let set = overrides(&[("upload_max_filesize", "64M"), ("post_max_size", "16M")]);
+
+    match PhpOverride::ensure_consistent(&set) {
+        Err(PhpOpError::OverridePostSizeBelowUpload {
+            post_max_size,
+            upload_max_filesize,
+        }) => {
+            assert_eq!(post_max_size, 16 * 1024 * 1024);
+            assert_eq!(upload_max_filesize, 64 * 1024 * 1024);
+        }
+        other => panic!("expected OverridePostSizeBelowUpload, got {other:?}"),
+    }
+}
+
+#[test]
+fn an_upload_size_above_the_default_post_size_is_refused_when_post_is_unset() {
+    // The pool's post_max_size is the 32M default, so a 64M file could be
+    // accepted by the upload limit and discarded by the body limit.
+    let set = overrides(&[("upload_max_filesize", "64M")]);
+
+    assert!(matches!(
+        PhpOverride::ensure_consistent(&set),
+        Err(PhpOpError::OverridePostSizeBelowUpload { .. })
+    ));
+}
+
+#[test]
+fn a_post_size_below_the_default_upload_size_is_refused_when_upload_is_unset() {
+    let set = overrides(&[("post_max_size", "8M")]);
+
+    assert!(matches!(
+        PhpOverride::ensure_consistent(&set),
+        Err(PhpOpError::OverridePostSizeBelowUpload { .. })
+    ));
+}
+
+#[test]
+fn a_larger_post_size_alone_is_consistent_with_the_default_upload_size() {
+    let set = overrides(&[("post_max_size", "128M")]);
+
+    assert!(PhpOverride::ensure_consistent(&set).is_ok());
+}
+
+#[test]
+fn sizes_are_compared_in_bytes_not_as_text() {
+    // "100M" > "20M" as bytes although "100M" < "20M" as text.
+    let set = overrides(&[("upload_max_filesize", "100M"), ("post_max_size", "20M")]);
+
+    assert!(PhpOverride::ensure_consistent(&set).is_err());
+    let set = overrides(&[("upload_max_filesize", "20M"), ("post_max_size", "100M")]);
+    assert!(PhpOverride::ensure_consistent(&set).is_ok());
+}
+
+#[test]
+fn the_default_size_constant_and_its_byte_figure_agree() {
+    use crate::php::model::php_override::{DEFAULT_SIZE, DEFAULT_SIZE_BYTES, parse_bytes};
+
+    assert_eq!(
+        parse_bytes("post_max_size", DEFAULT_SIZE).unwrap(),
+        DEFAULT_SIZE_BYTES
+    );
+}

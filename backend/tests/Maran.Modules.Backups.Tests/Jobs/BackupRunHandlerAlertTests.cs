@@ -118,7 +118,7 @@ public sealed class BackupRunHandlerAlertTests
 
         Assert.Empty(Mails(world));
         var skipped = Assert.Single(
-            world.Audit.Entries, entry => { return entry.Action == MailAuditActions.MailSkippedNoSmtp; });
+            world.Audit.Entries, entry => { return entry.Action == OutgoingMailAuditActions.MailSkippedNoSmtp; });
         Assert.True(skipped.Succeeded);
     }
 

@@ -15,14 +15,16 @@
 # follow: an assertion that read them out of 66-cli.sh would agree with that file by construction.
 readonly CLI_WRAPPER_INSTALLED="/usr/local/sbin/maran"
 readonly CLI_LIB_INSTALLED_DIR="/usr/local/maran/cli/lib"
-# Twenty libraries: the seven that existed before the scheduled panel backup, its four (the
-# configuration reader, retention, the upload and the schedule verb), and the nine of the self-update
+# Twenty-three libraries: the seven that existed before the scheduled panel backup, its four (the
+# configuration reader, retention, the upload and the schedule verb), the nine of the self-update
 # (issue #128: release-version, release-verify, release-unpack, release-layout, panel-dump,
-# update-dumps, update-health, update, rollback). The number is CLI_LIB_COUNT and every message and
+# update-dumps, update-health, update, rollback), panel-certificate (issue #426), and the two of the
+# unattended security update (issue #383: update-unattended, update-schedule). The number is
+# CLI_LIB_COUNT and every message and
 # census below uses it, so a library added to the list without raising it fails the directory census
 # instead of passing a stale count.
-readonly CLI_LIB_NAMES="common.sh status.sh reset.sh diagnostics.sh panel-archive.sh panel-backup-config.sh panel-backup-retention.sh panel-backup-upload.sh panel-backup.sh panel-backup-schedule.sh panel-restore.sh release-version.sh release-verify.sh release-unpack.sh release-layout.sh panel-dump.sh update-dumps.sh update-health.sh update.sh rollback.sh"
-readonly CLI_LIB_COUNT=20
+readonly CLI_LIB_NAMES="common.sh status.sh reset.sh panel-certificate.sh diagnostics.sh panel-archive.sh panel-backup-config.sh panel-backup-retention.sh panel-backup-upload.sh panel-backup.sh panel-backup-schedule.sh panel-restore.sh release-version.sh release-verify.sh release-unpack.sh release-layout.sh panel-dump.sh update-dumps.sh update-health.sh update-unattended.sh update.sh update-schedule.sh rollback.sh"
+readonly CLI_LIB_COUNT=23
 # The file a hostile argument tries to create. Its absence means something only because the same
 # directory is shown to accept a file (see assert_the_break_glass_command_never_interprets_its_input).
 readonly CLI_INJECTION_WITNESS="/tmp/maran-polygon-cli-injected"
@@ -268,6 +270,32 @@ assert_the_break_glass_command_installs_root_only_and_refuses_what_it_should() {
     || fail "admin-reset-password succeeded in an image with no panel installed: ${output}"
   checked=$((checked + 1))
 
+  # 5a. issue-panel-certificate takes no argument. The host name is the panel's own configuration, so
+  # there is nothing typed for the wrapper to pass on, and anything typed is refused before the panel
+  # is reached. The inverse control is the bare verb: it is NOT refused for its arguments, and fails
+  # later, for the panel not being installed in this image, which is a different message.
+  for hostile in "panel.example.net" "--force" "x; touch ${CLI_INJECTION_WITNESS}" "\$(touch ${CLI_INJECTION_WITNESS})"; do
+    status=0
+    output="$("$CLI_WRAPPER_INSTALLED" issue-panel-certificate "$hostile" 2>&1)" || status=$?
+    [ "$status" -eq 1 ] \
+      || fail "issue-panel-certificate with the argument '${hostile}' got exit ${status}, not 1: ${output}"
+    case "$output" in
+      *"takes no arguments"*) ;;
+      *) fail "issue-panel-certificate refused the argument '${hostile}' for the wrong reason: ${output}" ;;
+    esac
+    [ ! -e "$CLI_INJECTION_WITNESS" ] \
+      || { rm -f -- "$CLI_INJECTION_WITNESS"; fail "issue-panel-certificate CREATED ${CLI_INJECTION_WITNESS}: the wrapper interpreted a typed value"; }
+    checked=$((checked + 1))
+  done
+  status=0
+  output="$("$CLI_WRAPPER_INSTALLED" issue-panel-certificate 2>&1)" || status=$?
+  case "$output" in
+    *"takes no arguments"*) fail "issue-panel-certificate refused the bare verb for its arguments, so the refusals above may be it refusing everything: ${output}" ;;
+  esac
+  [ "$status" -ne 0 ] \
+    || fail "issue-panel-certificate succeeded in an image with no panel installed: ${output}"
+  checked=$((checked + 1))
+
   # 5b. The panel archive verbs refuse before anything is read or written: a restore without the
   # explicit confirmation, and a passphrase file anybody else could read. The inverse control is a
   # passphrase file that passes every rule and is then refused for a DIFFERENT reason (no panel is
@@ -321,20 +349,22 @@ assert_the_break_glass_command_installs_root_only_and_refuses_what_it_should() {
   # The wrapper pins its own PATH, and every start of a binary as the service account is a fixed
   # argv. Counted with patterns that also match the real lines, so a rename of either cannot leave
   # this passing over nothing.
-  # runuser appears on exactly three lines, each a fixed argv as the service account: the ONE
+  # runuser appears on exactly four lines, each a fixed argv as the service account: the ONE
   # helper that runs a panel binary as that account (cli_run_as_service in common.sh, used for the
   # --cli mode, the restore's --migrate and the update's --migrate alike), and pg_dump and
-  # pg_restore (panel-dump.sh, the one place they are spelled). A fourth is something new that runs
+  # pg_restore and psql (panel-dump.sh, the one place they are spelled). A fifth is something new that runs
   # as somebody, and is read before it passes. Counted per file so that one file's lines cannot
   # stand in for another's.
-  [ "$(cat $code_files | sed 's/^[[:space:]]*#.*$//' | grep -c 'runuser')" -eq 3 ] \
-    || fail "the break-glass command mentions runuser on a line other than the three known ones (cli_run_as_service in common.sh, pg_dump and pg_restore in panel-dump.sh)"
+  [ "$(cat $code_files | sed 's/^[[:space:]]*#.*$//' | grep -c 'runuser')" -eq 4 ] \
+    || fail "the break-glass command mentions runuser on a line other than the four known ones (cli_run_as_service in common.sh, pg_dump, pg_restore and psql in panel-dump.sh)"
   [ "$(sed 's/^[[:space:]]*#.*$//' "${CLI_LIB_INSTALLED_DIR}/common.sh" | grep -cE 'runuser -u "\$MARAN_CLI_SERVICE_USER" --')" -eq 1 ] \
     || fail "common.sh no longer runs a panel binary as the service account on exactly one 'runuser -u \"\$MARAN_CLI_SERVICE_USER\" --' line (cli_run_as_service)"
   [ "$(sed 's/^[[:space:]]*#.*$//' "${CLI_LIB_INSTALLED_DIR}/panel-dump.sh" | grep -cE 'runuser -u "\$MARAN_CLI_SERVICE_USER" -- pg_dump ')" -eq 1 ] \
     || fail "panel-dump.sh no longer runs pg_dump as the service account on exactly one 'runuser -u \"\$MARAN_CLI_SERVICE_USER\" -- pg_dump' line"
   [ "$(sed 's/^[[:space:]]*#.*$//' "${CLI_LIB_INSTALLED_DIR}/panel-dump.sh" | grep -cE 'runuser -u "\$MARAN_CLI_SERVICE_USER" -- pg_restore ')" -eq 1 ] \
     || fail "panel-dump.sh no longer runs pg_restore as the service account on exactly one 'runuser -u \"\$MARAN_CLI_SERVICE_USER\" -- pg_restore' line"
+  [ "$(sed 's/^[[:space:]]*#.*$//' "${CLI_LIB_INSTALLED_DIR}/panel-dump.sh" | grep -cE 'runuser -u "\$MARAN_CLI_SERVICE_USER" -- psql ')" -eq 1 ] \
+    || fail "panel-dump.sh no longer runs psql as the service account on exactly one 'runuser -u \"\$MARAN_CLI_SERVICE_USER\" -- psql' line"
   grep -qxF 'PATH=/usr/sbin:/usr/bin:/sbin:/bin' "$CLI_WRAPPER_INSTALLED" \
     || fail "the wrapper no longer pins PATH=/usr/sbin:/usr/bin:/sbin:/bin on a line of its own"
   checked=$((checked + 1))
@@ -342,9 +372,9 @@ assert_the_break_glass_command_installs_root_only_and_refuses_what_it_should() {
   remove_the_installed_break_glass_command
   [ ! -e "$CLI_WRAPPER_INSTALLED" ] || fail "${CLI_WRAPPER_INSTALLED} is still present after this assertion removed it"
 
-  echo "The break-glass command: ${CLI_WRAPPER_INSTALLED} is 0700 root:root and its ${CLI_LIB_COUNT} libraries 0644 root:root under root-only 0755 directories, step 66 created no setuid file and no sudoers entry, a non-root caller gets exit 77 (and the same copy run as root is accepted), an unknown verb gets 64, hostile verbs and identifiers create nothing (witness file shown creatable), panel-restore refuses without its confirmation and panel-backup refuses a passphrase file others can read (and accepts a 0600 one as far as the absent panel), a hostile PATH cannot supply the euid check, and no line of the wrapper or its libraries evals or starts 'sh -c' (the search shown to find all four planted shapes and none of the look-alikes). ${checked} checks made."
+  echo "The break-glass command: ${CLI_WRAPPER_INSTALLED} is 0700 root:root and its ${CLI_LIB_COUNT} libraries 0644 root:root under root-only 0755 directories, step 66 created no setuid file and no sudoers entry, a non-root caller gets exit 77 (and the same copy run as root is accepted), an unknown verb gets 64, hostile verbs and identifiers create nothing (witness file shown creatable), issue-panel-certificate refuses every argument it is given (and not the bare verb), panel-restore refuses without its confirmation and panel-backup refuses a passphrase file others can read (and accepts a 0600 one as far as the absent panel), a hostile PATH cannot supply the euid check, and no line of the wrapper or its libraries evals or starts 'sh -c' (the search shown to find all four planted shapes and none of the look-alikes). ${checked} checks made."
   echo "UNOBSERVED HERE: the fixed-argv check reads TEXT. It sees 'eval' and a shell started with -c; it does not see an unquoted expansion of operator input, a here-document that is later sourced, or a command built across lines. The shell quoting itself was reviewed by reading and by the hostile inputs above, not by a formal analysis."
-  echo "UNOBSERVED HERE: this image boots no systemd and holds no panel, so status, admin-reset-password, collect-diagnostics, panel-backup, panel-restore, update and rollback are run only as far as their argument handling (the last two in parts/cli-update.sh). Their behaviour against a live panel is scored by scripts/lib/install-polygon.sh (lockout-recovery and diagnostics stages). SELinux contexts on the wrapper and /usr/local/maran/cli are not exercised by a container build."
+  echo "UNOBSERVED HERE: this image boots no systemd and holds no panel, so status, admin-reset-password, issue-panel-certificate, collect-diagnostics, panel-backup, panel-restore, update and rollback are run only as far as their argument handling (the last two in parts/cli-update.sh). Their behaviour against a live panel is scored by scripts/lib/install-polygon.sh (lockout-recovery and diagnostics stages). SELinux contexts on the wrapper and /usr/local/maran/cli are not exercised by a container build."
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -785,4 +815,156 @@ UPLOAD_CONTROLS
 
   echo "The scheduled panel backup verbs: panel-backup-schedule takes exactly one of enable, disable or status (hostile and unknown actions get a refusal and create nothing), enable refuses without the units and without a configuration and writes nothing before every check passed, a configuration anybody else could write is refused unread (mode 0644, 0660, 0640, 0666 and 0604, and a symbolic link), 38 hostile 0600 configurations are each refused naming the first problem, the job and enable alike, none of them creating the witness file or echoing its value, two well-formed configurations get past the reader, enable renders and disable removes the drop-in and keeps every archive, status prints no configuration, a non-root caller of all four commands gets exit 77 and one line (the same copy as root is accepted), and the upload library's curl keeps --proto =https, --tlsv1.2, --max-redirs 0, -q and no -k, -L or --user (the checker shown to find ten planted weakenings). ${checked} checks made."
   echo "UNOBSERVED HERE: this image boots no systemd and holds no panel. --scheduled is run only as far as the configuration reader and the first panel check; retention's deletions, the gpg archive and the S3 request are never run here (the install polygon's recovery stage owns them); the journal line a failure writes under the tag maran-cli is not read; the curl check reads TEXT, so a flag assembled at run time is invisible to it and the secrets never being on argv is argued by the library's construction, not measured with ps."
+}
+
+# ---------------------------------------------------------------------------------------------
+# The release guard of panel-restore (issue #129): an archive taken by a newer release than the
+# installed one is refused before the panel is stopped. The archives are built here by hand, with
+# gpg and tar, so no database is needed.
+# ---------------------------------------------------------------------------------------------
+
+readonly RELEASE_GUARD_STATE_FILE="/etc/maran/release.state"
+readonly RELEASE_GUARD_ENV_FILE="/etc/maran/panel.env"
+# A well-formed key line pair: base64 alphabet, 44 characters, as the restore's own pattern wants.
+readonly RELEASE_GUARD_KEY="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+
+# release_guard_build_archive: writes an encrypted panel archive into $1 (a private directory) and
+# prints nothing. $2 = the manifest lines after format= (printf %b), $3 = the passphrase file.
+# Members carry the names panel-restore expects; the dump is a placeholder, never read by the guard.
+release_guard_build_archive() {
+  local dir="$1" manifest_extra="$2" passphrase_file="$3" inner="$1/inner"
+  install -d -m 0700 "$inner" "${dir}/etc"
+  printf 'Security__EncryptionKey=%s\nJwt__SigningKey=%s\n' "$RELEASE_GUARD_KEY" "$RELEASE_GUARD_KEY" > "${dir}/etc/panel.env"
+  tar --numeric-owner -cf "${inner}/etc-maran.tar" -C "${dir}/etc" .
+  tar --numeric-owner -cf "${inner}/var-lib-maran.tar" -C "${dir}/etc" --files-from /dev/null
+  : > "${inner}/database.dump"
+  printf 'format=1\ncreated=2026-01-01T00:00:00Z\ndatabase=maran\n%b' "$manifest_extra" > "${inner}/manifest.txt"
+  tar --owner=0 --group=0 --numeric-owner -cf "${dir}/inner.tar" -C "$inner" .
+  rm -f -- "${dir}/archive.tar.gpg"
+  gpg --homedir "${dir}/gnupg" --batch --quiet --no-tty --pinentry-mode loopback \
+    --passphrase-file "$passphrase_file" --symmetric --cipher-algo AES256 \
+    --output "${dir}/archive.tar.gpg" "${dir}/inner.tar" \
+    || fail "gpg could not build the hand-made panel archive, so no release guard case below proves anything"
+  chown root:root -- "${dir}/archive.tar.gpg"
+}
+
+# release_guard_restore: runs panel-restore on the archive built in $1 with the installed release
+# set to $2 (empty: no release.state). Status and output land in CLI_PBTEST_STATUS and _OUTPUT.
+release_guard_restore() {
+  local dir="$1" installed="$2"
+  rm -f -- "$RELEASE_GUARD_STATE_FILE"
+  if [ -n "$installed" ]; then
+    printf 'CHANNEL=stable\nVERSION=%s\nPREVIOUS=\n' "$installed" > "$RELEASE_GUARD_STATE_FILE"
+    chown root:root -- "$RELEASE_GUARD_STATE_FILE"
+    chmod 0644 -- "$RELEASE_GUARD_STATE_FILE"
+  fi
+  # stdin is closed: the caller reads its cases from a here-document, and anything the restore or a
+  # tool under it read from stdin would eat the next case instead of failing.
+  cli_pbtest_run panel-restore --passphrase-file "${dir}/passphrase" --replace-this-panel "${dir}/archive.tar.gpg" </dev/null
+}
+
+# release_guard_expect_refused: the last restore was the guard's refusal (exit 1, the expected words),
+# and it happened before the panel was stopped: the trap's "starting ... again" line is absent, and
+# panel.env is byte-for-byte what it was.
+#   $1 = case name, $2 = words the refusal must carry, $3 = a copy of panel.env taken before the run.
+release_guard_expect_refused() {
+  local name="$1" expected="$2" env_copy="$3"
+  [ "$CLI_PBTEST_STATUS" -eq 1 ] \
+    || fail "the release guard case '${name}' got exit ${CLI_PBTEST_STATUS}, not the 1 of a refusal: ${CLI_PBTEST_OUTPUT}"
+  case "$CLI_PBTEST_OUTPUT" in
+    *"$expected"*) ;;
+    *) fail "the release guard case '${name}' was refused for the wrong reason (expected '${expected}'): ${CLI_PBTEST_OUTPUT}" ;;
+  esac
+  case "$CLI_PBTEST_OUTPUT" in
+    *"the restore did not finish"*) fail "the release guard case '${name}' stopped the panel before it refused; the guard must come first: ${CLI_PBTEST_OUTPUT}" ;;
+  esac
+  cmp -s "$env_copy" "$RELEASE_GUARD_ENV_FILE" \
+    || fail "the refused release guard case '${name}' changed ${RELEASE_GUARD_ENV_FILE}"
+}
+
+# release_guard_expect_past_the_guard: the last restore was NOT refused by the guard and got as far as
+# stopping the panel (the polygon's systemctl stand-in accepts it); it then ends where this image has
+# no database, and the trap's "the restore did not finish" line is the proof it got past the guard.
+#   $1 = case name.
+release_guard_expect_past_the_guard() {
+  local name="$1"
+  case "$CLI_PBTEST_OUTPUT" in
+    *"newer than the installed"*|*"not a release name"*|*"names its release"*)
+      fail "the release guard case '${name}' was refused by the guard, but nothing about it is newer or malformed: ${CLI_PBTEST_OUTPUT}" ;;
+  esac
+  case "$CLI_PBTEST_OUTPUT" in
+    *"the restore did not finish"*) ;;
+    *) fail "the release guard case '${name}' did not get as far as stopping the panel, so passing the guard is not shown: ${CLI_PBTEST_OUTPUT}" ;;
+  esac
+}
+
+# assert_the_panel_restore_refuses_an_archive_from_a_newer_release: an archive whose manifest names a
+# newer release than release.state is refused before the panel is stopped, with the inverse controls
+# that an equal, an older and a manifest-less archive get past the guard, and that a malformed release
+# line is refused as malformed, not as newer. Pre-release and legacy ordering are exercised through
+# the same verb. UNOBSERVED here: the journal line `verb=panel-restore outcome=refused` (no journal in
+# this image), a real restore past the guard (no database), and the backup side writing release=.
+assert_the_panel_restore_refuses_an_archive_from_a_newer_release() {
+  local checked=0 dir name archive_release installed expected had_state=0 had_env=0 kind
+  run_cli_step >/dev/null || fail "step 66's step_cli could not install the command this assertion runs"
+
+  [ -d /etc/maran ] || install -d -m 0750 -o root -g root /etc/maran
+  rm -f -- "$CLI_INJECTION_WITNESS"
+  dir="$(mktemp -d)"
+  chmod 0700 "$dir"
+  install -d -m 0700 "${dir}/gnupg" "${dir}/saved"
+  if [ -e "$RELEASE_GUARD_STATE_FILE" ]; then had_state=1; cp -p -- "$RELEASE_GUARD_STATE_FILE" "${dir}/saved/release.state"; fi
+  if [ -e "$RELEASE_GUARD_ENV_FILE" ]; then had_env=1; cp -p -- "$RELEASE_GUARD_ENV_FILE" "${dir}/saved/panel.env"; fi
+  printf 'Security__EncryptionKey=%s\nJwt__SigningKey=%s\n' "$RELEASE_GUARD_KEY" "$RELEASE_GUARD_KEY" > "$RELEASE_GUARD_ENV_FILE"
+  chown root:root -- "$RELEASE_GUARD_ENV_FILE"
+  chmod 0640 -- "$RELEASE_GUARD_ENV_FILE"
+  cp -p -- "$RELEASE_GUARD_ENV_FILE" "${dir}/env.before"
+  printf '%s\n' 'a-passphrase-long-enough-for-the-floor' > "${dir}/passphrase"
+  chmod 0600 -- "${dir}/passphrase"
+
+  # kind|archive release line|installed release|expected words. kind: refuse or pass.
+  while IFS='|' read -r kind name archive_release installed expected; do
+    [ -n "$kind" ] || continue
+    if [ "$archive_release" = "-" ]; then
+      release_guard_build_archive "$dir" "" "${dir}/passphrase"
+    else
+      release_guard_build_archive "$dir" "release=${archive_release}\n" "${dir}/passphrase"
+    fi
+    release_guard_restore "$dir" "$([ "$installed" = "-" ] || printf '%s' "$installed")"
+    if [ "$kind" = "refuse" ]; then
+      release_guard_expect_refused "$name" "$expected" "${dir}/env.before"
+    else
+      release_guard_expect_past_the_guard "$name"
+    fi
+    checked=$((checked + 1))
+  done <<GUARD_CASES
+refuse|a newer minor release|1.3.0|1.2.0|newer than the installed 1.2.0
+refuse|a newer major release|2.0.0|1.9.9|newer than the installed 1.9.9
+refuse|a release over its own pre-release|1.2.0|1.2.0-rc.1|newer than the installed 1.2.0-rc.1
+refuse|a published release onto a legacy install|1.0.0|legacy-20260101T000000Z|newer than the installed legacy-20260101T000000Z
+refuse|a release line that is not a release name|1.3.0; touch ${CLI_INJECTION_WITNESS}|1.2.0|not a release name
+pass|the same release|1.2.0|1.2.0|
+pass|an older release|1.1.0|1.2.0|
+pass|a pre-release of the installed release|1.2.0-rc.1|1.2.0|
+pass|an archive with no release line|-|1.2.0|
+pass|an install with no recorded release|1.3.0|-|
+GUARD_CASES
+  [ ! -e "$CLI_INJECTION_WITNESS" ] \
+    || { rm -f -- "$CLI_INJECTION_WITNESS"; fail "the malformed release line created ${CLI_INJECTION_WITNESS}: the guard interpreted the archive's text"; }
+  checked=$((checked + 1))
+
+  # The manifest naming its release twice is refused, not read by its last line.
+  release_guard_build_archive "$dir" "release=1.0.0\nrelease=9.9.9\n" "${dir}/passphrase"
+  release_guard_restore "$dir" "1.2.0"
+  release_guard_expect_refused "two release lines" "names its release 2 times" "${dir}/env.before"
+  checked=$((checked + 1))
+
+  rm -f -- "$RELEASE_GUARD_STATE_FILE" "$RELEASE_GUARD_ENV_FILE"
+  if [ "$had_state" -eq 1 ]; then cp -p -- "${dir}/saved/release.state" "$RELEASE_GUARD_STATE_FILE"; fi
+  if [ "$had_env" -eq 1 ]; then cp -p -- "${dir}/saved/panel.env" "$RELEASE_GUARD_ENV_FILE"; fi
+  rm -rf -- "$dir"
+  remove_the_installed_break_glass_command
+
+  echo "The panel-restore release guard: an archive naming a newer minor, a newer major, the release of an installed pre-release, or a published release onto a legacy install is refused with both releases named, before the panel is stopped and with panel.env untouched; a release line that is not a release name and a manifest naming its release twice are refused as such (the malformed text created nothing); the same release, an older one, a pre-release of the installed one, an archive with no release line and an install with no recorded release all get past the guard as far as stopping the panel. ${checked} checks made."
+  echo "UNOBSERVED HERE: the journal line verb=panel-restore outcome=refused is not read (no journal in this image); a restore past the guard ends at the missing database, so the guard's effect on a real restore is scored by the install polygon's recovery stage; that panel-backup writes release= is observed there too."
 }

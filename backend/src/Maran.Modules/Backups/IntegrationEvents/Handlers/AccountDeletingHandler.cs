@@ -66,7 +66,8 @@ namespace Maran.Modules.Backups.IntegrationEvents.Handlers;
 /// <b>This module's SCHEDULES are removed outright.</b> An account's own backup schedule is an
 /// instruction to back up something that no longer exists; keeping it would leave the nightly sweep
 /// selecting a row whose target it can never find, and the residue audit would refuse the deletion
-/// over it.
+/// over it. The account's opt-out row (<see cref="AccountBackupOptOut"/>) goes with them, for the same
+/// reason: it is an instruction about an account that is gone.
 /// </para>
 /// <para>
 /// <b>The failure is not swallowed.</b> Anything thrown here propagates to the Accounts handler,
@@ -128,8 +129,16 @@ public sealed class AccountDeletingHandler
             .ToListAsync(cancellationToken);
 #pragma warning restore RS0030
 
+#pragma warning disable RS0030 // the account is being deleted, so its rows must be found whoever asked for the deletion
+        var optOuts = await _dbContext.AccountBackupOptOuts
+            .IgnoreQueryFilters()
+            .Where(row => row.AccountId == message.AccountId)
+            .ToListAsync(cancellationToken);
+#pragma warning restore RS0030
+
         _dbContext.Backups.RemoveRange(removed);
         _dbContext.BackupSchedules.RemoveRange(schedules);
+        _dbContext.AccountBackupOptOuts.RemoveRange(optOuts);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
     }

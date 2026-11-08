@@ -59,6 +59,10 @@ public sealed class FirewallModule : IPanelModule
             options.UseNpgsql(connectionString);
         });
 
+        // Singleton and stateless: it opens a scope of its own per call, so the Host's migrate verb can bring this
+        // module's schema up to date without knowing FirewallDbContext.
+        services.AddSingleton<IModuleMigrations, FirewallModuleMigrations>();
+
         // ValidateOnStart, and the refusal is the feature. A panel that came up with no SSH ports
         // would serve perfectly until the first firewall change and then cut off the operator's
         // session and itself, with no remote recovery — so the boot stops here instead, with a

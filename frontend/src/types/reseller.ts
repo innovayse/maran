@@ -37,6 +37,10 @@ export interface ResellerEnvelope {
   maxCronEntries: number
   /** The most php-fpm workers a plan of the reseller may allow one pool. */
   maxPhpWorkersPerPool: number
+  /** The most mailboxes a plan of the reseller may allow one account; zero lets it sell none. */
+  maxMailboxes: number
+  /** The most mebibytes the mailbox quotas of one account may add up to under a plan of the reseller. */
+  mailboxQuotaPoolMib: number
   /** The CPU share a plan of the reseller may grant at most, in percent of one CPU. */
   cpuQuotaPercent: ResourceCeiling
   /** The memory a plan of the reseller may grant at most, in megabytes. */
@@ -121,6 +125,20 @@ export interface CreateResellerRequest {
   envelope: ResellerEnvelope
 }
 
+/**
+ * Request body for `PUT /api/v1/resellers/{id}`, binding the backend's `UpdateResellerCommand`
+ * field-for-field. The whole identity is sent every time, as the envelope is: the administrator
+ * replaces these three values and never patches one of them.
+ */
+export interface UpdateResellerRequest {
+  /** The reseller's name after the change, which is also its login name from then on. */
+  name: string
+  /** The address the reseller's invitation and password resets are mailed to after the change. */
+  contactEmail: string
+  /** The contact's language; one of the languages the panel ships. */
+  language: string
+}
+
 /** Request body for `PUT /api/v1/resellers/{id}/envelope`, binding `ChangeResellerEnvelopeCommand`. */
 export interface ChangeResellerEnvelopeRequest {
   /** The envelope that replaces the reseller's current one. */
@@ -174,6 +192,15 @@ export interface ResellersApi {
    * @returns The reseller as the panel created it.
    */
   create: (request: CreateResellerRequest, signal?: AbortSignal) => Promise<ResellerDetail>
+
+  /**
+   * Renames a reseller and replaces its contact address and language. Its login follows.
+   * @param id The reseller's identity.
+   * @param request The reseller's new name, contact address and language.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The reseller as it now stands.
+   */
+  update: (id: string, request: UpdateResellerRequest, signal?: AbortSignal) => Promise<ResellerDetail>
 
   /**
    * Replaces a reseller's envelope. Lowering it below current usage is allowed: what exists keeps

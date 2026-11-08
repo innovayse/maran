@@ -41,7 +41,7 @@ public sealed class AccountDeletingHandler
         _dbContext = dbContext;
     }
 
-    /// <summary>Deletes every database row belonging to the account being removed.</summary>
+    /// <summary>Deletes every database and database-user row belonging to the account being removed.</summary>
     /// <remarks>
     /// The tenant query filter is deliberately bypassed. It is an authorisation control over what a
     /// REQUEST may see, and this is not a request for rows — it is the removal of the account those
@@ -60,11 +60,21 @@ public sealed class AccountDeletingHandler
             .Where(row => row.AccountId == message.AccountId)
             .ToListAsync(cancellationToken);
 #pragma warning restore RS0030
-        if (owned.Count == 0)
+#pragma warning disable RS0030 // the account is being deleted, so its user rows must be found whoever asked for the deletion
+        var users = await _dbContext.DatabaseUsers
+            .IgnoreQueryFilters()
+            .Where(row => row.AccountId == message.AccountId)
+            .ToListAsync(cancellationToken);
+#pragma warning restore RS0030
+        if (owned.Count == 0 && users.Count == 0)
         {
             return;
         }
 
+        // The users' grants go by the cascade from the user rows (and from the database rows), so no
+        // privilege row is left pointing at a deleted account. The logins themselves are dropped on the
+        // server by the agent's account cleanup, at the same step as the databases.
+        _dbContext.DatabaseUsers.RemoveRange(users);
         _dbContext.Databases.RemoveRange(owned);
         await _dbContext.SaveChangesAsync(cancellationToken);
     }

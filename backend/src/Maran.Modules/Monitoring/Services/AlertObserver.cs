@@ -6,6 +6,7 @@ using Maran.Modules.Monitoring.Mappers;
 using Maran.Modules.Monitoring.Models;
 using Maran.Modules.Monitoring.Persistence;
 using Maran.Sdk.Contracts;
+using AlertTransition = Maran.Modules.Monitoring.Domain.Enums.AlertTransition;
 
 namespace Maran.Modules.Monitoring.Services;
 
@@ -50,6 +51,7 @@ public sealed class AlertObserver
     /// <param name="quotaStatus">The account-home quota check, or <c>null</c> when unanswered.</param>
     /// <param name="clockSync">The host clock's synchronisation, or <c>null</c> when unanswered.</param>
     /// <param name="codeIntegrityVerdict">The latest code-integrity finding, or <c>null</c> when none arrived.</param>
+    /// <param name="hostLoad">The processor and memory readings, or <c>null</c> when unanswered.</param>
     /// <param name="observedAt">When the readings were taken, from the panel's clock.</param>
     /// <param name="cancellationToken">Cancels the reads.</param>
     /// <returns>One entry per observation, in observation order, including those that changed nothing.</returns>
@@ -61,17 +63,25 @@ public sealed class AlertObserver
         AgentQuotaEnforceability? quotaStatus,
         AgentClockSyncState? clockSync,
         CodeIntegrityVerdict? codeIntegrityVerdict,
+        HostLoadReading? hostLoad,
         DateTimeOffset observedAt,
         CancellationToken cancellationToken)
     {
         var pending = new List<PendingAlert>();
+
+        // Read once per round: the round is once a minute, and one read keeps the disk, processor and
+        // memory comparisons of a round on the same figures even if an administrator saves meanwhile.
+        var thresholds = await _dbContext.AlertThresholds
+            .AsNoTracking()
+            .FirstOrDefaultAsync(row => row.Id == AlertThresholds.SingletonId, cancellationToken)
+            ?? AlertThresholds.CreateDefault(observedAt);
 
         if (diskUsedPercent is not null)
         {
             var transition = await ObserveAsync(
                 AlertKind.DiskUsage,
                 AlertEvaluator.RootFilesystemSubject,
-                diskUsedPercent.Value > AlertEvaluator.DiskUsageThresholdPercent,
+                diskUsedPercent.Value > thresholds.DiskPercent,
                 observedAt,
                 cancellationToken);
 
@@ -81,6 +91,28 @@ public sealed class AlertObserver
                 AlertEvaluator.RootFilesystemSubject,
                 transition,
                 AlertDetailMapper.FormatPercent(diskUsedPercent.Value)));
+        }
+
+        if (hostLoad is not null)
+        {
+            await ObserveWatchedAsync(
+                pending,
+                AlertKind.CpuUsage,
+                AlertEvaluator.ProcessorSubject,
+                thresholds.CpuPercent,
+                hostLoad.CpuPercent,
+                observedAt,
+                cancellationToken);
+
+            // A total of zero is memory the agent could not measure: no reading, not a healthy one.
+            await ObserveWatchedAsync(
+                pending,
+                AlertKind.MemoryUsage,
+                AlertEvaluator.MemorySubject,
+                thresholds.MemoryPercent,
+                hostLoad.MemoryUsedPercent,
+                observedAt,
+                cancellationToken);
         }
 
         if (freeSpaceFloor is not null)
@@ -252,6 +284,75 @@ public sealed class AlertObserver
         }
 
         return pending;
+    }
+
+    /// <summary>
+    /// Records one reading of a condition an administrator may switch off: judged against the
+    /// threshold while it is set, and resolved when it is not.
+    /// </summary>
+    /// <param name="pending">The round's observations, which gains this one when it changed something.</param>
+    /// <param name="kind">Which kind of condition was observed.</param>
+    /// <param name="subject">Which thing of that kind.</param>
+    /// <param name="thresholdPercent">The administrator's threshold, or <c>null</c> when the condition is not watched.</param>
+    /// <param name="readingPercent">What the round measured, or <c>null</c> when it could not.</param>
+    /// <param name="observedAt">When the observation was made.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>A task that completes once the observation is recorded.</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>A threshold that is off creates no row and resolves an open one.</b> A panel nobody has
+    /// asked to watch the processor keeps no row for it, so an upgrade adds nothing to the table. If
+    /// an episode is open when the administrator switches the threshold off, one healthy observation
+    /// closes it and the operator receives the resolve: an alert that simply stopped, with no ending,
+    /// is indistinguishable from one the mail server lost.
+    /// </para>
+    /// <para>
+    /// <b>A reading that is <c>null</c> advances nothing and resets nothing</b> while the threshold is
+    /// set, for the reason every unanswered input does; it is not evidence either way.
+    /// </para>
+    /// </remarks>
+    private async Task ObserveWatchedAsync(
+        List<PendingAlert> pending,
+        AlertKind kind,
+        string subject,
+        int? thresholdPercent,
+        double? readingPercent,
+        DateTimeOffset observedAt,
+        CancellationToken cancellationToken)
+    {
+        AlertTransition transition;
+        string detail;
+
+        if (thresholdPercent is null)
+        {
+            var open = await _dbContext.AlertStates
+                .FirstOrDefaultAsync(row => row.Kind == kind && row.Subject == subject, cancellationToken);
+
+            if (open is null)
+            {
+                return;
+            }
+
+            transition = open.Observe(breaching: false, observedAt);
+            detail = readingPercent is null ? string.Empty : AlertDetailMapper.FormatPercent(readingPercent.Value);
+        }
+        else
+        {
+            if (readingPercent is null)
+            {
+                return;
+            }
+
+            transition = await ObserveAsync(
+                kind,
+                subject,
+                readingPercent.Value > thresholdPercent.Value,
+                observedAt,
+                cancellationToken);
+            detail = AlertDetailMapper.FormatPercent(readingPercent.Value);
+        }
+
+        pending.Add(new PendingAlert(kind, subject, subject, transition, detail));
     }
 
     /// <summary>

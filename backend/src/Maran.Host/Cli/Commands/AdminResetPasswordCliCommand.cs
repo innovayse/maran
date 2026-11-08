@@ -1,9 +1,9 @@
 using Maran.Host.Cli.Enums;
+using Maran.Host.Cli.Extensions;
 using Maran.Host.Cli.Interfaces;
 using Maran.Host.Cli.Models;
 using Maran.Modules.Identity.Models;
 using Maran.Modules.Identity.Services;
-using Maran.SharedKernel.Results;
 
 namespace Maran.Host.Cli.Commands;
 
@@ -94,7 +94,7 @@ public sealed class AdminResetPasswordCliCommand : ICliCommand
         {
             var error = result.Error!;
             await console.Error.WriteLineAsync($"Not recovered: {error.Code}.");
-            return new CliResult(ExitCodeFor(error.Type));
+            return new CliResult(error.Type.ToCliExitCode());
         }
 
         if (result.Value is not AdminRecoveryIssued { Recovery: var issued })
@@ -174,22 +174,5 @@ public sealed class AdminResetPasswordCliCommand : ICliCommand
         return string.IsNullOrWhiteSpace(target)
             ? null
             : new AdminResetPasswordArguments(target, clearTwoFactor, allowNonTerminal);
-    }
-
-    /// <summary>Maps a failure's kind to the status the process exits with.</summary>
-    /// <param name="type">The failure's kind.</param>
-    /// <returns>
-    /// <see cref="CliExitCode.Unavailable"/> for an unreachable dependency, <see cref="CliExitCode.Failure"/>
-    /// for a fault or an outside party's refusal, otherwise <see cref="CliExitCode.Refused"/>.
-    /// </returns>
-    private static CliExitCode ExitCodeFor(ErrorType type)
-    {
-        return type switch
-        {
-            ErrorType.Unavailable => CliExitCode.Unavailable,
-            ErrorType.UpstreamRefused => CliExitCode.Failure,
-            ErrorType.Failure => CliExitCode.Failure,
-            _ => CliExitCode.Refused,
-        };
     }
 }

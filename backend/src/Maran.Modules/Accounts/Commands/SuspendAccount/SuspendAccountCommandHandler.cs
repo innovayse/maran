@@ -107,7 +107,11 @@ public sealed class SuspendAccountCommandHandler
         _displayNames = displayNames;
     }
 
-    /// <summary>Suspends the account. Idempotent: suspending a suspended account changes nothing.</summary>
+    /// <summary>
+    /// Suspends the account. Not short-circuited on the current status: suspending an already
+    /// suspended account runs the whole operation again (the module cascade, the agent lock and its
+    /// attestation, the journal entry and a new task) and ends in the same state.
+    /// </summary>
     /// <remarks>
     /// <para>
     /// <b>What a suspension covers, as of this handler.</b> Four things, each driven by the module

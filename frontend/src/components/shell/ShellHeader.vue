@@ -73,10 +73,12 @@ import ShellAvatar from './ShellAvatar.vue'
 import ShellBreadcrumb from './ShellBreadcrumb.vue'
 import ShellFavourites from './ShellFavourites.vue'
 import ShellLocaleSwitcher from './ShellLocaleSwitcher.vue'
+import ShellNotificationsBell from './ShellNotificationsBell.vue'
 import ShellServerSelector from './ShellServerSelector.vue'
 import ShellTasksBadge from './ShellTasksBadge.vue'
 import ShellThemeSwitcher from './ShellThemeSwitcher.vue'
 import ShellWordmark from './ShellWordmark.vue'
+import { useCallerRole } from '../../composables/useCallerRole'
 import type { NavigationEntry } from '../../types/navigation'
 
 /** Props accepted by {@link ShellHeader}. */
@@ -98,6 +100,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const { isAdmin } = useCallerRole()
 
 /**
  * The classes that swap the search field and the search icon, as whole literal strings so the
@@ -207,6 +210,9 @@ const searchSwap: ComputedRef<{ field: string; icon: string; group: string }> = 
         <ShellServerSelector />
         <ShellAccountSelector />
         <ShellFavourites :entries="entries" />
+        <!-- The operator's feed, for an administrator only: the panel refuses it to everyone else,
+             and mounting the bell is what starts its polling (see `ShellNotificationsBell`). -->
+        <ShellNotificationsBell v-if="isAdmin" />
         <ShellTasksBadge />
         <!-- Below `sm` the theme menu lives in the drawer's head instead (see the doc comment).
              The wrapper hides this copy with `display: none`, which also removes it from the

@@ -70,7 +70,7 @@ use maran_agent_core::validation::system::ftps_user_name::FtpsUserName;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::system::sftp_user_name::SftpUserName;
 use maran_distro::{DistroAdapter, adapter_for, detect};
-use maran_ops::accounts::{AccountError, AccountOperations, ProcessSystemHost};
+use maran_ops::accounts::{AccountError, AccountOperations, NewAccountSettings, ProcessSystemHost};
 use maran_ops::cron::{ProcessCronHost, create_cron_entry, list_cron_entries};
 use maran_ops::db::{CreateDatabaseRequest, ProcessDbHost, create_database};
 use maran_ops::ftps::{FtpsError, FtpsJail, FtpsUserRequest, ProcessFtpsHost, create_ftps_user};
@@ -469,7 +469,7 @@ fn a_deleted_account_leaves_no_database_and_a_recreated_account_of_the_same_name
 
     // Re-created under the same name, exactly as a hosting panel recycles one.
     operations()
-        .create(&name, 0)
+        .create(&name, &NewAccountSettings::with_quota(0))
         .unwrap_or_else(|error| panic!("re-creating the account must succeed: {error}"));
 
     // 1. No database of the old tenant's survives for the new one to open.

@@ -13,8 +13,10 @@ namespace Maran.Modules.Identity.Services;
 /// </summary>
 /// <remarks>
 /// Every query is read-only (<c>AsNoTracking</c>) and stays a query: nothing is materialized here, so
-/// the caller's filter, count and page all run in PostgreSQL. The journal is administrators-only and
-/// server-wide; nothing here narrows by tenant, and the controllers' policy decides who may read it.
+/// the caller's filter, count and page all run in PostgreSQL. The journal is server-wide
+/// unless a reader asks for a scope: <see cref="Matching(AuditEventFilter, AuditEventScope)"/>
+/// narrows to what a reseller may read (issue #370), and the plain <see cref="Matching(AuditEventFilter)"/>
+/// is for the readers the controllers' policy already holds to administrators.
 /// </remarks>
 public sealed class AuditEventQuery
 {
@@ -48,8 +50,74 @@ public sealed class AuditEventQuery
     /// <returns>The matching entries, unordered, untracked.</returns>
     public IQueryable<AuditEvent> Matching(AuditEventFilter filter)
     {
+        return Narrow(_dbContext.AuditEvents.AsNoTracking(), filter);
+    }
+
+    /// <summary>
+    /// The entries a caller may read (<see cref="Visible"/>) that also satisfy every condition
+    /// <paramref name="filter"/> states. The scope is applied BEFORE the filter, so no combination of
+    /// conditions can reach an entry outside it.
+    /// </summary>
+    /// <param name="filter">The conditions to apply.</param>
+    /// <param name="scope">Which entries the caller may read.</param>
+    /// <returns>The matching entries within the scope, unordered, untracked.</returns>
+    public IQueryable<AuditEvent> Matching(AuditEventFilter filter, AuditEventScope scope)
+    {
+        return Narrow(Visible(scope), filter);
+    }
+
+    /// <summary>
+    /// The entries <paramref name="scope"/> allows: every entry, or for a reseller those stamped with an
+    /// account it owns and those its own login made. The login half is the actor's user id and never the
+    /// actor's name, which a failed sign-in lets anybody type.
+    /// </summary>
+    /// <param name="scope">Which entries the caller may read.</param>
+    /// <returns>The entries within the scope, unordered, untracked.</returns>
+    public IQueryable<AuditEvent> Visible(AuditEventScope scope)
+    {
         IQueryable<AuditEvent> events = _dbContext.AuditEvents.AsNoTracking();
 
+        if (scope is not ResellerEntriesScope reseller)
+        {
+            return events;
+        }
+
+        // Captured locals, so EF Core sends the ids as one array parameter and the login as a parameter.
+        var ownedAccountIds = reseller.OwnedAccountIds.ToArray();
+        var loginUserId = reseller.LoginUserId;
+        return events.Where(auditEvent =>
+            (auditEvent.AccountId != null && ownedAccountIds.Contains(auditEvent.AccountId.Value))
+            || auditEvent.ActorUserId == loginUserId);
+    }
+
+    /// <summary>
+    /// The entries that involve one user: those where the user is the actor, and those where the user
+    /// is the operator who was viewing as somebody else. Entries another operator wrote while viewing
+    /// as this user's login name this user as actor and are included by the first half.
+    /// </summary>
+    /// <param name="userId">The user's id.</param>
+    /// <returns>The entries naming the user as actor or as the viewing operator, unordered, untracked.</returns>
+    public IQueryable<AuditEvent> InvolvingUser(Guid userId)
+    {
+        return _dbContext.AuditEvents.AsNoTracking().Where(auditEvent =>
+            auditEvent.ActorUserId == userId
+            || (auditEvent.Impersonator != null && auditEvent.Impersonator.OperatorId == userId));
+    }
+
+    /// <summary>The entries recorded against one hosting account.</summary>
+    /// <param name="accountId">The account's id.</param>
+    /// <returns>The entries stamped with the account, unordered, untracked.</returns>
+    public IQueryable<AuditEvent> OfAccount(Guid accountId)
+    {
+        return _dbContext.AuditEvents.AsNoTracking().Where(auditEvent => auditEvent.AccountId == accountId);
+    }
+
+    /// <summary>Applies the conditions of <paramref name="filter"/> to <paramref name="events"/>.</summary>
+    /// <param name="events">The entries to narrow.</param>
+    /// <param name="filter">The conditions to apply.</param>
+    /// <returns>The entries that satisfy every condition, unordered, untracked.</returns>
+    private static IQueryable<AuditEvent> Narrow(IQueryable<AuditEvent> events, AuditEventFilter filter)
+    {
         if (!filter.Action.IsNone)
         {
             var action = filter.Action.Value;
@@ -100,27 +168,5 @@ public sealed class AuditEventQuery
         }
 
         return events;
-    }
-
-    /// <summary>
-    /// The entries that involve one user: those where the user is the actor, and those where the user
-    /// is the operator who was viewing as somebody else. Entries another operator wrote while viewing
-    /// as this user's login name this user as actor and are included by the first half.
-    /// </summary>
-    /// <param name="userId">The user's id.</param>
-    /// <returns>The entries naming the user as actor or as the viewing operator, unordered, untracked.</returns>
-    public IQueryable<AuditEvent> InvolvingUser(Guid userId)
-    {
-        return _dbContext.AuditEvents.AsNoTracking().Where(auditEvent =>
-            auditEvent.ActorUserId == userId
-            || (auditEvent.Impersonator != null && auditEvent.Impersonator.OperatorId == userId));
-    }
-
-    /// <summary>The entries recorded against one hosting account.</summary>
-    /// <param name="accountId">The account's id.</param>
-    /// <returns>The entries stamped with the account, unordered, untracked.</returns>
-    public IQueryable<AuditEvent> OfAccount(Guid accountId)
-    {
-        return _dbContext.AuditEvents.AsNoTracking().Where(auditEvent => auditEvent.AccountId == accountId);
     }
 }

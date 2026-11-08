@@ -2,6 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::backup::archive::dump_database::dump_path;
 use crate::backup::model::archive_part::ArchivePart;
 use crate::backup::model::extract_identity::ExtractIdentity;
 use maran_agent_core::end_of_options::END_OF_OPTIONS;
@@ -78,7 +79,8 @@ const NO_SAME_OWNER: &str = "--no-same-owner";
 /// then reads.
 const NO_SAME_PERMISSIONS: &str = "--no-same-permissions";
 
-/// The flag that drops leading path components as members are extracted.
+/// The flag that drops leading path components as members are extracted; the
+/// count follows it.
 ///
 /// **This is the mirror of the create side's transform, and it is deliberately
 /// NOT a transform.** The archive stores the home under a `home/` prefix, and
@@ -89,7 +91,7 @@ const NO_SAME_PERMISSIONS: &str = "--no-same-permissions";
 /// component, which touches member NAMES only and cannot reach a symlink's
 /// target at all. The safe answer here is a different mechanism, not the same
 /// mechanism used carefully.
-const STRIP_ONE_COMPONENT: &str = "--strip-components=1";
+const STRIP_COMPONENTS: &str = "--strip-components=";
 
 /// The archive's manifest member. Part of the fixed layout (R2).
 const MANIFEST_MEMBER: &str = "manifest.json";
@@ -150,8 +152,12 @@ impl ExtractSpec {
     #[must_use]
     pub fn identity(&self) -> ExtractIdentity {
         match &self.part {
-            ArchivePart::Manifest | ArchivePart::Databases => ExtractIdentity::Root,
-            ArchivePart::Home { account } => ExtractIdentity::Account(account.clone()),
+            ArchivePart::Manifest | ArchivePart::Databases | ArchivePart::Database { .. } => {
+                ExtractIdentity::Root
+            }
+            ArchivePart::Home { account } | ArchivePart::Directory { account, .. } => {
+                ExtractIdentity::Account(account.clone())
+            }
         }
     }
 
@@ -187,8 +193,8 @@ impl ExtractSpec {
             STANDARD_INPUT.to_owned(),
         ];
 
-        if matches!(self.part, ArchivePart::Home { .. }) {
-            arguments.push(STRIP_ONE_COMPONENT.to_owned());
+        if let Some(count) = self.stripped_components() {
+            arguments.push(format!("{STRIP_COMPONENTS}{count}"));
         }
 
         arguments.push(CHANGE_DIRECTORY.to_owned());
@@ -198,18 +204,47 @@ impl ExtractSpec {
         // second `-C` follows the first operand and a marker would turn it into a
         // member name.
         arguments.push(END_OF_OPTIONS.to_owned());
-        arguments.push(self.member().to_owned());
+        arguments.push(self.member());
 
         arguments
     }
 
     /// The archive member name this part names.
+    ///
+    /// Built from validated values only: the fixed top-level names, a
+    /// [`DatabaseName`](maran_agent_core::validation::db::database_name::DatabaseName) (no separator in its alphabet) and a [`RelativePath`](maran_agent_core::validation::fs::relative_path::RelativePath)
+    /// (every component an ordinary entry name), so no archive text and no
+    /// caller text reaches the argv unchecked.
     #[must_use]
-    pub fn member(&self) -> &'static str {
-        match self.part {
-            ArchivePart::Manifest => MANIFEST_MEMBER,
-            ArchivePart::Databases => DATABASES_MEMBER,
-            ArchivePart::Home { .. } => HOME_MEMBER,
+    pub fn member(&self) -> String {
+        match &self.part {
+            ArchivePart::Manifest => MANIFEST_MEMBER.to_owned(),
+            ArchivePart::Databases => DATABASES_MEMBER.to_owned(),
+            ArchivePart::Database { database } => {
+                text(&dump_path(Path::new(DATABASES_MEMBER), database))
+            }
+            ArchivePart::Home { .. } => HOME_MEMBER.to_owned(),
+            ArchivePart::Directory { directory, .. } => {
+                format!("{HOME_MEMBER}/{}", text(&directory.as_path()))
+            }
+        }
+    }
+
+    /// How many leading components `tar` drops from each member it extracts, or
+    /// `None` for the parts that keep their names.
+    ///
+    /// The whole home drops `home/`. A single directory drops `home/` and every
+    /// directory above the one asked for, so the directory itself is the first
+    /// thing under the extraction target — which is what lets the swap move it
+    /// by one rename. A count and not a transform, for the symlink-target reason
+    /// the constant above gives.
+    fn stripped_components(&self) -> Option<usize> {
+        match &self.part {
+            ArchivePart::Home { .. } => Some(1),
+            ArchivePart::Directory { directory, .. } => {
+                Some(1 + directory.parent_components().len())
+            }
+            ArchivePart::Manifest | ArchivePart::Databases | ArchivePart::Database { .. } => None,
         }
     }
 }

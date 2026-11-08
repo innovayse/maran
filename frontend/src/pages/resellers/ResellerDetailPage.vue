@@ -15,6 +15,9 @@
  * it. Whether the administrator may do this is the panel's decision, never this page's, and a
  * refusal stays here in the alert below the heading.
  *
+ * **The invitation card** lets the administrator resend the reseller's invitation or create a one-time
+ * link for it (issue #374), so a reseller on a panel without a mail server can still be let in.
+ *
  * While the reseller loads, the heading and the cards are drawn already with their real terms and
  * placeholders, so it lands in the space held for it.
  */
@@ -32,6 +35,7 @@ import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
 import ResellerActionsCard from '../../components/resellers/ResellerActionsCard.vue'
 import ResellerDetailsCard from '../../components/resellers/ResellerDetailsCard.vue'
 import ResellerEnvelopeCard from '../../components/resellers/ResellerEnvelopeCard.vue'
+import ResellerInvitationCard from '../../components/resellers/ResellerInvitationCard.vue'
 import ResellerUsageCard from '../../components/resellers/ResellerUsageCard.vue'
 import { useAuthStore } from '../../stores/auth'
 import { useLocaleStore } from '../../stores/locale'
@@ -224,6 +228,14 @@ onMounted(async () => {
           <ResellerEnvelopeCard class="lg:col-span-2" :envelope="store.selected?.envelope ?? null" :feature-choices="plansStore.featureChoices" />
           <ResellerUsageCard :reseller="store.selected" />
         </div>
+
+        <!-- Only once the reseller is loaded: the card asks the panel about this reseller's login. -->
+        <ResellerInvitationCard
+          v-if="store.selected !== null"
+          class="lg:max-w-2xl"
+          :reseller-id="id"
+          :status="store.selected.status"
+        />
       </div>
     </UiLoadingRegion>
 

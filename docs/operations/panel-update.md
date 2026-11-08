@@ -1,14 +1,15 @@
 # Updating the panel
 
 `maran update` moves the panel to a newer signed release, and `maran rollback` returns to the one
-before it. Both are root-only verbs of the `maran` command, run by an operator at a terminal. Nothing
-updates the panel on its own.
+before it. Both are root-only verbs of the `maran` command, run by an operator at a terminal. The one
+thing that updates the panel without an operator is the automatic security-patch update, which is
+described in "Automatic security-patch updates" below, applies only a release the signed manifest calls
+a security release, and can be switched off.
 
 ## When the panel contacts the release host
 
-The panel process never contacts the release host, and nothing checks for updates by itself: there is
-no timer, no background call and no call at login. The release host, `releases.maran.innovayse.com`,
-is contacted in exactly two situations:
+The panel process never contacts the release host, and no background call or call at login exists. The
+release host, `releases.maran.innovayse.com`, is contacted in exactly three situations:
 
 - The installer, when it is run online, downloads the release it installs from that host. An offline
   install (`--offline-tarball`) does not.
@@ -16,6 +17,12 @@ is contacted in exactly two situations:
   contact the host only at the moment an operator runs them, with a plain HTTPS `GET` of the manifest
   and its signature (and, for a real update, of the three artifacts). The request carries no query
   string and no identifier of the panel, the server, the licence or the customer.
+- The automatic security-patch update's timer, once a day, when it is switched on (it is on after a
+  first online install). It is the same plain `GET` of the manifest and its signature, made by the same
+  command, and it fetches the three artifacts only for a release it will apply. The request carries
+  nothing beyond what an HTTPS `GET` implies: the server's address, the TLS handshake and the `curl`
+  user agent. There is no telemetry and no server, panel or licence identifier. See "Automatic
+  security-patch updates".
 
 `maran update --offline-tarball PATH` makes no network call at all. It is the path for a server that
 must not reach the internet: carry the release bundle to the server and point the command at it. It is
@@ -24,7 +31,7 @@ verified exactly as a downloaded release is (see "How a release is verified").
 ## The verbs
 
 - `sudo maran update --check`: verifies the manifest and prints the installed and available versions,
-  the channel and whether the available release is newer. Changes no release, state or service (see
+  the channel, the release date, the release-notes URL and whether the available release is newer. Changes no release, state or service (see
   "What `--check` touches").
 - `sudo maran update`: updates to the newest release of the channel, in the order below. Asks for
   confirmation unless `--yes`.
@@ -35,6 +42,12 @@ verified exactly as a downloaded release is (see "How a release is verified").
 - `sudo maran rollback --restore-database`: also restores the dump taken before the update you are
   leaving, after a confirmation. Read "A database restore drops writes" first.
 
+`sudo maran update --security-only` is the same update, applied only when the signed manifest marks the
+release a security release of the installed major version (anything else is reported and left alone);
+it cannot be combined with `--offline-tarball` or `--check`. `--scheduled`, which the timer passes, adds
+the report to the panel and replaces the confirmation; it needs `--security-only` and takes no other
+option. `sudo maran update-schedule enable|disable|status` switches the timer.
+
 Options of `update`: `--channel stable|beta` picks the channel for this run (default: the one recorded
 in `/etc/maran/release.state`, else `stable`); `--offline-tarball PATH` names a bundle; `--yes` skips
 the confirmation. `--channel` and `--offline-tarball` cannot be combined, because the bundle names its
@@ -42,6 +55,94 @@ own channel. `rollback` takes `--restore-database` and `--yes`. Each option may 
 
 Exit status: 0 on success or when there is nothing to do, 1 on a failure (including an update that
 failed and was rolled back), 64 on a usage error, 77 when not run as root.
+
+## Automatic security-patch updates
+
+An operator who never logs in leaves a known vulnerability running, so a security fix should reach the
+server without waiting for someone to run `maran update`. A systemd timer does that, narrowly:
+
+- **What runs.** `maran-update-security.timer` starts `maran-update-security.service` once a day, at
+  midnight server time plus a random delay of up to four hours (so a fleet does not call at the same
+  minute). The service runs `maran update --security-only --scheduled` as root. The timer ships its own
+  schedule; nothing you type is written into a unit. If the server was off at the time, the run
+  happens when it next boots.
+- **What it applies.** A release only when its signed manifest says `"security": true` **and** its
+  major version is the installed one. A feature release, a release of another major version and any
+  release on a server with no versioned release (an unconverted legacy install) are reported in the
+  journal and left alone, to be applied by hand with `maran update`. The `security` flag is inside the
+  bytes the signature covers, so it cannot be turned on or off in transit. The flag is set when the
+  release is built (`maran release build --security`), only for a release that fixes a known
+  vulnerability.
+- **How it applies it.** Through exactly the path of an operator's update: the shared lock, the
+  newer-version check, the free-space floors, checksums against the signed manifest, the pre-update
+  database dump, the migration by the new release, the restart and the health gate, and the automatic
+  rollback of the code. Only the confirmation question is left out, because nobody is there to answer
+  it. The automatic rollback never restores the database.
+- **On by default, and told.** A first online install enables the timer and prints a line saying so and
+  how to turn it off. An offline install (`--offline-tarball`) does not enable it. Re-running the
+  installer and `maran update` never change your choice, so a disabled timer stays disabled across a
+  reboot, an installer run and an update. The one exception: a server installed before this feature
+  gets the timer enabled by the first installer run that brings the units, because for that server the
+  units are new.
+- **Switching it.** `sudo maran update-schedule enable|disable|status`. `status` shows whether the timer
+  is enabled and active, when it fires next, how the last run ended and the installed version.
+- **When it fails.** A failed run rolls the code back (never the database), and is recorded in four
+  places: the journal line `verb=update outcome=<rolled-back|rollback-failed|interrupted>` under the tag
+  `maran-cli`; the service unit ending in the failed state; the panel's audit log
+  (`PanelUpdateRolledBack`, `PanelUpdateRollbackFailed`, `PanelUpdateInterrupted`, and
+  `PanelUpdateApplied` for a success); and an alert mail to the address the monitoring alerts use. A
+  release that failed and was rolled back is not tried again by the timer: the next newer release, or
+  you with `maran update`, ends that pause (the version is kept in `/etc/maran/security-update-failed`).
+  The report to the panel is best effort: a panel that is down cannot take it, and the first two records
+  then remain. A run that could not fetch the manifest changes nothing, fails the unit and sends no
+  alert.
+- **What it cannot protect against.** A compromised release signing key is fatal for any update, and
+  unattended mode removes the person who might have noticed; a manifest that is withheld or replayed
+  (the manifest has no expiry) keeps a server on its release without any failure showing; a
+  legitimately signed security release that starts but misbehaves is caught only if the health gate
+  notices. The dump taken before each update is kept for that case. The threat note is
+  `docs/superpowers/notes/2026-11-07-security-patch-updates-threat-note.md`; the second review of this
+  privileged change is outstanding.
+
+## Updating from the panel
+
+An administrator can see the version state and start an update from the panel's **Settings, Panel
+updates** screen, without a root shell. The screen shows the running version, the channel, the newer
+release the last check found (with its date and release-notes link, when the signed manifest carries
+them), the version a rollback would restore, and an **Update now** button.
+
+What the button does, and does not do:
+
+- It asks for nothing and sends nothing. There is no version, address or path in the request: the
+  release installed is the newer signed release the recorded channel names, verified exactly as for a
+  command-line update.
+- It runs the same `maran update` as root, with the same dump, health gate and automatic rollback. The
+  panel itself spawns nothing and holds no root: it creates a marker file in a directory that only the
+  panel's service account can write (`/run/maran-update-request`), and a root-owned systemd path unit
+  (`maran-update-request.path`) starts a oneshot service (`maran-update-request.service`) that runs the
+  fixed command. The marker's content is never read.
+- It is for administrators only: the panel refuses every other caller on both the read and the
+  request. The button is advice; the endpoint is the control.
+- It is refused while an update is queued or running (one update at a time; the root lock refuses a
+  concurrent run too).
+- Progress and the result appear in the **task list**: requested, installing, and then done, or failed
+  with the plain reason: the update was refused, the health check failed and the panel returned to the
+  previous version (the database was not restored; the pre-update dump is kept in
+  `/var/backups/maran-update`), or the run was interrupted. A request that nothing picked up, or whose
+  report never arrived, is closed by the panel after a few minutes with a reason of its own.
+
+"The last check" is the last time this server fetched the signed manifest, whether by
+`maran update --check`, by an update, or by the daily security-patch timer. The panel itself never
+contacts the release host. On a server where none of those has run yet, the screen says "Not checked
+yet" and offers no button; run `sudo maran update --check` once, or leave the timer on.
+
+To switch the button off, disable the path unit: `sudo systemctl disable --now maran-update-request.path`.
+The screen then still shows the versions, and a press is closed by the panel as "never started".
+
+The second review of this privileged path is outstanding
+(`docs/superpowers/notes/2026-11-07-panel-update-from-panel-threat-note.md`), and the panel does not
+ask an administrator to confirm their password or second factor before the update starts: no such
+re-authentication exists in the panel yet.
 
 ## Channels
 
@@ -55,6 +156,18 @@ The channel in use is recorded in `/etc/maran/release.state`.
 An update must be to a strictly newer version (SemVer 2.0 precedence, pre-releases ordered correctly).
 A release that is not newer is refused with exit 1; the same version is reported as "nothing to do"
 with exit 0. `maran rollback` is the only verb that goes backwards.
+
+## Release date and notes
+
+The signed manifest also carries `released` (the UTC build date, `YYYY-MM-DD`) and `notes_url` (an
+`https://` address of the release notes). `--check` prints both as `released:` and `release notes:`
+and never fetches the address. Both fields are additive: a manifest without them is still valid, and
+`--check` prints `no release notes published` for it. Each value is checked before it is printed.
+A date that is not a real calendar date, or a URL that is not `https://`, longer than 512 bytes, or
+holds anything outside a plain ASCII set (whitespace, control characters, quotes, backslashes,
+non-ASCII, and the characters a shell reads) is replaced by `not shown` with a warning on stderr,
+never printed raw: the text is written by a remote party and shown on a root terminal. The signature
+only proves the release key wrote the value; the check proves it is safe to display.
 
 ## The layout on the server
 
@@ -270,7 +383,7 @@ The bundle's manifest signature and each archive's sha256 are verified exactly a
 ## A database restore drops writes
 
 `maran rollback --restore-database` restores the dump from before the update. Everything written
-after the dump is gone: new accounts, sites, schedules, password changes, audit entries, and the
+after the dump is gone, and so is every table or schema a newer release added: new accounts, sites, schedules, password changes, audit entries, and the
 messages waiting in the queue. It asks for `--yes` or a typed confirmation and says so. Use it only
 when the new release changed data in a way the old release cannot read, and take a
 `maran panel-backup` of the current state first if you might need anything in it. A plain
@@ -288,7 +401,8 @@ These are the honest limits of this change.
 - Re-running the installer on the same version keeps the tree already on disk when it is intact, and
   repairs it from the verified archives when it is not. The installer refuses a lower version than the
   one installed, so it cannot be used to downgrade; `maran rollback` is the way back.
-- There is no update button in the panel yet. The command line is the only way.
+- The panel's update button (see "Updating from the panel") starts the same root command through a
+  path unit; it has not been run on a booted host, and it asks for no password or second factor.
 - There are no automatic security patches yet. Every update is run by an operator, and the update check
   happens only when an operator runs it.
 - A release that needs a new systemd unit directive cannot be delivered by `maran update`; the units
@@ -296,10 +410,10 @@ These are the honest limits of this change.
   the signing key.
 - A release that deliberately breaks the expand-then-contract rule says so in its notes; rolling back
   across it needs the database restore.
-- `pg_restore --clean` cannot remove objects that a newer release created. After an update that added
-  schemas or tables, `maran rollback --restore-database` can therefore refuse. It is fail-closed and
-  nothing is changed. A plain rollback leaves `PREVIOUS` empty, so restore the database by hand from
-  the dump file.
+- `maran rollback --restore-database` returns the database to the dump's state even when the update
+  added schemas or tables: before the dump is replayed, every schema except `public` and the system
+  ones is dropped in the same transaction, so what the newer release created is removed with the rest.
+  Objects a newer release put in `public` are not removed; the panel creates none there.
 - The manifest has no expiry. A host that serves an older, still valid manifest can keep a server on
   an old release; the check stops a downgrade, not a stale upgrade. Compare against the release page.
 - This change has not yet had its second security review: it is outstanding, and the change must not

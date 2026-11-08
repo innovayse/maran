@@ -1,6 +1,7 @@
 import type { AccountFeatureName } from './accountFeature'
 import type { AccountResourceSummary } from './accountResourceSummary'
 import type { ListLoad, ListRequest, Paged } from './list'
+import type { ResourceCeiling } from './resourceCeiling'
 
 /**
  * Lifecycle state of a hosting account, mirroring the backend's
@@ -85,6 +86,16 @@ export interface ChangeAccountPlanRequest {
 }
 
 /**
+ * Request body for `PUT /api/v1/accounts/{id}/owner`, binding the backend's `TransferAccountCommand`.
+ */
+export interface TransferAccountRequest {
+  /** The reseller that is to own the account; `null` hands it to the administrator. */
+  resellerId: string | null
+  /** The plan of that owner the account is sold from afterwards; an account and its plan share one owner. */
+  planId: string
+}
+
+/**
  * Request body for `PUT /api/v1/accounts/{id}/owner-email`, binding the
  * backend's `ChangeAccountOwnerEmailCommand`.
  */
@@ -109,6 +120,12 @@ export interface Plan {
   diskQuotaMb: number
   /** How many sites the plan allows. */
   maxSites: number
+  /**
+   * The process ceiling the plan sells, which the form prints as the default of the process-limit
+   * field and checks a reseller's lower figure against. Absent when the panel does not report it:
+   * the form then offers no figure and leaves the check to the server.
+   */
+  maxProcesses?: ResourceCeiling
 }
 
 /**
@@ -151,7 +168,24 @@ export interface CreateAccountRequest {
    * different id from a reseller. Left out, the account is the administrator's own.
    */
   resellerId?: string
+  /**
+   * How the owner's login is made: `invitation` (the default, left out of the body) mails the owner
+   * a link to choose a password; `initialPassword` creates the login with {@link initialPassword}
+   * and requires the owner to replace it at the first sign-in.
+   */
+  loginMode?: OwnerLoginMode
+  /** The owner's first password; sent only with `loginMode` `initialPassword`, never stored or logged. */
+  initialPassword?: string
+  /** Inode ceiling for this account; left out to follow the plan, `0` meaning none. */
+  inodeLimit?: number
+  /** Process ceiling for this account, at least 1; left out to follow the plan. A reseller may only lower it. */
+  processLimit?: number
+  /** Open-files ceiling for this account; left out to follow the plan, `0` meaning none. */
+  openFilesLimit?: number
 }
+
+/** How a new account's owner login is made (`CreateAccountCommand.LoginMode`). */
+export type OwnerLoginMode = 'invitation' | 'initialPassword'
 
 /**
  * The plan section of {@link MyAccount}, mirroring the backend's
@@ -254,10 +288,16 @@ export interface AccountsApi {
    * Lists the plans a picker offers: the first page, alphabetical, of those matching the search.
    * @param search Narrows by name; empty for the first plans in alphabetical order.
    * @param pageSize How many choices to ask for; one of the sizes the panel accepts (10, 25, 50, 100).
+   * @param forResellerId The reseller whose plans are offered, or `null` for the administrator's own.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The matching plans, with how many match in all.
    */
-  planChoices: (search: string, pageSize: number, signal?: AbortSignal) => Promise<Paged<Plan>>
+  planChoices: (
+    search: string,
+    pageSize: number,
+    forResellerId: string | null,
+    signal?: AbortSignal,
+  ) => Promise<Paged<Plan>>
 
   /**
    * Reads one plan, for text that names a plan the open page of choices may not hold.
@@ -317,6 +357,15 @@ export interface AccountsApi {
    * @returns The account as it now stands.
    */
   changePlan: (id: string, request: ChangeAccountPlanRequest, signal?: AbortSignal) => Promise<AccountDetail>
+
+  /**
+   * Hands an account to another owner with a plan of that owner. Administrator only.
+   * @param id The account's identity.
+   * @param request The new owner (`null` for the administrator) and the plan of that owner.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The account as it now stands.
+   */
+  transfer: (id: string, request: TransferAccountRequest, signal?: AbortSignal) => Promise<AccountDetail>
 
   /**
    * Changes an account's owner address, and with it the address its login is mailed at.

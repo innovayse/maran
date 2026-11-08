@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { stubSignedIn } from './fixtures/stub-auth-routes'
 import {
+  ALERT_DELIVERY_OK,
   loaded,
   stubDashboard,
   stubDashboardProblem,
@@ -15,9 +16,9 @@ import type { Dashboard } from '../src/types/dashboard'
 import type { PanelModule } from '../src/types/module'
 
 const LICENSED: PanelModule[] = [
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
-  { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
-  { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
+  { name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'databases', displayName: 'Databases', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 /** A customer, who must be shown the health verdict and no part of the server's state. */
@@ -57,7 +58,7 @@ const FULL: Dashboard = {
     sites: loaded(7),
     databases: loaded(4),
   },
-  attention: { certificatesExpiringSoon: loaded(2), failedBackups: loaded(5), bannedAddresses: loaded(9), failedTasks: loaded(6), clock: SYNCHRONIZED_CLOCK },
+  attention: { certificatesExpiringSoon: loaded(2), failedBackups: loaded(5), sitesOnEndOfLifePhp: loaded(0), alertDelivery: ALERT_DELIVERY_OK, bannedAddresses: loaded(9), failedTasks: loaded(6), clock: SYNCHRONIZED_CLOCK },
   recentAudit: loaded([
     {
       id: '11111111-1111-1111-1111-111111111111',
@@ -94,7 +95,7 @@ const FRESHLY_INSTALLED: Dashboard = {
     sites: loaded(0),
     databases: loaded(0),
   },
-  attention: { certificatesExpiringSoon: loaded(0), failedBackups: loaded(0), bannedAddresses: loaded(0), failedTasks: loaded(0), clock: SYNCHRONIZED_CLOCK },
+  attention: { certificatesExpiringSoon: loaded(0), failedBackups: loaded(0), sitesOnEndOfLifePhp: loaded(0), alertDelivery: ALERT_DELIVERY_OK, bannedAddresses: loaded(0), failedTasks: loaded(0), clock: SYNCHRONIZED_CLOCK },
   recentAudit: loaded([]),
 }
 
@@ -117,9 +118,9 @@ test.describe('the landing page', () => {
   test('an administrator is shown what the server is doing, holds and needs', async ({ page }) => {
     await openLandingPage(page, FULL)
 
-    // The health verdict first and still: this route's original job, and the one thing it has to
-    // say when nothing else can.
-    await expect(page.getByText('All systems are operational.')).toBeVisible()
+    // The heading's all-clear sentence is about every check (#393), so it is withheld while the
+    // attention notice below lists what needs looking at; the clear-server tests assert it present.
+    await expect(page.getByText('All systems are operational.')).toHaveCount(0)
 
     // The live reading. The processor figure is asserted to one decimal exactly as the card formats
     // it, so a card that silently rounded to a whole number would fail here.
@@ -178,6 +179,7 @@ test.describe('the landing page', () => {
     await openLandingPage(page, FRESHLY_INSTALLED)
 
     await expect(page.getByText('Nothing needs attention.')).toBeVisible()
+    await expect(page.getByText('All systems are operational.')).toBeVisible()
     await expect(page.getByText('backups failed')).toHaveCount(0)
   })
 
@@ -228,6 +230,8 @@ test.describe('the landing page', () => {
       attention: {
         certificatesExpiringSoon: loaded(0),
         failedBackups: UNAVAILABLE,
+        sitesOnEndOfLifePhp: loaded(0),
+        alertDelivery: ALERT_DELIVERY_OK,
         bannedAddresses: loaded(0),
         failedTasks: loaded(0),
         clock: SYNCHRONIZED_CLOCK,
@@ -249,6 +253,8 @@ test.describe('the landing page', () => {
       attention: {
         certificatesExpiringSoon: loaded(2),
         failedBackups: loaded(5),
+        sitesOnEndOfLifePhp: loaded(0),
+        alertDelivery: ALERT_DELIVERY_OK,
         bannedAddresses: loaded(9),
         failedTasks: UNAVAILABLE,
         clock: SYNCHRONIZED_CLOCK,
@@ -275,6 +281,8 @@ test.describe('the landing page', () => {
       attention: {
         certificatesExpiringSoon: loaded(0),
         failedBackups: loaded(0),
+        sitesOnEndOfLifePhp: loaded(0),
+        alertDelivery: ALERT_DELIVERY_OK,
         bannedAddresses: loaded(0),
         failedTasks: loaded(0),
         clock: loaded({ state: 'syncServiceDisabled', description: 'No time synchronisation service is enabled.' }),
@@ -286,6 +294,8 @@ test.describe('the landing page', () => {
       '/monitoring',
     )
     await expect(page.getByText('Nothing needs attention.')).toHaveCount(0)
+    // #393: the heading's sentence is about every check, so it is not said above this notice.
+    await expect(page.getByText('All systems are operational.')).toHaveCount(0)
   })
 
   test('a clock the panel could not read is named as unchecked, never as synchronised', async ({ page }) => {
@@ -294,6 +304,8 @@ test.describe('the landing page', () => {
       attention: {
         certificatesExpiringSoon: loaded(0),
         failedBackups: loaded(0),
+        sitesOnEndOfLifePhp: loaded(0),
+        alertDelivery: ALERT_DELIVERY_OK,
         bannedAddresses: loaded(0),
         failedTasks: loaded(0),
         clock: UNAVAILABLE,
@@ -302,6 +314,52 @@ test.describe('the landing page', () => {
 
     await expect(page.getByRole('link', { name: 'The clock could not be checked' })).toBeVisible()
     await expect(page.getByText('Server clock not synchronised')).toHaveCount(0)
+    await expect(page.getByText('Nothing needs attention.')).toHaveCount(0)
+    await expect(page.getByText('All systems are operational.')).toHaveCount(0)
+  })
+
+  test('an alert channel whose last delivery failed is named with the panel\'s reason, and is not an all-clear', async ({ page }) => {
+    // #142: every count holds zero and only the alert mail is failing. An alert that cannot be
+    // delivered hides every other problem, so it is the one thing this notice must not leave out.
+    await openLandingPage(page, {
+      ...FRESHLY_INSTALLED,
+      attention: {
+        certificatesExpiringSoon: loaded(0),
+        failedBackups: loaded(0),
+        sitesOnEndOfLifePhp: loaded(0),
+        alertDelivery: loaded({
+          mail: { state: 'failing', lastFailureAt: '2026-11-07T10:00:00Z', failureMessage: 'The mail server refused the message.' },
+          webhook: { state: 'ok', lastFailureAt: null, failureMessage: null },
+        }),
+        bannedAddresses: loaded(0),
+        failedTasks: loaded(0),
+        clock: SYNCHRONIZED_CLOCK,
+      },
+    })
+
+    const link = page.getByRole('link', { name: /Alert mail could not be delivered/ })
+    await expect(link).toHaveAttribute('href', '/settings/alerts')
+    await expect(link).toContainText('The mail server refused the message.')
+    await expect(page.getByText('Nothing needs attention.')).toHaveCount(0)
+    // The inverse control: the webhook was fine, so it is not named.
+    await expect(page.getByText('The alert webhook could not be delivered')).toHaveCount(0)
+  })
+
+  test('an alert delivery state the panel could not read is named as unchecked, never as delivering', async ({ page }) => {
+    await openLandingPage(page, {
+      ...FRESHLY_INSTALLED,
+      attention: {
+        certificatesExpiringSoon: loaded(0),
+        failedBackups: loaded(0),
+        sitesOnEndOfLifePhp: loaded(0),
+        alertDelivery: UNAVAILABLE,
+        bannedAddresses: loaded(0),
+        failedTasks: loaded(0),
+        clock: SYNCHRONIZED_CLOCK,
+      },
+    })
+
+    await expect(page.getByRole('link', { name: 'Alert delivery could not be checked' })).toBeVisible()
     await expect(page.getByText('Nothing needs attention.')).toHaveCount(0)
   })
 })

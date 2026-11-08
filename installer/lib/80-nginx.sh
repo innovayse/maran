@@ -405,11 +405,50 @@ move_into_place() {
   sync "$(dirname "$destination")"
 }
 
+# The file manager's upload ceiling when panel.env does not set Files__MaxUploadBytes: 100 MiB, the
+# default of FilesOptions.MaxUploadBytes (backend/src/Maran.Modules/Files/Options/FilesOptions.cs).
+# The two numbers are one decision stated twice because the installer cannot read C#; the polygon
+# assertion in docker/polygon/asserts/parts/nginx.sh compares the rendered location with this default
+# and with an explicit panel.env value, so a drift fails there and not on a customer's upload.
+readonly MARAN_FILES_DEFAULT_MAX_UPLOAD_BYTES=104857600
+
+# What the file-transfer location accepts above the configured upload ceiling: the proxy is a
+# ceiling in front of the API, which counts the bytes itself and answers a refusal with a problem
+# document, so the margin keeps nginx from cutting the connection (a bare 413 the SPA cannot read)
+# for an upload that is only just over what the API would have refused with a readable answer.
+readonly MARAN_FILES_BODY_LIMIT_ALLOWANCE_BYTES=1048576
+
+# panel_files_body_limit: the byte count rendered into the file-transfer location's
+# client_max_body_size - Files__MaxUploadBytes from panel.env (the variable the panel reads) plus
+# MARAN_FILES_BODY_LIMIT_ALLOWANCE_BYTES, or the default's equivalent when the variable is absent or
+# is anything but a plain whole number from 1 to 268435456 (256 MiB, the agent's own upload ceiling,
+# which is also the largest value FilesOptionsValidator lets the panel start with: the panel refuses
+# to boot above it, so a larger number here could only describe a panel that is not running).
+#
+# The value reaches a config file, so it is validated and not escaped (rules/security.md item 4):
+# only digits survive, which also rules out a newline, a unit suffix and a second directive. A bad
+# value falls back to the default and says so on stderr, because a vhost that silently ignored an
+# operator's setting would refuse their uploads for a reason nobody could find.
+panel_files_body_limit() {
+  local raw configured
+  raw="$(awk -v k="Files__MaxUploadBytes" 'index($0, k "=") == 1 { print substr($0, length(k) + 2); exit }' \
+    "${MARAN_CONFIG_FILE:-/etc/maran/panel.env}" 2>/dev/null || true)"
+  configured="$MARAN_FILES_DEFAULT_MAX_UPLOAD_BYTES"
+  if [ -n "$raw" ]; then
+    if [[ "$raw" =~ ^[0-9]{1,9}$ ]] && [ "$((10#$raw))" -ge 1 ] && [ "$((10#$raw))" -le 268435456 ]; then
+      configured="$((10#$raw))"
+    else
+      echo "80-nginx.sh: Files__MaxUploadBytes in panel.env is not a whole number of bytes from 1 to 268435456; the file-transfer limit stays at the default ${MARAN_FILES_DEFAULT_MAX_UPLOAD_BYTES}." >&2
+    fi
+  fi
+  echo "$((configured + MARAN_FILES_BODY_LIMIT_ALLOWANCE_BYTES))"
+}
+
 # render_vhost: substitutes the placeholders in the shipped template into a temp file, and stamps
 # the provenance marker onto its first line — see MARAN_VHOST_MARKER_PREFIX for what the marker is
 # for and what it does not claim.
 render_vhost() {
-  local out="$1" hostname body digest
+  local out="$1" hostname body digest files_body_limit
   # The api's socket comes from install.sh, the one place it is decided, rather than from a
   # literal here: the path in the vhost and the path in panel.env are the two ends of the same
   # socket, and a mismatch is a panel that answers 502 to every call.
@@ -424,9 +463,11 @@ render_vhost() {
   case "$hostname" in
     ""|*[!a-z0-9.-]*) hostname="localhost" ;;
   esac
+  files_body_limit="$(panel_files_body_limit)"
   body="$(mktemp)"
   sed \
     -e "s#__MARAN_SERVER_NAME__#${hostname}#g" \
+    -e "s#__MARAN_FILES_BODY_LIMIT__#${files_body_limit}#g" \
     -e "s#__MARAN_CERT_PATH__#${MARAN_CERT_PATH}#g" \
     -e "s#__MARAN_KEY_PATH__#${MARAN_KEY_PATH}#g" \
     -e "s#__MARAN_API_SOCKET__#${MARAN_API_SOCKET_PATH}#g" \

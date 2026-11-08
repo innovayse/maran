@@ -1,7 +1,11 @@
 //! Package and binary names on the Debian family, how its package manager
 //! reports a failed install, and how it reports the updates it knows of.
 
+use maran_agent_core::validation::mail::mail_password_scheme::MailPasswordScheme;
+
+use crate::dovecot_major::DovecotMajor;
 use crate::is_printable_token::is_printable_token;
+use crate::key_value_server::KeyValueServer;
 use crate::package_failure::PackageFailure;
 use crate::pending_update::PendingUpdate;
 use crate::pending_updates_failure::PendingUpdatesFailure;
@@ -360,6 +364,75 @@ fn classify_origins(source: &str) -> UpdateClassification {
 /// could mean anything, and answering `NotRequired` for one would be a guess.
 pub fn read_reboot_probe_run(_status: i32) -> Result<RebootRequirement, RebootProbeFailure> {
     Err(RebootProbeFailure::NotAProgramProbe)
+}
+
+/// The packages that install the mail stack on the Debian family.
+///
+/// See [`MailFacts::mail_packages`](crate::MailFacts::mail_packages) for what the value is for and how far it is verified.
+#[must_use]
+pub fn mail_packages() -> &'static [&'static str] {
+    &[
+        "postfix",
+        "postfix-lmdb",
+        "dovecot-core",
+        "dovecot-imapd",
+        "dovecot-pop3d",
+        "dovecot-lmtpd",
+        "dovecot-sieve",
+        "rspamd",
+    ]
+}
+
+/// The packages that install ClamAV on the Debian family.
+///
+/// See [`MailFacts::antivirus_packages`](crate::MailFacts::antivirus_packages) for what the value is for and how far it is verified.
+#[must_use]
+pub fn antivirus_packages() -> &'static [&'static str] {
+    &["clamav", "clamav-daemon", "clamav-freshclam"]
+}
+
+/// The Postfix lookup-table type on the Debian family.
+///
+/// See [`MailFacts::postfix_map_type`](crate::MailFacts::postfix_map_type) for what the value is for and how far it is verified.
+#[must_use]
+pub fn postfix_map_type() -> &'static str {
+    "lmdb"
+}
+
+/// The mailbox password scheme on the Debian family.
+///
+/// See [`MailFacts::mail_password_scheme`](crate::MailFacts::mail_password_scheme) for what the value is for and how far it is verified.
+#[must_use]
+pub fn mail_password_scheme() -> MailPasswordScheme {
+    MailPasswordScheme::Argon2id
+}
+
+/// The Dovecot generation of a release of the Debian family.
+///
+/// See [`MailFacts::dovecot_major`](crate::MailFacts::dovecot_major) for what the value is for and how far it is verified.
+#[must_use]
+pub fn dovecot_major(version_id: &str) -> Option<DovecotMajor> {
+    match version_id {
+        "12" | "22.04" | "24.04" => Some(DovecotMajor::V23),
+        "13" => Some(DovecotMajor::V24),
+        _ => None,
+    }
+}
+
+/// The Redis-protocol server of a release of the Debian family.
+///
+/// See [`MailFacts::key_value_server`](crate::MailFacts::key_value_server) for what the value is for and how far it is verified.
+#[must_use]
+pub fn key_value_server(version_id: &str) -> Option<KeyValueServer> {
+    match version_id {
+        "12" | "13" | "22.04" | "24.04" => Some(KeyValueServer {
+            package: "redis-server",
+            service: "redis-server",
+            user: "redis",
+            config_file: "/etc/redis/redis.conf",
+        }),
+        _ => None,
+    }
 }
 
 #[cfg(test)]

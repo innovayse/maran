@@ -4,10 +4,11 @@ use std::path::Path;
 
 use crate::backup::backup_error::BackupError;
 use crate::backup::model::backup_manifest::BackupManifest;
+use crate::backup::model::dump_origin::DumpOrigin;
 use crate::backup::read_sidecar::read_sidecar;
 
 /// Refuses an archive whose sidecar and internal manifest do not say the same
-/// thing.
+/// thing, and says whose dumps the archive holds.
 ///
 /// Two copies of one document exist on purpose: a listing reads the sidecar
 /// without decompressing gigabytes, and a restore reads the copy inside the
@@ -32,6 +33,12 @@ use crate::backup::read_sidecar::read_sidecar;
 /// Going through the one shared reader closes that gap here and for whatever
 /// third caller reads a sidecar next.
 ///
+/// The answer is where the artifact came from, read from the sidecar this
+/// function has just read and judged trustworthy, so that the one reading of the
+/// `imported` flag is the reading of the sidecar that was compared. The flag is
+/// the agent's own record, written when an import publishes an artifact; the
+/// archive is never asked, because its manifest is the sender's.
+///
 /// # Errors
 ///
 /// [`BackupError::ManifestDisagreesWithSidecar`], including when the sidecar
@@ -40,7 +47,7 @@ pub(super) fn require_sidecar_agrees(
     sidecar: &Path,
     manifest: &BackupManifest,
     artifact_sha256: &str,
-) -> Result<(), BackupError> {
+) -> Result<DumpOrigin, BackupError> {
     // A sidecar that describes nothing is a disagreement, not an absence of
     // one — this check reports on what it could observe, and a sidecar it
     // could not read is no second opinion at all. `read_sidecar` answers a
@@ -55,5 +62,9 @@ pub(super) fn require_sidecar_agrees(
         return Err(BackupError::ManifestDisagreesWithSidecar);
     }
 
-    Ok(())
+    Ok(if details.imported {
+        DumpOrigin::Imported
+    } else {
+        DumpOrigin::Own
+    })
 }

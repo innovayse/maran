@@ -1,6 +1,4 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using Maran.SharedKernel.Security;
+using Maran.Sdk.Serialization;
 
 namespace Maran.Host.Extensions;
 
@@ -13,11 +11,14 @@ namespace Maran.Host.Extensions;
 /// controllers and ASP.NET Core minimal API endpoints — have their own independent JSON options,
 /// so both are configured here.
 ///
-/// <see cref="SensitiveStringJsonConverter"/> is registered alongside, so a freshly minted password
+/// <see cref="Maran.SharedKernel.Security.SensitiveStringJsonConverter"/> is registered alongside, so a freshly minted password
 /// can reach the one response that shows it while still rendering as <c>[redacted]</c> everywhere
 /// else. Registering it on ONE surface would be the worse failure: the value would silently
 /// serialize as the mask on the other, and the customer would be shown a password that does not
 /// work.
+///
+/// The converters come from <see cref="PanelJsonOptions"/>, which the server-sent-event stream
+/// serializes with as well, so the two transports cannot spell a value differently.
 /// </summary>
 public static class JsonSerializationExtensions
 {
@@ -29,14 +30,12 @@ public static class JsonSerializationExtensions
         services.AddControllers()
             .AddJsonOptions(options =>
             {
-                options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
-                options.JsonSerializerOptions.Converters.Add(new SensitiveStringJsonConverter());
+                PanelJsonOptions.Apply(options.JsonSerializerOptions);
             });
 
         services.ConfigureHttpJsonOptions(options =>
         {
-            options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
-            options.SerializerOptions.Converters.Add(new SensitiveStringJsonConverter());
+            PanelJsonOptions.Apply(options.SerializerOptions);
         });
 
         return services;

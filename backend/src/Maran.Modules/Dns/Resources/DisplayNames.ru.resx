@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="DnsModuleDisplayName">
+    <value>DNS-зоны</value>
+  </data>
+  <data name="DnsMenuZones">
+    <value>DNS-зоны</value>
+  </data>
+  <data name="DnsMenuNameservers">
+    <value>Серверы имён</value>
+  </data>
+  <data name="DnsRouteZones">
+    <value>DNS-зоны</value>
+  </data>
+  <data name="DnsRouteNameservers">
+    <value>Серверы имён</value>
+  </data>
+  <data name="DnsRecordTypeADescription">
+    <value>Указывает имя на адрес IPv4.</value>
+  </data>
+  <data name="DnsRecordTypeAaaaDescription">
+    <value>Указывает имя на адрес IPv6.</value>
+  </data>
+  <data name="DnsRecordTypeCnameDescription">
+    <value>Делает имя псевдонимом другого имени.</value>
+  </data>
+  <data name="DnsRecordTypeMxDescription">
+    <value>Указывает сервер, принимающий почту домена, и его приоритет.</value>
+  </data>
+  <data name="DnsRecordTypeTxtDescription">
+    <value>Хранит текст, например значения SPF, DKIM и подтверждения.</value>
+  </data>
+  <data name="DnsRecordTypeSrvDescription">
+    <value>Определяет службу по приоритету, весу, порту и хосту.</value>
+  </data>
+  <data name="DnsRecordTypeCaaDescription">
+    <value>Указывает, какие центры сертификации могут выпускать сертификаты для домена.</value>
+  </data>
+  <data name="DnsRecordTypeNsDescription">
+    <value>Передаёт имя ниже зоны другим серверам имён.</value>
+  </data>
+  <data name="DnsOriginCustomer">
+    <value>Добавлена вручную</value>
+  </data>
+  <data name="DnsOriginTemplate">
+    <value>Из шаблона</value>
+  </data>
+  <data name="DnsOriginSystem">
+    <value>Управляется панелью</value>
+  </data>
+  <data name="DnsOriginMail">
+    <value>Управляется почтой</value>
+  </data>
+  <data name="DnsOriginAcmeChallenge">
+    <value>Проверка сертификата</value>
+  </data>
+</root>

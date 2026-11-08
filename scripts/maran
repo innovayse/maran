@@ -29,6 +29,7 @@ usage: maran <command> [arguments]
 
   dev        the whole stack: db, agent, API, SPA; --selfcheck proves it (run-dev.sh)
   env        selftest: .env applies under the caller's own values     (dev-env-selftest.sh)
+  signals    selftest: maran dev stops on SIGINT when started in the background (dev-signals-selftest.sh)
   check      toolchain preflight: is this machine able to build       (preflight.sh)
   structure  file and folder laws that no compiler can express        (check-structure.sh)
   proto      contract lint + the additive law; --accept records a change (proto-lint.sh)
@@ -40,15 +41,18 @@ usage: maran <command> [arguments]
   test       whole-suite verdict: per-target totals vs a committed baseline (test-verdict.sh)
   mutate     break a protection on purpose and score the named test      (mutate.sh)
   lock       the tree write-lock: selftest proves it refuses AND proceeds (tree-lock-selftest.sh)
+  operator-commands  the operator's verbs and flags vs installer/cli/commands.json and the docs; selftest (operator-commands.sh)
   update-selftest  panel self-update logic: verify, layout, unpack refusals; no root, no docker (update-selftest.sh)
   polygon    verify|stamp|build|selftest: score runs, rebuild an image (polygon-ci.sh)
   installer  the documented install path on a real systemd, both families (install-polygon.sh)
   migrate    module migrations: add|apply|list|check|status|guard     (migrations.sh)
   drift      is this database behind the migrations on disk; --apply fixes (schema-drift.sh)
   module     scaffold a new backend module                            (new-module.sh)
+  ipm        module packages: package|sign|verify|selftest            (module-package.sh)
   handshake  agent and API over a real unix socket                    (e2e-handshake.sh)
   licenses   third-party notices; --check verifies without writing    (licenses.sh)
   release    release bundle: build|sign|verify|package|sbom|changelog|rebuild|selftest (release-bundle.sh)
+  demo       the public demo: build|sign|verify|selftest|seed|smoke   (demo-bundle.sh)
   deploy-local  build, sign with a TEST key, copy and install on a dev host over ssh (release-bundle.sh)
   website    the public site, when checked out beside this one        (website.sh)
 
@@ -66,6 +70,7 @@ shift
 case "$command_name" in
   dev)       exec "$root/scripts/lib/run-dev.sh" "$@" ;;
   env)       exec bash "$root/scripts/lib/dev-env-selftest.sh" "$@" ;;
+  signals)   exec bash "$root/scripts/lib/dev-signals-selftest.sh" "$@" ;;
   check)     exec bash "$root/scripts/lib/preflight.sh" "$@" ;;
   structure) exec bash "$root/scripts/lib/check-structure.sh" "$@" ;;
   proto)     exec bash "$root/scripts/lib/proto-lint.sh" "$@" ;;
@@ -77,15 +82,18 @@ case "$command_name" in
   test)      exec bash "$root/scripts/lib/test-verdict.sh" "$@" ;;
   mutate)    exec bash "$root/scripts/lib/mutate.sh" "$@" ;;
   lock)      exec bash "$root/scripts/lib/tree-lock-selftest.sh" "$@" ;;
+  operator-commands) exec bash "$root/scripts/lib/operator-commands.sh" "$@" ;;
   update-selftest) exec bash "$root/scripts/lib/update-selftest.sh" "$@" ;;
   polygon)   exec bash "$root/scripts/lib/polygon-ci.sh" "$@" ;;
   installer) exec bash "$root/scripts/lib/install-polygon.sh" "$@" ;;
   migrate)   exec bash "$root/scripts/lib/migrations.sh" "$@" ;;
   drift)     exec bash "$root/scripts/lib/schema-drift.sh" "$@" ;;
   module)    exec bash "$root/scripts/lib/new-module.sh" "$@" ;;
+  ipm)       exec bash "$root/scripts/lib/module-package.sh" "$@" ;;
   handshake) exec bash "$root/scripts/lib/e2e-handshake.sh" "$@" ;;
   licenses)  exec bash "$root/scripts/lib/licenses.sh" "$@" ;;
   release)   exec bash "$root/scripts/lib/release-bundle.sh" "$@" ;;
+  demo)      exec bash "$root/scripts/lib/demo-bundle.sh" "$@" ;;
   deploy-local) exec bash "$root/scripts/lib/release-bundle.sh" deploy-local "$@" ;;
   website)   exec bash "$root/scripts/lib/website.sh" "$@" ;;
   -h|--help|help) usage ;;

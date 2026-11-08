@@ -4,6 +4,7 @@ using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Queries.ListApiKeys;
 using Maran.Modules.Identity.Services;
 using Maran.Modules.Identity.Tests.TestSupport;
+using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Pagination;
 
 namespace Maran.Modules.Identity.Tests.Queries.ListApiKeys;
@@ -142,5 +143,21 @@ public sealed class ListApiKeysQueryHandlerTests : IDisposable
         Assert.Equal(key.Prefix, row.Prefix);
         Assert.Equal(["203.0.113.0/24"], row.AllowedCidrs);
         Assert.DoesNotContain("TokenHash", typeof(ApiKeyDto).GetProperties().Select(property => { return property.Name; }));
+    }
+
+    /// <summary>Each owner lists only its own keys: the administrator's list holds no reseller's key and a reseller's holds no one else's.</summary>
+    [Fact]
+    public async Task Each_owner_lists_only_its_own_keys()
+    {
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        await ApiKeySeed.AddAsync(_context, Now.AddDays(-4), name: "admin-key");
+        await ApiKeySeed.AddAsync(_context, Now.AddDays(-3), name: "first-key", scopes: [ApiKeyScopes.PlansRead], resellerId: first);
+        await ApiKeySeed.AddAsync(_context, Now.AddDays(-2), name: "second-key", scopes: [ApiKeyScopes.PlansRead], resellerId: second);
+
+        Assert.Equal(["admin-key"], await NamesAsync(new ListApiKeysQuery()));
+        Assert.Equal(["first-key"], await NamesAsync(new ListApiKeysQuery(OwnerResellerId: first)));
+        Assert.Equal(["second-key"], await NamesAsync(new ListApiKeysQuery(OwnerResellerId: second)));
+        Assert.Empty(await NamesAsync(new ListApiKeysQuery(OwnerResellerId: Guid.NewGuid())));
     }
 }

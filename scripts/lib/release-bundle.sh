@@ -15,10 +15,14 @@
 # Manifest shape read by cli_release_manifest_field (installer/cli/lib/release-verify.sh, a plain
 # awk reader — no jq at install time):
 #   {"version": "<ver>", "channel": "stable|beta",
+#    "notes_url": "https://...", "released": "YYYY-MM-DD",
 #    "artifacts": {"<component>-<arch>": {"url": "...", "sha256": "<hex>"}}}
 # "channel" is an additive, signed field the installer's reader never looks at (it keys on the
 # `"<component>-<arch>"` blocks); the self-update CLI refuses a manifest whose channel differs from
 # the one it asked for. check_manifest_channel (release-package.sh) holds a built bundle to it.
+# "notes_url" and "released" (UTC build date) are additive and signed too; `maran update --check`
+# prints them after validating each (cli_release_notes_url_valid, cli_release_date_valid), and a
+# manifest without them stays valid.
 # "url" is meaningless for the offline path (the offline branch of installer/lib/50-artifacts.sh
 # and cli_release_verify_offline never read it) but is still written per component so an online
 # release channel can serve the same manifest this script produces.
@@ -62,6 +66,8 @@ set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 
+# shellcheck disable=SC1091
+. "$root/scripts/lib/signing.sh"
 # shellcheck disable=SC1091
 . "$root/scripts/lib/suite.sh"
 # shellcheck disable=SC1091
@@ -112,12 +118,15 @@ usage() {
   cat >&2 <<'USAGE'
 usage: maran release <build|sign|verify|package|sbom|changelog|rebuild|openapi|selftest|package-selftest|sbom-selftest|changelog-selftest|rebuild-selftest|reproducible-selftest|openapi-selftest|deploy-local|deploy-local-selftest> [arguments]
 
-  build     [--version <ver>] [--channel stable|beta] [--out <dir>] [--arch <list>|both] [--publish]
-            [--source-date-epoch <n>]
+  build     [--version <ver>] [--channel stable|beta] [--security] [--out <dir>] [--arch <list>|both] [--publish]
+            [--source-date-epoch <n>] [--notes-url <https url>]
             assemble api+agent+frontend into a manifest'd bundle dir. --arch defaults to this
             host's; `both` builds x86_64 and aarch64, which is what a PUBLISHED release needs
             (preflight accepts both, so a release with one leaves ARM64 operators nothing to
-            install). --publish declares the bundle is meant to be served and REFUSES anything but
+            install). --security signs `"security": true` into the manifest: this release fixes a
+            known vulnerability and a server with the automatic security-update timer may apply it
+            unattended (docs/operations/panel-update.md); without it the flag is false.
+            --publish declares the bundle is meant to be served and REFUSES anything but
             `both`. A single-architecture bundle also gets the unsuffixed tarball names the
             offline installer path reads.
   sign      --key <path> [--bundle <dir>] [--publish]
@@ -202,6 +211,50 @@ sha256_of() {
 # cannot disagree about what "complete" means.
 readonly MARAN_PUBLISH_ARCHES="x86_64 aarch64"
 readonly MARAN_COMPONENTS="api agent frontend"
+
+# MARAN_NOTES_URL_MAX: the longest notes_url a manifest may carry. Equals the ceiling the CLI holds
+# the field to when it prints it (cli_release_notes_url_valid, installer/cli/lib/release-verify.sh).
+readonly MARAN_NOTES_URL_MAX=512
+
+# notes_url_valid: <url>. Succeeds when the URL is one the CLI will print: https, a limited ASCII
+# alphabet with no whitespace, control character, quote or backslash, and within MARAN_NOTES_URL_MAX.
+# The same rule as cli_release_notes_url_valid, held here so a build refuses what the CLI would drop.
+notes_url_valid() {
+  local LC_ALL=C
+  [ "${#1}" -le "$MARAN_NOTES_URL_MAX" ] \
+    && [[ "$1" =~ ^https://[A-Za-z0-9][A-Za-z0-9._~:/?#@\&+,=%-]*$ ]]
+}
+
+# manifest_release_fields: <notes_url> prints the two additive signed fields that follow
+# "channel" in the manifest, each line ending in a comma: "notes_url" (where the release notes are)
+# and "released" (the UTC build date, YYYY-MM-DD). The date is taken from SOURCE_DATE_EPOCH when set,
+# so a reproducible build writes the same manifest bytes twice, and from the clock otherwise. Refuses
+# a notes_url the CLI would not print.
+manifest_release_fields() {
+  local notes_url="$1" released
+  notes_url_valid "$notes_url" \
+    || release_failed "notes URL '${notes_url}' is not an https URL of at most ${MARAN_NOTES_URL_MAX} plain characters; pass a valid one with --notes-url"
+  if [ "${SOURCE_DATE_EPOCH+x}" = "x" ]; then
+    released="$(date -u -d "@${SOURCE_DATE_EPOCH}" +%Y-%m-%d)"
+  else
+    released="$(date -u +%Y-%m-%d)"
+  fi
+  echo "  \"notes_url\": \"${notes_url}\","
+  echo "  \"released\": \"${released}\","
+}
+
+# manifest_security_field: <0|1>. Prints the signed top-level "security" line that follows "channel"
+# in the manifest, ending in a comma: `true` when this release fixes a known vulnerability and may be
+# applied by the unattended timer (`maran update --security-only`), `false` otherwise. Always written,
+# so a manifest without it is a manifest built before the field existed; the CLI reads anything but a
+# literal true as "not a security release" (installer/cli/lib/release-verify.sh).
+manifest_security_field() {
+  case "$1" in
+    1) echo '  "security": true,' ;;
+    0) echo '  "security": false,' ;;
+    *) release_failed "manifest_security_field: expected 0 or 1, got '${1}'" ;;
+  esac
+}
 
 # manifest_missing_keys: <manifest.json>. Prints each `<component>-<arch>` key a published release
 # needs and the manifest does not hold, one per line. The key is matched as a quoted string, the
@@ -296,41 +349,9 @@ build_api() {
 # compatible, so the floor is the only build target that runs on all eight (issue #48).
 readonly MARAN_AGENT_GLIBC_FLOOR="2.28"
 
-# The release signature: ECDSA P-384 over SHA-384, created and verified with `openssl dgst`.
-#
-# It was Ed25519 through `openssl pkeyutl -verify -rawin`, and that could not be verified on half
-# the supported fleet: `-rawin` arrived in OpenSSL 3.0, and AlmaLinux 8, Rocky 8, Ubuntu 20.04 and
-# Debian 11 all ship OpenSSL 1.1.1, whose `pkeyutl` has no such option and whose CLI cannot verify
-# Ed25519 at all. Measured on AlmaLinux 8 (issue #52):
-#
-#     # openssl pkeyutl -verify -rawin -pubin -inkey release-signing.pub ...
-#     pkeyutl: Option unknown option -rawin
-#
-# The installer reported that as "the signature does not match the trusted key" and told the
-# operator to suspect a compromised mirror, so the old arrangement did not merely fail there — it
-# failed while accusing the download.
-#
-# ECDSA over `openssl dgst` is verifiable by the OS's own openssl on EVERY supported version, with
-# no fallback branch and no second key: a supply-chain check that asks "which signature can I manage
-# here?" is only as strong as the weakest answer. P-384 rather than P-256 because the margin is free
-# — one digest name differs — and this is the key that decides whether a server runs our code.
-#
-# Measured on AlmaLinux 8's OpenSSL 1.1.1k, both halves: a good signature answers `Verified OK` and
-# a tampered payload answers `Verification Failure`. A verifier that only ever sees a good signature
-# proves nothing (rules/testing.md).
-readonly MARAN_SIGNATURE_DIGEST="sha384"
-
-# sign_release_file: <private key> <file> <signature out>. The ONE place this repository spells the
-# signing invocation, so the thing `verify_release_file` and installer/lib/50-artifacts.sh check can
-# never drift from the thing that was signed.
-sign_release_file() {
-  openssl dgst -"$MARAN_SIGNATURE_DIGEST" -sign "$1" -out "$3" "$2"
-}
-
-# verify_release_file: <public key> <file> <signature>. Silent; the caller reports.
-verify_release_file() {
-  openssl dgst -"$MARAN_SIGNATURE_DIGEST" -verify "$1" -signature "$3" "$2" >/dev/null 2>&1
-}
+# The release signature (P-384 over SHA-384, `openssl dgst`): sign_release_file, verify_release_file and
+# MARAN_SIGNATURE_DIGEST live in scripts/lib/signing.sh, sourced above, so the module package builder
+# signs with the very same invocation. The reasoning for the scheme is kept there.
 
 # build_agent: <staging> [arch]. Builds the agent inside the architecture's glibc-floor builder image
 # with docker, refuses a binary above the floor, and stages it at <staging>/agent-<arch>/maran-agent.
@@ -429,6 +450,10 @@ build_agent() {
 build_frontend() {
   local staging="$1" arch="${2:-$(arch_name)}"
   require_tool npm "builds the SPA"
+  # The product SPA is never the demo flavour: vite reads VITE_* from the process environment, so an exported
+  # VITE_MARAN_DEMO=1 would make this build a demo.
+  [ "${VITE_MARAN_DEMO:-}" != "1" ] \
+    || release_failed "VITE_MARAN_DEMO=1 is set; the product release must not be built with the demo flavour"
   ( cd "$root/frontend" && npm run build ) \
     >"${staging}/.frontend-build.log" 2>&1 \
     || { cat "${staging}/.frontend-build.log" >&2; release_failed "npm run build failed in frontend/ (log above)"; }
@@ -437,6 +462,10 @@ build_frontend() {
   # installer/lib/50-artifacts.sh's reader needs no special case for one of the three. The cost is
   # one duplicated archive per release; the alternative is a manifest where two components are keyed
   # one way and the third another, which is the kind of exception that outlives its reason.
+  # And it holds no trace of the demo: the status request exists only in the demo flavour.
+  if grep -rqF -- 'demo/status' "$root/frontend/dist"; then
+    release_failed "frontend/dist contains the demo status request; the product SPA must not be the demo flavour"
+  fi
   local out_dir="${staging}/frontend-${arch}"
   rm -rf -- "$out_dir"
   cp -r "$root/frontend/dist" "$out_dir"
@@ -531,11 +560,13 @@ write_integrity_manifest() {
 }
 
 cmd_build() {
-  local version="" out_dir="" channel="" arch_list="" publish=0
+  local version="" out_dir="" channel="" arch_list="" publish=0 notes_url="" security=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --version) version="${2:?--version requires a value}"; shift 2 ;;
+      --security) security=1; shift ;;
       --channel) channel="${2:?--channel requires a value}"; shift 2 ;;
+      --notes-url) notes_url="${2:?--notes-url requires a value}"; shift 2 ;;
       --out) out_dir="${2:?--out requires a value}"; shift 2 ;;
       --publish) publish=1; shift ;;
       # The flag sets the variable the environment would, and wins over it (one value, one source).
@@ -562,6 +593,9 @@ cmd_build() {
     *) echo "release build: --channel must be stable or beta, got: ${channel}" >&2; exit 2 ;;
   esac
   [ -n "$out_dir" ] || out_dir="/tmp/maran-release-bundle"
+  # The release notes live on the GitHub release the tagged workflow creates for v<version>.
+  [ -n "$notes_url" ] || notes_url="https://github.com/innovayse/maran/releases/tag/v${version}"
+  manifest_release_fields "$notes_url" >/dev/null
 
   # A published build owes both architectures, refused HERE, before the tree lock and before any
   # toolchain runs: the omission costs an ARM64 operator a failed install, and finding it after an
@@ -641,6 +675,8 @@ cmd_build() {
     echo "{"
     echo "  \"version\": \"${version}\","
     echo "  \"channel\": \"${channel}\","
+    manifest_security_field "$security"
+    manifest_release_fields "$notes_url"
     echo "  \"artifacts\": {"
     local first=1
     for arch in ${arch_list//,/ }; do
@@ -821,7 +857,7 @@ cmd_selftest() {
   # The selftest builds its own manifest inline rather than calling cmd_build, so it needs the
   # same `channel` the real builder has — without it the URL would interpolate an empty segment
   # and this test would be asserting against a shape no release ever has.
-  local channel="stable"
+  local channel="stable" selftest_notes_url="https://github.com/innovayse/maran/releases/tag/vselftest"
   local keydir="${work}/keys" bundle="${work}/bundle"
   install -d -m 0700 "$keydir"
   # The SAME curve and digest the real key uses, because a selftest that signs with a different
@@ -852,6 +888,8 @@ cmd_selftest() {
     echo "{"
     echo "  \"version\": \"selftest\","
     echo "  \"channel\": \"${channel}\","
+    manifest_security_field 0
+    manifest_release_fields "$selftest_notes_url"
     echo "  \"artifacts\": {"
     local first=1
     for component in api agent frontend; do
@@ -982,6 +1020,8 @@ cmd_selftest() {
       echo "{"
       echo "  \"version\": \"selftest\","
       echo "  \"channel\": \"${channel}\","
+      manifest_security_field 0
+      manifest_release_fields "$selftest_notes_url"
       echo "  \"artifacts\": {"
       for pub_arch in $arches; do
         for pub_component in $MARAN_COMPONENTS; do
@@ -1093,12 +1133,90 @@ cmd_selftest() {
   fi
 
   echo
+  echo "-- outcome 10: the signed notes_url and released fields --"
+  local nf_dir nf_out field
+  grep -qE '^  "notes_url": "https://[^"]+",$' "${bundle}/manifest.json" \
+    && grep -qE '^  "released": "[0-9]{4}-[0-9]{2}-[0-9]{2}",$' "${bundle}/manifest.json" \
+    || release_failed "selftest: the signed manifest lacks notes_url or released, so the checks below prove nothing."
+  echo "${VERDICT_PREFIX}: OK, the signed manifest carries notes_url and released."
+  for field in notes_url released; do
+    nf_dir="${work}/${field}-tampered"
+    cp -r "$bundle" "$nf_dir"
+    sed -i "s#\"${field}\": \"\([^\"]*\)\"#\"${field}\": \"\1x\"#" "${nf_dir}/manifest.json"
+    cmp -s "${bundle}/manifest.json" "${nf_dir}/manifest.json" \
+      && release_failed "selftest: outcome 10's sed did not change ${field}, so the tamper step is broken and this proves nothing."
+    if nf_out="$(verify_bundle "$nf_dir" "${keydir}/throwaway.pub" 2>&1)"; then
+      release_failed "selftest: verify ACCEPTED a manifest whose ${field} was edited after signing; the field is not covered by the signature."
+    elif printf '%s' "$nf_out" | grep -q 'signature does NOT verify'; then
+      echo "${VERDICT_PREFIX}: OK, ${field} edited after signing REFUSED by the signature (expected)."
+    else
+      release_failed "selftest: a tampered ${field} was refused for another reason than the signature: ${nf_out}"
+    fi
+  done
+  # The builder holds the CLI's rule: a URL the CLI would drop is refused at build, and a good one is
+  # written (the inverse control: a check that refuses everything fails the second line).
+  for nf_out in 'http://example.com/notes' 'https://example.com/a b' $'https://example.com/\x1b[2J' 'https://' 'ftp://example.com'; do
+    if (manifest_release_fields "$nf_out") >/dev/null 2>&1; then
+      release_failed "selftest: the builder accepted the notes URL '${nf_out}'."
+    fi
+  done
+  echo "${VERDICT_PREFIX}: OK, the builder refuses a non-https, spaced, control-character or empty-host notes URL (expected)."
+  manifest_release_fields "https://example.com/notes/1.0.0" | grep -q '"notes_url": "https://example.com/notes/1.0.0",' \
+    || release_failed "selftest: the builder refused or mangled a plain https notes URL (inverse control)."
+  SOURCE_DATE_EPOCH=86400 manifest_release_fields "https://example.com/n" | grep -q '"released": "1970-01-02",' \
+    || release_failed "selftest: SOURCE_DATE_EPOCH did not fix the released date."
+  echo "${VERDICT_PREFIX}: OK, a plain https notes URL is written and SOURCE_DATE_EPOCH fixes the released date (inverse control)."
+
+  echo
+  echo "-- outcome 11: the signed security flag --"
+  # The flag decides what the unattended timer may apply, so a network attacker who could flip it
+  # would turn a feature release into an unattended one. Each broken copy differs from the untouched
+  # bundle in the flag and nothing else; a correctly re-signed security bundle is the inverse control.
+  local sec_dir sec_out
+  grep -qE '^  "security": false,$' "${bundle}/manifest.json" \
+    || release_failed "selftest: the signed manifest lacks the security flag, so the checks below prove nothing."
+  sec_dir="${work}/security-tampered"
+  cp -r "$bundle" "$sec_dir"
+  sed -i 's/"security": false/"security": true/' "${sec_dir}/manifest.json"
+  if cmp -s "${bundle}/manifest.json" "${sec_dir}/manifest.json"; then
+    release_failed "selftest: outcome 11's sed did not change the security flag, so the tamper step is broken" \
+      "and this proves nothing."
+  fi
+  if sec_out="$(verify_bundle "$sec_dir" "${keydir}/throwaway.pub" 2>&1)"; then
+    release_failed "selftest: verify ACCEPTED a manifest whose security flag was edited after signing;" \
+      "the flag is not covered by the signature."
+  elif printf '%s' "$sec_out" | grep -q 'signature does NOT verify'; then
+    echo "${VERDICT_PREFIX}: OK, a security flag edited after signing REFUSED by the signature (expected)."
+  else
+    release_failed "selftest: a tampered security flag was refused for another reason than the signature: ${sec_out}"
+  fi
+  sec_dir="${work}/security-signed"
+  cp -r "$bundle" "$sec_dir"
+  sed -i 's/"security": false/"security": true/' "${sec_dir}/manifest.json"
+  sign_release_file "${keydir}/throwaway.key" "${sec_dir}/manifest.json" "${sec_dir}/manifest.json.sig"
+  if verify_bundle "$sec_dir" "${keydir}/throwaway.pub"; then
+    echo "${VERDICT_PREFIX}: OK, a correctly signed security manifest ACCEPTED (inverse control, expected)."
+  else
+    release_failed "selftest: a correctly signed security bundle was refused; the check refuses" \
+      "everything, or the fixture is broken."
+  fi
+  manifest_security_field 1 | grep -qx '  "security": true,' \
+    && manifest_security_field 0 | grep -qx '  "security": false,' \
+    || release_failed "selftest: the builder's security line is not the shape the CLI reader scans for."
+  if (manifest_security_field 2) >/dev/null 2>&1; then
+    release_failed "selftest: the builder accepted a security flag that is neither 0 nor 1."
+  fi
+  echo "${VERDICT_PREFIX}: OK, the builder writes the security line the CLI reads and refuses any other value."
+
+  echo
   release_ok "selftest: build -> sign -> verify accepted a good bundle, refused a tampered one and" \
     "an unsigned one, wrote a complete integrity-manifest.json across all three components," \
     "verified and refused it exactly like manifest.json, documented the" \
     "signature-does-not-re-derive-hashes gap, refused a build below the vacuity floor, held a" \
     "published release to both architectures, and held the signed channel field (tamper, absence" \
-    "and url disagreement refused; a correct beta accepted)."
+    "and url disagreement refused; a correct beta accepted), and held the signed notes_url and" \
+    "released fields (tamper refused, hostile build-time URLs refused), and held the signed" \
+    "security flag (tamper refused by the signature, a correctly signed one accepted)."
 }
 
 command_name="${1:-}"

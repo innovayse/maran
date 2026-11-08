@@ -6,6 +6,7 @@ use maran_agent_core::validation::system::name::AccountName;
 use crate::db::db_error::DbError;
 use crate::db::db_host::DbHost;
 use crate::db::list_databases::list_databases;
+use crate::db::revoke_database_grants::revoke_database_grants;
 
 /// The host the dedicated users were allowed to connect from.
 ///
@@ -76,6 +77,7 @@ pub fn drop_account_databases(host: &dyn DbHost, account: &AccountName) -> Resul
     }
 
     for database in &databases {
+        revoke_database_grants(host, &database.name)?;
         host.execute(&format!("DROP DATABASE `{}`", database.name.as_str()))?;
     }
 

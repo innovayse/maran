@@ -2,6 +2,7 @@ using Maran.Modules.Tasks.Domain.Entities;
 using Maran.Modules.Tasks.Domain.Enums;
 using Maran.Modules.Tasks.Persistence;
 using Maran.Modules.Tasks.Resources;
+using Maran.Sdk.Contracts;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -41,6 +42,12 @@ namespace Maran.Modules.Tasks.Services;
 /// instant the task died, because nothing recorded the latter — the process that would have written
 /// it is what stopped. The error code says what happened, and the sentence behind it in every
 /// language is the one an operator reads.
+/// </para>
+/// <para>
+/// <b>One kind is deliberately left alone: <see cref="TaskKinds.PanelUpdate"/>.</b> The panel's own
+/// update restarts this process, so its task is meant to be running from before the boundary and is
+/// closed by the Updates module (the root update's report, or that module's reaper), never by this
+/// pass.
 /// </para>
 /// <para>
 /// A failed pass is retried a bounded number of times: at boot the database may not be reachable
@@ -131,6 +138,11 @@ public sealed class StartupTaskReconciler : BackgroundService
         using var scope = _scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<TasksDbContext>();
 
+        // The panel-update kind is excluded on purpose: the update restarts this very process, so its
+        // task is MEANT to be running from before the boundary. Closing it here would report every
+        // successful update as "the panel restarted". The Updates module closes it from the root
+        // update's report, or from its own reaper when no report arrives, so excluding it does not
+        // leave a task running for ever.
         // Both halves of the predicate carry weight. The status is what makes a row a candidate; the
         // boundary is what makes the pass safe to run late, because a task this process opened is
         // running for a reason and closing it would be the very failure this class exists to fix.
@@ -138,7 +150,9 @@ public sealed class StartupTaskReconciler : BackgroundService
 #pragma warning disable RS0030 // reconciliation runs at startup, before any request, and must see tasks left by the dead process
         var abandoned = await dbContext.PanelTasks
             .IgnoreQueryFilters()
-            .Where(task => task.Status == PanelTaskStatus.Running && task.StartedAt < boundary)
+            .Where(task => task.Status == PanelTaskStatus.Running
+                && task.StartedAt < boundary
+                && task.Kind != TaskKinds.PanelUpdate)
             .ToListAsync(cancellationToken);
 #pragma warning restore RS0030
 

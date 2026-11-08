@@ -27,7 +27,11 @@ public static class SiteDescriptorMapper
             ToBackendKind(site.BackendType),
             site.PhpVersion,
             site.ProxyUpstream,
-            site.HasCertificate);
+            site.HasCertificate,
+            // Read from the row like every other fact, so the options travel with the site on every
+            // re-render: a vhost written without them loses the site's redirects, credentials and
+            // IP rules on an action that had nothing to do with them.
+            SiteOptionsDescriptorMapper.From(site.Options));
     }
 
     /// <summary>Maps the module's backend enum onto the agent client's.</summary>

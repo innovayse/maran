@@ -1,6 +1,7 @@
 using System.Resources;
 using Maran.Modules.Databases.Interfaces;
 using Maran.Modules.Databases.Persistence;
+using Maran.Modules.Databases.Seeders;
 using Maran.Modules.Databases.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
@@ -55,6 +56,10 @@ public sealed class DatabasesModule : IPanelModule
             options.UseNpgsql(connectionString);
         });
 
+        // A singleton, because it holds no state: it opens its own scope per call, so the Host can run the
+        // module's migrations through the root provider (rules/architecture.md "The database evolves the same way").
+        services.AddSingleton<IModuleMigrations, DatabasesModuleMigrations>();
+
         // Scoped, because it reads the request's own tenant-scoped DbContext: this module's answer to the
         // personal-data export, an allow-list of fields and never a secret.
         services.AddScoped<IPersonalDataProvider, DatabasesPersonalDataProvider>();
@@ -66,6 +71,12 @@ public sealed class DatabasesModule : IPanelModule
         // advisory lock it holds is scoped to that transaction and must be released by its commit.
         services.AddScoped<IDatabaseSlotGate, DatabaseSlotGate>();
 
+        // Scoped, because it counts through the request's own context under a transaction on its connection.
+        services.AddScoped<IDatabaseUserLimitGate, DatabaseUserLimitGate>();
+
+        // Scoped, because it uses the request-scoped context; run by the Host's start-up task.
+        services.AddScoped<DatabaseUserBackfillSeeder>();
+
         // The one window another module reads this schema through: names only, tenant-scoped by the
         // context's own filter (rules/architecture.md "A shared facility's contract").
         services.AddScoped<IAccountDatabaseDirectory, AccountDatabaseDirectory>();
@@ -73,6 +84,10 @@ public sealed class DatabasesModule : IPanelModule
         // This module's answer to how many databases an account owns, for the Accounts module's resource
         // summary. Scoped, because it reads through the request-scoped, tenant-filtered context.
         services.AddScoped<IAccountResourceCounter, DatabaseAccountResourceCounter>();
+
+        // Scoped like GrantRepairRefusalDisplayNames, for the same reason: privilege and preset names are
+        // resolved per request culture.
+        services.AddScoped<DatabasePrivilegeDisplayNames>();
 
         // Scoped like the other request-culture readers: it resolves the refusal sentences an
         // administrator reads against IStringLocalizer<DisplayNames>, which is culture-sensitive per

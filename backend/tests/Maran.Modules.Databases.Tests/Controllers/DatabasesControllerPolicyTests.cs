@@ -19,6 +19,7 @@ public sealed class DatabasesControllerPolicyTests
     [Theory]
     [InlineData(typeof(DatabaseGrantsController), AuthorizationPolicies.AdminOnly)]
     [InlineData(typeof(DatabasesController), AuthorizationPolicies.AnyAuthenticated)]
+    [InlineData(typeof(DatabaseUsersController), AuthorizationPolicies.AnyAuthenticated)]
     public void A_controller_names_its_policy_on_the_class(Type controller, string policy)
     {
         var policies = controller
@@ -86,6 +87,7 @@ public sealed class DatabasesControllerPolicyTests
         {
             nameof(DatabaseGrantsController),
             nameof(DatabasesController),
+            nameof(DatabaseUsersController),
         };
         Assert.Equal(expected.Order(StringComparer.Ordinal), names);
     }

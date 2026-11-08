@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="MailModuleDisplayName">
+    <value>Փոստ</value>
+  </data>
+  <data name="MailMenuDomains">
+    <value>Փոստային դոմեններ</value>
+  </data>
+  <data name="MailMenuMailboxes">
+    <value>Փոստարկղեր</value>
+  </data>
+  <data name="MailMenuAliases">
+    <value>Այլանուններ և փոխանցումներ</value>
+  </data>
+  <data name="MailRouteDomains">
+    <value>Փոստային դոմեններ</value>
+  </data>
+  <data name="MailRouteMailboxes">
+    <value>Փոստարկղեր</value>
+  </data>
+  <data name="MailRouteAliases">
+    <value>Այլանուններ և փոխանցումներ</value>
+  </data>
+  <data name="MailDnsRecordPurposeDelivery">
+    <value>Փոստի առաքում</value>
+  </data>
+  <data name="MailDnsRecordPurposeSpf">
+    <value>Ուղարկողների քաղաքականություն (SPF)</value>
+  </data>
+  <data name="MailDnsRecordPurposeDkimKey">
+    <value>DKIM ստորագրության բանալի</value>
+  </data>
+  <data name="MailDnsRecordPurposeDmarc">
+    <value>Ստացողների քաղաքականություն (DMARC)</value>
+  </data>
+  <data name="MailDomainStatusActive">
+    <value>Ակտիվ</value>
+  </data>
+  <data name="MailDomainStatusSuspended">
+    <value>Կասեցված</value>
+  </data>
+  <data name="MailboxStatusActive">
+    <value>Ակտիվ</value>
+  </data>
+  <data name="MailboxStatusSuspended">
+    <value>Կասեցված</value>
+  </data>
+  <data name="MailboxStatusDisabled">
+    <value>Անջատված</value>
+  </data>
+  <data name="MailAliasKindAlias">
+    <value>Այլանուն</value>
+  </data>
+  <data name="MailAliasKindForwarder">
+    <value>Փոխանցում</value>
+  </data>
+  <data name="MailAliasKindCatchAll">
+    <value>Ընդհանուր (catch-all)</value>
+  </data>
+</root>

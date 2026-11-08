@@ -233,6 +233,26 @@ public sealed class BarrierSitesAgent : IAgentSitesClient
         throw new NotSupportedException("This double answers site creation and deletion only.");
     }
 
+    /// <inheritdoc/>
+    public Task<Result<SiteTrafficReading>> SummariseTrafficAsync(
+        string accountUsername,
+        string domain,
+        SiteTrafficCursor? cursor,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double answers site creation and deletion only.");
+    }
+
+    /// <inheritdoc/>
+    public Task<Result<PrunedSiteLogs>> PruneLogsAsync(
+        string accountUsername,
+        string domain,
+        uint retainRotations,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double answers site creation and deletion only.");
+    }
+
     /// <summary>Not exercised by a site creation.</summary>
     /// <param name="cancellationToken">Ignored.</param>
     /// <returns>Never returns.</returns>

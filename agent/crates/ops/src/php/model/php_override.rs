@@ -13,7 +13,28 @@ const MEBIBYTE: u64 = 1024 * 1024;
 /// upload larger than `post_max_size` is silently discarded by PHP, and a
 /// `memory_limit` below either is an out-of-memory error mid-upload — and
 /// three different ceilings would only produce combinations that cannot work.
+///
+/// The nginx vhost body limit (`client_max_body_size` in
+/// `templates/nginx/site_body.conf.j2`) is written to this same figure; change
+/// both together.
 const MAXIMUM_BYTES: u64 = 512 * MEBIBYTE;
+
+/// The upload and post ceiling every pool starts with, as php.ini spells it.
+///
+/// Written by the pool template as the default of both `upload_max_filesize`
+/// and `post_max_size`; a customer's override replaces either. PHP's own
+/// defaults (2M and 8M) cut an upload the customer expects to work, and
+/// `post_max_size` below `upload_max_filesize` cuts it silently.
+pub(crate) const DEFAULT_SIZE: &str = "32M";
+
+/// [`DEFAULT_SIZE`] in bytes, for comparing it with an override.
+const DEFAULT_SIZE_BYTES: u64 = 32 * MEBIBYTE;
+
+/// The setting that caps one uploaded file.
+const UPLOAD_SETTING: &str = "upload_max_filesize";
+
+/// The setting that caps a whole request body, and so every file in it.
+const POST_SETTING: &str = "post_max_size";
 
 /// The most path components a timezone name may have — `America/Indiana/Knox`
 /// is the deepest shape the IANA database uses.
@@ -151,6 +172,42 @@ impl PhpOverride {
         Ok(Self {
             name: allowed_name,
             value: value.to_owned(),
+        })
+    }
+
+    /// Refuses a set of overrides in which a request body could not hold the
+    /// largest file the same set allows.
+    ///
+    /// A setting the set does not name keeps the pool's default
+    /// (`DEFAULT_SIZE`), so setting only `upload_max_filesize` above the
+    /// default is refused too: the pool would accept a file its own
+    /// `post_max_size` then discards, which PHP reports as an empty upload with
+    /// no error. Refused rather than raised on the customer's behalf, for the
+    /// reason an unlisted name is refused rather than dropped.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PhpOpError::OverridePostSizeBelowUpload`] when the effective
+    /// `post_max_size` is smaller than the effective `upload_max_filesize`.
+    pub fn ensure_consistent(overrides: &[Self]) -> Result<(), PhpOpError> {
+        let effective = |setting: &str| -> u64 {
+            overrides
+                .iter()
+                // The last occurrence wins, as it does in the file.
+                .rfind(|item| item.name == setting)
+                .and_then(|item| parse_bytes(item.name, &item.value).ok())
+                .unwrap_or(DEFAULT_SIZE_BYTES)
+        };
+
+        let post_max_size = effective(POST_SETTING);
+        let upload_max_filesize = effective(UPLOAD_SETTING);
+        if post_max_size >= upload_max_filesize {
+            return Ok(());
+        }
+
+        Err(PhpOpError::OverridePostSizeBelowUpload {
+            post_max_size,
+            upload_max_filesize,
         })
     }
 

@@ -80,6 +80,31 @@ public sealed class SiteDirectoryTests
         Assert.False(site.HasCertificate);
     }
 
+    /// <summary>Listing an account's domains answers its own, in order, and never another tenant's.</summary>
+    [Fact]
+    public async Task Listing_an_accounts_domains_answers_its_own_in_order_and_never_another_tenants()
+    {
+        var mine = Guid.NewGuid();
+        var theirs = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        await SeedAsync(database, mine, theirs);
+        await using (var seed = SitesTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            seed.Sites.Add(SitesTestContext.PhpSite(mine, "alpha.example.com"));
+            await seed.SaveChangesAsync();
+        }
+
+        await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(mine), database);
+        var directory = new SiteDirectory(context);
+
+        Assert.Equal(
+            ["alpha.example.com", "mine.example.com"],
+            await directory.ListDomainsAsync(mine, CancellationToken.None));
+
+        // The same indistinguishability the lookup promises: another tenant's account reads as empty.
+        Assert.Empty(await directory.ListDomainsAsync(theirs, CancellationToken.None));
+    }
+
     /// <summary>Attaching a certificate flips the flag every later vhost render is told.</summary>
     [Fact]
     public async Task Attaching_a_certificate_flips_the_flag_every_later_vhost_render_is_told()

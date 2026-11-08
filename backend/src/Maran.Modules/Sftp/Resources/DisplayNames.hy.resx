@@ -15,4 +15,10 @@
   <data name="SftpModuleDisplayName">
     <value>Ֆայլերի փոխանցում</value>
   </data>
+  <data name="SftpMenuFileTransferSftp">
+    <value>SFTP մուտքանուններ</value>
+  </data>
+  <data name="SftpRouteFileTransferSftp">
+    <value>SFTP մուտքանուններ</value>
+  </data>
 </root>

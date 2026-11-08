@@ -105,3 +105,27 @@ already mailed, so the page says so before the button is pressed.
   Chromium only.
 - **A reverse proxy that caches POST responses** is outside the repository. None is configured by
   the installer, and `no-store` is the instruction any such proxy is given.
+
+## Addendum: the same two actions for a reseller's login (issue #374)
+
+An administrator can now resend a reseller's invitation by mail and create a one-time link for it, on
+the reseller's detail page. Nothing about the model above changes; this records what the second
+caller adds, and the same OUTSTANDING second review applies to it.
+
+- **New surface.** `POST /api/v1/invitations/resellers/{resellerId}/resend`, `POST .../link` and
+  `GET .../resellers/{resellerId}`, on the same `AdminOnly` controller, so a customer, a reseller or an
+  anonymous caller is refused before any handler runs. The link answer carries `no-store` like its
+  account counterpart.
+- **Same minting, same refusals.** `ResellerInvitationIssuer` mints through `InvitationIssuer.MintAsync`,
+  so the digest-only storage, the spending of every outstanding token and the single live token hold
+  unchanged. It refuses an unknown reseller, a reseller with no login (nothing is created: the
+  reseller's creation event is what issues a login), a login that already has a password (a fresh
+  token would be a password reset in disguise) and a suspended reseller.
+- **Audit.** A resend is journalled as `ResellerInvited`, a link as `InvitationLinkIssued`, both under
+  the administrator as actor and the login name as subject, with no token; a refused link attempt is
+  journalled with `succeeded = false`.
+- **What an attacker gains that they did not have.** An administrator account was already able to take
+  over an unclaimed account owner's login this way; it can now do the same for an unclaimed reseller
+  login, and only while that login has no password. Taking over a claimed login is refused.
+- **Not verified.** No second reviewer (agent session); the real mail path was not exercised, only the
+  published message.

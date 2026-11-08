@@ -1,7 +1,4 @@
-using Maran.Modules.Backups.Domain.Entities;
 using Maran.Modules.Backups.Domain.Enums;
-using Maran.Modules.Backups.Models;
-using Maran.Modules.Backups.Persistence;
 using Maran.Modules.Backups.Resources;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
@@ -14,7 +11,7 @@ namespace Maran.Modules.Backups.Services;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>It is the create path with two differences, and both of them are about the row outliving its
+/// <b>It is <see cref="SafetyBackupService"/> with two differences, and both of them are about the row outliving its
 /// account.</b> The row's kind is <see cref="BackupKind.PreDeletion"/>, which is what exempts it
 /// from this module's own account cascade and from retention; and the answer is a
 /// <see cref="Result{T}"/> rather than a recorded outcome the caller reads at leisure, because the
@@ -47,39 +44,14 @@ namespace Maran.Modules.Backups.Services;
 /// </remarks>
 public sealed class AccountBackupService : IAccountBackupService
 {
-    /// <summary>The Backups module's database context.</summary>
-    private readonly BackupsDbContext _dbContext;
-
-    /// <summary>The stream consumer that reduces one run to a single outcome.</summary>
-    private readonly BackupRunner _runner;
-
-    /// <summary>Resolves which destination the final backup writes to.</summary>
-    private readonly BackupDestinationResolver _destinations;
-
-    /// <summary>This module's audit journal.</summary>
-    private readonly BackupAuditJournal _journal;
-
-    /// <summary>The injected time source; never the ambient clock (rules/csharp.md).</summary>
-    private readonly IClock _clock;
+    /// <summary>The one path that takes a safety backup; shared with the restore's pre-restore copy.</summary>
+    private readonly SafetyBackupService _safetyBackups;
 
     /// <summary>Creates the service.</summary>
-    /// <param name="dbContext">The Backups module's database context.</param>
-    /// <param name="runner">The stream consumer that drives the run.</param>
-    /// <param name="destinations">Resolves which destination the final backup writes to.</param>
-    /// <param name="journal">This module's audit journal.</param>
-    /// <param name="clock">The injected time source used to stamp the row.</param>
-    public AccountBackupService(
-        BackupsDbContext dbContext,
-        BackupRunner runner,
-        BackupDestinationResolver destinations,
-        BackupAuditJournal journal,
-        IClock clock)
+    /// <param name="safetyBackups">The one path that takes a safety backup.</param>
+    public AccountBackupService(SafetyBackupService safetyBackups)
     {
-        _dbContext = dbContext;
-        _runner = runner;
-        _destinations = destinations;
-        _journal = journal;
-        _clock = clock;
+        _safetyBackups = safetyBackups;
     }
 
     /// <inheritdoc />
@@ -88,56 +60,20 @@ public sealed class AccountBackupService : IAccountBackupService
         string accountName,
         CancellationToken cancellationToken)
     {
-        // Resolved first, so a panel that cannot name a destination REFUSES the deletion instead of
-        // recording a final backup that never happened. Every exit of this method is a fact the
-        // deletion handler branches on, and "there was nowhere to put it" must be one of them.
-        var destination = await _destinations.ResolveAsync(destinationId: null, cancellationToken);
-        if (!destination.IsSuccess)
-        {
-            return Result<Guid>.Fail(destination.Error!);
-        }
-
-        var backup = new Backup(
-            Guid.NewGuid(), accountId, destination.Value!.Id, BackupKind.PreDeletion, _clock.UtcNow);
-
-        _dbContext.Backups.Add(backup);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        var outcome = await _runner.RunAsync(
-            accountName, backup.Id, destination.Value.Agent, Guid.Empty, cancellationToken);
-
         // The caller has no address to record — a deletion is journalled by the Accounts module
-        // under its own action — so what this journal adds is the fact that the FINAL backup
+        // under its own action — so what the journal adds is the fact that the FINAL backup
         // specifically was attempted and how it ended, against the account being destroyed: the
-        // one name that is left to search for once the deletion finishes.
-        switch (outcome)
-        {
-            case CreatedBackupOutcome created:
-                backup.Completed(created.SizeBytes, created.Sha256, created.DatabaseCount, _clock.UtcNow);
-                await _dbContext.SaveChangesAsync(cancellationToken);
-
-                await _journal.RecordSuccessAsync(
-                    AccountAuditActions.FinalBackupTaken, accountName, string.Empty, string.Empty, cancellationToken);
-
-                // The deletion has what it asked for either way: a finding about the final archive is
-                // recorded and mailed, never turned into a refusal of the deletion.
-                await _runner.VerifyCompletedAsync(backup, accountName, cancellationToken);
-                break;
-
-            case FailedBackupOutcome failed:
-                backup.Failed(failed.FailureCode, _clock.UtcNow);
-                await _dbContext.SaveChangesAsync(cancellationToken);
-
-                await _journal.RecordFailureAsync(
-                    AccountAuditActions.FinalBackupTaken, accountName, string.Empty, string.Empty, cancellationToken);
-
-                return Result<Guid>.Fail(Error.Of(nameof(ErrorMessages.FinalBackupFailed), ErrorType.Failure));
-
-            default:
-                throw new InvalidOperationException(
-                    $"Unhandled backup outcome {outcome.GetType().Name}; the hierarchy is closed to two cases.");
-        }
-
-        return Result<Guid>.Ok(backup.Id);
+        // one name that is left to search for once the deletion finishes. The runner is given
+        // Guid.Empty: the deletion's own task is the one an operator watches.
+        return await _safetyBackups.TakeAsync(
+            BackupKind.PreDeletion,
+            accountId,
+            accountName,
+            AccountAuditActions.FinalBackupTaken,
+            nameof(ErrorMessages.FinalBackupFailed),
+            Guid.Empty,
+            string.Empty,
+            string.Empty,
+            cancellationToken);
     }
 }

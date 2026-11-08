@@ -45,8 +45,19 @@ const props = withDefaults(
     required?: boolean
     /** Already-translated validation message; when set, the field renders as invalid. */
     error?: string | null
+    /**
+     * Draws the text in the monospace face, for machine text whose columns must line up (a file
+     * being edited, a command, a configuration snippet). A real prop: a class on the tag would
+     * land on the wrapper `div`, not the `<textarea>`.
+     */
+    mono?: boolean
+    /**
+     * Keeps long lines on one line and scrolls the field sideways instead of wrapping them, so a
+     * file's own line breaks are the only ones shown. Off by default: prose wraps.
+     */
+    noWrap?: boolean
   }>(),
-  { placeholder: undefined, rows: 4, required: false, error: null },
+  { placeholder: undefined, rows: 4, required: false, error: null, mono: false, noWrap: false },
 )
 
 /** Events emitted by {@link UiTextarea}. */
@@ -96,12 +107,14 @@ const onInput = (event: Event): void => {
       :aria-required="required ? 'true' : undefined"
       :aria-invalid="hasError"
       :aria-describedby="hasError ? errorId : undefined"
+      :wrap="noWrap ? 'off' : undefined"
       class="resize-y rounded-control border bg-surface-2 px-3 py-1.5 text-base leading-normal text-text-primary transition-colors placeholder:text-text-muted focus-visible:outline-none sm:text-sm"
-      :class="
+      :class="[
+        mono ? 'font-mono' : '',
         hasError
           ? 'border-danger focus-visible:shadow-field-focus-danger'
-          : 'border-border-control enabled:hover:border-border-control-hover focus-visible:border-accent focus-visible:shadow-field-focus'
-      "
+          : 'border-border-control enabled:hover:border-border-control-hover focus-visible:border-accent focus-visible:shadow-field-focus',
+      ]"
       @input="onInput"
     />
     <p v-if="hasError" :id="errorId" class="text-sm text-danger wrap-anywhere">{{ error }}</p>

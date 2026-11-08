@@ -1,0 +1,31 @@
+{
+  "filesEditor": {
+    "heading": "Edit file",
+    "subtitle": "Editing {path}",
+    "back": "Back to the folder",
+    "textLabel": "File contents",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Saved.",
+    "reload": "Reload from disk",
+    "noWrap": "Do not wrap lines",
+    "size": "{size} of {limit}",
+    "sizeOnly": "{size}",
+    "overLimit": "The text is over the {limit} limit. Shorten it to save.",
+    "mode": "Permissions {mode}, kept when you save",
+    "saveFailed": "The file could not be saved.",
+    "unreachable": "The panel did not answer. Try again.",
+    "needsAccount": "Open a file from the file manager to edit it.",
+    "notEditableHint": "This file cannot be edited here. You can download it instead.",
+    "conflictTitle": "The file changed on disk",
+    "conflictHint": "It was saved by someone else after you opened it. Reload to see their version and lose your edits, or save yours over it.",
+    "conflictReload": "Reload and discard my edits",
+    "conflictOverwrite": "Save mine anyway",
+    "leaveTitle": "Leave without saving",
+    "leaveQuestion": "Your changes to {path} are not saved and will be lost.",
+    "leaveConfirm": "Leave without saving",
+    "leaveCancel": "Keep editing",
+    "leaveActing": "Leaving…",
+    "close": "Close"
+  }
+}

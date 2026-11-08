@@ -70,6 +70,22 @@ public sealed class GetAccountResourceSummaryQueryHandlerTests : IDisposable
         Assert.Equal([accountId], sites.Asked);
     }
 
+    /// <summary>Mailboxes are paired with the mailbox count of the plan's mail figures (issue #177).</summary>
+    [Fact]
+    public async Task Mailboxes_are_paired_with_the_mailbox_count_of_the_plans_mail_figures()
+    {
+        var accountId = await SeedAsync();
+        var mailboxes = new StubAccountResourceCounter(AccountResourceCount.Counted(AccountResourceKind.Mailboxes, 3));
+
+        var result = await Handler(mailboxes).HandleAsync(
+            new GetAccountResourceSummaryQuery(accountId), CancellationToken.None);
+
+        var row = Assert.Single(result.Value.Resources);
+        Assert.Equal(AccountResourceKind.Mailboxes, row.Kind);
+        Assert.Equal(new CountedResourceCountDto(3), row.Count);
+        Assert.Equal(new LimitedResourceCeilingDto(MailLimitsSnapshot.Default.MaxMailboxes), row.Limit);
+    }
+
     /// <summary>Backups come through with no plan limit.</summary>
     [Fact]
     public async Task Backups_come_through_with_no_plan_limit()

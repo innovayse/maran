@@ -1,0 +1,22 @@
+{
+  "branding": {
+    "heading": "Branding",
+    "subtitle": "What your customers' panel shows in place of the default: your name, your logo and your colour.",
+    "nameTitle": "Name",
+    "nameHint": "Shown next to the logo in the header of your customers' panel.",
+    "nameLabel": "Name shown to customers",
+    "colorTitle": "Accent colour",
+    "colorHint": "Used for buttons and the selected menu item. It must be dark enough for white text to be read on it.",
+    "colorLabel": "Colour (#rrggbb)",
+    "logoTitle": "Logo",
+    "logoHint": "A PNG, JPEG or WebP image of at most 100 KB. It is shown in the header, about 32 pixels high.",
+    "logoLabel": "Choose a logo",
+    "logoUnreadable": "The file could not be read. Choose it again or pick another image.",
+    "removeLogo": "Remove the logo",
+    "save": "Save branding",
+    "saved": "The branding has been saved. Your customers see it the next time they open the panel.",
+    "previewTitle": "Preview",
+    "previewHint": "How the header and a button look to your customers. Nothing is saved until you press Save.",
+    "previewButton": "Example button"
+  }
+}

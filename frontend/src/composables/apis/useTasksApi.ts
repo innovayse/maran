@@ -46,36 +46,16 @@ export const useTasksApi = (): TasksApi => {
   }
 
   /**
-   * Normalises one task payload, filling the fields a stream frame may omit.
-   *
-   * `TaskStreamWriter` serializes with `DefaultIgnoreCondition = WhenWritingNull`, so a frame
-   * leaves `correlationId`, `failure` and `finishedAt` OUT where the plain endpoints send them as
-   * `null`. Both spellings have to reach the store as `null`, or a pane would render `undefined`
-   * for a task that simply has not finished.
-   * @param payload The decoded JSON of a `task` frame.
-   * @returns The task with every nullable field present.
-   */
-  const readTask = (payload: PanelTask): PanelTask => {
-    return {
-      ...payload,
-      correlationId: payload.correlationId ?? null,
-      failure: payload.failure ?? null,
-      finishedAt: payload.finishedAt ?? null,
-    }
-  }
-
-  /**
    * Reads one page of the tasks the caller may see; the panel searches, filters, sorts and counts.
    * @param request The page, size, search, sort and the account, status, kind, from and to filters.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The page.
    */
-  const list = async (request: ListRequest, signal?: AbortSignal): Promise<Paged<PanelTask>> => {
-    const page = await api.get<Paged<PanelTask>>(
+  const list = (request: ListRequest, signal?: AbortSignal): Promise<Paged<PanelTask>> => {
+    return api.get<Paged<PanelTask>>(
       `${TASKS_PATH}${listQuery(withInstantWindow(request), LIST_FILTER_PARAMS)}`,
       signal,
     )
-    return { ...page, items: page.items.map(readTask) }
   }
 
   /**
@@ -90,7 +70,7 @@ export const useTasksApi = (): TasksApi => {
       `${TASKS_PATH}/running/stream`,
       (event) => {
         if (event.name === 'task') {
-          handlers.onTask(readTask(JSON.parse(event.data) as PanelTask))
+          handlers.onTask(JSON.parse(event.data) as PanelTask)
           return
         }
 
@@ -142,8 +122,8 @@ export const useTasksApi = (): TasksApi => {
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The task.
    */
-  const get = async (id: string, signal?: AbortSignal): Promise<PanelTask> => {
-    return readTask(await api.get<PanelTask>(`${TASKS_PATH}/${encodeURIComponent(id)}`, signal))
+  const get = (id: string, signal?: AbortSignal): Promise<PanelTask> => {
+    return api.get<PanelTask>(`${TASKS_PATH}/${encodeURIComponent(id)}`, signal)
   }
 
   /**
@@ -177,7 +157,7 @@ export const useTasksApi = (): TasksApi => {
         `${TASKS_PATH}/${encodeURIComponent(id)}/stream`,
         (event) => {
           if (event.name === 'task') {
-            handlers.onTask(readTask(JSON.parse(event.data) as PanelTask))
+            handlers.onTask(JSON.parse(event.data) as PanelTask)
             return
           }
 

@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test'
 import { pagedAnswer, type PagedRules } from './paged-answer'
-import type { InstallablePhpVersion, PhpVersion } from '../../src/types/phpVersion'
+import type { InstallablePhpVersion, PhpLifecycle, PhpVersion } from '../../src/types/phpVersion'
 import type { Site, SiteChoices, SiteDetail, SiteLimits } from '../../src/types/site'
 
 /** The collection endpoint the sites list and the create form both talk to, with or without a query. */
@@ -27,15 +27,44 @@ const COLLECTION_READS = /\/api\/v1\/sites\/(choices|limits|php-versions|php-ver
 /** The log-tail endpoint. It does not exist on the backend yet; the contract is Task 16's. */
 const SITE_LOGS_PATTERN = '**/api/v1/sites/*/logs*'
 
+/** The lifecycle a stubbed version reads with unless a spec says otherwise: inside its support. */
+export const SUPPORTED_LIFECYCLE: PhpLifecycle = {
+  status: 'supported',
+  statusName: 'Supported',
+  endOfLife: null,
+  daysLeft: null,
+}
+
+/**
+ * A stubbed installed runtime: the fields every spec states, with the lifecycle and the site count
+ * left out when the spec is about something else. {@link stubPhpVersions} fills them in, so the
+ * many specs that only need a version in a picker do not each restate a lifecycle.
+ */
+export type PhpVersionStub = Pick<PhpVersion, 'version' | 'defaultStatus'> &
+  Partial<Pick<PhpVersion, 'lifecycle' | 'sitesUsing'>>
+
+/**
+ * Completes a stubbed runtime into the full shape the panel sends.
+ * @param stub The runtime as a spec wrote it.
+ * @returns The runtime with a supported lifecycle and no site count where the spec gave none.
+ */
+export const completePhpVersion = (stub: PhpVersionStub): PhpVersion => {
+  return { lifecycle: SUPPORTED_LIFECYCLE, sitesUsing: null, ...stub }
+}
+
 /**
  * Fulfils `GET /api/v1/sites/php-versions` with the given runtimes.
  * @param page The Playwright page whose network the route is installed on.
  * @param versions The versions the stub reports as installed.
  * @returns Resolves once the route is installed.
  */
-export const stubPhpVersions = async (page: Page, versions: PhpVersion[]): Promise<void> => {
+export const stubPhpVersions = async (page: Page, versions: PhpVersionStub[]): Promise<void> => {
   await page.route(PHP_VERSIONS_PATTERN, async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(versions) })
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(versions.map(completePhpVersion)),
+    })
   })
 }
 
@@ -80,6 +109,16 @@ export const DEFAULT_SITE_CHOICES: SiteChoices = {
   statuses: [
     { value: 'enabled', label: 'Enabled' },
     { value: 'disabled', label: 'Disabled' },
+  ],
+  trafficWindows: [
+    { value: '7', label: 'Last 7 days' },
+    { value: '30', label: 'Last 30 days' },
+    { value: '90', label: 'Last 90 days' },
+  ],
+  logRetentions: [
+    { value: '1', label: '1 day' },
+    { value: '7', label: '7 days' },
+    { value: '14', label: '14 days' },
   ],
 }
 
@@ -164,6 +203,7 @@ export const stubSites = async (page: Page, sites: Site[]): Promise<() => readon
         status: 'enabled',
         statusName: 'Enabled',
         createdAt: '2026-08-30T10:00:00Z',
+        logRetentionDays: 14,
       }
       sites.push(created)
       await route.fulfill({
@@ -288,7 +328,7 @@ export const logLineFrame = (line: string, historical = false): string => {
  * @returns The frame, terminated by the blank line SSE requires.
  */
 export const logEndFrame = (reason: string): string => {
-  return `event: end\ndata: ${JSON.stringify({ reason })}\n\n`
+  return `event: end\ndata: ${JSON.stringify({ reason, message: null })}\n\n`
 }
 
 /**

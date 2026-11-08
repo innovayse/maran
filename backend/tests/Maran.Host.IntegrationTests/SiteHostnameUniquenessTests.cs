@@ -2,6 +2,7 @@ using Maran.Host.IntegrationTests.Fixtures;
 using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Persistence;
+using Maran.SharedKernel.Security;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 

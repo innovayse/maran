@@ -1,5 +1,7 @@
 import type { Page } from '@playwright/test'
+import { stubShellBranding } from './stub-branding-routes'
 import { loaded } from './stub-dashboard-route'
+import { COMPLETE_CHECKLIST, stubFirstRun, stubQuietNotificationFeed } from './stub-notification-routes'
 import { OWNER_PROFILE, stubProfile } from './stub-profile-route'
 import { stubServers } from './stub-servers-route'
 
@@ -51,6 +53,14 @@ export const stubShellReads = async (page: Page): Promise<void> => {
   await page.route(/\/api\/v1\/monitoring\/updates\/reboot-required(\?.*)?$/, async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ required: null }) })
   })
+
+  // The customer's shell asks which branding to wear (issue #367); the quiet answer is the panel's own.
+  await stubShellBranding(page)
+
+  // An administrator's shell reads the notification feed's badge figure, and the dashboard its
+  // first-run checklist (issue #164); the quiet answers are an empty feed and a finished checklist.
+  await stubQuietNotificationFeed(page)
+  await stubFirstRun(page, COMPLETE_CHECKLIST)
 
   // The shell asks a customer for their standing on the account; an administrator is never asked.
   await stubProfile(page, OWNER_PROFILE)

@@ -117,4 +117,61 @@
   <data name="ResellerStatusSuspended">
     <value>Կասեցված</value>
   </data>
+  <data name="AccountFeatureFiles">
+    <value>Ֆայլեր</value>
+  </data>
+  <data name="AccountsMenuAccountsList">
+    <value>Բոլոր հաշիվները</value>
+  </data>
+  <data name="AccountsMenuAccountsNew">
+    <value>Նոր հաշիվ</value>
+  </data>
+  <data name="AccountsMenuPlans">
+    <value>Սակագներ</value>
+  </data>
+  <data name="AccountsMenuResellers">
+    <value>Վերավաճառողներ</value>
+  </data>
+  <data name="AccountsMenuResellerOverview">
+    <value>Ակնարկ</value>
+  </data>
+  <data name="AccountsRouteAccounts">
+    <value>Հաշիվներ</value>
+  </data>
+  <data name="AccountsRouteAccountsNew">
+    <value>Նոր հաշիվ</value>
+  </data>
+  <data name="AccountsRouteAccountDetail">
+    <value>Հաշիվ</value>
+  </data>
+  <data name="AccountsRoutePlans">
+    <value>Սակագներ</value>
+  </data>
+  <data name="AccountsRoutePlansNew">
+    <value>Նոր սակագին</value>
+  </data>
+  <data name="AccountsRoutePlansEdit">
+    <value>Սակագնի փոփոխում</value>
+  </data>
+  <data name="AccountsRouteResellers">
+    <value>Ռեսելլերներ</value>
+  </data>
+  <data name="AccountsRouteResellersNew">
+    <value>Նոր ռեսելլեր</value>
+  </data>
+  <data name="AccountsRouteResellerDetail">
+    <value>Ռեսելլեր</value>
+  </data>
+  <data name="AccountsRouteResellerProfileEdit">
+    <value>Փոխել ռեսելլերին</value>
+  </data>
+  <data name="AccountsRouteResellerEdit">
+    <value>Սահմանաչափերի փոփոխում</value>
+  </data>
+  <data name="AccountsRouteResellerApiKeysOversight">
+    <value>Ռեսելլերի API բանալիները</value>
+  </data>
+  <data name="AccountsRouteResellerOverview">
+    <value>Ձեր ռեսելլերի հաշիվը</value>
+  </data>
 </root>

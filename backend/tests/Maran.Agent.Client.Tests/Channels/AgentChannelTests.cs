@@ -38,6 +38,27 @@ public sealed class AgentChannelTests
         });
     }
 
+    /// <summary>Disposing the channel closes the connection its handler had open to the agent.</summary>
+    /// <remarks>
+    /// Pins <c>DisposeHttpClient</c>: without it the channel is disposed but the handler it built is
+    /// not, so the pooled connection stays open until the finalizer and the pool never releases it.
+    /// </remarks>
+    [Fact]
+    public async Task Disposing_the_channel_closes_the_connection_to_the_agent()
+    {
+        using var agent = UnixSocketAgentDouble.AcceptAndHold();
+        var channel = AgentChannel.CreateUnixSocket(agent.SocketPath);
+        var client = new Maran.Agent.V1.SystemService.SystemServiceClient(channel);
+        using var call = client.GetAgentInfoAsync(new GetAgentInfoRequest());
+
+        await agent.RequestReceived.WaitAsync(TestTimeout);
+        Assert.False(agent.ClientClosed.IsCompleted);
+
+        channel.Dispose();
+
+        await agent.ClientClosed.WaitAsync(TestTimeout);
+    }
+
     /// <summary>A path with no socket file arrives as an unavailable status carrying a connection error.</summary>
     [Fact]
     public async Task A_missing_socket_surfaces_as_unavailable_carrying_a_connection_error()

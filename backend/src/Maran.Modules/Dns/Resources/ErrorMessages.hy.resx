@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AccountNotFound">
+    <value>Այս հաշիվը չի գտնվել։</value>
+  </data>
+  <data name="ZoneNotFound">
+    <value>Այս DNS գոտին չի գտնվել։</value>
+  </data>
+  <data name="RecordNotFound">
+    <value>Այս DNS գրառումը չի գտնվել։</value>
+  </data>
+  <data name="ZoneNameInvalid">
+    <value>Գոտու անունը պետք է լինի առնվազն երկու մասից բաղկացած դոմենային անուն, օրինակ՝ example.com։</value>
+  </data>
+  <data name="ZoneNameTaken">
+    <value>Այս անունով գոտի արդեն գոյություն ունի։</value>
+  </data>
+  <data name="ZoneNameReserved">
+    <value>Այս անունը օգտագործում է հենց վահանակը, այն չի կարող լինել գոտի։</value>
+  </data>
+  <data name="ZoneOverlapsForeignZone">
+    <value>Այս անունը համընկնում է մեկ այլ հաշվին պատկանող գոտու հետ։</value>
+  </data>
+  <data name="ZoneApexNotClaimed">
+    <value>Այս դոմենը չի սպասարկվում ձեր ոչ մի կայքի կողմից։ Նախ ավելացրեք այն կայքին։</value>
+  </data>
+  <data name="ZoneLimitReached">
+    <value>Ձեր սակագինը թույլ չի տալիս ավելի շատ DNS գոտիներ։</value>
+  </data>
+  <data name="ZoneLimitReachedConcurrently">
+    <value>Մեկ այլ գոտի զբաղեցրեց ձեր սակագնի թույլ տված վերջին տեղը։ Ոչինչ չի ստեղծվել։</value>
+  </data>
+  <data name="ZoneChangedMeanwhile">
+    <value>Գոտին միաժամանակ փոխել է մեկ ուրիշը։ Թարմացրեք էջը և կրկին փորձեք։</value>
+  </data>
+  <data name="DnsNotEnabled">
+    <value>Այս սերվերում անվանային սերվերը միացված չէ։</value>
+  </data>
+  <data name="DnsSettingsIncomplete">
+    <value>Անվանային սերվերը միացնելուց առաջ պետք է նշել անվանային սերվերները և hostmaster փոստարկղը։</value>
+  </data>
+  <data name="ZoneRecordLimitReached">
+    <value>Այս գոտում արդեն սերվերի թույլատրած առավելագույն թվով գրառումներ կան։</value>
+  </data>
+  <data name="RecordNameInvalid">
+    <value>Գրառման անունը վավեր չէ։ Գոտու համար օգտագործեք @, կամ տառեր, թվանշաններ, գծիկներ և ընդգծումներ՝ մինչև 63 նիշանոց մասերով։</value>
+  </data>
+  <data name="RecordTtlOutOfRange">
+    <value>Գրառման կյանքի տևողությունը պետք է լինի 60 վայրկյանից մինչև մեկ շաբաթ։</value>
+  </data>
+  <data name="RecordValueInvalid">
+    <value>Արժեքը վավեր չէ այս տեսակի գրառման համար։</value>
+  </data>
+  <data name="RecordPriorityOutOfRange">
+    <value>Առաջնահերթությունը պետք է լինի 0-ից 65535 ամբողջ թիվ, և այն ունեն միայն MX և SRV գրառումները։</value>
+  </data>
+  <data name="RecordWeightOutOfRange">
+    <value>Կշիռը պետք է լինի 0-ից 65535 ամբողջ թիվ, և այն ունեն միայն SRV գրառումները։</value>
+  </data>
+  <data name="RecordPortOutOfRange">
+    <value>Պորտը պետք է լինի 0-ից 65535 ամբողջ թիվ, և այն ունեն միայն SRV գրառումները։</value>
+  </data>
+  <data name="RecordFlagsInvalid">
+    <value>Դրոշները պետք է լինեն 0 կամ 128, և դրանք ունեն միայն CAA գրառումները։</value>
+  </data>
+  <data name="RecordTagInvalid">
+    <value>Պիտակը պետք է լինի issue, issuewild կամ iodef, և այն ունեն միայն CAA գրառումները։</value>
+  </data>
+  <data name="RecordCnameBesideOtherData">
+    <value>CNAME գրառումը չի կարող կիսել անունը այլ գրառումների հետ։</value>
+  </data>
+  <data name="RecordOtherDataBesideCname">
+    <value>Այս անունն արդեն կեղծանուն է (CNAME), ուստի չի կարող ունենալ այլ գրառումներ։</value>
+  </data>
+  <data name="RecordCnameAtApex">
+    <value>Բուն գոտին չի կարող լինել CNAME։</value>
+  </data>
+  <data name="RecordNsAtApex">
+    <value>Բուն գոտու անվանային սերվերները կառավարում է վահանակը և չեն խմբագրվում։</value>
+  </data>
+  <data name="RecordDuplicate">
+    <value>Գոտում արդեն կա ճիշտ այդպիսի գրառում։</value>
+  </data>
+  <data name="RecordNotEditable">
+    <value>Այս գրառումը կառավարում է վահանակը և այստեղ չի խմբագրվում։</value>
+  </data>
+  <data name="DnsNameserverInvalid">
+    <value>Անվանային սերվերը պետք է լինի հոսթի անուն, օրինակ՝ ns1.example.com։</value>
+  </data>
+  <data name="DnsHostmasterInvalid">
+    <value>Hostmaster փոստարկղը գրվում է կետերով, օրինակ՝ hostmaster.example.com՝ hostmaster@example.com-ի համար։</value>
+  </data>
+  <data name="DnsAddressInvalid">
+    <value>Հասցեն սպասվող տեսակի վավեր IP հասցե չէ։</value>
+  </data>
+  <data name="DnsDefaultTtlOutOfRange">
+    <value>Լռելյայն կյանքի տևողությունը պետք է լինի 60 վայրկյանից մինչև մեկ շաբաթ։</value>
+  </data>
+</root>

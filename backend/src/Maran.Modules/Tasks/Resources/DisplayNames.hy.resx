@@ -45,4 +45,13 @@
   <data name="TaskStatusFailed">
     <value>Ձախողված</value>
   </data>
+  <data name="TasksMenuList">
+    <value>Ֆոնային գործեր</value>
+  </data>
+  <data name="TasksRouteList">
+    <value>Ֆոնային գործեր</value>
+  </data>
+  <data name="TaskKindPanelUpdate">
+    <value>Վահանակի թարմացում</value>
+  </data>
 </root>

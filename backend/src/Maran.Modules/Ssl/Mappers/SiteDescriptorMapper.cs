@@ -32,7 +32,10 @@ public static class SiteDescriptorMapper
             ToBackendKind(site.Backend),
             site.PhpVersion,
             site.ProxyUpstream,
-            hasCertificate);
+            hasCertificate,
+            // The options travel with the site: this operation rewrites the vhost, and a rewrite that
+            // forgot them would drop the site's redirects, credentials and IP rules.
+            SiteOptionsDescriptorMapper.From(site.Options));
     }
 
     /// <summary>Maps the Sdk's cross-module backend value onto the agent client's.</summary>

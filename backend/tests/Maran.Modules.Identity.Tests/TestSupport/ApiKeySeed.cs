@@ -16,6 +16,7 @@ public static class ApiKeySeed
     /// <param name="allowedCidrs">The address ranges it is bound to; none when omitted.</param>
     /// <param name="expiresAt">When it stops being accepted; never when omitted.</param>
     /// <param name="revoked">Whether the key is revoked at <paramref name="createdAt"/>.</param>
+    /// <param name="resellerId">The reseller that owns the key; the administrator when omitted.</param>
     /// <returns>The stored row and the plaintext the digest was taken from.</returns>
     public static async Task<(ApiKey Key, string Plaintext)> AddAsync(
         IdentityDbContext context,
@@ -24,7 +25,8 @@ public static class ApiKeySeed
         string[]? scopes = null,
         string[]? allowedCidrs = null,
         DateTimeOffset? expiresAt = null,
-        bool revoked = false)
+        bool revoked = false,
+        Guid? resellerId = null)
     {
         var (plaintext, prefix, digest) = ApiKeyHasher.Mint();
         var key = ApiKey.Issue(
@@ -36,7 +38,8 @@ public static class ApiKeySeed
             allowedCidrs,
             Guid.NewGuid(),
             createdAt,
-            expiresAt);
+            expiresAt,
+            resellerId);
 
         if (revoked)
         {

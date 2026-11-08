@@ -10,7 +10,7 @@ use super::directory_entry_name::directory_entry_name;
 use super::entry_kind::EntryKind;
 use super::entry_stat::EntryStat;
 
-/// Reports the owner, device, kind and link count of `name` inside `directory`.
+/// Reports the owner, device, kind, link count, size, mode and modification time of `name` inside `directory`.
 ///
 /// `fstatat` with `AT_SYMLINK_NOFOLLOW`, forced here and not a parameter: the
 /// answer describes the ENTRY, so a symlink planted at `name` is reported as a
@@ -60,6 +60,9 @@ pub fn stat_in_directory(directory: &File, name: &OsStr) -> io::Result<EntryStat
         device: stat.st_dev,
         kind: kind_of(stat.st_mode),
         links,
+        size: u64::try_from(stat.st_size).unwrap_or(0),
+        mode: stat.st_mode,
+        modified_unix: stat.st_mtime,
     })
 }
 

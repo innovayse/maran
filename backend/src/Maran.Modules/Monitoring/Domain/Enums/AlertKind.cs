@@ -63,4 +63,20 @@ public enum AlertKind
     /// confusing way when it is wrong.
     /// </summary>
     ClockUnsynchronized = 7,
+
+    /// <summary>
+    /// The processor has been busier than the administrator's threshold (issue #142). Watched only
+    /// while a processor threshold is set. It is raised by the same ten consecutive one-minute
+    /// samples as every other kind, so a spike of a minute or two is not an alert. Turning the
+    /// threshold off while an episode is open resolves it, so the operator is told it ended.
+    /// </summary>
+    CpuUsage = 8,
+
+    /// <summary>
+    /// More memory has been in use than the administrator's threshold (issue #142), where "in use"
+    /// is the total minus what the kernel calls available, never the total minus what is merely
+    /// free: page cache is not pressure. Watched only while a memory threshold is set, and
+    /// raised and resolved exactly as <see cref="CpuUsage"/> is.
+    /// </summary>
+    MemoryUsage = 9,
 }

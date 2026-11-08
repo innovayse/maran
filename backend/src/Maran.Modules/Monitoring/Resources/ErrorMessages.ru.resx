@@ -15,6 +15,9 @@
   <data name="LogLevelUnknown">
     <value>Панель не предлагает такого уровня журнала.</value>
   </data>
+  <data name="AlertThresholdOutOfRange">
+    <value>Пороги задаются целыми числами от 50 до 99 процентов.</value>
+  </data>
   <data name="PendingUpdateClassificationUnknown">
     <value>Такой классификации в списке обновлений нет. Используйте security, ordinary или unmeasured.</value>
   </data>

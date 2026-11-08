@@ -23,7 +23,7 @@ test('signing in returns the visitor to the page they originally asked for', asy
   // The catalogue has to carry the accounts module: the licence guard runs after this
   // one, and an unlicensed route would send the visitor to the upgrade page instead —
   // correctly, but that is a different spec's subject.
-  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' }])
+  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
   await stubAccounts(page, [])
 
   await page.goto('/accounts')

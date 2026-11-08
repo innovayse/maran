@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { stubSignedIn } from './fixtures/stub-auth-routes'
-import { loaded, stubDashboard, SYNCHRONIZED_CLOCK } from './fixtures/stub-dashboard-route'
+import { ALERT_DELIVERY_OK, loaded, stubDashboard, SYNCHRONIZED_CLOCK } from './fixtures/stub-dashboard-route'
 import { stubHealthy } from './fixtures/stub-health-route'
 import { stubModules } from './fixtures/stub-modules-route'
 import { stubMonitoring } from './fixtures/stub-monitoring-routes'
@@ -14,7 +14,7 @@ import type { HostMetrics } from '../src/types/monitoring'
 // once showed size minus available as "in use", 12.7 GiB where df said 7.7. These specs hold the
 // three labelled figures on both screens that draw the disk, and the sum they must make.
 
-const LICENSED: PanelModule[] = [{ name: 'monitoring', displayName: 'Monitoring', tier: 'included', state: 'enabled' }]
+const LICENSED: PanelModule[] = [{ name: 'monitoring', displayName: 'Monitoring', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }]
 
 /** The figures the issue measured on an ext4 root: 97.9 GiB, 7.7 used, ~4.9 reserved for root. */
 const EXT4: HostMetrics = {
@@ -54,6 +54,8 @@ const dashboardWith = (metrics: HostMetrics): Dashboard => {
     attention: {
       certificatesExpiringSoon: loaded(0),
       failedBackups: loaded(0),
+      sitesOnEndOfLifePhp: loaded(0),
+      alertDelivery: ALERT_DELIVERY_OK,
       bannedAddresses: loaded(0),
       failedTasks: loaded(0),
       clock: SYNCHRONIZED_CLOCK,

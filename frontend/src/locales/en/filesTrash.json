@@ -1,0 +1,42 @@
+{
+  "filesTrash": {
+    "heading": "Trash",
+    "subtitle": "Files and folders moved to the trash. Restore them, or empty the trash to remove everything for good.",
+    "accountLabel": "Account",
+    "accountPlaceholder": "Choose an account",
+    "backLink": "Back to files",
+    "chooseAccountTitle": "Choose an account",
+    "chooseAccountDescription": "Pick the account whose trash you want to see.",
+    "retention": "Entries are removed for good after {days} day | Entries are removed for good after {days} days",
+    "searchLabel": "Search the trash",
+    "searchPlaceholder": "Search by name…",
+    "searchClear": "Clear the search",
+    "selectAll": "Select all",
+    "selectRow": "Select {name}",
+    "restore": "Restore",
+    "emptyTitle": "The trash is empty",
+    "emptyDescription": "Files and folders you move to the trash will be listed here.",
+    "noResultsTitle": "Nothing matches",
+    "noResultsDescription": "Change the search, or clear it to see everything in the trash.",
+    "tableCaption": "Trashed files and folders",
+    "columns": {
+      "name": "Name",
+      "originalPath": "Original location",
+      "size": "Size",
+      "deletedAt": "Trashed",
+      "expiresAt": "Removed for good"
+    },
+    "selection": {
+      "count": "{count} selected",
+      "actions": "Actions for the selected entries",
+      "clear": "Clear selection"
+    },
+    "empty": {
+      "action": "Empty trash",
+      "title": "Empty the trash",
+      "question": "This removes {count} entry for good. It cannot be undone. | This removes {count} entries for good. It cannot be undone.",
+      "confirm": "Empty trash",
+      "working": "Emptying the trash…"
+    }
+  }
+}

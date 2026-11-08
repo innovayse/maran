@@ -1,0 +1,16 @@
+# Rendered by the Maran agent. Hand edits are overwritten on the next apply.
+#
+# A key-value server used by the spam filter and by nothing else. It is reached
+# only through the unix socket below; port 0 switches the TCP listener off.
+# Nothing is persisted: the counters it holds are rate-limit state that may be
+# lost at any restart.
+port 0
+unixsocket {{ socket_path }}
+unixsocketperm 660
+save ""
+appendonly no
+maxmemory 64mb
+maxmemory-policy allkeys-lru
+logfile ""
+loglevel notice
+{# A trailing comment keeps the final newline, which askama would otherwise drop. #}

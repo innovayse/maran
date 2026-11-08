@@ -27,4 +27,22 @@
   <data name="FirewallProtocolUdp">
     <value>UDP</value>
   </data>
+  <data name="FirewallMenuRules">
+    <value>Rules</value>
+  </data>
+  <data name="FirewallMenuBans">
+    <value>Bans</value>
+  </data>
+  <data name="FirewallMenuWhitelist">
+    <value>Never banned</value>
+  </data>
+  <data name="FirewallRouteRules">
+    <value>Firewall</value>
+  </data>
+  <data name="FirewallRouteBans">
+    <value>Bans</value>
+  </data>
+  <data name="FirewallRouteWhitelist">
+    <value>Never banned</value>
+  </data>
 </root>

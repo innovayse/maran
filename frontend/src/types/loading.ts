@@ -60,3 +60,14 @@ export type Submission =
       /** The panel's reason, already localized; `null` when no answer arrived at all. */
       message: string | null
     }
+
+/**
+ * The two calls a singleton setting is read and written with: `get` reads the whole setting and
+ * `save` replaces it. Both alert settings (the recipients, the thresholds) have exactly this shape.
+ */
+export interface StoredSettingApi<TValue, TRequest> {
+  /** Reads the setting as the panel holds it. */
+  get: () => Promise<TValue>
+  /** Replaces the setting; the panel answers with no body. */
+  save: (request: TRequest) => Promise<void>
+}

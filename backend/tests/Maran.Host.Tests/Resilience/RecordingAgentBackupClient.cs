@@ -57,6 +57,7 @@ internal sealed class RecordingAgentBackupClient : IAgentBackupClient
         AgentBackupDestination destination,
         string expectedSha256,
         IReadOnlyList<string> allowedDatabases,
+        AgentRestoreScope scope,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         StreamStarts++;

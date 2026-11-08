@@ -34,6 +34,12 @@
 #   * The postrotate script reads nginx's own pid file and does nothing if it is absent, so a
 #     host where nginx is stopped rotates its files and does not fail the daily run.
 
+# The `rotate 14` below is also the CEILING of the per-site retention a customer may choose
+# (issue #152): the panel lets a site keep 1 to 14 days and asks the agent to remove archives beyond a
+# site's own number, never to keep more than this stanza does. If you raise `rotate`, change
+# SiteLogRetention.MaximumDays (backend/src/Maran.Modules/Sites/Domain/Policies/SiteLogRetention.cs) with
+# it; a unit test reads this file and fails when the two disagree.
+
 /var/log/maran/sites/*/*.log {
     daily
     rotate 14

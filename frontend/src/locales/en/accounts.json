@@ -34,7 +34,12 @@
         "ownerEmail": "Owner email",
         "username": "Username",
         "ownerLanguage": "Owner language",
-        "reseller": "Owner (reseller)"
+        "reseller": "Owner (reseller)",
+        "loginMode": "Owner sign-in",
+        "initialPassword": "Initial password",
+        "processLimit": "Process limit",
+        "inodeLimit": "Inode limit",
+        "openFilesLimit": "Open files limit"
       },
       "placeholders": {
         "name": "example",
@@ -51,7 +56,12 @@
         "planRequired": "Choose a plan.",
         "ownerEmailRequired": "Owner email is required.",
         "ownerEmailInvalid": "Owner email must be a valid email address.",
-        "primaryDomainWww": "Enter the primary domain without \"www.\"."
+        "primaryDomainWww": "Enter the primary domain without \"www.\".",
+        "passwordRequired": "Enter an initial password or generate one.",
+        "limitInvalid": "Enter a whole number, or leave the field empty.",
+        "limitTooSmall": "The limit must be at least {minimum}.",
+        "limitTooLarge": "The limit must be at most {maximum}.",
+        "limitAbovePlan": "A limit can only be lowered below the plan, which allows {maximum}."
       },
       "planOption": "{name} — {disk}, {count} site | {name} — {disk}, {count} sites",
       "created": "Account {account} created.",
@@ -59,7 +69,9 @@
         "primaryDomain": "Without \"www.\", for example example.com.",
         "username": "The account's system user. Filled in from the domain until you change it.",
         "ownerLanguage": "The owner's invitation is written in this language.",
-        "reseller": "Leave it as the administrator to own the account yourself. The plan must belong to the same owner as the account."
+        "reseller": "Leave it as the administrator to own the account yourself. The plan must belong to the same owner as the account.",
+        "invitation": "The owner receives a link by mail and chooses their own password.",
+        "initialPassword": "The owner must replace this password at the first sign-in. Pass it to them over a private channel; the panel cannot show it again."
       },
       "summary": {
         "title": "What will be created",
@@ -68,10 +80,24 @@
           "systemUser": "A system user named after the username, which owns everything the account holds.",
           "home": "A home directory for that user, with the plan's disk quota on it.",
           "limits": "The plan's CPU, memory and process limits on everything the user runs.",
-          "login": "The owner's panel login, and an invitation mailed to the owner email so they set their own password."
+          "login": "The owner's panel login, and an invitation mailed to the owner email so they set their own password.",
+          "loginPassword": "The owner's panel login with the initial password you set. The owner must replace it at the first sign-in; no mail is sent."
         }
       },
-      "noReseller": "Administrator (no reseller)"
+      "noReseller": "Administrator (no reseller)",
+      "loginMode": {
+        "invitation": "Mail an invitation",
+        "initialPassword": "Set an initial password"
+      },
+      "limits": {
+        "title": "Resource limits",
+        "hint": "Leave a field empty to follow the plan. A figure applies to this account only.",
+        "hintLowerOnly": "Leave a field empty to follow the plan. You can only lower a limit below your plan, never raise it.",
+        "followPlan": "Follows the plan",
+        "planLimited": "Plan: {maximum}",
+        "planUnlimited": "Plan: no limit",
+        "zeroMeansNone": "For inodes and open files, 0 means no limit. A process limit is at least 1."
+      }
     },
     "detail": {
       "heading": "Account",
@@ -134,7 +160,20 @@
       "ownerEmailUnchanged": "This is already the owner email.",
       "saving": "Saving…",
       "planSaved": "The plan was changed.",
-      "ownerEmailSaved": "The owner email was changed."
+      "ownerEmailSaved": "The owner email was changed.",
+      "ownerAction": "Change owner",
+      "ownerTitle": "Change the owner of {account}",
+      "ownerHint": "Hand the account to a reseller, or back to the administrator. An account is always sold from a plan of its own owner, so the move names a plan of the new owner too.",
+      "ownerField": "New owner",
+      "ownerPlanField": "Plan of the new owner",
+      "ownerPlanHint": "Only the new owner's plans are offered. The new plan is applied to the server as a plan change is, so a quota below what the account stores is refused.",
+      "ownerPlanRequired": "Choose a plan of the new owner.",
+      "ownerContinue": "Continue",
+      "ownerBack": "Back",
+      "ownerSubmit": "Move account",
+      "ownerConfirm": "Move {account} from {from} to {to}, on the plan {plan}?",
+      "ownerConfirmConsequence": "The new owner's limits are checked first. Sessions the former reseller opened on this account end; the customer's own logins keep theirs.",
+      "ownerSaved": "The account was moved to its new owner."
     },
     "resources": {
       "heading": "Resources",
@@ -148,7 +187,9 @@
         "sftpLogins": "SFTP logins",
         "ftpLogins": "FTPS logins",
         "cronEntries": "Cron entries",
-        "backups": "Backups"
+        "backups": "Backups",
+        "mailboxes": "Mailboxes",
+        "dnsZones": "DNS zones"
       }
     }
   }

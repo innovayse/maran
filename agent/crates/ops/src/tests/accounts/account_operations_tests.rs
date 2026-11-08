@@ -21,6 +21,7 @@ use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::db::database_name::DatabaseName;
 use maran_agent_core::validation::db::db_user_name::DbUserName;
 use maran_agent_core::validation::secrets::password::Password;
+use maran_agent_core::validation::system::inode_limit::InodeLimit;
 use maran_agent_core::validation::system::managed_account_error::ManagedAccountError;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::web::php_version::PhpVersion;
@@ -28,8 +29,8 @@ use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_distro::{AdapterBinary, DistroFamily, adapter_for};
 
 use crate::accounts::{
-    AccountError, AccountOperations, CommandOutcome, HomeGroupRepairRefusal, StoredPassword,
-    SystemHost,
+    AccountError, AccountOperations, CommandOutcome, HomeGroupRepairRefusal, LoginShell,
+    NewAccountSettings, ResourceCeiling, StoredPassword, SystemHost,
 };
 use std::path::Path;
 use std::sync::Arc;
@@ -164,6 +165,9 @@ struct RecordingHost {
     /// What `available_bytes` answers for the home filesystem. Defaults to
     /// `u64::MAX`: a roomy disk, so only the floor's own tests meet it.
     available: Mutex<u64>,
+    /// Whether removing an account's `pam_limits` drop-in fails, for the
+    /// fail-closed test of the deletion.
+    limits_removal_fails: Mutex<bool>,
 }
 
 impl RecordingHost {
@@ -195,7 +199,17 @@ impl RecordingHost {
             events: Arc::new(Mutex::new(Vec::new())),
             shm_table: Mutex::new(String::new()),
             available: Mutex::new(u64::MAX),
+            limits_removal_fails: Mutex::new(false),
         }
+    }
+
+    /// Makes the removal of an account's open-files drop-in fail.
+    fn with_failing_limits_removal(self) -> Self {
+        *self
+            .limits_removal_fails
+            .lock()
+            .expect("the fixture lock is never poisoned") = true;
+        self
     }
 
     /// Makes the home filesystem answer `bytes` available.
@@ -618,6 +632,29 @@ impl SystemHost for RecordingHost {
             .lock()
             .expect("the fixture lock is never poisoned"))
     }
+
+    fn write_limits_file(
+        &self,
+        _file: &crate::safe_write::model::ConfigFile<'_>,
+        _validator: &crate::safe_write::model::Validator<'_>,
+    ) -> Result<(), AccountError> {
+        panic!("only SetAccountOpenFilesLimit writes a limits file, with a fixture of its own")
+    }
+
+    fn remove_limits_file(&self, path: &std::path::Path) -> Result<(), AccountError> {
+        self.events
+            .lock()
+            .expect("the fixture lock is never poisoned")
+            .push(format!("limits-removed:{}", path.display()));
+        if *self
+            .limits_removal_fails
+            .lock()
+            .expect("the fixture lock is never poisoned")
+        {
+            return Err(AccountError::LimitsFileFailed);
+        }
+        Ok(())
+    }
 }
 
 /// One line of a password database.
@@ -685,7 +722,7 @@ fn creating_an_account_makes_the_user_its_home_and_its_own_group() {
     let operations = debian(RecordingHost::new());
 
     let created = operations
-        .create(&name(), 1024 * 1024)
+        .create(&name(), &NewAccountSettings::with_quota(1024 * 1024))
         .expect("creation succeeds");
 
     let useradd = operations_calls(&operations, "useradd");
@@ -713,7 +750,9 @@ fn a_new_account_gets_no_interactive_shell() {
     // it, and an interactive login is exactly what must not.
     let operations = debian(RecordingHost::new());
 
-    operations.create(&name(), 0).expect("creation succeeds");
+    operations
+        .create(&name(), &NewAccountSettings::with_quota(0))
+        .expect("creation succeeds");
 
     let useradd = operations_calls(&operations, "useradd");
     assert!(useradd[0].contains(&"/usr/sbin/nologin".to_owned()));
@@ -725,7 +764,7 @@ fn creating_an_account_that_already_exists_is_refused_and_touches_nothing() {
     let operations = debian(RecordingHost::new().with_user("acme"));
 
     let error = operations
-        .create(&name(), 0)
+        .create(&name(), &NewAccountSettings::with_quota(0))
         .expect_err("an existing account is refused");
 
     assert!(matches!(error, AccountError::AlreadyExists { .. }));
@@ -740,7 +779,7 @@ fn creating_an_account_below_the_free_space_floor_is_refused_before_useradd() {
     let operations = debian(RecordingHost::new().with_available(floor.bytes() - 1));
 
     let error = operations
-        .create(&name(), 0)
+        .create(&name(), &NewAccountSettings::with_quota(0))
         .expect_err("a creation below the floor is refused");
 
     let expected = maran_agent_core::utils::floor_refusal::FloorRefusal::BelowFloor {
@@ -759,7 +798,9 @@ fn creating_an_account_with_exactly_the_floor_left_runs_useradd() {
     let floor = maran_agent_core::utils::free_space_floor::FreeSpaceFloor::default_floor();
     let operations = debian(RecordingHost::new().with_available(floor.bytes()));
 
-    operations.create(&name(), 0).expect("creation succeeds");
+    operations
+        .create(&name(), &NewAccountSettings::with_quota(0))
+        .expect("creation succeeds");
 
     assert_eq!(operations_calls(&operations, "useradd").len(), 1);
 }
@@ -771,7 +812,7 @@ fn an_existing_account_still_answers_already_exists_below_the_floor() {
     let operations = debian(RecordingHost::new().with_user("acme").with_available(0));
 
     let error = operations
-        .create(&name(), 0)
+        .create(&name(), &NewAccountSettings::with_quota(0))
         .expect_err("an existing account is refused");
 
     assert!(matches!(error, AccountError::AlreadyExists { .. }));
@@ -782,7 +823,7 @@ fn a_useradd_that_refuses_is_reported_by_program_and_status_and_carries_no_tool_
     let operations = debian(RecordingHost::new().failing_next(9));
 
     let error = operations
-        .create(&name(), 0)
+        .create(&name(), &NewAccountSettings::with_quota(0))
         .expect_err("a refusing useradd fails");
 
     match &error {
@@ -826,7 +867,7 @@ fn a_creation_whose_quota_step_fails_takes_the_system_user_back_out() {
     );
 
     let error = operations
-        .create(&name(), 4096)
+        .create(&name(), &NewAccountSettings::with_quota(4096))
         .expect_err("a refusing setquota fails the creation");
 
     // The answer is about the quota, not about the cleanup: the caller asked to create an
@@ -864,7 +905,7 @@ fn a_creation_whose_home_permissions_fail_takes_the_system_user_back_out() {
     );
 
     operations
-        .create(&name(), 0)
+        .create(&name(), &NewAccountSettings::with_quota(0))
         .expect_err("a refusing chgrp fails the creation");
 
     assert_eq!(
@@ -895,7 +936,7 @@ fn a_rollback_that_fails_too_still_reports_why_the_creation_failed() {
     );
 
     let error = operations
-        .create(&name(), 4096)
+        .create(&name(), &NewAccountSettings::with_quota(4096))
         .expect_err("the creation still fails");
 
     match &error {
@@ -913,7 +954,9 @@ fn a_rollback_that_fails_too_still_reports_why_the_creation_failed() {
 fn a_creation_that_works_runs_no_rollback() {
     let operations = debian(RecordingHost::new());
 
-    operations.create(&name(), 4096).expect("creation succeeds");
+    operations
+        .create(&name(), &NewAccountSettings::with_quota(4096))
+        .expect("creation succeeds");
 
     assert!(
         operations_calls(&operations, "userdel").is_empty(),
@@ -962,7 +1005,7 @@ fn unsuspending_reverses_exactly_what_suspending_did() {
     );
 
     operations
-        .unsuspend(&name())
+        .unsuspend(&name(), LoginShell::Nologin)
         .expect("unsuspension succeeds");
 
     let usermod = operations_calls(&operations, "usermod");
@@ -993,7 +1036,7 @@ fn unsuspending_a_login_with_no_password_never_runs_the_unlock_that_refuses_it()
     );
 
     operations
-        .unsuspend(&name())
+        .unsuspend(&name(), LoginShell::Nologin)
         .expect("unsuspension succeeds");
 
     let usermod = operations_calls(&operations, "usermod");
@@ -1027,7 +1070,7 @@ fn on_the_rhel_family_the_double_marker_login_is_unsuspended_without_an_unlock()
     );
 
     operations
-        .unsuspend(&name())
+        .unsuspend(&name(), LoginShell::Nologin)
         .expect("unsuspension succeeds on the RHEL family");
 
     assert!(
@@ -1047,7 +1090,7 @@ fn unsuspending_an_already_unlocked_login_runs_no_unlock() {
     );
 
     operations
-        .unsuspend(&name())
+        .unsuspend(&name(), LoginShell::Nologin)
         .expect("unsuspension succeeds");
 
     assert!(
@@ -1073,7 +1116,7 @@ fn unsuspending_fails_when_the_unlock_it_did_run_was_refused() {
     );
 
     let error = operations
-        .unsuspend(&name())
+        .unsuspend(&name(), LoginShell::Nologin)
         .expect_err("a refused unlock is a refusal");
 
     assert!(matches!(error, AccountError::CommandFailed { .. }));
@@ -1089,7 +1132,7 @@ fn unsuspending_asks_getent_for_this_accounts_shadow_entry_only() {
     );
 
     operations
-        .unsuspend(&name())
+        .unsuspend(&name(), LoginShell::Nologin)
         .expect("unsuspension succeeds");
 
     let getent = operations_calls(&operations, "getent");
@@ -1115,7 +1158,7 @@ fn unsuspending_refuses_a_shadow_entry_that_names_a_different_account() {
     );
 
     let error = operations
-        .unsuspend(&name())
+        .unsuspend(&name(), LoginShell::Nologin)
         .expect_err("another account's entry is not an answer about this one");
 
     assert!(matches!(error, AccountError::UnreadableOutput { .. }));
@@ -1135,7 +1178,7 @@ fn unsuspending_refuses_when_the_shadow_lookup_itself_failed() {
     );
 
     let error = operations
-        .unsuspend(&name())
+        .unsuspend(&name(), LoginShell::Nologin)
         .expect_err("an unreadable shadow database is a refusal");
 
     assert!(matches!(error, AccountError::CommandFailed { .. }));
@@ -1425,7 +1468,7 @@ fn a_quota_is_set_in_kibibyte_blocks_rounded_up() {
     let operations = debian(RecordingHost::new().with_user("acme"));
 
     operations
-        .set_quota(&name(), 1025)
+        .set_quota(&name(), 1025, ResourceCeiling::Unlimited)
         .expect("the quota is set");
 
     let setquota = operations_calls(&operations, "setquota");
@@ -1633,8 +1676,12 @@ fn the_nologin_shell_comes_from_the_distribution_and_not_from_a_literal() {
         maran_agent_core::utils::free_space_floor::FreeSpaceFloor::default_floor(),
     );
 
-    on_debian.create(&name(), 0).expect("creation succeeds");
-    on_rhel.create(&name(), 0).expect("creation succeeds");
+    on_debian
+        .create(&name(), &NewAccountSettings::with_quota(0))
+        .expect("creation succeeds");
+    on_rhel
+        .create(&name(), &NewAccountSettings::with_quota(0))
+        .expect("creation succeeds");
 
     assert!(operations_calls(&on_debian, "useradd")[0].contains(&"/usr/sbin/nologin".to_owned()));
     assert!(operations_calls(&on_rhel, "useradd")[0].contains(&"/sbin/nologin".to_owned()));
@@ -1648,7 +1695,9 @@ fn a_new_accounts_home_is_group_owned_by_the_web_server_so_a_site_can_be_served(
     // creates, and no site this panel makes can be served at all.
     let operations = debian(RecordingHost::new());
 
-    operations.create(&name(), 0).expect("creation succeeds");
+    operations
+        .create(&name(), &NewAccountSettings::with_quota(0))
+        .expect("creation succeeds");
 
     let chgrp = operations_calls(&operations, "chgrp");
     assert_eq!(
@@ -1672,7 +1721,9 @@ fn a_new_accounts_home_is_not_opened_to_every_other_local_user() {
     // traversal is granted to the web server's group alone.
     let operations = debian(RecordingHost::new());
 
-    operations.create(&name(), 0).expect("creation succeeds");
+    operations
+        .create(&name(), &NewAccountSettings::with_quota(0))
+        .expect("creation succeeds");
 
     let chmod = operations_calls(&operations, "chmod");
     assert_eq!(
@@ -1705,7 +1756,9 @@ fn the_web_server_group_is_the_familys_own_never_a_literal() {
         maran_agent_core::utils::free_space_floor::FreeSpaceFloor::default_floor(),
     );
 
-    on_rhel.create(&name(), 0).expect("creation succeeds");
+    on_rhel
+        .create(&name(), &NewAccountSettings::with_quota(0))
+        .expect("creation succeeds");
 
     let chgrp = operations_calls(&on_rhel, "chgrp");
     assert_eq!(
@@ -2134,7 +2187,9 @@ fn every_program_the_accounts_area_runs_is_named_by_an_absolute_path() {
     // every other operation refuses one that is not: a single fixture could only
     // ever sweep half of them.
     let creating = debian(RecordingHost::new());
-    creating.create(&name(), 1024).expect("creation succeeds");
+    creating
+        .create(&name(), &NewAccountSettings::with_quota(1024))
+        .expect("creation succeeds");
 
     // The shadow entry is what `unsuspend` reads first, so this fixture's stdout
     // has to be one; the sweep is about the argv of every program, not about what
@@ -2146,8 +2201,12 @@ fn every_program_the_accounts_area_runs_is_named_by_an_absolute_path() {
             .with_stdout(&shadow_entry("!")),
     );
     existing.suspend(&name()).expect("suspension succeeds");
-    existing.unsuspend(&name()).expect("unsuspension succeeds");
-    existing.set_quota(&name(), 2048).expect("the quota is set");
+    existing
+        .unsuspend(&name(), LoginShell::Nologin)
+        .expect("unsuspension succeeds");
+    existing
+        .set_quota(&name(), 2048, ResourceCeiling::Unlimited)
+        .expect("the quota is set");
     let _ = existing.usage(&name());
     // Its stdout is not what this sweep is about — the call is recorded either
     // way, and `passwd` is a program run as root like every other one here.
@@ -2940,7 +2999,10 @@ fn each_operation_on(
 ) -> Vec<(&'static str, Result<(), AccountError>)> {
     vec![
         ("suspend", operations.suspend(account)),
-        ("unsuspend", operations.unsuspend(account)),
+        (
+            "unsuspend",
+            operations.unsuspend(account, LoginShell::Nologin),
+        ),
         (
             "suspension_state",
             operations
@@ -2964,7 +3026,10 @@ fn each_operation_on(
                 )
                 .map(|_| ()),
         ),
-        ("set_quota", operations.set_quota(account, 1024)),
+        (
+            "set_quota",
+            operations.set_quota(account, 1024, ResourceCeiling::Unlimited),
+        ),
         ("usage", operations.usage(account).map(|_| ())),
     ]
 }
@@ -3007,10 +3072,10 @@ fn the_same_operations_succeed_for_a_hosting_account() {
 
     operations.suspend(&name()).expect("suspension succeeds");
     operations
-        .unsuspend(&name())
+        .unsuspend(&name(), LoginShell::Nologin)
         .expect("unsuspension succeeds");
     operations
-        .set_quota(&name(), 2048)
+        .set_quota(&name(), 2048, ResourceCeiling::Unlimited)
         .expect("the quota is set");
     operations
         .delete_under_lock(
@@ -3260,7 +3325,7 @@ fn creating_a_reserved_name_is_refused_before_the_host_is_asked_anything() {
         let account = AccountName::parse(reserved).expect("the fixture name is valid");
         let operations = debian(RecordingHost::new());
 
-        let refusal = operations.create(&account, 1024);
+        let refusal = operations.create(&account, &NewAccountSettings::with_quota(1024));
 
         assert!(
             matches!(
@@ -3290,7 +3355,7 @@ fn a_reserved_name_that_already_exists_is_reserved_and_not_already_exists() {
     let account = AccountName::parse("redis").expect("the fixture name is valid");
     let operations = debian(RecordingHost::new().with_user("redis"));
 
-    let refusal = operations.create(&account, 0);
+    let refusal = operations.create(&account, &NewAccountSettings::with_quota(0));
 
     assert!(
         matches!(refusal, Err(AccountError::NotManaged { .. })),
@@ -3307,7 +3372,7 @@ fn creating_a_name_that_is_not_reserved_still_runs_useradd() {
         let account = AccountName::parse(ordinary).expect("the fixture name is valid");
         let operations = debian(RecordingHost::new());
 
-        let created = operations.create(&account, 0);
+        let created = operations.create(&account, &NewAccountSettings::with_quota(0));
 
         assert!(created.is_ok(), "{ordinary}: {created:?}");
         assert_eq!(operations_calls(&operations, "useradd").len(), 1);
@@ -3328,7 +3393,7 @@ fn a_creation_whose_account_would_not_be_manageable_is_rolled_back() {
         &format!("/home/{user}"),
     )]));
 
-    let refusal = operations.create(&account, 0);
+    let refusal = operations.create(&account, &NewAccountSettings::with_quota(0));
 
     assert!(
         matches!(
@@ -3401,7 +3466,7 @@ fn every_flow_calls() -> Vec<Vec<String>> {
 
     let created = debian(RecordingHost::new());
     created
-        .create(&name(), 1024 * 1024)
+        .create(&name(), &NewAccountSettings::with_quota(1024 * 1024))
         .expect("creation succeeds");
     calls.extend(created.host().calls());
 
@@ -3415,7 +3480,7 @@ fn every_flow_calls() -> Vec<Vec<String>> {
             .with_stdout(&shadow_entry(&format!("!{HASHED_PASSWORD}"))),
     );
     unsuspended
-        .unsuspend(&name())
+        .unsuspend(&name(), LoginShell::Nologin)
         .expect("unsuspension succeeds");
     calls.extend(unsuspended.host().calls());
 
@@ -3522,7 +3587,9 @@ fn the_tools_that_are_not_known_to_honour_end_of_options_are_not_given_one() {
 fn creating_an_account_runs_useradd_as_a_mutation() {
     let operations = debian(RecordingHost::new());
 
-    operations.create(&name(), 0).expect("creation succeeds");
+    operations
+        .create(&name(), &NewAccountSettings::with_quota(0))
+        .expect("creation succeeds");
 
     assert_eq!(
         operations
@@ -3577,7 +3644,7 @@ fn the_rollback_of_a_failed_creation_removes_the_user_in_the_mutation_class_and_
     );
 
     operations
-        .create(&name(), 0)
+        .create(&name(), &NewAccountSettings::with_quota(0))
         .expect_err("a refusing chgrp fails the creation");
 
     assert_eq!(
@@ -3626,7 +3693,7 @@ fn a_useradd_that_outlives_its_deadline_fails_the_creation_as_a_bound_and_not_as
     let operations = debian(RecordingHost::new().with_timeout_of(&useradd));
 
     let error = operations
-        .create(&name(), 0)
+        .create(&name(), &NewAccountSettings::with_quota(0))
         .expect_err("a killed useradd fails the creation");
 
     assert!(matches!(error, AccountError::Bound(_)), "{error:?}");
@@ -4001,6 +4068,244 @@ fn a_mail_spool_that_remains_stops_the_deletion_before_userdel() {
     assert!(
         matches!(refusal, Err(AccountError::MailSpoolRemains { .. })),
         "expected MailSpoolRemains, got {refusal:?}"
+    );
+    assert!(
+        operations_calls(&operations, "userdel").is_empty(),
+        "userdel must not have run: the account stays, which is the state that can be retried"
+    );
+}
+
+/// A pair of operations, one per family, over fresh hosts that hold `acme`.
+fn both_families_holding_acme() -> (
+    AccountOperations<RecordingHost>,
+    AccountOperations<RecordingHost>,
+) {
+    let on_rhel = AccountOperations::new(
+        RecordingHost::new()
+            .with_user("acme")
+            .with_stdout(&shadow_entry("!")),
+        adapter_for(DistroFamily::Rhel),
+        maran_agent_core::utils::free_space_floor::FreeSpaceFloor::default_floor(),
+    );
+    let on_debian = debian(
+        RecordingHost::new()
+            .with_user("acme")
+            .with_stdout(&shadow_entry("!")),
+    );
+
+    (on_debian, on_rhel)
+}
+
+#[test]
+fn an_account_created_with_a_bash_login_gets_the_distributions_bash() {
+    // The shell is a closed case the adapter turns into a path (issue #194): no
+    // caller text reaches `useradd --shell`, and a path this agent invented would be
+    // an account created successfully with a shell that does not exist.
+    let settings = NewAccountSettings {
+        shell: LoginShell::Bash,
+        ..NewAccountSettings::with_quota(0)
+    };
+    let on_debian = debian(RecordingHost::new());
+    let on_rhel = AccountOperations::new(
+        RecordingHost::new(),
+        adapter_for(DistroFamily::Rhel),
+        maran_agent_core::utils::free_space_floor::FreeSpaceFloor::default_floor(),
+    );
+
+    on_debian
+        .create(&name(), &settings)
+        .expect("creation succeeds");
+    on_rhel
+        .create(&name(), &settings)
+        .expect("creation succeeds");
+
+    let debian_useradd = operations_calls(&on_debian, "useradd");
+    let rhel_useradd = operations_calls(&on_rhel, "useradd");
+    assert!(
+        debian_useradd[0]
+            .windows(2)
+            .any(|pair| pair == ["--shell", "/bin/bash"])
+    );
+    assert!(
+        rhel_useradd[0]
+            .windows(2)
+            .any(|pair| pair == ["--shell", "/bin/bash"])
+    );
+    assert!(!debian_useradd[0].contains(&"/usr/sbin/nologin".to_owned()));
+}
+
+#[test]
+fn an_account_created_without_a_shell_choice_is_still_given_the_nologin_shell() {
+    // The inverse control of the case above: the same fixture and the default
+    // settings an old caller sends, so a mutant that always answers bash is killed.
+    let operations = debian(RecordingHost::new());
+
+    operations
+        .create(&name(), &NewAccountSettings::with_quota(0))
+        .expect("creation succeeds");
+
+    let useradd = operations_calls(&operations, "useradd");
+    assert!(
+        useradd[0]
+            .windows(2)
+            .any(|pair| pair == ["--shell", "/usr/sbin/nologin"])
+    );
+}
+
+#[test]
+fn a_limited_inode_quota_is_set_beside_the_byte_quota_in_one_setquota() {
+    let operations = debian(RecordingHost::new());
+    let settings = NewAccountSettings {
+        inode_limit: ResourceCeiling::Limited(InodeLimit::parse(250_000).unwrap()),
+        ..NewAccountSettings::with_quota(1024 * 1024)
+    };
+
+    operations
+        .create(&name(), &settings)
+        .expect("creation succeeds");
+
+    let setquota = operations_calls(&operations, "setquota");
+    assert_eq!(setquota.len(), 1, "blocks and inodes are one call");
+    assert_eq!(
+        setquota[0][..8],
+        [
+            tool_path(&operations, "setquota").as_str(),
+            "-u",
+            "--",
+            "acme",
+            "1024",
+            "1024",
+            "250000",
+            "250000",
+        ]
+    );
+}
+
+#[test]
+fn an_unlimited_inode_quota_is_spelled_zero_which_is_how_setquota_says_it() {
+    let operations = debian(RecordingHost::new());
+
+    operations
+        .create(&name(), &NewAccountSettings::with_quota(1024))
+        .expect("creation succeeds");
+
+    let setquota = operations_calls(&operations, "setquota");
+    assert_eq!(setquota[0][6..8], ["0", "0"]);
+}
+
+#[test]
+fn changing_the_byte_quota_restates_the_inode_quota_it_is_given() {
+    // `setquota` replaces blocks and inodes together, so a quota change that
+    // dropped the inode figure would remove an operator's ceiling silently.
+    let operations = debian(RecordingHost::new().with_user("acme"));
+
+    operations
+        .set_quota(
+            &name(),
+            2048,
+            ResourceCeiling::Limited(InodeLimit::parse(900).unwrap()),
+        )
+        .expect("the quota is set");
+
+    let setquota = operations_calls(&operations, "setquota");
+    assert_eq!(setquota[0][4..8], ["2", "2", "900", "900"]);
+}
+
+#[test]
+fn unsuspending_restores_the_shell_the_caller_states_on_both_families() {
+    // The agent keeps no record of the shell an account was created with, so the
+    // restore takes it as an argument: without it the first suspend and unsuspend
+    // cycle would silently revoke a granted shell (issue #194).
+    let (on_debian, on_rhel) = both_families_holding_acme();
+
+    on_debian
+        .unsuspend(&name(), LoginShell::Bash)
+        .expect("unsuspension succeeds");
+    on_rhel
+        .unsuspend(&name(), LoginShell::Bash)
+        .expect("unsuspension succeeds");
+
+    for operations in [&on_debian, &on_rhel] {
+        let shell_calls: Vec<Vec<String>> = operations_calls(operations, "usermod")
+            .into_iter()
+            .filter(|call| call.contains(&"--shell".to_owned()))
+            .collect();
+        assert_eq!(shell_calls.len(), 1);
+        assert!(
+            shell_calls[0]
+                .windows(2)
+                .any(|pair| pair == ["--shell", "/bin/bash"])
+        );
+    }
+}
+
+#[test]
+fn unsuspending_with_the_nologin_shell_restores_nologin_as_it_always_did() {
+    let (on_debian, on_rhel) = both_families_holding_acme();
+
+    on_debian
+        .unsuspend(&name(), LoginShell::Nologin)
+        .expect("unsuspension succeeds");
+    on_rhel
+        .unsuspend(&name(), LoginShell::Nologin)
+        .expect("unsuspension succeeds");
+
+    assert!(operations_calls(&on_debian, "usermod").iter().any(|call| {
+        call.windows(2)
+            .any(|pair| pair == ["--shell", "/usr/sbin/nologin"])
+    }));
+    assert!(operations_calls(&on_rhel, "usermod").iter().any(|call| {
+        call.windows(2)
+            .any(|pair| pair == ["--shell", "/sbin/nologin"])
+    }));
+}
+
+#[test]
+fn the_open_files_drop_in_is_removed_after_the_mail_spool_and_before_userdel() {
+    // Named after the account and not its uid, so a file that outlived the account
+    // would hand its ceiling to whoever is given the name next.
+    let host = RecordingHost::new().with_user("acme").with_stdout("");
+    let events = host.events_handle();
+    let mail_marker = Arc::clone(&events);
+    let operations = debian(host).with_mail_spool_step(Box::new(move |_| {
+        mail_marker
+            .lock()
+            .expect("the fixture lock is never poisoned")
+            .push("mail-spool".to_owned());
+        Ok(())
+    }));
+
+    delete_acme(&operations).expect("deletion succeeds");
+
+    let events = operations.host().events();
+    let mail = first_event(&events, "mail-spool");
+    let limits = first_event(
+        &events,
+        "limits-removed:/etc/security/limits.d/maran-acme.conf",
+    );
+    let userdel = first_event(
+        &events,
+        &format!("run:{}", tool_path(&operations, "userdel")),
+    );
+    assert!(
+        mail < limits && limits < userdel,
+        "expected mail spool < limits drop-in < userdel, got {events:?}"
+    );
+}
+
+#[test]
+fn a_drop_in_that_cannot_be_removed_stops_the_deletion_before_userdel() {
+    let operations = debian(
+        RecordingHost::new()
+            .with_user("acme")
+            .with_failing_limits_removal(),
+    );
+
+    let refusal = delete_acme(&operations);
+
+    assert!(
+        matches!(refusal, Err(AccountError::LimitsFileFailed)),
+        "expected LimitsFileFailed, got {refusal:?}"
     );
     assert!(
         operations_calls(&operations, "userdel").is_empty(),

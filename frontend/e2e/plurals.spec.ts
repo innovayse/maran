@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { setPersistedLocale } from './fixtures/set-locale'
 import { stubSignedIn } from './fixtures/stub-auth-routes'
-import { loaded, stubDashboard, UNAVAILABLE, SYNCHRONIZED_CLOCK } from './fixtures/stub-dashboard-route'
+import { ALERT_DELIVERY_OK, loaded, stubDashboard, UNAVAILABLE, SYNCHRONIZED_CLOCK } from './fixtures/stub-dashboard-route'
 import { stubHealthy } from './fixtures/stub-health-route'
 import { stubModules } from './fixtures/stub-modules-route'
 import type { Dashboard } from '../src/types/dashboard'
@@ -12,7 +12,7 @@ import type { PanelModule } from '../src/types/module'
 // ("1 задач завершились с ошибкой") is caught by either half.
 
 const LICENSED: PanelModule[] = [
-  { name: 'accounts', displayName: 'Аккаунты', tier: 'included', state: 'enabled' },
+  { name: 'accounts', displayName: 'Аккаунты', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 /**
@@ -33,6 +33,8 @@ const dashboardWith = (count: number): Dashboard => {
     attention: {
       certificatesExpiringSoon: loaded(count),
       failedBackups: loaded(count),
+      sitesOnEndOfLifePhp: loaded(0),
+      alertDelivery: ALERT_DELIVERY_OK,
       bannedAddresses: loaded(count),
       failedTasks: loaded(count),
       clock: SYNCHRONIZED_CLOCK,

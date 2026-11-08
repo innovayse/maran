@@ -15,4 +15,10 @@
   <data name="SftpModuleDisplayName">
     <value>Передача файлов</value>
   </data>
+  <data name="SftpMenuFileTransferSftp">
+    <value>Логины SFTP</value>
+  </data>
+  <data name="SftpRouteFileTransferSftp">
+    <value>Логины SFTP</value>
+  </data>
 </root>

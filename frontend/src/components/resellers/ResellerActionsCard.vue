@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
- * The actions one reseller offers its administrator: change the envelope, show the reseller's
- * accounts and plans, suspend or reactivate, and apart, under a rule, delete.
+ * The actions one reseller offers its administrator: edit its name and contact, change the envelope,
+ * show the reseller's accounts, plans and API keys, suspend or reactivate, and apart, under a rule, delete.
  *
  * Dumb: it emits which action was clicked and the reseller page asks the confirming question. Which
  * of suspend and reactivate applies depends on the status, so while the reseller loads no action is
@@ -40,6 +40,9 @@ const { t } = useI18n()
     <UiSectionHeading :title="t('common.actions')" />
     <UiSkeleton v-if="status === null" shape="block" />
     <div v-else class="flex flex-wrap items-center gap-2">
+      <UiButton variant="secondary" :to="{ name: 'reseller-profile-edit', params: { id: resellerId } }">
+        {{ t('resellers.detail.editProfile') }}
+      </UiButton>
       <UiButton variant="secondary" :to="{ name: 'reseller-edit', params: { id: resellerId } }">
         {{ t('resellers.detail.editEnvelope') }}
       </UiButton>
@@ -48,6 +51,9 @@ const { t } = useI18n()
       </UiButton>
       <UiButton variant="secondary" :to="{ name: 'plans', query: { reseller: resellerId } }">
         {{ t('resellers.detail.showPlans') }}
+      </UiButton>
+      <UiButton variant="secondary" :to="{ name: 'reseller-api-keys-oversight', params: { id: resellerId } }">
+        {{ t('resellers.detail.showApiKeys') }}
       </UiButton>
       <UiButton v-if="status === 'active'" variant="secondary" @click="emit('suspend')">
         {{ t('resellers.detail.suspend') }}

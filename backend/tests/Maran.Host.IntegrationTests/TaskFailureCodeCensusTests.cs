@@ -108,6 +108,7 @@ public sealed class TaskFailureCodeCensusTests : IAsyncLifetime
         Assert.Contains("BackupTruncated", codes);
         Assert.Contains("AcmeAccountRejected", codes);
         Assert.Contains("TaskFailureUnexplained", codes);
+        Assert.Contains("MarketplaceNotAvailable", codes);
         Assert.False(errorTexts.TryResolve("NoTableDefinesThisCode", out _));
     }
 

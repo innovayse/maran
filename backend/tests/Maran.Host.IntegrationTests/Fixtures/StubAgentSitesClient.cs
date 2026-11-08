@@ -180,6 +180,26 @@ public sealed class StubAgentSitesClient : IAgentSitesClient
         throw new NotSupportedException();
     }
 
+    /// <inheritdoc/>
+    public Task<Result<SiteTrafficReading>> SummariseTrafficAsync(
+        string accountUsername,
+        string domain,
+        SiteTrafficCursor? cursor,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException();
+    }
+
+    /// <inheritdoc/>
+    public Task<Result<PrunedSiteLogs>> PruneLogsAsync(
+        string accountUsername,
+        string domain,
+        uint retainRotations,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException();
+    }
+
     /// <summary>Not exercised by these tests.</summary>
     /// <param name="cancellationToken">Unused.</param>
     /// <returns>Never returns.</returns>

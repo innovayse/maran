@@ -51,4 +51,22 @@
   <data name="DatabaseGrantRepairCountInvalid">
     <value>Ուղղվող իրավունքների թիվը չի կարող բացասական լինել։ Նորից կարդացեք հաշվետվությունը և հաստատեք նրանում նշված թիվը։</value>
   </data>
+  <data name="DatabaseUserNotFound">
+    <value>Տվյալների բազայի այս օգտատերը չի գտնվել։</value>
+  </data>
+  <data name="DatabaseUserLimitReached">
+    <value>Հասել եք ձեր հաշվի համար թույլատրված տվյալների բազայի լրացուցիչ օգտատերերի քանակին։</value>
+  </data>
+  <data name="DatabaseUserIsDedicated">
+    <value>Այս օգտատերը ստեղծվել է տվյալների բազայի հետ և ջնջվում է նրա հետ միասին։ Օգտատերը հեռացնելու համար ջնջեք տվյալների բազան։</value>
+  </data>
+  <data name="DatabasePrivilegesInvalid">
+    <value>Ընտրեք յուրաքանչյուր արտոնություն առավելագույնը մեկ անգամ՝ առաջարկվող ցանկից։</value>
+  </data>
+  <data name="DatabaseUserProvisioningFailed">
+    <value>Տվյալների բազայի օգտատերը չհաջողվեց ստեղծել։ Սերվերում ոչինչ չի մնացել, փորձեք նորից։</value>
+  </data>
+  <data name="DatabasePrivilegesNotChanged">
+    <value>Արտոնությունները չհաջողվեց փոխել։ Ոչինչ չի փոխվել, փորձեք նորից։</value>
+  </data>
 </root>

@@ -215,7 +215,7 @@ pub(crate) fn write_pool_under_lock(
 ///
 /// Returns [`PhpOpError::WorkerBudgetOutOfRange`], carrying both bounds so an
 /// operator's log says what the range was and not only that it was missed.
-fn ensure_worker_budget(requested: u32) -> Result<(), PhpOpError> {
+pub(crate) fn ensure_worker_budget(requested: u32) -> Result<(), PhpOpError> {
     if (MINIMUM_WORKERS..=MAXIMUM_WORKERS).contains(&requested) {
         return Ok(());
     }

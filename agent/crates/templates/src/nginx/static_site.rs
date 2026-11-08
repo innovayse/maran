@@ -2,6 +2,7 @@
 
 use askama::Template;
 
+use crate::nginx::site_options_block::SiteOptionsBlock;
 use crate::nginx::ssl_block::SslBlock;
 use crate::render_error::RenderError;
 
@@ -41,6 +42,14 @@ pub struct StaticSite<'a> {
     /// rendering of them (rules/security.md — the failure is silent, and only
     /// on the half a browser reaches).
     pub body: &'a str,
+    /// The site's options. Two things are read here. The challenge location,
+    /// when they restrict access (a password or an address list), says
+    /// `auth_basic off;` and `allow all;`, so the restriction the body sets at
+    /// server level is not inherited by the certificate authority's request.
+    /// And the request limit's `limit_req_zone` is declared above the first
+    /// `server` block, because nginx accepts it only at `http` level, where the
+    /// file is included; the body's `limit_req` names that zone.
+    pub options: &'a SiteOptionsBlock<'a>,
     /// The TLS half, when a certificate is installed.
     pub ssl: Option<SslBlock<'a>>,
 }

@@ -20,7 +20,7 @@
  * (see the template comment): an option that exists in the DOM but cannot be
  * hit is a plan an operator cannot choose.
  */
-import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
@@ -33,13 +33,17 @@ import UiFieldHint from '../../components/ui/UiFieldHint.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
 import AccountCreationSummary from '../../components/accounts/AccountCreationSummary.vue'
+import AccountLimitFields from '../../components/accounts/AccountLimitFields.vue'
+import AccountOwnerLoginFields from '../../components/accounts/AccountOwnerLoginFields.vue'
 import type { AccountPickerState } from '../../composables/useAccountChoice'
 import { useCallerRole } from '../../composables/useCallerRole'
+import { useNewAccountOptions } from '../../composables/useNewAccountOptions'
 import { usePlanChoice } from '../../composables/usePlanChoice'
 import { useResellerChoice } from '../../composables/useResellerChoice'
 import { useAccountsStore } from '../../stores/accounts'
 import { useLocaleStore } from '../../stores/locale'
 import { useOwnerLanguagesStore } from '../../stores/ownerLanguages'
+import type { Plan } from '../../types/account'
 import { accountNameFromDomain } from '../../utils/accountNameFromDomain'
 import { flashNoticeState } from '../../utils/flashNotice'
 
@@ -76,8 +80,7 @@ const router = useRouter()
 const store = useAccountsStore()
 const localeStore = useLocaleStore()
 const languagesStore = useOwnerLanguagesStore()
-const { isAdmin } = useCallerRole()
-const { picker: planPicker, search: searchPlans } = usePlanChoice()
+const { isAdmin, isReseller } = useCallerRole()
 const { picker: resellerPicker, search: searchResellers } = useResellerChoice()
 
 /** Current value of the username field (the account's system name). */
@@ -102,6 +105,42 @@ const ownerLanguage: Ref<string> = ref(localeStore.current)
 const resellerId: Ref<string> = ref('')
 /** Whether a submit has been attempted, so validation messages only show after the first try. */
 const submitted: Ref<boolean> = ref(false)
+
+// A plan is sold only by its owner, so the plan picker follows the owner chosen so far: the chosen
+// reseller's plans, or the administrator's own while none is chosen (and always for a reseller,
+// whose `resellerId` stays empty and whose plans the server scopes from its token).
+const { picker: planPicker, search: searchPlans } = usePlanChoice((): string | null => {
+  return resellerId.value === '' ? null : resellerId.value
+})
+
+/** The plan chosen so far, read from the picker's latest page; `undefined` while none is chosen or listed. */
+const chosenPlan: ComputedRef<Plan | undefined> = computed(() => {
+  const read = store.planChoicePage
+  if (read.kind !== 'loaded') {
+    return undefined
+  }
+  return read.page.items.find((plan) => {
+    return plan.id === planId.value
+  })
+})
+
+// The owner-login choice and the per-account limits, with their checks and request fragment.
+const options = useNewAccountOptions(
+  submitted,
+  (): Plan | undefined => {return chosenPlan.value},
+  (): boolean => {return isReseller.value},
+)
+
+/** What an empty process field means: the chosen plan's own ceiling, in words; empty when not known. */
+const processDefault: ComputedRef<string> = computed(() => {
+  const ceiling = chosenPlan.value?.maxProcesses
+  if (ceiling === undefined) {
+    return t('accounts.form.limits.followPlan')
+  }
+  return ceiling.kind === 'limited'
+    ? t('accounts.form.limits.planLimited', { maximum: ceiling.maximum })
+    : t('accounts.form.limits.planUnlimited')
+})
 
 /** The owner picker: "the panel's own" first, then the page of resellers matching the search. */
 const ownerPicker: ComputedRef<AccountPickerState> = computed(() => {
@@ -181,9 +220,21 @@ const isValid: ComputedRef<boolean> = computed(() => {
     nameError.value === null &&
     primaryDomainError.value === null &&
     planIdError.value === null &&
-    ownerEmailError.value === null
+    ownerEmailError.value === null &&
+    options.valid.value
   )
 })
+
+/**
+ * Takes a new owner and drops the plan chosen for the previous one, which the new owner cannot sell.
+ * @param value The owner chosen in the picker; empty for the panel's own.
+ */
+const onOwnerChange = (value: string): void => {
+  if (value !== resellerId.value) {
+    planId.value = ''
+  }
+  resellerId.value = value
+}
 
 /**
  * Takes the domain the operator typed and, while they have not chosen a username of their own,
@@ -225,10 +276,14 @@ const submit = async (): Promise<void> => {
     planId: planId.value,
     ownerEmail: ownerEmail.value,
     ownerLanguage: ownerLanguage.value,
+    ...options.toRequest(),
     // Only an administrator names an owner; a reseller's accounts are stamped by the server.
     ...(isAdmin.value && resellerId.value !== '' ? { resellerId: resellerId.value } : {}),
   })
   if (created !== null) {
+    // Created: the password has done its job and the page is leaving. A refusal keeps it, so a
+    // corrected name can be resubmitted without choosing a new one.
+    options.clearPassword()
     await router.push({
       name: 'account-detail',
       params: { id: created.id },
@@ -244,6 +299,10 @@ const submit = async (): Promise<void> => {
 const cancel = async (): Promise<void> => {
   await router.push({ name: 'accounts' })
 }
+
+onBeforeUnmount(() => {
+  options.clearPassword()
+})
 
 onMounted(async () => {
   await languagesStore.load()
@@ -319,10 +378,11 @@ onMounted(async () => {
             />
             <div v-if="isAdmin" class="flex flex-col gap-1">
               <UiCombobox
-                v-model="resellerId"
+                :model-value="resellerId"
                 v-bind="ownerPicker"
                 :label="t('accounts.form.fields.reseller')"
                 :placeholder="t('accounts.form.noReseller')"
+                @update:model-value="onOwnerChange"
                 @search="searchResellers"
               />
               <UiFieldHint>{{ t('accounts.form.hints.reseller') }}</UiFieldHint>
@@ -345,6 +405,21 @@ onMounted(async () => {
               />
               <UiFieldHint>{{ t('accounts.form.hints.ownerLanguage') }}</UiFieldHint>
             </div>
+            <AccountOwnerLoginFields
+              v-model:mode="options.loginMode.value"
+              v-model:password="options.initialPassword.value"
+              :password-error="options.passwordError.value"
+            />
+            <AccountLimitFields
+              v-model:processes="options.processLimit.value"
+              v-model:inodes="options.inodeLimit.value"
+              v-model:open-files="options.openFilesLimit.value"
+              :process-error="options.processLimitError.value"
+              :inode-error="options.inodeLimitError.value"
+              :open-files-error="options.openFilesLimitError.value"
+              :process-default="processDefault"
+              :lower-only="isReseller"
+            />
           </div>
           <div class="mt-5 flex flex-wrap justify-end gap-2 border-t border-border-subtle pt-4">
             <UiButton variant="secondary" type="button" @click="cancel">
@@ -354,7 +429,7 @@ onMounted(async () => {
           </div>
         </UiForm>
       </UiCard>
-      <AccountCreationSummary />
+      <AccountCreationSummary :login-mode="options.loginMode.value" />
     </div>
   </section>
 </template>

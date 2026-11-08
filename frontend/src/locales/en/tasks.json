@@ -40,7 +40,8 @@
       "AccountResumption": "Reactivating an account",
       "BackupCreate": "Taking a backup",
       "BackupRestore": "Restoring a backup",
-      "PhpVersionInstall": "Installing a PHP version"
+      "PhpVersionInstall": "Installing a PHP version",
+      "PhpExtensionChange": "Changing a PHP extension"
     },
     "pane": {
       "correlationId": "Correlation id",

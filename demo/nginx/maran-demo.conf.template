@@ -1,0 +1,106 @@
+# The TLS edge of the public demonstration. __DEMO_SERVER_NAME__, __DEMO_CERT_PATH__, __DEMO_KEY_PATH__
+# and __DEMO_API_SOCKET__ are substituted by bin/maran-demo-deploy; a placeholder that survives
+# substitution aborts the deployment.
+#
+# NO CLIENT ADDRESS IS WRITTEN TO ANY LOG. The demo shows sessions and an audit journal to strangers, and
+# the API replaces every visitor's address with a keyed stand-in before it reads one
+# (Maran.Host.Demo/Pseudonymisation); a web server log that kept the real address would undo that on
+# disk. So the access log format below has no address field at all, and both vhosts send their error log
+# to /dev/null: even a crit line carries "client: <address>". (nginx's own start-up and master-process
+# errors still reach the global error log; they name no visitor.) The address is still passed to the API in
+# X-Forwarded-For, which is how the stand-in is computed; it lives in memory only.
+#
+# The per-visitor caps key on $demo_client_key, a counter KEY in shared memory; nothing is logged from it.
+# The key is the whole address for IPv4 and the /64 for IPv6, because an ordinary IPv6 connection owns all
+# 2^64 addresses of its /64 and a per-address cap would bound nobody (the API pseudonymises the same way).
+
+upstream maran_demo_api {
+    server unix:__DEMO_API_SOCKET__;
+}
+
+# The query string is dropped from the logged path for the same reason the product vhost drops it.
+map $request_uri $demo_request_path {
+    ~^(?<demo_path_without_query>[^?]*)  $demo_path_without_query;
+    default                              $request_uri;
+}
+
+log_format demo_no_client '[$time_local] "$request_method $demo_request_path" $status $body_bytes_sent $request_time';
+
+# $binary_remote_addr is 4 bytes for IPv4 and 16 for IPv6: the first eight bytes of the latter are the /64.
+# (?s) lets the dot match any byte, a newline byte included.
+map $binary_remote_addr $demo_client_key {
+    "~(?s)^(?<demo_v6_network>.{8}).{8}$"  $demo_v6_network;
+    default                                $binary_remote_addr;
+}
+
+limit_conn_zone $demo_client_key zone=demo_conn:10m;
+limit_req_zone  $demo_client_key zone=demo_api:10m rate=20r/s;
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name __DEMO_SERVER_NAME__;
+
+    ssl_certificate     __DEMO_CERT_PATH__;
+    ssl_certificate_key __DEMO_KEY_PATH__;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305;
+    ssl_prefer_server_ciphers off;
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:MaranDemoSSL:10m;
+    ssl_session_tickets off;
+
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "same-origin" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
+
+    # Caps against filling memory or holding the server open (threat note T6). A request body above the cap
+    # is refused before it reaches the API; connections and streams are bounded per address.
+    client_max_body_size 1m;
+    limit_conn demo_conn 20;
+
+    root /usr/local/maran-demo/frontend;
+    index index.html;
+
+    location /api/ {
+        limit_req zone=demo_api burst=40 nodelay;
+        proxy_pass http://maran_demo_api;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        # The peer's address only, never the client-supplied chain: the stand-in is computed from what
+        # this server saw, so a visitor cannot choose it.
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Correlation-Id $http_x_correlation_id;
+        proxy_buffering off;
+        proxy_read_timeout 120s;
+        proxy_send_timeout 120s;
+    }
+
+    location /health {
+        proxy_pass http://maran_demo_api/health;
+        proxy_set_header Host $host;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    access_log /var/log/nginx/maran-demo-access.log demo_no_client;
+    error_log  /dev/null crit;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name __DEMO_SERVER_NAME__;
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+
+    access_log /var/log/nginx/maran-demo-access.log demo_no_client;
+    error_log  /dev/null crit;
+}

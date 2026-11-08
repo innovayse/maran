@@ -39,4 +39,85 @@
   <data name="GrantRepairAdvicePartiallyOrUnfamiliarlyEscaped">
     <value>Պահված անունը պաշտպանված է այնպես, ինչպես այս վահանակը երբեք չի գրում, ուստի կրկին պաշտպանելը կարող էր քանդել աշխատող իրավունքը։ Ոչինչ չի փոփոխվել։ Համեմատեք այն վահանակի տրված իրավունքի հետ և ձեռքով ուղղեք, եթե սխալ է։</value>
   </data>
+  <data name="DatabasesMenuDatabasesList">
+    <value>Բազաների ցանկ</value>
+  </data>
+  <data name="DatabasesMenuDatabasesGrantRepair">
+    <value>Իրավունքների վերականգնում</value>
+  </data>
+  <data name="DatabasesRouteDatabases">
+    <value>Տվյալների բազաներ</value>
+  </data>
+  <data name="DatabasesRouteDatabaseGrantRepair">
+    <value>Իրավունքների վերականգնում</value>
+  </data>
+  <data name="DatabasesMenuDatabasesUsers">
+    <value>Տվյալների բազայի օգտատերեր</value>
+  </data>
+  <data name="DatabasesRouteDatabaseUsers">
+    <value>Տվյալների բազայի օգտատերեր և արտոնություններ</value>
+  </data>
+  <data name="DatabasePrivilegePresetReadOnly">
+    <value>Միայն կարդալ</value>
+  </data>
+  <data name="DatabasePrivilegePresetReadWrite">
+    <value>Կարդալ և գրել</value>
+  </data>
+  <data name="DatabasePrivilegePresetFullAccess">
+    <value>Լրիվ հասանելիություն</value>
+  </data>
+  <data name="DatabasePrivilegeSelect">
+    <value>Տողերի ընթերցում (SELECT)</value>
+  </data>
+  <data name="DatabasePrivilegeInsert">
+    <value>Տողերի ավելացում (INSERT)</value>
+  </data>
+  <data name="DatabasePrivilegeUpdate">
+    <value>Տողերի փոփոխություն (UPDATE)</value>
+  </data>
+  <data name="DatabasePrivilegeDelete">
+    <value>Տողերի ջնջում (DELETE)</value>
+  </data>
+  <data name="DatabasePrivilegeCreate">
+    <value>Աղյուսակների ստեղծում (CREATE)</value>
+  </data>
+  <data name="DatabasePrivilegeDrop">
+    <value>Աղյուսակների ջնջում (DROP)</value>
+  </data>
+  <data name="DatabasePrivilegeAlter">
+    <value>Աղյուսակների կառուցվածքի փոփոխություն (ALTER)</value>
+  </data>
+  <data name="DatabasePrivilegeIndex">
+    <value>Ինդեքսների կառավարում (INDEX)</value>
+  </data>
+  <data name="DatabasePrivilegeReferences">
+    <value>Արտաքին բանալիների ստեղծում (REFERENCES)</value>
+  </data>
+  <data name="DatabasePrivilegeCreateTemporaryTables">
+    <value>Ժամանակավոր աղյուսակների ստեղծում (CREATE TEMPORARY TABLES)</value>
+  </data>
+  <data name="DatabasePrivilegeLockTables">
+    <value>Աղյուսակների արգելափակում (LOCK TABLES)</value>
+  </data>
+  <data name="DatabasePrivilegeCreateView">
+    <value>Դիտարկումների ստեղծում (CREATE VIEW)</value>
+  </data>
+  <data name="DatabasePrivilegeShowView">
+    <value>Դիտարկումների սահմանումների դիտում (SHOW VIEW)</value>
+  </data>
+  <data name="DatabasePrivilegeCreateRoutine">
+    <value>Ընթացակարգերի ստեղծում (CREATE ROUTINE)</value>
+  </data>
+  <data name="DatabasePrivilegeAlterRoutine">
+    <value>Ընթացակարգերի փոփոխություն (ALTER ROUTINE)</value>
+  </data>
+  <data name="DatabasePrivilegeExecute">
+    <value>Ընթացակարգերի կատարում (EXECUTE)</value>
+  </data>
+  <data name="DatabasePrivilegeTrigger">
+    <value>Տրիգերների կառավարում (TRIGGER)</value>
+  </data>
+  <data name="DatabasePrivilegeEvent">
+    <value>Պլանավորված իրադարձությունների կառավարում (EVENT)</value>
+  </data>
 </root>

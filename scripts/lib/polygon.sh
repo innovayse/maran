@@ -195,11 +195,35 @@ polygon_image_fingerprint() {
 # polygon_build_labelled: builds a polygon family image with its own source fingerprint recorded in
 # it. Every build this repository performs goes through here, so that "the image says what it was
 # built from" is a property of the builder and not a thing each caller remembers.
+#
+# POLYGON_BUILD_CACHE_SCOPE (optional, set by the CI workflow only): when non-empty the build goes
+# through `docker buildx build --load` and reads and writes the GitHub Actions layer cache under
+# that scope (issue #289). What the cache may and may not change:
+#   - It cannot change WHAT a COPY step contains: BuildKit keys a COPY layer on the content of the
+#     files it copies, so an edit to docker/polygon/** or installer/** misses at that layer and
+#     everything after it is rebuilt. The label is a build option, not a layer, so the fingerprint
+#     is written on a cache hit exactly as on a cold build and `polygon_currency_from_log` still
+#     compares the image against the tree.
+#   - It CAN serve a package-install layer (`dnf install`, whose versions float on purpose) older
+#     than a cold build would install. The workflow bounds that by putting the ISO week in the
+#     scope, so the oldest package set a hit can serve is a week old, and the currency axis does
+#     not claim to see upstream drift in any case (polygon_ensure_image's note).
+# `ignore-error=true`: a cache outage costs minutes, never a verdict.
 polygon_build_labelled() {
   local context="$1" family="$2" fingerprint="$3" image="$4" log="$5"
-  docker build \
+  local scope="${POLYGON_BUILD_CACHE_SCOPE:-}"
+  local file="$context/docker/polygon/images/$family/suite.Dockerfile"
+  if [ -z "$scope" ]; then
+    docker build \
+      --label "$POLYGON_FINGERPRINT_LABEL=$fingerprint" \
+      -f "$file" -t "$image" "$context" >"$log" 2>&1
+    return
+  fi
+  docker buildx build --load --progress plain \
+    --cache-from "type=gha,scope=$scope" \
+    --cache-to "type=gha,mode=max,scope=$scope,ignore-error=true" \
     --label "$POLYGON_FINGERPRINT_LABEL=$fingerprint" \
-    -f "$context/docker/polygon/images/$family/suite.Dockerfile" -t "$image" "$context" >"$log" 2>&1
+    -f "$file" -t "$image" "$context" >"$log" 2>&1
 }
 
 # polygon_stamp: the RUN-TIME half of the currency check, and the line the score reads later.

@@ -39,13 +39,22 @@
   <data name="SmtpFromNameInvalid">
     <value>Ուղարկողի ցուցադրվող անունը պետք է լինի սովորական տեքստի մեկ տող։</value>
   </data>
-  <data name="SmtpAlertRecipientInvalid">
-    <value>Ծանուցումների ստացողը պետք է լինի մեկ պարզ էլ․ փոստի հասցե՝ առանց ցուցադրվող անվան։</value>
-  </data>
   <data name="MailRecipientInvalid">
     <value>Ստացողը պետք է լինի մեկ պարզ էլ․ փոստի հասցե՝ առանց ցուցադրվող անվան։</value>
   </data>
   <data name="MailServerUnreachable">
     <value>Նշված հասցեով փոստային սերվերը չպատասխանեց։ Ստուգեք հոսթը և պորտը կամ փորձեք ավելի ուշ։</value>
+  </data>
+  <data name="AlertRecipientsTooMany">
+    <value>Ծանուցումները կարող են ուղարկվել առավելագույնը 10 հասցեի:</value>
+  </data>
+  <data name="AlertRecipientInvalid">
+    <value>Ծանուցումների յուրաքանչյուր հասցե պետք է լինի վավեր էլ. փոստի հասցե:</value>
+  </data>
+  <data name="AlertRecipientDuplicate">
+    <value>Ծանուցման հասցեն ցուցակում կարող է հանդիպել միայն մեկ անգամ:</value>
+  </data>
+  <data name="AlertDeliveryFailed">
+    <value>Վերջին ծանուցումը չհաջողվեց առաքել:</value>
   </data>
 </root>

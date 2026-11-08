@@ -2,14 +2,15 @@ import { defineStore } from 'pinia'
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useAuditApi } from '../composables/apis/useAuditApi'
 import { ApiError } from '../composables/useApi'
-import type { AuditActionChoice, AuditEvent, AuditExportFormat, AuditOutcomeChoice } from '../types/audit'
+import type { AuditActionChoice, AuditEvent, AuditExportFormat, AuditOutcomeChoice, AuditScope } from '../types/audit'
 import type { ListLoad, ListRequest } from '../types/list'
 import type { Submission } from '../types/loading'
 import { saveDownload } from '../utils/saveDownload'
 
 /**
- * Owns the audit journal the admin screen renders: one server page of it, and the actions and
- * outcomes its filters offer. The page reads state from here and calls its actions — it never touches the API
+ * Owns the audit journal the audit screen renders: one server page of it, and the actions and
+ * outcomes its filters offer. The administrator reads the whole journal and a reseller its own part of
+ * it (issue #370); the {@link AuditScope} says which, and the panel decides what each holds. The page reads state from here and calls its actions — it never touches the API
  * composable (rules/vue.md: "API composables are called from Pinia stores ONLY").
  *
  * Nothing here mutates the journal: it is append-only, written by the backend from inside the
@@ -51,11 +52,12 @@ export const useAuditStore = defineStore('audit', () => {
    * Loads one page of the journal into {@link events} and reports how the read ended, for the
    * audit page's `useServerTable`.
    * @param request The page, size, search, sort and filters, as the URL describes them.
+   * @param scope Whose journal to read: the administrator's whole one, or a reseller's part of it.
    * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
-  const list = async (request: ListRequest): Promise<ListLoad<AuditEvent>> => {
+  const list = async (request: ListRequest, scope: AuditScope): Promise<ListLoad<AuditEvent>> => {
     try {
-      const page = await api.list(request)
+      const page = await api.list(request, scope)
       events.value = page.items
       return { kind: 'loaded', page }
     } catch (error) {
@@ -65,11 +67,12 @@ export const useAuditStore = defineStore('audit', () => {
 
   /**
    * Reads the actions the journal holds into {@link actions}.
+   * @param scope Whose journal to read the actions of.
    * @returns Resolves once the request has settled, successfully or not.
    */
-  const loadActions = async (): Promise<void> => {
+  const loadActions = async (scope: AuditScope): Promise<void> => {
     try {
-      actions.value = await api.actions()
+      actions.value = await api.actions(scope)
     } catch {
       // The filter is an aid, not the journal: an unreadable list leaves it offering "any action".
       actions.value = []
@@ -78,11 +81,12 @@ export const useAuditStore = defineStore('audit', () => {
 
   /**
    * Reads the outcomes the journal can be filtered by into {@link outcomes}.
+   * @param scope Whose journal the filter is for.
    * @returns Resolves once the request has settled, successfully or not.
    */
-  const loadOutcomes = async (): Promise<void> => {
+  const loadOutcomes = async (scope: AuditScope): Promise<void> => {
     try {
-      outcomes.value = await api.outcomes()
+      outcomes.value = await api.outcomes(scope)
     } catch {
       // The filter is an aid, not the journal: an unreadable list leaves it offering "any outcome".
       outcomes.value = []

@@ -21,8 +21,8 @@ const CUSTOMER: AuthenticatedUser = {
 }
 
 const MODULES: PanelModule[] = [
-  { name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' },
-  { name: 'tasks', displayName: 'Background tasks', tier: 'included', state: 'enabled' },
+  { name: 'backups', displayName: 'Backups', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'tasks', displayName: 'Background tasks', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 /** A backup of the customer's own account, still running, as the panel sends it to a customer. */

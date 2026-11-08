@@ -122,6 +122,20 @@ fn every_validator_is_a_check_except_the_four_that_have_no_check_mode() {
     assert_eq!(
         sites,
         vec![
+            // Pure — `id -u <name>` reads the name services and writes nothing; it checks the
+            // account the limits drop-in is about to be written for (issue #194).
+            row(
+                "accounts/set_account_open_files_limit.rs",
+                "&id",
+                "CallClass::Validate"
+            ),
+            // Pure — the DNS daemon's own configuration checker, over the real file, twice
+            // (the enable and its rollback to the previous bytes); the restart is the Reload,
+            // not the validator (issue #178).
+            row("dns/enable_dns.rs", "&checker", "CallClass::Validate"),
+            row("dns/enable_dns.rs", "&checker", "CallClass::Validate"),
+            // Pure — the zone checker reads the rendered zone and writes nothing.
+            row("dns/put_zone.rs", "&checkzone", "CallClass::Validate"),
             // MUTATING — vsftpd.conf, twice. `systemctl restart`: vsftpd has no
             // check mode at all, so the only way to learn whether the file
             // parses is to make the daemon read it. The longer class, because
@@ -143,6 +157,32 @@ fn every_validator_is_a_check_except_the_four_that_have_no_check_mode() {
                 "&service_manager",
                 "CallClass::Reload"
             ),
+            // DATA-DRIVEN — the mail stack's four daemons, one write path. Each stage carries
+            // its own checker and its own class (`MailStage::validator_class`), pinned per stage
+            // by `build_mail_stages_tests`. The key-value server has no check mode, so its stage
+            // carries the service manager's restart: the one mutating validator that is chosen
+            // by data and not by a literal, which is why it is a row of its own and not counted
+            // among the four service-manager literals (issue #177).
+            row(
+                "mail/converge_mail_stage.rs",
+                "&stage.validator_program",
+                "stage.validator_class"
+            ),
+            // Seeding the empty lookup tables (issue #177). `postmap` writes the index file it
+            // is asked to build, so it is an action on a file the daemon reads and runs in the
+            // Mutation class; `doveconf -n` is a pure parse; `rspamadm configtest` is pure but
+            // compiles the rule set, so it takes the long class.
+            row("mail/seed_mail_maps.rs", "&postmap", "CallClass::Mutation"),
+            row(
+                "mail/seed_mail_maps.rs",
+                "&distro.doveconf_binary()",
+                "CallClass::Validate"
+            ),
+            row(
+                "mail/seed_mail_maps.rs",
+                "&distro.rspamadm_binary()",
+                "CallClass::Reload"
+            ),
             // Pure — php-fpm's own validate-only flag, per installed version.
             // The expression is a local because the binary's name carries the
             // version, so the adapter is asked for it before the literal is built.
@@ -153,6 +193,17 @@ fn every_validator_is_a_check_except_the_four_that_have_no_check_mode() {
             ),
             row(
                 "php/remove_pool.rs",
+                "&validator_program",
+                "CallClass::Validate"
+            ),
+            // Pure — the same flag for an extension switch and the opcache drop-in (issue #157).
+            row(
+                "php/set_php_extension.rs",
+                "&validator_program",
+                "CallClass::Validate"
+            ),
+            row(
+                "php/write_opcache_drop_in.rs",
                 "&validator_program",
                 "CallClass::Validate"
             ),
@@ -175,16 +226,14 @@ fn every_validator_is_a_check_except_the_four_that_have_no_check_mode() {
                 "CallClass::Validate"
             ),
             // Pure — the web server's own validate-only flag, over the real tree.
-            // `create_vhost` is the creation twin of `write_vhost`: same binary,
-            // and its caller also reads the validator's stderr for a warning.
-            row("sites/create_vhost.rs", "&nginx", "CallClass::Validate"),
+            // `nginx_validator` is the one place the vhost writers (write, create, remove)
+            // build it; `reload_web_server` builds its own.
+            row("sites/nginx_validator.rs", "nginx", "CallClass::Validate"),
             row(
                 "sites/reload_web_server.rs",
                 "&nginx",
                 "CallClass::Validate"
             ),
-            row("sites/remove_vhost.rs", "&nginx", "CallClass::Validate"),
-            row("sites/write_vhost.rs", "&nginx", "CallClass::Validate"),
             // Pure — the TLS material is loaded by nginx, so nginx checks it.
             row("ssl/remove_material.rs", "&nginx", "CallClass::Validate"),
             row("ssl/write_material.rs", "&nginx", "CallClass::Validate"),
@@ -257,6 +306,14 @@ fn every_mutating_validator_runs_in_the_reload_class_and_every_pure_one_in_valid
     let sites = validator_call_sites();
 
     for (file, program, class) in &sites {
+        // Named exceptions, each with its reason in the census above: a stage whose class is
+        // data, `postmap` (writes an index) and `rspamadm configtest` (compiles the rule set).
+        if class == "stage.validator_class"
+            || (file == "mail/seed_mail_maps.rs"
+                && (program == "&postmap" || program == "&distro.rspamadm_binary()"))
+        {
+            continue;
+        }
         let expected = if program.contains("service_manager") {
             "CallClass::Reload"
         } else {

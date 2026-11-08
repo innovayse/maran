@@ -9,7 +9,7 @@ import type { PanelModule } from '../../src/types/module'
 // The bans list is server-paged (#196): the page, its size, the search and the sort live in the
 // URL, the panel answers one page of the bans in force and their total, and the SPA filters nothing.
 
-const LICENSED: PanelModule[] = [{ name: 'firewall', displayName: 'Firewall', tier: 'included', state: 'enabled' }]
+const LICENSED: PanelModule[] = [{ name: 'firewall', displayName: 'Firewall', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }]
 
 /**
  * Builds a catalogue of numbered bans: `198.51.100.1`, `198.51.100.2` and so on, newest first, each

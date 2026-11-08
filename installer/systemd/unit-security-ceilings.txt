@@ -5,6 +5,9 @@
 # A ceiling above 9 is a unit shipped as weakly sandboxed as it is today, not a target.
 maran-agent.service	3.6
 maran-api.service	1.8
+maran-dns.service	5.9
 maran-ftps.service	5.9
 maran-panel-backup.service	5.7
 maran-php-install@.service	4.4
+maran-update-request.service	5.7
+maran-update-security.service	5.7

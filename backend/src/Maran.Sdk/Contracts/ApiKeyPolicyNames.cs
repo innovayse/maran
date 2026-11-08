@@ -18,4 +18,16 @@ public static class ApiKeyPolicyNames
 
     /// <summary>Requires a valid API key granted the read-only server scope.</summary>
     public const string ServerRead = "ApiKeyServerRead";
+
+    /// <summary>Requires a valid API key owned by a reseller and granted the plans read scope.</summary>
+    public const string PlansRead = "ApiKeyPlansRead";
+
+    /// <summary>Requires a valid API key owned by a reseller and granted the accounts read scope.</summary>
+    public const string AccountsRead = "ApiKeyAccountsRead";
+
+    /// <summary>Requires a valid API key owned by a reseller and granted the accounts write scope.</summary>
+    public const string AccountsWrite = "ApiKeyAccountsWrite";
+
+    /// <summary>Requires a valid API key owned by a reseller and granted the accounts delete scope.</summary>
+    public const string AccountsDelete = "ApiKeyAccountsDelete";
 }

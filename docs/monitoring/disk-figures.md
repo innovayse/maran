@@ -31,7 +31,7 @@ the reserve as used. On a 97.9 GiB ext4 root that read 12.7 GiB where `df` said 
 | dashboard disk tile, monitoring disk card | stacked bar "In use", "Reserved for the system", "Available" | the three parts; the large figure is used / total |
 | `GET /api/v1/monitoring/chart` (`MetricBucketDto`) | `diskUsedBytes` | used, the mean over the bucket; `null` for a bucket holding only readings taken before the update |
 | free-space floor alert (`AlertEvaluator`, `FreeSpaceFloorApproaching`) | available, against `free_space_floor_bytes` | raised while available is under twice the floor; see below |
-| disk-full alert (`MetricsSampler`) | percentage | `(total - available) / total`, so the reserve counts as full: at the moment available reaches zero every account's write fails, while used alone still reads about 95% |
+| disk-full alert (`MetricsSampler`; the threshold is the administrator's, [alert-thresholds.md](alert-thresholds.md)) | percentage | `(total - available) / total`, so the reserve counts as full: at the moment available reaches zero every account's write fails, while used alone still reads about 95% |
 
 ## The free-space floor
 

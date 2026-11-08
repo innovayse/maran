@@ -1,0 +1,14 @@
+{% for redirect in redirects %}{% if !loop.first %}
+{% endif %}{% if redirect.prefix %}    location ^~ {{ redirect.path }} {
+        rewrite {{ redirect.rewrite_pattern() }} {{ redirect.target }}$1 {% if redirect.permanent %}permanent{% else %}redirect{% endif %};
+    }
+{% else %}    location = {{ redirect.path }} {
+        return {% if redirect.permanent %}301{% else %}302{% endif %} {{ redirect.target }};
+    }
+{% endif %}{% endfor %}{% if let Some(days) = cache_days %}{% if !redirects.is_empty() %}
+{% endif %}    location ~* \.(css|js|mjs|map|png|jpg|jpeg|gif|webp|avif|svg|ico|woff|woff2|ttf|otf|eot)$ {
+        expires {{ days }}d;
+        add_header Cache-Control "public";
+        try_files $uri {% if front_controller %}/index.php?$query_string{% else %}=404{% endif %};
+    }
+{% endif %}

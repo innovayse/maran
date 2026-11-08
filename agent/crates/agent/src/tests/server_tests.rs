@@ -56,11 +56,15 @@ fn startup_reconcilers() -> Vec<String> {
 }
 
 /// The startup pass covers interrupted restores, the web tree, the php-fpm
-/// pool trees and the SFTP key directory, and nothing else. The first three are
-/// the still-OPEN part of the config-write midpoint written down as a check
-/// instead of as a sentence; the key directory is not a config tree but a
-/// leftover (issue #338), and it is listed so that it, too, cannot be removed
-/// unnoticed.
+/// pool trees, the OPcache drop-ins (issue #157), the SFTP key directory and
+/// the sites' credential files (issue #151), the DNS zone files (issue #178) and
+/// the temporary database users of an interrupted import (issue #127), and
+/// nothing else. The first three
+/// are the still-OPEN part of the config-write midpoint written down as a check
+/// instead of as a sentence; the drop-ins are the isolation settings of a cache
+/// every tenant of a version shares; the key directory and the credential files
+/// are not config trees but leftovers (issues #338, #151), and they are listed
+/// so that they, too, cannot be removed unnoticed.
 ///
 /// This test is meant to go RED the day the rest of the gap is closed. Three
 /// trees remain unobserved: the SFTP jail mount unit, the FTPS jail mount unit
@@ -81,14 +85,18 @@ fn startup_reconcilers() -> Vec<String> {
 /// It cannot go silently blind: a scan that stopped finding anything returns
 /// an empty list and fails here, rather than agreeing that nothing was added.
 #[test]
-fn the_only_startup_reconciliations_are_restores_web_php_pools_and_sftp_keys() {
+fn the_only_startup_reconciliations_are_the_ones_serve_names() {
     assert_eq!(
         startup_reconcilers(),
         vec![
             "recover_restores".to_owned(),
             "reconcile_web_tree".to_owned(),
             "reconcile_php_pool_trees".to_owned(),
+            "reconcile_opcache_drop_ins".to_owned(),
             "reconcile_sftp_key_files".to_owned(),
+            "reconcile_site_auth_files".to_owned(),
+            "reconcile_dns_zones".to_owned(),
+            "reconcile_import_users".to_owned(),
         ],
         "a startup reconciliation was added or removed; update reconcile_web_tree's \
          stated blind spots and its log line, then update this list"

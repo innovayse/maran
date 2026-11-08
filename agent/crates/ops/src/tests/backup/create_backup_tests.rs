@@ -10,6 +10,10 @@ use std::os::unix::fs::{DirBuilderExt as _, MetadataExt as _, PermissionsExt as 
 use maran_agent_core::utils::current_uid::current_uid;
 use maran_agent_core::utils::floor_refusal::FloorRefusal;
 use maran_agent_core::validation::db::database_name::DatabaseName;
+use maran_agent_core::validation::secrets::archive_key::ArchiveKey;
+use maran_agent_core::validation::system::backup_id::BackupId;
+use maran_agent_core::validation::system::local_backup_root::LocalBackupRoot;
+use maran_agent_core::validation::system::name::AccountName;
 use tempfile::TempDir;
 
 use crate::accounts::take_account_lock;
@@ -170,8 +174,13 @@ fn run(
         &fixture.placement(),
         host,
         &catalog,
-        &account(),
-        &backup_id(),
+        &CreationRequest {
+            account: &account(),
+            backup_id: &backup_id(),
+            root: &LocalBackupRoot::default(),
+            floor: &FreeSpaceFloor::default_floor(),
+            key: None,
+        },
         &fixture.directory(),
         sink,
     )
@@ -303,8 +312,13 @@ fn run_placed(
         placement,
         host,
         &catalog,
-        &account(),
-        &backup_id(),
+        &CreationRequest {
+            account: &account(),
+            backup_id: &backup_id(),
+            root: &LocalBackupRoot::default(),
+            floor: &FreeSpaceFloor::default_floor(),
+            key: None,
+        },
         &fixture.directory(),
         &mut sink(),
     )
@@ -507,8 +521,13 @@ fn a_catalog_that_cannot_answer_stops_the_backup() {
         &fixture.placement(),
         &host,
         &catalog,
-        &account(),
-        &backup_id(),
+        &CreationRequest {
+            account: &account(),
+            backup_id: &backup_id(),
+            root: &LocalBackupRoot::default(),
+            floor: &FreeSpaceFloor::default_floor(),
+            key: None,
+        },
         &fixture.directory(),
         &mut sink(),
     );
@@ -546,10 +565,13 @@ fn a_second_backup_of_the_same_account_reports_already_running() {
     let refusal = create_backup(
         &host,
         &catalog,
-        &account,
-        &backup_id(),
-        &LocalBackupRoot::default(),
-        &FreeSpaceFloor::default_floor(),
+        &CreationRequest {
+            account: &account,
+            backup_id: &backup_id(),
+            root: &LocalBackupRoot::default(),
+            floor: &FreeSpaceFloor::default_floor(),
+            key: None,
+        },
         &mut sink(),
     );
 
@@ -835,6 +857,151 @@ fn an_ordinary_run_still_writes_its_sidecar() {
             .expect("the sidecar was written")
             .is_file()
     );
+}
+
+/// Runs one creation over `fixture` with one database, sealing the archive with
+/// `key` when there is one.
+fn run_keyed(
+    fixture: &Fixture,
+    host: &RecordingBackupHost,
+    key: Option<&ArchiveKey>,
+) -> Result<BackupSummary, BackupError> {
+    let catalog = FakeCatalog {
+        names: databases(1),
+        refuses: false,
+    };
+
+    create_in(
+        &fixture.placement(),
+        host,
+        &catalog,
+        &CreationRequest {
+            account: &account(),
+            backup_id: &backup_id(),
+            root: &LocalBackupRoot::default(),
+            floor: &FreeSpaceFloor::default_floor(),
+            key,
+        },
+        &fixture.directory(),
+        &mut sink(),
+    )
+}
+
+/// A key a test can name.
+fn archive_key(byte: &str) -> ArchiveKey {
+    ArchiveKey::parse(&byte.repeat(32)).expect("the fixture key is well-formed")
+}
+
+/// **A key seals the archive that is published.** The artifact begins with the
+/// sealed magic, the summary and the sidecar both say so, and the digest the
+/// summary records is the digest of the SEALED bytes — the bytes a restore will
+/// read back — and not of the plain archive the archiver wrote.
+#[test]
+fn a_creation_with_a_key_publishes_a_sealed_archive_and_hashes_what_it_published() {
+    let fixture = Fixture::new();
+    let host = RecordingBackupHost::new();
+
+    let summary =
+        run_keyed(&fixture, &host, Some(&archive_key("11"))).expect("the backup succeeds");
+
+    let stored = std::fs::read(fixture.artifact()).expect("the artifact");
+    assert!(
+        stored.starts_with(b"MARANENC"),
+        "the published archive is not sealed"
+    );
+    assert!(
+        !stored.windows(10).any(|window| window == b"gzip-bytes"),
+        "the archiver's plain output is visible in the published file"
+    );
+    let details = summary.readable_details().expect("a readable summary");
+    assert!(details.encrypted);
+    let (digest, bytes) = checksum_file(&fixture.artifact()).expect("the artifact is hashable");
+    assert_eq!(details.artifact_sha256, digest);
+    assert_eq!(details.artifact_bytes, bytes);
+    let sidecar = read_to_string(fixture.sidecar()).expect("the sidecar");
+    assert!(sidecar.contains("\"encrypted\": true"), "{sidecar}");
+}
+
+/// The inverse control: with no key nothing changes — the archive is the
+/// archiver's own output and the label says plain.
+#[test]
+fn a_creation_without_a_key_publishes_the_archive_as_the_archiver_wrote_it() {
+    let fixture = Fixture::new();
+    let host = RecordingBackupHost::new();
+
+    let summary = run_keyed(&fixture, &host, None).expect("the backup succeeds");
+
+    assert_eq!(
+        std::fs::read(fixture.artifact()).expect("the artifact"),
+        b"gzip-bytes"
+    );
+    assert!(
+        !summary
+            .readable_details()
+            .expect("a readable summary")
+            .encrypted
+    );
+    let sidecar = read_to_string(fixture.sidecar()).expect("the sidecar");
+    assert!(sidecar.contains("\"encrypted\": false"), "{sidecar}");
+}
+
+/// A sealed artifact is as root-only as a plain one and leaves no sealing copy
+/// or partial behind.
+#[test]
+fn a_sealed_artifact_is_root_only_and_leaves_nothing_beside_it_but_its_sidecar() {
+    let fixture = Fixture::new();
+    let host = RecordingBackupHost::new();
+
+    run_keyed(&fixture, &host, Some(&archive_key("11"))).expect("the backup succeeds");
+
+    let mode = fixture
+        .artifact()
+        .symlink_metadata()
+        .expect("the artifact")
+        .mode()
+        & 0o7777;
+    assert_eq!(mode, 0o600);
+    let mut names: Vec<String> = std::fs::read_dir(fixture.directory())
+        .expect("the directory")
+        .map(|entry| {
+            entry
+                .expect("an entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    names.sort();
+    assert_eq!(names.len(), 2, "{names:?}");
+    assert!(
+        names
+            .iter()
+            .all(|name| !name.ends_with(".partial") && !name.ends_with(".sealing")),
+        "{names:?}"
+    );
+}
+
+/// **A sealing that fails publishes nothing.** The sealing copy's name is taken
+/// by a directory, so the sealed file cannot be created; the creation must fail
+/// whole, with no artifact, no sidecar and no `.partial` — the plain archive
+/// must not survive a failed seal under a name anything could mistake for a
+/// backup.
+#[test]
+fn a_seal_that_fails_publishes_no_artifact_and_leaves_no_partial() {
+    let fixture = Fixture::new();
+    let host = RecordingBackupHost::new();
+    let mut sealing = fixture.artifact().into_os_string();
+    sealing.push(".partial.sealing");
+    create_dir_all(PathBuf::from(sealing)).expect("the blocker");
+
+    let refusal = run_keyed(&fixture, &host, Some(&archive_key("11")));
+
+    assert_eq!(refusal, Err(BackupError::ArtifactEncryptionFailed));
+    assert!(!fixture.artifact().exists());
+    assert!(!fixture.sidecar().exists());
+    let mut partial = fixture.artifact().into_os_string();
+    partial.push(".partial");
+    assert!(!PathBuf::from(partial).exists());
 }
 
 /// A chain the scratch may be staged in, built by the test and handed to

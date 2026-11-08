@@ -9,6 +9,7 @@ using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Sites.Resources;
 using Maran.Modules.Sites.Services;
 using Maran.Sdk.Contracts;
+using Maran.Sdk.Events;
 using Maran.Sdk.Interfaces;
 
 namespace Maran.Modules.Sites.Commands.CreateSite;
@@ -65,6 +66,11 @@ namespace Maran.Modules.Sites.Commands.CreateSite;
 /// does, are argued on <see cref="SiteRecorder"/> and <see cref="SiteVhostCompensator"/>.
 /// </para>
 /// <para>
+/// <b>The creation is announced last</b> (<see cref="SiteCreated"/>, through <see cref="SiteCreationAnnouncer"/>),
+/// after the row and the journal entry. A subscriber, such as the Dns module setting up the site's zone,
+/// cannot fail or undo a creation that already happened: its failure is logged and the site is returned.
+/// </para>
+/// <para>
 /// Every refusal is journalled as well as every success: a plan limit hit, a taken domain, an
 /// account the caller may not see and an agent that said no are exactly the events an operator
 /// later needs to explain what happened (<see cref="AuditEntry"/>).
@@ -82,14 +88,7 @@ public sealed class CreateSiteCommandHandler
     /// </remarks>
     private const string AgentAlreadyExistsCode = "AgentAlreadyExists";
 
-    /// <summary>Customer php.ini overrides, of which the panel stores none in this pass.</summary>
-    /// <remarks>
-    /// NOT a fabricated value standing in for something the panel knows: there is no override
-    /// storage in this module, so "none" is the true and complete set. It is passed all the same,
-    /// because the pool the agent writes belongs to an ACCOUNT and a version rather than to one
-    /// site — so the moment overrides gain a home, a creation that omitted them would rewrite an
-    /// existing pool without the settings a customer had already set.
-    /// </remarks>
+    /// <summary>The settings a site that has no pool is sent: none, because there is nothing to carry them.</summary>
     private static readonly IReadOnlyList<PhpSettingDto> NoSettingOverrides = [];
 
     /// <summary>The Sites module's database context.</summary>
@@ -119,6 +118,16 @@ public sealed class CreateSiteCommandHandler
     /// <summary>Names the site's backend and serving state in the request's culture.</summary>
     private readonly SiteDisplayNames _siteNames;
 
+    /// <summary>
+    /// The settings the account's pools carry. The pool the agent writes belongs to an ACCOUNT and a
+    /// version rather than to this site, so a creation that left them out would rewrite an existing
+    /// pool without what the customer had set.
+    /// </summary>
+    private readonly PhpAccountPoolSettings _poolSettings;
+
+    /// <summary>Tells the other modules the site exists once its row is committed.</summary>
+    private readonly SiteCreationAnnouncer _announcer;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Sites module's database context.</param>
     /// <param name="accounts">The owning account's system user name and plan allowance.</param>
@@ -129,6 +138,8 @@ public sealed class CreateSiteCommandHandler
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="clock">The injected time source used to stamp the new site's creation time.</param>
     /// <param name="siteNames">Names the site's backend and serving state for the request's culture.</param>
+    /// <param name="poolSettings">The settings the account's pools carry, sent with every pool write.</param>
+    /// <param name="announcer">Tells the other modules the site exists once its row is committed.</param>
     public CreateSiteCommandHandler(
         SitesDbContext dbContext,
         IAccountDirectory accounts,
@@ -138,10 +149,13 @@ public sealed class CreateSiteCommandHandler
         SiteRecorder recorder,
         SiteAuditJournal journal,
         IClock clock,
-        SiteDisplayNames siteNames)
+        SiteDisplayNames siteNames,
+        PhpAccountPoolSettings poolSettings,
+        SiteCreationAnnouncer announcer)
     {
         _dbContext = dbContext;
         _siteNames = siteNames;
+        _poolSettings = poolSettings;
         _accounts = accounts;
         _agent = agent;
         _php = php;
@@ -149,6 +163,7 @@ public sealed class CreateSiteCommandHandler
         _recorder = recorder;
         _journal = journal;
         _clock = clock;
+        _announcer = announcer;
     }
 
     /// <summary>Creates the site, refusing it before the host is touched when the plan or the domain says no.</summary>
@@ -242,7 +257,9 @@ public sealed class CreateSiteCommandHandler
             // was therefore born pointing at a socket nothing had bound — it answered 502 until
             // somebody changed its version, which was the only operation that wrote a pool.
             (uint)account.MaxPhpWorkersPerPool,
-            NoSettingOverrides,
+            command.BackendType == SiteBackendType.Php
+                ? await _poolSettings.EffectiveAsync(command.AccountId, account.PhpLimits, cancellationToken)
+                : NoSettingOverrides,
             cancellationToken);
         if (!provisioned.IsSuccess)
         {
@@ -269,6 +286,10 @@ public sealed class CreateSiteCommandHandler
         await _journal.RecordSuccessAsync(
             SiteAuditActions.SiteCreated, site.Domain, command.IpAddress, command.UserAgent, cancellationToken);
 
+        // After the row and the journal, and it cannot fail the creation: a subscriber's failure is logged
+        // by the announcer, because the site exists whatever another module could not set up for it.
+        await _announcer.AnnounceAsync(new SiteCreated(site.Id, site.AccountId, site.Domain), cancellationToken);
+
         return Result<SiteDto>.Ok(new SiteDto(
             site.Id,
             site.AccountId,
@@ -279,7 +300,8 @@ public sealed class CreateSiteCommandHandler
             site.PhpVersion,
             site.Status,
             _siteNames.Of(site.Status),
-            site.CreatedAt));
+            site.CreatedAt,
+            site.LogRetentionDays));
     }
 
     /// <summary>Maps the module's backend enum onto the agent client's, for a site that has no row yet.</summary>

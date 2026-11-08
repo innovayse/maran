@@ -70,7 +70,7 @@ cli_diag_collect() {
 
   cli_diag_add status.txt cli_status
   cli_diag_add_file os-release.txt /etc/os-release all
-  cli_diag_add units.txt systemctl cat "$MARAN_CLI_API_UNIT" "$MARAN_CLI_AGENT_UNIT" maran-ftps.service
+  cli_diag_add units.txt systemctl cat "$MARAN_CLI_API_UNIT" "$MARAN_CLI_AGENT_UNIT" maran-ftps.service maran-dns.service
   cli_diag_add unit-states.txt systemctl list-units --all --no-pager 'maran-*' postgresql.service nginx.service
   cli_diag_add_file nginx-maran.conf /etc/nginx/conf.d/maran.conf all
   cli_diag_add_file nginx-maran-sites.conf /etc/nginx/conf.d/maran-sites.conf all

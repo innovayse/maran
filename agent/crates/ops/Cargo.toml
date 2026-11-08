@@ -59,6 +59,13 @@ serde = { workspace = true }
 # 9 forbids MD5/SHA1 for anything security-relevant, and a restore's integrity
 # check is exactly that.
 sha2 = { workspace = true }
+# Signing and verifying the manifest of a moved backup (issue #127). See the workspace
+# manifest for why this crate and why these features.
+aws-lc-rs = { workspace = true }
+# Sealing and opening a backup archive at rest, and the random nonce prefix it needs.
+# See the workspace manifest for why this cipher and not AES-GCM or `gpg`.
+chacha20poly1305 = { workspace = true }
+getrandom = { workspace = true }
 # `sync` and `rt`, and nothing else. `sync` is the process-wide `Mutex` every
 # `ops::firewall` mutation is serialised by; the operations themselves are
 # synchronous like every other area's, and are called from
@@ -75,6 +82,13 @@ tokio = { workspace = true, features = ["rt", "sync"] }
 # (rules/security.md item 9). Nothing outside `backup/s3_object_store_host.rs`
 # names this crate: the rest of the area speaks to the seam.
 object_store = { workspace = true }
+# The archive formats of the file manager (issue #168): `zip` and `tar` read and write
+# members, `flate2` is the gzip layer. They run inside the child that has dropped to the
+# account and never touch the filesystem themselves; see the workspace manifest for the
+# feature choices and the advisories behind the pinned versions.
+zip = { workspace = true }
+tar = { workspace = true }
+flate2 = { workspace = true }
 
 [lints]
 workspace = true

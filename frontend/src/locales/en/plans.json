@@ -66,7 +66,11 @@
         "maxPhpWorkersPerPool": "PHP workers per pool",
         "cpuQuotaPercent": "CPU (% of one core)",
         "memoryMaxMb": "Memory (MB)",
-        "maxProcesses": "Processes"
+        "maxProcesses": "Processes",
+        "phpMemoryLimitMaxMb": "PHP memory limit, at most (MB)",
+        "phpUploadMaxMb": "PHP upload size, at most (MB)",
+        "phpMaxExecutionSeconds": "PHP execution time, at most (seconds)",
+        "phpMaxInputVars": "PHP input variables, at most"
       },
       "placeholders": {
         "name": "Business"
@@ -78,7 +82,8 @@
         "nameTooLong": "Name must be at most {max} characters.",
         "nameControl": "Name must not contain control characters.",
         "whole": "Enter a whole number.",
-        "range": "Enter a number from {min} to {max}."
+        "range": "Enter a number from {min} to {max}.",
+        "atLeastOne": "Enter a whole number of at least 1."
       },
       "reach": {
         "title": "An edit reaches the accounts already on this plan",
@@ -86,11 +91,14 @@
         "disk": "A lowered disk quota is written to every account on the server. If any account already uses more than the new figure, the panel refuses the whole edit and changes nothing.",
         "counts": "A lowered number of sites, databases, logins or cron entries removes nothing: an account above it keeps what it has and cannot add more.",
         "none": "No account is on this plan yet, so this edit changes nothing for anyone.",
-        "runtime": "Changed CPU, memory or process limits are applied to every account on the server at once. A lowered memory limit can stop an account's own processes that already use more."
+        "runtime": "Changed CPU, memory or process limits are applied to every account on the server at once. A lowered memory limit can stop an account's own processes that already use more.",
+        "php": "Changed PHP limits are applied to the PHP pools of every account on the plan. A value a customer chose above the new limit is kept, but the pool runs at the limit."
       },
       "diskLowered": "The disk quota goes down from {from} to {to}. If any account on this plan already uses more than {to}, the server refuses the edit and nothing is changed.",
       "created": "Plan {name} created.",
-      "envelopeMax": "At most {max} (your envelope)"
+      "envelopeMax": "At most {max} (your envelope)",
+      "phpSection": "PHP limits",
+      "phpHint": "The most a customer on this plan may set for PHP. Each limit must be at least 1; the server tells you the highest figure it accepts."
     }
   }
 }

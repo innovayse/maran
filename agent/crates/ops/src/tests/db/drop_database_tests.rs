@@ -118,7 +118,7 @@ fn a_client_that_times_out_on_the_existence_check_is_a_bound_and_not_not_found()
 /// database may have been accepted, so a success must not be reported.
 #[test]
 fn a_client_that_hangs_after_the_check_is_a_bound_and_not_a_success() {
-    for answered in 1..=2 {
+    for answered in 1..=4 {
         let host = host_with_shop();
         host.time_out_after(answered);
 
@@ -129,4 +129,28 @@ fn a_client_that_hangs_after_the_check_is_a_bound_and_not_a_success() {
             "after {answered} answers: {outcome:?}"
         );
     }
+}
+
+/// A stranger's grant is revoked before the drop, so a recreated database of the
+/// same name inherits no access.
+#[test]
+fn a_grant_held_by_another_user_is_revoked_before_the_database_is_dropped() {
+    let host = host_with_shop();
+    host.add_grant_row("localhost", "alice\\_shop", "someone_else", "GRANT");
+
+    drop_database(&host, &shop_database(), &shop_user()).expect("dropped");
+    create_database(&host, &shop_request()).expect("recreated");
+
+    // Only the freshly created user's own grant exists again.
+    assert_eq!(host.granted_databases().len(), 1);
+    let statements = host.statements();
+    let revoked = statements
+        .iter()
+        .position(|statement| statement.contains("REVOKE ") && statement.contains("'someone_else'"))
+        .expect("the stranger's grant was revoked");
+    let dropped = statements
+        .iter()
+        .position(|statement| statement.starts_with("DROP DATABASE "))
+        .expect("dropped");
+    assert!(revoked < dropped);
 }

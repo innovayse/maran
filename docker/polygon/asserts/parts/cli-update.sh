@@ -197,6 +197,25 @@ STUB
     || fail "maran help does not list update and rollback: ${CLI_PBTEST_OUTPUT}"
   checked=$((checked + 1))
 
+  # 1b. `maran help --json` prints the catalogue the installer put in place (issue #155): the bytes
+  # of the file in the package, root 0644, and a document a JSON parser accepts. The installed file
+  # is compared with the PACKAGE's copy and not with the printed text, so a catalogue that never
+  # reached the host fails here instead of agreeing with an empty print. UNOBSERVED HERE: whether
+  # the catalogue is complete; that is the CI gate `maran operator-commands`, which reads the sources.
+  local catalogue_installed="/usr/local/maran/cli/commands.json"
+  [ -f "$catalogue_installed" ] && [ "$(stat -c '%u:%g:%a' -- "$catalogue_installed")" = "0:0:644" ] \
+    || fail "${catalogue_installed} is missing or is not root:root 0644"
+  cmp -s "${INSTALLER_ROOT}/cli/commands.json" "$catalogue_installed" \
+    || fail "${catalogue_installed} differs from installer/cli/commands.json: the step installed something other than the package carries"
+  "$CLI_WRAPPER_INSTALLED" help --json </dev/null | cmp -s - "${INSTALLER_ROOT}/cli/commands.json" \
+    || fail "maran help --json does not print installer/cli/commands.json byte for byte"
+  "$CLI_WRAPPER_INSTALLED" help --json </dev/null | grep -q '^  "schema": 1,$' \
+    || fail "maran help --json does not print a schema 1 catalogue (the image has no JSON parser; CI parses the file)"
+  cli_upd_run help --json-bogus
+  grep -q 'Usage: maran' <<<"$CLI_PBTEST_OUTPUT" && ! grep -q '"schema"' <<<"$CLI_PBTEST_OUTPUT" \
+    || fail "maran help with any word but --json must print the usage text, not the catalogue: ${CLI_PBTEST_OUTPUT}"
+  checked=$((checked + 1))
+
   # 2. `update`: an option it does not have, one given twice, a value outside the allow-list, a
   # contradictory pair, a value that is an option, and arguments that are not options at all.
   cli_upd_expect_refusal "update with an unknown option" update 'unknown (option|argument)' --frobnicate

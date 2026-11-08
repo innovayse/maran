@@ -22,6 +22,7 @@ public sealed class AccountFeatureExtensionsTests
                 AccountFeature.Ssl,
                 AccountFeature.Tasks,
                 AccountFeature.Php,
+                AccountFeature.Files,
             ],
             AccountFeature.All.Members());
     }
@@ -46,7 +47,9 @@ public sealed class AccountFeatureExtensionsTests
     [InlineData(64L, true)]
     [InlineData(512L, true)]
     [InlineData(1023L, false)]
-    [InlineData(1024L, false)]
+    [InlineData(1024L, true)]
+    [InlineData(2047L, false)]
+    [InlineData(2048L, false)]
     public void Only_a_single_defined_member_is_a_feature(long raw, bool expected)
     {
         Assert.Equal(expected, ((AccountFeature)raw).IsFeature());
@@ -58,8 +61,8 @@ public sealed class AccountFeatureExtensionsTests
     {
         Assert.True(AccountFeature.None.IsKnownSet());
         Assert.True(AccountFeature.All.IsKnownSet());
-        Assert.False(((AccountFeature)1024).IsKnownSet());
-        Assert.True(((AccountFeature)1023).IsKnownSet());
+        Assert.False(((AccountFeature)2048).IsKnownSet());
+        Assert.True(((AccountFeature)2047).IsKnownSet());
     }
 
     /// <summary>A list of features becomes their union, and a round trip through Members is lossless.</summary>

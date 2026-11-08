@@ -84,6 +84,30 @@ public sealed class ServiceDisplayNamesTests
         }
     }
 
+    /// <summary>In Armenian the name is Armenian, the other half of issue #394.</summary>
+    /// <remarks>
+    /// Asserted on the VALUE for the same reason as the Russian case: the neutral English text a
+    /// missing <c>.hy</c> entry resolves to must fail here.
+    /// </remarks>
+    [Fact]
+    public void The_armenian_name_of_the_web_server_is_armenian()
+    {
+        var names = MonitoringTestContext.ServiceNames();
+        var previous = CultureInfo.CurrentUICulture;
+
+        try
+        {
+            CultureInfo.CurrentUICulture = new CultureInfo("hy");
+
+            Assert.Equal("Վեբ սերվեր", names.Of(AgentManagedService.WebServer));
+            Assert.Equal("Տվյալների բազա", names.Of(AgentManagedService.Database));
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = previous;
+        }
+    }
+
     /// <summary>The wire spelling of a member — the camelCase form the JSON surface carries.</summary>
     /// <param name="service">The member to spell.</param>
     /// <returns>The member's name with its first letter lowered, e.g. <c>webServer</c>.</returns>

@@ -7,7 +7,7 @@ namespace Maran.Sdk.Interfaces;
 /// carry (rules/csharp.md "A module writes its audit entries through its own journal").
 /// </summary>
 /// <remarks>
-/// It exists so that a shared Sdk facility — <see cref="Alerts.OperatorAlertMailer"/> — can write
+/// It exists so that a shared Sdk facility — <see cref="Alerts.OperatorAlertDispatcher"/> — can write
 /// the entries an operator alert owes INTO THE CALLING MODULE'S journal, under that module's actor,
 /// instead of building entries of its own. A facility that called <see cref="IAuditWriter"/> itself
 /// would be a second place deciding what a module's entry is made of.

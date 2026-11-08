@@ -61,10 +61,10 @@ public sealed class IdentityAuditJournal
     public const string ModuleName = "identity";
 
     /// <summary>What the address column says for an entry written from the server's own console.</summary>
-    public const string ConsoleOrigin = "local-console";
+    public const string ConsoleOrigin = SystemAuditEntry.ConsoleOrigin;
 
     /// <summary>Prefix marking the user-agent column of a console entry as an unverified operator claim.</summary>
-    public const string OperatorClaimPrefix = "operator-claim:";
+    public const string OperatorClaimPrefix = SystemAuditEntry.OperatorClaimPrefix;
 
     /// <summary>The lowest HTTP status that counts as a failed call in the journal.</summary>
     private const int MinimumFailureStatus = 400;

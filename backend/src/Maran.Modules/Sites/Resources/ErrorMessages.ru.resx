@@ -78,4 +78,100 @@
   <data name="SiteStatusUnknown">
     <value>Это не статус сайта.</value>
   </data>
+  <data name="SiteBodySizeOutOfRange">
+    <value>Такой размер загрузки сайту задать нельзя.</value>
+  </data>
+  <data name="SiteCacheDaysOutOfRange">
+    <value>Такой срок кеширования сайту задать нельзя.</value>
+  </data>
+  <data name="SiteRequestRateOutOfRange">
+    <value>Такой лимит запросов сайту задать нельзя.</value>
+  </data>
+  <data name="SiteRequestBurstOutOfRange">
+    <value>Такой размер всплеска запросов сайту задать нельзя.</value>
+  </data>
+  <data name="SiteRedirectLimit">
+    <value>У сайта не может быть больше правил перенаправления, чем указано в лимите.</value>
+  </data>
+  <data name="SiteRedirectPathInvalid">
+    <value>Один из путей перенаправления недопустим.</value>
+  </data>
+  <data name="SiteRedirectTargetInvalid">
+    <value>Одна из целей перенаправления недопустима.</value>
+  </data>
+  <data name="SiteRedirectDuplicated">
+    <value>Два правила перенаправления относятся к одному и тому же пути.</value>
+  </data>
+  <data name="SiteBasicAuthLimit">
+    <value>У сайта не может быть больше пользователей с паролем, чем указано в лимите.</value>
+  </data>
+  <data name="SiteBasicAuthUserInvalid">
+    <value>Одно из имён пользователей недопустимо.</value>
+  </data>
+  <data name="SiteBasicAuthUserDuplicated">
+    <value>У двух пользователей одинаковое имя.</value>
+  </data>
+  <data name="SiteBasicAuthPasswordInvalid">
+    <value>Один из паролей слишком короткий или слишком длинный.</value>
+  </data>
+  <data name="SiteBasicAuthPasswordRequired">
+    <value>Новому пользователю нужен пароль.</value>
+  </data>
+  <data name="SiteIpRuleLimit">
+    <value>У сайта не может быть больше адресов, чем указано в лимите.</value>
+  </data>
+  <data name="SiteIpRuleInvalid">
+    <value>Один из адресов не является допустимым адресом или диапазоном.</value>
+  </data>
+  <data name="SiteIpRuleDuplicated">
+    <value>Один и тот же адрес или диапазон указан дважды.</value>
+  </data>
+  <data name="SiteIpAccessModeInvalid">
+    <value>Режим доступа не соответствует списку адресов.</value>
+  </data>
+  <data name="SiteOptionUnknown">
+    <value>Такого варианта нет в списке.</value>
+  </data>
+  <data name="SiteCanonicalHostNotServed">
+    <value>Сайт должен отвечать и по обычному имени, и по имени с www, прежде чем одно из них станет основным.</value>
+  </data>
+  <data name="SiteLogRetentionInvalid">
+    <value>Выберите срок хранения журналов от 1 до 14 дней.</value>
+  </data>
+  <data name="SiteTrafficWindowInvalid">
+    <value>Выберите один из предложенных периодов для сводки трафика.</value>
+  </data>
+  <data name="PhpExtensionNotAllowed">
+    <value>Это не то расширение PHP, которое можно переключать здесь.</value>
+  </data>
+  <data name="PhpExtensionNotAvailable">
+    <value>Операционная система этого сервера не может переключить это расширение так, как вы просили.</value>
+  </data>
+  <data name="PhpExtensionToggleFailed">
+    <value>Сервер не подтвердил, что расширение изменено, поэтому изменение считается неудачным. Проверьте состояние версии PHP, прежде чем повторять попытку.</value>
+  </data>
+  <data name="PhpSettingsRequired">
+    <value>Не передан список настроек PHP.</value>
+  </data>
+  <data name="PhpSettingNotAllowed">
+    <value>Одна из настроек не относится к настройкам PHP, которые можно менять.</value>
+  </data>
+  <data name="PhpSettingDuplicated">
+    <value>Одна и та же настройка PHP указана дважды.</value>
+  </data>
+  <data name="PhpSettingValueInvalid">
+    <value>У одной из настроек PHP недопустимое значение. Размеры, время и количества задаются целыми числами в пределах ограничений сервера, а часовой пояс должен быть названием зоны, например Europe/Berlin.</value>
+  </data>
+  <data name="PhpSettingAbovePlan">
+    <value>Одна из настроек PHP превышает то, что разрешает ваш тариф.</value>
+  </data>
+  <data name="PhpSettingSizesTogether">
+    <value>Задайте размер загрузки и максимальный размер запроса вместе или оставьте оба значения незаданными.</value>
+  </data>
+  <data name="PhpSettingPostSizeBelowUpload">
+    <value>Максимальный размер запроса не может быть меньше размера загрузки, иначе загрузки такого размера будут потеряны.</value>
+  </data>
+  <data name="SiteOptionNotForBackend">
+    <value>Этот параметр не применим к сайту такого вида.</value>
+  </data>
 </root>

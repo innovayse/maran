@@ -16,17 +16,20 @@ use sha2::{Digest as _, Sha256};
 use tempfile::TempDir;
 
 use crate::backup::MANIFEST_VERSION;
+use crate::backup::archive::encrypt_artifact::encrypt_artifact;
 use crate::backup::model::account_identity::AccountIdentity;
 use crate::backup::model::archive_part::ArchivePart;
 use crate::backup::model::archive_spec::ArchiveSpec;
 use crate::backup::model::backup_summary::BackupSummary;
+use crate::backup::model::directory_swap::DirectorySwap;
 use crate::backup::model::extract_identity::ExtractIdentity;
 use crate::backup::model::extract_spec::ExtractSpec;
 use crate::backup::model::manifest_database::ManifestDatabase;
 use crate::backup::model::unreadable_reason::UnreadableReason;
 use crate::backup::recording_backup_host::{
-    DROP_PROGRAM, DUMP_PROGRAM, FIXED_NOW, LOAD_PROGRAM, RecordingBackupHost,
+    DROP_PROGRAM, DUMP_PROGRAM, FIXED_NOW, LIST_PROGRAM, LOAD_PROGRAM, RecordingBackupHost,
 };
+use crate::backup::restricted_dump_host::RestrictedDumpHost;
 
 use super::*;
 
@@ -226,6 +229,7 @@ fn run(
         &account(),
         &backup_id(),
         &fixture.directory(),
+        None,
     )
 }
 
@@ -263,12 +267,20 @@ struct PlantingHost {
 }
 
 impl BackupHost for PlantingHost {
+    fn restricted_loader(&self) -> &dyn RestrictedDumpHost {
+        self.inner.restricted_loader()
+    }
+
     fn now_unix(&self) -> i64 {
         self.inner.now_unix()
     }
 
     fn account_identity(&self, account: &AccountName) -> Result<AccountIdentity, BackupError> {
         self.inner.account_identity(account)
+    }
+
+    fn account_exists(&self, account: &AccountName) -> Result<bool, BackupError> {
+        self.inner.account_exists(account)
     }
 
     fn dump_database(&self, database: &DatabaseName, into: &Path) -> Result<u64, BackupError> {
@@ -312,6 +324,14 @@ impl BackupHost for PlantingHost {
 
     fn load_dump(&self, database: &DatabaseName, from: &Path) -> Result<(), BackupError> {
         self.inner.load_dump(database, from)
+    }
+
+    fn swap_directory(
+        &self,
+        account: &AccountName,
+        swap: &DirectorySwap,
+    ) -> Result<(), BackupError> {
+        self.inner.swap_directory(account, swap)
     }
 }
 
@@ -745,6 +765,7 @@ fn a_request_naming_another_account_than_the_artifacts_is_refused() {
         &other_account(),
         &backup_id(),
         &fixture.directory(),
+        None,
     )
     .unwrap_err();
 
@@ -775,6 +796,7 @@ fn an_artifact_copied_under_another_backup_id_is_refused() {
         &account(),
         &other_backup_id(),
         &fixture.directory(),
+        None,
     )
     .unwrap_err();
 
@@ -794,6 +816,7 @@ fn a_backup_id_that_is_not_in_the_directory_is_not_found() {
         &account(),
         &other_backup_id(),
         &fixture.directory(),
+        None,
     )
     .unwrap_err();
 
@@ -873,6 +896,7 @@ fn an_artifact_owned_by_another_uid_is_refused() {
         &account(),
         &backup_id(),
         &fixture.directory(),
+        None,
     )
     .unwrap_err();
 
@@ -993,6 +1017,7 @@ fn verifying_while_the_account_is_locked_reports_already_running() {
         &backup_id(),
         &LocalBackupRoot::default(),
         &FreeSpaceFloor::from_mebibytes(1).unwrap(),
+        None,
     );
 
     assert_eq!(outcome, Err(BackupError::AlreadyRunning));
@@ -1011,10 +1036,138 @@ fn a_finished_verification_leaves_the_account_unlocked() {
         &backup_id(),
         &LocalBackupRoot::default(),
         &FreeSpaceFloor::from_mebibytes(1).unwrap(),
+        None,
     );
 
     assert!(
         take_account_lock(&account).is_some(),
         "the verification kept the lock"
     );
+}
+
+/// A key a test can name.
+fn archive_key(byte: &str) -> ArchiveKey {
+    ArchiveKey::parse(&byte.repeat(32)).expect("the fixture key is well-formed")
+}
+
+/// Replaces the fixture's published artifact with its sealed form under `key`
+/// and republishes a sidecar describing the sealed bytes, labelled sealed when
+/// `labelled` is true.
+fn seal_fixture(fixture: &Fixture, count: usize, key: &ArchiveKey, labelled: bool) {
+    let sealing = fixture.directory().join("sealing");
+    encrypt_artifact(&fixture.artifact(), &sealing, key).unwrap();
+    std::fs::rename(&sealing, fixture.artifact()).unwrap();
+    let (sha256, bytes) = checksum_file(&fixture.artifact()).unwrap();
+    let summary = BackupSummary::readable(
+        backup_id().as_str().to_owned(),
+        manifest(count),
+        bytes,
+        sha256,
+    );
+    fixture.publish_summary(&if labelled { summary.sealed() } else { summary });
+}
+
+/// Runs one verification of the fixture's own backup with `key`.
+fn run_keyed(
+    fixture: &Fixture,
+    host: &dyn BackupHost,
+    key: Option<&ArchiveKey>,
+) -> Result<crate::backup::BackupVerification, BackupError> {
+    verify_in(
+        &fixture.placement(),
+        host,
+        &account(),
+        &backup_id(),
+        &fixture.directory(),
+        key,
+    )
+}
+
+/// **A sealed artifact verifies under its key, and the listing is read from the
+/// decrypted copy in the scratch** — never from the stored file, which no
+/// archiver could list.
+#[test]
+fn a_sealed_artifact_verifies_under_its_key_and_is_listed_from_the_decrypted_copy() {
+    let fixture = Fixture::new(2);
+    seal_fixture(&fixture, 2, &archive_key("11"), true);
+    let host = host_with(2);
+
+    let verified = run_keyed(&fixture, &host, Some(&archive_key("11"))).unwrap();
+
+    assert_eq!(verified.database_count, 2);
+    let listed = host.calls_to(LIST_PROGRAM);
+    assert_eq!(listed.len(), 1);
+    assert!(
+        listed[0][1].starts_with(fixture.scratch().to_str().unwrap()),
+        "the listing was asked of {}",
+        listed[0][1]
+    );
+    assert!(
+        !fixture.scratch().exists(),
+        "the decrypted copy must not outlive the verification"
+    );
+}
+
+/// A sealed artifact and no key is the panel's mistake, answered before
+/// anything is written.
+#[test]
+fn a_sealed_artifact_with_no_key_is_refused_and_the_scratch_is_removed() {
+    let fixture = Fixture::new(1);
+    seal_fixture(&fixture, 1, &archive_key("11"), true);
+    let host = host_with(1);
+
+    let error = run_keyed(&fixture, &host, None).unwrap_err();
+
+    assert_eq!(error, BackupError::EncryptionKeyRequired);
+    assert!(host.calls_to(LIST_PROGRAM).is_empty());
+    assert!(!fixture.scratch().exists());
+}
+
+/// The digest was already checked, so a sealed artifact that will not open is a
+/// key problem; and it still removes the scratch it opened.
+#[test]
+fn a_sealed_artifact_under_the_wrong_key_is_refused_and_the_scratch_is_removed() {
+    let fixture = Fixture::new(1);
+    seal_fixture(&fixture, 1, &archive_key("11"), true);
+    let host = host_with(1);
+
+    let error = run_keyed(&fixture, &host, Some(&archive_key("22"))).unwrap_err();
+
+    assert_eq!(error, BackupError::ArtifactDecryptionFailed);
+    assert!(host.calls_to(LIST_PROGRAM).is_empty());
+    assert!(!fixture.scratch().exists());
+}
+
+/// A label that disagrees with the file is reported, in both directions.
+#[test]
+fn a_sidecar_whose_label_disagrees_with_the_file_is_refused_in_both_directions() {
+    let sealed_but_labelled_plain = Fixture::new(1);
+    seal_fixture(&sealed_but_labelled_plain, 1, &archive_key("11"), false);
+    let plain_but_labelled_sealed = Fixture::new(1);
+    let summary = BackupSummary::readable(
+        backup_id().as_str().to_owned(),
+        manifest(1),
+        ARTIFACT_BYTES.len() as u64,
+        digest(ARTIFACT_BYTES.as_bytes()),
+    )
+    .sealed();
+    plain_but_labelled_sealed.publish_summary(&summary);
+
+    for fixture in [&sealed_but_labelled_plain, &plain_but_labelled_sealed] {
+        let error = run_keyed(fixture, &host_with(1), Some(&archive_key("11"))).unwrap_err();
+
+        assert_eq!(error, BackupError::ManifestDisagreesWithSidecar);
+    }
+}
+
+/// The inverse control for all of the above: a plain artifact is verified as it
+/// always was, with or without a key in hand.
+#[test]
+fn a_plain_artifact_verifies_the_same_with_a_key_and_without_one() {
+    let fixture = Fixture::new(1);
+
+    let without = run_keyed(&fixture, &host_with(1), None).unwrap();
+    let with = run_keyed(&fixture, &host_with(1), Some(&archive_key("11"))).unwrap();
+
+    assert_eq!(without, with);
 }

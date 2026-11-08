@@ -1,0 +1,66 @@
+# The update an administrator asked for in the panel (issue #382): `maran update --requested`, started
+# by maran-update-request.path when the panel creates its marker file. It is the operator's
+# `maran update` with no terminal and nothing else added: the lock, the version check, the signed
+# manifest, the artifact checks, the pre-update dump, the migration, the restart, the health gate and
+# the automatic rollback that never restores the database are the same code, not a copy. The one thing
+# it adds is a report to the panel, which closes the task the button opened.
+# docs/superpowers/notes/2026-11-07-panel-update-from-panel-threat-note.md carries the argument.
+#
+# THE COMMAND IS FIXED. Nothing the panel writes reaches it: there is no EnvironmentFile, no argument
+# the marker supplies and no shell. The one pre-command removes the marker, so a request is consumed
+# once; `rm -f --` does not follow a symbolic link and never opens the file.
+#
+# Installed root:root 0644 as it stands by installer/lib/69-update-request.sh. There is no placeholder
+# and no [Install] section: only the path unit and an operator start it.
+[Unit]
+Description=Maran panel update requested from the panel
+After=network-online.target postgresql.service maran-api.service maran-agent.service
+Wants=network-online.target
+# A run that fails is not retried by systemd: the administrator decides whether to press the button again.
+# The limit is the loop stop for a marker this unit cannot remove (the panel's account made it a
+# directory): the path unit would start the service again the moment it failed, so three starts in a
+# minute fail the path unit, which is visible in `systemctl status`, and updates from the panel stay
+# off until an operator looks. It is set on the SERVICE because the path unit's own TriggerLimit
+# directives need systemd 253 and Ubuntu 22.04 ships 249. UNOBSERVED HERE: the limit's behaviour on a
+# booted host.
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+User=root
+ExecStartPre=/usr/bin/rm -f -- /run/maran-update-request/requested
+ExecStart=/usr/local/sbin/maran update --requested
+RemainAfterExit=no
+# Bounds a hung run: three downloads of up to 30 minutes each, the migration, two restarts and the
+# 120 second health gate (twice, with a rollback) fit well inside this.
+TimeoutStartSec=3h
+Nice=10
+IOSchedulingClass=idle
+UMask=0077
+
+# The update writes the code root runs, so this sandbox is opened exactly as far as the verb's writes go
+# and no further, and it is the sandbox of maran-update-security.service: the verb is the same. The
+# writable set is the release tree and `current` (/usr/local/maran), the release state, the check and
+# running facts and the failed-release memory (/etc/maran), the pre-update dumps
+# (/var/backups/maran-update), the verb's staging directory (/var/lib/maran-cli-staging) and the lock
+# and the request directory (/run). /var/lib/maran, which the panel's service account can write, is
+# deliberately NOT here. UNOBSERVED HERE: a run under this sandbox on a real host.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/usr/local/maran /etc/maran /var/backups/maran-update /var/lib/maran-cli-staging /run
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+# IP for the release host, unix for PostgreSQL, systemd and the panel's sockets, netlink for name lookups.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK

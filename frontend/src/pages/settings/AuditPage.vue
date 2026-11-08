@@ -6,8 +6,15 @@
  *
  * Read-only by construction. Entries are written by the backend from inside the handlers that
  * perform an action, so there is nothing here to edit and no route that could amend one. The
- * endpoint is administrators-only; a customer who reaches this URL sees the panel's own refusal,
- * rendered verbatim like any other.
+ * administrator's endpoint is administrators-only; a customer who reaches this URL sees the panel's
+ * own refusal, rendered verbatim like any other.
+ *
+ * **One screen, two journals.** An administrator reads the whole journal. A reseller reads its own
+ * part of it (issue #370): the entries about its accounts and its login, from an endpoint that
+ * answers in the same shape. The page asks for the scope its role has and shows the same table and
+ * filters; the export and the upkeep cards (retention, integrity) are the administrator's and are
+ * not drawn for a reseller. The scope is advice about which endpoint to call — what each caller may
+ * read is the panel's decision on every request.
  *
  * **The journal is a server page** (`useServerTable`): page, page size, the search (the actor, the
  * subject or the address), the sort (`occurredAt`, `actor`, `action`) and the `action`, `outcome`,
@@ -51,10 +58,11 @@ import AuditTable from '../../components/audit/AuditTable.vue'
 import { useAccountChoice } from '../../composables/useAccountChoice'
 import { useAccountFilter } from '../../composables/useAccountFilter'
 import { useAuditFilters } from '../../composables/useAuditFilters'
+import { useCallerRole } from '../../composables/useCallerRole'
 import { useListLabels } from '../../composables/useListLabels'
 import { useServerTable } from '../../composables/useServerTable'
 import { useAuditStore } from '../../stores/audit'
-import type { AuditEvent } from '../../types/audit'
+import type { AuditEvent, AuditScope } from '../../types/audit'
 import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
 
 const { t } = useI18n()
@@ -65,6 +73,12 @@ const auditFilters = useAuditFilters(() => {
 })
 const { picker: accountPicker, search: searchAccounts } = useAccountChoice()
 const { name: accountFilterName } = useAccountFilter()
+const { isReseller } = useCallerRole()
+
+/** Whose journal this page reads: a reseller its own part of it, anyone else the whole one. */
+const scope: ComputedRef<AuditScope> = computed(() => {
+  return isReseller.value ? 'reseller' : 'all'
+})
 
 const table = useServerTable<AuditEvent>({
   filters: auditFilters.schema,
@@ -74,7 +88,7 @@ const table = useServerTable<AuditEvent>({
    * @returns How the read ended.
    */
   load: (request: ListRequest): Promise<ListLoad<AuditEvent>> => {
-    return auditStore.list(request)
+    return auditStore.list(request, scope.value)
   },
 })
 
@@ -160,7 +174,7 @@ const clearAll = async (): Promise<void> => {
 }
 
 onMounted(async () => {
-  await Promise.all([auditStore.loadActions(), auditStore.loadOutcomes()])
+  await Promise.all([auditStore.loadActions(scope.value), auditStore.loadOutcomes(scope.value)])
 })
 </script>
 
@@ -168,9 +182,9 @@ onMounted(async () => {
   <section class="flex w-full flex-col gap-4">
     <UiPageHeading
       :title="t('app.audit.heading')"
-      :subtitle="t('app.audit.subtitle')"
+      :subtitle="isReseller ? t('app.audit.resellerSubtitle') : t('app.audit.subtitle')"
     >
-      <template #actions>
+      <template v-if="!isReseller" #actions>
         <AuditExportMenu :request="table.request.value" @exported="exported" />
       </template>
     </UiPageHeading>
@@ -267,7 +281,7 @@ onMounted(async () => {
       @search="searchAccounts"
     />
 
-    <div class="grid gap-4 lg:grid-cols-2">
+    <div v-if="!isReseller" class="grid gap-4 lg:grid-cols-2">
       <AuditRetentionCard />
       <AuditIntegrityCard />
     </div>

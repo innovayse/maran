@@ -3,6 +3,7 @@ import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubAccounts, stubCreateAccountProblem } from '../fixtures/stub-accounts-route'
 import type { PanelModule } from '../../src/types/module'
+import { recordCreateRequests, submitCreate } from '../fixtures/stub-account-create'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubPlans, THE_PLAN, THREE_PLANS } from '../fixtures/stub-plans-route'
 import { stubInvitation } from '../fixtures/stub-invitation-routes'
@@ -10,7 +11,7 @@ import { setPersistedLocale } from '../fixtures/set-locale'
 
 /** Catalogue every spec here starts from: the accounts module licensed, so the form is reachable. */
 const LICENSED_ACCOUNTS: PanelModule[] = [
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
+  { name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 // rules/vue.md, "Forms: the browser never validates": UiForm renders
@@ -30,10 +31,11 @@ test('the create-account form disables browser validation and uses no native val
 
   await expect(page.locator('form')).toHaveAttribute('novalidate', '')
 
-  // Three text inputs: username, primary domain and the account owner's email — the plan is a
-  // listbox, whose options come from the backend, so it is not a fourth field to validate here.
-  const fields = page.locator('form input')
-  await expect(fields).toHaveCount(3)
+  // Six text inputs: username, primary domain, the account owner's email and the three runtime
+  // ceilings (processes, inodes, open files). The plan is a listbox whose options come from the
+  // backend, and the two sign-in choices are radios, so none of those is a field to validate here.
+  const fields = page.locator('form input:not([type="radio"])')
+  await expect(fields).toHaveCount(6)
   const nativeAttributes = await fields.evaluateAll((inputs) => {
     return inputs.flatMap((input) => {
       return ['required', 'pattern', 'min', 'max', 'minlength', 'maxlength'].filter((attribute) => {
@@ -56,13 +58,7 @@ test('submitting the empty form shows the panel own field messages and sends no 
   await stubAccounts(page, [])
   await stubPlans(page)
 
-  /** Every create request the browser attempted, so the spec can assert none was made. */
-  const createRequests: string[] = []
-  page.on('request', (request) => {
-    if (request.method() === 'POST' && request.url().includes('/api/v1/accounts')) {
-      createRequests.push(request.url())
-    }
-  })
+  const createRequests = recordCreateRequests(page)
 
   await page.goto('/accounts/new')
   await page.getByRole('button', { name: 'Create account' }).click()
@@ -157,12 +153,7 @@ test('a valid submission posts the typed values and opens the new account, where
   await page.getByRole('option', { name: THE_PLAN.displayName, exact: false }).click()
   await page.getByLabel('Owner email').fill('owner@alpha.example.com')
 
-  const [request] = await Promise.all([
-    page.waitForRequest((candidate) => {
-      return candidate.method() === 'POST' && candidate.url().includes('/api/v1/accounts')
-    }),
-    page.getByRole('button', { name: 'Create account' }).click(),
-  ])
+  const request = await submitCreate(page)
 
   expect(request.postDataJSON()).toEqual({
     name: 'alpha',
@@ -185,13 +176,7 @@ test('cancelling the form returns to the list without creating anything', async 
   await stubAccounts(page, [])
   await stubPlans(page)
 
-  /** Every create request the browser attempted, so the spec can assert none was made. */
-  const createRequests: string[] = []
-  page.on('request', (request) => {
-    if (request.method() === 'POST' && request.url().includes('/api/v1/accounts')) {
-      createRequests.push(request.url())
-    }
-  })
+  const createRequests = recordCreateRequests(page)
 
   await page.goto('/accounts/new')
   await page.getByLabel('Username').fill('alpha')

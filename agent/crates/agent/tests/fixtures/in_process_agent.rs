@@ -71,7 +71,8 @@ impl InProcessAgent {
         let policy = PeerPolicy::new(admitted_uid);
         let server_path = socket_path.clone();
         let server = tokio::spawn(async move {
-            maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor()).await
+            maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor(), None)
+                .await
         });
 
         wait_until_listening(&socket_path, &server).await;

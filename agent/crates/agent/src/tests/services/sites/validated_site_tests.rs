@@ -14,6 +14,7 @@ fn a_static_spec(aliases: &[&str]) -> SiteSpec {
         php_version: String::new(),
         proxy_upstream: String::new(),
         has_certificate: false,
+        options: None,
     }
 }
 
@@ -98,4 +99,54 @@ fn one_alias_over_the_maximum_is_refused_as_invalid_input() {
 #[test]
 fn the_alias_maximum_leaves_the_primary_domain_one_name_of_a_certificate() {
     assert_eq!(MAXIMUM_ALIASES + 1, CERTIFICATE_NAME_LIMIT);
+}
+
+#[test]
+fn a_specs_options_reach_the_validated_site() {
+    use crate::proto::{CanonicalHost, SiteOptions};
+
+    let spec = SiteSpec {
+        options: Some(SiteOptions {
+            canonical_host: CanonicalHost::Www as i32,
+            client_max_body_size_mib: 0,
+            ..SiteOptions::default()
+        }),
+        ..a_static_spec(&["www.example.com"])
+    };
+
+    let input = validated_site("acme", "example.com", Some(&spec)).expect("accepted");
+
+    assert!(input.options.canonical_host().is_some());
+}
+
+#[test]
+fn options_that_do_not_fit_the_site_refuse_the_whole_spec() {
+    use crate::proto::SiteOptions;
+
+    // A static site accepts no request body, so it has no upload size.
+    let spec = SiteSpec {
+        options: Some(SiteOptions {
+            client_max_body_size_mib: 10,
+            ..SiteOptions::default()
+        }),
+        ..a_static_spec(&[])
+    };
+
+    assert!(validated_site("acme", "example.com", Some(&spec)).is_err());
+}
+
+#[test]
+fn a_canonical_host_the_site_does_not_serve_refuses_the_whole_spec() {
+    use crate::proto::{CanonicalHost, SiteOptions};
+
+    // The site serves only `example.com`; `www.example.com` is not one of its names.
+    let spec = SiteSpec {
+        options: Some(SiteOptions {
+            canonical_host: CanonicalHost::Www as i32,
+            ..SiteOptions::default()
+        }),
+        ..a_static_spec(&[])
+    };
+
+    assert!(validated_site("acme", "example.com", Some(&spec)).is_err());
 }

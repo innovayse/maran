@@ -1,9 +1,11 @@
 //! The [`SiteHost`] that actually touches this machine.
 
-use std::os::unix::fs::DirBuilderExt as _;
+use std::fs::Permissions;
+use std::os::unix::fs::{DirBuilderExt as _, PermissionsExt as _};
 use std::path::{Path, PathBuf};
 
 use maran_agent_core::agent_paths::AgentPaths;
+use maran_agent_core::end_of_options::END_OF_OPTIONS;
 use maran_agent_core::privs::account_ids::AccountIds;
 use maran_agent_core::privs::fork_as_account::fork_as_account;
 use maran_agent_core::privs::priv_error::PrivError;
@@ -13,15 +15,18 @@ use maran_agent_core::validation::fs::path::resolve_in_home;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_distro::AdapterBinary;
 
-use crate::safe_write::model::{Reload, Validator};
+use crate::safe_write::model::{ConfigFile, Reload, Validator};
 use crate::safe_write::{
     CommandOutcome, ConfigHost, SafeWriteError, create_config, remove_config, write_config,
+    write_unreloaded_config,
 };
 use crate::sites::ensure_traversable_directory::ensure_traversable_directory;
 use crate::sites::follow_log::follow_log;
 use crate::sites::log_sink::LogSink;
+use crate::sites::model::auth_file_placement::AuthFilePlacement;
 use crate::sites::model::log_tail_request::LogTailRequest;
 use crate::sites::model::tail_end::TailEnd;
+use crate::sites::parse_group_id::parse_group_id;
 use crate::sites::{SiteHost, SiteMaintenanceHost, SitesOpError};
 
 /// Runs the real `nginx -t`, the real `systemctl reload`, and the real
@@ -96,6 +101,89 @@ const CONFIG_EXTENSION: &str = "conf";
 /// Nothing but root ever opens a path beneath this, and the one reader that
 /// does (`follow_log`, on behalf of `TailSiteLog`) is the root daemon itself.
 const SITE_LOG_DIRECTORY_MODE: u32 = 0o750;
+
+/// The mode of the credential directory: `root:<web server group>`, `2750`.
+///
+/// The group can enter it and nobody else can list it; the setgid bit makes a
+/// file written inside inherit the group, which is what lets the web server's
+/// workers read a file the root agent wrote.
+const AUTH_DIRECTORY_MODE: u32 = 0o2750;
+
+/// The mode of a credential file: readable by the directory's group (the web
+/// server), writable by root alone, closed to everyone else.
+const AUTH_FILE_MODE: u32 = 0o640;
+
+/// The `getent` database that holds groups.
+const GROUP_DATABASE: &str = "group";
+
+impl ProcessSiteHost {
+    /// Makes the credential directory `root:<web server group>` with
+    /// [`AUTH_DIRECTORY_MODE`], creating it when it is missing, and answers
+    /// nothing else.
+    ///
+    /// Run before every credential write and idempotent, so a directory an
+    /// earlier agent made with the wrong group or mode, or an operator
+    /// loosened, is put right the next time a site asks for a password. The
+    /// group's id is read from `getent` at the moment of use and never cached.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SitesOpError::AuthFile`] when the group cannot be resolved or
+    /// the directory cannot be made, handed to the group or given its mode.
+    fn prepare_auth_directory(
+        &self,
+        directory: &Path,
+        placement: &AuthFilePlacement<'_>,
+    ) -> Result<(), SitesOpError> {
+        let failed = |step: &str, error: &dyn std::fmt::Display| SitesOpError::AuthFile {
+            reason: format!("{step} {}: {error}", directory.display()),
+        };
+
+        let group_id = self.web_group_id(placement)?;
+        match std::fs::DirBuilder::new()
+            .mode(AUTH_DIRECTORY_MODE & 0o777)
+            .create(directory)
+        {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => return Err(failed("could not create", &error)),
+        }
+        std::os::unix::fs::chown(directory, None, Some(group_id))
+            .map_err(|error| failed("could not hand to the web server's group", &error))?;
+        // After the chown, and explicitly: `DirBuilder`'s mode is masked by the
+        // agent's umask and has no setgid bit, and a chown does not restore one.
+        std::fs::set_permissions(directory, Permissions::from_mode(AUTH_DIRECTORY_MODE))
+            .map_err(|error| failed("could not set the mode of", &error))
+    }
+
+    /// Resolves the web server's group to its numeric id.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SitesOpError::AuthFile`] when `getent` finds no such group or
+    /// answers a row that is not that group's, and the config-write protocol's
+    /// own error when the program cannot be run or outlives its deadline.
+    fn web_group_id(&self, placement: &AuthFilePlacement<'_>) -> Result<u32, SitesOpError> {
+        let outcome = ConfigHost::run(
+            self,
+            placement.getent,
+            &[END_OF_OPTIONS, GROUP_DATABASE, placement.group],
+            CallClass::Query,
+        )?;
+        if outcome.status == 0
+            && let Some(id) = parse_group_id(placement.group, &outcome.stdout)
+        {
+            return Ok(id);
+        }
+
+        Err(SitesOpError::AuthFile {
+            reason: format!(
+                "the web server's group `{}` could not be resolved (getent status {})",
+                placement.group, outcome.status
+            ),
+        })
+    }
+}
 
 impl SiteHost for ProcessSiteHost {
     /// Reads the vhost, distinguishing "absent" from "unreadable".
@@ -242,6 +330,55 @@ impl SiteHost for ProcessSiteHost {
         reload: &Reload<'_>,
     ) -> Result<(), SitesOpError> {
         Ok(remove_config(self, target, validator, reload)?)
+    }
+
+    /// Prepares the credential directory, then delegates to the unreloaded half
+    /// of the config-write protocol: nothing is told about a credential file
+    /// because nginx opens it afresh on every request.
+    fn write_auth_file(
+        &self,
+        target: &Path,
+        contents: &str,
+        placement: &AuthFilePlacement<'_>,
+        validator: &Validator<'_>,
+    ) -> Result<(), SitesOpError> {
+        let directory = target.parent().ok_or_else(|| SitesOpError::AuthFile {
+            reason: format!("{} has no directory", target.display()),
+        })?;
+        self.prepare_auth_directory(directory, placement)?;
+
+        let file = ConfigFile {
+            target,
+            contents,
+            mode: AUTH_FILE_MODE,
+        };
+        Ok(write_unreloaded_config(self, &file, validator)?)
+    }
+
+    /// Unlinks the credential file; a file that is not there is success.
+    fn remove_auth_file(&self, target: &Path) -> Result<(), SitesOpError> {
+        match std::fs::remove_file(target) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(SitesOpError::AuthFile {
+                reason: format!("could not remove {}: {error}", target.display()),
+            }),
+        }
+    }
+
+    /// Lists the credential directory; one that does not exist yet is empty.
+    fn list_auth_files(&self) -> Result<Vec<PathBuf>, SitesOpError> {
+        let directory = Path::new(AgentPaths::SITE_AUTH_DIRECTORY);
+        match std::fs::read_dir(directory) {
+            Ok(entries) => Ok(entries
+                .filter_map(Result::ok)
+                .map(|entry| entry.path())
+                .collect()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
+            Err(error) => Err(SitesOpError::AuthFile {
+                reason: format!("could not list {}: {error}", directory.display()),
+            }),
+        }
     }
 
     /// Delegates to `agent-core`'s one containment primitive.

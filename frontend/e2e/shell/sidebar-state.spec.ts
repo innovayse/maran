@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
@@ -41,10 +41,11 @@ const stubLocalizedModules = async (page: Page, slowLanguage?: string): Promise<
       await held
     }
     const modules: PanelModule[] = [
-      { name: 'firewall', displayName: 'Firewall', tier: 'included', state: 'enabled' },
+      { name: 'firewall', displayName: 'Firewall', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
       {
         name: UNKNOWN_MODULE,
         displayName: UNKNOWN_NAME[language] ?? 'Webmail',
+        kindDisplayName: 'Core',
         tier: 'included',
         state: 'enabled',
       },
@@ -68,7 +69,9 @@ const chooseLanguage = async (page: Page, name: string): Promise<void> => {
 test('switching the language live re-reads the sidebar and the breadcrumb, server names included', async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 1440, height: 900 })
+  // Wide enough for the whole Armenian trail beside the app bar's controls: the breadcrumb hides itself
+  // when it does not fit (see ShellBreadcrumb), and at 1440 the longer Armenian labels leave it 35px short.
+  await page.setViewportSize({ width: 1680, height: 900 })
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubLocalizedModules(page)
@@ -194,20 +197,43 @@ test('the collapsed rail lights the Accounts section on the Plans page too', asy
   await expect(rail.getByRole('link', { name: 'Sites and domains', exact: true })).not.toHaveClass(LIT)
 })
 
+/**
+ * Asserts a sidebar row ends above the identity card, retrying until it does. The window alone
+ * cannot say so (a row under the card is still in the viewport), and the sidebar settles over a few
+ * frames after first paint (the card fills in, rows above the current one reflow), so a one-shot
+ * measurement races that.
+ * @param page The Playwright page under test.
+ * @param row The sidebar link that must end up above the card.
+ * @returns Resolves once the row's bottom edge is at or above the card's top edge.
+ */
+const expectAboveIdentityCard = async (page: Page, row: Locator): Promise<void> => {
+  const card = page.getByTestId('shell-identity')
+  await expect
+    .poll(
+      async (): Promise<number> => {
+        const [rowBox, cardBox] = [await row.boundingBox(), await card.boundingBox()]
+        // A missing box reads as "not yet": NaN never satisfies the comparison below.
+        return rowBox === null || cardBox === null ? Number.NaN : cardBox.y - (rowBox.y + rowBox.height)
+      },
+      { message: 'the current row ends above the identity card' },
+    )
+    .toBeGreaterThanOrEqual(0)
+}
+
 test('the current row is scrolled into view on a short window', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 480 })
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, [
-    { name: 'monitoring', displayName: 'Monitoring', tier: 'included', state: 'enabled' },
-    { name: 'tasks', displayName: 'Tasks', tier: 'included', state: 'enabled' },
-    { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
-    { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
-    { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
-    { name: 'sftp', displayName: 'File transfer', tier: 'included', state: 'enabled' },
-    { name: 'cron', displayName: 'Scheduled tasks', tier: 'included', state: 'enabled' },
-    { name: 'firewall', displayName: 'Firewall', tier: 'included', state: 'enabled' },
-    { name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' },
+    { name: 'monitoring', displayName: 'Monitoring', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+    { name: 'tasks', displayName: 'Tasks', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+    { name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+    { name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+    { name: 'databases', displayName: 'Databases', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+    { name: 'sftp', displayName: 'File transfer', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+    { name: 'cron', displayName: 'Scheduled tasks', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+    { name: 'firewall', displayName: 'Firewall', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+    { name: 'backups', displayName: 'Backups', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
   ])
   await page.goto('/backups/schedule')
 
@@ -217,10 +243,7 @@ test('the current row is scrolled into view on a short window', async ({ page })
     .getByRole('link', { name: 'Schedule', exact: true })
   await expect(current).toHaveAttribute('aria-current', 'page')
   await expect(current).toBeInViewport({ ratio: 1 })
-  // In view means above the identity card, not under it.
-  const row = await current.boundingBox()
-  const card = await page.getByTestId('shell-identity').boundingBox()
-  expect((row?.y ?? 0) + (row?.height ?? 0)).toBeLessThanOrEqual(card?.y ?? 0)
+  await expectAboveIdentityCard(page, current)
 })
 
 test('choosing Backups on a short window brings its Backup list row into view', async ({ page }) => {
@@ -233,9 +256,7 @@ test('choosing Backups on a short window brings its Backup list row into view', 
   const current = nav.getByRole('link', { name: 'Backup list', exact: true })
   await expect(current).toHaveAttribute('aria-current', 'page')
   await expect(current).toBeInViewport({ ratio: 1 })
-  const row = await current.boundingBox()
-  const card = await page.getByTestId('shell-identity').boundingBox()
-  expect((row?.y ?? 0) + (row?.height ?? 0)).toBeLessThanOrEqual(card?.y ?? 0)
+  await expectAboveIdentityCard(page, current)
 
   // Nearest, no jumping: a row already in view does not move the list.
   const scroller = nav.locator('xpath=ancestor::div[contains(@class,"overflow-y-auto")][1]')

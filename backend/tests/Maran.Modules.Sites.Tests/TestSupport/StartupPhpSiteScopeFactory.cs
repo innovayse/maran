@@ -1,5 +1,6 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Sites.Persistence;
+using Maran.Modules.Sites.Services;
 using Maran.Sdk.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -34,6 +35,7 @@ public sealed class StartupPhpSiteScopeFactory : IDisposable
         services.AddSingleton(dbContext);
         services.AddSingleton(agent);
         services.AddSingleton(accounts);
+        services.AddScoped<PhpAccountPoolSettings>();
 
         _provider = services.BuildServiceProvider();
         Scopes = _provider.GetRequiredService<IServiceScopeFactory>();

@@ -1,6 +1,7 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
+using Maran.Modules.Backups.Seeders;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Notifications.Interfaces;
@@ -47,6 +48,9 @@ public sealed class ResellerFixtureBuilder
     /// <summary>Whether every module's schema is created, not only the ones the account surface needs.</summary>
     private bool _everyModule;
 
+    /// <summary>The backup agent double a final backup goes through, or <c>null</c> when the world has none.</summary>
+    private StubAgentBackupClient? _backup;
+
     /// <summary>Starts a builder against one test's database.</summary>
     /// <param name="database">The test's own database.</param>
     public ResellerFixtureBuilder(TestDatabase database)
@@ -83,6 +87,20 @@ public sealed class ResellerFixtureBuilder
         return this;
     }
 
+    /// <summary>
+    /// Makes the world able to run an account's whole life: every module's schema exists, the backup agent is
+    /// <paramref name="backup"/> and a default backup destination is stored, so a termination takes its final
+    /// backup, and the cron and SFTP agents answer, so a suspension and a resumption reach every module.
+    /// </summary>
+    /// <param name="backup">The backup agent double, which the test keeps to make the final backup fail.</param>
+    /// <returns>This builder.</returns>
+    public ResellerFixtureBuilder WithAccountLifecycle(StubAgentBackupClient backup)
+    {
+        _everyModule = true;
+        _backup = backup;
+        return this;
+    }
+
     /// <summary>Boots the panel, applies the migrations and seeds the world.</summary>
     /// <returns>The world, which the caller disposes.</returns>
     public async Task<ResellerWorld> BuildAsync()
@@ -99,6 +117,14 @@ public sealed class ResellerFixtureBuilder
                     {
                         services.AddSingleton<IAgentCronClient>(new StubAgentCronClient());
                     }
+
+                    if (_backup is not null)
+                    {
+                        services.RemoveAll<IAgentBackupClient>();
+                        services.AddSingleton<IAgentBackupClient>(_backup);
+                        services.RemoveAll<IAgentSftpClient>();
+                        services.AddSingleton<IAgentSftpClient>(new LockingSftpAgent());
+                    }
                 })
             .WithWebHostBuilder(builder =>
             {
@@ -106,9 +132,19 @@ public sealed class ResellerFixtureBuilder
 
                 // A test makes dozens of requests as one login; the limit is not what it is about.
                 builder.UseSetting("RateLimiting:ApiPermitLimit", "100000");
+                builder.UseSetting("RateLimiting:ProvisioningMaxRequests", "100000");
+
+                // A key refused for any reason counts against the address, and every request of a test comes from
+                // one address. A lifecycle world refuses keys on purpose, dozens of times, and must not lock the
+                // working key out of the panel it is checking; 100 is the most the setting allows.
+                if (_backup is not null)
+                {
+                    builder.UseSetting("RateLimiting:LoginMaxAttempts", "100");
+                }
             });
 
         await MigrateAsync(factory);
+        await SeedBackupDestinationAsync(factory);
         await EndpointHarness.SeedAdministratorAsync(factory);
         await SeedPolicyAsync(factory);
         var (housePlanId, houseAccountId) = await SeedHouseAsync(factory);
@@ -130,6 +166,20 @@ public sealed class ResellerFixtureBuilder
 
         using var scope = factory.Services.CreateScope();
         await ModuleSchemas.MigrateAsync(scope.ServiceProvider);
+    }
+
+    /// <summary>Stores the default backup destination a final backup needs, if the world has a backup agent.</summary>
+    /// <param name="factory">The booted host.</param>
+    private async Task SeedBackupDestinationAsync(WebApplicationFactory<Program> factory)
+    {
+        if (_backup is null)
+        {
+            return;
+        }
+
+        using var scope = factory.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<DefaultBackupDestinationSeeder>()
+            .SeedAsync(CancellationToken.None);
     }
 
     /// <summary>Stores a security policy that does not force a second factor on anyone.</summary>

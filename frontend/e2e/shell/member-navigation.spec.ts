@@ -94,14 +94,11 @@ test('a member holding only databases is offered Databases and not Backups, Mail
     .poll(async (): Promise<string[]> => {
       return topLevelNames(page)
     })
-    .toEqual(['System status', 'Sites and domains', 'Databases', 'Files and access', 'Activity', 'My account'])
+    .toEqual(['System status', 'Sites and domains', 'Databases', 'Activity', 'My account'])
 
-  // Files and access keeps only the page that is not built yet: the file transfer logins and the
-  // scheduled tasks the member was not granted are gone, so the row is the disabled one.
-  await expect(mainNavigation(page).getByRole('link', { name: 'Files and access Coming soon' })).toHaveAttribute(
-    'aria-disabled',
-    'true',
-  )
+  // Every page of Files and access needs a feature the member was not granted (file transfer, the file
+  // manager, scheduled tasks), so the section is not drawn at all, not even as a disabled row.
+  await expect(mainNavigation(page).getByRole('button', { name: 'Show the Files and access pages' })).toHaveCount(0)
   await expect(mainNavigation(page).getByRole('link', { name: 'Backups', exact: true })).toHaveCount(0)
 })
 

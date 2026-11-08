@@ -1,5 +1,8 @@
 //! Why the agent could not make sense of its command line.
 
+use maran_agent_core::validation::fleet::listen_address_error::ListenAddressError;
+use maran_agent_core::validation::fleet::node_address_error::NodeAddressError;
+
 /// Rejection reasons for [`super::invocation::Invocation::parse`].
 ///
 /// Every variant stops the agent from starting. The alternative — carrying on with
@@ -70,5 +73,39 @@ pub enum OptionsError {
     RepeatedFlag {
         /// The flag that was repeated.
         flag: &'static str,
+    },
+    /// The value of `--fleet-listen` is not an allowed listen address (issue #180).
+    #[error("--fleet-listen: {reason}")]
+    InvalidFleetListen {
+        /// Why the address was refused.
+        reason: ListenAddressError,
+    },
+    /// The value of `--node-address` is not an address a node can be dialled on (issue #180).
+    #[error("--node-address: {reason}")]
+    InvalidNodeAddress {
+        /// Why the address was refused.
+        reason: NodeAddressError,
+    },
+    /// A flag that names a directory was given a relative path.
+    ///
+    /// Refused because a relative path means "relative to whatever directory systemd or the
+    /// operator happened to start the process in", and this one decides where a private key is
+    /// written and read.
+    #[error("{flag} expects an absolute path, got '{value}'")]
+    RelativePath {
+        /// The flag whose value was refused.
+        flag: &'static str,
+        /// The value as it was written on the command line.
+        value: String,
+    },
+    /// One of the two fleet flags was given without the other.
+    ///
+    /// Refused rather than defaulted: a listener on an address with no identity directory has
+    /// nothing to authenticate with, and an identity directory with no address is an operator
+    /// who believes a listener is on when it is not.
+    #[error("{missing} is required when the other fleet flag is given")]
+    FleetFlagMissing {
+        /// The fleet flag that was not given.
+        missing: &'static str,
     },
 }

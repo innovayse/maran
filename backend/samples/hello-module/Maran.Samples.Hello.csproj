@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- The resx triples' neutral file is English (rules/csharp.md "The backend owns all user-facing
+         message text"). -->
+    <NeutralLanguage>en</NeutralLanguage>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- A packageable module is a plain class library: it contributes controllers to the panel's
+         pipeline and never hosts a server of its own. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Only the Sdk and the SharedKernel, which the panel loads once for every module. Referencing
+         anything else of ours (a core module, the Host, the agent client) is refused at install:
+         this module declares no agent capability, so it has no business with the agent. -->
+    <ProjectReference Include="..\..\src\Maran.Sdk\Maran.Sdk.csproj" />
+    <ProjectReference Include="..\..\src\Maran.SharedKernel\Maran.SharedKernel.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Npgsql + EF Core: the module's one table, hello.Greetings. WolverineFx: the query handler.
+         All three are the panel's own and are never packaged (docs/marketplace/ipm-format.md). -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
+    <PackageReference Include="WolverineFx" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Resx-backed display text, one triple (rules/csharp.md): the module's name, its menu labels and
+         its route titles, resolved by the panel in the request's culture. -->
+    <EmbeddedResource Update="Resources\DisplayNames.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\DisplayNames.ru.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\DisplayNames.hy.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+  </ItemGroup>
+
+</Project>

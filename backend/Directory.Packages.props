@@ -88,6 +88,10 @@
          item 9 ("no home-grown crypto") for no gain. -->
     <PackageVersion Include="Otp.NET" Version="1.4.1" />
     <PackageVersion Include="Konscious.Security.Cryptography.Argon2" Version="1.3.1" />
+    <!-- bcrypt for nginx basic authentication (issue #151). The web server verifies its credential file
+         with the system crypt(3), whose acceptable formats exclude MD5 and SHA-1 (rules/security.md
+         item 9); the BCL has no bcrypt, and a hand-written one would be home-grown crypto. MIT. -->
+    <PackageVersion Include="BCrypt.Net-Next" Version="4.1.0" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.20" />
     <!-- MailKit: the panel's only SMTP client, reached from exactly one file
          (Maran.Modules.Monitoring/Services/SmtpMailer.cs). .NET's own System.Net.Mail.SmtpClient is

@@ -62,11 +62,6 @@ export interface PanelTaskFailure {
  *
  * One shape for the list, the single read and every frame of the stream, because that is what the
  * module sends: `PanelTaskDto` is the payload of all three.
- *
- * **Every nullable field is read defensively by the API layer**, and that is not belt-and-braces.
- * `TaskStreamWriter` serializes frames with `DefaultIgnoreCondition = WhenWritingNull`, so a
- * streamed frame OMITS `correlationId`, `failure` and `finishedAt` where the plain JSON endpoints
- * send them as `null`. Both spellings have to arrive here as `null`.
  */
 export interface PanelTask {
   /** The task's identity, and the only identifier a request may name. */

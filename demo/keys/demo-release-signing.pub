@@ -1,0 +1,4 @@
+PLACEHOLDER: the public half of the demo bundle's own signing key (ECDSA P-384, PEM) is committed here by
+the owner once the key exists. No key material is committed by this change, and this file is NOT
+installer/keys/release-signing.pub: the product installer and `maran update` verify against that one,
+so a bundle signed for the demonstration is refused by both (scripts/maran demo selftest).

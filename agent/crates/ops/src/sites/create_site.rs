@@ -11,6 +11,7 @@ use crate::sites::model::site_kind::SiteKind;
 use crate::sites::model::site_paths::SitePaths;
 use crate::sites::render_vhost::render_vhost;
 use crate::sites::resolved_site_paths::resolved_site_paths;
+use crate::sites::sync_site_auth_file::sync_site_auth_file;
 use crate::sites::write_site_pool::write_site_pool;
 use crate::sites::{SiteHost, SitesOpError};
 
@@ -45,7 +46,8 @@ use crate::sites::{SiteHost, SitesOpError};
 /// # Errors
 ///
 /// Returns [`SitesOpError::RepeatedHostName`] when an alias equals the domain
-/// or another alias, before anything is read or written.
+/// or another alias, and [`SitesOpError::InvalidOptions`] when the site's
+/// options do not fit it, both before anything is read or written.
 /// Returns [`SitesOpError::AlreadyExists`] when a vhost for the domain is
 /// already present, and [`SitesOpError::ConfigUnreadable`] when one is present
 /// but unreadable — which is deliberately not treated as "no site here",
@@ -98,6 +100,13 @@ pub fn create_site(
             name: name.to_owned(),
         });
     }
+
+    // The options too, before the document root exists: a canonical host the
+    // site does not serve is the caller's input, not a reason to leave
+    // directories behind.
+    input
+        .options
+        .check_against(&input.kind, &input.domain, &input.aliases)?;
 
     // Named, not yet resolved: the document root does not exist until the
     // block below creates it, and a path can only be proved contained once it
@@ -153,6 +162,11 @@ pub fn create_site(
     // hosts meets (`create_vhost` says why the check is nginx's warning and not
     // a scan of the directory).
     let contents = render_vhost(input, &paths)?;
+    // The credential file BEFORE the vhost that names it, so nginx never reloads
+    // a vhost whose `auth_basic_user_file` is not there yet. If the vhost is
+    // then refused the file stays: nothing reads it, and the start-up sweep
+    // removes a file whose site has no vhost.
+    sync_site_auth_file(host, distro, input)?;
     create_vhost(host, distro, &paths.config_path, &contents, &served_names)?;
 
     Ok(CreatedSite {

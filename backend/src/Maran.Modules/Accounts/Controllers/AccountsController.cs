@@ -4,6 +4,7 @@ using Maran.Modules.Accounts.Commands.CreateAccount;
 using Maran.Modules.Accounts.Commands.DeleteAccount;
 using Maran.Modules.Accounts.Commands.ReactivateAccount;
 using Maran.Modules.Accounts.Commands.SuspendAccount;
+using Maran.Modules.Accounts.Commands.TransferAccount;
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Queries.GetAccount;
 using Maran.Modules.Accounts.Queries.GetAccountResourceSummary;
@@ -232,6 +233,34 @@ public sealed class AccountsController : BaseApiController
     public async Task<IActionResult> ChangeOwnerEmailAsync(
         Guid id,
         [FromBody] ChangeAccountOwnerEmailCommand command,
+        CancellationToken cancellationToken)
+    {
+        var stamped = command with { AccountId = id, IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
+        var result = await _bus.InvokeAsync<Result<AccountDetailDto>>(stamped, cancellationToken);
+        return ToActionResult(result);
+    }
+
+    /// <summary>
+    /// Hands an account to another reseller, or to the administrator, with a plan of the new owner.
+    /// Administrator only: a reseller is refused with 403 before the handler runs, so it can neither
+    /// move its own accounts away nor draw another owner's in.
+    /// </summary>
+    /// <param name="id">The account being moved.</param>
+    /// <param name="command">The new owner and the plan of that owner the account is sold from.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <returns>The account as it now stands, or the typed refusal.</returns>
+    [HttpPut("{id:guid}/owner")]
+    [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
+    [Idempotent]
+    [ViewAsAccess(ViewAsAccess.Refused)]
+    [ProducesResponseType(typeof(AccountDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> TransferAsync(
+        Guid id,
+        [FromBody] TransferAccountCommand command,
         CancellationToken cancellationToken)
     {
         var stamped = command with { AccountId = id, IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };

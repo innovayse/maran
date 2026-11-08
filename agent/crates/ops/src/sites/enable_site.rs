@@ -5,6 +5,7 @@ use maran_distro::DistroAdapter;
 use crate::sites::model::create_site_input::CreateSiteInput;
 use crate::sites::render_vhost::render_vhost;
 use crate::sites::resolved_site_paths::resolved_site_paths;
+use crate::sites::sync_site_auth_file::sync_site_auth_file;
 use crate::sites::write_vhost::write_vhost;
 use crate::sites::{SiteHost, SitesOpError};
 
@@ -48,6 +49,10 @@ pub fn enable_site(
         })?;
 
     let contents = render_vhost(input, &paths)?;
+    // The credential file first, so the vhost that names it never reaches nginx
+    // ahead of it. Converged even when the vhost already matches: a file lost
+    // to a crash between the two writes is repaired by the retry.
+    sync_site_auth_file(host, distro, input)?;
     if current == contents {
         return Ok(());
     }

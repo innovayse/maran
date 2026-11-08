@@ -155,6 +155,13 @@ public static class AgentOperationPipeline
     /// caller's token had not.
     /// </para>
     /// <para>
+    /// A server the panel declined to dial (<see cref="AgentEndpointRefusedException"/>: unknown, not
+    /// approved or disabled) is answered with the refusal's own typed failure. It is not retried: the
+    /// retry handles a refused CONNECTION, and a refusal made before any connection was tried is
+    /// permanent until an administrator changes the server. The selected server is the caller's
+    /// ambient target, read inside the call, so every attempt of a retry reaches the same server.
+    /// </para>
+    /// <para>
     /// No log line is written here. The transport's text names the socket path and the host's socket
     /// error, which is operator material; the pipeline's telemetry, which the registration wires to the
     /// panel's logger, reports each handled attempt and each timeout, and the status detail never
@@ -176,6 +183,10 @@ public static class AgentOperationPipeline
         catch (RpcException exception) when (!cancellationToken.IsCancellationRequested)
         {
             return Result<T>.Fail(AgentTransportFailure.ToError(exception));
+        }
+        catch (AgentEndpointRefusedException exception)
+        {
+            return Result<T>.Fail(exception.Error);
         }
         catch (TimeoutRejectedException)
         {
@@ -213,6 +224,10 @@ public static class AgentOperationPipeline
         catch (RpcException exception) when (!cancellationToken.IsCancellationRequested)
         {
             return Result.Fail(AgentTransportFailure.ToError(exception));
+        }
+        catch (AgentEndpointRefusedException exception)
+        {
+            return Result.Fail(exception.Error);
         }
         catch (TimeoutRejectedException)
         {

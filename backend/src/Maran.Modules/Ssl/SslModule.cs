@@ -59,6 +59,10 @@ public sealed class SslModule : IPanelModule
             options.UseNpgsql(connectionString);
         });
 
+        // A singleton, because it holds no state: it opens its own scope per call, so the Host can run the
+        // module's migrations through the root provider (rules/architecture.md "The database evolves the same way").
+        services.AddSingleton<IModuleMigrations, SslModuleMigrations>();
+
         // Validated at startup rather than at the first order: an unusable directory URL or a missing
         // contact address is a configuration mistake, and finding it out when a customer clicks
         // "issue" means the customer is the one who found it (rules/security.md item 7).
@@ -106,6 +110,7 @@ public sealed class SslModule : IPanelModule
         services.AddScoped<IAcmeClient, AcmeClient>();
         services.AddScoped<CertificateRenewalHandler>();
         services.AddScoped<PanelCertificateIssuer>();
+        services.AddScoped<PanelCertificateConsoleIssuer>();
         services.AddScoped<PanelCertificateRenewalHandler>();
 
         // The shared resource pool the panel-wide ResxErrorTextProvider resolves error codes and

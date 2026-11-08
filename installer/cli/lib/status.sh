@@ -28,6 +28,10 @@ cli_status() {
   if systemctl is-enabled --quiet maran-ftps.service 2>/dev/null; then
     cli_status_unit maran-ftps.service || healthy=1
   fi
+  # DNS ships switched off for the same reason.
+  if systemctl is-enabled --quiet maran-dns.service 2>/dev/null; then
+    cli_status_unit maran-dns.service || healthy=1
+  fi
 
   echo
   echo "Panel:"

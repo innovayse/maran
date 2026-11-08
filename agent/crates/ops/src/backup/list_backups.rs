@@ -221,12 +221,19 @@ fn read_summary(directory: &Path, id: &BackupId) -> BackupSummary {
     let sidecar_path = directory.join(sidecar_file_name(id));
 
     match read_sidecar(&sidecar_path) {
-        Ok(details) => BackupSummary::readable(
-            id.as_str().to_owned(),
-            details.manifest,
-            details.artifact_bytes,
-            details.artifact_sha256,
-        ),
+        Ok(details) => {
+            let encrypted = details.encrypted;
+            let summary = BackupSummary::readable(
+                id.as_str().to_owned(),
+                details.manifest,
+                details.artifact_bytes,
+                details.artifact_sha256,
+            );
+
+            // The sidecar's label, passed on as a label. A listing opens no
+            // artifact, so it cannot say more than the sidecar does.
+            if encrypted { summary.sealed() } else { summary }
+        }
         Err(reason) => BackupSummary::unreadable(id.as_str().to_owned(), reason),
     }
 }

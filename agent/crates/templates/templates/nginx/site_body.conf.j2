@@ -22,6 +22,27 @@
   static arm a directory the worker can enter but not list reads as missing to
   the `$uri/` test, and a refused link answers 404.
 
+  The PHP and proxy arms also set `client_max_body_size` once at server level
+  (the PHP arm to the ceiling any pool override may reach, the proxy arm to
+  the same figure). Without it nginx refuses any body over its 1 MiB default
+  with a 413 before PHP or the upstream sees it, whatever PHP allows. The
+  figure is the largest value `upload_max_filesize` / `post_max_size` accept
+  (MAXIMUM_BYTES in ops/src/php/model/php_override.rs), so a customer who
+  raises their PHP limit is bounded by PHP, never silently by nginx; keep the
+  two in step. The static arm accepts no request body and carries none.
+
+  A request limit (issue #159) is written once at server level, before the
+  access rules, and its zone is declared at the top of the file by the site's
+  own template, because `limit_req_zone` is valid only at http level. Over the
+  limit a visitor gets 429 and not nginx's 503, and the refusal is logged at
+  warn. The ACME challenge location carries no `limit_req off;` on purpose:
+  that spelling is not documented for `limit_req`, and a directive nginx does
+  not accept would make every write of a limited site fail validation. The
+  zone is keyed on the visitor's address, so a certificate authority's
+  validation requests, which arrive from several addresses, do not share one
+  budget; and with a certificate installed the challenge sits in the port-80
+  block, which carries no limit at all.
+
   The full argument is the doc comment on `SiteBody` (src/nginx/site_body.rs);
   keep the two in step, and keep the rendered text to the directive and its
   one-line pointer.
@@ -29,15 +50,25 @@
 {% if upstream.is_some() %}    access_log {{ access_log }};
     error_log {{ error_log }};
 
-    location / {
+    client_max_body_size {% if let Some(mib) = options.client_max_body_size_mib %}{{ mib }}m{% else %}512m{% endif %};
+
+{% if options.limits_requests() %}{{ options.render_request_limit()? }}
+
+{% endif %}{% if options.restricts_access() %}{{ options.render_access_rules()? }}
+
+{% endif %}    location / {
         proxy_pass http://{{ upstream.unwrap() }};
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
-{% else if fpm_socket.is_some() %}    access_log {{ access_log }};
+{% if options.has_locations(false) %}
+{{ options.render_locations(false, false)? }}
+{% endif %}{% else if fpm_socket.is_some() %}    access_log {{ access_log }};
     error_log {{ error_log }};
+
+    client_max_body_size {% if let Some(mib) = options.client_max_body_size_mib %}{{ mib }}m{% else %}512m{% endif %};
 
     root {{ document_root }};
     index index.php index.html;
@@ -45,7 +76,11 @@
     # A link is followed only when it and its target share an owner; no from= on purpose.
     disable_symlinks if_not_owner;
 
-    location / {
+{% if options.limits_requests() %}{{ options.render_request_limit()? }}
+
+{% endif %}{% if options.restricts_access() %}{{ options.render_access_rules()? }}
+
+{% endif %}    location / {
         try_files $uri $uri/ /index.php?$query_string;
     }
 
@@ -68,7 +103,9 @@
     location ~ /\. {
         deny all;
     }
-{% else %}    access_log {{ access_log }};
+{% if options.has_locations(true) %}
+{{ options.render_locations(true, true)? }}
+{% endif %}{% else %}    access_log {{ access_log }};
     error_log {{ error_log }};
 
     root {{ document_root }};
@@ -77,7 +114,11 @@
     # A link is followed only when it and its target share an owner; no from= on purpose.
     disable_symlinks if_not_owner;
 
-    location / {
+{% if options.limits_requests() %}{{ options.render_request_limit()? }}
+
+{% endif %}{% if options.restricts_access() %}{{ options.render_access_rules()? }}
+
+{% endif %}    location / {
         try_files $uri $uri/ =404;
     }
 
@@ -86,4 +127,6 @@
     location ~ /\. {
         deny all;
     }
-{% endif %}
+{% if options.has_locations(true) %}
+{{ options.render_locations(true, false)? }}
+{% endif %}{% endif %}

@@ -1,6 +1,5 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.PhpService;
-using Maran.Modules.Sites.Mappers;
 using Maran.Modules.Sites.Resources;
 using Maran.Modules.Sites.Services;
 using Maran.Sdk.Contracts;
@@ -62,21 +61,27 @@ public sealed class InstallPhpVersionCommandHandler
     /// <summary>This module's audit journal.</summary>
     private readonly SiteAuditJournal _journal;
 
+    /// <summary>Describes the agent's versions in the panel's outward shape.</summary>
+    private readonly PhpVersionListing _listing;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="php">The agent's PHP surface.</param>
     /// <param name="tasks">Records the long-running task.</param>
     /// <param name="correlationIds">Ties the task to its request.</param>
     /// <param name="journal">This module's audit journal.</param>
+    /// <param name="listing">Describes the agent's versions in the panel's outward shape.</param>
     public InstallPhpVersionCommandHandler(
         IAgentPhpClient php,
         ITaskRecorder tasks,
         ICorrelationIdAccessor correlationIds,
-        SiteAuditJournal journal)
+        SiteAuditJournal journal,
+        PhpVersionListing listing)
     {
         _php = php;
         _tasks = tasks;
         _correlationIds = correlationIds;
         _journal = journal;
+        _listing = listing;
     }
 
     /// <summary>Installs the version, or reports why it could not be.</summary>
@@ -156,7 +161,8 @@ public sealed class InstallPhpVersionCommandHandler
                 command.UserAgent,
                 cancellationToken);
 
-            return Result<IReadOnlyList<PhpVersionDto>>.Ok(PhpVersionMapper.From(installed.Value));
+            return Result<IReadOnlyList<PhpVersionDto>>.Ok(
+                await _listing.DescribeAsync(installed.Value, cancellationToken));
         }
 
         // No account and audience AdministratorOnly: a PHP version is installed for the whole
@@ -198,7 +204,7 @@ public sealed class InstallPhpVersionCommandHandler
         var after = await _php.ListVersionsAsync(cancellationToken);
 
         return after.IsSuccess
-            ? Result<IReadOnlyList<PhpVersionDto>>.Ok(PhpVersionMapper.From(after.Value))
+            ? Result<IReadOnlyList<PhpVersionDto>>.Ok(await _listing.DescribeAsync(after.Value, cancellationToken))
             : Result<IReadOnlyList<PhpVersionDto>>.Fail(after.Error!);
     }
 

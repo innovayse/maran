@@ -1,4 +1,5 @@
 using Maran.Modules.Accounts.Domain.Enums;
+using Maran.Modules.Accounts.Domain.ValueObjects;
 using Maran.SharedKernel.Constants;
 
 namespace Maran.Modules.Accounts.Domain.Entities;
@@ -67,6 +68,21 @@ public sealed class Account
     /// </summary>
     public Guid? ResellerId { get; private set; }
 
+    /// <summary>
+    /// Whether the account's system user has an interactive login shell instead of none (issue #194).
+    /// Chosen when the account is created and never edited since. The agent keeps no record of the
+    /// shell it gave a user and gives <c>nologin</c> back on every unsuspension unless told otherwise,
+    /// so the panel is the one place this survives, and it is passed to the agent whenever the shell
+    /// is restored.
+    /// </summary>
+    public bool ShellAccess { get; private set; }
+
+    /// <summary>
+    /// The inode, process and open-file ceilings this account holds in place of its plan's; empty when
+    /// it follows the plan for all of them. Set once, at creation, and never edited.
+    /// </summary>
+    public AccountLimitOverrides LimitOverrides { get; private set; } = AccountLimitOverrides.None();
+
     /// <summary>The instant the account was created.</summary>
     public DateTimeOffset CreatedAt { get; private set; }
 
@@ -94,6 +110,13 @@ public sealed class Account
     /// administrator for the same test-site reason as <paramref name="ownerEmail"/>; the account
     /// creation handler always states it.
     /// </param>
+    /// <param name="shellAccess">
+    /// Whether the system user has a login shell. Defaulted to none, which is what every account that
+    /// existed before the choice had.
+    /// </param>
+    /// <param name="limitOverrides">
+    /// The ceilings the account holds in place of its plan's; <c>null</c> follows the plan for all.
+    /// </param>
     public Account(
         Guid id,
         string name,
@@ -102,7 +125,9 @@ public sealed class Account
         DateTimeOffset createdAt,
         string ownerEmail = "",
         string ownerLanguage = PanelLanguages.English,
-        Guid? resellerId = null)
+        Guid? resellerId = null,
+        bool shellAccess = false,
+        AccountLimitOverrides? limitOverrides = null)
     {
         Id = id;
         Name = name;
@@ -111,6 +136,8 @@ public sealed class Account
         OwnerEmail = ownerEmail;
         OwnerLanguage = ownerLanguage;
         ResellerId = resellerId;
+        ShellAccess = shellAccess;
+        LimitOverrides = limitOverrides ?? AccountLimitOverrides.None();
         Status = AccountStatus.Active;
         CreatedAt = createdAt;
     }
@@ -132,6 +159,23 @@ public sealed class Account
     /// </remarks>
     public void ChangePlan(Guid planId)
     {
+        PlanId = planId;
+    }
+
+    /// <summary>Hands the account to another owner, together with the plan of that owner it is sold from.</summary>
+    /// <param name="resellerId">The reseller that now owns the account; <c>null</c> for the administrator.</param>
+    /// <param name="planId">The plan the account is now sold; it must have the same owner.</param>
+    /// <remarks>
+    /// Takes the owner and the plan in ONE call because the pair is the invariant: an account and its plan
+    /// always share an owner, so a method that changed the owner alone would leave a row the reseller's
+    /// list cannot show. That the plan really has this owner, that the new owner has room for the
+    /// account, and that the host carries the plan's figures are the handler's to prove
+    /// (<c>TransferAccountCommandHandler</c>), as they need the plan's row, the owner's envelope and the
+    /// agent.
+    /// </remarks>
+    public void TransferTo(Guid? resellerId, Guid planId)
+    {
+        ResellerId = resellerId;
         PlanId = planId;
     }
 

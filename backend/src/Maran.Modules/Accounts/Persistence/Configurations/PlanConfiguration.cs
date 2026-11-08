@@ -50,6 +50,12 @@ public sealed class PlanConfiguration : IEntityTypeConfiguration<Plan>
         builder.Property(p => p.MaxCronEntries)
             .IsRequired();
 
+        // The DNS zone allowance (issue #178). No HasDefaultValue on purpose: EF reads a default as "unset
+        // means use the database's", which would turn a plan that deliberately sells zero zones into ten. The
+        // migration gives every existing row the default, and the entity supplies it for a new one.
+        builder.Property(p => p.MaxDnsZones)
+            .IsRequired();
+
         builder.Property(p => p.MaxPhpWorkersPerPool)
             .IsRequired();
 
@@ -86,6 +92,32 @@ public sealed class PlanConfiguration : IEntityTypeConfiguration<Plan>
             MapCeiling(limits, l => l.MaxProcesses, "MaxProcessesCeiling", "ProcessLimitKind", "MaxProcesses");
         });
         builder.Navigation(p => p.RuntimeLimits).IsRequired();
+
+        // The PHP bounds are four plain columns, named here for the reason the runtime ceilings' are.
+        // They are NOT NULL with database defaults equal to PhpLimits.Default (256, 64, 120, 3000) set
+        // by the migration that adds them, so a plan that predates them reads as the conservative set
+        // and the previous release, which ignores the columns, keeps working against the new schema.
+        builder.OwnsOne(p => p.PhpLimits, limits =>
+        {
+            limits.Property(l => l.MemoryLimitMaxMb).HasColumnName("PhpMemoryLimitMaxMb").IsRequired();
+            limits.Property(l => l.UploadMaxMb).HasColumnName("PhpUploadMaxMb").IsRequired();
+            limits.Property(l => l.MaxExecutionSeconds).HasColumnName("PhpMaxExecutionSeconds").IsRequired();
+            limits.Property(l => l.MaxInputVars).HasColumnName("PhpMaxInputVars").IsRequired();
+        });
+        builder.Navigation(p => p.PhpLimits).IsRequired();
+
+        // The mail figures are four plain columns, named here for the reason the PHP bounds' are. They
+        // are NOT NULL with database defaults equal to MailLimits.Default (10, 1024, 100, 10240) set by
+        // the migration that adds them, so a plan that predates mail reads as the default set and the
+        // previous release, which ignores the columns, keeps working against the new schema.
+        builder.OwnsOne(p => p.MailLimits, limits =>
+        {
+            limits.Property(l => l.MaxMailboxes).HasColumnName("MaxMailboxes").IsRequired();
+            limits.Property(l => l.DefaultMailboxQuotaMib).HasColumnName("DefaultMailboxQuotaMib").IsRequired();
+            limits.Property(l => l.MailboxSendLimitPerHour).HasColumnName("MailboxSendLimitPerHour").IsRequired();
+            limits.Property(l => l.MailboxQuotaPoolMib).HasColumnName("MailboxQuotaPoolMib").IsRequired();
+        });
+        builder.Navigation(p => p.MailLimits).IsRequired();
 
         // A plan's display-name key is its human-visible identity; two plans sharing one would be
         // indistinguishable to a customer choosing between them. Because an operator's plan mirrors

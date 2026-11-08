@@ -1,3 +1,4 @@
+using Maran.Modules.Notifications.Domain.Enums;
 using Maran.Modules.Notifications.Interfaces;
 using Maran.Modules.Notifications.Resources;
 using Maran.Modules.Notifications.Services;
@@ -59,20 +60,26 @@ public sealed class SendMailRequestedHandler
     /// <summary>The panel's append-only journal.</summary>
     private readonly NotificationsAuditJournal _journal;
 
+    /// <summary>Records how an operator alert fared, for the dashboard.</summary>
+    private readonly AlertChannelStateRecorder _channelState;
+
     /// <summary>Where a failure is reported for an operator, since the journal carries no diagnostics.</summary>
     private readonly ILogger<SendMailRequestedHandler> _logger;
 
     /// <summary>Creates the handler.</summary>
     /// <param name="mailer">The seam every mail goes through.</param>
     /// <param name="journal">The panel's append-only journal.</param>
+    /// <param name="channelState">Records how an operator alert fared, for the dashboard.</param>
     /// <param name="logger">Where a failure is reported for an operator.</param>
     public SendMailRequestedHandler(
         IMailer mailer,
         NotificationsAuditJournal journal,
+        AlertChannelStateRecorder channelState,
         ILogger<SendMailRequestedHandler> logger)
     {
         _mailer = mailer;
         _journal = journal;
+        _channelState = channelState;
         _logger = logger;
     }
 
@@ -92,15 +99,22 @@ public sealed class SendMailRequestedHandler
 
             if (sent.IsSuccess)
             {
+                await RecordOutcomeAsync(message, failureCode: null, cancellationToken);
                 return;
             }
 
             var action = sent.Error!.Code == nameof(ErrorMessages.SmtpNotConfigured)
-                ? MailAuditActions.MailSkippedNoSmtp
-                : MailAuditActions.MailSendFailed;
+                ? OutgoingMailAuditActions.MailSkippedNoSmtp
+                : OutgoingMailAuditActions.MailSendFailed;
 
             LogNotSent(_logger, message.Recipient, null);
             await RecordAsync(action, message.Recipient, cancellationToken);
+
+            // A skip for no mail settings attempted nothing, so it is not a delivery failure.
+            if (action == OutgoingMailAuditActions.MailSendFailed)
+            {
+                await RecordOutcomeAsync(message, sent.Error!.Code, cancellationToken);
+            }
         }
         catch (Exception exception)
         {
@@ -110,7 +124,48 @@ public sealed class SendMailRequestedHandler
             // loses one unsent mail costs the user a second click; a token written to disk costs
             // rather more.
             LogNotSent(_logger, message.Recipient, exception);
-            await RecordAsync(MailAuditActions.MailSendFailed, message.Recipient, CancellationToken.None);
+            await RecordAsync(OutgoingMailAuditActions.MailSendFailed, message.Recipient, CancellationToken.None);
+            await RecordOutcomeAsync(
+                message,
+                nameof(ErrorMessages.MailDeliveryFailed),
+                CancellationToken.None);
+        }
+    }
+
+    /// <summary>Records an operator alert's outcome on the mail channel, and refuses to fail even at that.</summary>
+    /// <param name="message">The mail that was attempted.</param>
+    /// <param name="failureCode">The failure's error code, or <c>null</c> when the mail was sent.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <remarks>
+    /// Only mail with <see cref="MailPurpose.OperatorAlert"/> counts: a password reset that failed says
+    /// nothing about whether alerts arrive, and turning the dashboard red for it would be a false alarm.
+    /// The write reaches PostgreSQL, so it is wrapped like the journal's: an exception out of it would
+    /// escape this handler by the back door (see the class remarks).
+    /// </remarks>
+    private async Task RecordOutcomeAsync(
+        SendMailRequested message,
+        string? failureCode,
+        CancellationToken cancellationToken)
+    {
+        if (message.Purpose != MailPurpose.OperatorAlert)
+        {
+            return;
+        }
+
+        try
+        {
+            if (failureCode is null)
+            {
+                await _channelState.RecordSuccessAsync(AlertChannel.Mail, cancellationToken);
+            }
+            else
+            {
+                await _channelState.RecordFailureAsync(AlertChannel.Mail, failureCode, cancellationToken);
+            }
+        }
+        catch (Exception exception)
+        {
+            LogNotSent(_logger, message.Recipient, exception);
         }
     }
 
@@ -134,7 +189,7 @@ public sealed class SendMailRequestedHandler
             // configured, so there was nobody to tell: the skip is correct behaviour and recording
             // it red put a FAILED row in the journal of every fresh install for working properly
             // (issue #71).
-            var succeeded = action == MailAuditActions.MailSkippedNoSmtp;
+            var succeeded = action == OutgoingMailAuditActions.MailSkippedNoSmtp;
             await _journal.RecordSystemAsync(action, recipient, succeeded, cancellationToken);
         }
         catch (Exception exception)

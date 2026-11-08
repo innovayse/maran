@@ -1,5 +1,7 @@
+using Maran.Agent.Client.Services.BackupService;
 using Maran.Modules.Backups.Common;
 using Maran.Modules.Backups.Domain.Enums;
+using Maran.Modules.Backups.Mappers;
 using Maran.Modules.Backups.Models;
 using Maran.Modules.Backups.Persistence;
 using Maran.Modules.Backups.Resources;
@@ -26,8 +28,26 @@ namespace Maran.Modules.Backups.Commands.RestoreBackup;
 /// <para>
 /// <b>The point of no return is the agent's first <c>DROP DATABASE</c>, and it is on the other side
 /// of every check here.</b> The order is deliberate: read the row, prove the artifact is usable,
-/// resolve the account, match the confirmation, refuse a concurrent run, and only then open a task
-/// and stream. Each of those is free to fail.
+/// resolve the account, match the confirmation, refuse a concurrent run, take the pre-restore
+/// backup, and only then open a task and stream. Each of those is free to fail.
+/// </para>
+/// <para>
+/// <b>A restore narrowed to one database or one site is the same operation with a smaller target
+/// (issue #160), and every guard above still applies to it.</b> The name is resolved against the
+/// panel's own rows before anything is taken or opened, the confirmation is still the account's name,
+/// the pre-restore backup is still taken (what a database restore overwrites is just as gone), and the
+/// verdict is still stated once, in <see cref="RestoreRunner"/>, against the figures that scope should
+/// produce. Only the audit subject changes: it names the part as well as the account.
+/// </para>
+/// <para>
+/// <b>The pre-restore backup is the panel's job, and a restore is refused without it.</b> The agent
+/// documents that it does not take one and expects its caller to, because a copy made inside the
+/// restore would leave the agent's operation with two meanings. So the panel takes a
+/// <see cref="BackupKind.PreRestore"/> backup through the same path as the final backup of a deleted
+/// account (<see cref="SafetyBackupService"/>), waits for it, and answers
+/// <c>PreRestoreBackupFailed</c> if it cannot be made — leaving the account exactly as it was. The
+/// copy covers what any backup covers (the home and the databases); it is not a copy of the vhosts,
+/// certificates, crontab or firewall, which a restore does not touch either.
 /// </para>
 /// <para>
 /// <b>Concurrency is refused in two places and only one of them is here — say which.</b> The panel
@@ -80,8 +100,14 @@ public sealed class RestoreBackupCommandHandler
     /// <summary>The one window onto which databases the panel knows this account owns.</summary>
     private readonly IAccountDatabaseDirectory _databases;
 
+    /// <summary>The one window onto which sites the panel knows, for a restore narrowed to one site.</summary>
+    private readonly ISiteDirectory _sites;
+
     /// <summary>The stream consumer that reduces one restore to a single outcome.</summary>
     private readonly RestoreRunner _runner;
+
+    /// <summary>Takes the pre-restore backup the restore is refused without.</summary>
+    private readonly SafetyBackupService _safetyBackups;
 
     /// <summary>Resolves the destination the artifact was written to.</summary>
     private readonly BackupDestinationResolver _destinations;
@@ -99,8 +125,10 @@ public sealed class RestoreBackupCommandHandler
     /// <param name="dbContext">The Backups module's database context.</param>
     /// <param name="accounts">The owning account's system user name.</param>
     /// <param name="databases">The databases the panel knows the account owns.</param>
+    /// <param name="sites">The sites the panel knows, for a restore narrowed to one site.</param>
     /// <param name="destinations">Resolves the destination the artifact was written to.</param>
     /// <param name="runner">The stream consumer that drives the restore.</param>
+    /// <param name="safetyBackups">Takes the pre-restore backup the restore is refused without.</param>
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="tasks">The panel-wide task journal.</param>
     /// <param name="correlationIds">The current request's correlation id.</param>
@@ -108,7 +136,9 @@ public sealed class RestoreBackupCommandHandler
         BackupsDbContext dbContext,
         IAccountDirectory accounts,
         IAccountDatabaseDirectory databases,
+        ISiteDirectory sites,
         RestoreRunner runner,
+        SafetyBackupService safetyBackups,
         BackupDestinationResolver destinations,
         BackupAuditJournal journal,
         ITaskRecorder tasks,
@@ -117,7 +147,9 @@ public sealed class RestoreBackupCommandHandler
         _dbContext = dbContext;
         _accounts = accounts;
         _databases = databases;
+        _sites = sites;
         _runner = runner;
+        _safetyBackups = safetyBackups;
         _destinations = destinations;
         _journal = journal;
         _tasks = tasks;
@@ -213,6 +245,21 @@ public sealed class RestoreBackupCommandHandler
         // database with a user nothing points at.
         var allowedDatabases = await _databases.ListNamesAsync(backup.AccountId, cancellationToken);
 
+        // What this restore replaces: the whole account, or the one database or site the caller named.
+        // Resolved against the panel's own rows BEFORE the pre-restore backup, so a name the panel does
+        // not recognise is refused while the account has been changed by nothing and no copy was taken.
+        var resolvedScope = await ResolveScopeAsync(command, backup.AccountId, allowedDatabases, cancellationToken);
+        if (!resolvedScope.IsSuccess)
+        {
+            return await RefuseAsync(
+                command, account.Username, resolvedScope.Error!.Code, resolvedScope.Error.Type, cancellationToken);
+        }
+
+        var scope = resolvedScope.Value!;
+
+        // What every record from here on is about: the account, and the one part of it when narrowed.
+        var subject = RestoreAuditSubject.Of(account.Username, scope);
+
         // The destination the backup was WRITTEN to, read from the row, never this server's current
         // default. A restore that resolved the default would read the wrong place the moment a
         // second destination existed, and it would do it silently.
@@ -221,6 +268,28 @@ public sealed class RestoreBackupCommandHandler
         {
             return await RefuseAsync(
                 command, account.Username, destination.Error!.Code, destination.Error.Type, cancellationToken);
+        }
+
+        // The safety net, taken BEFORE the task is opened and before the agent is asked to replace
+        // anything: a copy of the account as it is now, so a restore that was a mistake can itself be
+        // undone. A refusal here is the same kind of ending as every refusal above — the account has
+        // been changed by nothing — and it must not be a task an operator reads as a restore that
+        // started. The copy is waited for, because a restore that carried on over a copy still being
+        // written would be taken on the strength of a net nobody has seen exist.
+        var preRestore = await _safetyBackups.TakeAsync(
+            BackupKind.PreRestore,
+            backup.AccountId,
+            account.Username,
+            BackupAuditActions.BackupCreated,
+            nameof(ErrorMessages.PreRestoreBackupFailed),
+            Guid.Empty,
+            command.IpAddress,
+            command.UserAgent,
+            cancellationToken);
+        if (!preRestore.IsSuccess)
+        {
+            return await RefuseAsync(
+                command, subject, preRestore.Error!.Code, preRestore.Error.Type, cancellationToken);
         }
 
         // About the account being restored; audience AccountOwner, because a restore is work done
@@ -242,6 +311,7 @@ public sealed class RestoreBackupCommandHandler
                 expectedSha256,
                 allowedDatabases,
                 destination.Value!.Agent,
+                scope,
                 taskId,
                 cancellationToken);
         }
@@ -249,7 +319,7 @@ public sealed class RestoreBackupCommandHandler
         {
             // Every way the answer can fail to arrive, not a list of them; see AbandonAsync.
             // Rethrown unchanged, so nothing is swallowed.
-            await AbandonAsync(account.Username, command, taskId);
+            await AbandonAsync(subject, command, taskId);
 
             throw;
         }
@@ -261,7 +331,7 @@ public sealed class RestoreBackupCommandHandler
             case WholeRestoreOutcome whole:
                 await _journal.RecordSuccessAsync(
                     BackupAuditActions.BackupRestored,
-                    account.Username,
+                    subject,
                     command.IpAddress,
                     command.UserAgent,
                     cancellationToken);
@@ -271,7 +341,7 @@ public sealed class RestoreBackupCommandHandler
                     new RestoreOutcomeDto(backup.Id, backup.AccountId, whole.DatabasesRestored));
 
             case PartialRestoreOutcome partial:
-                await RecordFailureAsync(account.Username, command, taskId, partial.Failure, cancellationToken);
+                await RecordFailureAsync(subject, command, taskId, partial.Failure, cancellationToken);
 
                 // The counts the agent DID state ride the failure as the `restore` problem extension —
                 // the one ending where "eleven of twelve databases" is the sentence the operator
@@ -284,7 +354,7 @@ public sealed class RestoreBackupCommandHandler
                             partial.FilesRestored, partial.DatabasesRestored, partial.DatabasesTotal)));
 
             case UnmeasuredRestoreOutcome unmeasured:
-                await RecordFailureAsync(account.Username, command, taskId, unmeasured.Failure, cancellationToken);
+                await RecordFailureAsync(subject, command, taskId, unmeasured.Failure, cancellationToken);
 
                 // A run the agent stated nothing about has nothing to publish: there are no counts to
                 // send, and an operator reading "0 of 12 replaced" over a refusal that touched
@@ -320,6 +390,60 @@ public sealed class RestoreBackupCommandHandler
         await _journal.RecordFailureAsync(
             BackupAuditActions.BackupRestored, username, command.IpAddress, command.UserAgent, cancellationToken);
         await _tasks.FailAsync(taskId, failure.Code, cancellationToken);
+    }
+
+    /// <summary>Turns the names the caller supplied into the scope the agent is asked to restore.</summary>
+    /// <param name="command">The restore request.</param>
+    /// <param name="accountId">The account the backup belongs to.</param>
+    /// <param name="allowedDatabases">The databases the panel knows this account owns.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>
+    /// The whole-account scope when the caller named nothing, the database scope for a database the
+    /// panel knows the account owns, the site scope for a site the panel knows the account hosts —
+    /// and a not-found failure for any name that is neither.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// <b>A name that is not the account's answers not-found, whoever owns it.</b> A database of
+    /// another account, a database that no longer exists and one that never did all read the same, for
+    /// the reason a tenant resource is a 404 and never a 403 (rules/security.md item 6): telling them
+    /// apart would confirm that another tenant holds the name. The database check is membership in the
+    /// ACCOUNT'S OWN list, which the Databases window already scopes to the caller; the site check
+    /// reads the site through the tenant-scoped window and then insists that its account is the
+    /// backup's, because an administrator can see every site and a backup of one account must never be
+    /// laid over a site of another.
+    /// </para>
+    /// <para>
+    /// The site is named by its canonical domain from the panel's own row, not by the caller's spelling:
+    /// the agent derives the directory from that domain, so the value that reaches it is the one the
+    /// panel stored.
+    /// </para>
+    /// </remarks>
+    private async Task<Result<AgentRestoreScope>> ResolveScopeAsync(
+        RestoreBackupCommand command,
+        Guid accountId,
+        IReadOnlyList<string> allowedDatabases,
+        CancellationToken cancellationToken)
+    {
+        if (command.DatabaseName is { } databaseName)
+        {
+            return allowedDatabases.Contains(databaseName, StringComparer.Ordinal)
+                ? Result<AgentRestoreScope>.Ok(new AgentDatabaseRestoreScope(databaseName))
+                : Result<AgentRestoreScope>.Fail(
+                    Error.Of(nameof(ErrorMessages.RestoreDatabaseNotFound), ErrorType.NotFound));
+        }
+
+        if (command.SiteDomain is { } siteDomain)
+        {
+            var site = await _sites.FindByDomainAsync(siteDomain.ToLowerInvariant(), cancellationToken);
+
+            return site is not null && site.AccountId == accountId
+                ? Result<AgentRestoreScope>.Ok(new AgentSiteRestoreScope(site.Domain))
+                : Result<AgentRestoreScope>.Fail(
+                    Error.Of(nameof(ErrorMessages.RestoreSiteNotFound), ErrorType.NotFound));
+        }
+
+        return Result<AgentRestoreScope>.Ok(new AgentWholeRestoreScope());
     }
 
     /// <summary>Whether a backup of this account is being written right now.</summary>

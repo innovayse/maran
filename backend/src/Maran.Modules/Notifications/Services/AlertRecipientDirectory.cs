@@ -1,47 +1,44 @@
+using Maran.Modules.Notifications.Persistence;
 using Maran.Sdk.Interfaces;
 
 namespace Maran.Modules.Notifications.Services;
 
 /// <summary>
-/// This module's implementation of <see cref="IAlertRecipientDirectory"/>: the one field of the mail
-/// settings another module is allowed to see.
+/// This module's implementation of <see cref="IAlertRecipientDirectory"/>: the addresses operator
+/// alerts are mailed to, and nothing else this module holds.
 /// </summary>
 /// <remarks>
 /// <para>
-/// It reads through <see cref="SmtpSettingsCache"/> rather than the database, because the caller is
-/// the alert evaluator running on the sampler's timer — the same background path the cache exists
-/// for — and because the settings it wants are the settings a send would actually use.
+/// <b>It reads the recipients' table and never the mail settings.</b> The settings row also holds a
+/// password; what crosses the module boundary is a list of addresses, so returning anything wider
+/// would hand every consumer of the Sdk contract a working credential for the operator's mail
+/// provider (rules/security.md item 8).
 /// </para>
 /// <para>
-/// <b>It projects one string out of a record that also holds a decrypted password, and the
-/// projection is the whole point.</b> The profile never leaves this method; what crosses the module
-/// boundary is an address. Returning the profile would hand every consumer of the Sdk contract a
-/// working credential for the operator's mail provider (rules/security.md item 8).
-/// </para>
-/// <para>
-/// An address that is blank or whitespace is reported as <c>null</c>: "configured to nothing" and
-/// "not configured" are the same fact to a caller deciding whether it can send. The collapse is made
-/// once, by <see cref="Domain.Entities.SmtpSettings.AlertRecipientAddress"/>, so no caller has to
-/// remember to check both.
+/// <b>No cache.</b> The caller is the alert evaluator, once a minute at most, and the list is at most
+/// <c>AlertRecipient.MaxCount</c> short rows. A cache would need invalidating on every save for no
+/// measurable gain, and a stale one would mail an address the administrator had just removed.
 /// </para>
 /// </remarks>
 public sealed class AlertRecipientDirectory : IAlertRecipientDirectory
 {
-    /// <summary>The panel's mail settings, cached and invalidated on save.</summary>
-    private readonly SmtpSettingsCache _settings;
+    /// <summary>The module's database context, which owns the recipients.</summary>
+    private readonly NotificationsDbContext _dbContext;
 
     /// <summary>Creates the directory.</summary>
-    /// <param name="settings">The panel's mail settings, cached and invalidated on save.</param>
-    public AlertRecipientDirectory(SmtpSettingsCache settings)
+    /// <param name="dbContext">The module's database context.</param>
+    public AlertRecipientDirectory(NotificationsDbContext dbContext)
     {
-        _settings = settings;
+        _dbContext = dbContext;
     }
 
     /// <inheritdoc />
-    public async Task<string?> GetAlertRecipientAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<string>> GetAlertRecipientsAsync(CancellationToken cancellationToken)
     {
-        var profile = await _settings.GetAsync(cancellationToken);
-
-        return profile?.AlertRecipient;
+        return await _dbContext.AlertRecipients
+            .AsNoTracking()
+            .OrderBy(recipient => recipient.Position)
+            .Select(recipient => recipient.Address)
+            .ToListAsync(cancellationToken);
     }
 }

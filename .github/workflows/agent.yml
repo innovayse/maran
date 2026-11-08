@@ -226,10 +226,29 @@ jobs:
       # they used, and what lets the verdict step refuse a log produced by an
       # image built from other sources. A workstation is where that case is the
       # default rather than the impossible one (docker/README.md).
+      # THE LAYER CACHE (issue #289). The AlmaLinux 9 image build measured 9.2 min against 2.1 on
+      # Ubuntu 24.04, nearly all of it package installs and the toolchain download that no change to
+      # this repository touches. buildx with the GitHub Actions cache keeps those layers between runs.
+      # What it does not do is decide what is built: BuildKit keys each COPY layer on the content of
+      # the files, so an edit to docker/polygon/** or installer/** misses there and rebuilds from that
+      # layer on, and the fingerprint label is a build option written on a hit exactly as on a miss
+      # (`polygon_build_labelled`), so the currency axis still compares the image against this tree.
+      # The one thing a hit can serve stale is a package-install layer whose versions float on purpose;
+      # the scope carries the ISO week, so no hit is older than a week. Pinned to commits, like checkout.
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      # Exports the runtime URL and token the gha cache backend needs into later steps' environment.
+      - uses: crazy-max/ghaction-github-runtime@04d248b84655b509d8c44dc1d6f990c879747487 # v4.0.0
+
       - name: Build the polygon image, recording the sources it was built from
+        env:
+          POLYGON_BUILD_CACHE_SCOPE_PREFIX: polygon-${{ matrix.image }}
         run: |
           set -euo pipefail
           . scripts/lib/polygon.sh
+          POLYGON_BUILD_CACHE_SCOPE="$POLYGON_BUILD_CACHE_SCOPE_PREFIX-$(date -u +%G-W%V)"
+          export POLYGON_BUILD_CACHE_SCOPE
+          echo "layer cache scope: $POLYGON_BUILD_CACHE_SCOPE"
           fingerprint="$(polygon_fingerprint "$PWD" "${{ matrix.image }}")"
           echo "fingerprint of docker/polygon/** + installer/**: $fingerprint"
           log="$RUNNER_TEMP/polygon-build-${{ matrix.image }}.log"
@@ -327,6 +346,11 @@ jobs:
               --test restore_recovery_on_a_real_host \
               --test php_socket_migration_on_a_real_host \
               --test panel_certificate_on_a_real_host \
+              --test account_limits_on_a_real_host \
+              --test php_extensions_on_a_real_host \
+              --test site_traffic_on_a_real_host \
+              --test dns_zone_files_on_a_real_host \
+              --test files_archives_on_a_real_host \
               --no-fail-fast \
               -- --ignored --test-threads=1 2>&1 |
             tee -a "$RUNNER_TEMP/polygon-logs/step-1.log" || status=$?
@@ -380,7 +404,10 @@ jobs:
       # `!cancelled()` so a failure in the step above still reports these:
       # attributing a break to whichever suite happened to run first is the same
       # mistake `fail-fast: false` avoids across the matrix.
-      - name: SFTP, FTPS, account deletion and backups on a real host
+      # The three `files_browse_*` suites (issue #166) are here and not in the first step because
+      # one case mounts a tmpfs inside a home to observe that a search does not cross onto another
+      # filesystem; an unprivileged container cannot mount, and the case then prints `UNOBSERVED HERE`.
+      - name: SFTP, FTPS, account deletion, backups and file browsing on a real host
         if: ${{ !cancelled() }}
         run: |
           # pipefail and an explicitly captured status: `docker run ... | tee` reports TEE's
@@ -414,6 +441,9 @@ jobs:
               --test account_identity_on_a_real_host \
               --test account_leftovers_on_a_real_host \
               --test backup_on_a_real_host \
+              --test files_browse_on_a_real_host \
+              --test files_browse_containment_on_a_real_host \
+              --test files_browse_bounds_on_a_real_host \
               --no-fail-fast \
               -- --ignored --test-threads=1 2>&1 |
             tee -a "$RUNNER_TEMP/polygon-logs/step-2.log" || status=$?

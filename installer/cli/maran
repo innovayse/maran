@@ -7,14 +7,18 @@
 #
 #   maran status
 #   maran admin-reset-password <email|username> [--clear-two-factor] [--allow-non-terminal]
+#   maran issue-panel-certificate
 #   maran collect-diagnostics [--out DIR] [--no-logs]
 #   maran panel-backup --passphrase-file FILE [--out DIR]
 #   maran panel-backup --scheduled
 #   maran panel-backup-schedule enable|disable|status
 #   maran panel-restore --passphrase-file FILE --replace-this-panel ARCHIVE
 #   maran update [--check] [--channel stable|beta] [--offline-tarball PATH] [--yes]
+#   maran update --security-only [--scheduled]
+#   maran update --requested
+#   maran update-schedule enable|disable|status
 #   maran rollback [--restore-database] [--yes]
-#   maran help
+#   maran help [--json]
 #
 # Nothing the operator types is ever interpreted: the verb is matched against a fixed list, every
 # command is a fixed argv, and typed values are validated and passed as plain words after `--`.
@@ -36,6 +40,8 @@ fi
 
 umask 077
 readonly MARAN_CLI_LIB_DIR="/usr/local/maran/cli/lib"
+# The catalogue of verbs and flags `maran help --json` prints; nothing reads it to decide anything.
+readonly MARAN_CLI_CATALOGUE="/usr/local/maran/cli/commands.json"
 
 # shellcheck disable=SC1091
 . "${MARAN_CLI_LIB_DIR}/common.sh"
@@ -43,6 +49,8 @@ readonly MARAN_CLI_LIB_DIR="/usr/local/maran/cli/lib"
 . "${MARAN_CLI_LIB_DIR}/status.sh"
 # shellcheck disable=SC1091
 . "${MARAN_CLI_LIB_DIR}/reset.sh"
+# shellcheck disable=SC1091
+. "${MARAN_CLI_LIB_DIR}/panel-certificate.sh"
 # shellcheck disable=SC1091
 . "${MARAN_CLI_LIB_DIR}/diagnostics.sh"
 # shellcheck disable=SC1091
@@ -74,7 +82,11 @@ readonly MARAN_CLI_LIB_DIR="/usr/local/maran/cli/lib"
 # shellcheck disable=SC1091
 . "${MARAN_CLI_LIB_DIR}/update-health.sh"
 # shellcheck disable=SC1091
+. "${MARAN_CLI_LIB_DIR}/update-unattended.sh"
+# shellcheck disable=SC1091
 . "${MARAN_CLI_LIB_DIR}/update.sh"
+# shellcheck disable=SC1091
+. "${MARAN_CLI_LIB_DIR}/update-schedule.sh"
 # shellcheck disable=SC1091
 . "${MARAN_CLI_LIB_DIR}/rollback.sh"
 
@@ -88,6 +100,9 @@ Usage: maran <command>
         [--clear-two-factor]               administrator. --clear-two-factor also removes their
         [--allow-non-terminal]             two-factor enrolment. The link is printed only on a
                                            terminal unless --allow-non-terminal is given.
+  issue-panel-certificate                  Order a trusted certificate for the panel's own host name
+                                           and install it for the interface; run again to renew.
+                                           The name is read from the panel's configuration.
   collect-diagnostics [--out DIR] [--no-logs]
                                            Write a redacted support bundle (0600 tar.gz).
   panel-backup --passphrase-file FILE [--out DIR]
@@ -105,10 +120,20 @@ Usage: maran <command>
                                            Check for, or install, a newer signed release: verify,
                                            dump the database, switch, migrate, restart, and roll
                                            back by itself if the panel does not become healthy.
+  update --security-only                   Install the newest release only if its signed manifest marks
+                                           it a security release and its major version is the
+                                           installed one; any other release is left alone.
+                                           --scheduled is the timer's run: no prompt, and the outcome
+                                           is reported to the panel.
+  update --requested                       The run the panel's "Update now" button asks for: no prompt,
+                                           takes no other option, and the outcome closes the panel's task.
+  update-schedule enable|disable|status    Switch the automatic security-patch update (a systemd
+                                           timer, on after a first install) on or off, or show its
+                                           timer and last result.
   rollback [--restore-database] [--yes]    Return to the previous release. --restore-database also
                                            restores the pre-update dump and drops every write made
                                            since it was taken.
-  help                                     This text.
+  help [--json]                            This text; --json prints the machine-readable catalogue.
 USAGE
 }
 
@@ -118,13 +143,17 @@ main() {
   case "$verb" in
     status) cli_status "$@" ;;
     admin-reset-password) cli_reset "$@" ;;
+    issue-panel-certificate) cli_issue_panel_certificate "$@" ;;
     collect-diagnostics) cli_diagnostics "$@" ;;
     panel-backup) cli_panel_backup "$@" ;;
     panel-backup-schedule) cli_panel_backup_schedule "$@" ;;
     panel-restore) cli_panel_restore "$@" ;;
     update) cli_update "$@" ;;
+    update-schedule) cli_update_schedule "$@" ;;
     rollback) cli_rollback "$@" ;;
-    help|--help|-h) cli_usage ;;
+    help|--help|-h)
+      if [ "${1:-}" = "--json" ]; then cat -- "$MARAN_CLI_CATALOGUE"; else cli_usage; fi
+      ;;
     *)
       echo "maran: unknown command" >&2
       cli_usage >&2

@@ -12,7 +12,7 @@ import type { PanelTask } from '../../src/types/panelTask'
 // the detail, and its progress bar stops looking active. The SPA holds no failure text of its own.
 
 const LICENSED: PanelModule[] = [
-  { name: 'tasks', displayName: 'Background tasks', tier: 'included', state: 'enabled' },
+  { name: 'tasks', displayName: 'Background tasks', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 const FAILED_CERTIFICATE: PanelTask = {

@@ -45,6 +45,38 @@ public sealed class IdempotencyFilterTests
         Assert.Empty(run.Store.Completed);
     }
 
+    /// <summary>An action that requires the key refuses a request without it with 400 and its code, and never runs.</summary>
+    [Fact]
+    public async Task A_request_without_a_key_is_refused_when_the_action_requires_one()
+    {
+        var run = await RunAsync(new Scenario { Key = null, Required = true });
+
+        Assert.False(run.ActionRan);
+        AssertProblem(run, StatusCodes.Status400BadRequest, "IdempotencyKeyRequired");
+        Assert.Empty(run.Store.Begun);
+    }
+
+    /// <summary>The requirement does not depend on a store being composed: the refusal is about the contract.</summary>
+    [Fact]
+    public async Task A_missing_key_is_refused_even_when_no_store_is_composed()
+    {
+        var run = await RunAsync(new Scenario { Key = null, Required = true, StoreNotRegistered = true });
+
+        Assert.False(run.ActionRan);
+        AssertProblem(run, StatusCodes.Status400BadRequest, "IdempotencyKeyRequired");
+    }
+
+    /// <summary>The inverse control: an action that requires the key runs normally when the key is sent.</summary>
+    [Fact]
+    public async Task A_request_with_a_key_runs_when_the_action_requires_one()
+    {
+        var run = await RunAsync(new Scenario { Key = "key-1", Required = true });
+
+        Assert.True(run.ActionRan);
+        Assert.Null(run.Context.Result);
+        Assert.Single(run.Store.Begun);
+    }
+
     /// <summary>A new key is reserved for the caller, the action runs, and its 2xx answer is stored with its serialized body.</summary>
     [Fact]
     public async Task A_new_key_runs_the_action_and_stores_its_answer()
@@ -470,10 +502,14 @@ public sealed class IdempotencyFilterTests
         http.Request.ContentLength = scenario.Chunked ? null : body.Length;
         http.Request.RouteValues = new RouteValueDictionary { ["id"] = scenario.RouteId };
 
-        var descriptor = new ActionDescriptor
+        var metadata = new List<object> { new IdempotentAttribute { Required = scenario.Required } };
+
+        if (scenario.NoStore)
         {
-            EndpointMetadata = scenario.NoStore ? new List<object> { new IdempotencyNoStoreAttribute() } : new List<object>(),
-        };
+            metadata.Add(new IdempotencyNoStoreAttribute());
+        }
+
+        var descriptor = new ActionDescriptor { EndpointMetadata = metadata };
         var actionContext = new ActionContext(http, new RouteData(), descriptor);
         var filters = new List<IFilterMetadata>();
         var resource = new ResourceExecutingContext(actionContext, filters, new List<IValueProviderFactory>());
@@ -540,6 +576,9 @@ public sealed class IdempotencyFilterTests
 
         /// <summary>Whether the action carries the no-store marker.</summary>
         public bool NoStore { get; init; }
+
+        /// <summary>Whether the action requires the key header.</summary>
+        public bool Required { get; init; }
 
         /// <summary>Whether the action throws.</summary>
         public bool Throws { get; init; }

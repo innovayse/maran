@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="MailModuleDisplayName">
+    <value>Почта</value>
+  </data>
+  <data name="MailMenuDomains">
+    <value>Почтовые домены</value>
+  </data>
+  <data name="MailMenuMailboxes">
+    <value>Почтовые ящики</value>
+  </data>
+  <data name="MailMenuAliases">
+    <value>Псевдонимы и пересылки</value>
+  </data>
+  <data name="MailRouteDomains">
+    <value>Почтовые домены</value>
+  </data>
+  <data name="MailRouteMailboxes">
+    <value>Почтовые ящики</value>
+  </data>
+  <data name="MailRouteAliases">
+    <value>Псевдонимы и пересылки</value>
+  </data>
+  <data name="MailDnsRecordPurposeDelivery">
+    <value>Доставка почты</value>
+  </data>
+  <data name="MailDnsRecordPurposeSpf">
+    <value>Политика отправителей (SPF)</value>
+  </data>
+  <data name="MailDnsRecordPurposeDkimKey">
+    <value>Ключ подписи DKIM</value>
+  </data>
+  <data name="MailDnsRecordPurposeDmarc">
+    <value>Политика получателей (DMARC)</value>
+  </data>
+  <data name="MailDomainStatusActive">
+    <value>Активен</value>
+  </data>
+  <data name="MailDomainStatusSuspended">
+    <value>Приостановлен</value>
+  </data>
+  <data name="MailboxStatusActive">
+    <value>Активен</value>
+  </data>
+  <data name="MailboxStatusSuspended">
+    <value>Приостановлен</value>
+  </data>
+  <data name="MailboxStatusDisabled">
+    <value>Выключен</value>
+  </data>
+  <data name="MailAliasKindAlias">
+    <value>Псевдоним</value>
+  </data>
+  <data name="MailAliasKindForwarder">
+    <value>Пересылка</value>
+  </data>
+  <data name="MailAliasKindCatchAll">
+    <value>Для всей почты</value>
+  </data>
+</root>

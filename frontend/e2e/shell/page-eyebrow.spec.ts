@@ -28,11 +28,11 @@ test('every top-level entry opens a page whose eyebrow is the group the sidebar 
   await openFullShell(page)
   const nav = mainNavigation(page)
   const links = nav.locator('a:not([data-nav-parent])')
-  // Twelve top-level items for an administrator (issue #311), two of them planned sections drawn
-  // without a link: ten built ones on the full catalogue, the system status link among them. Servers
-  // is routed since its Updates page landed (issue #324), so its own entry is a link now.
+  // Eleven built top-level links for an administrator on the full catalogue, the system status link among
+  // them. Servers is routed since its Updates page landed (issue #324), and DNS since its zones page did
+  // (issue #178), so their own entries are links now.
   // Awaited, not read once: the panel's own items are drawn before the catalogue arrives.
-  await expect(links).toHaveCount(10)
+  await expect(links).toHaveCount(11)
   const count = await links.count()
 
   for (let index = 0; index < count; index++) {

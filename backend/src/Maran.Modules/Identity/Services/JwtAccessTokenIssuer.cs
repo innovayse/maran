@@ -19,7 +19,8 @@ namespace Maran.Modules.Identity.Services;
 /// <c>TwoFactorEnrolmentCompleteHandler</c> refuses every endpoint that is not part of enrolment
 /// while it is present. Deciding it here rather than at each call site is what makes the refresh
 /// endpoint safe: a refresh re-issues a token for the same user, so it re-evaluates the policy
-/// rather than inheriting or dropping a flag somebody remembered to pass.
+/// rather than inheriting or dropping a flag somebody remembered to pass. The first-password gate
+/// (<see cref="PanelClaimTypes.PasswordChangeRequired"/>) is decided in the same place for the same reason.
 /// </remarks>
 public sealed class JwtAccessTokenIssuer : IAccessTokenIssuer
 {
@@ -113,7 +114,8 @@ public sealed class JwtAccessTokenIssuer : IAccessTokenIssuer
         // steering is the operator's own obligation, already met (or refused) on the operator's own
         // token. The expiry is the SESSION's, so the token and the row it is checked against die together.
         var token = Sign(claims, session.IssuedAt, session.ExpiresAt);
-        return new AccessToken(token, session.ExpiresAt, RequiresTwoFactorSetup: false);
+        return new AccessToken(
+            token, session.ExpiresAt, RequiresTwoFactorSetup: false, RequiresPasswordChange: false);
     }
 
     /// <inheritdoc />
@@ -167,7 +169,18 @@ public sealed class JwtAccessTokenIssuer : IAccessTokenIssuer
             claims[PanelClaimTypes.TwoFactorSetupRequired] = "true";
         }
 
-        return new AccessToken(Sign(claims, issuedAt, expiresAt), expiresAt, requiresSetup);
+        // The same shape for the first-password gate: written only while the login still holds the
+        // password somebody else chose. Read from the user row on every issue, which is what makes the
+        // refresh endpoint safe — a refresh cannot launder the flag, and it drops it the moment the
+        // password has been changed.
+        var requiresPasswordChange = user.PasswordChangeRequired;
+        if (requiresPasswordChange)
+        {
+            claims[PanelClaimTypes.PasswordChangeRequired] = "true";
+        }
+
+        return new AccessToken(
+            Sign(claims, issuedAt, expiresAt), expiresAt, requiresSetup, requiresPasswordChange);
     }
 
     /// <summary>

@@ -1,6 +1,6 @@
 using System.Buffers.Binary;
-using Maran.Modules.Databases.Domain.Entities;
 using Maran.Modules.Databases.Interfaces;
+using Maran.Modules.Databases.Models;
 using Maran.Modules.Databases.Persistence;
 
 namespace Maran.Modules.Databases.Services;
@@ -51,7 +51,7 @@ namespace Maran.Modules.Databases.Services;
 /// <para>
 /// <b>What the advisory lock cannot see, said plainly.</b> It serialises only callers that TAKE it,
 /// so it is a convention rather than a constraint: a future write path that inserts a
-/// <see cref="Database"/> without coming through here is not held back by it, and the database will
+/// <see cref="Domain.Entities.Database"/> without coming through here is not held back by it, and the database will
 /// not object. That is the price of expressing a cardinality at all, and it is why the pre-agent
 /// check and this gate are both documented as the same protection seen twice rather than as two.
 /// It also does not survive being held across the agent round trip, which is why it is not: the lock
@@ -96,7 +96,7 @@ public sealed class DatabaseSlotGate : IDatabaseSlotGate
     }
 
     /// <inheritdoc />
-    public async Task<bool> TryTakeAsync(Database database, int allowance, CancellationToken cancellationToken)
+    public async Task<bool> TryTakeAsync(ProvisionedDatabaseRecords records, int allowance, CancellationToken cancellationToken)
     {
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
@@ -106,14 +106,14 @@ public sealed class DatabaseSlotGate : IDatabaseSlotGate
         // method computed, and neither is caller text, but they are parameters rather than
         // interpolated SQL because nothing in this file should have to be re-read to know that.
         await _dbContext.Database.ExecuteSqlInterpolatedAsync(
-            $"select pg_advisory_xact_lock({AdvisoryLockNamespace}, {LockKeyFor(database.AccountId)})",
+            $"select pg_advisory_xact_lock({AdvisoryLockNamespace}, {LockKeyFor(records.Database.AccountId)})",
             cancellationToken);
 
         // Counted AFTER the lock and in its own statement, which is what makes this the deciding
         // read: READ COMMITTED gives each statement a fresh snapshot, so a request that waited here
         // sees the winner's committed row rather than the state it queued behind.
         var taken = await _dbContext.Databases
-            .CountAsync(existing => existing.AccountId == database.AccountId, cancellationToken);
+            .CountAsync(existing => existing.AccountId == records.Database.AccountId, cancellationToken);
         if (taken >= allowance)
         {
             await transaction.RollbackAsync(cancellationToken);
@@ -121,7 +121,8 @@ public sealed class DatabaseSlotGate : IDatabaseSlotGate
             return false;
         }
 
-        _dbContext.Databases.Add(database);
+        _dbContext.Databases.Add(records.Database);
+        _dbContext.DatabaseUsers.Add(records.DedicatedUser);
         await _dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 

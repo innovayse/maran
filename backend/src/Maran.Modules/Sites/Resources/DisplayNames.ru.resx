@@ -30,4 +30,163 @@
   <data name="SiteStatusDisabled">
     <value>Отключён</value>
   </data>
+  <data name="SiteCanonicalHostNone">
+    <value>Без основного имени</value>
+  </data>
+  <data name="SiteCanonicalHostWww">
+    <value>Использовать имя с www</value>
+  </data>
+  <data name="SiteCanonicalHostApex">
+    <value>Использовать имя без www</value>
+  </data>
+  <data name="SiteRedirectMatchExact">
+    <value>Именно этот путь</value>
+  </data>
+  <data name="SiteRedirectMatchPrefix">
+    <value>Эта папка и всё внутри неё</value>
+  </data>
+  <data name="SiteRedirectStatusPermanent">
+    <value>Постоянное (301)</value>
+  </data>
+  <data name="SiteRedirectStatusTemporary">
+    <value>Временное (302)</value>
+  </data>
+  <data name="SiteIpAccessModeAllowList">
+    <value>Пускать только эти адреса</value>
+  </data>
+  <data name="SiteIpAccessModeDenyList">
+    <value>Блокировать эти адреса</value>
+  </data>
+  <data name="SiteTrafficWindowDays">
+    <value>Последние {0} дней</value>
+  </data>
+  <data name="SiteLogRetentionOneDay">
+    <value>{0} день</value>
+  </data>
+  <data name="SiteLogRetentionFewDays">
+    <value>{0} дня</value>
+  </data>
+  <data name="SiteLogRetentionManyDays">
+    <value>{0} дней</value>
+  </data>
+  <data name="SiteTrafficStatusClass1">
+    <value>1xx информационные</value>
+  </data>
+  <data name="SiteTrafficStatusClass2">
+    <value>2xx успешные</value>
+  </data>
+  <data name="SiteTrafficStatusClass3">
+    <value>3xx перенаправления</value>
+  </data>
+  <data name="SiteTrafficStatusClass4">
+    <value>4xx ошибки клиента</value>
+  </data>
+  <data name="SiteTrafficStatusClass5">
+    <value>5xx ошибки сервера</value>
+  </data>
+  <data name="PhpSupportStatusSupported">
+    <value>Поддерживается</value>
+  </data>
+  <data name="PhpSupportStatusSecurityOnly">
+    <value>Только исправления безопасности</value>
+  </data>
+  <data name="PhpSupportStatusEndOfLife">
+    <value>Поддержка завершена</value>
+  </data>
+  <data name="PhpSupportStatusUnknown">
+    <value>Неизвестно</value>
+  </data>
+  <data name="PhpExtensionBcmath">
+    <value>Математика произвольной точности (BCMath)</value>
+  </data>
+  <data name="PhpExtensionCurl">
+    <value>Сетевые запросы (cURL)</value>
+  </data>
+  <data name="PhpExtensionGd">
+    <value>Изображения (GD)</value>
+  </data>
+  <data name="PhpExtensionGmp">
+    <value>Работа с большими числами (GMP)</value>
+  </data>
+  <data name="PhpExtensionImagick">
+    <value>Обработка изображений (ImageMagick)</value>
+  </data>
+  <data name="PhpExtensionIntl">
+    <value>Интернационализация (Intl)</value>
+  </data>
+  <data name="PhpExtensionMbstring">
+    <value>Многобайтовые строки (Mbstring)</value>
+  </data>
+  <data name="PhpExtensionMysql">
+    <value>MySQL и MariaDB (MySQL)</value>
+  </data>
+  <data name="PhpExtensionOpcache">
+    <value>Кеш кода (OPcache)</value>
+  </data>
+  <data name="PhpExtensionRedis">
+    <value>Клиент Redis (Redis)</value>
+  </data>
+  <data name="PhpExtensionSoap">
+    <value>Веб-сервисы (SOAP)</value>
+  </data>
+  <data name="PhpExtensionXml">
+    <value>Обработка XML (XML)</value>
+  </data>
+  <data name="PhpExtensionZip">
+    <value>Архивы Zip (Zip)</value>
+  </data>
+  <data name="PhpSettingMemoryLimit">
+    <value>Лимит памяти</value>
+  </data>
+  <data name="PhpSettingUploadMaxFilesize">
+    <value>Наибольший загружаемый файл</value>
+  </data>
+  <data name="PhpSettingPostMaxSize">
+    <value>Наибольший запрос</value>
+  </data>
+  <data name="PhpSettingMaxExecutionTime">
+    <value>Лимит времени выполнения</value>
+  </data>
+  <data name="PhpSettingMaxInputVars">
+    <value>Лимит входных переменных</value>
+  </data>
+  <data name="PhpSettingDateTimezone">
+    <value>Часовой пояс</value>
+  </data>
+  <data name="PhpSettingUnitMebibytes">
+    <value>МиБ</value>
+  </data>
+  <data name="PhpSettingUnitSeconds">
+    <value>секунд</value>
+  </data>
+  <data name="ExtensionAvailabilityUnknown">
+    <value>Не определено</value>
+  </data>
+  <data name="ExtensionAvailabilityAvailable">
+    <value>Можно включать и отключать</value>
+  </data>
+  <data name="ExtensionAvailabilityDisableNotSupported">
+    <value>На этом сервере можно включить, но нельзя отключить</value>
+  </data>
+  <data name="ExtensionAvailabilityNotPackaged">
+    <value>Недоступно на этом сервере</value>
+  </data>
+  <data name="SitesMenuSitesList">
+    <value>Все сайты</value>
+  </data>
+  <data name="SitesMenuSitePhp">
+    <value>Настройки PHP</value>
+  </data>
+  <data name="SitesRouteSites">
+    <value>Сайты</value>
+  </data>
+  <data name="SitesRouteSitesNew">
+    <value>Новый сайт</value>
+  </data>
+  <data name="SitesRoutePhpSettings">
+    <value>Настройки PHP</value>
+  </data>
+  <data name="SitesRouteSiteDetail">
+    <value>Сайт</value>
+  </data>
 </root>

@@ -104,6 +104,29 @@ public sealed class CertificateAuditJournal : ISystemAuditJournal
             cancellationToken);
     }
 
+    /// <summary>Records an operation an operator ran from the server's own console.</summary>
+    /// <param name="action">The action name, one of the Sdk's <c>*AuditActions</c> constants.</param>
+    /// <param name="subject">The certificate's domain, or <c>panel</c> when no name was known.</param>
+    /// <param name="operatorClaim">The operator's name as the console reported it (<c>SUDO_USER</c>).</param>
+    /// <param name="succeeded">Whether the operation took effect.</param>
+    /// <param name="cancellationToken">Cancellation token for the write.</param>
+    /// <remarks>
+    /// A console run has no <c>HttpContext</c>, so <see cref="ICurrentUser"/> would record an anonymous
+    /// caller. <see cref="SystemAuditEntry.CreateFromConsole"/> names the panel as the actor, the local
+    /// console as the origin and the operator as an unverified claim.
+    /// </remarks>
+    public async Task RecordConsoleAsync(
+        string action,
+        string subject,
+        string operatorClaim,
+        bool succeeded,
+        CancellationToken cancellationToken)
+    {
+        await _auditWriter.WriteAsync(
+            SystemAuditEntry.CreateFromConsole(ModuleName, action, subject, operatorClaim, succeeded),
+            cancellationToken);
+    }
+
     /// <summary>Builds and stores one entry.</summary>
     /// <param name="action">The action name.</param>
     /// <param name="subject">What the action was attempted on.</param>

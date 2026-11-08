@@ -24,4 +24,10 @@
   <data name="SmtpSecurityImplicitTls">
     <value>Неявный TLS (шифрование с самого начала)</value>
   </data>
+  <data name="NotificationsRouteSmtp">
+    <value>Исходящая почта</value>
+  </data>
+  <data name="NotificationsRouteAlerts">
+    <value>Настройки оповещений</value>
+  </data>
 </root>

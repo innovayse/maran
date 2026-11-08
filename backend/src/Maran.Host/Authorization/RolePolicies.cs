@@ -45,10 +45,14 @@ public static class RolePolicies
     /// <param name="options">The authorization options being configured.</param>
     public static void Configure(AuthorizationOptions options)
     {
+        // Every policy below carries BOTH session gates: the forced two-factor enrolment and the
+        // first-password change. The second is a property of the session, not of a resource, so it is
+        // attached to all four; PasswordChangeGateTests (architecture suite) fails when a policy lacks it.
         options.AddPolicy(AnyAuthenticated, policy =>
         {
             policy.RequireAuthenticatedUser();
             policy.AddRequirements(new TwoFactorEnrolmentCompleteRequirement());
+            policy.AddRequirements(new PasswordChangeCompleteRequirement());
             policy.AddRequirements(new ViewAsBoundaryRequirement());
 
             // The central membership guard (issues #331, #340): a customer token speaking for an account
@@ -63,6 +67,7 @@ public static class RolePolicies
             policy.RequireAuthenticatedUser();
             policy.RequireClaim(PanelClaimTypes.Role, nameof(UserRole.Admin));
             policy.AddRequirements(new TwoFactorEnrolmentCompleteRequirement());
+            policy.AddRequirements(new PasswordChangeCompleteRequirement());
             policy.AddRequirements(new ViewAsBoundaryRequirement());
         });
 
@@ -71,6 +76,7 @@ public static class RolePolicies
             policy.RequireAuthenticatedUser();
             policy.RequireClaim(PanelClaimTypes.Role, nameof(UserRole.Reseller));
             policy.AddRequirements(new TwoFactorEnrolmentCompleteRequirement());
+            policy.AddRequirements(new PasswordChangeCompleteRequirement());
             policy.AddRequirements(new ViewAsBoundaryRequirement());
         });
 
@@ -83,6 +89,7 @@ public static class RolePolicies
             policy.RequireAuthenticatedUser();
             policy.RequireClaim(PanelClaimTypes.Role, nameof(UserRole.Admin), nameof(UserRole.Reseller));
             policy.AddRequirements(new TwoFactorEnrolmentCompleteRequirement());
+            policy.AddRequirements(new PasswordChangeCompleteRequirement());
             policy.AddRequirements(new ViewAsBoundaryRequirement());
         });
 

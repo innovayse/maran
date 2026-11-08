@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Threading.RateLimiting;
 using Maran.Host.Configuration;
@@ -14,16 +13,6 @@ namespace Maran.Host.Extensions;
 /// </summary>
 public static class RateLimitingExtensions
 {
-    /// <summary>
-    /// Machine-stable code of the rejection response, and the key of its
-    /// <c>Resources/ErrorMessages*.resx</c> entry — one identifier, not a code plus a separate
-    /// resource key that can drift apart (rules/csharp.md "That same string is the machine code").
-    /// </summary>
-    private const string RateLimitedCode = "HostRateLimited";
-
-    /// <summary>The media type of the panel's problem answers (RFC 7807), the rejection included.</summary>
-    private const string ProblemContentType = "application/problem+json";
-
     /// <summary>Adds the login and API policies, plus the shared rejection response.</summary>
     /// <param name="services">The application service collection.</param>
     /// <returns>The same collection, for chaining.</returns>
@@ -36,12 +25,19 @@ public static class RateLimitingExtensions
             LoginRateLimitPolicy.Configure(options, limits);
             ApiRateLimitPolicy.Configure(options, limits);
             SiteLogStreamRateLimitPolicy.Configure(options, limits);
+            DashboardStreamRateLimitPolicy.Configure(
+                options,
+                services.BuildServiceProvider().GetRequiredService<IOptions<DashboardStreamOptions>>().Value);
             PasswordResetRateLimitPolicy.Configure(options, limits);
             InvitationRateLimitPolicy.Configure(options, limits);
             InvitationSendingRateLimitPolicy.Configure(options, limits);
             BackupRestoreRateLimitPolicy.Configure(options, limits);
             BackupVerifyRateLimitPolicy.Configure(options, limits);
+            DnsRateLimitPolicy.Configure(options, limits);
             AuditExportRateLimitPolicy.Configure(options, limits);
+            SearchRateLimitPolicy.Configure(options, limits);
+            FilesRateLimitPolicy.Configure(options, limits);
+            ProvisioningRateLimitPolicy.Configure(options, limits);
 
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             options.OnRejected = async (context, cancellationToken) =>
@@ -54,23 +50,7 @@ public static class RateLimitingExtensions
                     ? (int)leaseRetryAfter.TotalSeconds
                     : FallbackRetryAfterSeconds(context.HttpContext, limits);
 
-                context.HttpContext.Response.Headers.RetryAfter =
-                    retryAfterSeconds.ToString(CultureInfo.InvariantCulture);
-
-                // The media type is passed to the writer rather than set on the response first:
-                // WriteAsJsonAsync without a contentType overwrites it with application/json, which
-                // is how this answer once carried the problem fields under the wrong media type
-                // (issue #260).
-                await context.HttpContext.Response.WriteAsJsonAsync(
-                    new
-                    {
-                        status = StatusCodes.Status429TooManyRequests,
-                        title = ResolveRateLimitedText(context.HttpContext),
-                        code = RateLimitedCode,
-                    },
-                    options: null,
-                    contentType: ProblemContentType,
-                    cancellationToken);
+                await RateLimitedProblemWriter.WriteAsync(context.HttpContext, retryAfterSeconds, cancellationToken);
             };
         });
 
@@ -130,21 +110,6 @@ public static class RateLimitingExtensions
 
             return branch.Build();
         });
-    }
-
-    /// <summary>
-    /// Resolves the rejection message in the request's culture, the same way
-    /// <c>ApiResultExtensions.ToProblemResult</c> does: the provider is looked up from the request
-    /// services rather than assumed present, so a host built without the SharedKernel registration
-    /// (an isolated test host) degrades to the machine code instead of throwing. The code is never
-    /// a stack trace, a path or tool output, so it is safe to show (rules/security.md "Secrets").
-    /// </summary>
-    /// <param name="httpContext">The rejected request, whose services and culture are used.</param>
-    /// <returns>The localized sentence, or <see cref="RateLimitedCode"/> when nothing resolves it.</returns>
-    private static string ResolveRateLimitedText(HttpContext httpContext)
-    {
-        var errorTextProvider = httpContext.RequestServices.GetService<IErrorTextProvider>();
-        return errorTextProvider?.Resolve(RateLimitedCode) ?? RateLimitedCode;
     }
 
     /// <summary>

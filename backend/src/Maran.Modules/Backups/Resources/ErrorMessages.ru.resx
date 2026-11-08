@@ -39,6 +39,9 @@
   <data name="FinalBackupFailed">
     <value>Аккаунт не был удалён: не удалось создать его финальную резервную копию.</value>
   </data>
+  <data name="PreRestoreBackupFailed">
+    <value>Аккаунт не был восстановлен: сначала не удалось создать резервную копию его текущего состояния, поэтому ничего не изменено.</value>
+  </data>
   <data name="BackupNotRestorable">
     <value>Эту резервную копию нельзя восстановить: она не была создана успешно.</value>
   </data>
@@ -99,6 +102,9 @@
   <data name="RestoreArtifactRejected">
     <value>Ваш сервер отклонил эту копию: её содержимое не соответствует тому, что панель записала при её создании. Ничего не восстановлено, аккаунт не изменён. Восстановите из другой копии или обратитесь в поддержку: повторная отправка того же запроса ничего не изменит.</value>
   </data>
+  <data name="RestoreArchiveKeyRejected">
+    <value>Ваш сервер не смог открыть эту копию ключом шифрования, который хранится для места хранения резервных копий. Ничего не восстановлено, аккаунт не изменён. Проверьте ключ архива этого места хранения; если ключ верный, возможно, повреждена сама копия: восстановите из другой копии или обратитесь в поддержку. Повторная отправка того же запроса ничего не изменит.</value>
+  </data>
   <data name="AccountBackupOperationRunning">
     <value>На вашем сервере ещё выполняется другая операция резервного копирования или восстановления для этого аккаунта. Ничего не изменено. Повторите попытку, когда она завершится.</value>
   </data>
@@ -129,7 +135,37 @@
   <data name="BackupVerificationFailed">
     <value>Сохранённый архив больше не совпадает с записью о нём.</value>
   </data>
+  <data name="BackupVerificationArchiveKeyRejected">
+    <value>Сохранённый архив не удаётся открыть ключом шифрования, который хранится для его места хранения.</value>
+  </data>
   <data name="BackupVerificationArtifactMissing">
     <value>Сохранённый архив не найден.</value>
+  </data>
+  <data name="BackupScheduleCustomerFrequencyNotAllowed">
+    <value>Выберите ежедневное или еженедельное расписание.</value>
+  </data>
+  <data name="BackupScheduleCustomerRetainTooLow">
+    <value>Количество хранимых копий должно быть не меньше 1.</value>
+  </data>
+  <data name="BackupScheduleCustomerRetainTooHigh">
+    <value>Можно хранить не более 7 копий.</value>
+  </data>
+  <data name="RestoreScopeAmbiguous">
+    <value>Укажите для восстановления либо базу данных, либо сайт, но не оба сразу.</value>
+  </data>
+  <data name="RestoreDatabaseInvalid">
+    <value>Название базы данных недопустимо.</value>
+  </data>
+  <data name="RestoreSiteInvalid">
+    <value>Название сайта не является допустимым доменным именем.</value>
+  </data>
+  <data name="RestoreDatabaseNotFound">
+    <value>У этой учётной записи нет такой базы данных, поэтому ничего не восстановлено.</value>
+  </data>
+  <data name="RestoreSiteNotFound">
+    <value>У этой учётной записи нет такого сайта, поэтому ничего не восстановлено.</value>
+  </data>
+  <data name="RestoreScopeNotInBackup">
+    <value>В этой резервной копии нет выбранной базы данных или сайта (возможно, они созданы после копирования), либо файл копии больше не хранится на сервере. Ничего не изменено.</value>
   </data>
 </root>

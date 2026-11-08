@@ -1,0 +1,60 @@
+[Unit]
+Description=Maran DNS (BIND 9, authoritative only)
+Documentation=man:named(8)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# The user the daemon drops to differs per family (bind on the Debian family, named on
+# the RHEL family), and a systemd unit has no per-family spelling, so the installer
+# writes it into this file as one variable and the ExecStart below expands it. The file
+# is installer/lib/89-dns.sh's, root:root 0644, and holds no secret.
+EnvironmentFile=/etc/maran/bind/dns.env
+# -f keeps the daemon in the foreground, which Type=simple needs: a daemon that forks
+# under it is one systemd immediately considers dead. The configuration path is Maran's
+# own (/etc/maran/bind/named.conf), never the distribution's: the packaged unit is masked
+# by installer/lib/89-dns.sh and this panel runs only this unit, against a file the agent
+# renders through ops::safe_write. -u makes the daemon give up root once its sockets are
+# bound; it logs to the journal, so no log file or rotation policy exists for it.
+ExecStart=/usr/sbin/named -f -c /etc/maran/bind/named.conf -u ${MARAN_DNS_USER}
+Restart=on-failure
+RestartSec=2s
+
+# --- Hardening ----------------------------------------------------------------------
+# This daemon listens on the internet as root until it has bound its sockets. The
+# directives below are the FTPS unit's kernel and host-surface rows that apply to a name
+# server unchanged. NONE of them has been measured against a running named: the same
+# procedure the FTPS note records (one real session per directive, on Ubuntu 24.04 and
+# AlmaLinux 9) is OUTSTANDING for this unit, and a directive a measurement rejects is
+# deleted from here and named in docs/superpowers/notes/2026-11-07-dns-module-threat-note.md.
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+SystemCallArchitectures=native
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+# IP for the queries and the control channel, unix for the journal socket, netlink for
+# the interface scan named does to learn the addresses it listens on.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+PrivateDevices=yes
+# Enumerated, not the unrestricted root set. NET_BIND_SERVICE binds port 53, SETUID and
+# SETGID are the drop to the unprivileged user, SYS_RESOURCE raises the daemon's own
+# descriptor limit, CHOWN and DAC_OVERRIDE are kept until a measurement shows them
+# removable. A member leaves this set only on a measurement, never on an expectation.
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_SETUID CAP_SETGID CAP_SYS_RESOURCE CAP_CHOWN \
+  CAP_DAC_OVERRIDE
+
+# --- Deliberately NOT set -------------------------------------------------------------
+# MemoryDenyWriteExecute=, ProtectSystem=, ProtectHome=, PrivateTmp= and RestrictNamespaces=
+# stay off until measured against a running named. The daemon writes its zone list below the
+# state directory the distribution's mandatory access control allows, and ProtectSystem=strict
+# would need that path in ReadWritePaths= for each family, which a single unit file cannot
+# spell.
+
+[Install]
+WantedBy=multi-user.target

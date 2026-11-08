@@ -4,6 +4,7 @@ using Maran.Agent.Client.Errors;
 using Maran.Agent.Client.Services.BackupService;
 using Maran.Agent.Client.Services.SitesService;
 using Maran.Agent.Client.Tests.TestSupport;
+using Maran.SharedKernel.Results;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Maran.Agent.Client.Tests.Errors;
@@ -25,16 +26,41 @@ public sealed class AgentStreamGuardTests
 
         await foreach (var item in AgentStreamGuard.EndOnTransportFailureAsync(
             FailingAfter("a", "b", new RpcException(new Status(StatusCode.Unavailable, "gone"))),
-            exception =>
+            error =>
             {
-                return $"terminal:{exception.StatusCode}";
+                return $"terminal:{error.Code}";
             },
             CancellationToken.None))
         {
             events.Add(item);
         }
 
-        Assert.Equal(["a", "b", "terminal:Unavailable"], events);
+        Assert.Equal(["a", "b", "terminal:AgentUnavailable"], events);
+    }
+
+    /// <summary>A server the panel declined to dial ends the sequence in a terminal event with the refusal's failure.</summary>
+    /// <remarks>
+    /// The code is the refusal's, not the generic unavailable one, so a stream aimed at a node that is
+    /// not approved says so. The inverse is the transport-failure test above, which must keep its code.
+    /// </remarks>
+    [Fact]
+    public async Task A_refused_server_ends_the_sequence_in_a_terminal_event_with_the_refusals_code()
+    {
+        var events = new List<string>();
+        var refusal = Error.Of("AgentServerNotApproved", ErrorType.Unavailable);
+
+        await foreach (var item in AgentStreamGuard.EndOnTransportFailureAsync(
+            FailingAfter("a", "b", new AgentEndpointRefusedException(refusal)),
+            error =>
+            {
+                return $"terminal:{error.Code}";
+            },
+            CancellationToken.None))
+        {
+            events.Add(item);
+        }
+
+        Assert.Equal(["a", "b", "terminal:AgentServerNotApproved"], events);
     }
 
     /// <summary>A status raised after the caller's token fired is the caller leaving, and is not mapped.</summary>

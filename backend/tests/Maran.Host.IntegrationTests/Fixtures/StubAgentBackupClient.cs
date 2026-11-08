@@ -41,6 +41,12 @@ public sealed class StubAgentBackupClient : IAgentBackupClient
     /// <summary>The account name and backup id of every create, in order.</summary>
     public List<(string AccountUsername, string BackupId)> Creates { get; } = [];
 
+    /// <summary>
+    /// The agent's error code every create fails with, or <c>null</c> for creates that complete. A test sets
+    /// it to make a backup, such as the final one a deletion takes first, fail, and clears it again.
+    /// </summary>
+    public string? CreateFailureCode { get; set; }
+
     /// <summary>Records the create and replays a stream that states one completed outcome.</summary>
     /// <param name="accountUsername">The account being backed up.</param>
     /// <param name="backupId">The panel-assigned identifier of the backup.</param>
@@ -58,6 +64,13 @@ public sealed class StubAgentBackupClient : IAgentBackupClient
         await Task.CompletedTask;
         cancellationToken.ThrowIfCancellationRequested();
 
+        if (CreateFailureCode is { } failureCode)
+        {
+            yield return new BackupCreateEvent(
+                BackupCreateEventKind.Failed, 0, string.Empty, 0, string.Empty, 0, failureCode);
+            yield break;
+        }
+
         yield return new BackupCreateEvent(BackupCreateEventKind.Progress, 50, "archiving_files", 0, string.Empty, 0, null);
         yield return new BackupCreateEvent(BackupCreateEventKind.Created, 100, string.Empty, SizeBytes, Sha256, 0, null);
     }
@@ -70,6 +83,7 @@ public sealed class StubAgentBackupClient : IAgentBackupClient
     /// <param name="destination">Where the artifact resides.</param>
     /// <param name="expectedSha256">The digest the panel recorded.</param>
     /// <param name="allowedDatabases">The databases the panel still knows the account owns.</param>
+    /// <param name="scope">What the restore replaces.</param>
     /// <param name="cancellationToken">Cancellation for the stream.</param>
     /// <returns>An empty stream, which a handler must not read as a restore having happened.</returns>
     /// <remarks>
@@ -82,6 +96,7 @@ public sealed class StubAgentBackupClient : IAgentBackupClient
         AgentBackupDestination destination,
         string expectedSha256,
         IReadOnlyList<string> allowedDatabases,
+        AgentRestoreScope scope,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         await Task.CompletedTask;

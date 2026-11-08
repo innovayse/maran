@@ -18,4 +18,91 @@
   <data name="TestMailBody">
     <value>Այս նամակը հաստատում է, որ վահանակը կարող է փոստ ուղարկել ձեր պահպանած կարգավորումներով։ Այլ բան պետք չէ։</value>
   </data>
+  <data name="FeedAlertDiskUsageCritical">
+    <value>Սկավառակի օգտագործումը բարձր է՝ {0}</value>
+  </data>
+  <data name="FeedAlertDiskUsageInfo">
+    <value>Սկավառակի օգտագործումը նորմալ է՝ {0}</value>
+  </data>
+  <data name="FeedAlertServiceStoppedCritical">
+    <value>Ծառայությունը կանգնել է՝ {0}</value>
+  </data>
+  <data name="FeedAlertServiceStoppedInfo">
+    <value>Ծառայությունը կրկին աշխատում է՝ {0}</value>
+  </data>
+  <data name="FeedAlertSftpJailDriftedCritical">
+    <value>SFTP մեկուսացումը խախտվել է՝ {0}</value>
+  </data>
+  <data name="FeedAlertSftpJailDriftedInfo">
+    <value>SFTP մեկուսացումը վերականգնվել է՝ {0}</value>
+  </data>
+  <data name="FeedAlertQuotaNotEnforceableCritical">
+    <value>Սկավառակի քվոտաները չեն կիրառվում՝ {0}</value>
+  </data>
+  <data name="FeedAlertQuotaNotEnforceableInfo">
+    <value>Սկավառակի քվոտաները կրկին կիրառվում են՝ {0}</value>
+  </data>
+  <data name="FeedAlertCodeIntegrityDriftedCritical">
+    <value>Վահանակի ֆայլերը տարբերվում են թողարկումից՝ {0}</value>
+  </data>
+  <data name="FeedAlertCodeIntegrityDriftedInfo">
+    <value>Վահանակի ֆայլերը կրկին համապատասխանում են թողարկմանը՝ {0}</value>
+  </data>
+  <data name="FeedAlertFreeSpaceFloorApproachingCritical">
+    <value>Ազատ տարածքը սկավառակի վրա սպառվում է՝ {0}</value>
+  </data>
+  <data name="FeedAlertFreeSpaceFloorApproachingInfo">
+    <value>Ազատ տարածքը վերականգնվել է՝ {0}</value>
+  </data>
+  <data name="FeedAlertClockUnsynchronizedCritical">
+    <value>Սերվերի ժամացույցը համաժամեցված չէ՝ {0}</value>
+  </data>
+  <data name="FeedAlertClockUnsynchronizedInfo">
+    <value>Սերվերի ժամացույցը կրկին համաժամեցված է՝ {0}</value>
+  </data>
+  <data name="FeedAlertCpuUsageCritical">
+    <value>Պրոցեսորի ծանրաբեռնվածությունը բարձր է՝ {0}</value>
+  </data>
+  <data name="FeedAlertCpuUsageInfo">
+    <value>Պրոցեսորի ծանրաբեռնվածությունը նորմալ է՝ {0}</value>
+  </data>
+  <data name="FeedAlertMemoryUsageCritical">
+    <value>Հիշողության օգտագործումը բարձր է՝ {0}</value>
+  </data>
+  <data name="FeedAlertMemoryUsageInfo">
+    <value>Հիշողության օգտագործումը նորմալ է՝ {0}</value>
+  </data>
+  <data name="FeedAlertPanelUpdateRolledBackCritical">
+    <value>Պլանային թարմացումը հետ է շրջվել՝ {0}</value>
+  </data>
+  <data name="FeedAlertPanelUpdateRollbackFailedCritical">
+    <value>Պլանային թարմացումը ձախողվեց, հետշրջումը չհաջողվեց՝ {0}</value>
+  </data>
+  <data name="FeedAlertPanelUpdateInterruptedCritical">
+    <value>Պլանային թարմացումը ընդհատվել է՝ {0}</value>
+  </data>
+  <data name="FeedBackupScheduledRunFailedWarning">
+    <value>Ժամանակացույցով կրկնօրինակումը ձախողվեց՝ {0}</value>
+  </data>
+  <data name="FeedBackupDestinationRefusedWarning">
+    <value>Կրկնօրինակների պահոցը մերժեց պատճենը՝ {0}</value>
+  </data>
+  <data name="FeedBackupScheduledRunMissedWarning">
+    <value>Ժամանակացույցով կրկնօրինակումը չի աշխատել՝ {0}</value>
+  </data>
+  <data name="FeedBackupVerificationFailedWarning">
+    <value>Կրկնօրինակը չանցավ ստուգումը՝ {0}</value>
+  </data>
+  <data name="FeedAlertGeneric">
+    <value>Սերվերի ահազանգ՝ {0}</value>
+  </data>
+  <data name="FeedBackupGeneric">
+    <value>Կրկնօրինակման ահազանգ՝ {0}</value>
+  </data>
+  <data name="FeedTaskFailed">
+    <value>Առաջադրանքը չավարտվեց՝ {0}</value>
+  </data>
+  <data name="FeedTaskFailureUnexplained">
+    <value>Գործողությունը չավարտվեց․ մանրամասները տես առաջադրանքների էջում։</value>
+  </data>
 </root>

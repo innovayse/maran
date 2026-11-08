@@ -95,13 +95,16 @@ async fn the_handshake_reports_the_current_contract_revision() {
     // the contract before backup verification; revision 18 adds `VerifyBackup`
     // (issue #134); revision 19 adds the update classification and
     // `GetRebootRequirement` (issue #163); revision 20 adds
-    // `RestorePanelSelfSigned` (issue #425).
+    // `RestorePanelSelfSigned` (issue #425); revision 21 is the one combined
+    // revision for the v1 feature contract growth (dns, mail and transfer
+    // services, database logins, site options, PHP extensions, file manager,
+    // account limits, backup keys and four error codes).
     // The panel's
     // `AgentProtoVersionWindow` moves
     // with this number (rules/proto.md "The contract revision"), so a literal
     // here is the point: changing the constant must be a deliberate edit of
     // this test too, in the same change as the window.
-    assert_eq!(info.proto_version, 20);
+    assert_eq!(info.proto_version, 21);
 }
 
 #[tokio::test]
@@ -149,6 +152,7 @@ const REVISIONS: &[(u32, u64)] = &[
     (18, 0xcc07_f6a6_861a_d2a4),
     (19, 0x0cc4_b43b_c23f_52ff),
     (20, 0x013b_52f9_27db_295b),
+    (21, 0x4057_c8a8_c560_0f2f),
 ];
 
 /// FNV-1a over the bytes: a fixed, dependency-free digest. Its job is to

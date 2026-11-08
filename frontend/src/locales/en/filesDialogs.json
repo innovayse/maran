@@ -1,0 +1,102 @@
+{
+  "filesDialogs": {
+    "nameLabel": "Name",
+    "create": "Create",
+    "nameProblems": {
+      "required": "Enter a name.",
+      "separator": "A name cannot contain a slash or a backslash.",
+      "dots": "A name cannot be . or ..",
+      "control": "A name cannot contain control characters.",
+      "tooLong": "A name can be at most 255 bytes long."
+    },
+    "newFile": {
+      "title": "New file"
+    },
+    "newFolder": {
+      "title": "New folder"
+    },
+    "rename": {
+      "title": "Rename {name}",
+      "newName": "New name",
+      "unchanged": "Enter a name different from the current one.",
+      "submit": "Rename"
+    },
+    "permissions": {
+      "title": "Permissions of {name}",
+      "owner": "Owner: {owner}. Ownership cannot be changed here.",
+      "mode": "Mode (octal)",
+      "invalid": "Enter one to three octal digits, from 0 to 7.",
+      "classes": {
+        "owner": "Owner",
+        "group": "Group",
+        "others": "Others"
+      },
+      "bits": {
+        "read": "Read",
+        "write": "Write",
+        "execute": "Execute"
+      },
+      "recursive": "Apply to everything inside this folder",
+      "directoryMode": "Mode for folders inside (octal)",
+      "directoryModeHint": "Folders need the execute bit to be opened, so it is added wherever read is set. Change it if you want something else.",
+      "submit": "Apply"
+    },
+    "picker": {
+      "label": "Destination folder",
+      "home": "Home",
+      "up": "Up",
+      "current": "Destination: {path}",
+      "empty": "This folder has no subfolders.",
+      "searchLabel": "Search folders",
+      "searchPlaceholder": "Search by folder name",
+      "searchClear": "Clear folder search",
+      "noMatches": "No folder matches the search.",
+      "more": "Show more folders"
+    },
+    "move": {
+      "title": "Move {count} item | Move {count} items",
+      "submit": "Move here"
+    },
+    "copy": {
+      "title": "Copy {count} item | Copy {count} items",
+      "submit": "Copy here"
+    },
+    "archive": {
+      "title": "Compress {count} item | Compress {count} items",
+      "name": "Archive name",
+      "format": "Format",
+      "formats": {
+        "zip": "ZIP (.zip)",
+        "tarGz": "Gzip tarball (.tar.gz)"
+      },
+      "willWrite": "Will be written as {name} in the current folder.",
+      "defaultName": "archive",
+      "submit": "Compress"
+    },
+    "extract": {
+      "title": "Extract {name}",
+      "submit": "Extract here",
+      "limits": "An extraction stops at {entries} entries, {size} or a size ratio of {ratio} to 1."
+    },
+    "delete": {
+      "title": "Delete {count} item permanently | Delete {count} items permanently",
+      "working": "Deleting…",
+      "questionOne": "{name} will be deleted for good. It will not go to the trash and cannot be restored.",
+      "questionMany": "{count} item will be deleted for good. They will not go to the trash and cannot be restored. | {count} items will be deleted for good. They will not go to the trash and cannot be restored.",
+      "acknowledge": "I understand this cannot be undone",
+      "confirm": "Delete permanently"
+    },
+    "trash": {
+      "title": "Move {count} item to the trash | Move {count} items to the trash",
+      "question": "You can restore them from the trash later.",
+      "questionWithDays": "You can restore them from the trash for {days} day. | You can restore them from the trash for {days} days.",
+      "confirm": "Move to trash",
+      "working": "Moving to the trash…",
+      "failedTitle": "Could not move to the trash"
+    },
+    "batch": {
+      "title": "Some items were not processed",
+      "summary": "{done} done, {failed} failed."
+    }
+  }
+}

@@ -1,0 +1,227 @@
+# The recorded public surface of Maran.Sdk, and how much of it each module may use
+# (backend/tests/Maran.ArchitectureTests/SdkSurfaceTests.cs).
+#
+#   type <full name>       a public, top-level type the Sdk exports. The set is EXACT: a type added or
+#                          removed without editing this file turns the test red.
+#   module <Name> <n>      the most distinct Sdk types module <Name> may reference. Ceilings only go
+#                          down: lower a row when the test prints a "lower the ceiling" hint.
+#   total <n>              the most distinct Sdk types all modules may reference together.
+#
+# Regenerate: run `dotnet test backend/tests/Maran.ArchitectureTests --filter SdkSurface`; the failing
+# surface test prints the lines for the tree as it is. Paste them under this header. No test, and no
+# CI step, ever writes this file.
+#
+# A reviewer, when this file grows, asks: why does every module need to see this type, and could a
+# message or an interface the owning module implements carry it instead (rules/architecture.md,
+# "A shared facility's contract lives in Maran.Sdk")?
+total 132
+module Accounts 67
+module Backups 42
+module Cron 32
+module Databases 30
+module Dns 33
+module Files 22
+module Firewall 15
+module Fleet 10
+module Ftp 32
+module Idempotency 16
+module Identity 54
+module Licensing 12
+module Mail 36
+module Monitoring 43
+module Notifications 22
+module Sftp 32
+module Sites 62
+module Ssl 48
+module Tasks 29
+module Updates 17
+type Maran.Sdk.Alerts.OperatorAlertDispatcher
+type Maran.Sdk.Contracts.AccountAuditActions
+type Maran.Sdk.Contracts.AccountFeature
+type Maran.Sdk.Contracts.AccountLoginEmailChangeRequested
+type Maran.Sdk.Contracts.AccountResidue
+type Maran.Sdk.Contracts.AccountResourceCount
+type Maran.Sdk.Contracts.AccountResourceCountState
+type Maran.Sdk.Contracts.AccountResourceKind
+type Maran.Sdk.Contracts.AccountSnapshot
+type Maran.Sdk.Contracts.AccountState
+type Maran.Sdk.Contracts.AccountSystemUser
+type Maran.Sdk.Contracts.AgentCapability
+type Maran.Sdk.Contracts.AlertSource
+type Maran.Sdk.Contracts.AlertTransition
+type Maran.Sdk.Contracts.ApiKeyAuthenticated
+type Maran.Sdk.Contracts.ApiKeyAuthentication
+type Maran.Sdk.Contracts.ApiKeyDefaults
+type Maran.Sdk.Contracts.ApiKeyDenied
+type Maran.Sdk.Contracts.ApiKeyPolicyNames
+type Maran.Sdk.Contracts.ApiKeyScopes
+type Maran.Sdk.Contracts.AuditEntry
+type Maran.Sdk.Contracts.AuthorizationPolicies
+type Maran.Sdk.Contracts.BackupAuditActions
+type Maran.Sdk.Contracts.BruteForceDetected
+type Maran.Sdk.Contracts.CertificateAuditActions
+type Maran.Sdk.Contracts.CleanCodeIntegrityVerdict
+type Maran.Sdk.Contracts.CodeIntegrityOutcome
+type Maran.Sdk.Contracts.CodeIntegrityReport
+type Maran.Sdk.Contracts.CodeIntegrityVerdict
+type Maran.Sdk.Contracts.CronAuditActions
+type Maran.Sdk.Contracts.DatabaseAuditActions
+type Maran.Sdk.Contracts.DnsAuditActions
+type Maran.Sdk.Contracts.DriftedCodeIntegrityVerdict
+type Maran.Sdk.Contracts.FileAuditActions
+type Maran.Sdk.Contracts.FirewallAuditActions
+type Maran.Sdk.Contracts.HostedMailAuditActions
+type Maran.Sdk.Contracts.IdempotencyBegin
+type Maran.Sdk.Contracts.IdempotencyErrorCodes
+type Maran.Sdk.Contracts.IdempotencyHeaders
+type Maran.Sdk.Contracts.IdempotencyInProgress
+type Maran.Sdk.Contracts.IdempotencyLimits
+type Maran.Sdk.Contracts.IdempotencyMismatch
+type Maran.Sdk.Contracts.IdempotencyReplay
+type Maran.Sdk.Contracts.IdempotencyStarted
+type Maran.Sdk.Contracts.IdentityAuditActions
+type Maran.Sdk.Contracts.LicenceAuditActions
+type Maran.Sdk.Contracts.LicenceTier
+type Maran.Sdk.Contracts.LiveCpuReading
+type Maran.Sdk.Contracts.LiveDiskReading
+type Maran.Sdk.Contracts.LiveMemoryReading
+type Maran.Sdk.Contracts.LiveMetricsReading
+type Maran.Sdk.Contracts.LiveNetworkReading
+type Maran.Sdk.Contracts.LoadedModuleInfo
+type Maran.Sdk.Contracts.MailLimitsSnapshot
+type Maran.Sdk.Contracts.MailPurpose
+type Maran.Sdk.Contracts.Manifest
+type Maran.Sdk.Contracts.MarketplaceAuditActions
+type Maran.Sdk.Contracts.ModuleAudience
+type Maran.Sdk.Contracts.ModuleDependency
+type Maran.Sdk.Contracts.ModuleInstallResult
+type Maran.Sdk.Contracts.ModuleKind
+type Maran.Sdk.Contracts.ModuleLifecycleState
+type Maran.Sdk.Contracts.MonitoringAuditActions
+type Maran.Sdk.Contracts.NotificationDeepLinks
+type Maran.Sdk.Contracts.NotificationSeverity
+type Maran.Sdk.Contracts.NotificationSource
+type Maran.Sdk.Contracts.OperatorAlert
+type Maran.Sdk.Contracts.OperatorAlertRaised
+type Maran.Sdk.Contracts.OutgoingMailAuditActions
+type Maran.Sdk.Contracts.OwnerLoginMode
+type Maran.Sdk.Contracts.PanelClaimTypes
+type Maran.Sdk.Contracts.PanelLogLevel
+type Maran.Sdk.Contracts.PanelNotificationRaised
+type Maran.Sdk.Contracts.PersonalDataRecord
+type Maran.Sdk.Contracts.PersonalDataSection
+type Maran.Sdk.Contracts.PersonalDataSubject
+type Maran.Sdk.Contracts.PersonalDataSubjectKind
+type Maran.Sdk.Contracts.PhpLimitsSnapshot
+type Maran.Sdk.Contracts.PhpSettingCeilings
+type Maran.Sdk.Contracts.PhpSettingNames
+type Maran.Sdk.Contracts.RateLimitPolicies
+type Maran.Sdk.Contracts.RegisteredModule
+type Maran.Sdk.Contracts.ResellerLoginChangeRequested
+type Maran.Sdk.Contracts.ResellerSnapshot
+type Maran.Sdk.Contracts.ResellerState
+type Maran.Sdk.Contracts.SearchHit
+type Maran.Sdk.Contracts.SearchKind
+type Maran.Sdk.Contracts.SearchQuery
+type Maran.Sdk.Contracts.SendMailRequested
+type Maran.Sdk.Contracts.SftpAuditActions
+type Maran.Sdk.Contracts.SiteAuditActions
+type Maran.Sdk.Contracts.SiteBackend
+type Maran.Sdk.Contracts.SiteBasicAuthUserSnapshot
+type Maran.Sdk.Contracts.SiteCanonicalHost
+type Maran.Sdk.Contracts.SiteIpAccessMode
+type Maran.Sdk.Contracts.SiteIpAccessSnapshot
+type Maran.Sdk.Contracts.SiteOptionsSnapshot
+type Maran.Sdk.Contracts.SiteRedirectMatch
+type Maran.Sdk.Contracts.SiteRedirectSnapshot
+type Maran.Sdk.Contracts.SiteRequestRateSnapshot
+type Maran.Sdk.Contracts.SiteSnapshot
+type Maran.Sdk.Contracts.SystemAuditEntry
+type Maran.Sdk.Contracts.TaskAudience
+type Maran.Sdk.Contracts.TaskKinds
+type Maran.Sdk.Contracts.UnavailableCodeIntegrityVerdict
+type Maran.Sdk.Contracts.UpdatesAuditActions
+type Maran.Sdk.Contracts.ViewAsAccess
+type Maran.Sdk.Contracts.ViewAsAccessAttribute
+type Maran.Sdk.Controllers.BaseApiController
+type Maran.Sdk.DependencyInjection
+type Maran.Sdk.Events.AccountCreated
+type Maran.Sdk.Events.AccountDeleting
+type Maran.Sdk.Events.AccountOwnerChanging
+type Maran.Sdk.Events.AccountPlanChanged
+type Maran.Sdk.Events.AccountResuming
+type Maran.Sdk.Events.AccountSuspending
+type Maran.Sdk.Events.AccountSuspensionCascadeReport
+type Maran.Sdk.Events.ResellerCreated
+type Maran.Sdk.Events.ResellerDeleting
+type Maran.Sdk.Events.ResellerResuming
+type Maran.Sdk.Events.ResellerSuspending
+type Maran.Sdk.Events.SessionCullEnded
+type Maran.Sdk.Events.SessionCullNotReported
+type Maran.Sdk.Events.SessionCullReading
+type Maran.Sdk.Events.SessionCullReportedWithoutCount
+type Maran.Sdk.Events.SiteCreated
+type Maran.Sdk.Extensions.AccountFeatureExtensions
+type Maran.Sdk.Extensions.ApiResultExtensions
+type Maran.Sdk.Extensions.CodeIntegrityReportExtensions
+type Maran.Sdk.Filters.IdempotencyFilter
+type Maran.Sdk.Filters.IdempotencyNoStoreAttribute
+type Maran.Sdk.Filters.IdempotentAttribute
+type Maran.Sdk.Filters.RequiresAccountFeatureAttribute
+type Maran.Sdk.Filters.RequiresAccountFeatureFilter
+type Maran.Sdk.Interfaces.IAccountBackupService
+type Maran.Sdk.Interfaces.IAccountDatabaseDirectory
+type Maran.Sdk.Interfaces.IAccountDirectory
+type Maran.Sdk.Interfaces.IAccountFeatureDirectory
+type Maran.Sdk.Interfaces.IAccountMemberGrants
+type Maran.Sdk.Interfaces.IAccountNameDirectory
+type Maran.Sdk.Interfaces.IAccountResidueAuditor
+type Maran.Sdk.Interfaces.IAccountResourceCounter
+type Maran.Sdk.Interfaces.IAlertRecipientDirectory
+type Maran.Sdk.Interfaces.IApiKeyAuthenticator
+type Maran.Sdk.Interfaces.IAuditWriter
+type Maran.Sdk.Interfaces.IClockSyncStatus
+type Maran.Sdk.Interfaces.ICodeIntegrityReportSink
+type Maran.Sdk.Interfaces.IIdempotencyFingerprint
+type Maran.Sdk.Interfaces.IIdempotencyStore
+type Maran.Sdk.Interfaces.IInitialPasswordPolicy
+type Maran.Sdk.Interfaces.ILicenceLease
+type Maran.Sdk.Interfaces.ILiveMetricsFeed
+type Maran.Sdk.Interfaces.ILiveMetricsSubscription
+type Maran.Sdk.Interfaces.IModuleLoader
+type Maran.Sdk.Interfaces.IModuleLoaderAudit
+type Maran.Sdk.Interfaces.IModuleMigrations
+type Maran.Sdk.Interfaces.IModulePackageSource
+type Maran.Sdk.Interfaces.IModuleRegistry
+type Maran.Sdk.Interfaces.IPanelHostName
+type Maran.Sdk.Interfaces.IPanelLogLevelSwitch
+type Maran.Sdk.Interfaces.IPanelModule
+type Maran.Sdk.Interfaces.IPanelRestart
+type Maran.Sdk.Interfaces.IPanelVersion
+type Maran.Sdk.Interfaces.IPersonalDataProvider
+type Maran.Sdk.Interfaces.IResellerDirectory
+type Maran.Sdk.Interfaces.IReservedHostDirectory
+type Maran.Sdk.Interfaces.ISearchProvider
+type Maran.Sdk.Interfaces.ISiteDirectory
+type Maran.Sdk.Interfaces.ISiteHostnameDirectory
+type Maran.Sdk.Interfaces.ISystemAuditJournal
+type Maran.Sdk.Interfaces.ITaskRecorder
+type Maran.Sdk.Manifests.Enums.ManifestFindingKind
+type Maran.Sdk.Manifests.ManifestFinding
+type Maran.Sdk.Manifests.ManifestPermissionVocabulary
+type Maran.Sdk.Manifests.ManifestValidator
+type Maran.Sdk.ModelBinding.FilterValueModelBinder
+type Maran.Sdk.ModelBinding.InvalidModelStateRefusal
+type Maran.Sdk.ModelBinding.PagingModelBinderProvider
+type Maran.Sdk.ModelBinding.SearchTermModelBinder
+type Maran.Sdk.ModelBinding.SearchTermRefusal
+type Maran.Sdk.ModelBinding.SortRequestModelBinder
+type Maran.Sdk.Modules.ModuleRefusals
+type Maran.Sdk.Modules.NullModuleLoader
+type Maran.Sdk.Navigation.ModuleIconKeys
+type Maran.Sdk.Navigation.ModuleMenuItem
+type Maran.Sdk.Navigation.ModuleRoute
+type Maran.Sdk.Serialization.PanelJsonOptions
+type Maran.Sdk.Streaming.EventStreamFrame
+type Maran.Sdk.Streaming.EventStreamWriter
+type Maran.Sdk.Validators.PagedQueryValidator`2

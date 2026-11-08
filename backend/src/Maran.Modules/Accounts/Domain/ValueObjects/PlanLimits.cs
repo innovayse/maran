@@ -20,6 +20,8 @@ namespace Maran.Modules.Accounts.Domain.ValueObjects;
 /// <param name="MaxPhpWorkersPerPool">The most php-fpm workers one pool of an account on the plan may run.</param>
 /// <param name="Features">The features the plan sells.</param>
 /// <param name="RuntimeLimits">The CPU, memory and process ceilings of an account on the plan.</param>
+/// <param name="MaxMailboxes">The most mailboxes an account on the plan may hold (issue #177).</param>
+/// <param name="MailboxQuotaPoolMib">The most mebibytes the mailbox quotas of an account on the plan may add up to.</param>
 public sealed record PlanLimits(
     int DiskQuotaMb,
     int MaxSites,
@@ -29,4 +31,6 @@ public sealed record PlanLimits(
     int MaxCronEntries,
     int MaxPhpWorkersPerPool,
     AccountFeature Features,
-    RuntimeLimits RuntimeLimits);
+    RuntimeLimits RuntimeLimits,
+    int MaxMailboxes,
+    int MailboxQuotaPoolMib);

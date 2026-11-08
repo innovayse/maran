@@ -401,6 +401,74 @@ $(nginx -t 2>&1)"
   echo "before this fix — put the secret in the log, so the probe can see the leak it reports absent."
 }
 
+# assert_the_file_transfer_location_carries_the_configured_body_limit: the upload and download
+# location of the file manager renders its client_max_body_size from the panel.env variable the
+# panel reads (Files__MaxUploadBytes), and renders a bad value as the default instead of as text.
+#
+# Five renders of the shipped template through step 80's own render_vhost, each against a panel.env
+# written for the case: no variable (the default plus the allowance), a larger value (the number
+# follows the file - the inverse control that stops a renderer that ignores panel.env from passing),
+# and three values that must NOT reach the vhost as they are written: one above the panel's own
+# ceiling, one carrying a unit and one carrying a second directive. The number is read out of the
+# file-transfer location's own block, not grepped from the whole file, because the server-wide 64m
+# also matches a naive search and would pass every case.
+#
+# UNOBSERVED HERE: nginx's own parsed value. The rendered file is the one step 80 installs (the
+# assertion in sftp.sh compares them byte for byte), but this reads its text, not `nginx -T`; a
+# directive nginx rejects is caught by the validation gate in
+# assert_nginx_vhost_is_validated_before_it_is_served, which parses the same template.
+assert_the_file_transfer_location_carries_the_configured_body_limit() {
+  local env_file rendered case_name configured expected got default_limit
+  default_limit=$((104857600 + 1048576))
+
+  env_file="$(mktemp)"
+  rendered="$(mktemp)"
+
+  while read -r case_name configured expected; do
+    if [ "$configured" = "-" ]; then
+      : > "$env_file"
+    else
+      printf 'Files__MaxUploadBytes=%s\n' "$configured" > "$env_file"
+    fi
+    if ! MARAN_CONFIG_FILE="$env_file" run_nginx_step "render_vhost '${rendered}'" >/dev/null 2>&1; then
+      rm -f "$env_file" "$rendered"
+      fail "step 80's render_vhost failed for the case '${case_name}', so the file-transfer limit could not be read."
+    fi
+    got="$(awk '
+      /^[[:space:]]*location[[:space:]]+~[[:space:]]+\^\/api\/v1\/files\/\(upload\|download\)\$/ { inside = 1 }
+      inside && $1 == "client_max_body_size" { sub(/;$/, "", $2); print $2; exit }
+    ' "$rendered")"
+    if [ "$expected" = "default" ]; then
+      expected="$default_limit"
+    fi
+    if [ "$got" != "$expected" ]; then
+      rm -f "$env_file" "$rendered"
+      fail "the file-transfer location rendered client_max_body_size '${got}' for the case '${case_name}'
+(Files__MaxUploadBytes='${configured}'), expected '${expected}'. An empty answer means the location is
+missing or no longer starts with 'location ~ ^/api/v1/files/(upload|download)\$'."
+    fi
+    grep -q 'client_max_body_size 64m;' "$rendered" \
+      || { rm -f "$env_file" "$rendered"; fail "the server-wide client_max_body_size 64m is gone for the case '${case_name}'."; }
+    grep -q '__MARAN_FILES_BODY_LIMIT__' "$rendered" \
+      && { rm -f "$env_file" "$rendered"; fail "the case '${case_name}' left the __MARAN_FILES_BODY_LIMIT__ placeholder in the vhost."; }
+  done <<'CASES'
+unset - default
+larger 200000000 201048576
+toolarge 268435457 default
+unit 100m default
+injection 1048576;client_max_body_size default
+CASES
+
+  rm -f "$env_file" "$rendered"
+
+  echo "The file-transfer location renders client_max_body_size from panel.env's Files__MaxUploadBytes plus"
+  echo "a fixed allowance, and renders the default for an absent variable, a value above the panel's own"
+  echo "ceiling, a value carrying a unit and a value carrying a second directive. A larger configured"
+  echo "value moves the number, so a renderer that ignored panel.env could not have passed. The"
+  echo "server-wide 64m is untouched. What this does not observe is nginx's own parsed value (nginx -T);"
+  echo "see the function's comment."
+}
+
 # panel_vhost_log_census: prints what is wrong with the vhost's logging directives, or nothing.
 #
 # A predicate rather than a series of `fail` calls, so that the propositions stay readable and so

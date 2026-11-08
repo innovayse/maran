@@ -159,7 +159,43 @@
   <data name="BackupFailureBackupVerificationFailed">
     <value>Архив не совпадает с записью о нём</value>
   </data>
+  <data name="BackupFailureBackupVerificationArchiveKeyRejected">
+    <value>Архив не удаётся открыть ключом шифрования его места хранения</value>
+  </data>
   <data name="BackupFailureBackupVerificationArtifactMissing">
     <value>Архив не найден</value>
+  </data>
+  <data name="BackupFailureAgentTooLarge">
+    <value>Файл или папка были слишком велики, чтобы открыть их</value>
+  </data>
+  <data name="BackupFailureAgentQuotaExceeded">
+    <value>Дисковая квота аккаунта исчерпана</value>
+  </data>
+  <data name="BackupFailureAgentArchiveUnsafe">
+    <value>Архив содержал элементы, которые небезопасно распаковывать</value>
+  </data>
+  <data name="BackupFailureAgentArchiveUnopenable">
+    <value>Архив не удалось открыть ключом шифрования его места хранения</value>
+  </data>
+  <data name="BackupsMenuList">
+    <value>Все копии</value>
+  </data>
+  <data name="BackupsMenuSchedule">
+    <value>Расписание</value>
+  </data>
+  <data name="BackupsMenuDestinations">
+    <value>Хранилища</value>
+  </data>
+  <data name="BackupsRouteList">
+    <value>Резервные копии</value>
+  </data>
+  <data name="BackupsRouteSchedule">
+    <value>Расписание резервных копий</value>
+  </data>
+  <data name="BackupsRouteMySchedule">
+    <value>Моё расписание резервных копий</value>
+  </data>
+  <data name="BackupsRouteDestinations">
+    <value>Места хранения копий</value>
   </data>
 </root>

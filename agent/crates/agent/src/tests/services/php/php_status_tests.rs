@@ -45,6 +45,10 @@ fn everything_the_caller_asked_for_that_the_agent_will_not_write_is_invalid_inpu
         PhpOpError::OverrideControlCharacter {
             name: "upload_max_filesize".to_owned(),
         },
+        PhpOpError::OverridePostSizeBelowUpload {
+            post_max_size: 8_388_608,
+            upload_max_filesize: 33_554_432,
+        },
         PhpOpError::WorkerBudgetOutOfRange {
             requested: 900,
             minimum: 1,
@@ -226,6 +230,35 @@ fn a_pool_write_refused_because_the_account_is_busy_is_its_own_code() {
 }
 
 #[test]
+fn a_pool_that_is_absent_is_not_found_and_carries_no_tool_output() {
+    // `ApplyPhpPoolSettings` never creates a pool, so an account with none is
+    // an answer the panel acts on (its pool is created with its site), not a
+    // fault of this machine. No tool ran.
+    let wire = to_agent_error(&PhpOpError::PoolMissing {
+        username: "acme".to_owned(),
+        version: "8.3".to_owned(),
+    });
+
+    assert_eq!(wire.code, ErrorCode::NotFound as i32);
+    assert_eq!(wire.tool_output, "");
+}
+
+#[test]
+fn a_missing_pool_and_a_version_the_host_lacks_are_different_codes() {
+    // The inverse control: both are "something is not there", and only the
+    // pool is NOT_FOUND.
+    assert_ne!(
+        code_of(&PhpOpError::PoolMissing {
+            username: "acme".to_owned(),
+            version: "8.3".to_owned(),
+        }),
+        code_of(&PhpOpError::PhpVersionNotInstalled {
+            version: "8.3".to_owned(),
+        })
+    );
+}
+
+#[test]
 fn a_busy_account_and_a_reload_this_host_refused_are_different_codes() {
     // The inverse control. A php-fpm that would not reload must still be a
     // fault carrying the tool's own words for the operator.
@@ -307,4 +340,64 @@ fn the_bound_variant_is_mapped_by_name_ahead_of_the_wildcard() {
     // Positive control: the scan does find the wildcard it is measured against.
     let wildcard = wildcard.expect("the mapping ends in a wildcard arm");
     assert!(bound.expect("the bound variant has its own arm") < wildcard);
+}
+
+/// A name the family has no package for, and a switch-off it has no switch for,
+/// are refusals of what the caller asked: INVALID_INPUT with no tool output.
+#[test]
+fn an_extension_the_host_cannot_install_or_switch_off_is_invalid_input_without_tool_output() {
+    for error in [
+        PhpOpError::ExtensionNotPackaged {
+            extension: "curl".to_owned(),
+            version: "8.3".to_owned(),
+        },
+        PhpOpError::ExtensionSwitchUnsupported {
+            extension: "gd".to_owned(),
+        },
+    ] {
+        let wire = to_agent_error(&error);
+        assert_eq!(wire.code, ErrorCode::InvalidInput as i32);
+        assert!(wire.tool_output.is_empty());
+    }
+}
+
+/// A switch or probe that failed is a system failure carrying its stderr.
+#[test]
+fn a_failed_extension_switch_or_probe_is_a_system_failure_carrying_its_stderr() {
+    for error in [
+        PhpOpError::ExtensionSwitchFailed {
+            stderr: "phpdismod: no such module".to_owned(),
+        },
+        PhpOpError::ExtensionProbeFailed {
+            stderr: "php-fpm: cannot load".to_owned(),
+        },
+    ] {
+        let expected = match &error {
+            PhpOpError::ExtensionSwitchFailed { stderr }
+            | PhpOpError::ExtensionProbeFailed { stderr } => stderr.clone(),
+            other => panic!("unexpected {other:?}"),
+        };
+        let wire = to_agent_error(&error);
+        assert_eq!(wire.code, ErrorCode::SystemFailure as i32);
+        assert_eq!(wire.tool_output, expected);
+    }
+}
+
+/// An extension still in the wrong state after a clean switch is a system
+/// failure with no tool output, and not an input refusal (inverse control to
+/// the refusals above).
+#[test]
+fn an_extension_left_in_the_wrong_state_is_a_system_failure_without_tool_output() {
+    for error in [
+        PhpOpError::ExtensionNotLoaded {
+            extension: "gd".to_owned(),
+        },
+        PhpOpError::ExtensionStillLoaded {
+            extension: "gd".to_owned(),
+        },
+    ] {
+        let wire = to_agent_error(&error);
+        assert_eq!(wire.code, ErrorCode::SystemFailure as i32);
+        assert!(wire.tool_output.is_empty());
+    }
 }

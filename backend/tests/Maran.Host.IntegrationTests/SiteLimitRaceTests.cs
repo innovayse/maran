@@ -209,7 +209,9 @@ public sealed class SiteLimitRaceTests : IAsyncLifetime
             new FixedInstantClock(),
             new SiteDisplayNames(new StringLocalizer<DisplayNames>(new ResourceManagerStringLocalizerFactory(
                 new OptionsWrapper<LocalizationOptions>(new LocalizationOptions()),
-                NullLoggerFactory.Instance))));
+                NullLoggerFactory.Instance))),
+            new PhpAccountPoolSettings(context),
+            new SiteCreationAnnouncer(new SilentMessageBus(), NullLogger<SiteCreationAnnouncer>.Instance));
 
         return await handler.HandleAsync(
             new CreateSiteCommand(AccountId, domain, SiteBackendType.Static, []), CancellationToken.None);

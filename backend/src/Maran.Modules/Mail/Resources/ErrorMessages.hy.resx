@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AccountNotFound">
+    <value>Այս հաշիվը չի գտնվել։</value>
+  </data>
+  <data name="MailNotEnabled">
+    <value>Փոստը այս սերվերում միացված չէ։ Խնդրեք սերվերի ադմինիստրատորին միացնել այն։</value>
+  </data>
+  <data name="MailServerHostnameInvalidFormat">
+    <value>Սա վավեր հոսթի անուն չէ։ Մուտքագրեք այսպիսի անուն՝ mail.example.com։</value>
+  </data>
+  <data name="MailServerHostnameTooLong">
+    <value>Հոսթի անունը չափազանց երկար է։ Թույլատրվում է առավելագույնը 253 նիշ։</value>
+  </data>
+  <data name="MailServerHostnameReserved">
+    <value>Այս անունը չի կարելի օգտագործել փոստային սերվերի համար. այն վերապահված է և չի նշանակում հանրային հոսթ։</value>
+  </data>
+  <data name="MailMessageSizeOutOfRange">
+    <value>Նամակի առավելագույն չափը պետք է լինի 1-ից 512 ՄԲ։</value>
+  </data>
+  <data name="MailSpamScoresInvalid">
+    <value>Սպամի միավորները պետք է լինեն 0-ից 100 ամբողջ թվեր և աճեն հերթականությամբ՝ հետաձգել, նշել որպես սպամ, մերժել։</value>
+  </data>
+  <data name="MailQueueIdInvalid">
+    <value>Սա փոստի հերթի վավեր նույնացուցիչ չէ։</value>
+  </data>
+  <data name="MailQueueEntryNotFound">
+    <value>Այս նամակն այլևս հերթում չէ։</value>
+  </data>
+  <data name="MailDomainNotFound">
+    <value>Այս փոստային դոմենը չի գտնվել։</value>
+  </data>
+  <data name="MailDomainTaken">
+    <value>Այս դոմենն արդեն օգտագործվում է փոստի համար այս սերվերում։</value>
+  </data>
+  <data name="MailDomainNotOwnedSite">
+    <value>Փոստը կարելի է կարգավորել միայն ձեր կայքերից մեկի հիմնական դոմենի համար։ Նախ ավելացրեք կայքը։</value>
+  </data>
+  <data name="MailDomainInvalid">
+    <value>Սա վավեր դոմեն չէ։ Մուտքագրեք այսպիսի անուն՝ example.com։</value>
+  </data>
+  <data name="MailDomainTooLong">
+    <value>Դոմենի անունը չափազանց երկար է փոստային դոմենի համար։</value>
+  </data>
+  <data name="MailDomainProvisioningFailed">
+    <value>Չհաջողվեց կարգավորել փոստային դոմենը սերվերում։ Ոչինչ չի պահպանվել, փորձեք նորից։</value>
+  </data>
+  <data name="MailboxNotFound">
+    <value>Այս փոստարկղը չի գտնվել։</value>
+  </data>
+  <data name="MailboxTaken">
+    <value>Այս հասցեն արդեն զբաղված է փոստարկղով կամ այլանունով։</value>
+  </data>
+  <data name="MailboxLocalPartInvalid">
+    <value>@-ից առաջ մասը կարող է պարունակել փոքրատառեր, թվեր, կետեր, գծիկներ և ընդգծումներ (մինչև 64 նիշ) և պետք է սկսվի ու ավարտվի տառով կամ թվով։</value>
+  </data>
+  <data name="MailboxQuotaOutOfRange">
+    <value>Փոստարկղի չափը թույլատրելի միջակայքից դուրս է։</value>
+  </data>
+  <data name="MailboxSendLimitOutOfRange">
+    <value>Ժամային ուղարկման սահմանաչափը թույլատրելի միջակայքից դուրս է։</value>
+  </data>
+  <data name="MailboxSendLimitAbovePlan">
+    <value>Ժամային ուղարկման սահմանաչափը գերազանցում է ձեր սակագնով թույլատրվածը։</value>
+  </data>
+  <data name="MailboxLimitReached">
+    <value>Ձեր սակագնը թույլ չի տալիս ավելի շատ փոստարկղեր։ Ջնջեք մեկը կամ ընտրեք ավելի մեծ սակագին։</value>
+  </data>
+  <data name="MailboxLimitReachedConcurrently">
+    <value>Ձեր սակագնը լցվեց այս փոստարկղը ստեղծելու ընթացքում, ուստի այն չպահպանվեց։ Ջնջեք ավելորդ փոստարկղ և փորձեք նորից։</value>
+  </data>
+  <data name="MailQuotaPoolExhausted">
+    <value>Փոստարկղերի չափերի գումարը կգերազանցեր ձեր սակագնով թույլատրվածը։</value>
+  </data>
+  <data name="MailboxProvisioningFailed">
+    <value>Չհաջողվեց ստեղծել փոստարկղը սերվերում։ Ոչինչ չի պահպանվել, փորձեք նորից։</value>
+  </data>
+  <data name="MailPasswordTooWeak">
+    <value>Գաղտնաբառը պետք է պարունակի 12-ից 128 նիշ՝ առանց կառավարող նիշերի։</value>
+  </data>
+  <data name="MailPasswordSchemeUnsupported">
+    <value>Փոստային սերվերը դեռ չի կարող ստուգել գաղտնաբառերի պաշտպանության այն տեսակը, որ ստեղծում է այս վահանակը։ Դիմեք սերվերի ադմինիստրատորին։</value>
+  </data>
+  <data name="MailAliasNotFound">
+    <value>Այս այլանունը չի գտնվել։</value>
+  </data>
+  <data name="MailAliasTaken">
+    <value>Այս հասցեն արդեն զբաղված է այլանունով կամ փոստարկղով։</value>
+  </data>
+  <data name="MailAliasTargetInvalid">
+    <value>Մուտքագրեք առնվազն մեկ վավեր նպատակակետ հասցե։ Յուրաքանչյուրը պետք է լինի name@example.com տեսքի։</value>
+  </data>
+  <data name="MailAliasTargetLimit">
+    <value>Այլանունը կարող է ունենալ առավելագույնը 20 նպատակակետ։</value>
+  </data>
+  <data name="MailAliasKindMismatch">
+    <value>Տեսակը չի համապատասխանում նպատակակետերին. այլանունը առաքում է միայն ձեր դոմեններ, իսկ փոխանցումը պահանջում է առնվազն մեկ արտաքին հասցե։</value>
+  </data>
+  <data name="MailAliasExternalTargetNotAllowed">
+    <value>Սերվերի ադմինիստրատորը չի թույլատրել փոխանցումը ձեր դոմեններից դուրս հասցեներ։</value>
+  </data>
+  <data name="MailCatchAllConflict">
+    <value>Այս դոմենն արդեն ունի ընդհանուր (catch-all) հասցե։</value>
+  </data>
+  <data name="MailAliasProvisioningFailed">
+    <value>Չհաջողվեց կարգավորել այլանունը սերվերում։ Ոչինչ չի պահպանվել, փորձեք նորից։</value>
+  </data>
+  <data name="MailAutoresponderInvalid">
+    <value>Ավտոպատասխանը վավեր չէ. թեման պետք է լինի մեկ տող՝ մինչև 200 նիշ, տեքստը՝ մինչև 4096 բայթ, և ոչ մի տող չպետք է սկսվի կետով։</value>
+  </data>
+  <data name="MailAutoresponderNotFound">
+    <value>Այս փոստարկղը ավտոմատ պատասխան չունի։</value>
+  </data>
+</root>

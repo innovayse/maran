@@ -3,11 +3,16 @@
  * The confirmation a rule change passes through when it could cost the operator their own way into
  * the server.
  *
- * **This is a UI-level check and nothing more.** The panel accepts either operation whether or not
- * this dialog was shown, and it is right to: the agent renders an unconditional accept for the
- * host's SSH ports whenever no explicit TCP rule for them exists, so removing the last such rule is
- * fail-open by design. What a confirmation buys is the half a second in which an operator reads the
- * rule they are about to install back to themselves.
+ * **This dialog is advice; the refusal is the backend's.** For an allow, the panel itself decides
+ * whether the rule would stop the address the request comes from reaching an SSH port, and answers
+ * 409 with a message from the server when it would: a single-port TCP rule for an SSH port, scoped
+ * to a range that does not contain the caller, while no rule for that port exists yet. There is no
+ * override, so the dialog never offers one. The page shows the server's own text beside the form
+ * and leaves the form filled, and this component does not duplicate that text or the decision.
+ * What the confirmation buys on top of the refusal is the half a second in which an operator reads
+ * the rule they are about to install back to themselves, and it is the only guard on a REMOVAL:
+ * removing the last rule for an SSH port returns the agent's unconditional accept (fail-open by
+ * design), so the panel has nothing to refuse there and the dialog asks about every removal.
  *
  * **Why it cannot say "this is your SSH port".** Which ports sshd listens on is a host fact the
  * panel holds — `Firewall__SshPorts`, read from the real `sshd_config` by the installer — and
@@ -16,7 +21,8 @@
  * asking:
  *
  * - a TCP allow scoped to a NARROWER range than "everything" is the only kind of addition that can
- *   displace the SSH fallback, whichever port that turns out to be;
+ *   displace the SSH fallback, whichever port that turns out to be, so it is confirmed first and
+ *   then checked by the panel against the real SSH ports;
  * - any removal can be the removal of the rule governing SSH, so every removal is confirmed.
  *
  * The alternative — assuming port 22 — is the failure this whole chain exists to prevent: it would

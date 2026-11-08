@@ -2,6 +2,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_agent_core::validation::db::database_name::DatabaseName;
+use maran_agent_core::validation::fs::relative_path::RelativePath;
 use maran_agent_core::validation::system::name::AccountName;
 
 use crate::backup::model::archive_part::ArchivePart;
@@ -255,6 +257,137 @@ fn the_member_follows_an_end_of_options_marker_that_follows_the_target_directory
         assert_eq!(
             arguments.get(directory + 1).map(String::as_str),
             Some("/var/lib/maran/scratch")
+        );
+    }
+}
+
+/// One database's dump.
+fn database() -> DatabaseName {
+    DatabaseName::for_account(&account(), "shop").expect("the fixture name is valid")
+}
+
+/// One site's directory.
+fn site() -> RelativePath {
+    RelativePath::parse("sites/shop.example.com").expect("the fixture path is valid")
+}
+
+/// The dump of one database is read by root, the directory of one site by the
+/// account: the single-part variants keep the rule the whole-part ones state.
+#[test]
+fn a_single_dump_is_root_and_a_single_directory_is_the_account() {
+    assert_eq!(
+        spec(ArchivePart::Database {
+            database: database()
+        })
+        .identity(),
+        ExtractIdentity::Root
+    );
+    assert_eq!(
+        spec(ArchivePart::Directory {
+            account: account(),
+            directory: site()
+        })
+        .identity(),
+        ExtractIdentity::Account(account())
+    );
+}
+
+/// One dump is named exactly, by its file, and keeps its prefix: nothing else
+/// under `databases/` is selected and nothing is stripped.
+#[test]
+fn a_single_dump_names_one_file_and_strips_nothing() {
+    let part = spec(ArchivePart::Database {
+        database: database(),
+    });
+    let arguments = part.arguments(COMPRESSOR);
+
+    assert_eq!(part.member(), "databases/alice_shop.sql");
+    assert_eq!(arguments.last().unwrap(), "databases/alice_shop.sql");
+    assert!(
+        !arguments
+            .iter()
+            .any(|argument| argument.starts_with("--strip-components")),
+        "{arguments:?}"
+    );
+}
+
+/// One directory is named exactly and every component above it is dropped with
+/// `home/`: two for a site two levels down, so the site lands first under its own
+/// name. A count and never a transform.
+#[test]
+fn a_single_directory_names_one_member_and_strips_the_components_above_it() {
+    let part = spec(ArchivePart::Directory {
+        account: account(),
+        directory: site(),
+    });
+    let arguments = part.arguments(COMPRESSOR);
+
+    assert_eq!(part.member(), "home/sites/shop.example.com");
+    assert_eq!(arguments.last().unwrap(), "home/sites/shop.example.com");
+    assert!(
+        arguments
+            .iter()
+            .any(|argument| argument == "--strip-components=2"),
+        "{arguments:?}"
+    );
+    assert!(
+        !arguments
+            .iter()
+            .any(|argument| argument.starts_with("--transform")),
+        "{arguments:?}"
+    );
+
+    // A directory directly in the home drops only `home/`.
+    let shallow = spec(ArchivePart::Directory {
+        account: account(),
+        directory: RelativePath::parse("public").unwrap(),
+    })
+    .arguments(COMPRESSOR);
+    assert!(
+        shallow
+            .iter()
+            .any(|argument| argument == "--strip-components=1"),
+        "{shallow:?}"
+    );
+}
+
+/// Every new part keeps the safety flags and the descriptor-fed archive of the
+/// parts that were there before: refusing the archive's ownership and mode, never
+/// an absolute name, never the artifact as a path.
+#[test]
+fn the_single_parts_carry_every_flag_the_whole_parts_do() {
+    for part in [
+        ArchivePart::Database {
+            database: database(),
+        },
+        ArchivePart::Directory {
+            account: account(),
+            directory: site(),
+        },
+    ] {
+        let arguments = spec(part).arguments(COMPRESSOR);
+
+        for flag in [
+            "--no-same-owner",
+            "--no-same-permissions",
+            "--numeric-owner",
+        ] {
+            assert!(
+                arguments.iter().any(|argument| argument == flag),
+                "{arguments:?}"
+            );
+        }
+        assert!(
+            !arguments
+                .iter()
+                .any(|argument| argument == "-P" || argument == "--absolute-names"),
+            "{arguments:?}"
+        );
+        assert!(
+            !arguments
+                .iter()
+                .any(|argument| argument.contains("one.tar.gz")),
+            "{arguments:?}"
         );
     }
 }

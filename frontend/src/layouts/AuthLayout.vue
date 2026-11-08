@@ -50,6 +50,7 @@
  * collapsing address bar does not leave the form under the fold. Long Armenian words wrap
  * (`wrap-anywhere`) rather than widen the page.
  */
+import { defineAsyncComponent } from 'vue'
 import UiExternalLink from '../components/ui/UiExternalLink.vue'
 import ShellLocaleSwitcher from '../components/shell/ShellLocaleSwitcher.vue'
 import { useI18n } from 'vue-i18n'
@@ -65,6 +66,13 @@ const highlights: readonly { icon: UiIconName; key: string }[] = [
 ]
 
 const { t } = useI18n()
+
+/**
+ * The public demo's banner, or `null` in every other build. The ternary is written out here, not
+ * hidden in a helper, because `__MARAN_DEMO__` is replaced by a literal at build time and only an
+ * inline `false ? … : null` lets the bundler drop the `import()` with it (vite.config.ts).
+ */
+const DemoBanner = __MARAN_DEMO__ ? defineAsyncComponent(() => {return import('../components/demo/DemoBanner.vue')}) : null
 
 /** The year printed in the credit line, taken once from the visitor's clock. */
 const year: number = new Date().getFullYear()
@@ -124,6 +132,8 @@ const year: number = new Date().getFullYear()
 
       <main class="relative z-10 flex min-h-dvh items-center justify-center p-4 sm:p-6">
         <div class="w-full max-w-md">
+          <component :is="DemoBanner" v-if="DemoBanner !== null" class="mb-6" />
+
           <!-- The margin sits on this outer box so the inner one can go sr-only (which sets its own
                margin) without leaving an empty 32px gap above the card from lg up. -->
           <div class="mb-8 lg:mb-0">

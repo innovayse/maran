@@ -1,4 +1,5 @@
 import type { AuditEvent } from './audit'
+import type { LiveDashboardHandlers } from './liveDashboard'
 import type { ClockSync, HostMetrics, ServiceStatus } from './monitoring'
 
 /**
@@ -38,6 +39,27 @@ export interface DashboardCounts {
 }
 
 /**
+ * How one alert channel (mail or webhook) fared the last time the panel tried it, mirroring the
+ * backend's `AlertChannelStatusDto`.
+ */
+export interface AlertChannelStatus {
+  /** `ok`, `failing` (the last delivery failed) or `unknown` (nothing has been attempted on the channel yet). */
+  state: 'ok' | 'failing' | 'unknown'
+  /** When the failing delivery was attempted; `null` unless the channel is failing. */
+  lastFailureAt: string | null
+  /** The panel's reason, already localized; `null` unless the channel is failing. */
+  failureMessage: string | null
+}
+
+/** Both alert channels, mirroring the backend's `AlertDeliveryStatusDto` (issue #142). */
+export interface AlertDeliveryStatus {
+  /** The alert mail. */
+  mail: AlertChannelStatus
+  /** The alert webhook. */
+  webhook: AlertChannelStatus
+}
+
+/**
  * What on this server is asking to be looked at, mirroring the backend's `DashboardAttentionDto`.
  *
  * Zero is the ordinary answer and renders as a zero: on this screen "nothing needs attention" is
@@ -54,6 +76,14 @@ export interface DashboardAttention {
   bannedAddresses: DashboardSection<number>
   /** Panel tasks that ended in failure. */
   failedTasks: DashboardSection<number>
+  /** Sites running on a PHP version past its end of life, which no longer receives security fixes (issue #157). */
+  sitesOnEndOfLifePhp: DashboardSection<number>
+  /**
+   * Whether alert mail and the alert webhook reached their destination the last time the panel tried
+   * (issue #142). Not a count: each failing channel is a row of its own, and a state that could not be
+   * read is unchecked, never "delivering".
+   */
+  alertDelivery: DashboardSection<AlertDeliveryStatus>
   /**
    * Whether the host's clock is synchronised (issue #150). Not a count: it needs attention when it
    * is anything but synchronised, and is unchecked — never synchronised — when it could not be read.
@@ -116,4 +146,14 @@ export interface DashboardApi {
    * @returns The count, or that it could not be taken; never a zero standing in for a failed read.
    */
   attentionCount: (signal?: AbortSignal) => Promise<DashboardSection<number>>
+  /**
+   * Opens the live dashboard stream and delivers each frame to its handler until the connection
+   * ends. Frames of a name this SPA does not know are dropped (the vocabulary is additive).
+   * @param handlers Where each kind of frame goes.
+   * @param since The instant of the newest reading already held (an ISO 8601 string), so the panel
+   * back-fills only what is missing; `null` on the first connection of a visit.
+   * @param signal Abort signal that closes the stream and releases its connection.
+   * @returns Resolves when the stream ended or was aborted; rejects when it could not be opened.
+   */
+  openLive: (handlers: LiveDashboardHandlers, since: string | null, signal: AbortSignal) => Promise<void>
 }

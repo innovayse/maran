@@ -1,4 +1,5 @@
 using Maran.Agent.Client.Interfaces;
+using Maran.Modules.Accounts.Models;
 
 namespace Maran.Modules.Accounts.Services;
 
@@ -65,22 +66,28 @@ public sealed class AccountDiskQuotaEnforcer
     }
 
     /// <summary>
-    /// Writes a quota to every account on the host. The agent's quota call replaces rather than
-    /// increments, so repeating a call that failed part-way converges.
+    /// Writes a disk quota to every account on the host, each with the inode ceiling it states for
+    /// itself. The agent's quota call replaces blocks and inodes together and keeps no record of the
+    /// inode figure, so an account's own ceiling is stated on every push, or the push would remove it.
+    /// The call replaces rather than increments, so repeating one that failed part-way converges.
     /// </summary>
-    /// <param name="accountNames">The accounts' system user names.</param>
+    /// <param name="accounts">The accounts, each with what it states in place of the plan's.</param>
     /// <param name="quotaMb">The quota to apply, in megabytes.</param>
     /// <param name="cancellationToken">Cancels the work.</param>
     /// <returns><c>null</c> once every account holds the quota, or the agent's typed failure that stopped it.</returns>
     public async Task<Error?> ApplyAsync(
-        IReadOnlyList<string> accountNames,
+        IReadOnlyList<AccountLimitTarget> accounts,
         int quotaMb,
         CancellationToken cancellationToken)
     {
         var quotaBytes = QuotaBytes(quotaMb);
-        foreach (var accountName in accountNames)
+        foreach (var account in accounts)
         {
-            var applied = await _agent.SetQuotaAsync(accountName, quotaBytes, cancellationToken);
+            var applied = await _agent.SetQuotaAsync(
+                account.Name,
+                quotaBytes,
+                (ulong?)account.Overrides.InodeLimit,
+                cancellationToken);
             if (!applied.IsSuccess)
             {
                 return applied.Error!;

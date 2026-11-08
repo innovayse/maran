@@ -63,6 +63,7 @@ public sealed class ResilientAgentBackupClient : IAgentBackupClient
         AgentBackupDestination destination,
         string expectedSha256,
         IReadOnlyList<string> allowedDatabases,
+        AgentRestoreScope scope,
         CancellationToken cancellationToken)
     {
         return _inner.RestoreAsync(
@@ -71,6 +72,7 @@ public sealed class ResilientAgentBackupClient : IAgentBackupClient
             destination,
             expectedSha256,
             allowedDatabases,
+            scope,
             cancellationToken);
     }
 

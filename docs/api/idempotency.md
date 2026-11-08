@@ -3,7 +3,7 @@
 A client that loses a connection after sending a request cannot tell whether the panel acted. An
 idempotency key lets it send the same request again and get the first answer back instead of acting a
 second time (issue #136). It applies only to the endpoints listed below, and only when the client sends
-the header.
+the header, except on the reseller API writes, which refuse a request that lacks it.
 
 ## The header
 
@@ -12,7 +12,8 @@ the header.
 - 1 to 255 characters from `A-Z a-z 0-9 _ - : .`. Anything else, an empty value, or the header sent
   twice is refused with `400` and the code `IdempotencyKeyInvalid`, before anything is stored. A
   random UUID is a good key.
-- Without the header the request runs exactly as it did before.
+- Without the header the request runs exactly as it did before, except on the reseller API writes (see
+  "Endpoints that accept it"), which are refused.
 - A key belongs to the caller that sent it: it is stored with the signed-in login's id (or an API
   key's id), so another caller sending the same value is a different key and can never read this
   caller's stored answer. Use a fresh key for each distinct operation.
@@ -73,7 +74,8 @@ is still the action's own answer, not a `500`; the key then stays reserved until
 
 ## Endpoints that accept it
 
-All of them are in `api/v1/accounts` (`AccountsController`), for administrators and resellers:
+The panel's own account routes in `api/v1/accounts` (`AccountsController`), for administrators and
+resellers signed in with a login, where the header is optional:
 
 | Endpoint | Operation |
 |---|---|
@@ -83,5 +85,19 @@ All of them are in `api/v1/accounts` (`AccountsController`), for administrators 
 | `PUT api/v1/accounts/{id}/plan` | change an account's plan |
 | `DELETE api/v1/accounts/{id}` | delete an account |
 
+The reseller API writes in `api/v1/reseller-api/` (the provisioning API, called with a reseller's API
+key), where the header is **required**: a request without it is refused `400` with the code
+`IdempotencyKeyRequired` before anything runs, because an integration retries unattended and a retried
+create without a key can create two accounts. The key is stored under the API key's id
+([provisioning.md](provisioning.md) has the whole contract of these routes):
+
+| Endpoint | Operation |
+|---|---|
+| `POST api/v1/reseller-api/accounts` | create an account |
+| `POST api/v1/reseller-api/accounts/{id}/suspend` | suspend an account |
+| `POST api/v1/reseller-api/accounts/{id}/reactivate` | lift a suspension |
+| `PUT api/v1/reseller-api/accounts/{id}/plan` | change an account's plan |
+| `DELETE api/v1/reseller-api/accounts/{id}` | terminate an account |
+
 None of these answers carries a credential, which is why they may be stored. Every other endpoint
-ignores the header.
+ignores the header, and the reads of the reseller API take none.

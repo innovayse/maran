@@ -6,7 +6,9 @@ namespace Maran.Host.Resources;
 /// are reached through <c>IStringLocalizer&lt;T&gt;</c>"). It carries the user-facing names of the
 /// vocabulary the COMPOSITION ROOT owns rather than any module: one
 /// <c>LicenceTier&lt;Member&gt;</c> entry per <see cref="Maran.Sdk.Contracts.LicenceTier"/> member,
-/// resolved by <see cref="Modules.LicenceTierDisplayNames"/> for the module catalogue.
+/// resolved by <see cref="Modules.LicenceTierDisplayNames"/> for the module catalogue, and one
+/// <c>ModuleKind&lt;Member&gt;</c> entry per <see cref="Maran.Sdk.Contracts.ModuleKind"/> member, resolved by
+/// <see cref="Modules.ModuleKindDisplayNames"/>.
 /// </summary>
 /// <remarks>
 /// Separate from <see cref="ErrorMessages"/> on purpose, one file per purpose (rules/csharp.md):

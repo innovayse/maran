@@ -1,0 +1,30 @@
+; Rendered by Maran. Do not edit: this file is replaced whenever the agent starts
+; and whenever a PHP version is installed.
+;
+; One php-fpm master serves every account's pool of a version, so the OPcache
+; shared memory below is shared by every tenant of that version. The lines
+; marked "isolation" are what keeps one tenant from reading another's cached
+; scripts or from steering the shared cache.
+opcache.enable=1
+opcache.enable_cli=0
+; isolation: a cached script is served to a process only if that process could
+; itself read the file, so a pool never receives another account's code.
+opcache.validate_permission=1
+; isolation: scripts are keyed by their root as well as their path, so entries
+; from different roots with the same relative path cannot collide.
+opcache.validate_root=1
+; isolation: only scripts whose path starts with this prefix may call
+; opcache_reset(), opcache_invalidate() or opcache_get_status(), the last of
+; which lists other accounts' cached file paths. The prefix names a directory no
+; account owns. An EMPTY value would mean "unrestricted", which is the opposite.
+opcache.restrict_api=/nonexistent-maran-opcache-api
+opcache.save_comments=1
+opcache.validate_timestamps=1
+opcache.revalidate_freq=2
+opcache.memory_consumption={{ memory_consumption_mib }}
+opcache.interned_strings_buffer={{ interned_strings_buffer_mib }}
+opcache.max_accelerated_files={{ max_accelerated_files }}
+{#
+  A comment rather than a blank line at the end, because askama removes the
+  file's final newline and a blank line is the first thing a tidy-up deletes.
+#}

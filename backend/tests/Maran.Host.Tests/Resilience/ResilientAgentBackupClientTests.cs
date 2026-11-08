@@ -107,7 +107,8 @@ public sealed class ResilientAgentBackupClientTests
 
         async Task DrainAsync()
         {
-            await using var drained = client.RestoreAsync("alice", "b1", Local(), "deadbeef", [], default)
+            await using var drained = client.RestoreAsync(
+                "alice", "b1", Local(), "deadbeef", [], new AgentWholeRestoreScope(), default)
                 .GetAsyncEnumerator();
             while (await drained.MoveNextAsync())
             {

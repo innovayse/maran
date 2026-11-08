@@ -5,6 +5,7 @@ using Maran.Modules.Identity.Models;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
 using Maran.SharedKernel.Security;
+using Maran.SharedKernel.Utilities.Text;
 using Maran.SharedKernel.Utilities.Tokens;
 
 namespace Maran.Modules.Identity.Services;
@@ -54,9 +55,6 @@ namespace Maran.Modules.Identity.Services;
 /// </remarks>
 public sealed class AdminRecoveryIssuer
 {
-    /// <summary>The longest operator-name claim written to the journal.</summary>
-    private const int OperatorClaimMaxLength = 64;
-
     /// <summary>The module's database context.</summary>
     private readonly IdentityDbContext _dbContext;
 
@@ -119,7 +117,7 @@ public sealed class AdminRecoveryIssuer
         CancellationToken cancellationToken)
     {
         var now = _clock.UtcNow;
-        var claim = TidyClaim(operatorClaim);
+        var claim = OperatorClaim.Tidy(operatorClaim);
 
         var user = identifier.Contains('@', StringComparison.Ordinal)
             ? await _dbContext.Users.SingleOrDefaultAsync(candidate => candidate.Email == identifier, cancellationToken)
@@ -190,22 +188,5 @@ public sealed class AdminRecoveryIssuer
                     !_links.HasPublicAddress,
                     issued.ExpiresAt,
                     clearTwoFactor && hadTwoFactor)));
-    }
-
-    /// <summary>Drops control characters from the operator's claimed name and bounds its length.</summary>
-    /// <param name="operatorClaim">The name as the console reported it.</param>
-    /// <returns>The claim safe to write to a log-like column; <c>unknown</c> when nothing usable remains.</returns>
-    private static string TidyClaim(string operatorClaim)
-    {
-        var cleaned = new string(operatorClaim.Where(character =>
-        {
-            return !char.IsControl(character);
-        }).ToArray()).Trim();
-        if (cleaned.Length > OperatorClaimMaxLength)
-        {
-            cleaned = cleaned[..OperatorClaimMaxLength];
-        }
-
-        return cleaned.Length == 0 ? "unknown" : cleaned;
     }
 }

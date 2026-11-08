@@ -1,11 +1,13 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Accounts.Domain.ValueObjects;
 using Maran.Modules.Accounts.Mappers;
+using Maran.Modules.Accounts.Models;
 
 namespace Maran.Modules.Accounts.Services;
 
 /// <summary>
-/// The module's one way of putting a plan's <see cref="RuntimeLimits"/> on the host: asked when an
+/// The module's one way of putting an account's runtime ceilings on the host: a plan's
+/// <see cref="RuntimeLimits"/>, or the account's own where it states one. Asked when an
 /// account is created (<c>CreateAccountCommandHandler</c>), when a plan's ceilings are edited
 /// (<c>UpdatePlanCommandHandler</c>) and when one account moves to another plan
 /// (<c>ChangeAccountPlanCommandHandler</c>).
@@ -27,6 +29,13 @@ namespace Maran.Modules.Accounts.Services;
 /// running workload is told so on the plan form.
 /// </para>
 /// <para>
+/// <b>What an account holds is its own override, else its plan's.</b> The process ceiling an account
+/// states for itself (<see cref="AccountLimitOverrides"/>) replaces the plan's for that account, so
+/// every push here is made per account from <see cref="AccountLimitTarget"/> and a plan change or edit
+/// can never erase the choice from the host. The same service puts an account's open-files ceiling on
+/// the host, the other per-account figure the agent keeps no record of.
+/// </para>
+/// <para>
 /// <b>Agent first, row second</b>, the order every handler in this module uses: a failure part-way
 /// leaves the plan row as it was and reports the agent's code, and repeating the edit converges,
 /// because the agent replaces all three ceilings on every call.
@@ -44,20 +53,20 @@ public sealed class AccountRuntimeLimitsEnforcer
         _agent = agent;
     }
 
-    /// <summary>Holds every named account's slice to <paramref name="limits"/>.</summary>
-    /// <param name="accountNames">The accounts' system user names.</param>
-    /// <param name="limits">The ceilings to apply.</param>
+    /// <summary>Holds every account's slice to its own ceilings, else <paramref name="planLimits"/>.</summary>
+    /// <param name="accounts">The accounts, each with what it states in place of the plan's.</param>
+    /// <param name="planLimits">The ceilings of the plan the accounts are on.</param>
     /// <param name="cancellationToken">Cancels the work.</param>
-    /// <returns><c>null</c> once every account holds the ceilings, or the agent's typed failure that stopped it.</returns>
+    /// <returns><c>null</c> once every account holds its ceilings, or the agent's typed failure that stopped it.</returns>
     public async Task<Error?> ApplyAsync(
-        IReadOnlyList<string> accountNames,
-        RuntimeLimits limits,
+        IReadOnlyList<AccountLimitTarget> accounts,
+        RuntimeLimits planLimits,
         CancellationToken cancellationToken)
     {
-        var sliceLimits = RuntimeLimitsMapper.ToAgent(limits);
-        foreach (var accountName in accountNames)
+        foreach (var account in accounts)
         {
-            var applied = await _agent.SetResourceLimitsAsync(accountName, sliceLimits, cancellationToken);
+            var sliceLimits = RuntimeLimitsMapper.ToAgent(account.Overrides.ApplyTo(planLimits));
+            var applied = await _agent.SetResourceLimitsAsync(account.Name, sliceLimits, cancellationToken);
             if (!applied.IsSuccess)
             {
                 return applied.Error!;
@@ -65,5 +74,29 @@ public sealed class AccountRuntimeLimitsEnforcer
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Puts the account's open-files ceiling on the host when it states one. An account that follows
+    /// its plan is left alone: a plan states no such ceiling, and a new account has no drop-in to
+    /// remove.
+    /// </summary>
+    /// <param name="accountName">The account's system user name.</param>
+    /// <param name="overrides">What the account states in place of its plan's.</param>
+    /// <param name="cancellationToken">Cancels the work.</param>
+    /// <returns><c>null</c> once the host holds the ceiling (or needed nothing), or the agent's typed failure.</returns>
+    public async Task<Error?> ApplyOpenFilesAsync(
+        string accountName,
+        AccountLimitOverrides overrides,
+        CancellationToken cancellationToken)
+    {
+        if (overrides.OpenFilesLimit is not { } openFiles)
+        {
+            return null;
+        }
+
+        var applied = await _agent.SetOpenFilesLimitAsync(accountName, (ulong)openFiles, cancellationToken);
+
+        return applied.IsSuccess ? null : applied.Error!;
     }
 }

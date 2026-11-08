@@ -6,7 +6,7 @@ import { stubBackupSchedules } from '../fixtures/stub-backup-schedule-routes'
 import { stubBackups } from '../fixtures/stub-backups-routes'
 import { certificateFor, CERTIFICATE_SITE_ID, stubCertificates } from '../fixtures/stub-certificates-routes'
 import { stubCronEntries, stubCronEnvironment } from '../fixtures/stub-cron-routes'
-import { loaded, stubDashboard, SYNCHRONIZED_CLOCK } from '../fixtures/stub-dashboard-route'
+import { ALERT_DELIVERY_OK, loaded, stubDashboard, SYNCHRONIZED_CLOCK } from '../fixtures/stub-dashboard-route'
 import { stubDatabaseGrants } from '../fixtures/stub-database-grant-routes'
 import { stubDatabases } from '../fixtures/stub-databases-routes'
 import { stubFirewall } from '../fixtures/stub-firewall-routes'
@@ -81,7 +81,7 @@ const MODULES: PanelModule[] = [
   'monitoring',
   'tasks',
 ].map((name) => {
-  return { name, displayName: name, tier: 'included', state: 'enabled' }
+  return { name, displayName: name, kindDisplayName: 'Core', tier: 'included', state: 'enabled' }
 })
 
 // Long on purpose: the longest value a customer is plausibly to type, with no break opportunity
@@ -128,6 +128,7 @@ const SITE: Site = {
   status: 'enabled',
   statusName: 'Enabled',
   createdAt: '2026-08-01T10:00:00Z',
+  logRetentionDays: 14,
 }
 
 const SITE_DETAIL: SiteDetail = {
@@ -166,7 +167,7 @@ const DASHBOARD: Dashboard = {
     sites: loaded(27),
     databases: loaded(14),
   },
-  attention: { certificatesExpiringSoon: loaded(2), failedBackups: loaded(5), bannedAddresses: loaded(9), failedTasks: loaded(6), clock: SYNCHRONIZED_CLOCK },
+  attention: { certificatesExpiringSoon: loaded(2), failedBackups: loaded(5), sitesOnEndOfLifePhp: loaded(0), alertDelivery: ALERT_DELIVERY_OK, bannedAddresses: loaded(9), failedTasks: loaded(6), clock: SYNCHRONIZED_CLOCK },
   recentAudit: loaded([
     {
       id: '11111111-1111-1111-1111-111111111111',
@@ -382,6 +383,7 @@ const DESTINATIONS: BackupDestination[] = [
     kind: 'local',
     path: '/var/backups/maran/very/deeply/nested/directory/of/customer-copies/archive',
     isDefault: true,
+    encryptArchives: false,
     createdAt: '2026-09-01T09:00:00Z',
   },
   {
@@ -391,6 +393,7 @@ const DESTINATIONS: BackupDestination[] = [
     kind: 's3',
     path: null,
     isDefault: false,
+    encryptArchives: false,
     createdAt: '2026-09-02T09:00:00Z',
   },
 ]

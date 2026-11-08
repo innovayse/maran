@@ -47,6 +47,24 @@ internal sealed class StubDbService : IDbServiceInvoker
     /// <summary>The last grant-repair request the stub received, for asserting the report-only flag.</summary>
     public RepairDatabaseGrantsRequest? LastRepairGrantsRequest { get; private set; }
 
+    /// <summary>The answer returned for a <c>CreateDatabaseUser</c> call.</summary>
+    public CreateDatabaseUserResponse CreateUserResponse { get; set; } = new();
+
+    /// <summary>The last <c>CreateDatabaseUser</c> request received.</summary>
+    public CreateDatabaseUserRequest? LastCreateUserRequest { get; private set; }
+
+    /// <summary>The answer returned for a <c>DropDatabaseUser</c> call.</summary>
+    public DropDatabaseUserResponse DropUserResponse { get; set; } = new();
+
+    /// <summary>The last <c>DropDatabaseUser</c> request received.</summary>
+    public DropDatabaseUserRequest? LastDropUserRequest { get; private set; }
+
+    /// <summary>The answer returned for a <c>SetDatabaseUserPrivileges</c> call.</summary>
+    public SetDatabaseUserPrivilegesResponse SetPrivilegesResponse { get; set; } = new();
+
+    /// <summary>The last <c>SetDatabaseUserPrivileges</c> request received.</summary>
+    public SetDatabaseUserPrivilegesRequest? LastSetPrivilegesRequest { get; private set; }
+
     /// <summary>Builds a stub whose creation call fails with the agent's own words.</summary>
     /// <param name="code">The failure category the agent reports.</param>
     /// <param name="message">The agent's operator-facing sentence.</param>
@@ -102,6 +120,33 @@ internal sealed class StubDbService : IDbServiceInvoker
     {
         LastSetPasswordRequest = request;
         return Task.FromResult(SetPasswordResponse);
+    }
+
+    /// <inheritdoc/>
+    public Task<CreateDatabaseUserResponse> CreateDatabaseUserAsync(
+        CreateDatabaseUserRequest request,
+        CancellationToken cancellationToken)
+    {
+        LastCreateUserRequest = request;
+        return Task.FromResult(CreateUserResponse);
+    }
+
+    /// <inheritdoc/>
+    public Task<DropDatabaseUserResponse> DropDatabaseUserAsync(
+        DropDatabaseUserRequest request,
+        CancellationToken cancellationToken)
+    {
+        LastDropUserRequest = request;
+        return Task.FromResult(DropUserResponse);
+    }
+
+    /// <inheritdoc/>
+    public Task<SetDatabaseUserPrivilegesResponse> SetDatabaseUserPrivilegesAsync(
+        SetDatabaseUserPrivilegesRequest request,
+        CancellationToken cancellationToken)
+    {
+        LastSetPrivilegesRequest = request;
+        return Task.FromResult(SetPrivilegesResponse);
     }
 
     /// <inheritdoc/>

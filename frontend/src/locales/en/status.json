@@ -24,13 +24,18 @@
         "backups": "backup failed | backups failed",
         "tasks": "task failed | tasks failed",
         "bans": "address banned | addresses banned",
+        "endOfLifePhp": "site on end-of-life PHP | sites on end-of-life PHP",
         "clock": "Server clock not synchronised",
+        "alertMail": "Alert mail could not be delivered",
+        "alertWebhook": "The alert webhook could not be delivered",
         "unchecked": {
           "certificates": "Certificates could not be checked",
           "backups": "Backups could not be checked",
           "tasks": "Tasks could not be checked",
           "bans": "Banned addresses could not be checked",
-          "clock": "The clock could not be checked"
+          "endOfLifePhp": "Sites on end-of-life PHP could not be checked",
+          "clock": "The clock could not be checked",
+          "alertDelivery": "Alert delivery could not be checked"
         }
       },
       "audit": {
@@ -46,8 +51,7 @@
         "title": "Quick actions",
         "createAccount": "Create an account",
         "addSite": "Add a site",
-        "createDatabase": "Create a database",
-        "backups": "Open the backups"
+        "createDatabase": "Create a database"
       },
       "customerArea": {
         "title": "Your account",

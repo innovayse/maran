@@ -44,6 +44,9 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     /// <summary>The worker budgets handed to <see cref="ChangePhpVersionAsync"/>, in order.</summary>
     public List<uint> MaxChildren { get; } = [];
 
+    /// <summary>The PHP settings handed to <see cref="CreateAsync"/> and <see cref="ChangePhpVersionAsync"/>, in order.</summary>
+    public List<IReadOnlyList<PhpSettingDto>> SettingOverrides { get; } = [];
+
     /// <summary>The cancellation tokens the handlers forwarded, in order.</summary>
     /// <remarks>
     /// A handler that passes <c>CancellationToken.None</c> instead of the request own token turns
@@ -78,6 +81,7 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     {
         Calls.Add($"create:{accountUsername}:{domain}:{kind}:{phpVersion}:{string.Join('|', aliases)}:{maxChildren}");
         Tokens.Add(cancellationToken);
+        SettingOverrides.Add(settingOverrides);
         var failure = CreateFailure ?? _failure;
         return Task.FromResult(failure is null
             ? Result<CreatedSiteDto>.Ok(new CreatedSiteDto($"/home/{accountUsername}/sites/{domain}"))
@@ -99,6 +103,7 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
         Tokens.Add(cancellationToken);
         Descriptors.Add(site);
         MaxChildren.Add(maxChildren);
+        SettingOverrides.Add(settingOverrides);
         if (ChangePhpThrowingDomains.Contains(domain))
         {
             throw new InvalidOperationException($"The agent is unreachable for {domain}.");
@@ -171,6 +176,57 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
         }
 
         await Task.CompletedTask;
+    }
+
+    /// <summary>The readings <see cref="SummariseTrafficAsync"/> answers with, one per call, in order.</summary>
+    /// <remarks>Once empty, a call answers a reading with no days that is caught up.</remarks>
+    public Queue<Result<SiteTrafficReading>> TrafficReadings { get; } = new();
+
+    /// <summary>The cursors handed to <see cref="SummariseTrafficAsync"/>, in order; null for a first read.</summary>
+    public List<SiteTrafficCursor?> TrafficCursors { get; } = [];
+
+    /// <summary>When set, every <see cref="SummariseTrafficAsync"/> for these domains throws instead of answering.</summary>
+    public HashSet<string> TrafficThrowingDomains { get; } = [];
+
+    /// <summary>How many archives <see cref="PruneLogsAsync"/> reports having removed.</summary>
+    public uint PruneRemovedFiles { get; set; }
+
+    /// <summary>When set, <see cref="PruneLogsAsync"/> refuses with this error.</summary>
+    public Error? PruneFailure { get; set; }
+
+    /// <inheritdoc/>
+    public Task<Result<SiteTrafficReading>> SummariseTrafficAsync(
+        string accountUsername,
+        string domain,
+        SiteTrafficCursor? cursor,
+        CancellationToken cancellationToken)
+    {
+        Calls.Add($"summarise:{accountUsername}:{domain}");
+        Tokens.Add(cancellationToken);
+        TrafficCursors.Add(cursor);
+        if (TrafficThrowingDomains.Contains(domain))
+        {
+            throw new InvalidOperationException($"The agent is unreachable for {domain}.");
+        }
+
+        return Task.FromResult(TrafficReadings.Count > 0
+            ? TrafficReadings.Dequeue()
+            : Result<SiteTrafficReading>.Ok(
+                new SiteTrafficReading([], cursor ?? new SiteTrafficCursor("0:0:none", 0), true, false, 0)));
+    }
+
+    /// <inheritdoc/>
+    public Task<Result<PrunedSiteLogs>> PruneLogsAsync(
+        string accountUsername,
+        string domain,
+        uint retainRotations,
+        CancellationToken cancellationToken)
+    {
+        Calls.Add($"prune:{accountUsername}:{domain}:{retainRotations}");
+        Tokens.Add(cancellationToken);
+        return Task.FromResult(PruneFailure is null
+            ? Result<PrunedSiteLogs>.Ok(new PrunedSiteLogs(PruneRemovedFiles))
+            : Result<PrunedSiteLogs>.Fail(PruneFailure));
     }
 
     /// <summary>How many times the batch web-server reload was asked for.</summary>

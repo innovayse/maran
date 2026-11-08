@@ -10,6 +10,13 @@ public static class ApiKeyLimits
     /// <summary>The most keys the panel holds at once, revoked and expired ones included.</summary>
     public const int MaxKeys = 100;
 
+    /// <summary>
+    /// The most working keys (not revoked, not expired) ONE reseller may hold at once. Per reseller and
+    /// separate from <see cref="MaxKeys"/>, so a reseller can neither fill the administrator's ceiling
+    /// nor another reseller's.
+    /// </summary>
+    public const int MaxKeysPerReseller = 20;
+
     /// <summary>The longest a key's display name may be, in characters.</summary>
     public const int MaxNameLength = 64;
 

@@ -93,6 +93,15 @@ public static class IdentityAuditActions
     public const string CustomerInvited = "CustomerInvited";
 
     /// <summary>
+    /// A hosting account's owner was given a login whose first password the person creating the account
+    /// chose, instead of an invitation. A distinct action from <see cref="CustomerInvited"/> on purpose:
+    /// the administrator knows a credential until the owner replaces it at their first sign-in, and an
+    /// auditor reading the journal must be able to tell that from a mailed invitation. The subject is the
+    /// customer's login name; the entry never carries the password or its hash.
+    /// </summary>
+    public const string CustomerCreatedWithPassword = "CustomerCreatedWithPassword";
+
+    /// <summary>
     /// A reseller's contact was sent an invitation to set the first password of the reseller's login,
     /// when the reseller was created. A distinct action from <see cref="CustomerInvited"/> because the
     /// login is a different kind of principal: an auditor reading the journal should be able to tell
@@ -133,6 +142,12 @@ public static class IdentityAuditActions
 
     /// <summary>A user removed a page of the navigation from their app bar; the subject is its key.</summary>
     public const string PageUnpinned = "PageUnpinned";
+
+    /// <summary>
+    /// A person saved their dashboard layout: which widgets and shortcuts the dashboard draws, and in
+    /// what order. The subject counts the entries of each list; it never names a widget.
+    /// </summary>
+    public const string DashboardLayoutSaved = "DashboardLayoutSaved";
 
     /// <summary>
     /// An account's owner invited a person to act for the account with a limited set of features; the

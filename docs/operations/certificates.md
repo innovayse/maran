@@ -60,6 +60,24 @@ once:
   written to the audit journal. The alert is still recorded as raised, so it is not repeated once
   mail is configured; the journal entry is where the operator learns it was missed.
 
+## The panel's own certificate from the console
+
+The administrator orders the panel's own certificate from the interface. When the interface cannot
+be used, the same operation runs from the server's shell:
+
+```
+sudo maran issue-panel-certificate
+```
+
+It takes no argument: the host name is the one in `panel.env` (`Panel__HostName`), and a panel with no
+usable name (empty, the installer's placeholder, `localhost`) is refused before anything is ordered.
+It orders from the configured authority, installs the pair the interface is served with and records
+it, so the daily sweep renews it from then on. Running it again renews the certificate now. A failure
+at any step leaves the pair the panel was serving as it was, and the exit status says which kind it
+was: 3 for a refusal (no host name), 69 when the agent or the authority could not be reached, 1 for a
+failure. The run is written to the audit journal as `CertificateIssued`, with the operator named by
+`SUDO_USER` recorded as an unverified claim.
+
 ## What is not done
 
 - **DNS-01 and wildcard certificates.** The panel validates domains over HTTP only. Wildcards need

@@ -194,11 +194,12 @@ public sealed class AccountBackupServiceTests
             var dbContext = BackupsTestContext.CreateSeeded(_currentUser, _database);
 
             Service = new AccountBackupService(
-                dbContext,
-                BackupRunnerFactory.Create(Agent, Tasks, dbContext, _currentUser, Audit, new FakeClock(Now)),
-                new BackupDestinationResolver(dbContext),
-                new BackupAuditJournal(Audit, _currentUser),
-                new FakeClock(Now));
+                new SafetyBackupService(
+                    dbContext,
+                    BackupRunnerFactory.Create(Agent, Tasks, dbContext, _currentUser, Audit, new FakeClock(Now)),
+                    new BackupDestinationResolver(dbContext),
+                    new BackupAuditJournal(Audit, _currentUser),
+                    new FakeClock(Now)));
         }
 
         /// <summary>Assembles a world for one account.</summary>

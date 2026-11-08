@@ -1,14 +1,15 @@
 using System.Resources;
-using Grpc.Net.Client;
-using Maran.Agent.Client.Channels;
+using Maran.Agent.Client.Extensions;
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.AccountsService;
 using Maran.Agent.Client.Services.BackupService;
 using Maran.Agent.Client.Services.CronService;
 using Maran.Agent.Client.Services.DbService;
+using Maran.Agent.Client.Services.DnsService;
 using Maran.Agent.Client.Services.FilesService;
 using Maran.Agent.Client.Services.FirewallService;
 using Maran.Agent.Client.Services.FtpsService;
+using Maran.Agent.Client.Services.MailService;
 using Maran.Agent.Client.Services.MonitorService;
 using Maran.Agent.Client.Services.PhpService;
 using Maran.Agent.Client.Services.SftpService;
@@ -31,7 +32,8 @@ public static class DependencyInjection
     private const string ErrorMessagesResourceBaseName = "Maran.Agent.Client.Resources.ErrorMessages";
 
     /// <summary>
-    /// Registers the typed agent clients over one shared unix-socket channel.
+    /// Registers the typed agent clients over the routed channel pool (the local unix socket unless a
+    /// registry of servers supplies others).
     /// </summary>
     /// <param name="services">The application service collection.</param>
     /// <param name="socketPath">
@@ -41,102 +43,113 @@ public static class DependencyInjection
     /// <returns>The same collection, for chaining.</returns>
     public static IServiceCollection AddAgentClient(this IServiceCollection services, string socketPath)
     {
-        // The channel is its own singleton so the container owns its lifetime and disposes it on
-        // shutdown; every future per-service client resolves this one channel rather than opening
-        // a second connection to the same socket.
-        services.AddSingleton(_ =>
-        {
-            return AgentChannel.CreateUnixSocket(socketPath);
-        });
+        // Routing owns the channels: the pool is a singleton the container disposes on shutdown, and
+        // every per-service client asks IAgentChannels for the channel of the server the current
+        // call targets instead of holding one connection of its own.
+        services.AddAgentRouting(socketPath);
         services.AddSingleton<IAgentAccountsClient>(
             provider =>
             {
                 return new AgentAccountsClient(
-                    provider.GetRequiredService<GrpcChannel>(),
+                    provider.GetRequiredService<IAgentChannels>(),
                     provider.GetRequiredService<ILogger<AgentAccountsClient>>());
             });
         services.AddSingleton<IAgentSitesClient>(
             provider =>
             {
                 return new AgentSitesClient(
-                    provider.GetRequiredService<GrpcChannel>(),
+                    provider.GetRequiredService<IAgentChannels>(),
                     provider.GetRequiredService<ILogger<AgentSitesClient>>());
             });
         services.AddSingleton<IAgentSslClient>(
             provider =>
             {
                 return new AgentSslClient(
-                    provider.GetRequiredService<GrpcChannel>(),
+                    provider.GetRequiredService<IAgentChannels>(),
                     provider.GetRequiredService<ILogger<AgentSslClient>>());
             });
         services.AddSingleton<IAgentPhpClient>(
             provider =>
             {
                 return new AgentPhpClient(
-                    provider.GetRequiredService<GrpcChannel>(),
+                    provider.GetRequiredService<IAgentChannels>(),
                     provider.GetRequiredService<ILogger<AgentPhpClient>>());
             });
         services.AddSingleton<IAgentFilesClient>(
             provider =>
             {
                 return new AgentFilesClient(
-                    provider.GetRequiredService<GrpcChannel>(),
+                    provider.GetRequiredService<IAgentChannels>(),
                     provider.GetRequiredService<ILogger<AgentFilesClient>>());
             });
         services.AddSingleton<IAgentDbClient>(
             provider =>
             {
                 return new AgentDbClient(
-                    provider.GetRequiredService<GrpcChannel>(),
+                    provider.GetRequiredService<IAgentChannels>(),
                     provider.GetRequiredService<ILogger<AgentDbClient>>());
             });
         services.AddSingleton<IAgentSftpClient>(
             provider =>
             {
                 return new AgentSftpClient(
-                    provider.GetRequiredService<GrpcChannel>(),
+                    provider.GetRequiredService<IAgentChannels>(),
                     provider.GetRequiredService<ILogger<AgentSftpClient>>());
             });
         services.AddSingleton<IAgentFtpsClient>(
             provider =>
             {
                 return new AgentFtpsClient(
-                    provider.GetRequiredService<GrpcChannel>(),
+                    provider.GetRequiredService<IAgentChannels>(),
                     provider.GetRequiredService<ILogger<AgentFtpsClient>>());
+            });
+        services.AddSingleton<IAgentMailClient>(
+            provider =>
+            {
+                return new AgentMailClient(
+                    provider.GetRequiredService<IAgentChannels>(),
+                    provider.GetRequiredService<ILogger<AgentMailClient>>());
             });
         services.AddSingleton<IAgentCronClient>(
             provider =>
             {
                 return new AgentCronClient(
-                    provider.GetRequiredService<GrpcChannel>(),
+                    provider.GetRequiredService<IAgentChannels>(),
                     provider.GetRequiredService<ILogger<AgentCronClient>>());
             });
         services.AddSingleton<IAgentFirewallClient>(
             provider =>
             {
                 return new AgentFirewallClient(
-                    provider.GetRequiredService<GrpcChannel>(),
+                    provider.GetRequiredService<IAgentChannels>(),
                     provider.GetRequiredService<ILogger<AgentFirewallClient>>());
             });
         services.AddSingleton<IAgentMonitorClient>(
             provider =>
             {
                 return new AgentMonitorClient(
-                    provider.GetRequiredService<GrpcChannel>(),
+                    provider.GetRequiredService<IAgentChannels>(),
                     provider.GetRequiredService<ILogger<AgentMonitorClient>>());
             });
         services.AddSingleton<IAgentBackupClient>(
             provider =>
             {
                 return new AgentBackupClient(
-                    provider.GetRequiredService<GrpcChannel>(),
+                    provider.GetRequiredService<IAgentChannels>(),
                     provider.GetRequiredService<ILogger<AgentBackupClient>>());
+            });
+        services.AddSingleton<IAgentDnsClient>(
+            provider =>
+            {
+                return new AgentDnsClient(
+                    provider.GetRequiredService<IAgentChannels>(),
+                    provider.GetRequiredService<ILogger<AgentDnsClient>>());
             });
         services.AddSingleton<IAgentSystemClient>(
             provider =>
             {
                 return new AgentSystemClient(
-                    provider.GetRequiredService<GrpcChannel>(),
+                    provider.GetRequiredService<IAgentChannels>(),
                     provider.GetRequiredService<ILogger<AgentSystemClient>>());
             });
 

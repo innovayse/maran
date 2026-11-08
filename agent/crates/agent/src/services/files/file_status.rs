@@ -37,10 +37,50 @@ pub fn to_agent_error(error: &FilesOpError) -> AgentError {
         FilesOpError::HomeUnusable
         | FilesOpError::DirectoryUnusable
         | FilesOpError::NotARegularFile => ErrorCode::ValidationFailed,
+        // The read-only operations (issue #166). A directory over the listing
+        // ceiling, or a file over the caller's limit, is its own code and not a
+        // validation failure: the panel tells "too large to open here" apart
+        // from "refused by containment" by the code, never by the message.
+        FilesOpError::TooLarge => ErrorCode::TooLarge,
+        // The agent's fixed bound on simultaneous browse operations is reached
+        // and nothing was started: a bounded resource of the agent, retryable.
+        FilesOpError::Saturated => ErrorCode::AgentSaturated,
+        // The mutating operations (issue #167). The destination name is taken
+        // and the operation never replaces: the same code as a create that finds
+        // its target, so the panel offers "choose another name".
+        FilesOpError::AlreadyExists => ErrorCode::AlreadyExists,
+        // The request was well formed and the tree is what refused it: the
+        // destination is on another filesystem (no copy fallback exists), the
+        // tree is deeper than the ceiling, a directory was needed where
+        // something else is, or a link, FIFO, socket or device sits where only
+        // files and directories are handled. The machine is fine.
+        FilesOpError::CrossesDevice
+        | FilesOpError::TooDeep
+        | FilesOpError::NotADirectory
+        | FilesOpError::UnsupportedEntry
+        | FilesOpError::NotOwned
+        | FilesOpError::IntoItself
+        | FilesOpError::InvalidTrashEntry => ErrorCode::ValidationFailed,
+        // An allowance the REQUEST stated (entries or bytes) was reached. Its
+        // own code, because "you asked for at most this many" is not a fault of
+        // the tree and not a bound of the agent (`Saturated`).
+        FilesOpError::LimitReached(_) => ErrorCode::LimitReached,
+        // The account's disk quota (EDQUOT). Not the host-wide floor below and
+        // not a generic failure: the panel tells the customer to free space of
+        // their own.
+        FilesOpError::QuotaExceeded => ErrorCode::QuotaExceeded,
+        // An archive holds a member the agent will not write (issue #168): its own
+        // code, so the panel can word it for the customer. A file that is simply not
+        // the format stated is a validation failure: nothing hostile was found, the
+        // bytes are not what was said.
+        FilesOpError::ArchiveUnsafe => ErrorCode::ArchiveUnsafe,
+        FilesOpError::ArchiveUnreadable => ErrorCode::ValidationFailed,
         // The machine, or the privileged work on it, is what failed.
-        FilesOpError::Privilege(_) | FilesOpError::WriteFailed | FilesOpError::RemoveFailed => {
-            ErrorCode::SystemFailure
-        }
+        FilesOpError::Privilege(_)
+        | FilesOpError::WriteFailed
+        | FilesOpError::RemoveFailed
+        | FilesOpError::ReadFailed
+        | FilesOpError::MutationFailed => ErrorCode::SystemFailure,
         // The home filesystem is within the floor of full: nothing was written,
         // and the panel tells the operator to free space (issue #148).
         FilesOpError::FreeSpace(FloorRefusal::BelowFloor { .. }) => ErrorCode::BelowFreeSpaceFloor,

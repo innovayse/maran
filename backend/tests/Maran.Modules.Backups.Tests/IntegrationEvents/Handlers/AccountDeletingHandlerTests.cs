@@ -291,4 +291,35 @@ public sealed class AccountDeletingHandlerTests
     {
         return new BackupSchedule(Guid.NewGuid(), accountId, null, new DailyBackupCadence(3), 7);
     }
+
+    /// <summary>The deleted account's opt-out row goes with it, and another account's stays.</summary>
+    /// <remarks>
+    /// Asserted with the filter bypassed and from a different tenant's context, because the cascade runs
+    /// unattended; the bystander row is the control against a handler that dropped its <c>Where</c>.
+    /// </remarks>
+    [Fact]
+    public async Task The_deleted_accounts_opt_out_row_is_removed_and_another_accounts_stays()
+    {
+        var doomed = Guid.NewGuid();
+        var bystander = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+
+        await using (var seeding = BackupsTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            seeding.AccountBackupOptOuts.Add(new AccountBackupOptOut(doomed, BackupsTestContext.SeedInstant));
+            seeding.AccountBackupOptOuts.Add(new AccountBackupOptOut(bystander, BackupsTestContext.SeedInstant));
+            await seeding.SaveChangesAsync();
+        }
+
+        await using (var handling = BackupsTestContext.Create(FakeCurrentUser.Customer(Guid.NewGuid()), database))
+        {
+            await new AccountDeletingHandler(handling)
+                .HandleAsync(new AccountDeleting(doomed, "doomed"), CancellationToken.None);
+        }
+
+        await using var reading = BackupsTestContext.Create(FakeCurrentUser.Admin(), database);
+        var left = await reading.AccountBackupOptOuts.IgnoreQueryFilters().ToListAsync();
+
+        Assert.Equal([bystander], left.Select(row => { return row.AccountId; }));
+    }
 }

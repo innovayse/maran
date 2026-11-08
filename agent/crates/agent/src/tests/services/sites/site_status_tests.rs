@@ -143,6 +143,16 @@ fn a_document_root_outside_the_home_is_invalid_input_because_the_caller_named_it
 }
 
 #[test]
+fn options_that_do_not_fit_the_site_are_invalid_input_because_the_caller_sent_them() {
+    assert_eq!(
+        code_of(&SitesOpError::InvalidOptions(
+            maran_ops::sites::SiteOptionsError::BodySizeOnStaticSite
+        )),
+        ErrorCode::InvalidInput as i32
+    );
+}
+
+#[test]
 fn every_fault_of_this_machine_is_a_system_failure_and_none_of_them_is_reported_as_not_found() {
     for error in [
         SitesOpError::ReloadFailed {
@@ -162,6 +172,9 @@ fn every_fault_of_this_machine_is_a_system_failure_and_none_of_them_is_reported_
         },
         SitesOpError::LogUnreadable {
             path: "/home/alice/logs/example.com.access.log".to_owned(),
+        },
+        SitesOpError::AuthFile {
+            reason: "the web server's group could not be resolved".to_owned(),
         },
     ] {
         assert_eq!(code_of(&error), ErrorCode::SystemFailure as i32);
@@ -235,6 +248,10 @@ fn a_failure_that_ran_no_tool_carries_no_tool_output_at_all() {
         SitesOpError::RepeatedHostName {
             name: "example.com".to_owned(),
         },
+        SitesOpError::AuthFile {
+            reason: "could not list /etc/maran/nginx/auth".to_owned(),
+        },
+        SitesOpError::InvalidOptions(maran_ops::sites::SiteOptionsError::EmptyIpList),
     ] {
         assert!(to_agent_error(&error).tool_output.is_empty());
     }
@@ -350,4 +367,12 @@ fn the_bound_variant_is_mapped_by_name_ahead_of_the_wildcard() {
     // Positive control: the scan does find the wildcard it is measured against.
     let wildcard = wildcard.expect("the mapping ends in a wildcard arm");
     assert!(bound.expect("the bound variant has its own arm") < wildcard);
+}
+
+#[test]
+fn a_busy_traffic_summary_is_a_system_failure_the_panel_asks_again_later() {
+    let error = to_agent_error(&SitesOpError::TrafficBusy);
+
+    assert_eq!(error.code, ErrorCode::SystemFailure as i32);
+    assert!(error.tool_output.is_empty());
 }

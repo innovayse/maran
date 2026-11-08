@@ -100,4 +100,46 @@
   <data name="AlertClockUnsynchronizedResolvedBody">
     <value>Часы сервера снова синхронизированы с источником времени.</value>
   </data>
+  <data name="AlertCpuUsageRaisedSubject">
+    <value>Процессор сервера перегружен</value>
+  </data>
+  <data name="AlertCpuUsageRaisedBody">
+    <value>Процессор этого сервера загружен сильнее настроенного порога уже десять проверок подряд (сейчас {1}%). Найдите процесс, который его нагружает, или поднимите порог в настройках оповещений, если такая нагрузка нормальна.</value>
+  </data>
+  <data name="AlertCpuUsageResolvedSubject">
+    <value>Нагрузка на процессор сервера снизилась</value>
+  </data>
+  <data name="AlertCpuUsageResolvedBody">
+    <value>Нагрузка на процессор этого сервера снова ниже настроенного порога: {1}%.</value>
+  </data>
+  <data name="AlertMemoryUsageRaisedSubject">
+    <value>На сервере заканчивается память</value>
+  </data>
+  <data name="AlertMemoryUsageRaisedBody">
+    <value>На этом сервере используется больше памяти, чем задано порогом, уже десять проверок подряд (сейчас {1}%). Найдите, что её занимает, добавьте памяти или поднимите порог в настройках оповещений, если так и должно быть.</value>
+  </data>
+  <data name="AlertMemoryUsageResolvedSubject">
+    <value>Использование памяти на сервере снизилось</value>
+  </data>
+  <data name="AlertMemoryUsageResolvedBody">
+    <value>Использование памяти на этом сервере снова ниже настроенного порога: {1}%.</value>
+  </data>
+  <data name="AlertPanelUpdateRolledBackSubject">
+    <value>Автоматическое обновление безопасности панели не удалось и было отменено</value>
+  </data>
+  <data name="AlertPanelUpdateRolledBackBody">
+    <value>Панель попыталась обновиться с {0} до {1}, но обновление не удалось после переключения. Снова работает предыдущая версия. База данных не восстанавливалась. Выполните на сервере «maran update», чтобы повторить, или посмотрите журнал аудита.</value>
+  </data>
+  <data name="AlertPanelUpdateRollbackFailedSubject">
+    <value>Автоматическое обновление безопасности панели не удалось, панель может быть недоступна</value>
+  </data>
+  <data name="AlertPanelUpdateRollbackFailedBody">
+    <value>Панель попыталась обновиться с {0} до {1}. Обновление не удалось, и предыдущая версия тоже не стала работоспособной. Войдите на сервер и выполните «maran status», затем «maran rollback». База данных не восстанавливалась.</value>
+  </data>
+  <data name="AlertPanelUpdateInterruptedSubject">
+    <value>Автоматическое обновление безопасности панели было прервано</value>
+  </data>
+  <data name="AlertPanelUpdateInterruptedBody">
+    <value>Автоматическое обновление панели с {0} до {1} было прервано после переключения на новую версию. Войдите на сервер и выполните «maran rollback», чтобы вернуться к {0}, или «maran update», чтобы завершить.</value>
+  </data>
 </root>

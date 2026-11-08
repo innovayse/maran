@@ -35,6 +35,14 @@ public static class AccountAuditActions
     public const string AccountPlanChanged = "AccountPlanChanged";
 
     /// <summary>
+    /// An account was handed to another owner: a different reseller, or the administrator. Recorded on the
+    /// refusals too — above all the refusal because the new owner has no room for it. The subject is the
+    /// account's name, both owners (the administrator as <c>(administrator)</c>) and both plans, never a
+    /// translation.
+    /// </summary>
+    public const string AccountOwnerChanged = "AccountOwnerChanged";
+
+    /// <summary>
     /// An account's owner address was changed, and with it the address its login's invitation and
     /// password resets go to. The subject is the account's name; the addresses are not journalled,
     /// because the journal is never deleted and an address is personal data.
@@ -124,6 +132,15 @@ public static class AccountAuditActions
     public const string ResellerCreated = "ResellerCreated";
 
     /// <summary>
+    /// A reseller was renamed or its contact address or language was changed, and its login with it.
+    /// Recorded on the refusals too — a name another tenant holds is how one caller learns that it
+    /// exists. The subject is the reseller's name as it stood before the change; neither the new name
+    /// nor the addresses are journalled, because the journal is never deleted and an address is
+    /// personal data.
+    /// </summary>
+    public const string ResellerUpdated = "ResellerUpdated";
+
+    /// <summary>
     /// A reseller's envelope — what the administrator sold it — was changed. Recorded on the refusals
     /// too. The subject is the reseller's name; the figures are not journalled, because the journal
     /// is never deleted and the current envelope is readable from the row.
@@ -144,4 +161,12 @@ public static class AccountAuditActions
     /// refusal because accounts it owns still exist.
     /// </summary>
     public const string ResellerDeleted = "ResellerDeleted";
+
+    /// <summary>
+    /// A reseller replaced the name, logo and accent colour its customers' shell shows. Recorded on the
+    /// refusals too. The subject is the reseller's name; the values are not journalled, because the
+    /// journal is never deleted and the current branding is readable from the row (a logo is also
+    /// far too large to belong in a journal line).
+    /// </summary>
+    public const string ResellerBrandingChanged = "ResellerBrandingChanged";
 }

@@ -45,4 +45,13 @@
   <data name="TaskStatusFailed">
     <value>Не удалась</value>
   </data>
+  <data name="TasksMenuList">
+    <value>Фоновые задачи</value>
+  </data>
+  <data name="TasksRouteList">
+    <value>Фоновые задачи</value>
+  </data>
+  <data name="TaskKindPanelUpdate">
+    <value>Обновление панели</value>
+  </data>
 </root>

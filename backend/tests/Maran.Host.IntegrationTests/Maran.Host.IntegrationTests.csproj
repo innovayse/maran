@@ -20,6 +20,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The billing contract is the documentation's own file, replayed by BillingContractReplayTests. -->
+    <Content Include="..\..\..\docs\api\billing-contract\lifecycle.json" Link="BillingContract\lifecycle.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Maran.Host\Maran.Host.csproj" />
   </ItemGroup>
 

@@ -65,7 +65,13 @@ public sealed class AuditActionDisplayNameTests
                 "The actor name of the module's unattended entries, not an action.",
             ["Maran.Modules.Backups.Services.BackupAuditJournal.ModuleName"] =
                 "The actor name of the module's unattended entries, not an action.",
+            ["Maran.Modules.Files.Services.FilesAuditJournal.ModuleName"] =
+                "The actor name of the module's unattended entries, not an action.",
+            ["Maran.Modules.Updates.Services.UpdatesAuditJournal.ModuleName"] =
+                "The actor name of the module's unattended entries, not an action.",
             ["Maran.Modules.Notifications.Services.NotificationsAuditJournal.ModuleName"] =
+                "The actor name of the module's unattended entries, not an action.",
+            ["Maran.Modules.Sites.Services.SiteAuditJournal.ModuleName"] =
                 "The actor name of the module's unattended entries, not an action.",
             ["Maran.Modules.Firewall.Services.FirewallAuditJournal.SystemActor"] =
                 "The actor recorded for an automatic ban, not an action.",

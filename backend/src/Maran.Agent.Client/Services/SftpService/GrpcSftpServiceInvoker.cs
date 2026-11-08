@@ -6,14 +6,24 @@ namespace Maran.Agent.Client.Services.SftpService;
 /// <summary>Production <see cref="ISftpServiceInvoker"/> backed by the generated gRPC client.</summary>
 internal sealed class GrpcSftpServiceInvoker : ISftpServiceInvoker
 {
-    /// <summary>The generated gRPC client this adapter wraps.</summary>
-    private readonly Maran.Agent.V1.SftpService.SftpServiceClient _client;
+    /// <summary>Where the channel for the server the current call is aimed at comes from.</summary>
+    private readonly IAgentChannels _channels;
 
-    /// <summary>Wraps <paramref name="client"/> behind the <see cref="ISftpServiceInvoker"/> seam.</summary>
-    /// <param name="client">The generated client to delegate calls to.</param>
-    public GrpcSftpServiceInvoker(Maran.Agent.V1.SftpService.SftpServiceClient client)
+    /// <summary>Wraps <paramref name="channels"/> behind the <see cref="ISftpServiceInvoker"/> seam.</summary>
+    /// <param name="channels">Hands out the channel of the server each call is aimed at.</param>
+    public GrpcSftpServiceInvoker(IAgentChannels channels)
     {
-        _client = client;
+        _channels = channels;
+    }
+
+    /// <summary>
+    /// A generated client over the channel of the server the current call is aimed at, built per use.
+    /// Building it is cheap (it holds the channel and nothing else), and building it per call is what
+    /// lets one invoker serve every server: the target is read when the call starts, never earlier.
+    /// </summary>
+    private Maran.Agent.V1.SftpService.SftpServiceClient Client
+    {
+        get { return new Maran.Agent.V1.SftpService.SftpServiceClient(_channels.ForCurrent()); }
     }
 
     /// <inheritdoc/>
@@ -21,7 +31,7 @@ internal sealed class GrpcSftpServiceInvoker : ISftpServiceInvoker
         CreateSftpUserRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.CreateSftpUserAsync(request, cancellationToken: cancellationToken);
+        return await Client.CreateSftpUserAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -29,7 +39,7 @@ internal sealed class GrpcSftpServiceInvoker : ISftpServiceInvoker
         SetSftpPasswordRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.SetSftpPasswordAsync(request, cancellationToken: cancellationToken);
+        return await Client.SetSftpPasswordAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -37,7 +47,7 @@ internal sealed class GrpcSftpServiceInvoker : ISftpServiceInvoker
         DeleteSftpUserRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.DeleteSftpUserAsync(request, cancellationToken: cancellationToken);
+        return await Client.DeleteSftpUserAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -45,7 +55,7 @@ internal sealed class GrpcSftpServiceInvoker : ISftpServiceInvoker
         SetAccountLoginsLockedRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.SetAccountLoginsLockedAsync(request, cancellationToken: cancellationToken);
+        return await Client.SetAccountLoginsLockedAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -53,7 +63,7 @@ internal sealed class GrpcSftpServiceInvoker : ISftpServiceInvoker
         EndSftpSessionsRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.EndSftpSessionsAsync(request, cancellationToken: cancellationToken);
+        return await Client.EndSftpSessionsAsync(request, cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -61,6 +71,6 @@ internal sealed class GrpcSftpServiceInvoker : ISftpServiceInvoker
         SetSftpAuthorizedKeysRequest request,
         CancellationToken cancellationToken)
     {
-        return await _client.SetSftpAuthorizedKeysAsync(request, cancellationToken: cancellationToken);
+        return await Client.SetSftpAuthorizedKeysAsync(request, cancellationToken: cancellationToken);
     }
 }

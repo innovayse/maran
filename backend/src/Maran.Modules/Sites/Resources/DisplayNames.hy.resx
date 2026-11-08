@@ -30,4 +30,163 @@
   <data name="SiteStatusDisabled">
     <value>Անջատված</value>
   </data>
+  <data name="SiteCanonicalHostNone">
+    <value>Առանց հիմնական անվան</value>
+  </data>
+  <data name="SiteCanonicalHostWww">
+    <value>Օգտագործել www անունը</value>
+  </data>
+  <data name="SiteCanonicalHostApex">
+    <value>Օգտագործել անունն առանց www-ի</value>
+  </data>
+  <data name="SiteRedirectMatchExact">
+    <value>Հենց այս ուղին</value>
+  </data>
+  <data name="SiteRedirectMatchPrefix">
+    <value>Այս թղթապանակը և նրա ամբողջ պարունակությունը</value>
+  </data>
+  <data name="SiteRedirectStatusPermanent">
+    <value>Մշտական (301)</value>
+  </data>
+  <data name="SiteRedirectStatusTemporary">
+    <value>Ժամանակավոր (302)</value>
+  </data>
+  <data name="SiteIpAccessModeAllowList">
+    <value>Թույլատրել միայն այս հասցեները</value>
+  </data>
+  <data name="SiteIpAccessModeDenyList">
+    <value>Արգելափակել այս հասցեները</value>
+  </data>
+  <data name="SiteTrafficWindowDays">
+    <value>Վերջին {0} օրերը</value>
+  </data>
+  <data name="SiteLogRetentionOneDay">
+    <value>{0} օր</value>
+  </data>
+  <data name="SiteLogRetentionFewDays">
+    <value>{0} օր</value>
+  </data>
+  <data name="SiteLogRetentionManyDays">
+    <value>{0} օր</value>
+  </data>
+  <data name="SiteTrafficStatusClass1">
+    <value>1xx տեղեկատվական</value>
+  </data>
+  <data name="SiteTrafficStatusClass2">
+    <value>2xx հաջող</value>
+  </data>
+  <data name="SiteTrafficStatusClass3">
+    <value>3xx վերահասցեավորումներ</value>
+  </data>
+  <data name="SiteTrafficStatusClass4">
+    <value>4xx հաճախորդի սխալներ</value>
+  </data>
+  <data name="SiteTrafficStatusClass5">
+    <value>5xx սերվերի սխալներ</value>
+  </data>
+  <data name="PhpSupportStatusSupported">
+    <value>Աջակցվում է</value>
+  </data>
+  <data name="PhpSupportStatusSecurityOnly">
+    <value>Միայն անվտանգության ուղղումներ</value>
+  </data>
+  <data name="PhpSupportStatusEndOfLife">
+    <value>Աջակցությունը ավարտվել է</value>
+  </data>
+  <data name="PhpSupportStatusUnknown">
+    <value>Անհայտ</value>
+  </data>
+  <data name="PhpExtensionBcmath">
+    <value>Կամայական ճշտությամբ մաթեմատիկա (BCMath)</value>
+  </data>
+  <data name="PhpExtensionCurl">
+    <value>Ցանցային հարցումներ (cURL)</value>
+  </data>
+  <data name="PhpExtensionGd">
+    <value>Պատկերներ (GD)</value>
+  </data>
+  <data name="PhpExtensionGmp">
+    <value>Մեծ թվերի հաշվարկ (GMP)</value>
+  </data>
+  <data name="PhpExtensionImagick">
+    <value>Պատկերների մշակում (ImageMagick)</value>
+  </data>
+  <data name="PhpExtensionIntl">
+    <value>Միջազգայնացում (Intl)</value>
+  </data>
+  <data name="PhpExtensionMbstring">
+    <value>Բազմաբայթ տողեր (Mbstring)</value>
+  </data>
+  <data name="PhpExtensionMysql">
+    <value>MySQL և MariaDB (MySQL)</value>
+  </data>
+  <data name="PhpExtensionOpcache">
+    <value>Կոդի քեշ (OPcache)</value>
+  </data>
+  <data name="PhpExtensionRedis">
+    <value>Redis հաճախորդ (Redis)</value>
+  </data>
+  <data name="PhpExtensionSoap">
+    <value>Վեբ ծառայություններ (SOAP)</value>
+  </data>
+  <data name="PhpExtensionXml">
+    <value>XML մշակում (XML)</value>
+  </data>
+  <data name="PhpExtensionZip">
+    <value>Zip արխիվներ (Zip)</value>
+  </data>
+  <data name="PhpSettingMemoryLimit">
+    <value>Հիշողության սահման</value>
+  </data>
+  <data name="PhpSettingUploadMaxFilesize">
+    <value>Ամենամեծ բեռնվող ֆայլը</value>
+  </data>
+  <data name="PhpSettingPostMaxSize">
+    <value>Ամենամեծ հարցումը</value>
+  </data>
+  <data name="PhpSettingMaxExecutionTime">
+    <value>Կատարման ժամանակի սահման</value>
+  </data>
+  <data name="PhpSettingMaxInputVars">
+    <value>Մուտքային փոփոխականների սահման</value>
+  </data>
+  <data name="PhpSettingDateTimezone">
+    <value>Ժամային գոտի</value>
+  </data>
+  <data name="PhpSettingUnitMebibytes">
+    <value>ՄիԲ</value>
+  </data>
+  <data name="PhpSettingUnitSeconds">
+    <value>վայրկյան</value>
+  </data>
+  <data name="ExtensionAvailabilityUnknown">
+    <value>Չի որոշվել</value>
+  </data>
+  <data name="ExtensionAvailabilityAvailable">
+    <value>Կարելի է միացնել և անջատել</value>
+  </data>
+  <data name="ExtensionAvailabilityDisableNotSupported">
+    <value>Այս սերվերում կարելի է միացնել, բայց ոչ անջատել</value>
+  </data>
+  <data name="ExtensionAvailabilityNotPackaged">
+    <value>Այս սերվերում հասանելի չէ</value>
+  </data>
+  <data name="SitesMenuSitesList">
+    <value>Բոլոր կայքերը</value>
+  </data>
+  <data name="SitesMenuSitePhp">
+    <value>PHP կարգավորումներ</value>
+  </data>
+  <data name="SitesRouteSites">
+    <value>Կայքեր</value>
+  </data>
+  <data name="SitesRouteSitesNew">
+    <value>Նոր կայք</value>
+  </data>
+  <data name="SitesRoutePhpSettings">
+    <value>PHP-ի կարգավորումներ</value>
+  </data>
+  <data name="SitesRouteSiteDetail">
+    <value>Կայք</value>
+  </data>
 </root>
