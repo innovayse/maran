@@ -110,6 +110,12 @@ update_request_service_defect() {
   for token in $(eff_grep '^ReadWritePaths=' | sed 's/^ReadWritePaths=//'); do
     token="${token#-}"
     case "$token" in
+      # The one /etc path the verb writes: the release state, the check and running facts and the
+      # failed-release memory live directly in it, and each is written beside itself and renamed, so
+      # the directory (root:<service group> 0750, not owned by the panel's account) is the narrowest
+      # thing that can be named. Every other /etc path stays refused below, and the exact-line check
+      # after this loop pins the whole value.
+      /etc/maran) ;;
       /|/var|/var/lib|/var/lib/maran|/var/backups|/etc|/usr|/boot|/home|/root|/opt|/srv|/lib|/bin|/sbin|/usr/lib|/usr/lib/*|/etc/*|/boot/*)
         echo "ReadWritePaths= names ${token}, which makes more than the named paths writable to a root job (or one the panel's own account owns)"; return 0 ;;
     esac
@@ -278,6 +284,9 @@ ProtectSystem loosened to full|s#^ProtectSystem=strict#ProtectSystem=full#
 ProtectSystem set twice, the last wins|s#^ProtectSystem=strict#ProtectSystem=strict\nProtectSystem=no#
 ReadWritePaths widened to /var|s#^ReadWritePaths=.*#ReadWritePaths=/var#
 ReadWritePaths widened by the panel's own /var/lib/maran|s#^ReadWritePaths=.*#& /var/lib/maran#
+ReadWritePaths widened to all of /etc|s#^ReadWritePaths=.*#& /etc#
+ReadWritePaths widened to the system units under /etc|s#^ReadWritePaths=.*#& /etc/systemd/system#
+ReadWritePaths widened to a tree inside /etc/maran|s#^ReadWritePaths=.*#& /etc/maran/tls#
 an [Install] section|s#^Type=oneshot#Type=oneshot\n[Install]\nWantedBy=multi-user.target#
 the start limit disabled|s#^StartLimitIntervalSec=.*#StartLimitIntervalSec=0#
 SERVICE_CONTROLS
@@ -318,8 +327,8 @@ the request directory dropped from NoExecPaths|/^NoExecPaths=/s# /run/maran-upda
 ReadWritePaths opened to all of /run|s#^ReadWritePaths=.*#& /run#
 API_CONTROLS
 
-  [ "$planted_count" -eq 37 ] && [ "$accepted_count" -eq 4 ] \
-    || fail "the update request checkers ran ${planted_count} planted refusals and ${accepted_count} accepting controls, not the 37 and 4 they carry. A control dropped from a list is a check that no longer exists."
+  [ "$planted_count" -eq 40 ] && [ "$accepted_count" -eq 4 ] \
+    || fail "the update request checkers ran ${planted_count} planted refusals and ${accepted_count} accepting controls, not the 40 and 4 they carry. A control dropped from a list is a check that no longer exists."
 
   # The step renders the snippet for the panel's group, and a rendered snippet is the one line the
   # design fixes with the group in place of the placeholder. The step file is SOURCED in a child and

@@ -12,11 +12,15 @@ test('the zones list shows each zone with its owner, record count and serial', a
   await page.goto('/dns/zones')
 
   await expect(page.getByRole('heading', { level: 1, name: 'DNS zones' })).toBeVisible()
-  const rows = page.getByRole('row')
-  await expect(rows.filter({ hasText: 'example.com' })).toContainText('alice')
-  await expect(rows.filter({ hasText: 'example.com' })).toContainText('2026110701')
-  await expect(rows.filter({ hasText: 'shop.example.org' })).toContainText('bob')
-  await expect(rows.filter({ hasText: 'shop.example.org' })).toContainText('2026110502')
+  // A row is found by the link that names its zone, not by a substring of its text: the text of
+  // one zone's row can contain another's name, and a locator that then matches two rows fails at
+  // once instead of waiting.
+  const example = page.getByRole('row').filter({ has: page.getByRole('link', { name: 'example.com', exact: true }) })
+  const shop = page.getByRole('row').filter({ has: page.getByRole('link', { name: 'shop.example.org', exact: true }) })
+  await expect(example).toContainText('alice')
+  await expect(example).toContainText('2026110701')
+  await expect(shop).toContainText('bob')
+  await expect(shop).toContainText('2026110502')
 })
 
 test('the list shows the empty state when the panel reports no zones', async ({ page }) => {

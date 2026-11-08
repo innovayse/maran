@@ -365,7 +365,8 @@ cmd_selftest() {
 
   local work keydir
   work="$(mktemp -d)"
-  trap 'rm -rf -- "$work"' EXIT
+  # shellcheck disable=SC2064
+  trap "rm -rf -- '$work'" EXIT
   keydir="$work/keys"
   install -d -m 0700 "$keydir"
   # The SAME curve and digest the real key uses, and a key generated per run and never committed: a selftest that

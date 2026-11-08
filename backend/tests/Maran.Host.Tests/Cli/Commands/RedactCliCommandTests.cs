@@ -1,11 +1,9 @@
+using Microsoft.Extensions.Configuration;
 using Maran.Host.Cli.Commands;
 using Maran.Host.Cli.Enums;
 using Maran.Host.Cli.Models;
 using Maran.Host.Cli.Services;
-using Maran.Host.Configuration;
 using Maran.Host.Tests.Cli.Fixtures;
-using Maran.Modules.Identity.Options;
-using Microsoft.Extensions.Options;
 
 namespace Maran.Host.Tests.Cli.Commands;
 
@@ -20,10 +18,9 @@ public sealed class RedactCliCommandTests
     private static RedactCliCommand Verb()
     {
         return new RedactCliCommand(new CliSecretLiterals(
-            new OptionsWrapper<DatabaseOptions>(new DatabaseOptions()),
-            new OptionsWrapper<SecurityOptions>(new SecurityOptions { EncryptionKey = EncryptionKey }),
-            new OptionsWrapper<JwtOptions>(new JwtOptions()),
-            new OptionsWrapper<SetupOptions>(new SetupOptions())));
+            new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?> { ["Security:EncryptionKey"] = EncryptionKey })
+                .Build()));
     }
 
     /// <summary>The planted configured secret is removed and unrelated text survives (positive control).</summary>

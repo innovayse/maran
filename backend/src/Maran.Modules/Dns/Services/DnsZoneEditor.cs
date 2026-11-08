@@ -79,25 +79,19 @@ public sealed class DnsZoneEditor
         var settings = await _dbContext.DnsSettings
             .SingleOrDefaultAsync(row => row.Id == DnsSettings.SingletonId, cancellationToken);
 
-        Error? refusal = null;
         if (zone is null)
         {
-            refusal = Error.Of(nameof(ErrorMessages.ZoneNotFound), ErrorType.NotFound);
-        }
-        else if (settings is null || !settings.Enabled)
-        {
-            refusal = Error.Of(nameof(ErrorMessages.DnsNotEnabled), ErrorType.Conflict);
-        }
-        else if (!settings.IsComplete)
-        {
-            refusal = Error.Of(nameof(ErrorMessages.DnsSettingsIncomplete), ErrorType.Conflict);
+            return await RefuseAsync(transaction, nameof(ErrorMessages.ZoneNotFound), ErrorType.NotFound);
         }
 
-        if (refusal is not null || zone is null || settings is null)
+        if (settings is null || !settings.Enabled)
         {
-            await transaction.DisposeAsync();
+            return await RefuseAsync(transaction, nameof(ErrorMessages.DnsNotEnabled), ErrorType.Conflict);
+        }
 
-            return Result<ZoneEdit>.Fail(refusal ?? Error.Of(nameof(ErrorMessages.ZoneNotFound), ErrorType.NotFound));
+        if (!settings.IsComplete)
+        {
+            return await RefuseAsync(transaction, nameof(ErrorMessages.DnsSettingsIncomplete), ErrorType.Conflict);
         }
 
         return Result<ZoneEdit>.Ok(new ZoneEdit(zone, settings, transaction));
@@ -137,6 +131,21 @@ public sealed class DnsZoneEditor
         }
 
         return Result.Ok();
+    }
+
+    /// <summary>Releases the lock taken for an edit that is refused and answers with the refusal.</summary>
+    /// <param name="transaction">The transaction holding the zone's lock.</param>
+    /// <param name="code">The refusal's error code.</param>
+    /// <param name="type">The refusal's kind.</param>
+    /// <returns>The failed result.</returns>
+    private static async Task<Result<ZoneEdit>> RefuseAsync(
+        IAsyncDisposable transaction,
+        string code,
+        ErrorType type)
+    {
+        await transaction.DisposeAsync();
+
+        return Result<ZoneEdit>.Fail(Error.Of(code, type));
     }
 
     /// <summary>Tells whether a failed save was PostgreSQL refusing a unique index.</summary>

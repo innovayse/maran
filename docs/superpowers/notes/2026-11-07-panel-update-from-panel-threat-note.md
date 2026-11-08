@@ -190,6 +190,17 @@ What this does NOT defend against, stated plainly:
    no shell, no `EnvironmentFile`, the sandbox of the security unit, no `[Install]`. The polygon
    assertion `parts/update-request-units.sh` holds this as code, with planted breaks and accepting
    controls.
+   The writable set is `/usr/local/maran /etc/maran /var/backups/maran-update /var/lib/maran-cli-staging /run`.
+   `/etc/maran` is the one `/etc` path in it and cannot be narrowed to files: the verb writes
+   `release.state`, `update-check.state`, `update-running.state` and `security-update-failed` by writing
+   beside the file and renaming (`cli_layout_state_write`, `cli_update_publish_file`), so the directory
+   is the narrowest name that works. It is root-owned (`root:<service group> 0750`), not a place the
+   panel's account owns, and the verb never writes `panel.env` or `tls/` there. The polygon assertion
+   used to refuse every `/etc/*` token, `/etc/maran` included, which made it contradict its own expected
+   line and fail on the shipped unit; it now admits exactly `/etc/maran` and still refuses `/etc`, any
+   other `/etc/<x>` and any path inside `/etc/maran`, with three planted controls (40 planted in all).
+   Residue: a bug in the verb could rewrite another file in `/etc/maran`; moving the four state files
+   into a subdirectory would narrow that and is not done here (every reader of `release.state` moves).
 2. `maran-update-request.path`: `PathExists=` on exactly the marker, `Unit=` the service, and nothing that runs at boot by itself.
 3. `cli_update_parse`: `--requested` takes no value and refuses every other flag; `cli_update` has one
    body and the flag only adds the report.

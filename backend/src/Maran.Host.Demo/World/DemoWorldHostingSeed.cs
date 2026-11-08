@@ -221,7 +221,7 @@ public sealed class DemoWorldHostingSeed : ISimulatedAgentSeed
         for (var taken = 0; taken < account.BackupCount; taken++)
         {
             var backupId = $"{account.Name}-{taken + 1:D3}";
-            var createdAt = _clock.UtcNow.AddDays(-(taken + 1) * DaysBetweenBackups);
+            var createdAt = _clock.UtcNow.AddDays(-(taken + 1d) * DaysBetweenBackups);
             Require(
                 account.Name,
                 backupId,

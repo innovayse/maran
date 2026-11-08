@@ -19,6 +19,9 @@ export const useDnsZonesStore = defineStore('dnsZones', () => {
   /** The rows of the list page last answered by the panel; empty before the first answer. */
   const zones: Ref<DnsZone[]> = ref([])
 
+  /** Sequence number of the latest list read; an answer carrying an older number never reaches {@link zones}. */
+  let latestListRead = 0
+
   /** What the detail page last learned about the zone it asked for. */
   const detail: Ref<DnsZoneLoad> = ref({ state: 'loading' })
 
@@ -41,9 +44,15 @@ export const useDnsZonesStore = defineStore('dnsZones', () => {
    * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
   const list = async (request: ListRequest): Promise<ListLoad<DnsZone>> => {
+    latestListRead += 1
+    const sequence = latestListRead
     try {
       const page = await api.list(request)
-      zones.value = page.items
+      // A slower, older read must not replace the rows of a newer one: the table drops its stale
+      // answer, and the rows on screen have to follow the same rule.
+      if (sequence === latestListRead) {
+        zones.value = page.items
+      }
       return { kind: 'loaded', page }
     } catch (error) {
       return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }

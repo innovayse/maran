@@ -42,7 +42,7 @@ public static class HelloManifest
                 Name: "hello",
                 Path: "/hello",
                 TitleKey: "HelloRouteHello",
-                RequiresModule: "hello"),
+                RequiresModule: null),
         ],
         Audience: ModuleAudience.AdministratorOnly);
 }
