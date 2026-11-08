@@ -7,8 +7,9 @@
  * is the whole of it; a restore replaces an account's home and drops every database in the copy,
  * and the point of no return is the first `DROP DATABASE` — after which the only thing that can put
  * a database back is a reload of a dump the agent took moments earlier, and that reload can itself
- * fail. So this dialog states what is replaced, what is NOT, and that no copy is taken of the
- * account as it is now, before it will accept anything at all.
+ * fail. So this dialog states what is replaced, what is NOT, and what the safety net is (a backup
+ * of the account as it is now, taken first, without which the restore does not start), before it
+ * will accept anything at all.
  *
  * **The confirmation is the account's own system user name, typed.** A second click is satisfied by
  * the same muscle that made the first one and by a mis-aimed row; typing the name is not, and the
@@ -307,15 +308,15 @@ watch(
       </div>
 
       <!-- The two sentences that decide whether this dialog is worth anything: there is a point
-           after which nothing here can undo the operation, and there is no copy of the account as
-           it stands now to fall back on. Nothing in the panel takes a pre-restore backup today —
-           `BackupKind.PreRestore` exists and no code path produces one — so a screen implying a
-           safety net would be inventing it. They are the one thing that needs attention, so they
-           are the amber notice, directly above the field that commits to them. -->
+           after which the restore itself cannot be undone, and what the safety net is. The panel
+           takes a `PreRestore` backup of the account as it stands now and refuses the restore if it
+           cannot be made; the net holds the home and the databases only, which the sentence says.
+           They are the one thing that needs attention, so they are the amber notice, directly above
+           the field that commits to them. -->
       <UiAlert variant="warning">
         <div class="flex flex-col gap-2 font-medium">
           <p>{{ t('backups.restore.pointOfNoReturn') }}</p>
-          <p>{{ t('backups.restore.noSafetyCopy') }}</p>
+          <p>{{ t('backups.restore.preRestoreCopy') }}</p>
         </div>
       </UiAlert>
 

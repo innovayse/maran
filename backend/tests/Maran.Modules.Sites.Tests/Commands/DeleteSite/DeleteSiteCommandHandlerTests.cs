@@ -87,6 +87,54 @@ public sealed class DeleteSiteCommandHandlerTests
         Assert.Single(await context.Sites.ToListAsync());
     }
 
+    /// <summary>A vhost the host no longer has does not stop the row from being deleted.</summary>
+    [Fact]
+    public async Task A_vhost_the_host_no_longer_has_does_not_stop_the_row_from_being_deleted()
+    {
+        // The agent answers NotFound for a vhost that is already gone and documents it as a converged
+        // retry. Passing it through would leave a row nobody can ever delete from the panel.
+        var account = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        var siteId = await SeedAsync(database, account);
+        var audit = new RecordingAuditWriter();
+        var agent = new RecordingAgentSitesClient { DeleteFailure = Error.Of("AgentNotFound", ErrorType.NotFound) };
+        await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(account), database);
+
+        var result = await Handler(context, account, agent, audit).HandleAsync(
+            new DeleteSiteCommand(siteId, "198.51.100.7", "tests"),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(await context.Sites.ToListAsync());
+        var entry = Assert.Single(audit.Entries);
+        Assert.Equal(SiteAuditActions.SiteDeleted, entry.Action);
+        Assert.True(entry.Succeeded);
+        Assert.Equal("example.com", entry.Subject);
+    }
+
+    /// <summary>The inverse control: a refusal that is not NotFound still keeps the row and journals a failure.</summary>
+    [Fact]
+    public async Task A_refusal_that_is_not_not_found_still_keeps_the_row_and_journals_a_failure()
+    {
+        // Only NotFound is read as converged. A gate that accepted every agent failure would pass the
+        // test above too, so this refuses with another kind and asserts the row survives.
+        var account = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        var siteId = await SeedAsync(database, account);
+        var audit = new RecordingAuditWriter();
+        var agent = new RecordingAgentSitesClient { DeleteFailure = Error.Of("AgentSystemFailure", ErrorType.Failure) };
+        await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(account), database);
+
+        var result = await Handler(context, account, agent, audit).HandleAsync(
+            new DeleteSiteCommand(siteId, "198.51.100.7", "tests"),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentSystemFailure", result.Error!.Code);
+        Assert.Single(await context.Sites.ToListAsync());
+        Assert.False(Assert.Single(audit.Entries).Succeeded);
+    }
+
     /// <summary>Deleting another tenants site answers not found rather than forbidden.</summary>
     [Fact]
     public async Task Deleting_another_tenants_site_answers_not_found_rather_than_forbidden()

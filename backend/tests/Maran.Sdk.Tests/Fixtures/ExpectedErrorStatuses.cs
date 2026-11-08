@@ -272,6 +272,7 @@ public static class ExpectedErrorStatuses
             ["PrivateKeyPemInvalid"] = ErrorType.Validation,
             ["PrivateKeyPemRequired"] = ErrorType.Validation,
             ["PrivateKeyPemTooLarge"] = ErrorType.Validation,
+            ["PreRestoreBackupFailed"] = ErrorType.Failure,
             ["RefreshTokenInvalidUnauthorized"] = ErrorType.Unauthorized,
             ["RefreshTokenReusedUnauthorized"] = ErrorType.Unauthorized,
             // A request value MVC could not bind (?page=abc, ?status=7): the caller sent something

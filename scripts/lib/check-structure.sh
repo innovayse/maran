@@ -1476,6 +1476,28 @@ else
   done < <(printf '%s\n' "$ceiling_names" | duplicate_names)
 fi
 
+# 32. No Controllers/Requests/ folder. An endpoint binds its Command or Query directly (rules/csharp.md,
+#     "An endpoint binds its command directly"): one shape crosses the wire, is validated and is handled,
+#     so a per-endpoint request model is a second copy of the command that can drift from it. The folder
+#     existed in every module until issue #436; this is what keeps it from coming back.
+requests_folders() {
+  find "$1" -type d -path '*/Controllers/Requests' -not -path '*/obj/*' -not -path '*/bin/*' 2>/dev/null
+}
+while IFS= read -r folder; do
+  [ -n "$folder" ] || continue
+  report "${folder}: a Controllers/Requests/ folder is abolished — bind the Command or Query directly in the action (rules/csharp.md, issue #436)"
+done < <(requests_folders backend/src)
+
+# Controls, run before the check is trusted. Positive: a planted Controllers/Requests/ must be found.
+# Inverse: a Controllers/ folder without one must be accepted, or the check would refuse every module.
+requests_control="$(mktemp -d)"
+mkdir -p "${requests_control}/planted/Controllers/Requests" "${requests_control}/clean/Controllers"
+[ -n "$(requests_folders "${requests_control}/planted")" ] \
+  || report "scripts/lib/check-structure.sh: check 32 did not find a planted Controllers/Requests/ folder, so it is blind (rules/testing.md)"
+[ -z "$(requests_folders "${requests_control}/clean")" ] \
+  || report "scripts/lib/check-structure.sh: check 32 flagged a Controllers/ folder with no Requests/, so it would refuse every module (rules/testing.md)"
+rm -rf "$requests_control"
+
 if [ "$violations" -gt 0 ]; then
   echo
   echo "$violations structural violation(s). See rules/ for the rule each one cites."

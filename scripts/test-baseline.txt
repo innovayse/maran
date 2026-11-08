@@ -1,3 +1,4 @@
+# RE-MEASURED 2026-11-08 (bug batch #386 #392 #394 #395 #430 #431 #432 #433 #434 #436 #438 #439 #440): rust and backend rows from `maran test rust --accept` (39 targets, 3378 passed / 0 failed) and `maran test backend --accept` (21 targets, 8193 passed / 0 failed) on an export of this branch; Maran.Modules.Firewall.Tests.dll 294 is a single-project run, because that project did not compile in the first whole run and so was missing from it. No spa row moved. Rows of projects that gained tests on dev are raised to the same run.
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
@@ -505,7 +506,7 @@
 # names unchanged (`cargo test --test <suite>` listing 9 and 5).
 # RE-MEASURED 2026-11-02 (issue #323, bool/sentinel state refactors): edited by hand from the gate run (backend 21 targets 5748 passed; rust 36 targets 3021 passed / 156 ignored; spa 183 targets 1204 passed). Every changed row takes the measured value; Databases.Tests 129->128 is intended (the empty-string refusal reason test cannot exist once the reason is an enum); new spa rows: view-as, account-selector, sub-users, plan-features, favourites, navigation-badges, server-selector (#313-#320). CI re-measures every row.
 # RE-MEASURED 2026-11-03 (critical batch #299-#341): edited by hand from one full run (maran test rust 36 targets 3096 passed; backend 21 targets 6029 passed; spa 193 targets 1237 passed / 0 failed / 2 ignored). Rows changed where the run differs; new spa spec rows added. CI re-measures every row.
-rust	maran_agent [unittests src/lib.rs]	554	0	0
+rust	maran_agent [unittests src/lib.rs]	562	0	0
 rust	maran_agent [unittests src/main.rs]	0	0	0
 rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	6
 rust	account_identity_on_a_real_host [tests/account_identity_on_a_real_host.rs]	0	0	6
@@ -514,11 +515,11 @@ rust	audit_lines [tests/audit_lines.rs]	7	0	0
 rust	backup_on_a_real_host [tests/backup_on_a_real_host.rs]	0	0	14
 rust	binary_paths_on_a_real_host [tests/binary_paths_on_a_real_host.rs]	0	0	5
 rust	cron_on_a_real_host [tests/cron_on_a_real_host.rs]	0	0	6
-rust	databases_on_a_real_host [tests/databases_on_a_real_host.rs]	0	0	8
+rust	databases_on_a_real_host [tests/databases_on_a_real_host.rs]	0	0	9
 rust	firewall_on_a_real_host [tests/firewall_on_a_real_host.rs]	0	0	10
 rust	ftps_on_a_real_host [tests/ftps_on_a_real_host.rs]	0	0	16
 rust	handshake [tests/handshake.rs]	9	0	0
-rust	monitor_on_a_real_host [tests/monitor_on_a_real_host.rs]	0	0	10
+rust	monitor_on_a_real_host [tests/monitor_on_a_real_host.rs]	0	0	11
 rust	panel_certificate_on_a_real_host [tests/panel_certificate_on_a_real_host.rs]	0	0	6
 rust	php_install_rpc [tests/php_install_rpc.rs]	7	0	0
 rust	php_socket_migration_on_a_real_host [tests/php_socket_migration_on_a_real_host.rs]	0	0	3
@@ -531,9 +532,9 @@ rust	sftp_suspension_on_a_real_host [tests/sftp_suspension_on_a_real_host.rs]	0	
 rust	shutdown_signal [tests/shutdown_signal.rs]	3	0	0
 rust	sites_on_a_real_host [tests/sites_on_a_real_host.rs]	0	0	37
 rust	maran_agent_core [unittests src/lib.rs]	557	0	0
-rust	maran_distro [unittests src/lib.rs]	128	0	0
-rust	maran_ops [unittests src/lib.rs]	1985	0	1
-rust	maran_templates [unittests src/lib.rs]	13	0	0
+rust	maran_distro [unittests src/lib.rs]	159	0	0
+rust	maran_ops [unittests src/lib.rs]	2005	0	1
+rust	maran_templates [unittests src/lib.rs]	16	0	0
 rust	golden_test [tests/golden_test.rs]	23	0	0
 rust	nginx_link_rule_test [tests/nginx_link_rule_test.rs]	9	0	0
 rust	doc-tests maran_agent	0	0	0
@@ -554,27 +555,27 @@ rust	safe_write_bound_on_real_processes [tests/safe_write_bound_on_real_processe
 # RE-KEYED 2026-11-01 (issue #289, perf off the PR path): edited by hand. Maran.Host.IntegrationTests.dll 833 is now two
 # rows: 814 (main part) + 19 (`[PerformanceBudget]` part, ListPerformanceBudgetTests); `--list-tests` lists 833.
 backend	Maran.Agent.Client.Tests.dll	488	0	0
-backend	Maran.SharedKernel.Tests.dll	355	0	0
-backend	Maran.Modules.Identity.Tests.dll	856	0	0
-backend	Maran.Modules.Sftp.Tests.dll	111	0	0
+backend	Maran.SharedKernel.Tests.dll	511	0	0
+backend	Maran.Modules.Identity.Tests.dll	1303	0	0
+backend	Maran.Modules.Sftp.Tests.dll	279	0	0
 backend	Maran.Modules.Notifications.Tests.dll	63	0	0
-backend	Maran.Modules.Tasks.Tests.dll	113	0	0
-backend	Maran.Modules.Ftp.Tests.dll	178	0	0
-backend	Maran.Modules.Monitoring.Tests.dll	159	0	0
-backend	Maran.Modules.Backups.Tests.dll	340	0	0
+backend	Maran.Modules.Tasks.Tests.dll	116	0	0
+backend	Maran.Modules.Ftp.Tests.dll	180	0	0
+backend	Maran.Modules.Monitoring.Tests.dll	200	0	0
+backend	Maran.Modules.Backups.Tests.dll	351	0	0
 backend	Maran.Modules.Licensing.Tests.dll	51	0	0
-backend	Maran.Modules.Firewall.Tests.dll	293	0	0
-backend	Maran.Modules.Cron.Tests.dll	245	0	0
-backend	Maran.Modules.Accounts.Tests.dll	1056	0	0
-backend	Maran.Modules.Databases.Tests.dll	128	0	0
+backend	Maran.Modules.Firewall.Tests.dll	294	0	0
+backend	Maran.Modules.Cron.Tests.dll	248	0	0
+backend	Maran.Modules.Accounts.Tests.dll	1097	0	0
+backend	Maran.Modules.Databases.Tests.dll	130	0	0
 backend	Maran.Modules.Ssl.Tests.dll	345	0	0
-backend	Maran.Sdk.Tests.dll	438	0	0
-backend	Maran.Modules.Sites.Tests.dll	290	0	0
+backend	Maran.Sdk.Tests.dll	439	0	0
+backend	Maran.Modules.Sites.Tests.dll	294	0	0
 backend	Maran.ArchitectureTests.dll	117	0	0
 backend	Maran.Host.Tests.dll	575	0	0
 backend	Maran.Host.IntegrationTests.dll	1335	0	0
 backend	Maran.Host.IntegrationTests.dll [PerformanceBudget]	19	0	0
-backend	Maran.Modules.Idempotency.Tests.dll	29	0	0
+backend	Maran.Modules.Idempotency.Tests.dll	52	0	0
 # RAISED 2026-11-01 (issue #149, accessibility): edited by hand. Three new spa rows from e2e/accessibility/:
 # axe-scan 11 (5 screens x 2 themes + the planted-violation control), document-language 2, reduced-motion 2.
 # Measured by `maran test spa` (169 targets: 1132 passed / 1 failed / 2 ignored; the one failure,

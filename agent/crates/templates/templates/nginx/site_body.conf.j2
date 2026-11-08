@@ -22,12 +22,23 @@
   static arm a directory the worker can enter but not list reads as missing to
   the `$uri/` test, and a refused link answers 404.
 
+  The PHP and proxy arms also set `client_max_body_size` once at server level
+  (the PHP arm to the ceiling any pool override may reach, the proxy arm to
+  the same figure). Without it nginx refuses any body over its 1 MiB default
+  with a 413 before PHP or the upstream sees it, whatever PHP allows. The
+  figure is the largest value `upload_max_filesize` / `post_max_size` accept
+  (MAXIMUM_BYTES in ops/src/php/model/php_override.rs), so a customer who
+  raises their PHP limit is bounded by PHP, never silently by nginx; keep the
+  two in step. The static arm accepts no request body and carries none.
+
   The full argument is the doc comment on `SiteBody` (src/nginx/site_body.rs);
   keep the two in step, and keep the rendered text to the directive and its
   one-line pointer.
 -#}
 {% if upstream.is_some() %}    access_log {{ access_log }};
     error_log {{ error_log }};
+
+    client_max_body_size 512m;
 
     location / {
         proxy_pass http://{{ upstream.unwrap() }};
@@ -38,6 +49,8 @@
     }
 {% else if fpm_socket.is_some() %}    access_log {{ access_log }};
     error_log {{ error_log }};
+
+    client_max_body_size 512m;
 
     root {{ document_root }};
     index index.php index.html;

@@ -70,7 +70,7 @@
       "keptOwnership": "Scheduled tasks, firewall rules, and SFTP and FTPS logins.",
       "keptExplanation": "A restore replaces what the copy holds and nothing else. It is not an undo: an account restored from a two-week-old copy is a two-week-old home under today's site configuration.",
       "pointOfNoReturn": "The point of no return is the first database that is dropped. Up to there nothing has been touched; after it, a database comes back only by loading a dump taken moments earlier, and that can itself fail.",
-      "noSafetyCopy": "No copy is taken of the account as it stands now. The panel does not back up before it restores, so today's state is not recoverable once this starts.",
+      "preRestoreCopy": "Before it replaces anything, the panel takes a backup of the account as it stands now and waits for it to finish. If that backup cannot be made, the restore does not start. The backup holds the home directory and the databases, so it can put those back; it can be found in the backup list.",
       "confirmLabel": "Account name",
       "confirmHint": "Type {name} exactly to confirm. It is not filled in for you.",
       "confirmHintUnknown": "This panel does not hold a name for the account this copy belongs to. Type the account's system user name; the server is what checks it.",

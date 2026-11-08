@@ -39,6 +39,9 @@
   <data name="FinalBackupFailed">
     <value>Аккаунт не был удалён: не удалось создать его финальную резервную копию.</value>
   </data>
+  <data name="PreRestoreBackupFailed">
+    <value>Аккаунт не был восстановлен: сначала не удалось создать резервную копию его текущего состояния, поэтому ничего не изменено.</value>
+  </data>
   <data name="BackupNotRestorable">
     <value>Эту резервную копию нельзя восстановить: она не была создана успешно.</value>
   </data>

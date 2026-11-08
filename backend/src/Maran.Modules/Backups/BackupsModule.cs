@@ -90,6 +90,11 @@ public sealed class BackupsModule : IPanelModule
         services.AddScoped<BackupVerificationAnnouncer>();
         services.AddScoped<RestoreRunner>();
 
+        // Scoped, because it writes through the request-scoped context and journals as the current
+        // caller. The one path behind both safety backups: the final backup of a deleted account and
+        // the pre-restore copy taken before an account is replaced.
+        services.AddScoped<SafetyBackupService>();
+
         // The one act this module exposes to another (spec §12). Registered against the Sdk
         // interface, because the Accounts module may not reference this one and reaches it through
         // that contract or not at all — and "not at all" is a state it is built to observe.

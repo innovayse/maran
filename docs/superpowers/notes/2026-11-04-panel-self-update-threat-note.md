@@ -402,6 +402,12 @@ words, next to the OUTSTANDING second review, so that nobody reads the argument 
 decision is the owner's: accept the operator-triggered check as an exception and amend the spec, or
 ship only the offline path.
 
+*Addendum, 2026-11-07, issue #383: the statements above that there is "no timer" and that the check is
+"operator-triggered only" describe this change as it was reviewed. The unattended security-patch update
+adds a root-owned timer that makes the same call daily; its own threat note
+(`2026-11-07-security-patch-updates-threat-note.md`) carries that argument, and it is blocked on the
+same missing owner decision (issue #384), now for a timer-driven call as well.*
+
 ### 10. The stale "Ed25519" statements versus the ECDSA P-384 scheme in the code
 
 The code signs and verifies with ECDSA P-384 over SHA-384 through `openssl dgst`
@@ -566,10 +572,14 @@ Accepted residue, stated so it is not mistaken for coverage:
   section 6 is an argument, not a measurement on a booted host.
 - `panel.env` is sourced as root. The control is the trusted-file check and the validated alphabet; it
   is not a sandbox, and a root-owned file with hostile content would still run.
-- `pg_restore --clean` cannot remove objects a newer release created, so `maran rollback
-  --restore-database` can refuse (fail-closed, nothing changed) after an update that added schemas or
-  tables. A plain rollback leaves `PREVIOUS` empty, so the database is then restored from the dump
-  file by hand.
+- The restore (issue #386) now issues `DROP SCHEMA ... CASCADE` for every schema except `public` and
+  the system ones, as the service account, in the same psql transaction that replays the dump, so
+  objects a newer release created are removed instead of making the restore refuse. The surface is
+  still only `--restore-database` after its confirmation, and the statement runs as the panel's own
+  role over its own database; a failure rolls back all of it. A reviewer must check that the
+  rendered script is written whole before psql reads it (a truncated script must never be committed)
+  and that the script file lives only in the root-only stage directory. Not verified: the polygon
+  assertion for this (a schema and two tables added after the dump) was written and not run here.
 
 Unchanged by this correction, and stated so that nothing above is read as discharging them:
 

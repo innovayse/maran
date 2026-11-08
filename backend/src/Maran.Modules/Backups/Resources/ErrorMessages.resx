@@ -39,6 +39,9 @@
   <data name="FinalBackupFailed">
     <value>The account was not deleted: its final backup could not be made.</value>
   </data>
+  <data name="PreRestoreBackupFailed">
+    <value>The account was not restored: a backup of it as it is now could not be made first, so nothing was changed.</value>
+  </data>
   <data name="BackupNotRestorable">
     <value>This backup cannot be restored: it did not finish successfully.</value>
   </data>

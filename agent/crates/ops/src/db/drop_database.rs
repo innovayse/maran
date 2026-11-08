@@ -6,6 +6,7 @@ use maran_agent_core::validation::db::db_user_name::DbUserName;
 use crate::db::db_error::DbError;
 use crate::db::db_host::DbHost;
 use crate::db::list_databases::database_exists;
+use crate::db::revoke_database_grants::revoke_database_grants;
 
 /// The host the dedicated user was allowed to connect from.
 const USER_HOST: &str = "localhost";
@@ -38,6 +39,16 @@ const USER_HOST: &str = "localhost";
 /// a database whose user was already gone still drops cleanly instead of
 /// stranding the database behind a failure.
 ///
+/// # Grants
+///
+/// Every grant on the database is revoked FIRST, whoever holds it
+/// (`revoke_database_grants`), because `DROP DATABASE` leaves them stored and a
+/// database created later under the same name would inherit them. The revoke
+/// precedes the drop so that an interruption can never leave a grant behind a
+/// database that is gone.
+///
+/// # Order
+///
 /// The database is dropped before the user, deliberately. The other order leaves
 /// a database nothing can reach for the moment between the two statements, and
 /// leaves it that way permanently if the process dies in between — a customer's
@@ -61,6 +72,7 @@ pub fn drop_database(
         return Err(DbError::NotFound);
     }
 
+    revoke_database_grants(host, name)?;
     host.execute(&format!("DROP DATABASE `{}`", name.as_str()))?;
     host.execute(&format!(
         "DROP USER IF EXISTS '{}'@'{USER_HOST}'",

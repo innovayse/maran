@@ -252,8 +252,8 @@ fn a_suspended_site_renders_the_stub_released_agents_wrote() {
 #[test]
 fn a_pool_renders_its_golden() {
     let overrides = vec![PoolOverride {
-        name: "upload_max_filesize",
-        value: "32M",
+        name: "memory_limit",
+        value: "256M",
     }];
     let pool = Pool {
         pool_name: "acme-8.3",
@@ -268,6 +268,7 @@ fn a_pool_renders_its_golden() {
         session_directory: "/home/acme/.maran/sessions",
         upload_temporary_directory: "/home/acme/.maran/tmp",
         request_terminate_timeout: 300,
+        default_size: "32M",
         overrides: &overrides,
     };
 

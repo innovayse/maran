@@ -29,6 +29,7 @@ pub fn to_agent_error(error: &PhpOpError) -> AgentError {
         | PhpOpError::OverrideMalformed { .. }
         | PhpOpError::OverrideOutOfRange { .. }
         | PhpOpError::OverrideControlCharacter { .. }
+        | PhpOpError::OverridePostSizeBelowUpload { .. }
         | PhpOpError::WorkerBudgetOutOfRange { .. } => (ErrorCode::InvalidInput, String::new()),
         // `sites.proto`: binding to a version that is not installed "fails
         // VALIDATION_FAILED".
@@ -64,6 +65,23 @@ pub fn to_agent_error(error: &PhpOpError) -> AgentError {
         // request may be reissued in a moment (`common.proto`). No
         // `tool_output`: no tool ran to produce one.
         PhpOpError::AccountBusy { .. } => (ErrorCode::AccountBusy, String::new()),
+        // `php.proto`: `ApplyPhpPoolSettings` answers NOT_FOUND when the pool
+        // file is absent, so it can never create a pool. No tool ran.
+        PhpOpError::PoolMissing { .. } => (ErrorCode::NotFound, String::new()),
+        // Extensions (issue #157). A name the family has no package for, and a
+        // switch-off the family has no switch for, are things the caller asked
+        // for that this host will not do: INVALID_INPUT, no tool ran.
+        PhpOpError::ExtensionNotPackaged { .. } | PhpOpError::ExtensionSwitchUnsupported { .. } => {
+            (ErrorCode::InvalidInput, String::new())
+        }
+        // A switch or a module listing that failed carries the stderr an
+        // operator acts on; the two "still in the wrong state" verdicts ran no
+        // failing tool, the daemon simply did not change.
+        PhpOpError::ExtensionSwitchFailed { stderr }
+        | PhpOpError::ExtensionProbeFailed { stderr } => (ErrorCode::SystemFailure, stderr.clone()),
+        PhpOpError::ExtensionNotLoaded { .. } | PhpOpError::ExtensionStillLoaded { .. } => {
+            (ErrorCode::SystemFailure, String::new())
+        }
         // A deadline or an output cap ended the program and its process group was
         // killed. This is a fault of the host, never a verdict on the request: the
         // work may or may not have finished, and `tool_output` stays empty because

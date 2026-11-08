@@ -29,12 +29,12 @@ public sealed class PartialRestoreAgentBackupClient : IAgentBackupClient
         _outcome = outcome;
     }
 
-    /// <summary>Not reachable from these tests; answers an empty stream rather than a scripted success.</summary>
+    /// <summary>Replays the pre-restore backup every restore now takes first, finishing its archive.</summary>
     /// <param name="accountUsername">The account being backed up.</param>
     /// <param name="backupId">The panel-assigned identifier of the backup.</param>
     /// <param name="destination">Where the artifact would be written.</param>
     /// <param name="cancellationToken">Cancellation for the stream.</param>
-    /// <returns>An empty stream, which a create path must not read as a backup having happened.</returns>
+    /// <returns>One terminal <c>Created</c> event naming a digest, so the restore under test may proceed.</returns>
     public async IAsyncEnumerable<BackupCreateEvent> CreateAsync(
         string accountUsername,
         string backupId,
@@ -43,7 +43,12 @@ public sealed class PartialRestoreAgentBackupClient : IAgentBackupClient
     {
         await Task.CompletedTask;
         cancellationToken.ThrowIfCancellationRequested();
-        yield break;
+
+        // The panel refuses a restore whose pre-restore backup produced no digest, so the stand-in
+        // states one; the restore under test is what these tests are about, not that refusal, which
+        // the module's unit tests own.
+        yield return new BackupCreateEvent(
+            BackupCreateEventKind.Created, 100, string.Empty, 4096, new string('1', 64), 0, null);
     }
 
     /// <summary>Replays one restore stream ending in the scripted terminal outcome.</summary>

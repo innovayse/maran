@@ -316,6 +316,13 @@ COPY installer/logrotate/maran-ftps /tmp/maran-installer/logrotate/maran-ftps
 COPY docker/polygon/stand-ins/systemctl-stand-in.sh /usr/bin/systemctl
 RUN chmod 755 /usr/bin/systemctl
 
+# The same reason for the clock: a container boots no systemd, so the real
+# `timedatectl` refuses with "System has not been booted with systemd" and the
+# agent's clock reading (and the dev stack's system status page) could never be
+# healthy (issue #392). The stand-in is what the adapter's path resolves to.
+COPY docker/polygon/stand-ins/timedatectl-stand-in.sh /usr/bin/timedatectl
+RUN chmod 755 /usr/bin/timedatectl
+
 # The PAM development headers, and the agent's own copies of the three FTPS names. Both are for
 # assertions in docker/polygon/asserts/assert-installer-steps.sh, and both exist because a green gate over
 # an authentication bypass is worse than no gate.

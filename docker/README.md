@@ -110,6 +110,12 @@
   - Both arms need privileges a default container does not have; run the SFTP and account-deletion suites with `--privileged` (below). Without it the mount fails, `create_sftp_user` returns `JailFailed`, and the suite goes **red** rather than passing on a jail that was never filled.
   - The consequence, stated rather than hidden: **the reload half of the config-write protocol cannot fail in the polygon**, so `ReloadFailed` and its rollback stay covered by the `ops::safe_write` unit tests, not by any polygon test. And the mount arm is an emulation of systemd's load-time check, not systemd itself: what the polygon proves is that the unit name and the mount are right, not that a real `systemd` would schedule the unit at boot.
 
+- **`polygon/stand-ins/timedatectl-stand-in.sh`**: installed at `/usr/bin/timedatectl` in both images (issue #392).
+  - A container boots no systemd, so the real `timedatectl` fails with "System has not been booted with systemd" and the agent's clock reading (`timedatectl show --property=NTP --property=NTPSynchronized`) could never succeed: the `maran dev` stack showed "Needs attention: The clock could not be checked" for ever.
+  - It answers only that one `show` call, from `/run/polygon-clock/state` (`synchronized`, `notSynchronized` or `syncServiceDisabled`; no file reads `synchronized`, a healthy host). Anything else is refused with exit 1 rather than succeeding silently.
+  - The consequence, stated rather than hidden: **it reports a file, not the kernel's flag**, so the polygon proves the agent's classification and the binary path, not that a real `timedatectl` prints these properties; the committed capture in the `ops::monitor` unit tests stands behind that. `monitor_on_a_real_host.rs` flips the file and requires the agent's answer to follow.
+  - A dev agent container created before this change keeps the old image: rebuild it (`maran agent build` / the polygon image) to get the stand-in.
+
 - **`polygon/stand-ins/setquota-stand-in.sh`**: installed at `/usr/sbin/setquota` in both images — the path the distro adapter names, since the agent no longer resolves the tool through `PATH`.
   - A container's overlay filesystem has no quota support, and creating an account applies a quota — so without this every polygon test would fail at account creation, before reaching the privilege or nginx behaviour it exists for.
   - It accepts every invocation and does nothing.
@@ -658,7 +664,7 @@ is one this project keeps paying for when it is blurred:
 | folder | what lives there | what it does to a test |
 |---|---|---|
 | `images/` | the five `.Dockerfile`s | provides the host under test |
-| `stand-ins/` | `systemctl-stand-in.sh`, `setquota-stand-in.sh`, `s3-stand-in.py` | makes a test PASS by pretending |
+| `stand-ins/` | `systemctl-stand-in.sh`, `setquota-stand-in.sh`, `timedatectl-stand-in.sh`, `s3-stand-in.py` | makes a test PASS by pretending |
 | `asserts/` | `assert-installer-steps.sh`, `quota-harness.sh`, `pam-witness.c` | makes a test FAIL by measuring |
 
 A stand-in is not a weaker assert; it is the opposite of one. `systemctl-stand-in.sh` "starts or

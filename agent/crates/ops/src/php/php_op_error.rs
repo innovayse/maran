@@ -88,6 +88,21 @@ pub enum PhpOpError {
         name: String,
     },
 
+    /// `post_max_size` is smaller than `upload_max_filesize`, so PHP would
+    /// discard a file the pool claims to accept.
+    ///
+    /// Both figures are the EFFECTIVE ones — a setting the customer did not
+    /// name counts at the pool's default — in bytes.
+    #[error(
+        "post_max_size ({post_max_size} bytes) must be at least upload_max_filesize ({upload_max_filesize} bytes)"
+    )]
+    OverridePostSizeBelowUpload {
+        /// The effective `post_max_size`, in bytes.
+        post_max_size: u64,
+        /// The effective `upload_max_filesize`, in bytes.
+        upload_max_filesize: u64,
+    },
+
     /// The worker budget the panel supplied is outside the range the agent
     /// will render.
     ///
@@ -216,6 +231,83 @@ pub enum PhpOpError {
     AccountBusy {
         /// The account whose lock was held.
         username: String,
+    },
+
+    /// The account has no pool file at this version, so there is nothing to
+    /// rewrite.
+    ///
+    /// Reported rather than created: `ApplyPhpPoolSettings` changes a pool that
+    /// exists and never makes one, because a pool belongs with the site whose
+    /// vhost names its socket, and pool creation stays with the operations
+    /// that write both (issue #138).
+    #[error("account `{username}` has no PHP {version} pool")]
+    PoolMissing {
+        /// The account whose pool was asked for.
+        username: String,
+        /// The PHP version the pool was asked for.
+        version: String,
+    },
+
+    /// The family has no package for the extension, so it cannot be switched
+    /// on (issue #157).
+    ///
+    /// The extension is built into another package or not offered on this
+    /// family. Refused rather than guessed: the package name is the install
+    /// unit's instance, and the agent only ever names one the adapter derived.
+    #[error("PHP {version} has no package for the extension `{extension}` on this host")]
+    ExtensionNotPackaged {
+        /// The catalogue name that was asked for.
+        extension: String,
+        /// The PHP version it was asked for.
+        version: String,
+    },
+
+    /// The family has no clean way to switch the extension off, so the agent
+    /// refuses rather than edit the distribution's ini files by hand (issue
+    /// #157).
+    #[error("the extension `{extension}` cannot be switched off on this host")]
+    ExtensionSwitchUnsupported {
+        /// The catalogue name that was asked for.
+        extension: String,
+    },
+
+    /// The family's switch program could not be started or exited non-zero.
+    #[error("switching the PHP extension failed: {stderr}")]
+    ExtensionSwitchFailed {
+        /// The switch program's standard error, or the reason it could not be
+        /// started, for an operator's log.
+        stderr: String,
+    },
+
+    /// The extension was switched on and php-fpm accepted the result, but the
+    /// version's module listing still does not carry it.
+    ///
+    /// A success is never reported on the strength of a command's exit status:
+    /// the state is what the daemon loads.
+    #[error("the extension `{extension}` is still not loaded after it was switched on")]
+    ExtensionNotLoaded {
+        /// The catalogue name that was switched on.
+        extension: String,
+    },
+
+    /// The extension was switched off and php-fpm accepted the result, but the
+    /// version's module listing still carries it.
+    #[error("the extension `{extension}` is still loaded after it was switched off")]
+    ExtensionStillLoaded {
+        /// The catalogue name that was switched off.
+        extension: String,
+    },
+
+    /// `php-fpm<version> -m` could not be started or exited non-zero, so which
+    /// extensions are loaded is not known.
+    ///
+    /// Never answered as an empty list: an empty list would read every
+    /// extension as off.
+    #[error("could not read the loaded PHP extensions: {stderr}")]
+    ExtensionProbeFailed {
+        /// The probe's standard error, or the reason it could not be started,
+        /// for an operator's log.
+        stderr: String,
     },
 }
 

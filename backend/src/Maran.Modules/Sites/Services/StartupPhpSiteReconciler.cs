@@ -57,8 +57,9 @@ public sealed class StartupPhpSiteReconciler : BackgroundService
 
     /// <summary>Customer php.ini overrides, of which the panel stores none.</summary>
     /// <remarks>
-    /// The same true-and-complete empty set the version change uses; the agent's converge keeps the
-    /// settings already on disk and does not take them from this argument.
+    /// The same true-and-complete empty set the version change uses. The agent's converge does NOT keep
+    /// the settings already on disk: it renders the pool from exactly the overrides it is given, so this
+    /// argument is what the pool carries (issue #431).
     /// </remarks>
     private static readonly IReadOnlyList<PhpSettingDto> NoSettingOverrides = [];
 

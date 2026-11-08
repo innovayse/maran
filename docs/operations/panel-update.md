@@ -270,7 +270,7 @@ The bundle's manifest signature and each archive's sha256 are verified exactly a
 ## A database restore drops writes
 
 `maran rollback --restore-database` restores the dump from before the update. Everything written
-after the dump is gone: new accounts, sites, schedules, password changes, audit entries, and the
+after the dump is gone, and so is every table or schema a newer release added: new accounts, sites, schedules, password changes, audit entries, and the
 messages waiting in the queue. It asks for `--yes` or a typed confirmation and says so. Use it only
 when the new release changed data in a way the old release cannot read, and take a
 `maran panel-backup` of the current state first if you might need anything in it. A plain
@@ -296,10 +296,10 @@ These are the honest limits of this change.
   the signing key.
 - A release that deliberately breaks the expand-then-contract rule says so in its notes; rolling back
   across it needs the database restore.
-- `pg_restore --clean` cannot remove objects that a newer release created. After an update that added
-  schemas or tables, `maran rollback --restore-database` can therefore refuse. It is fail-closed and
-  nothing is changed. A plain rollback leaves `PREVIOUS` empty, so restore the database by hand from
-  the dump file.
+- `maran rollback --restore-database` returns the database to the dump's state even when the update
+  added schemas or tables: before the dump is replayed, every schema except `public` and the system
+  ones is dropped in the same transaction, so what the newer release created is removed with the rest.
+  Objects a newer release put in `public` are not removed; the panel creates none there.
 - The manifest has no expiry. A host that serves an older, still valid manifest can keep a server on
   an old release; the check stops a downgrade, not a stale upgrade. Compare against the release page.
 - This change has not yet had its second security review: it is outstanding, and the change must not

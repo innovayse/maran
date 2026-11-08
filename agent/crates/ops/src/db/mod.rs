@@ -74,10 +74,12 @@ mod drop_database;
 #[path = "../tests/db/fake_db_host.rs"]
 pub(crate) mod fake_db_host;
 mod grant_pattern;
+mod grant_rows;
 mod list_databases;
 pub mod model;
 mod process_db_host;
 mod repair_grants;
+mod revoke_database_grants;
 mod set_database_password;
 
 pub use create_database::create_database;

@@ -26,8 +26,18 @@ namespace Maran.Modules.Backups.Commands.RestoreBackup;
 /// <para>
 /// <b>The point of no return is the agent's first <c>DROP DATABASE</c>, and it is on the other side
 /// of every check here.</b> The order is deliberate: read the row, prove the artifact is usable,
-/// resolve the account, match the confirmation, refuse a concurrent run, and only then open a task
-/// and stream. Each of those is free to fail.
+/// resolve the account, match the confirmation, refuse a concurrent run, take the pre-restore
+/// backup, and only then open a task and stream. Each of those is free to fail.
+/// </para>
+/// <para>
+/// <b>The pre-restore backup is the panel's job, and a restore is refused without it.</b> The agent
+/// documents that it does not take one and expects its caller to, because a copy made inside the
+/// restore would leave the agent's operation with two meanings. So the panel takes a
+/// <see cref="BackupKind.PreRestore"/> backup through the same path as the final backup of a deleted
+/// account (<see cref="SafetyBackupService"/>), waits for it, and answers
+/// <c>PreRestoreBackupFailed</c> if it cannot be made — leaving the account exactly as it was. The
+/// copy covers what any backup covers (the home and the databases); it is not a copy of the vhosts,
+/// certificates, crontab or firewall, which a restore does not touch either.
 /// </para>
 /// <para>
 /// <b>Concurrency is refused in two places and only one of them is here — say which.</b> The panel
@@ -83,6 +93,9 @@ public sealed class RestoreBackupCommandHandler
     /// <summary>The stream consumer that reduces one restore to a single outcome.</summary>
     private readonly RestoreRunner _runner;
 
+    /// <summary>Takes the pre-restore backup the restore is refused without.</summary>
+    private readonly SafetyBackupService _safetyBackups;
+
     /// <summary>Resolves the destination the artifact was written to.</summary>
     private readonly BackupDestinationResolver _destinations;
 
@@ -101,6 +114,7 @@ public sealed class RestoreBackupCommandHandler
     /// <param name="databases">The databases the panel knows the account owns.</param>
     /// <param name="destinations">Resolves the destination the artifact was written to.</param>
     /// <param name="runner">The stream consumer that drives the restore.</param>
+    /// <param name="safetyBackups">Takes the pre-restore backup the restore is refused without.</param>
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="tasks">The panel-wide task journal.</param>
     /// <param name="correlationIds">The current request's correlation id.</param>
@@ -109,6 +123,7 @@ public sealed class RestoreBackupCommandHandler
         IAccountDirectory accounts,
         IAccountDatabaseDirectory databases,
         RestoreRunner runner,
+        SafetyBackupService safetyBackups,
         BackupDestinationResolver destinations,
         BackupAuditJournal journal,
         ITaskRecorder tasks,
@@ -118,6 +133,7 @@ public sealed class RestoreBackupCommandHandler
         _accounts = accounts;
         _databases = databases;
         _runner = runner;
+        _safetyBackups = safetyBackups;
         _destinations = destinations;
         _journal = journal;
         _tasks = tasks;
@@ -221,6 +237,28 @@ public sealed class RestoreBackupCommandHandler
         {
             return await RefuseAsync(
                 command, account.Username, destination.Error!.Code, destination.Error.Type, cancellationToken);
+        }
+
+        // The safety net, taken BEFORE the task is opened and before the agent is asked to replace
+        // anything: a copy of the account as it is now, so a restore that was a mistake can itself be
+        // undone. A refusal here is the same kind of ending as every refusal above — the account has
+        // been changed by nothing — and it must not be a task an operator reads as a restore that
+        // started. The copy is waited for, because a restore that carried on over a copy still being
+        // written would be taken on the strength of a net nobody has seen exist.
+        var preRestore = await _safetyBackups.TakeAsync(
+            BackupKind.PreRestore,
+            backup.AccountId,
+            account.Username,
+            BackupAuditActions.BackupCreated,
+            nameof(ErrorMessages.PreRestoreBackupFailed),
+            Guid.Empty,
+            command.IpAddress,
+            command.UserAgent,
+            cancellationToken);
+        if (!preRestore.IsSuccess)
+        {
+            return await RefuseAsync(
+                command, account.Username, preRestore.Error!.Code, preRestore.Error.Type, cancellationToken);
         }
 
         // About the account being restored; audience AccountOwner, because a restore is work done

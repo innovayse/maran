@@ -57,6 +57,13 @@ pub struct Pool<'a> {
     /// spent in a blocking syscall: a request waiting on a dead database is
     /// never counted by PHP and is reclaimed only by this.
     pub request_terminate_timeout: u32,
+    /// The default of both `upload_max_filesize` and `post_max_size`.
+    ///
+    /// One field for two settings because they are one decision: a body
+    /// ceiling below the file ceiling discards uploads the pool claims to
+    /// accept. Rendered BEFORE [`Self::overrides`], so a customer's own value
+    /// replaces it (php-fpm reads the last occurrence).
+    pub default_size: &'a str,
     /// The whitelisted php.ini overrides the customer has set (spec §11).
     pub overrides: &'a [PoolOverride<'a>],
 }

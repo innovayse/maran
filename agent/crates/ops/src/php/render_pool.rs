@@ -5,6 +5,7 @@ use maran_templates::php_fpm::pool::Pool;
 use maran_templates::php_fpm::pool_override::PoolOverride;
 
 use crate::php::PhpOpError;
+use crate::php::model::php_override::{DEFAULT_SIZE, PhpOverride};
 use crate::php::model::pool_input::PoolInput;
 use crate::php::model::pool_paths::PoolPaths;
 use crate::php::write_pool::MINIMUM_WORKERS;
@@ -64,6 +65,10 @@ pub(crate) fn render_pool(
     input: &PoolInput,
     paths: &PoolPaths,
 ) -> Result<String, PhpOpError> {
+    // The panel's copy of this check is advice; this is the one that decides,
+    // and it sits here because `PoolInput` is built by several callers.
+    PhpOverride::ensure_consistent(&input.overrides)?;
+
     let socket_path = paths.socket_path.display().to_string();
     let home_directory = paths.home_directory.display().to_string();
     let session_directory = paths.session_directory.display().to_string();
@@ -97,6 +102,7 @@ pub(crate) fn render_pool(
         session_directory: &session_directory,
         upload_temporary_directory: &upload_temporary_directory,
         request_terminate_timeout: request_timeout(input),
+        default_size: DEFAULT_SIZE,
         overrides: &overrides,
     }
     .render_config()

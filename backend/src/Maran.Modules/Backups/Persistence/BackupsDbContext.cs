@@ -69,7 +69,10 @@ public sealed class BackupsDbContext : DbContext
     /// what <c>TenantScopeTests</c> asks for of any entity carrying an <c>AccountId</c> and because
     /// an authorization attribute on a controller is a decision one route can be added without. A
     /// customer who somehow reached a schedule read would see nothing: their own account has no
-    /// schedule they may edit, and the host-wide row names no account so it matches nobody.
+    /// schedule they may edit, and the host-wide row names no account so it matches nobody. That
+    /// holds for a caller with no account too: the filter requires the row to name an account, so a
+    /// null tenant does not match the host-wide row's null (issue #438). Only the administrator arm
+    /// reads the host-wide policy, and a handler serving it says so.
     /// </remarks>
     public DbSet<BackupSchedule> BackupSchedules
     {
@@ -115,8 +118,11 @@ public sealed class BackupsDbContext : DbContext
         modelBuilder.Entity<Backup>().HasQueryFilter(backup =>
             IsAdministrator || backup.AccountId == TenantAccountId);
 
+        // The host-wide row has a null AccountId, and EF turns `AccountId == <null parameter>` into
+        // `IS NULL`, which would show it to every caller with no account. The explicit non-null arm
+        // makes "no tenant" match no row; only the administrator arm reaches the host-wide policy.
         modelBuilder.Entity<BackupSchedule>().HasQueryFilter(schedule =>
-            IsAdministrator || schedule.AccountId == TenantAccountId);
+            IsAdministrator || (schedule.AccountId != null && schedule.AccountId == TenantAccountId));
 
         base.OnModelCreating(modelBuilder);
     }

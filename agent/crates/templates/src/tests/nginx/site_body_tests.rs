@@ -127,3 +127,38 @@ fn a_body_does_not_start_with_the_comment_that_explains_it() {
         assert!(render.starts_with("    access_log "));
     }
 }
+
+/// Every `client_max_body_size` directive of a render, trimmed.
+fn body_limit_lines(render: &str) -> Vec<&str> {
+    render
+        .lines()
+        .map(str::trim)
+        .filter(|line| line.starts_with("client_max_body_size"))
+        .collect()
+}
+
+#[test]
+fn a_php_body_writes_the_body_limit_once_at_server_level() {
+    let render = php_body();
+
+    assert_eq!(
+        body_limit_lines(&render),
+        vec!["client_max_body_size 512m;"]
+    );
+    let limit = render.find("\n    client_max_body_size ").unwrap();
+    let location = render.find("\n    location ").unwrap();
+    assert!(limit < location, "the limit must precede every location");
+}
+
+#[test]
+fn a_proxied_body_writes_the_body_limit_once() {
+    assert_eq!(
+        body_limit_lines(&proxy_body()),
+        vec!["client_max_body_size 512m;"]
+    );
+}
+
+#[test]
+fn a_static_body_writes_no_body_limit() {
+    assert!(body_limit_lines(&static_body()).is_empty());
+}

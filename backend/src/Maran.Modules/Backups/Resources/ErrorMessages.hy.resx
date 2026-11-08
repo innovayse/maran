@@ -39,6 +39,9 @@
   <data name="FinalBackupFailed">
     <value>Հաշիվը չի ջնջվել՝ չհաջողվեց ստեղծել դրա վերջնական պահուստային պատճենը։</value>
   </data>
+  <data name="PreRestoreBackupFailed">
+    <value>Հաշիվը չի վերականգնվել՝ նախ չհաջողվեց ստեղծել դրա ներկայիս վիճակի պահուստային պատճենը, ուստի ոչինչ չի փոխվել։</value>
+  </data>
   <data name="BackupNotRestorable">
     <value>Այս պահուստային պատճենը հնարավոր չէ վերականգնել՝ այն հաջողությամբ չի ավարտվել։</value>
   </data>
