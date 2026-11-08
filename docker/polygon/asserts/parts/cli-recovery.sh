@@ -321,14 +321,14 @@ assert_the_break_glass_command_installs_root_only_and_refuses_what_it_should() {
   # The wrapper pins its own PATH, and every start of a binary as the service account is a fixed
   # argv. Counted with patterns that also match the real lines, so a rename of either cannot leave
   # this passing over nothing.
-  # runuser appears on exactly three lines, each a fixed argv as the service account: the ONE
+  # runuser appears on exactly four lines, each a fixed argv as the service account: the ONE
   # helper that runs a panel binary as that account (cli_run_as_service in common.sh, used for the
   # --cli mode, the restore's --migrate and the update's --migrate alike), and pg_dump and
-  # pg_restore (panel-dump.sh, the one place they are spelled). A fourth is something new that runs
+  # pg_restore and psql (panel-dump.sh, the one place they are spelled). A fifth is something new that runs
   # as somebody, and is read before it passes. Counted per file so that one file's lines cannot
   # stand in for another's.
-  [ "$(cat $code_files | sed 's/^[[:space:]]*#.*$//' | grep -c 'runuser')" -eq 3 ] \
-    || fail "the break-glass command mentions runuser on a line other than the three known ones (cli_run_as_service in common.sh, pg_dump and pg_restore in panel-dump.sh)"
+  [ "$(cat $code_files | sed 's/^[[:space:]]*#.*$//' | grep -c 'runuser')" -eq 4 ] \
+    || fail "the break-glass command mentions runuser on a line other than the four known ones (cli_run_as_service in common.sh, pg_dump, pg_restore and psql in panel-dump.sh)"
   [ "$(sed 's/^[[:space:]]*#.*$//' "${CLI_LIB_INSTALLED_DIR}/common.sh" | grep -cE 'runuser -u "\$MARAN_CLI_SERVICE_USER" --')" -eq 1 ] \
     || fail "common.sh no longer runs a panel binary as the service account on exactly one 'runuser -u \"\$MARAN_CLI_SERVICE_USER\" --' line (cli_run_as_service)"
   [ "$(sed 's/^[[:space:]]*#.*$//' "${CLI_LIB_INSTALLED_DIR}/panel-dump.sh" | grep -cE 'runuser -u "\$MARAN_CLI_SERVICE_USER" -- pg_dump ')" -eq 1 ] \
@@ -363,6 +363,8 @@ assert_the_break_glass_command_installs_root_only_and_refuses_what_it_should() {
 # command it captures from `set -e` and from the caller.
 cli_pbtest_run() {
   CLI_PBTEST_STATUS=0
+  [ "$(sed 's/^[[:space:]]*#.*$//' "${CLI_LIB_INSTALLED_DIR}/panel-dump.sh" | grep -cE 'runuser -u "\$MARAN_CLI_SERVICE_USER" -- psql ')" -eq 1 ] \
+    || fail "panel-dump.sh no longer runs psql as the service account on exactly one 'runuser -u \"\$MARAN_CLI_SERVICE_USER\" -- psql' line"
   CLI_PBTEST_OUTPUT="$("$CLI_WRAPPER_INSTALLED" "$@" 2>&1)" || CLI_PBTEST_STATUS=$?
 }
 
