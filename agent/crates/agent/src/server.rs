@@ -158,54 +158,65 @@ pub async fn serve(
     // `DistroInfo` whole, and mail's Dovecot generation is a fact of the release.
     let release = distro.version_id.clone();
 
-    // BEFORE the socket, and for the same reason as the restore reconciliation
-    // above: `reload_web_server` does NOT take `safe_write::config_tree_lock`,
-    // so a `CreateSite` accepted while it ran would be writing the very tree it
-    // is validating. No connection has been accepted yet, so there is nothing
-    // to race.
-    reconcile_web_tree(&ProcessSiteHost::new(), adapter);
+    // The reconciliation passes below are synchronous: they run programs, write
+    // configuration and take `safe_write::config_tree_lock`, whose
+    // `blocking_lock` refuses a runtime worker. They therefore run together on
+    // the blocking pool, still strictly BEFORE the socket is bound, which is the
+    // ordering every comment below relies on. A panic in a pass is re-raised
+    // here unchanged, exactly as if it had run inline.
+    let passes = tokio::task::spawn_blocking(move || {
+        // BEFORE the socket, and for the same reason as the restore reconciliation
+        // above: `reload_web_server` does NOT take `safe_write::config_tree_lock`,
+        // so a `CreateSite` accepted while it ran would be writing the very tree it
+        // is validating. No connection has been accepted yet, so there is nothing
+        // to race.
+        reconcile_web_tree(&ProcessSiteHost::new(), adapter);
 
-    // And the same window over the OTHER tree `safe_write` renames into: the
-    // php-fpm pools. Here for the same two reasons — the pass takes no
-    // `config_tree_lock`, so a `WritePool` accepted while it ran would be
-    // writing the very tree it is validating, and no connection has been
-    // accepted yet.
-    reconcile_php_pool_trees(&ProcessPhpHost::new(), adapter);
+        // And the same window over the OTHER tree `safe_write` renames into: the
+        // php-fpm pools. Here for the same two reasons — the pass takes no
+        // `config_tree_lock`, so a `WritePool` accepted while it ran would be
+        // writing the very tree it is validating, and no connection has been
+        // accepted yet.
+        reconcile_php_pool_trees(&ProcessPhpHost::new(), adapter);
 
-    // Each installed PHP version's OPcache drop-in, the isolation settings of the
-    // cache every tenant of a version shares. After the pool-tree pass so a tree
-    // it found broken is reported before a reload is asked of the same master, and
-    // before the socket for the same reason as the passes around it.
-    reconcile_opcache_drop_ins(&ProcessPhpHost::new(), adapter);
+        // Each installed PHP version's OPcache drop-in, the isolation settings of the
+        // cache every tenant of a version shares. After the pool-tree pass so a tree
+        // it found broken is reported before a reload is asked of the same master, and
+        // before the socket for the same reason as the passes around it.
+        reconcile_opcache_drop_ins(&ProcessPhpHost::new(), adapter);
 
-    // The SFTP logins' key directory against the password database (issue
-    // #338). BEFORE the socket for the same reason as the passes above: no
-    // `CreateSftpUser` or `SetSftpAuthorizedKeys` can be writing a key file
-    // while the sweep decides which ones are orphans, because no connection has
-    // been accepted yet.
-    reconcile_sftp_key_files(&ProcessSftpHost::new(), adapter);
+        // The SFTP logins' key directory against the password database (issue
+        // #338). BEFORE the socket for the same reason as the passes above: no
+        // `CreateSftpUser` or `SetSftpAuthorizedKeys` can be writing a key file
+        // while the sweep decides which ones are orphans, because no connection has
+        // been accepted yet.
+        reconcile_sftp_key_files(&ProcessSftpHost::new(), adapter);
 
-    // The sites' credential files against the vhost directory (issue #151).
-    // BEFORE the socket, for the same reason as the passes above: no `CreateSite`
-    // can be writing a credential file and a vhost while the sweep decides which
-    // files are orphans, because no connection has been accepted yet.
-    reconcile_site_auth_files(&ProcessSiteHost::new());
+        // The sites' credential files against the vhost directory (issue #151).
+        // BEFORE the socket, for the same reason as the passes above: no `CreateSite`
+        // can be writing a credential file and a vhost while the sweep decides which
+        // files are orphans, because no connection has been accepted yet.
+        reconcile_site_auth_files(&ProcessSiteHost::new());
 
-    // The zone files against the DNS daemon's own zone list (issue #178). BEFORE
-    // the socket, so no `PutZone` or `DeleteZone` can be changing a zone while the
-    // pass decides which files the daemon has lost, because no connection has
-    // been accepted yet. A host that has not enabled DNS has no daemon to ask,
-    // which is not a fault.
-    reconcile_dns_zones(&ProcessDnsHost::new(), adapter);
+        // The zone files against the DNS daemon's own zone list (issue #178). BEFORE
+        // the socket, so no `PutZone` or `DeleteZone` can be changing a zone while the
+        // pass decides which files the daemon has lost, because no connection has
+        // been accepted yet. A host that has not enabled DNS has no daemon to ask,
+        // which is not a fault.
+        reconcile_dns_zones(&ProcessDnsHost::new(), adapter);
 
-    // The temporary database users an interrupted import left behind (issue
-    // #127). BEFORE the socket, so no `ImportBackup` can be between creating its
-    // user and dropping it while the pass drops every user of that shape,
-    // because no connection has been accepted yet.
-    reconcile_import_users(&ProcessRestrictedDumpHost::new(
-        adapter,
-        PathBuf::from(AgentPaths::BULK_SCRATCH_ROOT),
-    ));
+        // The temporary database users an interrupted import left behind (issue
+        // #127). BEFORE the socket, so no `ImportBackup` can be between creating its
+        // user and dropping it while the pass drops every user of that shape,
+        // because no connection has been accepted yet.
+        reconcile_import_users(&ProcessRestrictedDumpHost::new(
+            adapter,
+            PathBuf::from(AgentPaths::BULK_SCRATCH_ROOT),
+        ));
+    });
+    if let Err(failure) = passes.await {
+        std::panic::resume_unwind(failure.into_panic());
+    }
 
     // The fleet listener's address is bound BEFORE the unix socket: the socket file is what
     // tells the panel and the tests that the agent is ready, so a node whose fleet address is

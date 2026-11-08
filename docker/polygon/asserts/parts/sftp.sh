@@ -109,8 +109,13 @@ assert_sftp_validates_before_replacing() {
 # assert_panel_port_has_one_authority exists: a check that carries its own copy of a value stops
 # following the one place that decides it.
 run_nginx_step() {
-  local snippet="$1" path_prefix="${2:-}"
+  local snippet="$1" path_prefix="${2:-}" config_file="${3:-}"
   local search_path="$PATH"
+  # An optional panel.env for the step to read. This shell has sourced step 60, which declares
+  # MARAN_CONFIG_FILE readonly, so it cannot be set as a prefix here; `env` hands it to the child
+  # bash, which never sources step 60.
+  local -a config_env=()
+  [ -z "$config_file" ] || config_env=("MARAN_CONFIG_FILE=${config_file}")
   # An optional directory placed AHEAD of the step's PATH. One case needs to interfere with a
   # tool the step runs rather than with the step itself — see
   # nginx_shim_that_interrupts_the_validation — and passing it here keeps every other case
@@ -121,7 +126,7 @@ run_nginx_step() {
     MARAN_GROUP="$POLYGON_SERVICE_GROUP" \
     LIB_DIR="$INSTALLER_LIB" \
     PATH="$search_path" \
-    bash -c 'set -euo pipefail
+    env "${config_env[@]}" bash -c 'set -euo pipefail
 . "$1"
 . "$2"
 eval "$3"' _ "$COMMON_LIB" "$NGINX_STEP" "$snippet"

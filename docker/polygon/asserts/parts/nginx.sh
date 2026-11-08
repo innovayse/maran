@@ -430,7 +430,7 @@ assert_the_file_transfer_location_carries_the_configured_body_limit() {
     else
       printf 'Files__MaxUploadBytes=%s\n' "$configured" > "$env_file"
     fi
-    if ! MARAN_CONFIG_FILE="$env_file" run_nginx_step "render_vhost '${rendered}'" >/dev/null 2>&1; then
+    if ! run_nginx_step "render_vhost '${rendered}'" '' "$env_file" >/dev/null 2>&1; then
       rm -f "$env_file" "$rendered"
       fail "step 80's render_vhost failed for the case '${case_name}', so the file-transfer limit could not be read."
     fi
