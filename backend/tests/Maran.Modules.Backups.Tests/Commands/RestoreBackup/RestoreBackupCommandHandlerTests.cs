@@ -1,6 +1,8 @@
 using Maran.Agent.Client.Services.BackupService;
 using Maran.Modules.Backups.Commands.RestoreBackup;
 using Maran.Modules.Backups.Common;
+using Maran.Modules.Backups.Domain.Enums;
+using Maran.Modules.Backups.Persistence;
 using Maran.Modules.Backups.Services;
 using Maran.Modules.Backups.Tests.TestSupport;
 using Maran.Sdk.Contracts;
@@ -21,9 +23,20 @@ public sealed class RestoreBackupCommandHandlerTests
     /// <summary>The user agent every command in these tests is issued with.</summary>
     private const string Client = "unit-tests";
 
+    /// <summary>The instant the injected clock reports, so nothing here reads the ambient clock.</summary>
+    private static readonly DateTimeOffset Now = new(2026, 11, 7, 9, 0, 0, TimeSpan.Zero);
+
     /// <summary>A terminal event describing a restore that replaced everything it set out to.</summary>
     private static readonly BackupRestoreEvent WholeRestore =
         new(BackupRestoreEventKind.Restored, 100, string.Empty, new AgentRestoreOutcome(true, 2, 2), null);
+
+    /// <summary>A terminal event describing a pre-restore backup that finished its archive.</summary>
+    private static readonly BackupCreateEvent PreRestoreCreated =
+        new(BackupCreateEventKind.Created, 100, "done", 4096, new string('b', 64), 2, null);
+
+    /// <summary>A terminal event describing a pre-restore backup the agent could not finish.</summary>
+    private static readonly BackupCreateEvent PreRestoreDropped =
+        new(BackupCreateEventKind.Dropped, 30, "archiving", 0, string.Empty, 0, null);
 
     /// <summary>A terminal event describing a restore that lost one of two databases.</summary>
     private static readonly BackupRestoreEvent PartialRestore =
@@ -462,14 +475,307 @@ public sealed class RestoreBackupCommandHandlerTests
             await world.Handler.HandleAsync(world.Command(World.Username), abort.Token);
         });
 
-        var entry = Assert.Single(world.Audit.Entries);
-        Assert.Equal(BackupAuditActions.BackupRestored, entry.Action);
+        var entry = Assert.Single(world.Audit.Entries, e =>
+        {
+            return e.Action == BackupAuditActions.BackupRestored;
+        });
         Assert.False(entry.Succeeded);
         Assert.Equal(World.Username, entry.Subject);
 
         var task = Assert.Single(world.Tasks.Tasks);
         Assert.False(task.Completed);
         Assert.Equal("RestoreOutcomeUnobserved", task.FailureCode);
+    }
+
+    /// <summary>A whole restore first takes a completed backup of the account, of the pre-restore kind.</summary>
+    /// <remarks>
+    /// The kind is what keeps retention from eating the copy and what makes it findable as the net
+    /// of this restore, so it is asserted as a value, together with the account it names and the
+    /// digest the agent stated.
+    /// </remarks>
+    [Fact]
+    public async Task A_restore_first_takes_a_completed_pre_restore_backup_of_the_account()
+    {
+        var world = World.Create([WholeRestore]);
+
+        var result = await world.Handler.HandleAsync(world.Command(World.Username), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        await using var reading = world.Read();
+        var taken = await reading.Backups.IgnoreQueryFilters()
+            .SingleAsync(row => row.Kind == BackupKind.PreRestore);
+        Assert.Equal(BackupStatus.Completed, taken.Status);
+        Assert.Equal(world.AccountId, taken.AccountId);
+        Assert.Equal(new string('b', 64), taken.ArtifactSha256);
+
+        var create = Assert.Single(world.Agent.Creates);
+        Assert.Equal(World.Username, create.AccountUsername);
+        Assert.Equal(taken.Id.ToString(), create.BackupId);
+    }
+
+    /// <summary>The pre-restore backup is finished before the agent is asked to replace anything.</summary>
+    /// <remarks>
+    /// The ordering is the whole of the guarantee: a copy still being written when the first
+    /// database is dropped is no net. The restore stream is observed at the moment it starts, and the
+    /// copy must already be a Completed row by then.
+    /// </remarks>
+    [Fact]
+    public async Task The_pre_restore_backup_is_completed_before_the_agent_is_asked_to_restore()
+    {
+        var world = World.Create([WholeRestore]);
+        BackupStatus? statusWhenRestoreStarted = null;
+        world.Agent.OnRestore = () =>
+        {
+            using var reading = world.Read();
+            statusWhenRestoreStarted = reading.Backups.IgnoreQueryFilters()
+                .Single(row => row.Kind == BackupKind.PreRestore).Status;
+        };
+
+        await world.Handler.HandleAsync(world.Command(World.Username), CancellationToken.None);
+
+        Assert.Equal(BackupStatus.Completed, statusWhenRestoreStarted);
+    }
+
+    /// <summary>A pre-restore backup that fails refuses the restore and the agent is never asked to restore.</summary>
+    /// <remarks>
+    /// The refusing half. The row stays, Failed, as the record of what refused; no task is opened
+    /// because the restore never started; the refusal is journalled as a failed restore.
+    /// </remarks>
+    [Fact]
+    public async Task A_failed_pre_restore_backup_refuses_the_restore_and_changes_nothing()
+    {
+        var world = World.Create([WholeRestore], createEvents: [PreRestoreDropped]);
+
+        var result = await world.Handler.HandleAsync(world.Command(World.Username), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("PreRestoreBackupFailed", result.Error!.Code);
+        Assert.Equal(ErrorType.Failure, result.Error.Type);
+        Assert.Empty(world.Agent.Restores);
+        Assert.Empty(world.Tasks.Tasks);
+
+        await using var reading = world.Read();
+        var failed = await reading.Backups.IgnoreQueryFilters()
+            .SingleAsync(row => row.Kind == BackupKind.PreRestore);
+        Assert.Equal(BackupStatus.Failed, failed.Status);
+
+        var restored = Assert.Single(world.Audit.Entries, e =>
+        {
+            return e.Action == BackupAuditActions.BackupRestored;
+        });
+        Assert.False(restored.Succeeded);
+    }
+
+    /// <summary>A pre-restore backup that ended with no outcome at all refuses the restore too.</summary>
+    /// <remarks>
+    /// The inverse of "a stream that ran dry is a success": an agent that said nothing has produced
+    /// no net, and the restore must not carry on over it.
+    /// </remarks>
+    [Fact]
+    public async Task A_pre_restore_backup_that_stated_no_outcome_refuses_the_restore()
+    {
+        var world = World.Create([WholeRestore], createEvents: []);
+
+        var result = await world.Handler.HandleAsync(world.Command(World.Username), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("PreRestoreBackupFailed", result.Error!.Code);
+        Assert.Empty(world.Agent.Restores);
+    }
+
+    /// <summary>A restore refused before the net is needed takes no backup at all.</summary>
+    /// <remarks>
+    /// Every earlier refusal changes nothing, so none of them may leave a PreRestore row behind: a
+    /// wrong confirmation must not cost the server an archive.
+    /// </remarks>
+    [Fact]
+    public async Task A_restore_refused_by_its_confirmation_takes_no_pre_restore_backup()
+    {
+        var world = World.Create([WholeRestore]);
+
+        await world.Handler.HandleAsync(world.Command("someone-else"), CancellationToken.None);
+
+        Assert.Empty(world.Agent.Creates);
+        await using var reading = world.Read();
+        Assert.False(await reading.Backups.IgnoreQueryFilters().AnyAsync(row => row.Kind == BackupKind.PreRestore));
+    }
+
+    /// <summary>The terminal event of a database restore that replaced exactly the one database.</summary>
+    private static readonly BackupRestoreEvent DatabaseRestore =
+        new(BackupRestoreEventKind.Restored, 100, string.Empty, new AgentRestoreOutcome(false, 1, 1), null);
+
+    /// <summary>The terminal event of a site restore that replaced one directory and no database.</summary>
+    private static readonly BackupRestoreEvent SiteRestore =
+        new(BackupRestoreEventKind.Restored, 100, string.Empty, new AgentRestoreOutcome(true, 0, 0), null);
+
+    /// <summary>
+    /// A restore narrowed to one of the account's databases asks the agent for exactly that database,
+    /// answers success, and journals the part as well as the account.
+    /// </summary>
+    [Fact]
+    public async Task A_database_restore_asks_the_agent_for_that_database_and_journals_the_part()
+    {
+        var world = World.Create([DatabaseRestore]);
+
+        var result = await world.Handler.HandleAsync(
+            world.Command(World.Username) with { DatabaseName = "cust01_blog" },
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1u, result.Value.DatabasesRestored);
+        Assert.Equal(new AgentDatabaseRestoreScope("cust01_blog"), Assert.Single(world.Agent.Scopes));
+
+        var entry = Assert.Single(world.Audit.Entries, e => { return e.Action == BackupAuditActions.BackupRestored; });
+        Assert.True(entry.Succeeded);
+        Assert.Equal("cust01/database/cust01_blog", entry.Subject);
+    }
+
+    /// <summary>
+    /// A restore narrowed to one of the account's sites asks the agent for that site by its domain, and
+    /// never for a path.
+    /// </summary>
+    [Fact]
+    public async Task A_site_restore_asks_the_agent_for_that_site_by_its_domain()
+    {
+        var world = World.Create([SiteRestore]);
+        world.Sites.Host(world.AccountId, "shop.example.com");
+
+        var result = await world.Handler.HandleAsync(
+            world.Command(World.Username) with { SiteDomain = "Shop.Example.COM" },
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(new AgentSiteRestoreScope("shop.example.com"), Assert.Single(world.Agent.Scopes));
+
+        var entry = Assert.Single(world.Audit.Entries, e => { return e.Action == BackupAuditActions.BackupRestored; });
+        Assert.Equal("cust01/site/shop.example.com", entry.Subject);
+    }
+
+    /// <summary>A restore that names nothing is the whole-account restore, exactly as before.</summary>
+    [Fact]
+    public async Task A_restore_naming_nothing_is_a_whole_restore_journalled_under_the_account()
+    {
+        var world = World.Create([WholeRestore]);
+
+        await world.Handler.HandleAsync(world.Command(World.Username), CancellationToken.None);
+
+        Assert.Equal(new AgentWholeRestoreScope(), Assert.Single(world.Agent.Scopes));
+        var entry = Assert.Single(world.Audit.Entries, e => { return e.Action == BackupAuditActions.BackupRestored; });
+        Assert.Equal(World.Username, entry.Subject);
+    }
+
+    /// <summary>
+    /// A database the panel does not list for the account is refused as not found BEFORE the pre-restore
+    /// backup is taken and before the agent is asked for anything — and a database of somebody else's
+    /// account reads exactly like one that does not exist.
+    /// </summary>
+    [Theory]
+    [InlineData("cust02_shop")]
+    [InlineData("cust01_gone")]
+    [InlineData("mysql")]
+    public async Task A_database_the_account_does_not_own_is_refused_before_anything_is_taken(string name)
+    {
+        var world = World.Create([DatabaseRestore]);
+
+        var result = await world.Handler.HandleAsync(
+            world.Command(World.Username) with { DatabaseName = name },
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("RestoreDatabaseNotFound", result.Error!.Code);
+        Assert.Equal(ErrorType.NotFound, result.Error.Type);
+        Assert.Empty(world.Agent.Creates);
+        Assert.Empty(world.Agent.Restores);
+    }
+
+    /// <summary>
+    /// A site the panel does not host is refused as not found, and so is one it hosts for ANOTHER
+    /// account: an administrator can see every site, and a backup of one account must never be laid
+    /// over another's.
+    /// </summary>
+    [Fact]
+    public async Task A_site_that_is_not_the_accounts_is_refused_before_anything_is_taken()
+    {
+        var world = World.Create([SiteRestore]);
+        world.Sites.Host(Guid.NewGuid(), "theirs.example.com");
+
+        foreach (var domain in new[] { "theirs.example.com", "nobody.example.com" })
+        {
+            var result = await world.Handler.HandleAsync(
+                world.Command(World.Username) with { SiteDomain = domain },
+                CancellationToken.None);
+
+            Assert.False(result.IsSuccess, domain);
+            Assert.Equal("RestoreSiteNotFound", result.Error!.Code);
+            Assert.Equal(ErrorType.NotFound, result.Error.Type);
+        }
+
+        Assert.Empty(world.Agent.Creates);
+        Assert.Empty(world.Agent.Restores);
+    }
+
+    /// <summary>
+    /// A narrowed restore takes the pre-restore backup like any other: what a database restore
+    /// overwrites is just as gone, and the net is not a function of how much was asked for.
+    /// </summary>
+    [Fact]
+    public async Task A_database_restore_takes_the_pre_restore_backup_first()
+    {
+        var world = World.Create([DatabaseRestore]);
+
+        await world.Handler.HandleAsync(
+            world.Command(World.Username) with { DatabaseName = "cust01_shop" },
+            CancellationToken.None);
+
+        Assert.Single(world.Agent.Creates);
+        await using var reading = world.Read();
+        Assert.True(await reading.Backups.IgnoreQueryFilters().AnyAsync(row => row.Kind == BackupKind.PreRestore));
+    }
+
+    /// <summary>
+    /// The verdict is judged against the figures the scope should produce: a database restore that
+    /// reports files is not a clean restore, because the agent described a different operation.
+    /// </summary>
+    [Fact]
+    public async Task A_database_restore_reporting_files_is_not_a_clean_restore()
+    {
+        var world = World.Create(
+            [new(BackupRestoreEventKind.Restored, 100, string.Empty, new AgentRestoreOutcome(true, 1, 1), null)]);
+
+        var result = await world.Handler.HandleAsync(
+            world.Command(World.Username) with { DatabaseName = "cust01_shop" },
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("RestorePartial", result.Error!.Code);
+    }
+
+    /// <summary>
+    /// A narrowed restore the agent could not find the part for answers this module's own sentence and
+    /// the not-found kind, and records the part it was about.
+    /// </summary>
+    [Fact]
+    public async Task A_part_the_backup_does_not_hold_is_a_scope_not_in_backup_failure()
+    {
+        var notInBackup = new BackupRestoreEvent(
+            BackupRestoreEventKind.Failed,
+            0,
+            string.Empty,
+            null,
+            Error.Of("AgentNotFound", ErrorType.NotFound));
+        var world = World.Create([notInBackup]);
+
+        var result = await world.Handler.HandleAsync(
+            world.Command(World.Username) with { DatabaseName = "cust01_shop" },
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("RestoreScopeNotInBackup", result.Error!.Code);
+        Assert.Equal(ErrorType.NotFound, result.Error.Type);
+
+        var entry = Assert.Single(world.Audit.Entries, e => { return e.Action == BackupAuditActions.BackupRestored; });
+        Assert.False(entry.Succeeded);
+        Assert.Equal("cust01/database/cust01_shop", entry.Subject);
     }
 
     /// <summary>The handler under test assembled over doubles, plus the seeded rows.</summary>
@@ -496,24 +802,33 @@ public sealed class RestoreBackupCommandHandlerTests
         /// <summary>The task double, holding what was recorded.</summary>
         public RecordingTaskRecorder Tasks { get; }
 
+        /// <summary>The site window double; a test declares the sites the panel hosts on it.</summary>
+        public StubSiteDirectory Sites { get; } = new();
+
         /// <summary>The backup the command names.</summary>
         public Guid BackupId { get; }
 
+        /// <summary>The account the backup belongs to.</summary>
+        public Guid AccountId { get; }
+
         /// <summary>Assembles the handler over doubles and seeds the rows.</summary>
         /// <param name="events">The restore stream the agent replays.</param>
+        /// <param name="createEvents">The stream the pre-restore backup replays.</param>
         /// <param name="seedRunningBackup">Whether a create is in flight for the account.</param>
         /// <param name="restoreTheRunningOne">Whether the command names the running row instead.</param>
         private World(
             IReadOnlyList<BackupRestoreEvent> events,
+            IReadOnlyList<BackupCreateEvent> createEvents,
             bool seedRunningBackup,
             bool restoreTheRunningOne)
         {
             var accountId = Guid.NewGuid();
+            AccountId = accountId;
 
             _database = Guid.NewGuid().ToString();
             _currentUser = FakeCurrentUser.Customer(accountId);
 
-            Agent = new StubAgentBackupClient(restoreEvents: events);
+            Agent = new StubAgentBackupClient(createEvents: createEvents, restoreEvents: events);
             Audit = new RecordingAuditWriter();
             Tasks = new RecordingTaskRecorder();
 
@@ -538,7 +853,14 @@ public sealed class RestoreBackupCommandHandlerTests
                 dbContext,
                 new StubAccountDirectory(new AccountSnapshot(accountId, Username, 1, 1, 1, 1, 1, 1024, AccountState.Active)),
                 new StubAccountDatabaseDirectory(accountId, "cust01_shop", "cust01_blog"),
+                Sites,
                 new RestoreRunner(Agent, Tasks),
+                new SafetyBackupService(
+                    dbContext,
+                    BackupRunnerFactory.Create(Agent, Tasks, dbContext, _currentUser, Audit, new FakeClock(Now)),
+                    new BackupDestinationResolver(dbContext),
+                    new BackupAuditJournal(Audit, _currentUser),
+                    new FakeClock(Now)),
                 new BackupDestinationResolver(dbContext),
                 new BackupAuditJournal(Audit, _currentUser),
                 Tasks,
@@ -549,13 +871,22 @@ public sealed class RestoreBackupCommandHandlerTests
         /// <param name="events">The restore stream the agent replays.</param>
         /// <param name="seedRunningBackup">Whether a create is in flight for the account.</param>
         /// <param name="restoreTheRunningOne">Whether the command names the running row instead.</param>
+        /// <param name="createEvents">The pre-restore backup's stream; a finished archive when omitted.</param>
         /// <returns>The assembled world.</returns>
         public static World Create(
             IReadOnlyList<BackupRestoreEvent> events,
             bool seedRunningBackup = false,
-            bool restoreTheRunningOne = false)
+            bool restoreTheRunningOne = false,
+            IReadOnlyList<BackupCreateEvent>? createEvents = null)
         {
-            return new World(events, seedRunningBackup, restoreTheRunningOne);
+            return new World(events, createEvents ?? [PreRestoreCreated], seedRunningBackup, restoreTheRunningOne);
+        }
+
+        /// <summary>Opens a second context over the same database, to read what was written.</summary>
+        /// <returns>A context bound to the same principal and database.</returns>
+        public BackupsDbContext Read()
+        {
+            return BackupsTestContext.Create(_currentUser, _database);
         }
 
         /// <summary>Builds the command naming this world's backup.</summary>
@@ -565,6 +896,5 @@ public sealed class RestoreBackupCommandHandlerTests
         {
             return new RestoreBackupCommand(BackupId, confirmation, Ip, Client);
         }
-
     }
 }

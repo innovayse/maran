@@ -48,8 +48,6 @@ export interface SmtpSettings {
   fromAddress: string
   /** The display name beside the sender address; may be empty. */
   fromName: string
-  /** Where alert mail goes. */
-  alertRecipient: string
   /** When the settings were last saved, or `null` when the panel has never had any. */
   updatedAt: string | null
 }
@@ -76,8 +74,6 @@ export interface SaveSmtpSettingsRequest {
   fromAddress: string
   /** The display name beside the sender address; may be empty. */
   fromName: string
-  /** Where alert mail goes. */
-  alertRecipient: string
 }
 
 /** Public surface of the mail-settings API composable. */

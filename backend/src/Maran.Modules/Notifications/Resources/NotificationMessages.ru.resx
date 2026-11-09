@@ -18,4 +18,91 @@
   <data name="TestMailBody">
     <value>Это сообщение подтверждает, что панель может отправлять почту с сохранёнными вами настройками. Больше ничего не требуется.</value>
   </data>
+  <data name="FeedAlertDiskUsageCritical">
+    <value>Высокая загрузка диска: {0}</value>
+  </data>
+  <data name="FeedAlertDiskUsageInfo">
+    <value>Загрузка диска в норме: {0}</value>
+  </data>
+  <data name="FeedAlertServiceStoppedCritical">
+    <value>Служба остановлена: {0}</value>
+  </data>
+  <data name="FeedAlertServiceStoppedInfo">
+    <value>Служба снова работает: {0}</value>
+  </data>
+  <data name="FeedAlertSftpJailDriftedCritical">
+    <value>Изоляция SFTP нарушена: {0}</value>
+  </data>
+  <data name="FeedAlertSftpJailDriftedInfo">
+    <value>Изоляция SFTP восстановлена: {0}</value>
+  </data>
+  <data name="FeedAlertQuotaNotEnforceableCritical">
+    <value>Дисковые квоты не применяются: {0}</value>
+  </data>
+  <data name="FeedAlertQuotaNotEnforceableInfo">
+    <value>Дисковые квоты снова применяются: {0}</value>
+  </data>
+  <data name="FeedAlertCodeIntegrityDriftedCritical">
+    <value>Файлы панели отличаются от релиза: {0}</value>
+  </data>
+  <data name="FeedAlertCodeIntegrityDriftedInfo">
+    <value>Файлы панели снова соответствуют релизу: {0}</value>
+  </data>
+  <data name="FeedAlertFreeSpaceFloorApproachingCritical">
+    <value>Свободное место на диске заканчивается: {0}</value>
+  </data>
+  <data name="FeedAlertFreeSpaceFloorApproachingInfo">
+    <value>Свободного места на диске снова достаточно: {0}</value>
+  </data>
+  <data name="FeedAlertClockUnsynchronizedCritical">
+    <value>Часы сервера не синхронизированы: {0}</value>
+  </data>
+  <data name="FeedAlertClockUnsynchronizedInfo">
+    <value>Часы сервера снова синхронизированы: {0}</value>
+  </data>
+  <data name="FeedAlertCpuUsageCritical">
+    <value>Высокая загрузка процессора: {0}</value>
+  </data>
+  <data name="FeedAlertCpuUsageInfo">
+    <value>Загрузка процессора в норме: {0}</value>
+  </data>
+  <data name="FeedAlertMemoryUsageCritical">
+    <value>Высокое потребление памяти: {0}</value>
+  </data>
+  <data name="FeedAlertMemoryUsageInfo">
+    <value>Потребление памяти в норме: {0}</value>
+  </data>
+  <data name="FeedAlertPanelUpdateRolledBackCritical">
+    <value>Плановое обновление отменено, выполнен откат: {0}</value>
+  </data>
+  <data name="FeedAlertPanelUpdateRollbackFailedCritical">
+    <value>Плановое обновление не удалось, откат не выполнен: {0}</value>
+  </data>
+  <data name="FeedAlertPanelUpdateInterruptedCritical">
+    <value>Плановое обновление прервано: {0}</value>
+  </data>
+  <data name="FeedBackupScheduledRunFailedWarning">
+    <value>Резервное копирование по расписанию не удалось: {0}</value>
+  </data>
+  <data name="FeedBackupDestinationRefusedWarning">
+    <value>Хранилище резервных копий отклонило копию: {0}</value>
+  </data>
+  <data name="FeedBackupScheduledRunMissedWarning">
+    <value>Резервное копирование по расписанию не запустилось: {0}</value>
+  </data>
+  <data name="FeedBackupVerificationFailedWarning">
+    <value>Резервная копия не прошла проверку: {0}</value>
+  </data>
+  <data name="FeedAlertGeneric">
+    <value>Оповещение сервера: {0}</value>
+  </data>
+  <data name="FeedBackupGeneric">
+    <value>Оповещение о резервном копировании: {0}</value>
+  </data>
+  <data name="FeedTaskFailed">
+    <value>Задача не завершена: {0}</value>
+  </data>
+  <data name="FeedTaskFailureUnexplained">
+    <value>Операция не завершена; подробности на странице задач.</value>
+  </data>
 </root>

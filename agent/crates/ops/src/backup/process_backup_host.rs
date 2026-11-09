@@ -1,11 +1,12 @@
 //! The [`BackupHost`] that really runs the archiver and the dump client.
 
 use std::fs::File;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::{Mutex, PoisonError};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::privs::account_ids::AccountIds;
 use maran_agent_core::privs::fork_as_account::fork_as_account;
 use maran_agent_core::privs::priv_error::PrivError;
@@ -26,9 +27,13 @@ use crate::backup::bound_or::bound_or;
 use crate::backup::list_archive_members::list_archive_members;
 use crate::backup::model::account_identity::AccountIdentity;
 use crate::backup::model::archive_spec::ArchiveSpec;
+use crate::backup::model::directory_swap::DirectorySwap;
 use crate::backup::model::extract_identity::ExtractIdentity;
 use crate::backup::model::extract_spec::ExtractSpec;
+use crate::backup::process_restricted_dump_host::ProcessRestrictedDumpHost;
+use crate::backup::restricted_dump_host::RestrictedDumpHost;
 use crate::backup::run_discarding::run_discarding;
+use crate::backup::swap_directory_as_account::{PARKED_ENTRY, swap_directory_as_account};
 
 /// How long the account-side archiver may run before this agent kills it.
 ///
@@ -147,6 +152,10 @@ pub struct ProcessBackupHost {
     /// through. A different binary from the dump client: one writes SQL out and
     /// the other reads SQL in.
     client_binary: AdapterBinary,
+    /// What loads an imported archive's dumps: the same database client, as a
+    /// temporary user that holds one database, with its credentials file in the
+    /// root-only bulk scratch.
+    restricted: ProcessRestrictedDumpHost,
 }
 
 impl ProcessBackupHost {
@@ -158,11 +167,21 @@ impl ProcessBackupHost {
             gzip_binary: distro.gzip_binary(),
             dump_binary: distro.database_dump_binary(),
             client_binary: distro.mysql_client_binary(),
+            restricted: ProcessRestrictedDumpHost::new(
+                distro,
+                PathBuf::from(AgentPaths::BULK_SCRATCH_ROOT),
+            ),
         }
     }
 }
 
 impl BackupHost for ProcessBackupHost {
+    /// The host's own restricted loader: a temporary one-database user over the
+    /// same database client, never the superuser.
+    fn restricted_loader(&self) -> &dyn RestrictedDumpHost {
+        &self.restricted
+    }
+
     /// Asks `statvfs` of `directory` itself.
     ///
     /// # Errors
@@ -200,6 +219,21 @@ impl BackupHost for ProcessBackupHost {
             uid: ids.uid(),
             gid: ids.gid(),
         })
+    }
+
+    /// Asks the real password database, through `getpwnam_r`, whether the name is
+    /// taken.
+    ///
+    /// An entry the identity rules refuse (root, a system account) is still an
+    /// entry: the name is taken. Only a database that could not be read is an
+    /// error, because it answers neither way.
+    fn account_exists(&self, account: &AccountName) -> Result<bool, BackupError> {
+        match AccountIds::resolve(account) {
+            Ok(_ids) => Ok(true),
+            Err(PrivError::NoSuchAccount) => Ok(false),
+            Err(PrivError::LookupFailed { .. }) => Err(BackupError::ExtractionIdentityUnavailable),
+            Err(_refused_entry) => Ok(true),
+        }
     }
 
     /// Spawns the dump client with `dump_arguments` and measures what it
@@ -611,6 +645,52 @@ impl BackupHost for ProcessBackupHost {
         }
 
         Ok(())
+    }
+
+    /// Runs the swap of one restored directory in a child that has dropped to the
+    /// account, and types the outcome here in the parent.
+    ///
+    /// The child reports success or failure and nothing else, so what it
+    /// refused with is not known here. What IS decidable from the parent is the
+    /// one fact that changes what an operator must do: whether the displaced
+    /// tree is still sitting in the parking directory. It is looked at with
+    /// `symlink_metadata` on a name directly inside a directory the account
+    /// owns but cannot rename (its parent is root's), so the answer is a stat of
+    /// that one entry and follows nothing.
+    ///
+    /// # Errors
+    ///
+    /// [`BackupError::ExtractionIdentityUnavailable`] when the account cannot be
+    /// resolved or entered, [`BackupError::DirectoryParkedAt`] when the swap
+    /// failed with the displaced tree still parked, and
+    /// [`BackupError::StagingUnusable`] for every other failure.
+    fn swap_directory(
+        &self,
+        account: &AccountName,
+        swap: &DirectorySwap,
+    ) -> Result<(), BackupError> {
+        let ids =
+            AccountIds::resolve(account).map_err(|_| BackupError::ExtractionIdentityUnavailable)?;
+        let uid = ids.uid();
+
+        let swapped = fork_as_account(&ids, || {
+            swap_directory_as_account(swap, uid).map_err(|_| PrivError::WorkFailed)
+        });
+
+        match swapped {
+            Ok(()) => Ok(()),
+            Err(PrivError::WorkFailed) => {
+                let parked = swap.parked.join(PARKED_ENTRY);
+                if parked.symlink_metadata().is_ok() {
+                    return Err(BackupError::DirectoryParkedAt {
+                        path: parked.to_string_lossy().into_owned(),
+                    });
+                }
+
+                Err(BackupError::StagingUnusable)
+            }
+            Err(_) => Err(BackupError::ExtractionIdentityUnavailable),
+        }
     }
 }
 

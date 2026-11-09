@@ -11,6 +11,7 @@ use crate::backup::archive::extract_databases_as_root::extracted_dump_path;
 use crate::backup::archive::replace_database::replace_database;
 use crate::backup::backup_error::BackupError;
 use crate::backup::backup_host::BackupHost;
+use crate::backup::model::dump_origin::DumpOrigin;
 use crate::backup::model::restore_sink::RestoreSink;
 use crate::backup::model::restore_stage::RestoreStage;
 use crate::backup::require_scratch_room::require_scratch_room;
@@ -41,6 +42,11 @@ pub(super) const MAXIMUM_DUMP_BYTES: u64 = 8 * 1024 * 1024 * 1024;
 pub(super) const ROLLBACK_DIRECTORY: &str = "rollback";
 
 /// Step 6: each database in turn — rollback dump, drop, load.
+///
+/// The archive's dumps are loaded according to `planned.origin`: an imported
+/// archive's through the restricted loader, this host's own as the database
+/// superuser. The rollback dumps are this agent's own output and are reloaded as
+/// the superuser either way.
 ///
 /// Answers how many were replaced, which on this function's success is always
 /// every one of them: a partial pass returns an error, never a smaller number.
@@ -110,9 +116,15 @@ pub(super) fn replace_databases(
             return Err(unwind(host, &replaced, &rollback, name, error));
         }
 
-        if let Err(error) =
-            replace_database(host, name, &extracted_dump_path(&placement.scratch, name))
-        {
+        // The archive's dump, loaded the way its origin allows: the
+        // restricted loader for an imported archive, the superuser for this
+        // host's own.
+        if let Err(error) = replace_database(
+            host,
+            name,
+            &extracted_dump_path(&placement.scratch, name),
+            planned.origin,
+        ) {
             replaced.push(name);
             return Err(unwind(host, &replaced, &rollback, name, error));
         }
@@ -170,7 +182,11 @@ fn unwind(
 
     for name in replaced.iter().rev() {
         let dump = crate::backup::archive::dump_database::dump_path(rollback, name);
-        if replace_database(host, name, &dump).is_ok() {
+        // Always `Own`, whatever the archive was: this is the panel's own
+        // rollback dump, taken by this agent moments before the drop, and the
+        // only text in a restore that is certainly not someone else's. This
+        // is the one place the superuser still loads for an imported archive.
+        if replace_database(host, name, &dump, DumpOrigin::Own).is_ok() {
             rolled_back.push((*name).as_str().to_owned());
         } else {
             not_rolled_back.push((*name).as_str().to_owned());

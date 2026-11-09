@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import {
+  stubBackupDestinationEncryption,
   stubBackupDestinations,
   stubBackupDestinationsRefusal,
 } from '../fixtures/stub-backup-destination-routes'
@@ -13,7 +14,7 @@ import type { BackupDestination } from '../../src/types/backupDestination'
 import type { PanelModule } from '../../src/types/module'
 
 const LICENSED: PanelModule[] = [
-  { name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' },
+  { name: 'backups', displayName: 'Backups', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 /** The one destination a running panel reconciles at startup: local, and the default. */
@@ -25,6 +26,7 @@ const DEFAULT_LOCAL: BackupDestination = {
   path: '/var/backups/maran',
   isDefault: true,
   createdAt: '2026-09-01T09:00:00Z',
+  encryptArchives: false,
 }
 
 // The path is a RECORD of where the agent writes, not an instruction: the agent refuses to be told
@@ -257,6 +259,7 @@ const REMOTE: BackupDestination = {
   path: null,
   isDefault: false,
   createdAt: '2026-09-02T09:00:00Z',
+  encryptArchives: false,
 }
 
 // The destinations are a server page like every other list: the search, the kind filter and the
@@ -311,4 +314,58 @@ test('a search matching no destination offers the way back to all of them', asyn
   await expect(page.getByText('Nothing recorded yet')).toHaveCount(0)
   await page.getByRole('button', { name: 'Clear search and filters' }).click()
   await expect(page.getByRole('table').getByRole('cell', { name: /^This server( |$)/ })).toBeVisible()
+})
+
+// Issue #160. Switching encryption on is the weighty answer: the key stays in the panel, so the
+// dialog must name the custody before anything is sent, and abandoning it must send nothing.
+test('turning encryption on asks first, warns about the key, and sends only after the confirmation', async ({
+  page,
+}) => {
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubBackupOptions(page)
+  await stubModules(page, LICENSED)
+  await stubBackupDestinations(page, [DEFAULT_LOCAL])
+  const sent = await stubBackupDestinationEncryption(page)
+
+  await page.goto('/backups/destinations')
+
+  const toggle = page.getByRole('switch', { name: 'Encrypt new backups' })
+  await expect(toggle).toHaveAttribute('aria-checked', 'false')
+
+  await toggle.click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.getByText('recovery archive', { exact: false })).toBeVisible()
+  expect(sent()).toHaveLength(0)
+
+  // Abandoning the question changes nothing and sends nothing.
+  await dialog.getByRole('button', { name: 'Cancel' }).click()
+  await expect(dialog).toHaveCount(0)
+  expect(sent()).toHaveLength(0)
+  await expect(toggle).toHaveAttribute('aria-checked', 'false')
+
+  await toggle.click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Turn encryption on' }).click()
+  await expect(toggle).toHaveAttribute('aria-checked', 'true')
+  expect(sent()).toEqual([{ enabled: true }])
+})
+
+// The other direction: an encrypted destination's switch starts on, and switching off asks too.
+test('turning encryption off sends enabled false after the confirmation', async ({ page }) => {
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubBackupOptions(page)
+  await stubModules(page, LICENSED)
+  await stubBackupDestinations(page, [{ ...DEFAULT_LOCAL, encryptArchives: true }])
+  const sent = await stubBackupDestinationEncryption(page)
+
+  await page.goto('/backups/destinations')
+
+  const toggle = page.getByRole('switch', { name: 'Encrypt new backups' })
+  await expect(toggle).toHaveAttribute('aria-checked', 'true')
+
+  await toggle.click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Turn encryption off' }).click()
+  await expect(toggle).toHaveAttribute('aria-checked', 'false')
+  expect(sent()).toEqual([{ enabled: false }])
 })

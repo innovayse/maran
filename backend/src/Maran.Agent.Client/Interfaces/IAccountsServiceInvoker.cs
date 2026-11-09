@@ -56,6 +56,14 @@ internal interface IAccountsServiceInvoker
         SetAccountResourceLimitsRequest request,
         CancellationToken cancellationToken);
 
+    /// <summary>Invokes <c>SetAccountOpenFilesLimit</c>.</summary>
+    /// <param name="request">The wire request.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The raw wire response, carrying either branch of its oneof.</returns>
+    Task<SetAccountOpenFilesLimitResponse> SetAccountOpenFilesLimitAsync(
+        SetAccountOpenFilesLimitRequest request,
+        CancellationToken cancellationToken);
+
     /// <summary>Invokes <c>GetAccountUsage</c>.</summary>
     /// <param name="request">The wire request.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>

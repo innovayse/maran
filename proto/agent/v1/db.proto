@@ -82,6 +82,42 @@ service DbService {
   // and reported as refused, because this operation revokes and re-issues a
   // customer's live database access and guessing is an outage.
   rpc RepairDatabaseGrants(RepairDatabaseGrantsRequest) returns (RepairDatabaseGrantsResponse);
+
+  // Added 2026-11-07 (issue #156). Creates an additional login for an account,
+  // granted NOTHING. A login is granted on databases separately, by
+  // SetDatabaseUserPrivileges; the dedicated login CreateDatabase makes is a
+  // login like any other once it exists.
+  //
+  // The login can connect from 'localhost' only: nothing in this contract opens
+  // a database login to a network address.
+  //
+  // Idempotent in the way CreateDatabase is: a login that already exists is
+  // AlreadyExists, and its password is NOT changed, so a retried creation
+  // cannot reset a credential the customer was already shown.
+  rpc CreateDatabaseUser(CreateDatabaseUserRequest) returns (CreateDatabaseUserResponse);
+
+  // Added 2026-11-07 (issue #156). Drops a login and, with it, every privilege
+  // it holds. Idempotent: a login that is not on the server is NotFound.
+  //
+  // The agent does not know which login is a database's dedicated one and does
+  // not decide whether a login MAY be dropped on its own: that rule belongs to
+  // the panel, which holds the rows. This rpc only does what it is told for a
+  // login of the named account.
+  rpc DropDatabaseUser(DropDatabaseUserRequest) returns (DropDatabaseUserResponse);
+
+  // Added 2026-11-07 (issue #156). Makes a login's privileges on ONE database
+  // exactly the set given: it grants what is missing and revokes what is
+  // surplus, in that order, so an interruption leaves the login with too much
+  // and never with nothing. An empty set revokes everything the login holds on
+  // that database.
+  //
+  // Idempotent: a login already holding exactly the set is left alone. A login
+  // or a database that is not on the server is NotFound; nothing is created.
+  //
+  // The set is closed (DatabasePrivilege): GRANT OPTION and every global or
+  // administrative privilege cannot be named. A grant option found on the
+  // login's row for that database is revoked, whatever set was asked for.
+  rpc SetDatabaseUserPrivileges(SetDatabaseUserPrivilegesRequest) returns (SetDatabaseUserPrivilegesResponse);
 }
 
 message CreateDatabaseRequest {
@@ -344,3 +380,126 @@ enum GrantRepairRefusal {
   // understands is how a working grant is destroyed.
   GRANT_REPAIR_REFUSAL_PARTIALLY_OR_UNFAMILIARLY_ESCAPED = 4;
 }
+
+// Added 2026-11-07 (issue #156). A privilege a customer's login may hold on one
+// of the customer's own databases. The set is closed ON PURPOSE: GRANT OPTION,
+// FILE, PROCESS, SUPER, RELOAD, SHUTDOWN, REPLICATION and every global
+// privilege have no value here, so no request can name them and no statement
+// the agent builds can grant them. A value of this enum is a database-level
+// privilege and nothing wider.
+enum DatabasePrivilege {
+  // No privilege given. Never sent by the panel; a request carrying it is
+  // refused as invalid input rather than ignored.
+  DATABASE_PRIVILEGE_UNSPECIFIED = 0;
+  // SELECT.
+  DATABASE_PRIVILEGE_SELECT = 1;
+  // INSERT.
+  DATABASE_PRIVILEGE_INSERT = 2;
+  // UPDATE.
+  DATABASE_PRIVILEGE_UPDATE = 3;
+  // DELETE.
+  DATABASE_PRIVILEGE_DELETE = 4;
+  // CREATE.
+  DATABASE_PRIVILEGE_CREATE = 5;
+  // DROP.
+  DATABASE_PRIVILEGE_DROP = 6;
+  // ALTER.
+  DATABASE_PRIVILEGE_ALTER = 7;
+  // INDEX.
+  DATABASE_PRIVILEGE_INDEX = 8;
+  // REFERENCES.
+  DATABASE_PRIVILEGE_REFERENCES = 9;
+  // CREATE TEMPORARY TABLES.
+  DATABASE_PRIVILEGE_CREATE_TEMPORARY_TABLES = 10;
+  // LOCK TABLES.
+  DATABASE_PRIVILEGE_LOCK_TABLES = 11;
+  // CREATE VIEW.
+  DATABASE_PRIVILEGE_CREATE_VIEW = 12;
+  // SHOW VIEW.
+  DATABASE_PRIVILEGE_SHOW_VIEW = 13;
+  // CREATE ROUTINE.
+  DATABASE_PRIVILEGE_CREATE_ROUTINE = 14;
+  // ALTER ROUTINE.
+  DATABASE_PRIVILEGE_ALTER_ROUTINE = 15;
+  // EXECUTE.
+  DATABASE_PRIVILEGE_EXECUTE = 16;
+  // TRIGGER.
+  DATABASE_PRIVILEGE_TRIGGER = 17;
+  // EVENT.
+  DATABASE_PRIVILEGE_EVENT = 18;
+}
+
+// Added 2026-11-07.
+message CreateDatabaseUserRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Username suffix of the new login. The agent namespaces it under
+  // account_username, so a request cannot name another tenant's login.
+  string db_username = 2;
+  // Plaintext password for the new login, supplied by the caller. Never logged;
+  // not echoed back in any response or error.
+  string password = 3;
+}
+
+// Added 2026-11-07.
+message CreateDatabaseUserResponse {
+  oneof result {
+    CreateDatabaseUserOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+// Added 2026-11-07.
+message CreateDatabaseUserOk {
+  // Fully-qualified login name as created, e.g. "acc12345_reader".
+  string db_username = 1;
+}
+
+// Added 2026-11-07.
+message DropDatabaseUserRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Username suffix of the login to drop, namespaced under account_username by
+  // the agent for the reason SetDatabasePasswordRequest gives.
+  string db_username = 2;
+}
+
+// Added 2026-11-07.
+message DropDatabaseUserResponse {
+  oneof result {
+    DropDatabaseUserOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+// Added 2026-11-07.
+message DropDatabaseUserOk {}
+
+// Added 2026-11-07.
+message SetDatabaseUserPrivilegesRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Username suffix of the login, namespaced under account_username by the
+  // agent.
+  string db_username = 2;
+  // Database name suffix, as passed to CreateDatabase; namespaced under
+  // account_username by the agent, so a request cannot name another tenant's
+  // database.
+  string database_name = 3;
+  // The complete set the login is to hold on that database. Empty revokes all
+  // of it. Each value must be a defined, non-zero DatabasePrivilege and may
+  // appear once: a duplicate, an unspecified value or a number the contract
+  // does not define is refused as invalid input, never ignored.
+  repeated DatabasePrivilege privileges = 4;
+}
+
+// Added 2026-11-07.
+message SetDatabaseUserPrivilegesResponse {
+  oneof result {
+    SetDatabaseUserPrivilegesOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+// Added 2026-11-07.
+message SetDatabaseUserPrivilegesOk {}

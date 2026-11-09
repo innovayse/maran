@@ -56,6 +56,39 @@ public sealed class SiteTests
         Assert.Equal(SiteBackendType.Php, site.BackendType);
     }
 
+    /// <summary>A new site keeps the most logs the installer allows.</summary>
+    [Fact]
+    public void A_new_site_keeps_the_most_logs_the_installer_allows()
+    {
+        Assert.Equal(SiteLogRetention.MaximumDays, NewSite().LogRetentionDays);
+    }
+
+    /// <summary>Changing the log retention replaces it and touches nothing else.</summary>
+    [Fact]
+    public void Changing_the_log_retention_replaces_it_and_touches_nothing_else()
+    {
+        var site = NewSite();
+
+        site.ChangeLogRetention(3);
+
+        Assert.Equal(3, site.LogRetentionDays);
+        Assert.Equal(SiteStatus.Enabled, site.Status);
+    }
+
+    /// <summary>A retention outside the allowed range is refused by the entity itself.</summary>
+    /// <param name="days">The refused number.</param>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(15)]
+    [InlineData(-1)]
+    public void A_retention_outside_the_allowed_range_is_refused_by_the_entity_itself(int days)
+    {
+        var site = NewSite();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => { site.ChangeLogRetention(days); });
+        Assert.Equal(SiteLogRetention.MaximumDays, site.LogRetentionDays);
+    }
+
     /// <summary>Disabling a site marks it disabled and is idempotent.</summary>
     [Fact]
     public void Disabling_a_site_marks_it_disabled_and_is_idempotent()

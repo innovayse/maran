@@ -1,0 +1,91 @@
+{
+  "schema": 1,
+  "wrapper": "maran",
+  "commands": [
+    {
+      "verb": "admin-reset-password",
+      "summary": "Print a one-hour password-reset link for an active administrator.",
+      "positional": ["<email|username>"],
+      "subcommands": [],
+      "flags": ["--allow-non-terminal", "--clear-two-factor"]
+    },
+    {
+      "verb": "collect-diagnostics",
+      "summary": "Write a redacted support bundle (0600 tar.gz).",
+      "positional": [],
+      "subcommands": [],
+      "flags": ["--no-logs", "--out"]
+    },
+    {
+      "verb": "help",
+      "summary": "Print the usage text; with --json, print this catalogue.",
+      "positional": [],
+      "subcommands": [],
+      "flags": ["--json"]
+    },
+    {
+      "verb": "issue-panel-certificate",
+      "summary": "Order a trusted certificate for the panel's own host name and install it; run again to renew.",
+      "positional": [],
+      "subcommands": [],
+      "flags": []
+    },
+    {
+      "verb": "panel-backup",
+      "summary": "Write an encrypted archive of the panel's database, keys, licence and configuration.",
+      "positional": [],
+      "subcommands": [],
+      "flags": ["--out", "--passphrase-file", "--scheduled"]
+    },
+    {
+      "verb": "panel-backup-schedule",
+      "summary": "Switch the scheduled panel backup on or off, or show its timer and last result.",
+      "positional": [],
+      "subcommands": ["disable", "enable", "status"],
+      "flags": []
+    },
+    {
+      "verb": "panel-restore",
+      "summary": "Replace this freshly installed panel's database, keys and licence with those of a panel-backup archive.",
+      "positional": ["ARCHIVE"],
+      "subcommands": [],
+      "flags": ["--passphrase-file", "--replace-this-panel"]
+    },
+    {
+      "verb": "rollback",
+      "summary": "Return to the previous release, optionally restoring the pre-update database dump.",
+      "positional": [],
+      "subcommands": [],
+      "flags": ["--restore-database", "--yes"]
+    },
+    {
+      "verb": "status",
+      "summary": "Service health and the panel's own report.",
+      "positional": [],
+      "subcommands": [],
+      "flags": []
+    },
+    {
+      "verb": "update",
+      "summary": "Check for, or install, a newer signed release; roll back by itself if the panel does not become healthy.",
+      "positional": [],
+      "subcommands": [],
+      "flags": ["--channel", "--check", "--offline-tarball", "--requested", "--scheduled", "--security-only", "--yes"]
+    },
+    {
+      "verb": "update-schedule",
+      "summary": "Switch the automatic security-patch update on or off, or show its timer and last result.",
+      "positional": [],
+      "subcommands": ["disable", "enable", "status"],
+      "flags": []
+    }
+  ],
+  "aliases": {
+    "help": ["--help", "-h"]
+  },
+  "installer": {
+    "get.sh": ["--channel"],
+    "install.sh": ["--channel", "--offline-tarball", "--os-security-updates"],
+    "uninstall.sh": ["--yes", "-y"]
+  }
+}

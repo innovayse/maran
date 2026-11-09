@@ -1,0 +1,26 @@
+{
+  "demo": {
+    "banner": {
+      "region": "About this demo",
+      "text": "This is a public demo on a simulated server, not a real one. Other visitors can see what you enter, and the demo resets on a schedule. Never enter real data.",
+      "nextReset": "Next reset: {time}."
+    },
+    "credentials": {
+      "region": "Demo sign-in details",
+      "title": "Demo logins",
+      "hint": "These logins are shared by every visitor. Use them to look around.",
+      "username": "Username",
+      "password": "Password",
+      "use": "Fill in the form: {role}",
+      "roles": {
+        "administrator": "Administrator",
+        "customer": "Customer"
+      }
+    },
+    "readOnly": {
+      "region": "Read-only in the demo",
+      "title": "Read-only in the demo.",
+      "generic": "This setting cannot be changed in the demo."
+    }
+  }
+}

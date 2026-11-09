@@ -29,17 +29,22 @@ cli_panel_backup_cleanup() {
 
 # cli_panel_backup_stage: writes the plaintext members into $1, the inner tar's directory.
 cli_panel_backup_stage() {
-  local dir="$1" database
+  local dir="$1" database release
 
   # The dump is panel-dump.sh's (every schema, read by the service account); it refuses first when
   # panel.env does not name the database, so the manifest below never describes a dump that failed.
   cli_dump_database "${dir}/${MARAN_PANEL_ARCHIVE_DATABASE}"
 
+  # The release that took the backup: panel-restore refuses to put it onto an older install, whose
+  # migrations do not know the schema it holds. A host with no release.state (installed before the
+  # release layout existed) has no release to record, and the line is left out rather than guessed.
   database="$(cli_panel_env_value Database__Database)"
+  release="$(cli_layout_state_read VERSION)"
   {
     echo "format=${MARAN_PANEL_ARCHIVE_FORMAT}"
     echo "created=$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
     echo "database=${database}"
+    [ -z "$release" ] || echo "release=${release}"
   } > "${dir}/${MARAN_PANEL_ARCHIVE_MANIFEST}"
 
   # The two trees travel whole, numeric owners kept, so an operator restoring by hand on the new

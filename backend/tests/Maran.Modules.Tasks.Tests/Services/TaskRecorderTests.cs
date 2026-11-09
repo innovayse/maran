@@ -6,6 +6,7 @@ using Maran.Modules.Tasks.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Wolverine;
 
 namespace Maran.Modules.Tasks.Tests.Services;
 
@@ -291,12 +292,103 @@ public sealed class TaskRecorderTests
         Assert.Equal("installing", stored.Log);
     }
 
+    /// <summary>Failing a task announces it once to the notification feed, with the task's subject and code.</summary>
+    [Fact]
+    public async Task Failing_a_task_announces_it_once_to_the_notification_feed()
+    {
+        var database = Guid.NewGuid().ToString();
+        var bus = new RecordingMessageBus();
+        await using var context = TasksTestContext.Create(FakeCurrentUser.Admin(), database);
+        var recorder = Recorder(context, bus);
+        var id = await recorder.BeginAsync(
+            TaskKinds.CertificateIssue, "example.com", null, TaskAudience.AdministratorOnly, null, CancellationToken.None);
+
+        await recorder.FailAsync(id, "AcmeAuthorityUnreachable", CancellationToken.None);
+
+        var announced = Assert.IsType<PanelNotificationRaised>(Assert.Single(bus.Published));
+        Assert.Equal(NotificationSource.Task, announced.Source);
+        Assert.Equal("AcmeAuthorityUnreachable", announced.Code);
+        Assert.Equal("example.com", announced.Subject);
+        Assert.Equal(NotificationDeepLinks.Tasks, announced.DeepLink);
+        Assert.Equal(TasksTestContext.Now, announced.OccurredAt);
+    }
+
+    /// <summary>Completing, reporting or beginning a task announces nothing: only failures enter the feed.</summary>
+    [Fact]
+    public async Task Completing_a_task_announces_nothing_to_the_notification_feed()
+    {
+        var bus = new RecordingMessageBus();
+        await using var context = TasksTestContext.Create(FakeCurrentUser.Admin());
+        var recorder = Recorder(context, bus);
+        var id = await recorder.BeginAsync(
+            TaskKinds.CertificateIssue, "example.com", null, TaskAudience.AdministratorOnly, null, CancellationToken.None);
+
+        await recorder.ReportAsync(id, 50, "halfway", CancellationToken.None);
+        await recorder.CompleteAsync(id, CancellationToken.None);
+
+        Assert.Empty(bus.Published);
+    }
+
+    /// <summary>A failure reported after a completion is refused by the task and is not announced.</summary>
+    [Fact]
+    public async Task A_failure_after_a_completion_is_not_announced()
+    {
+        var bus = new RecordingMessageBus();
+        await using var context = TasksTestContext.Create(FakeCurrentUser.Admin());
+        var recorder = Recorder(context, bus);
+        var id = await recorder.BeginAsync(
+            TaskKinds.CertificateIssue, "example.com", null, TaskAudience.AdministratorOnly, null, CancellationToken.None);
+        await recorder.CompleteAsync(id, CancellationToken.None);
+
+        await recorder.FailAsync(id, "AccountCleanupFailed", CancellationToken.None);
+
+        Assert.Empty(bus.Published);
+    }
+
+    /// <summary>A failure whose row could not be stored is not announced, because it did not happen as far as the panel knows.</summary>
+    [Fact]
+    public async Task A_failure_that_could_not_be_stored_is_not_announced()
+    {
+        var bus = new RecordingMessageBus();
+        await using var context = TasksTestContext.Create(
+            FakeCurrentUser.Admin(),
+            saveFailure: new InvalidOperationException("disk full"),
+            savesBeforeFailure: 1);
+        var recorder = Recorder(context, bus);
+        var id = await recorder.BeginAsync(
+            TaskKinds.CertificateIssue, "example.com", null, TaskAudience.AdministratorOnly, null, CancellationToken.None);
+
+        await recorder.FailAsync(id, "AccountCleanupFailed", CancellationToken.None);
+
+        Assert.Empty(bus.Published);
+    }
+
+    /// <summary>A bus that cannot publish never makes the recorder throw into the operation it records.</summary>
+    [Fact]
+    public async Task A_bus_that_cannot_publish_never_throws_into_the_recorded_operation()
+    {
+        var database = Guid.NewGuid().ToString();
+        await using var context = TasksTestContext.Create(FakeCurrentUser.Admin(), database);
+        var recorder = Recorder(context, new ThrowingMessageBus());
+        var id = await recorder.BeginAsync(
+            TaskKinds.CertificateIssue, "example.com", null, TaskAudience.AdministratorOnly, null, CancellationToken.None);
+
+        await recorder.FailAsync(id, "AccountCleanupFailed", CancellationToken.None);
+
+        Assert.Equal(PanelTaskStatus.Failed, (await Read(database, id)).Status);
+    }
+
     /// <summary>Builds the recorder under test over a context.</summary>
     /// <param name="context">The context it writes through.</param>
     /// <returns>The recorder.</returns>
-    private static TaskRecorder Recorder(TasksDbContext context)
+    /// <param name="bus">The bus a failure is announced on; a recording one when omitted.</param>
+    private static TaskRecorder Recorder(TasksDbContext context, IMessageBus? bus = null)
     {
-        return new TaskRecorder(context, new FakeClock(TasksTestContext.Now), NullLogger<TaskRecorder>.Instance);
+        return new TaskRecorder(
+            context,
+            new FakeClock(TasksTestContext.Now),
+            NullLogger<TaskRecorder>.Instance,
+            bus ?? new RecordingMessageBus());
     }
 
     /// <summary>Reads one task back through a fresh context, as a later request would.</summary>

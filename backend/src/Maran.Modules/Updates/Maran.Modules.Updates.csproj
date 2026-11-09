@@ -1,0 +1,60 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- The resx triples' neutral file is English (rules/csharp.md "The backend owns all
+         user-facing message text"). -->
+    <NeutralLanguage>en</NeutralLanguage>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- A plain class library: it contributes a controller, services and a hosted pass to the Host's
+         pipeline and never hosts its own web server (rules/architecture.md "Backend: modular
+         monolith"). -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- A module references only the Sdk (module contract, BaseApiController, ITaskRecorder, the
+         audit contracts) and the SharedKernel (Result, IClock, SemanticVersion) — never another
+         module, never the Host. No agent client and no database: this module drives no part of the
+         agent and owns no table, so it declares no AgentCapability and no schema
+         (rules/security.md item 13). -->
+    <ProjectReference Include="..\..\Maran.Sdk\Maran.Sdk.csproj" />
+    <ProjectReference Include="..\..\Maran.SharedKernel\Maran.SharedKernel.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- WolverineFx: the command and the query are dispatched through the bus like every other
+         module's. -->
+    <PackageReference Include="WolverineFx" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Resx-backed text, one file per purpose. ErrorMessages is strongly typed so a code that is not
+         a key fails to compile, and it also defines the codes a finished update task carries;
+         DisplayNames carries the module's own name (rules/csharp.md). -->
+    <EmbeddedResource Update="Resources\ErrorMessages.resx">
+      <Generator>MSBuild:Compile</Generator>
+      <StronglyTypedLanguage>CSharp</StronglyTypedLanguage>
+      <StronglyTypedNamespace>Maran.Modules.Updates.Resources</StronglyTypedNamespace>
+      <StronglyTypedClassName>ErrorMessages</StronglyTypedClassName>
+      <StronglyTypedFileName>$(IntermediateOutputPath)ErrorMessages.Designer.cs</StronglyTypedFileName>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\ErrorMessages.ru.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\ErrorMessages.hy.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\DisplayNames.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\DisplayNames.ru.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\DisplayNames.hy.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+  </ItemGroup>
+
+</Project>

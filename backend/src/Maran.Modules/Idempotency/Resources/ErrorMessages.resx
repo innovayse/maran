@@ -15,6 +15,9 @@
   <data name="IdempotencyKeyInvalid">
     <value>The Idempotency-Key header is not valid. Use 1 to 255 letters, digits, dots, colons, hyphens or underscores.</value>
   </data>
+  <data name="IdempotencyKeyRequired">
+    <value>The Idempotency-Key header is required for this request. Send a unique key so a retry cannot repeat the work.</value>
+  </data>
   <data name="IdempotencyKeyReused">
     <value>This Idempotency-Key was already used for a different request. Use a new key for a new request.</value>
   </data>

@@ -20,7 +20,7 @@ import type { PanelModule } from '../../src/types/module'
 
 // The backups table and the destinations screen while their reads are on the way (#243).
 
-const LICENSED: PanelModule[] = [{ name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' }]
+const LICENSED: PanelModule[] = [{ name: 'backups', displayName: 'Backups', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }]
 
 const COMPLETED: Backup = {
   id: '11111111-1111-1111-1111-111111111111',
@@ -53,6 +53,7 @@ const LOCAL: BackupDestination = {
   path: '/var/backups/maran',
   isDefault: true,
   createdAt: '2026-09-01T09:00:00Z',
+  encryptArchives: false,
 }
 
 /**

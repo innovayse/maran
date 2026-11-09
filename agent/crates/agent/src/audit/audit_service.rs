@@ -10,9 +10,10 @@ use tower::Service;
 use super::audit_emission::AuditEmission;
 use super::audit_slot::AuditSlot;
 use super::audited_body::AuditedBody;
+use super::disclosing_rpcs::DISCLOSING_RPCS;
 use super::mutating_rpcs::MUTATING_RPCS;
 
-/// Wraps the tonic router. For a path in `MUTATING_RPCS` it installs a fresh
+/// Wraps the tonic router. For a path in `MUTATING_RPCS` or `DISCLOSING_RPCS` it installs a fresh
 /// [`AuditSlot`] in the request extensions and wraps the response body so one line is
 /// written when the response ends; any other path (read-only or unknown) is forwarded
 /// untouched and never printed, so a hostile `:path` cannot reach the journal.
@@ -30,10 +31,15 @@ impl<S> AuditService<S> {
     }
 }
 
-/// The agent's own list entry equal to the request path, if there is one. The entry,
-/// not the request's bytes, is what the line prints.
-fn mutating_entry(path: &str) -> Option<&'static str> {
-    MUTATING_RPCS.iter().copied().find(|entry| *entry == path)
+/// The agent's own list entry equal to the request path, if the rpc is one that
+/// yields a line (mutating or disclosing). The entry, not the request's bytes, is
+/// what the line prints.
+fn audited_entry(path: &str) -> Option<&'static str> {
+    MUTATING_RPCS
+        .iter()
+        .chain(DISCLOSING_RPCS)
+        .copied()
+        .find(|entry| *entry == path)
 }
 
 impl<S, ReqBody, ResBody> Service<Request<ReqBody>> for AuditService<S>
@@ -61,7 +67,7 @@ where
 
         // Created before the inner call so that a future dropped before it answers
         // (the client left) still writes its line from the emission's drop.
-        let emission = mutating_entry(request.uri().path()).map(|entry| {
+        let emission = audited_entry(request.uri().path()).map(|entry| {
             let slot = AuditSlot::install(request.extensions_mut());
             AuditEmission::new(entry, slot)
         });

@@ -1,0 +1,12 @@
+[Unit]
+Description=Maran demo reset check
+
+[Timer]
+# Wakes the script often; the script decides whether a reset is due.
+OnBootSec=2min
+OnUnitActiveSec=10min
+AccuracySec=1min
+Unit=maran-demo-reset.service
+
+[Install]
+WantedBy=timers.target

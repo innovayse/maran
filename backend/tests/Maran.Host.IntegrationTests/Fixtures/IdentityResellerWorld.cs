@@ -114,7 +114,7 @@ public static class IdentityResellerWorld
         var now = scope.ServiceProvider.GetRequiredService<IClock>().UtcNow;
 
         var envelope = ResellerEnvelope.Of(
-            10, 100_000, 10, 20_000, 10, 10, 10, 10, 10, 10, AccountFeature.All, RuntimeLimits.Unlimited());
+            10, 100_000, 10, 20_000, 10, 10, 10, 10, 10, 10, 10, 10_240, AccountFeature.All, RuntimeLimits.Unlimited());
         var reseller = new Reseller(Guid.NewGuid(), name, $"{name}@example.com", "en", envelope, now);
         accounts.Resellers.Add(reseller);
         await accounts.SaveChangesAsync();

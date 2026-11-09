@@ -84,6 +84,65 @@ public interface IAgentDbClient
         SensitiveString password,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Creates an additional login for an account, granted nothing, able to connect from
+    /// <c>localhost</c> only.
+    /// </summary>
+    /// <param name="accountUsername">System username of the owning account; the agent namespaces the login under it.</param>
+    /// <param name="dbUsername">Username suffix of the new login.</param>
+    /// <param name="password">
+    /// The password the panel just minted for the login, in the same non-printing wrapper
+    /// <see cref="CreateAsync"/> takes and stripped from the agent's error text before it is logged.
+    /// </param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>
+    /// The fully-qualified login name as created, or a typed failure — <c>AgentAlreadyExists</c> when
+    /// the login is already on the server, in which case its password is deliberately NOT changed.
+    /// </returns>
+    /// <remarks>
+    /// A login is given access to a database separately, by <see cref="SetPrivilegesAsync"/>. Nothing
+    /// here opens a login to a network address.
+    /// </remarks>
+    Task<Result<string>> CreateUserAsync(
+        string accountUsername,
+        string dbUsername,
+        SensitiveString password,
+        CancellationToken cancellationToken);
+
+    /// <summary>Drops a login and every privilege it holds.</summary>
+    /// <param name="accountUsername">System username of the owning account.</param>
+    /// <param name="dbUsername">Username suffix of the login to drop.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>Success, or a typed failure — <c>AgentNotFound</c> when the login is not on the server.</returns>
+    /// <remarks>
+    /// The agent does not know which login is a database's dedicated one and does not decide whether a
+    /// login MAY be dropped on its own: that rule belongs to the panel, which holds the rows.
+    /// </remarks>
+    Task<Result> DropUserAsync(
+        string accountUsername,
+        string dbUsername,
+        CancellationToken cancellationToken);
+
+    /// <summary>Makes a login's privileges on one database exactly the set given.</summary>
+    /// <param name="accountUsername">System username of the owning account.</param>
+    /// <param name="dbUsername">Username suffix of the login.</param>
+    /// <param name="databaseName">Database name suffix, as passed to <see cref="CreateAsync"/>.</param>
+    /// <param name="privileges">
+    /// The complete set the login is to hold on that database, each privilege once. An empty set
+    /// revokes everything the login holds on it.
+    /// </param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>
+    /// Success, or a typed failure — <c>AgentNotFound</c> when the login or the database is not on the
+    /// server; nothing is created.
+    /// </returns>
+    Task<Result> SetPrivilegesAsync(
+        string accountUsername,
+        string dbUsername,
+        string databaseName,
+        IReadOnlyCollection<DatabasePrivilegeKind> privileges,
+        CancellationToken cancellationToken);
+
     /// <summary>Lists what the server holds under names that decode to the account.</summary>
     /// <param name="accountUsername">System username of the owning account.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>

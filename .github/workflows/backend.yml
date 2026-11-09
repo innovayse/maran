@@ -3,8 +3,10 @@ name: backend
 # THE LANES (issue #289). A pull request used to run the whole backend suite twice — PostgreSQL 16
 # and 13 — unsharded, about 30 minutes each, with no timeout: one cycle measured over two hours.
 #
-#   pull_request   `ci` (the gates), four `shard`s of the main part on PostgreSQL 16 in parallel,
-#                  and `verdict`, which combines them against the committed baseline.
+#   pull_request   `ci` (the gates), `plan`, which fixes the shard count in ONE place, the `shard`s
+#                  of the main part on PostgreSQL 16 in parallel (shard 0 is the unit shard, 1..N
+#                  the integration shards), and `verdict`, which combines them against the
+#                  committed baseline.
 #   push to dev    `suite` (the whole suite, PerformanceBudget part included, PostgreSQL 16) and
 #   push to main   `ci-pg13` (the same on PostgreSQL 13), plus the gates. A regression on 13 or a
 #   nightly        blown budget is therefore caught on dev, before main, instead of on every PR.
@@ -259,6 +261,47 @@ jobs:
             exit 1
           fi
 
+      # THE MODULE PACKAGE SELFTEST (`maran ipm selftest`). It packages the sample module twice and requires the
+      # same bytes, signs it with a throwaway P-384 key, has the open verification library accept it (and
+      # openssl agree with the library about the signature), then requires a flipped byte, a stripped signature,
+      # another key, an edited manifest and an unlisted entry each to be REFUSED, each for its own reason.
+      # It sits after the SDK pin because it builds the Host and publishes the sample; it needs no docker, no
+      # root and no database.
+      #
+      # SCORED ON THE LAST PRINTED `IPM VERDICT:` LINE BEING OK, not on a status: a run that exits 0 without
+      # printing it fails, one that prints it and then exits non-zero fails (the two disagree), and a
+      # `DID NOT RUN` refusal fails under its own message.
+      #
+      # WHAT IT CANNOT SEE, stated rather than implied: hostile archives (traversal, symlinks, ratio bombs,
+      # duplicate names) are refused by the library's own tests, not here; the real module-signing key and the
+      # marketplace are not reached; and byte-equal builds are shown on ONE machine, so two machines producing
+      # different bytes from one commit is unobserved here.
+      #
+      # `timeout-minutes` is 10 with NO measured basis: this step has never run. It builds the Host in Release
+      # (the job's `Build` step builds it again, so the cost is paid twice), publishes the sample twice and runs
+      # the verb nine times; expect a few minutes. Replace the 10 with a value sized from the first dev runs,
+      # and re-check the job's own 20.
+      - name: "Module package selftest: the sample packaged, signed, verified, and each defect refused"
+        timeout-minutes: 10
+        run: |
+          mkdir -p "$RUNNER_TEMP/ipm-selftest"
+          log="$RUNNER_TEMP/ipm-selftest/selftest.log"
+          status=0
+          bash scripts/maran ipm selftest >"$log" 2>&1 || status=$?
+          cat "$log"
+          if grep -qa 'VERDICT: DID NOT RUN' "$log"; then
+            echo "::error::the module package selftest REFUSED and checked nothing (reason in its log above)."
+            exit 1
+          fi
+          if ! grep -aE 'VERDICT:' "$log" | tail -n 1 | grep -qaE 'VERDICT: OK'; then
+            echo "::error::the LAST verdict line of 'maran ipm selftest' is not 'VERDICT: OK' (or none was printed). This step passes on the last printed verdict, never on an exit code."
+            exit 1
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo "::error::'maran ipm selftest' printed 'VERDICT: OK' and then exited $status; the two disagree, so neither is evidence."
+            exit 1
+          fi
+
       - name: Install protoc
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
 
@@ -378,24 +421,49 @@ jobs:
       - name: Migrations are additive
         run: bash scripts/maran migrate guard
 
-  # THE MAIN PART OF THE SUITE IN FOUR SHARDS. Measured on dev before this change: the whole suite
+  # THE SHARD COUNT, in one place. A matrix cannot read the workflow `env`, so this job turns the
+  # single `SHARDS` below into the matrix the `shard` job runs and the count its steps print and
+  # gate on; nothing else in this file spells the number.
+  plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      # Integration shards. Measured on PR run 42355054507 with four count-packed shards that held
+      # the integration assembly and the unit assemblies: 16.2, 15.3, 11.6 and 14.2 min, about
+      # 49 min of integration tests in all. Six shards plus the unit shard aim at about 10 min
+      # each (8 of tests, build and setup the rest); re-measure and re-size with the weights file.
+      SHARDS: 6
+    outputs:
+      count: ${{ steps.plan.outputs.count }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - id: plan
+        run: |
+          # Shard 0 is the unit shard, 1..SHARDS the integration shards (scripts/lib/test-shards.sh).
+          echo "count=$SHARDS" >> "$GITHUB_OUTPUT"
+          echo "matrix={\"shard\":[$(seq -s, 0 "$SHARDS")]}" >> "$GITHUB_OUTPUT"
+
+  # THE MAIN PART OF THE SUITE IN SHARDS. Measured on dev before sharding: the whole suite
   # 28 minutes, of which Maran.Host.IntegrationTests 25 m 8 s, Identity 1 m 3 s and the other 18
-  # projects about a minute together. Four shards bring the integration assembly to about six and a
-  # half minutes each, under the seven the issue aims for. `maran test backend --shard i/4`
-  # (scripts/lib/test-shards.sh) packs the integration classes deterministically by listed test
-  # count; shard 1 also runs every other assembly. A shard prints no verdict — only `verdict` below,
+  # projects about a minute together. `maran test backend --shard i/N` (scripts/lib/test-shards.sh)
+  # packs the integration classes deterministically by per-class weight
+  # (scripts/test-shard-weights.txt when present — it is not yet; listed test count where a class has none); shard 0 runs every
+  # other assembly and no integration class. A shard prints no verdict — only `verdict` below,
   # which proves the partition and compares every row, does.
   shard:
     if: github.event_name == 'pull_request'
+    needs: plan
     runs-on: ubuntu-latest
-    # Measured basis: PR run 41298256624, shards 1-4 took 10.5, 7.2, 9.1 and 7.3 min (build ~1 min, tests
-    # 5-9 min; shard 1 also runs every other assembly). 25 is the slowest plus ~140% headroom.
+    # Measured basis: PR run 42355054507, four count-packed shards took 16.2, 15.3, 11.6 and 14.2 min
+    # (build ~1 min; shard 1 also ran every other assembly, about 4 min). 25 keeps the former limit:
+    # the six-shard slices are expected near 10 min, and the limit is re-sized from the first runs
+    # after this change, never before them.
     timeout-minutes: 25
     strategy:
       # Every shard reports, always: a verdict missing a shard is a verdict over part of the suite.
       fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4]
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v7
 
@@ -447,15 +515,15 @@ jobs:
           ' telemetry "$telemetry" "$RUNNER_TEMP" > /dev/null 2>&1 < /dev/null &
           echo "sampler started (pid $!), writing to $telemetry"
 
-      - name: Shard ${{ matrix.shard }} of 4 — the main part on PostgreSQL 16
+      - name: Shard ${{ matrix.shard }} of ${{ needs.plan.outputs.count }} — the main part on PostgreSQL 16
         run: |
           set -o pipefail
           status=0
-          bash scripts/maran test backend --shard ${{ matrix.shard }}/4 --out "$RUNNER_TEMP/shards" 2>&1 |
+          bash scripts/maran test backend --shard ${{ matrix.shard }}/${{ needs.plan.outputs.count }} --out "$RUNNER_TEMP/shards" 2>&1 |
             tee "$RUNNER_TEMP/shard.log" || status=$?
           echo "harness exit status: $status"
           # A shard passes on its printed line, never on a status; the census is the verdict job's.
-          grep -q '^SHARD ${{ matrix.shard }}/4: ran' "$RUNNER_TEMP/shard.log" || exit 1
+          grep -q '^SHARD ${{ matrix.shard }}/${{ needs.plan.outputs.count }}: ran' "$RUNNER_TEMP/shard.log" || exit 1
 
       - name: Keep the shard's result
         if: ${{ !cancelled() }}
@@ -486,9 +554,9 @@ jobs:
   # exactly what it must name — and passes on the printed `TEST VERDICT: OK` line only.
   verdict:
     if: ${{ always() && github.event_name == 'pull_request' }}
-    needs: shard
+    needs: [plan, shard]
     runs-on: ubuntu-latest
-    # Downloads four artifacts and parses them; no build, no database.
+    # Downloads one artifact per shard and parses them; no build, no database.
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7

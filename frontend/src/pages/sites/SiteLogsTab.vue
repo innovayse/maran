@@ -23,15 +23,19 @@
  * The stream is stopped on unmount and whenever the source changes: a stream nobody aborts
  * keeps its connection open for the life of the tab.
  */
-import { computed, onBeforeUnmount, ref, type ComputedRef, type Ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiBadge from '../../components/ui/UiBadge.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
+import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiSegmentedControl, { type SegmentOption } from '../../components/ui/UiSegmentedControl.vue'
+import LogRetentionControl from '../../components/sites/LogRetentionControl.vue'
 import { useSiteLogsStore } from '../../stores/siteLogs'
+import { useSitesStore } from '../../stores/sites'
+import { useSiteTrafficStore } from '../../stores/siteTraffic'
 import type { SiteLogEndReason, SiteLogSource } from '../../types/siteLog'
 
 /**
@@ -49,6 +53,8 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const store = useSiteLogsStore()
+const sitesStore = useSitesStore()
+const trafficStore = useSiteTrafficStore()
 
 /** Which of the site's two logs is selected. */
 const source: Ref<SiteLogSource> = ref('access')
@@ -90,6 +96,40 @@ const isUntouched: ComputedRef<boolean> = computed(() => {
 })
 
 /**
+ * How many days of rotated logs the site keeps now: what the panel last accepted for this site in
+ * this visit, otherwise what the site's detail says, or `null` while that is still being read.
+ */
+const currentRetention: ComputedRef<number | null> = computed(() => {
+  const saved = trafficStore.savedRetention
+  if (saved !== null && saved.siteId === props.siteId) {
+    return saved.days
+  }
+  const detail = sitesStore.detail
+  return detail.state === 'found' ? detail.site.logRetentionDays : null
+})
+
+/**
+ * Saves a different retention for the site.
+ * @param days The retention the control reported.
+ * @returns Resolves once the request has settled.
+ */
+const saveRetention = async (days: number): Promise<void> => {
+  await trafficStore.changeLogRetention(props.siteId, days)
+}
+
+/**
+ * Readies the retention control: forgets the outcome of an earlier visit, so its message does not
+ * greet this one, and fetches the retentions on offer when no screen has loaded them yet.
+ * @returns Resolves once the choices have been read, or at once when they were already held.
+ */
+const prepareRetention = async (): Promise<void> => {
+  trafficStore.clearRetentionOutcome()
+  if (sitesStore.choices === null) {
+    await sitesStore.loadChoices()
+  }
+}
+
+/**
  * Opens a tail of the selected log, replacing any stream already open.
  *
  * Awaited rather than fired and forgotten: the promise settles when the stream ends, and an
@@ -124,6 +164,8 @@ const onSourceChange = async (value: string): Promise<void> => {
   }
 }
 
+onMounted(prepareRetention)
+
 onBeforeUnmount(stop)
 </script>
 
@@ -138,6 +180,21 @@ onBeforeUnmount(stop)
     <UiAlert v-if="endText !== null" :variant="endIsIncomplete ? 'error' : 'info'">
       {{ endText }}
     </UiAlert>
+
+    <UiCard class="flex flex-col gap-3">
+      <UiSectionHeading
+        :title="t('siteTraffic.retention.heading')"
+        :subtitle="t('siteTraffic.retention.description')"
+      />
+      <LogRetentionControl
+        :current="currentRetention"
+        :options="sitesStore.choices?.logRetentions ?? []"
+        :saving="trafficStore.retentionSaving"
+        :outcome="trafficStore.retentionOutcome"
+        :message="trafficStore.retentionMessage"
+        @save="saveRetention"
+      />
+    </UiCard>
 
     <UiCard class="flex flex-col gap-4">
       <div class="flex flex-wrap items-center gap-x-3 gap-y-2">

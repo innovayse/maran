@@ -14,7 +14,7 @@ import type { Site } from '../../src/types/site'
 
 // The sites table while its page is on the way (#243): drawn from its own column schema.
 
-const LICENSED: PanelModule[] = [{ name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' }]
+const LICENSED: PanelModule[] = [{ name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }]
 
 const ALPHA: Site = {
   id: '11111111-1111-1111-1111-111111111111',
@@ -27,6 +27,7 @@ const ALPHA: Site = {
   status: 'enabled',
   statusName: 'Enabled',
   createdAt: '2026-08-01T10:00:00Z',
+  logRetentionDays: 14,
 }
 
 /**

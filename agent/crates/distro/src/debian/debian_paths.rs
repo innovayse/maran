@@ -10,6 +10,17 @@ pub fn nologin_shell() -> &'static str {
     "/usr/sbin/nologin"
 }
 
+/// Absolute path of the shell given to an account whose owner may log in.
+///
+/// Debian's `bash` package installs it at `/bin/bash` and lists that path in
+/// `/etc/shells`; the path resolves through the merged-`/usr` symlink, but the
+/// documented one is what is answered (the crate's one merged-`/usr` rule,
+/// stated on [`crate::DistroAdapter`]).
+#[must_use]
+pub fn bash_shell() -> &'static str {
+    "/bin/bash"
+}
+
 /// Pool directory for a PHP version, e.g. `/etc/php/8.3/fpm/pool.d`.
 ///
 /// Sury packages one pool directory per PHP version so several versions run
@@ -45,4 +56,36 @@ pub fn nftables_include_target() -> &'static str {
 #[must_use]
 pub fn reboot_required_marker() -> &'static str {
     "/var/run/reboot-required"
+}
+
+/// Postfix's configuration directory on the Debian family.
+///
+/// See [`MailFacts::postfix_config_directory`](crate::MailFacts::postfix_config_directory) for what the value is for and how far it is verified.
+#[must_use]
+pub fn postfix_config_directory() -> &'static str {
+    "/etc/postfix"
+}
+
+/// Dovecot's configuration directory on the Debian family.
+///
+/// See [`MailFacts::dovecot_config_directory`](crate::MailFacts::dovecot_config_directory) for what the value is for and how far it is verified.
+#[must_use]
+pub fn dovecot_config_directory() -> &'static str {
+    "/etc/dovecot"
+}
+
+/// Rspamd's configuration directory on the Debian family.
+///
+/// See [`MailFacts::rspamd_config_directory`](crate::MailFacts::rspamd_config_directory) for what the value is for and how far it is verified.
+#[must_use]
+pub fn rspamd_config_directory() -> &'static str {
+    "/etc/rspamd"
+}
+
+/// The ClamAV scanning daemon's configuration file on the Debian family.
+///
+/// See [`MailFacts::clamd_config_file`](crate::MailFacts::clamd_config_file) for what the value is for and how far it is verified.
+#[must_use]
+pub fn clamd_config_file() -> &'static str {
+    "/etc/clamav/clamd.conf"
 }

@@ -30,6 +30,19 @@ namespace Maran.Modules.Accounts.Commands.CreatePlan;
 /// The features the plan sells, by name: the full set, always stated. An empty list sells none; a
 /// request that leaves it out is refused rather than read as "every feature".
 /// </param>
+/// <param name="PhpLimits">
+/// The largest PHP settings a customer on the plan may choose (issue #138). Optional: left out, the
+/// plan sells <c>PhpLimits.Default</c>, the conservative set, so a client that predates the bounds
+/// still creates a plan with sane ones.
+/// </param>
+/// <param name="MailLimits">
+/// What an account on the plan may do with mail (issue #177). Optional: left out, the plan sells
+/// <c>MailLimits.Default</c>, so a client that predates mail still creates a plan with sane figures.
+/// </param>
+/// <param name="MaxDnsZones">
+/// The most DNS zones an account on the plan may own (issue #178). Optional: left out, the plan sells
+/// <c>Plan.DefaultMaxDnsZones</c>. Ignored on a plan a reseller owns, which always holds the default.
+/// </param>
 /// <param name="IpAddress">The caller's address, recorded in the audit journal. Never bound from the request.</param>
 /// <param name="UserAgent">The caller's user agent, recorded in the audit journal. Never bound from the request.</param>
 public sealed record CreatePlanCommand(
@@ -45,5 +58,8 @@ public sealed record CreatePlanCommand(
     ResourceCeilingDto MemoryMaxMb,
     ResourceCeilingDto MaxProcesses,
     IReadOnlyList<AccountFeature> Features,
+    PhpLimitsDto? PhpLimits = null,
+    MailLimitsDto? MailLimits = null,
+    int? MaxDnsZones = null,
     [property: JsonIgnore][property: BindNever][BindNever] string IpAddress = "",
     [property: JsonIgnore][property: BindNever][BindNever] string UserAgent = "") : IPlanDefinition;

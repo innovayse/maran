@@ -71,6 +71,10 @@ public sealed class CronModule : IPanelModule
             options.UseNpgsql(connectionString);
         });
 
+        // Singleton and stateless: it opens a scope of its own per call, so the Host's migrate verb can bring this
+        // module's schema up to date without knowing CronDbContext.
+        services.AddSingleton<IModuleMigrations, CronModuleMigrations>();
+
         // Scoped, because it reads the request's own tenant-scoped DbContext: this module's answer to the
         // personal-data export, an allow-list of fields and never a secret.
         services.AddScoped<IPersonalDataProvider, CronPersonalDataProvider>();

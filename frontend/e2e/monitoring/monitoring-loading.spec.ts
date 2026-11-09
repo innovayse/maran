@@ -14,7 +14,7 @@ import type { PanelModule } from '../../src/types/module'
 // The monitoring screen while it is on the way (#243): every card keeps its heading and every
 // chart its label, over placeholders.
 
-const LICENSED: PanelModule[] = [{ name: 'monitoring', displayName: 'Monitoring', tier: 'included', state: 'enabled' }]
+const LICENSED: PanelModule[] = [{ name: 'monitoring', displayName: 'Monitoring', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }]
 
 /** The server's refusal the failure case answers with. */
 const REFUSAL = 'The monitoring data could not be read.'

@@ -62,17 +62,6 @@ test('a page not built yet is shown disabled, with a coming-soon hint and no lin
   await openFullShell(page)
   const nav = mainNavigation(page)
 
-  const dns = nav.getByRole('link', { name: 'DNS Coming soon' })
-  await expect(dns).toHaveAttribute('aria-disabled', 'true')
-  await expect(dns).toHaveAttribute('title', 'Coming soon')
-  await expect(dns).not.toHaveAttribute('href', /.*/)
-
-  // A section with nothing built yet still opens, and every page in it is disabled.
-  await openSection(page, 'DNS')
-  for (const name of ['Zones', 'Templates', 'Nameservers']) {
-    await expect(nav.getByRole('link', { name: `${name} Coming soon` })).toHaveAttribute('aria-disabled', 'true')
-  }
-
   // A planned page inside a usable section sits beside its built siblings.
   await openSection(page, 'Sites and domains')
   await expect(nav.getByRole('link', { name: 'Domains and aliases Coming soon' })).toHaveAttribute('aria-disabled', 'true')
@@ -116,7 +105,8 @@ test('the jump-to palette offers built pages and leaves planned ones out', async
   const field = page.getByRole('combobox', { name: 'Search the panel' })
   await expect(field).toBeFocused()
 
-  await field.fill('Zones')
+  // A page not built yet (DNS zones were here until issue #178 built them).
+  await field.fill('Domains and aliases')
   await expect(page.getByRole('option')).toHaveCount(0)
 
   await field.fill('Bans')
@@ -124,7 +114,7 @@ test('the jump-to palette offers built pages and leaves planned ones out', async
   await expect(page).toHaveURL('/firewall/bans')
 })
 
-// The customer's own planned items (DNS zones, mail) are theirs too (issue #312) and are asserted in
+// The customer's own planned items (mail) are theirs too (issue #312) and are asserted in
 // `customer/customer-navigation.spec.ts`; only what belongs to the server is absent here.
 test('a customer sees none of the server items, built or planned', async ({ page }) => {
   await stubSignedIn(page, CUSTOMER)

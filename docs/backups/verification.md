@@ -88,7 +88,7 @@ run's own status: the run produced an archive, and that stays true.
 - **Verify now.** A button on each backup; the result replaces the badge.
 - **Alert mail.** A failed verification after a run, scheduled or manual, mails the administrator
   ("Backup verification failed") through the same path as the other backup alerts
-  (`OperatorAlertMailer`); see [alerts](alerts.md). A verification that could not run mails nothing.
+  (`OperatorAlertDispatcher`); see [alerts](alerts.md). A verification that could not run mails nothing.
   A failure found by pressing **Verify now** mails too, by the same rule: **once, when the backup
   moves into the failed state.** Pressing the button again on a backup already recorded as failed
   mails nothing more, so no login can use it to send the administrator one message per press. A backup

@@ -89,8 +89,23 @@ public sealed class AccountDeletingHandler
             .OrderBy(site => site.Domain)
             .ToListAsync(cancellationToken);
 #pragma warning restore RS0030
+
+        // The account's PHP settings go with it. Read here and removed beside the sites, so a deletion
+        // that is abandoned because the agent refused a vhost has taken nothing from the panel.
+#pragma warning disable RS0030 // the account is being deleted, so its rows must be found whoever asked for the deletion
+        var settings = await _dbContext.PhpSettings
+            .IgnoreQueryFilters()
+            .Where(setting => setting.AccountId == message.AccountId)
+            .ToListAsync(cancellationToken);
+#pragma warning restore RS0030
         if (owned.Count == 0)
         {
+            if (settings.Count > 0)
+            {
+                _dbContext.PhpSettings.RemoveRange(settings);
+                await _dbContext.SaveChangesAsync(cancellationToken);
+            }
+
             return;
         }
 
@@ -113,6 +128,7 @@ public sealed class AccountDeletingHandler
         // The hostname claims come with the sites through the tracked graph, so the names the
         // account held are freed rather than left claiming a site that no longer exists.
         _dbContext.Sites.RemoveRange(owned);
+        _dbContext.PhpSettings.RemoveRange(settings);
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 

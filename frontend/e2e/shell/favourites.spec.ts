@@ -23,7 +23,7 @@ const CUSTOMER: AuthenticatedUser = {
 
 /** The one module the customer's own account reaches in these specs. */
 const CUSTOMER_MODULES: PanelModule[] = [
-  { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
+  { name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 /**
@@ -129,13 +129,12 @@ test('a customer pins a page of their own account', async ({ page }) => {
 
 test('a page that is not built yet has no star', async ({ page }) => {
   await openShell(page, { keys: [], limit: 8 })
-  await openSection(page, 'DNS')
+  await openSection(page, 'Sites and domains')
   const nav = mainNavigation(page)
 
-  await expect(nav.getByText('Zones', { exact: true })).toBeVisible()
-  await expect(nav.getByRole('button', { name: /^Pin Zones/ })).toHaveCount(0)
-  // A built page in another section does have one, so the absence above is a finding and not a blind search.
-  await openSection(page, 'Sites and domains')
+  await expect(nav.getByText('Domains and aliases', { exact: true })).toBeVisible()
+  await expect(nav.getByRole('button', { name: /^Pin Domains and aliases/ })).toHaveCount(0)
+  // A built page beside it does have one, so the absence above is a finding and not a blind search.
   await expect(nav.getByRole('button', { name: 'Pin Site list to favourites' })).toBeVisible()
 })
 

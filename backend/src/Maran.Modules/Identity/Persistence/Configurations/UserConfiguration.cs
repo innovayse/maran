@@ -91,6 +91,14 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .IsRequired()
             .HasDefaultValue(false);
 
+        // Whether the login's first password was chosen by somebody else and must be replaced (see
+        // User.PasswordChangeRequired). EXPAND-ONLY: required with a database default so the additive
+        // migration could add it to a table that already has rows (every existing login chose its own
+        // password), and so the previous release, which does not know the column, still inserts logins.
+        builder.Property(u => u.PasswordChangeRequired)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         builder.Property(u => u.CreatedAt)
             .IsRequired();
 

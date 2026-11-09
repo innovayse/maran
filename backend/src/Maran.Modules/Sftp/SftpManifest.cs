@@ -1,4 +1,5 @@
 using Maran.Sdk.Contracts;
+using Maran.Sdk.Navigation;
 
 namespace Maran.Modules.Sftp;
 
@@ -44,13 +45,38 @@ public static class SftpManifest
     /// What this module handles is unchanged and still SFTP only. Its error messages name SFTP on
     /// purpose: they are about SFTP logins, and the FTPS module owns its own.
     /// </para>
+    /// <para>
+    /// <see cref="ModuleKind.Packageable"/>. <see cref="Manifest.SchemaName"/> is the <c>sftp</c> schema. Its one menu
+    /// entry is the sidebar's "File transfer" door; the FTPS page is the second child of that entry and is declared
+    /// by the Ftp module.
+    /// </para>
     /// </remarks>
     public static Manifest Instance { get; } = new(
         Id: "sftp",
         DisplayNameKey: "SftpModuleDisplayName",
         Version: "1.0.0",
         Tier: LicenceTier.Included,
+        Kind: ModuleKind.Packageable,
+        MinPanelVersion: "1.0.0-beta.1",
+        SchemaName: "sftp",
         Dependencies: [],
         AgentCapabilities: [AgentCapability.Sftp],
+        Permissions: [AuthorizationPolicies.AnyAuthenticated],
+        Menu: [
+            new ModuleMenuItem(
+                Key: "file-transfer-sftp",
+                RouteName: "file-transfer-sftp",
+                IconKey: ModuleIconKeys.FolderKey,
+                LabelKey: "SftpMenuFileTransferSftp",
+                Order: 10,
+                Audience: ModuleAudience.Everyone),
+        ],
+        Routes: [
+            new ModuleRoute(
+                Name: "file-transfer-sftp",
+                Path: "/file-transfer/sftp",
+                TitleKey: "SftpRouteFileTransferSftp",
+                RequiresModule: null),
+        ],
         Audience: ModuleAudience.Everyone);
 }

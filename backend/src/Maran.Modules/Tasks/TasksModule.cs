@@ -60,6 +60,10 @@ public sealed class TasksModule : IPanelModule
             options.UseNpgsql(connectionString);
         });
 
+        // Singleton and stateless: it opens a scope of its own per call, so the Host's migrate verb can bring this
+        // module's schema up to date without knowing TasksDbContext.
+        services.AddSingleton<IModuleMigrations, TasksModuleMigrations>();
+
         // Scoped, because it writes through the request-scoped context — and because it is resolved
         // INSIDE another module's scoped handler, which is where every task is recorded from.
         services.AddScoped<ITaskRecorder, TaskRecorder>();

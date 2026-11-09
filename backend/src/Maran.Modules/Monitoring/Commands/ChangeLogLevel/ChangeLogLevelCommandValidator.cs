@@ -17,6 +17,7 @@ public sealed class ChangeLogLevelCommandValidator : AbstractValidator<ChangeLog
     {
         RuleFor(command => command.Level)
             .IsInEnum()
-            .WithErrorCode(nameof(ErrorMessages.LogLevelUnknown));
+            .WithErrorCode(nameof(ErrorMessages.LogLevelUnknown))
+            .WithMessage(nameof(ErrorMessages.LogLevelUnknown));
     }
 }

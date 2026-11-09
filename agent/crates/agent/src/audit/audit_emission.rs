@@ -18,7 +18,7 @@ const GRPC_STATUS: &str = "grpc-status";
 /// The `AtomicBool` decides who emits, so end-of-stream followed by a drop (or the
 /// reverse) writes a single line (threat note, section 4).
 pub struct AuditEmission {
-    /// The method, as the agent's own `MUTATING_RPCS` entry spells it.
+    /// The method, as the agent's own `MUTATING_RPCS` or `DISCLOSING_RPCS` entry spells it.
     list_entry: &'static str,
     /// The slot the handler fills.
     slot: AuditSlot,

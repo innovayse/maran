@@ -43,6 +43,24 @@ public sealed class DatabasesDbContext : DbContext
         }
     }
 
+    /// <summary>The database users owned by this module, already scoped to the current user's tenant.</summary>
+    public DbSet<DatabaseUser> DatabaseUsers
+    {
+        get
+        {
+            return Set<DatabaseUser>();
+        }
+    }
+
+    /// <summary>The grants of those users, scoped to the tenant through their user.</summary>
+    public DbSet<DatabaseGrant> DatabaseGrants
+    {
+        get
+        {
+            return Set<DatabaseGrant>();
+        }
+    }
+
     /// <summary>
     /// Whether the current principal is a server administrator, whom no tenant filter narrows. Read
     /// from the context at query time, so each request's own caller decides.
@@ -73,12 +91,22 @@ public sealed class DatabasesDbContext : DbContext
     {
         modelBuilder.HasDefaultSchema(SchemaName);
         modelBuilder.ApplyConfiguration(new DatabaseConfiguration());
+        modelBuilder.ApplyConfiguration(new DatabaseUserConfiguration());
+        modelBuilder.ApplyConfiguration(new DatabaseGrantConfiguration());
 
         // Spec §8: a tenant row is not returned to another tenant PHYSICALLY, not by a handler
         // remembering to filter. An administrator sees everything; a customer's context carries
         // their account id and the filter closes over it.
         modelBuilder.Entity<Database>().HasQueryFilter(database =>
             IsAdministrator || database.AccountId == TenantAccountId);
+
+        modelBuilder.Entity<DatabaseUser>().HasQueryFilter(user =>
+            IsAdministrator || user.AccountId == TenantAccountId);
+
+        // A grant carries no account id of its own and is scoped through its required user, so a handler
+        // that forgot a Where clause still cannot read another tenant's privileges.
+        modelBuilder.Entity<DatabaseGrant>().HasQueryFilter(grant =>
+            IsAdministrator || grant.DatabaseUser.AccountId == TenantAccountId);
 
         base.OnModelCreating(modelBuilder);
     }

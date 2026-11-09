@@ -21,4 +21,10 @@
   <data name="LicenceTierPlanGated">
     <value>Входит в старший тарифный план</value>
   </data>
+  <data name="ModuleKindCore">
+    <value>Часть ядра панели</value>
+  </data>
+  <data name="ModuleKindPackageable">
+    <value>Устанавливается отдельно</value>
+  </data>
 </root>

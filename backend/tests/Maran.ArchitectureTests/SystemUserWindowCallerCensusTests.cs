@@ -5,7 +5,8 @@ namespace Maran.ArchitectureTests;
 /// <summary>
 /// The census over callers of the unscoped account window
 /// <c>IAccountDirectory.FindSystemUserAsync</c> (issue #379): the only production code allowed to
-/// call it is unattended certificate renewal, so a new caller on a request path fails here by name.
+/// call it is unattended host work with no principal (certificate renewal and the hourly site log
+/// maintenance), so a new caller on a request path fails here by name.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -25,11 +26,16 @@ public sealed class SystemUserWindowCallerCensusTests
 {
     /// <summary>
     /// The production files allowed to call the window, relative to <c>backend/src</c>, with forward
-    /// slashes: the scheduled certificate renewal handlers, which run with no principal.
+    /// slashes: unattended work that holds the account id from its own row and runs with no principal.
     /// </summary>
     private static readonly string[] ExpectedCallers =
     [
+        // Scheduled certificate renewal: no principal, the id is the certificate's own AccountId.
         "Maran.Modules/Ssl/Jobs/CertificateRenewalHandler.cs",
+
+        // Hourly log retention, and the message a retention change publishes: no principal, the id is the
+        // loaded site's own AccountId, and the account's system user only addresses that account's own files.
+        "Maran.Modules/Sites/Services/SiteLogMaintainer.cs",
     ];
 
     /// <summary>A call written as code, never the declaration, which has no dot before the name.</summary>
@@ -37,9 +43,9 @@ public sealed class SystemUserWindowCallerCensusTests
         @"\.FindSystemUserAsync\s*\(",
         RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
-    /// <summary>The only production callers of the window are the unattended renewal handlers.</summary>
+    /// <summary>The only production callers of the window are unattended host work.</summary>
     [Fact]
-    public void The_only_production_callers_of_the_system_user_window_are_the_renewal_handlers()
+    public void The_only_production_callers_of_the_system_user_window_are_unattended_host_work()
     {
         var sources = ProductionSources();
 

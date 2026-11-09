@@ -66,7 +66,6 @@ public sealed class GetSmtpSettingsQueryHandler
                 HasPassword: false,
                 string.Empty,
                 string.Empty,
-                string.Empty,
                 UpdatedAt: null));
         }
 
@@ -79,7 +78,6 @@ public sealed class GetSmtpSettingsQueryHandler
             HasPassword: settings.BasicPassword is { Length: > 0 },
             settings.FromAddress,
             settings.FromName,
-            settings.AlertRecipientAddress ?? string.Empty,
             settings.UpdatedAt));
     }
 }

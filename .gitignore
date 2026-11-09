@@ -151,3 +151,5 @@ Thumbs.db
 # remains on disk but is no longer tracked.
 /CLAUDE.md
 .claude/
+frontend/dist-demo/
+.claude/coding-phase.lock

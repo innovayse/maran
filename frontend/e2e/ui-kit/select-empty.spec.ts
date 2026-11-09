@@ -12,7 +12,7 @@ import { stubPlans } from '../fixtures/stub-plans-route'
 test('the plan chooser opened with no plans shows the empty message', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
-  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' }])
+  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
   await stubAccounts(page, [])
   await stubPlans(page, [])
 

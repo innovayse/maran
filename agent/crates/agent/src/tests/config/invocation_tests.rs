@@ -445,3 +445,191 @@ fn a_dangling_free_space_floor_flag_is_refused() {
         }
     );
 }
+
+#[test]
+fn without_the_fleet_flags_the_agent_opens_no_fleet_listener() {
+    let options = running(Invocation::parse(&arguments(&[]), DEFAULT_UID).unwrap());
+
+    assert_eq!(options.fleet, None);
+}
+
+#[test]
+fn both_fleet_flags_together_turn_the_fleet_listener_on() {
+    let options = running(
+        Invocation::parse(
+            &arguments(&[
+                "--fleet-listen",
+                "0.0.0.0:8444",
+                "--fleet-dir",
+                "/etc/maran/fleet",
+            ]),
+            DEFAULT_UID,
+        )
+        .unwrap(),
+    );
+
+    let fleet = options.fleet.expect("both flags were given");
+    assert_eq!(fleet.listen.socket_address().port(), 8444);
+    assert_eq!(fleet.directory(), Path::new("/etc/maran/fleet"));
+}
+
+#[test]
+fn the_fleet_flags_leave_the_unix_socket_options_alone() {
+    let options = running(
+        Invocation::parse(
+            &arguments(&[
+                "--socket",
+                "/run/x.sock",
+                "--fleet-dir",
+                "/etc/maran/fleet",
+                "--fleet-listen",
+                "127.0.0.1:9000",
+                "--allow-uid",
+                "42",
+            ]),
+            DEFAULT_UID,
+        )
+        .unwrap(),
+    );
+
+    assert_eq!(options.socket_path(), Path::new("/run/x.sock"));
+    assert_eq!(options.allow_uid, 42);
+    assert!(options.fleet.is_some());
+}
+
+#[test]
+fn one_fleet_flag_without_the_other_is_refused_naming_the_missing_one() {
+    assert_eq!(
+        Invocation::parse(&arguments(&["--fleet-listen", "0.0.0.0:8444"]), DEFAULT_UID),
+        Err(OptionsError::FleetFlagMissing {
+            missing: "--fleet-dir"
+        })
+    );
+    assert_eq!(
+        Invocation::parse(
+            &arguments(&["--fleet-dir", "/etc/maran/fleet"]),
+            DEFAULT_UID
+        ),
+        Err(OptionsError::FleetFlagMissing {
+            missing: "--fleet-listen"
+        })
+    );
+}
+
+#[test]
+fn a_fleet_listen_address_with_a_privileged_port_is_refused() {
+    let error = Invocation::parse(
+        &arguments(&[
+            "--fleet-listen",
+            "0.0.0.0:443",
+            "--fleet-dir",
+            "/etc/maran/fleet",
+        ]),
+        DEFAULT_UID,
+    )
+    .expect_err("a privileged port must not start a listener");
+
+    assert!(matches!(error, OptionsError::InvalidFleetListen { .. }));
+}
+
+#[test]
+fn a_relative_fleet_directory_is_refused() {
+    assert_eq!(
+        Invocation::parse(
+            &arguments(&["--fleet-listen", "0.0.0.0:8444", "--fleet-dir", "fleet"]),
+            DEFAULT_UID
+        ),
+        Err(OptionsError::RelativePath {
+            flag: "--fleet-dir",
+            value: "fleet".to_owned()
+        })
+    );
+}
+
+#[test]
+fn a_repeated_fleet_flag_is_refused_rather_than_last_wins() {
+    assert_eq!(
+        Invocation::parse(
+            &arguments(&[
+                "--fleet-listen",
+                "0.0.0.0:8444",
+                "--fleet-listen",
+                "0.0.0.0:8445",
+                "--fleet-dir",
+                "/etc/maran/fleet"
+            ]),
+            DEFAULT_UID
+        ),
+        Err(OptionsError::RepeatedFlag {
+            flag: "--fleet-listen"
+        })
+    );
+    assert_eq!(
+        Invocation::parse(
+            &arguments(&["--fleet-dir", "/a", "--fleet-dir", "/b"]),
+            DEFAULT_UID
+        ),
+        Err(OptionsError::RepeatedFlag {
+            flag: "--fleet-dir"
+        })
+    );
+}
+
+#[test]
+fn a_fleet_flag_without_a_value_is_refused() {
+    assert_eq!(
+        Invocation::parse(&arguments(&["--fleet-listen"]), DEFAULT_UID),
+        Err(OptionsError::MissingValue {
+            flag: "--fleet-listen"
+        })
+    );
+}
+
+#[test]
+fn generate_node_identity_in_the_first_position_selects_the_generation_mode() {
+    let invocation = Invocation::parse(
+        &arguments(&[
+            "--generate-node-identity",
+            "/etc/maran/fleet",
+            "--node-address",
+            "node1.example.com",
+        ]),
+        DEFAULT_UID,
+    )
+    .unwrap();
+
+    match invocation {
+        Invocation::GenerateNodeIdentity(request) => {
+            assert_eq!(request.directory, Path::new("/etc/maran/fleet"));
+            assert!(!request.replace);
+        }
+        other => panic!("expected the generation mode, got {other:?}"),
+    }
+}
+
+#[test]
+fn generate_node_identity_anywhere_but_first_is_an_unknown_flag_and_starts_nothing() {
+    assert_eq!(
+        Invocation::parse(
+            &arguments(&[
+                "--socket",
+                "/run/x.sock",
+                "--generate-node-identity",
+                "/etc/maran/fleet"
+            ]),
+            DEFAULT_UID
+        ),
+        Err(OptionsError::UnknownFlag {
+            flag: "--generate-node-identity".to_owned()
+        })
+    );
+}
+
+#[test]
+fn the_usage_text_documents_the_fleet_flags_and_the_identity_mode() {
+    assert!(USAGE.contains("--fleet-listen"));
+    assert!(USAGE.contains("--fleet-dir"));
+    assert!(USAGE.contains("--generate-node-identity"));
+    assert!(USAGE.contains("--node-address"));
+    assert!(USAGE.contains("--replace"));
+}

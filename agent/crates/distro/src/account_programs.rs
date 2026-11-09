@@ -16,6 +16,30 @@ pub trait AccountPrograms: Send + Sync {
     /// (rules/rust.md "Distro adapter": ops never hard-codes a platform path).
     fn nologin_shell(&self) -> &'static str;
 
+    /// Absolute path of the shell given to an account whose owner may log in
+    /// (issue #194).
+    ///
+    /// Asked of the adapter for the reason [`Self::nologin_shell`] is: `useradd`
+    /// does not verify a shell, so a path that names nothing creates the account
+    /// successfully and surfaces as "I cannot log in" on a server the developer
+    /// never ran.
+    ///
+    /// Both families document `/bin/bash`: Debian's `bash` package and RHEL's
+    /// `bash` package install it there and list it in `/etc/shells`, and on both
+    /// `/bin` is a symlink to `/usr/bin` since the merged-`/usr` layout. The
+    /// documented `/bin/bash` is answered rather than `/usr/bin/bash` for the
+    /// reason the crate states on [`crate::DistroAdapter`]: a symlink that happens
+    /// to exist is not a contract, the documented path is - and `/bin/bash` is
+    /// the path the `/etc/shells` of every supported release lists, which
+    /// `chsh`, PAM's `pam_shells` and FTP daemons consult. The two methods answer
+    /// the same string today; they stay two methods because the day a family
+    /// documents another bash path, only that family's adapter changes.
+    ///
+    /// Like `nologin_shell` it is plain text and not an [`AdapterBinary`]: the
+    /// agent hands the path to `useradd` and `usermod` as data and never executes
+    /// it.
+    fn bash_shell(&self) -> &'static str;
+
     /// Absolute path of `useradd`, for the process-execution allow-list.
     ///
     /// The SFTP area creates a system login with it. Asked of the adapter for

@@ -39,7 +39,9 @@ enum ErrorCode {
   // because the client stopped reading it: the send buffer stayed full past
   // the agent's patience, so the stream was dropped to free the worker behind
   // it. Not a fault of the operation, and retryable immediately by reopening
-  // the stream.
+  // the stream. Also answers a client-streaming rpc (WriteFile, ImportBackup)
+  // whose client went silent past the agent's per-message idle limit: the
+  // upload was abandoned, nothing was published, and the account is free.
   ERROR_CODE_STREAM_DROPPED = 6;
   // Added 2026-08-31, additively. A server-streaming rpc the agent closed
   // because nothing happened on it for the agent's maximum idle time. Benign
@@ -178,8 +180,8 @@ enum ErrorCode {
   ERROR_CODE_ACCOUNT_SUSPENDED = 14;
   // Added 2026-11-03, additively (issues #333 and #331). The operation was
   // refused because a bounded resource of the AGENT itself is exhausted, and
-  // admitting one more would take capacity from every other tenant. Today only
-  // RunCronEntry asks: a run by hand holds a worker thread of the agent for up
+  // admitting one more would take capacity from every other tenant. RunCronEntry
+  // asks (and, since 2026-11-07, the browse rpcs, see below): a run by hand holds a worker thread of the agent for up
   // to its runtime ceiling, so the agent admits a fixed number of them at once
   // for the whole host and a smaller number for one account (the numbers are
   // the agent's, not the panel's, and are not on the wire).
@@ -197,6 +199,12 @@ enum ErrorCode {
   // account and does not clear by waiting; nor SYSTEM_FAILURE, because nothing
   // is wrong with the host. A caller MUST NOT widen it to "the agent is busy
   // for any reason".
+  //
+  // Widened 2026-11-07 by exactly one more use (issue #166): ListDirectory,
+  // ReadFile and SearchEntries also answer it when the agent's fixed bound on
+  // simultaneous browse operations (per account and for the whole host) is
+  // reached. The meaning is unchanged: a bounded resource of the agent is
+  // exhausted, nothing happened, retry later.
   ERROR_CODE_AGENT_SATURATED = 15;
   // Added 2026-11-03, additively (issues #336 and #331). The operation STARTED
   // a unit of work in the service manager, a ceiling (the output cap or the
@@ -214,6 +222,80 @@ enum ErrorCode {
   // and not ERROR_CODE_AGENT_SATURATED, where nothing was started at all. A
   // caller MUST NOT widen it to "a stop failed for any reason".
   ERROR_CODE_RUN_NOT_STOPPED = 16;
+  // Added 2026-11-07, additively (issue #166). A read-only file operation was
+  // refused because what it was asked to hand back is larger than the agent
+  // will carry: a file larger than the request's max_bytes (or that grew past
+  // it while being read), or a directory holding more entries than a listing
+  // can describe. Today only ListDirectory and ReadFile return it.
+  //
+  // **Nothing was changed**, and for ReadFile nothing was sent before the
+  // refusal unless a file grew mid-read, in which case the caller MUST discard
+  // the partial body. It is NOT retryable as it stands: the same request meets
+  // the same size. A panel that reads it tells the customer the file or
+  // directory is too large to open here.
+  //
+  // It is NOT ERROR_CODE_INVALID_INPUT, which refuses a request as sent without
+  // looking at the filesystem, nor ERROR_CODE_VALIDATION_FAILED, which is the
+  // answer for a path containment refused. A caller MUST NOT widen it to "the
+  // answer would be big" for an operation that can truncate instead (a search
+  // reports truncated and is never this code).
+  ERROR_CODE_TOO_LARGE = 17;
+  // Added 2026-11-07, additively (issue #167). A write was refused because the
+  // account's disk quota is used up: the kernel answered EDQUOT. Returned by
+  // the file operations that write on the account's behalf (WriteFile,
+  // CopyEntry, CreateDirectory and, in time, ExtractArchive and CreateArchive).
+  //
+  // **Nothing is left behind**: the temporary file or staged copy the call was
+  // making is removed before this answer. It is NOT retryable as it stands: the
+  // same request meets the same quota, and a panel that reads it tells the
+  // customer to free space or ask for a bigger plan.
+  //
+  // It is NOT ERROR_CODE_BELOW_FREE_SPACE_FLOOR, which is the HOST running out
+  // of room for everyone and is the operator's problem; it is NOT
+  // ERROR_CODE_LIMIT_REACHED, which is an allowance a request stated; and
+  // ENOSPC (the filesystem itself full) stays ERROR_CODE_SYSTEM_FAILURE. A
+  // caller MUST NOT widen it to "the disk is full".
+  ERROR_CODE_QUOTA_EXCEEDED = 18;
+  // Added 2026-11-07, additively (issue #167, for #168). An archive was
+  // refused as a whole, before anything was written, because it holds a member
+  // the agent will not write: a link, a device, FIFO or socket, a name that
+  // could leave the destination (absolute, "..", an empty component, a
+  // backslash or a control character), a duplicate name, an encrypted member,
+  // or a compression method other than stored or deflate. Today no rpc returns
+  // it; ExtractArchive and CreateArchive will, when the agent implements them.
+  //
+  // **Nothing was changed.** It is NOT retryable as it stands: the same archive
+  // holds the same member. A panel that reads it tells the customer the archive
+  // is not safe to unpack here, without naming the member (the member's name is
+  // the customer's own data and the panel's journal, not this answer, carries
+  // it).
+  //
+  // It is NOT ERROR_CODE_VALIDATION_FAILED, which is a path or an archive of
+  // the wrong kind (a zip presented as a tar.gz, a corrupt archive); it is NOT
+  // ERROR_CODE_LIMIT_REACHED, which is a stated count or size reached. A caller
+  // MUST NOT widen it to "the archive is bad".
+  ERROR_CODE_ARCHIVE_UNSAFE = 19;
+  // Added 2026-11-07, additively (issue #445). A sealed (encrypted) backup
+  // archive did not open under the key the call carried, or the call carried
+  // no key for an archive that is sealed. Returned by RestoreBackup and
+  // VerifyBackup (and any other rpc that opens a sealed artifact) before
+  // anything was extracted or loaded.
+  //
+  // **Nothing was changed.** The panel's reading is "this destination's
+  // archive key is wrong, lost, or never sent", and that is the likeliest
+  // cause but not a proven one: the cipher authenticates every chunk, so a
+  // wrong key and a damaged or tampered sealed file fail identically and the
+  // agent cannot say which it was. The name states what is known (the archive
+  // cannot be opened with this key) and not what is guessed.
+  //
+  // It is NOT ERROR_CODE_VALIDATION_FAILED, which is a plain artifact that
+  // disagrees with its record (checksum, size, manifest) and which a restore
+  // answers with "restore from another copy"; the remedy here is different
+  // (check the destination's key). It is NOT ERROR_CODE_INVALID_INPUT, which
+  // is a request the agent will not act on. A caller reading an old agent that
+  // lacks this value sees the earlier codes for the same failures
+  // (VALIDATION_FAILED for a wrong key, INVALID_INPUT for a missing one).
+  ERROR_CODE_ARCHIVE_UNOPENABLE = 20;
 }
 
 // Streamed progress of a long-running operation (backup, restore, install).

@@ -42,6 +42,8 @@ public sealed class GetBackupScheduleQueryHandler
     {
         ArgumentNullException.ThrowIfNull(query);
 
+        // A null AccountId asks for the host-wide policy, which the module's tenant filter shows to an
+        // administrator only; this handler's surface is administrators-only, so it finds it.
         var schedule = await _dbContext.BackupSchedules
             .AsNoTracking()
             .FirstOrDefaultAsync(row => row.AccountId == query.AccountId, cancellationToken);

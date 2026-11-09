@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useMonitoringApi } from '../composables/apis/useMonitoringApi'
+import { useLatestRead } from '../composables/useLatestRead'
 import { ApiError } from '../composables/useApi'
 import type { ListLoad, ListRequest } from '../types/list'
 import type { LoadingState } from '../types/loading'
@@ -37,6 +38,7 @@ const DEFAULT_RANGE: ChartRange = 'lastDay'
  */
 export const useMonitoringStore = defineStore('monitoring', () => {
   const api = useMonitoringApi()
+  const latestRead = useLatestRead()
 
   /** The range the charts currently show. */
   const range: Ref<ChartRange> = ref(DEFAULT_RANGE)
@@ -192,9 +194,13 @@ export const useMonitoringStore = defineStore('monitoring', () => {
    * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
   const listAccountDiskUsage = async (request: ListRequest): Promise<ListLoad<AccountDiskUsage>> => {
+    const isLatest = latestRead.begin()
     try {
       const page = await api.listAccountDiskUsage(request)
-      accountDiskUsage.value = page.items
+      // A slower, older read must not replace the rows of a newer one.
+      if (isLatest()) {
+        accountDiskUsage.value = page.items
+      }
       return { kind: 'loaded', page }
     } catch (error) {
       return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }

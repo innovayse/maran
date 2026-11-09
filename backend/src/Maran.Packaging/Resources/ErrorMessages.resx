@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="IpmArchiveMalformed">
+    <value>The package is not a readable archive.</value>
+  </data>
+  <data name="IpmDependencyUnsatisfied">
+    <value>A module the package depends on is not installed in an accepted version.</value>
+  </data>
+  <data name="IpmDowngradeRefused">
+    <value>The package is older than the installed module, and no reason for the downgrade was given.</value>
+  </data>
+  <data name="IpmDuplicateEntry">
+    <value>The package contains two entries with the same name.</value>
+  </data>
+  <data name="IpmEmptyInput">
+    <value>The package is empty.</value>
+  </data>
+  <data name="IpmEntryNameInvalid">
+    <value>The package contains an entry with a name that is not allowed.</value>
+  </data>
+  <data name="IpmEntryNotRegular">
+    <value>The package contains an entry that is not a plain file.</value>
+  </data>
+  <data name="IpmEntrySizeMismatch">
+    <value>An entry of the package is not the size it declares.</value>
+  </data>
+  <data name="IpmEntryTooLarge">
+    <value>The package contains an entry larger than the panel accepts.</value>
+  </data>
+  <data name="IpmEntryTraversal">
+    <value>The package contains an entry whose name leaves the package folder.</value>
+  </data>
+  <data name="IpmFormatVersionUnknown">
+    <value>The package uses a format version this panel does not know.</value>
+  </data>
+  <data name="IpmHashMismatch">
+    <value>A file of the package does not match the hash its manifest pins.</value>
+  </data>
+  <data name="IpmManifestInvalid">
+    <value>The package manifest breaks the module rules.</value>
+  </data>
+  <data name="IpmManifestMalformed">
+    <value>The package manifest cannot be read.</value>
+  </data>
+  <data name="IpmManifestMissing">
+    <value>The package has no manifest.</value>
+  </data>
+  <data name="IpmMissingEntry">
+    <value>The package lacks a file its manifest lists.</value>
+  </data>
+  <data name="IpmNotYetValid">
+    <value>The package is not valid yet.</value>
+  </data>
+  <data name="IpmPackageTooLarge">
+    <value>The package is larger than the panel accepts when unpacked.</value>
+  </data>
+  <data name="IpmPanelTooNew">
+    <value>This panel is newer than the package supports.</value>
+  </data>
+  <data name="IpmPanelTooOld">
+    <value>This panel is older than the package requires.</value>
+  </data>
+  <data name="IpmPublicKeyInvalid">
+    <value>The key supplied for package signatures is not a usable P-384 key.</value>
+  </data>
+  <data name="IpmRatioExceeded">
+    <value>The package compresses an entry further than the panel accepts.</value>
+  </data>
+  <data name="IpmSignatureInvalid">
+    <value>The package signature does not match its manifest.</value>
+  </data>
+  <data name="IpmSignatureMissing">
+    <value>The package is not signed.</value>
+  </data>
+  <data name="IpmTooManyEntries">
+    <value>The package contains more entries than the panel accepts.</value>
+  </data>
+  <data name="IpmUnlistedEntry">
+    <value>The package contains a file its manifest does not list.</value>
+  </data>
+</root>

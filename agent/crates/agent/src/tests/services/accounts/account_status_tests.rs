@@ -82,6 +82,7 @@ fn every_variant() -> Vec<AccountError> {
             floor: 2,
         }),
         AccountError::FreeSpace(FloorRefusal::Unmeasurable),
+        AccountError::LimitsFileFailed,
     ]
 }
 
@@ -481,4 +482,14 @@ fn a_home_filesystem_that_cannot_be_measured_is_a_system_failure() {
         code_of(&AccountError::FreeSpace(FloorRefusal::Unmeasurable)),
         ErrorCode::SystemFailure as i32
     );
+}
+
+/// An open-files drop-in that could not be written or removed is a fault of the
+/// host with nothing a tool printed on the wire.
+#[test]
+fn a_limits_file_failure_is_a_system_failure_with_no_tool_output() {
+    let wire = to_agent_error(&AccountError::LimitsFileFailed);
+
+    assert_eq!(wire.code, ErrorCode::SystemFailure as i32);
+    assert!(wire.tool_output.is_empty());
 }

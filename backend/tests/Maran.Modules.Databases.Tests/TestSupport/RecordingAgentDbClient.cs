@@ -22,6 +22,24 @@ public sealed class RecordingAgentDbClient : IAgentDbClient
     /// <summary>Every password change this client was asked for, in order.</summary>
     public List<AgentSetPasswordCall> PasswordChanges { get; } = [];
 
+    /// <summary>Every additional-user creation this client was asked for, in order.</summary>
+    public List<AgentUserCreateCall> UserCreates { get; } = [];
+
+    /// <summary>Every additional-user drop this client was asked for, in order.</summary>
+    public List<AgentUserDropCall> UserDrops { get; } = [];
+
+    /// <summary>Every privilege change this client was asked for, in order.</summary>
+    public List<AgentPrivilegesCall> PrivilegeChanges { get; } = [];
+
+    /// <summary>What the user creation answers; the prefixed name when unset.</summary>
+    public Result<string>? CreateUserResult { get; set; }
+
+    /// <summary>What the user drop answers; success when unset.</summary>
+    public Result? DropUserResult { get; set; }
+
+    /// <summary>The answers to successive privilege changes, first call first; success once the queue is empty.</summary>
+    public Queue<Result> SetPrivilegesAnswers { get; } = new();
+
     /// <summary>How many times the agent's diagnostic enumerate was called. Must stay zero.</summary>
     public int ListCalls { get; private set; }
 
@@ -94,6 +112,42 @@ public sealed class RecordingAgentDbClient : IAgentDbClient
         PasswordChanges.Add(new AgentSetPasswordCall(accountUsername, dbUsername, password));
 
         return Task.FromResult(SetPasswordResult ?? Result.Ok());
+    }
+
+    /// <inheritdoc/>
+    public Task<Result<string>> CreateUserAsync(
+        string accountUsername,
+        string dbUsername,
+        SensitiveString password,
+        CancellationToken cancellationToken)
+    {
+        UserCreates.Add(new AgentUserCreateCall(accountUsername, dbUsername, password));
+
+        return Task.FromResult(CreateUserResult ?? Result<string>.Ok($"{accountUsername}_{dbUsername}"));
+    }
+
+    /// <inheritdoc/>
+    public Task<Result> DropUserAsync(
+        string accountUsername,
+        string dbUsername,
+        CancellationToken cancellationToken)
+    {
+        UserDrops.Add(new AgentUserDropCall(accountUsername, dbUsername));
+
+        return Task.FromResult(DropUserResult ?? Result.Ok());
+    }
+
+    /// <inheritdoc/>
+    public Task<Result> SetPrivilegesAsync(
+        string accountUsername,
+        string dbUsername,
+        string databaseName,
+        IReadOnlyCollection<DatabasePrivilegeKind> privileges,
+        CancellationToken cancellationToken)
+    {
+        PrivilegeChanges.Add(new AgentPrivilegesCall(accountUsername, dbUsername, databaseName, privileges));
+
+        return Task.FromResult(SetPrivilegesAnswers.Count > 0 ? SetPrivilegesAnswers.Dequeue() : Result.Ok());
     }
 
     /// <inheritdoc/>

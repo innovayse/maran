@@ -1,5 +1,7 @@
 using System.Text.Json.Serialization;
+using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Constants;
+using Maran.SharedKernel.Security;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace Maran.Modules.Accounts.Commands.CreateAccount;
@@ -54,6 +56,38 @@ namespace Maran.Modules.Accounts.Commands.CreateAccount;
 /// The caller's user agent, recorded in the audit journal. Server-established and guarded exactly as
 /// <paramref name="IpAddress"/> is, for the same reason.
 /// </param>
+/// <param name="LoginMode">
+/// How the owner gets a way in: <see cref="OwnerLoginMode.Invitation"/> (the default) mails a link the
+/// owner uses to choose a password, <see cref="OwnerLoginMode.InitialPassword"/> sets the password the
+/// creator states and requires the owner to change it at the first sign-in (issue #194).
+/// </param>
+/// <param name="InitialPassword">
+/// The owner's first password; stated exactly when <paramref name="LoginMode"/> is
+/// <see cref="OwnerLoginMode.InitialPassword"/>. A <see cref="SensitiveString"/>, which reads from the
+/// same JSON string a plain field would (the panel registers its converter), so the command's printed
+/// form is <c>[redacted]</c> and not the password. Only its coupling with the mode is checked here;
+/// whether it is strong enough is Identity's rule, kept in one place there.
+/// </param>
+/// <param name="InodeLimit">
+/// The most files and directories this account may own. <c>0</c> is no limit; left out, the account
+/// follows its plan, which states none. A reseller may not state a figure above its plan's.
+/// </param>
+/// <param name="ProcessLimit">
+/// The most processes and threads this account may run at once; at least <c>1</c>. Left out, the
+/// account follows its plan. A reseller may only state a figure at or below its plan's.
+/// </param>
+/// <param name="OpenFilesLimit">
+/// The most files one login session of this account may hold open. <c>0</c> is no limit; left out, the
+/// account follows its plan, which states none. It reaches login sessions only, not php-fpm workers.
+/// </param>
+/// <param name="ShellAccess">
+/// Whether the account's system user gets an interactive shell for SSH and SFTP logins instead of
+/// none. Off by default: a shell is a way to run code as the account.
+/// </param>
+/// <param name="BackupEnabled">
+/// Whether the account is included in scheduled backups. On by default; carried to the Backups module
+/// on <see cref="Maran.Sdk.Events.AccountCreated"/>, which records the opt-out.
+/// </param>
 public sealed record CreateAccountCommand(
     string Name,
     string PrimaryDomain,
@@ -62,4 +96,11 @@ public sealed record CreateAccountCommand(
     string OwnerLanguage = PanelLanguages.English,
     Guid? ResellerId = null,
     [property: JsonIgnore][property: BindNever][BindNever] string IpAddress = "",
-    [property: JsonIgnore][property: BindNever][BindNever] string UserAgent = "");
+    [property: JsonIgnore][property: BindNever][BindNever] string UserAgent = "",
+    OwnerLoginMode LoginMode = OwnerLoginMode.Invitation,
+    SensitiveString? InitialPassword = null,
+    long? InodeLimit = null,
+    int? ProcessLimit = null,
+    int? OpenFilesLimit = null,
+    bool ShellAccess = false,
+    bool BackupEnabled = true);

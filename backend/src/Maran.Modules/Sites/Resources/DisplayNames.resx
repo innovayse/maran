@@ -30,4 +30,163 @@
   <data name="SiteStatusDisabled">
     <value>Disabled</value>
   </data>
+  <data name="SiteCanonicalHostNone">
+    <value>No main name</value>
+  </data>
+  <data name="SiteCanonicalHostWww">
+    <value>Use the www name</value>
+  </data>
+  <data name="SiteCanonicalHostApex">
+    <value>Use the name without www</value>
+  </data>
+  <data name="SiteRedirectMatchExact">
+    <value>This exact path</value>
+  </data>
+  <data name="SiteRedirectMatchPrefix">
+    <value>This folder and everything in it</value>
+  </data>
+  <data name="SiteRedirectStatusPermanent">
+    <value>Permanent (301)</value>
+  </data>
+  <data name="SiteRedirectStatusTemporary">
+    <value>Temporary (302)</value>
+  </data>
+  <data name="SiteIpAccessModeAllowList">
+    <value>Allow only these addresses</value>
+  </data>
+  <data name="SiteIpAccessModeDenyList">
+    <value>Block these addresses</value>
+  </data>
+  <data name="SiteTrafficWindowDays">
+    <value>Last {0} days</value>
+  </data>
+  <data name="SiteLogRetentionOneDay">
+    <value>{0} day</value>
+  </data>
+  <data name="SiteLogRetentionFewDays">
+    <value>{0} days</value>
+  </data>
+  <data name="SiteLogRetentionManyDays">
+    <value>{0} days</value>
+  </data>
+  <data name="SiteTrafficStatusClass1">
+    <value>1xx informational</value>
+  </data>
+  <data name="SiteTrafficStatusClass2">
+    <value>2xx success</value>
+  </data>
+  <data name="SiteTrafficStatusClass3">
+    <value>3xx redirect</value>
+  </data>
+  <data name="SiteTrafficStatusClass4">
+    <value>4xx client error</value>
+  </data>
+  <data name="SiteTrafficStatusClass5">
+    <value>5xx server error</value>
+  </data>
+  <data name="PhpSupportStatusSupported">
+    <value>Supported</value>
+  </data>
+  <data name="PhpSupportStatusSecurityOnly">
+    <value>Security fixes only</value>
+  </data>
+  <data name="PhpSupportStatusEndOfLife">
+    <value>End of life</value>
+  </data>
+  <data name="PhpSupportStatusUnknown">
+    <value>Unknown</value>
+  </data>
+  <data name="PhpExtensionBcmath">
+    <value>Arbitrary precision math (BCMath)</value>
+  </data>
+  <data name="PhpExtensionCurl">
+    <value>Network requests (cURL)</value>
+  </data>
+  <data name="PhpExtensionGd">
+    <value>Images (GD)</value>
+  </data>
+  <data name="PhpExtensionGmp">
+    <value>Large number math (GMP)</value>
+  </data>
+  <data name="PhpExtensionImagick">
+    <value>Image processing (ImageMagick)</value>
+  </data>
+  <data name="PhpExtensionIntl">
+    <value>Internationalization (Intl)</value>
+  </data>
+  <data name="PhpExtensionMbstring">
+    <value>Multibyte strings (Mbstring)</value>
+  </data>
+  <data name="PhpExtensionMysql">
+    <value>MySQL and MariaDB (MySQL)</value>
+  </data>
+  <data name="PhpExtensionOpcache">
+    <value>Code cache (OPcache)</value>
+  </data>
+  <data name="PhpExtensionRedis">
+    <value>Redis client (Redis)</value>
+  </data>
+  <data name="PhpExtensionSoap">
+    <value>Web services (SOAP)</value>
+  </data>
+  <data name="PhpExtensionXml">
+    <value>XML processing (XML)</value>
+  </data>
+  <data name="PhpExtensionZip">
+    <value>Zip archives (Zip)</value>
+  </data>
+  <data name="PhpSettingMemoryLimit">
+    <value>Memory limit</value>
+  </data>
+  <data name="PhpSettingUploadMaxFilesize">
+    <value>Largest uploaded file</value>
+  </data>
+  <data name="PhpSettingPostMaxSize">
+    <value>Largest request</value>
+  </data>
+  <data name="PhpSettingMaxExecutionTime">
+    <value>Execution time limit</value>
+  </data>
+  <data name="PhpSettingMaxInputVars">
+    <value>Input variables limit</value>
+  </data>
+  <data name="PhpSettingDateTimezone">
+    <value>Timezone</value>
+  </data>
+  <data name="PhpSettingUnitMebibytes">
+    <value>MiB</value>
+  </data>
+  <data name="PhpSettingUnitSeconds">
+    <value>seconds</value>
+  </data>
+  <data name="ExtensionAvailabilityUnknown">
+    <value>Not known</value>
+  </data>
+  <data name="ExtensionAvailabilityAvailable">
+    <value>Can be switched on and off</value>
+  </data>
+  <data name="ExtensionAvailabilityDisableNotSupported">
+    <value>Can be switched on, but not off, on this server</value>
+  </data>
+  <data name="ExtensionAvailabilityNotPackaged">
+    <value>Not offered on this server</value>
+  </data>
+  <data name="SitesMenuSitesList">
+    <value>Site list</value>
+  </data>
+  <data name="SitesMenuSitePhp">
+    <value>PHP settings</value>
+  </data>
+  <data name="SitesRouteSites">
+    <value>Sites</value>
+  </data>
+  <data name="SitesRouteSitesNew">
+    <value>New site</value>
+  </data>
+  <data name="SitesRoutePhpSettings">
+    <value>PHP settings</value>
+  </data>
+  <data name="SitesRouteSiteDetail">
+    <value>Site</value>
+  </data>
 </root>

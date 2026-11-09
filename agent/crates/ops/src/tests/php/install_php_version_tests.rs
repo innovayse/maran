@@ -86,6 +86,76 @@ fn a_version_already_installed_completes_immediately_at_one_hundred_percent() {
     assert_eq!(progress.last().unwrap().0, 100);
 }
 
+/// Where the OPcache drop-in of `version` lives on the default adapter.
+fn drop_in_path(version: &str) -> std::path::PathBuf {
+    std::path::PathBuf::from(format!(
+        "{}/99-maran-opcache.ini",
+        distro().php_ini_drop_in_directory(&PhpVersion::parse(version).unwrap())
+    ))
+}
+
+#[test]
+fn a_fresh_install_writes_the_opcache_drop_in_after_the_service_is_enabled() {
+    // The isolation lines protect every tenant of the version's shared cache,
+    // so a version is not finished until it carries them.
+    let host = FakePhpHost::empty();
+    host.installs_on_start("8.3");
+
+    install(&host, "8.3").unwrap();
+
+    let drop_in = host
+        .config(&drop_in_path("8.3"))
+        .expect("the install wrote no OPcache drop-in");
+    assert!(
+        drop_in.contains("opcache.validate_permission=1"),
+        "{drop_in}"
+    );
+    assert_eq!(host.writes(), 1);
+    // The enable ran BEFORE the write: the write validates against a running
+    // version's own php-fpm.
+    let commands = host.commands();
+    assert!(
+        commands
+            .iter()
+            .any(|command| command.get(1).is_some_and(|word| word == "enable")),
+        "{commands:?}"
+    );
+}
+
+#[test]
+fn an_already_installed_version_still_converges_its_opcache_drop_in() {
+    // The retry path: a version installed before the drop-in existed, or by an
+    // attempt that stopped between the package and the drop-in.
+    let host = FakePhpHost::with_installed(&["8.3"]);
+
+    install(&host, "8.3").unwrap();
+
+    assert!(host.config(&drop_in_path("8.3")).is_some());
+    assert_eq!(host.writes(), 1);
+    assert!(host.commands().is_empty());
+}
+
+#[test]
+fn an_already_installed_version_with_a_current_drop_in_writes_nothing() {
+    let host = FakePhpHost::with_installed(&["8.3"]);
+    install(&host, "8.3").unwrap();
+
+    install(&host, "8.3").unwrap();
+
+    assert_eq!(host.writes(), 1);
+}
+
+#[test]
+fn a_refused_opcache_drop_in_fails_the_install_with_the_validators_text() {
+    let host = FakePhpHost::with_installed(&["8.3"]);
+    host.reject_validation("bad ini");
+
+    match install(&host, "8.3") {
+        Err(PhpOpError::PoolValidation { stderr }) => assert_eq!(stderr, "bad ini"),
+        other => panic!("expected PoolValidation, got {other:?}"),
+    }
+}
+
 #[test]
 fn installing_starts_the_install_unit_named_after_the_adapters_package_as_an_argv_array() {
     // One argv array and no shell. The unit's instance is the adapter's
@@ -356,7 +426,7 @@ fn the_stages_are_preparing_download_install_enable_and_never_go_backwards() {
 }
 
 #[test]
-fn installing_writes_no_file_and_creates_no_directory() {
+fn installing_writes_only_the_opcache_drop_in_and_creates_no_directory() {
     // Nothing the unit reads is written by the agent: the unit takes its
     // whole input from its own name.
     let host = FakePhpHost::empty();
@@ -364,7 +434,8 @@ fn installing_writes_no_file_and_creates_no_directory() {
 
     install(&host, "8.3").unwrap();
 
-    assert_eq!(host.writes(), 0);
+    // The one write is the OPcache drop-in; nothing the unit reads is written.
+    assert_eq!(host.writes(), 1);
     assert_eq!(host.removals(), 0);
     assert!(host.created_as_account().is_empty());
     // Not just the pool directory: no directory at ANY path.

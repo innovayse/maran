@@ -74,6 +74,92 @@ namespace Maran.Modules.Databases.Persistence.Migrations
 
                     b.ToTable("Databases", "databases");
                 });
+
+            modelBuilder.Entity("Maran.Modules.Databases.Domain.Entities.DatabaseGrant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("DatabaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("DatabaseUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Privileges")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DatabaseId")
+                        .HasDatabaseName("IX_DatabaseGrants_DatabaseId");
+
+                    b.HasIndex("DatabaseUserId", "DatabaseId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_DatabaseGrants_DatabaseUserId_DatabaseId");
+
+                    b.ToTable("DatabaseGrants", "databases");
+                });
+
+            modelBuilder.Entity("Maran.Modules.Databases.Domain.Entities.DatabaseUser", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("NameSuffix")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FullName")
+                        .IsUnique()
+                        .HasDatabaseName("IX_DatabaseUsers_FullName");
+
+                    b.HasIndex("AccountId", "NameSuffix")
+                        .IsUnique()
+                        .HasDatabaseName("IX_DatabaseUsers_AccountId_NameSuffix");
+
+                    b.ToTable("DatabaseUsers", "databases");
+                });
+
+            modelBuilder.Entity("Maran.Modules.Databases.Domain.Entities.DatabaseGrant", b =>
+                {
+                    b.HasOne("Maran.Modules.Databases.Domain.Entities.Database", null)
+                        .WithMany()
+                        .HasForeignKey("DatabaseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Maran.Modules.Databases.Domain.Entities.DatabaseUser", "DatabaseUser")
+                        .WithMany("Grants")
+                        .HasForeignKey("DatabaseUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("DatabaseUser");
+                });
+
+            modelBuilder.Entity("Maran.Modules.Databases.Domain.Entities.DatabaseUser", b =>
+                {
+                    b.Navigation("Grants");
+                });
 #pragma warning restore 612, 618
         }
     }

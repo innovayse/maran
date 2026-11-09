@@ -5,15 +5,8 @@ use maran_agent_core::validation::secrets::password::Password;
 
 use crate::db::db_error::DbError;
 use crate::db::db_host::DbHost;
-
-/// The host the dedicated user is allowed to connect from.
-///
-/// The same `localhost` `create_database` grants, restated here rather than
-/// shared, because the two statements must name the same account or this one
-/// would silently mint a SECOND user with the same name and a different host —
-/// leaving the customer's application authenticating against the old password
-/// while the panel reported the change as done.
-const USER_HOST: &str = "localhost";
+use crate::db::user_exists::user_exists;
+use crate::db::user_host::USER_HOST;
 
 /// Sets `user`'s password to `password`.
 ///
@@ -86,32 +79,6 @@ pub fn set_database_password(
     ))?;
 
     Ok(())
-}
-
-/// Whether the server holds `user` at [`USER_HOST`].
-///
-/// Asked of `mysql.user` rather than of a grant listing, because a grant tells
-/// which databases a user may reach and this question is only whether the login
-/// is there at all — a user whose grant was revoked is still a user whose
-/// password can be set.
-///
-/// The host is part of the question. `'shop'@'localhost'` and `'shop'@'%'` are
-/// two different logins to MySQL, and answering "yes" off the name alone would
-/// let this operation report success after altering nothing.
-///
-/// # Errors
-///
-/// - [`DbError::Unparsable`] when the count is not a number.
-/// - Otherwise whatever the client failed with; see [`DbHost::execute`].
-fn user_exists(host: &dyn DbHost, user: &DbUserName) -> Result<bool, DbError> {
-    let printed = host.execute(&format!(
-        "SELECT COUNT(*) FROM mysql.user WHERE user = '{}' AND host = '{USER_HOST}'",
-        user.as_str()
-    ))?;
-
-    let count: u64 = printed.trim().parse().map_err(|_| DbError::Unparsable)?;
-
-    Ok(count > 0)
 }
 
 #[cfg(test)]

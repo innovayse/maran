@@ -11,11 +11,11 @@ namespace Maran.Agent.Client.Tests.Services.SslService;
 public sealed class AgentSslClientTests
 {
     /// <summary>
-    /// A site descriptor whose five fields all carry a non-default value, so the request assertion
+    /// A site descriptor whose backend fields all carry a non-default value, so the request assertion
     /// covers the whole spec — an empty one here re-renders a PHP site as static on the server.
     /// </summary>
     private static readonly SiteDescriptor Descriptor =
-        new(["www.example.com"], SiteBackendKind.Php, "8.3", "127.0.0.1:3000", true);
+        new(["www.example.com"], SiteBackendKind.Php, "8.3", "127.0.0.1:3000", true, SiteOptionsDescriptor.None);
 
     /// <summary>Ok payload maps to success result carrying the expiry.</summary>
     [Fact]
@@ -325,7 +325,7 @@ public sealed class AgentSslClientTests
         await new AgentSslClient(stub, NullLogger<AgentSslClient>.Instance).RemoveCertificateAsync(
             "acc1",
             "example.com",
-            new SiteDescriptor(["www.example.com"], SiteBackendKind.Php, "8.3", string.Empty, false),
+            new SiteDescriptor(["www.example.com"], SiteBackendKind.Php, "8.3", string.Empty, false, SiteOptionsDescriptor.None),
             CancellationToken.None);
 
         var request = Assert.IsType<RemoveCertificateRequest>(stub.LastRemoveRequest);

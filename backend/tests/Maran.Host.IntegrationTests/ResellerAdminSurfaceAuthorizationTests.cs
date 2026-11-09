@@ -59,10 +59,13 @@ public sealed class ResellerAdminSurfaceAuthorizationTests : IAsyncLifetime
             { "GET", "/api/v1/resellers/choices" },
             { "GET", "/api/v1/resellers/{id}" },
             { "POST", "/api/v1/resellers" },
+            { "PUT", "/api/v1/resellers/{id}" },
             { "PUT", "/api/v1/resellers/{id}/envelope" },
             { "POST", "/api/v1/resellers/{id}/suspend" },
             { "POST", "/api/v1/resellers/{id}/reactivate" },
             { "DELETE", "/api/v1/resellers/{id}" },
+            // The placeholder is a reseller id here: the policy refuses before any handler reads it.
+            { "PUT", "/api/v1/accounts/{id}/owner" },
             { "GET", "/api/v1/security-policy" },
             { "PUT", "/api/v1/security-policy" },
             { "GET", "/api/v1/notifications/smtp" },
@@ -93,6 +96,7 @@ public sealed class ResellerAdminSurfaceAuthorizationTests : IAsyncLifetime
         Assert.Equal(2, await world.AccountsAsync(async accounts => { return await accounts.Resellers.IgnoreQueryFilters().CountAsync(); }));
         Assert.Empty(await world.AuditEntriesAsync(
             AccountAuditActions.ResellerCreated,
+            AccountAuditActions.ResellerUpdated,
             AccountAuditActions.ResellerEnvelopeChanged,
             AccountAuditActions.ResellerSuspended,
             AccountAuditActions.ResellerReactivated,

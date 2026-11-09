@@ -1,0 +1,13 @@
+# Rendered by the Maran agent. Hand edits are overwritten on the next apply.
+#
+# Signs outgoing mail with the key named by the domain's active selector. The
+# selector map and the key files are written by the mail data plane; with none
+# of them present nothing is signed.
+enabled = true;
+selector_map = "{{ selectors_path }}";
+path = "{{ keys_directory }}/$domain.$selector.key";
+sign_authenticated = true;
+sign_local = true;
+use_domain = "header";
+allow_username_mismatch = true;
+{# A trailing comment keeps the final newline, which askama would otherwise drop. #}

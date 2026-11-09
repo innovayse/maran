@@ -1,5 +1,6 @@
 //! DeleteSite: taking a site's vhost away.
 
+use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_distro::DistroAdapter;
 
@@ -65,6 +66,11 @@ pub fn delete_site(
     }
 
     remove_vhost(host, distro, &paths.config_path)?;
+
+    // The credential file AFTER the vhost that names it: removed first, the
+    // still-live vhost would answer every request with a 500 until the vhost
+    // went. A refusal above leaves both in place.
+    host.remove_auth_file(&AgentPaths::site_auth_file(&site.domain))?;
 
     // The vhost FIRST, the pool second, and never the other way round. Between
     // the two steps the site is already gone from nginx, so the pool it is

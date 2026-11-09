@@ -94,7 +94,11 @@ agent/
     │   │   │                  first connection is accepted: bind_socket.rs (directory, stale
     │   │   │                  socket, bind, mode) · reconcile_web_tree.rs +
     │   │   │                  web_tree_reconciliation.rs (its outcome) ·
-    │   │   │                  reconcile_php_pool_trees.rs · reconcile_sftp_key_files.rs —
+    │   │   │                  reconcile_php_pool_trees.rs · reconcile_opcache_drop_ins.rs
+    │   │   │                  (each installed PHP version's shared-cache isolation drop-in,
+    │   │   │                  issue #157) · reconcile_sftp_key_files.rs ·
+    │   │   │                  reconcile_site_auth_files.rs (credential files whose vhost is
+    │   │   │                  gone, issue #151) —
     │   │   │                  split out of server.rs, which keeps `serve` and the registry
     │   │   ├── audit/         the independent trail of what the root agent did, one line
     │   │   │                  per mutating rpc (issue #106): audit_layer.rs (the tower
@@ -119,9 +123,14 @@ agent/
     │   │       │              validated_resource_limits.rs (the three slice ceilings) ·
     │   │       │              to_wire_account_usage.rs (a usage reading onto its wire payload) ·
     │   │       │              to_wire_suspension_state.rs (an account's observed suspension
-    │   │       │              state onto its wire payload)
+    │   │       │              state onto its wire payload) · validated_ceiling.rs (the one
+    │   │       │              reading of a wire ResourceCeiling) · validated_inode_limit.rs ·
+    │   │       │              validated_open_files_limit.rs · validated_login_shell.rs ·
+    │   │       │              validated_new_account.rs (what CreateAccount carries, issue #194)
     │   │       ├── sites/     sites_service.rs · site_status.rs ·
-    │   │       │              validated_{site,identity,overrides}.rs — proto → validated
+    │   │       │              validated_{site,identity,overrides,options}.rs ·
+    │   │       │              validated_traffic_request.rs · validated_prune_request.rs ·
+    │   │       │              to_wire_traffic_summary.rs (issues #151, #152) — proto → validated
     │   │       │              input, one bundle per request shape, so the service file
     │   │       │              stays the three steps and nothing else ·
     │   │       │              stream_log_sink.rs · tail_terminal.rs (log-follow glue) ·
@@ -139,10 +148,16 @@ agent/
     │   │       │              restore, issue #425) ·
     │   │       │              settle_install_outcome.rs · settle_panel_install_outcome.rs (settle
     │   │       │              the audit slot from the answer each install rpc is about to send)
-    │   │       ├── php/       php_service.rs · php_status.rs
+    │   │       ├── php/       php_service.rs · php_status.rs ·
+    │   │       │              validated_extension_request.rs · validated_pool_settings.rs ·
+    │   │       │              reported_php_extension.rs (issues #157, #138)
     │   │       ├── db/        db_service.rs · db_status.rs ·
     │   │       │              validated_creation.rs · validated_database.rs ·
-    │   │       │              validated_password_change.rs · validated_removal.rs —
+    │   │       │              validated_password_change.rs · validated_removal.rs ·
+    │   │       │              validated_user_creation.rs · validated_user_removal.rs ·
+    │   │       │              validated_privilege_change.rs · validated_privilege_set.rs
+    │   │       │              (the one place wire privilege numbers become the closed
+    │   │       │              set, issue #156) —
     │   │       │              proto → validated input, one bundle per request shape
     │   │       ├── files/     files_service.rs · file_status.rs ·
     │   │       │              validated_write.rs (the thin transport half:
@@ -176,6 +191,20 @@ agent/
     │   │       │              reported_verify_backup.rs (the outcome on the wire: an ok
     │   │       │              only for what the operation established, never an empty
     │   │       │              one for something it did not read, issue #134)
+    │   │       ├── transfer/  transfer_service.rs (ExportBackup · ImportBackup, issue #127) ·
+    │   │       │              channel_export_sink.rs · channel_import_source.rs ·
+    │   │       │              import_collector.rs (the import stream's header-first-once state
+    │   │       │              machine) · validated_export.rs · validated_import.rs ·
+    │   │       │              exported_backup.rs · terminal_of_export.rs · reported_import.rs ·
+    │   │       │              import_failure.rs · refusal_reason_of.rs (which refusals the
+    │   │       │              panel tells apart; a host fault is never one of them)
+    │   │       ├── mail/      mail_service.rs · mail_status.rs (issue #177) ·
+    │   │       │              validated_mail_settings.rs (what EnableMail carries, revalidated; an
+    │   │       │              option this build cannot carry out is refused, never dropped) ·
+    │   │       │              reported_mail_status.rs (an observed stack onto the one wire status all
+    │   │       │              four lifecycle rpcs answer with) · refuse_data_plane.rs (the typed
+    │   │       │              NOT_IMPLEMENTED the twelve data-plane rpcs answer with until their
+    │   │       │              operations land; it also settles the audit slot)
     │   │       ├── monitor/   monitor_service.rs · monitor_status.rs · reported_clock_sync.rs · reported_pending_updates.rs ·
     │   │       │              reported_reboot_requirement.rs (a probe that did not run is the error arm, never
     │   │       │              NOT_REQUIRED, issue #163) · reported_machine_id.rs ·
@@ -185,7 +214,14 @@ agent/
     │   │                      by EVERY service — invalid_input.rs · validated_account.rs ·
     │   │                      system_failure.rs · run_blocking.rs (the ONE
     │   │                      spawn_blocking wrapper, so no service can forget to take
-    │   │                      a process wait off the async workers). Services import
+    │   │                      a process wait off the async workers) · stream_pump.rs
+    │   │                      (the ONE pump that forwards a client-streamed rpc's body to
+    │   │                      its blocking operation through a bounded channel, shared by
+    │   │                      WriteFile and ImportBackup) with chunk_collector.rs (the
+    │   │                      narrow face of each rpc's validator) · pump_message.rs ·
+    │   │                      chunk_receiver.rs · stream_ended.rs (the channel's messages
+    │   │                      and the blocking side, which tells a clean end from a stream
+    │   │                      cut short). Services import
     │   │                      from here and never from each other's folders: the
     │   │                      alternative is nine services reaching into sites/ for an
     │   │                      error constructor, which is what they were doing.
@@ -241,6 +277,8 @@ agent/
     │       │   │              cron_schedule · cron_command · cron_entry_id ·
     │       │   │              env_var_name · env_var_value · backup_id ·
     │       │   │              local_backup_root · cpu_quota_percent · memory_max_mib ·
+    │       │   │              inode_limit · open_files_limit (issue #194) · log_retention
+    │       │   │              (how many rotated site logs are kept, issue #152) ·
     │       │   │              tasks_max (the three ceilings of an account's systemd
     │       │   │              slice, issue #133) · ssh_public_key (an SFTP login's
     │       │   │              key: allow-listed algorithm, decoded and parsed as the
@@ -252,9 +290,15 @@ agent/
     │       │   │              built through prefixed_name.rs, so one type per
     │       │   │              login keeps a value from being accepted where the
     │       │   │              other protocol's jail is what it addresses.
-    │       │   ├── db/        database_name · db_user_name — values that reach MySQL
+    │       │   ├── db/        database_name · db_user_name · database_privilege ·
+    │       │   │              database_privilege_set (the closed set of 18 database-level
+    │       │   │              privileges a customer's login may hold; GRANT OPTION and every
+    │       │   │              global privilege have no value, issue #156) — values that reach MySQL
     │       │   ├── web/       acme_token · acme_key_authorization (the panel's own HTTP-01
     │       │   │              file name and content, issue #132) ·
+    │       │   │              client_body_size · static_cache_days · redirect_path ·
+    │       │   │              redirect_target · basic_auth_user_name · bcrypt_hash (a site's
+    │       │   │              options, issue #151) · php_extension_name (issue #157) ·
     │       │   │              domain · upstream · php_version · port · source_cidr ·
     │       │   │              ban_address · ipv4_disguise (shared predicate, no
     │       │   │              _error) · passive_address · s3_bucket · s3_region ·
@@ -268,7 +312,17 @@ agent/
     │       │   │              and vsftpd.conf is line-oriented, so it refuses by
     │       │   │              being an Ipv4Addr and nothing else — a grammar, not
     │       │   │              a character list somebody has to keep complete
-    │       │   ├── fs/        path (resolve_in_home) · relative_path · file_mode
+    │       │   ├── mail/      mail_domain · mail_server_hostname · mail_local_part ·
+       │   │              mail_address · mail_alias_targets · mailbox_quota_mib ·
+       │   │              send_limit_per_hour · mail_message_size_mib · spam_thresholds ·
+       │   │              mail_queue_id · dkim_selector · dkim_private_key (PKCS#8 RSA,
+       │   │              proven by the crate-private der_reader.rs) · mail_password_hash +
+       │   │              mail_password_scheme · autoresponder_subject · autoresponder_body ·
+       │   │              check_local_part.rs and is_text_reordering.rs (crate-private
+       │   │              shared checks) — values written into the mail stack's
+       │   │              configuration and data (issue #177), each a grammar and never
+       │   │              an escape
+       │   ├── fs/        path (resolve_in_home) · relative_path · file_mode
     │       │   ├── secrets/   password (validated alphabet, injection-free by
     │       │   │              construction) — the one validated kind here; a value that
     │       │   │              only needs hiding, not validating, is secret_string.rs above
@@ -280,7 +334,13 @@ agent/
     │       │                  belongs to no single domain, and it is `pub(crate)`
     │       │                  because each type still maps it onto its own error.
     │       ├── privs/         the ONLY home of unsafe syscall/setuid wrappers:
-    │       │                  fork_as_account.rs · account_ids.rs · priv_error.rs ·
+    │       │                  fork_as_account.rs (fork, then wait: the entry point) ·
+    │       │                  drop_to_account.rs (the child's setgroups/setgid/setuid and its
+    │       │                  verification) · close_inherited_descriptors.rs ·
+    │       │                  wait_for_child.rs (the bounded wait and the reap) ·
+    │       │                  child_exit_status.rs (the exit codes the child may produce, no
+    │       │                  syscall) · last_errno.rs (issue #166) ·
+    │       │                  account_ids.rs · priv_error.rs ·
     │       │                  directory_entry_name.rs (the shared name check, no syscall) ·
     │       │                  and one wrapper per `*at` syscall, each taking a directory the
     │       │                  caller already holds open plus a single entry name:
@@ -336,9 +396,14 @@ agent/
     │       ├── adapter.rs     the DistroAdapter trait, alone: `family()` plus the supertraits
     │       │                  below, so a caller holding `&dyn DistroAdapter` asks any of them
     │       ├── account_programs.rs · web_server_facts.rs · php_facts.rs ·
+    │       │   php_extension_facts.rs (the package and the switch of a catalogue extension,
+    │       │   with php_extension_switch.rs, the shape of the switch, issue #157) ·
     │       │   package_facts.rs · file_transfer_facts.rs · backup_facts.rs ·
     │       │   database_facts.rs · service_manager_facts.rs · scheduling_facts.rs ·
-    │       │   firewall_facts.rs
+    │       │   firewall_facts.rs · mail_facts.rs (the mail stack's binaries, units, users,
+    │       │   paths, packages, password scheme; with dovecot_major.rs, the configuration
+    │       │   generation a release ships, and key_value_server.rs, the Redis-protocol server
+    │       │   a release runs, issue #177)
     │       │                  the concern traits `DistroAdapter` composes, one per file, each
     │       │                  named for what it answers (AccountPrograms owns the
     │       │                  account-deletion programs atq · atrm · loginctl · ipcrm and the
@@ -389,9 +454,9 @@ agent/
     │       │                  families' readings use for "the source answered with an HTTP status")
     │       ├── detection/     detect.rs · detect_error.rs · distro_info.rs · os_release.rs
     │       ├── debian/        debian_adapter.rs · debian_paths.rs · debian_packages.rs ·
-    │       │                  debian_services.rs
+    │       │                  debian_services.rs · debian_php_extensions.rs
     │       └── rhel/          rhel_adapter.rs · rhel_paths.rs · rhel_packages.rs ·
-    │                          rhel_services.rs
+    │                          rhel_services.rs · rhel_php_extensions.rs
     ├── ops/
     │   ├── src/
     │       ├── {accounts,sites,php,db,sftp,ftps,logins,files,cron,firewall,ssl,
@@ -521,6 +586,16 @@ agent/
     │       │                  finalise_restore.rs (step 8). create_backup.rs and
     │       │                  restore_backup.rs keep the entry point, the outer body
     │       │                  that cleans up on every path, and the ordering.
+    │       │                  export_backup.rs and import_backup.rs (issue #127) move an
+    │       │                  artifact between servers: the exporter signs a manifest, the
+    │       │                  importer verifies fingerprint, signature, manifest, name and room
+    │       │                  BEFORE it creates anything, then stages (stage_import.rs, hashed
+    │       │                  while written, never past the declared length), judges the staged
+    │       │                  archive (judge_staged_import.rs, scratch in import_scratch.rs)
+    │       │                  and publishes it marked imported. package/ is the signed
+    │       │                  package: package_signing_key.rs · signed_manifest.rs ·
+    │       │                  transfer_manifest.rs · verify_package.rs · key_fingerprint.rs ·
+    │       │                  lowercase_hex.rs.
     │       │                  verify_backup.rs is the third, read-only entry point
     │       │                  (issue #134): it takes the account's lock without
     │       │                  waiting, checks the artifact against its sidecar and
@@ -652,7 +727,9 @@ inside it. The canonical layout names exactly this shape for `distro/src/debian/
 and `distro/src/rhel/`: `debian_paths.rs` / `rhel_paths.rs`,
 `debian_packages.rs` / `rhel_packages.rs` and `debian_services.rs` /
 `rhel_services.rs` each answer every path, package or service question their
-family's `DistroAdapter` methods ask. `validation/path.rs` is the same pattern
+family's `DistroAdapter` methods ask; `debian_php_extensions.rs` /
+`rhel_php_extensions.rs` answer every question about a PHP extension (its package,
+its switch, its drop-in directory). `validation/path.rs` is the same pattern
 already, one file short of needing to be said out loud. Splitting these into one
 file per function would produce `debian_nginx_include_directory.rs` next to
 `debian_certificate_directory.rs` — a file per fact instead of a file per concern,
@@ -1194,8 +1271,8 @@ mod tests;
 
 - more than one public unit in a file, except the named concern files
   (`debian_paths.rs`, `debian_packages.rs`, `debian_services.rs`,
-  `rhel_paths.rs`, `rhel_packages.rs`, `rhel_services.rs` — see "One unit per
-  file"), where the concern is the unit and several functions are expected;
+  `debian_php_extensions.rs`, `rhel_paths.rs`, `rhel_packages.rs`,
+  `rhel_services.rs`, `rhel_php_extensions.rs` — see "One unit per file"), where the concern is the unit and several functions are expected;
 - a definition in a crate root or `mod.rs`;
 - a file whose name does not match its single public item, in snake_case. The
   subject-named exceptions are LISTED in the script rather than inferred — an inferred

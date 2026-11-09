@@ -113,6 +113,14 @@ namespace Maran.Modules.Accounts.Commands.UpdatePlan;
 /// is appended to the journal subject as <c>[features: old -&gt; new]</c>, because the journal is the
 /// only place an operator can later learn who took a feature away from a plan.
 /// </para>
+/// <para>
+/// <b>The PHP bounds</b> (issue #138) are replaced when the request states them and left alone when
+/// it does not, for the reason the feature set is: a client that predates them cannot reset them by
+/// omission. They touch no account row and no agent call; they reach the pools through
+/// <see cref="Maran.Sdk.Events.AccountPlanChanged"/>, announced once per account on the plan AFTER the
+/// save, and only when the stated bounds differ from the stored ones. A subscriber that fails is
+/// logged and never fails the edit (<see cref="AccountPlanChangeAnnouncer"/>).
+/// </para>
 /// </remarks>
 public sealed class UpdatePlanCommandHandler
 {
@@ -143,6 +151,9 @@ public sealed class UpdatePlanCommandHandler
     /// <summary>Resolves display names in the request's culture.</summary>
     private readonly IStringLocalizer<DisplayNames> _displayNames;
 
+    /// <summary>Tells the other modules, after the save, that the plan's PHP bounds changed.</summary>
+    private readonly AccountPlanChangeAnnouncer _announcer;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Accounts module's database context.</param>
     /// <param name="scope">Refuses a write by a suspended reseller.</param>
@@ -153,6 +164,7 @@ public sealed class UpdatePlanCommandHandler
     /// <param name="names">Decides whether the requested name is already some other plan's.</param>
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="displayNames">Resolves display names in the request's culture.</param>
+    /// <param name="announcer">Tells the other modules, after the save, that the plan's PHP bounds changed.</param>
     public UpdatePlanCommandHandler(
         AccountsDbContext dbContext,
         ResellerScope scope,
@@ -162,7 +174,8 @@ public sealed class UpdatePlanCommandHandler
         AccountRuntimeLimitsEnforcer runtimeLimits,
         PlanNameDirectory names,
         AccountAuditJournal journal,
-        IStringLocalizer<DisplayNames> displayNames)
+        IStringLocalizer<DisplayNames> displayNames,
+        AccountPlanChangeAnnouncer announcer)
     {
         _dbContext = dbContext;
         _scope = scope;
@@ -173,6 +186,7 @@ public sealed class UpdatePlanCommandHandler
         _names = names;
         _journal = journal;
         _displayNames = displayNames;
+        _announcer = announcer;
     }
 
     /// <summary>Applies the edit, or refuses it whole.</summary>
@@ -212,8 +226,12 @@ public sealed class UpdatePlanCommandHandler
                 command, subject, Error.Of(nameof(ErrorMessages.PlanNameTaken), ErrorType.Conflict), cancellationToken);
         }
 
+        // Stated mail figures replace the plan's; left out, the plan keeps its own, and those are what the
+        // envelope judges.
+        var mailLimits = command.MailLimits is null ? plan.MailLimits : MailLimitsMapper.ToDomain(command.MailLimits);
+
         var refusal = await _allocation.AdmitPlanEditAsync(
-            plan.ResellerId, plan, PlanLimitsMapper.ToLimits(command), cancellationToken);
+            plan.ResellerId, plan, PlanLimitsMapper.ToLimits(command, mailLimits), cancellationToken);
         if (refusal is not null)
         {
             return await RefuseAsync(command, subject, refusal, cancellationToken);
@@ -241,6 +259,23 @@ public sealed class UpdatePlanCommandHandler
         }
 
         plan.ChangeRuntimeLimits(runtimeLimits);
+
+        // Stated bounds replace the plan's; left out, the plan keeps its own. Whether they CHANGED is
+        // decided here, before the plan holds them, so the announcement below needs no second reading.
+        var phpLimits = command.PhpLimits is null ? null : PhpLimitsMapper.ToDomain(command.PhpLimits);
+        var phpLimitsChanged = phpLimits is not null && phpLimits != plan.PhpLimits;
+        if (phpLimits is not null)
+        {
+            plan.ChangePhpLimits(phpLimits);
+        }
+
+        plan.ChangeMailLimits(mailLimits);
+
+        // See CreatePlanCommandHandler: a reseller's plan holds the default, whatever the request states.
+        if (plan.ResellerId is null && command.MaxDnsZones is { } maxDnsZones)
+        {
+            plan.ChangeDnsZoneLimit(maxDnsZones);
+        }
 
         // The stated list replaces the set, and a change is journalled beside the rest of the edit
         // so an operator can see who removed a feature from a plan.
@@ -287,6 +322,19 @@ public sealed class UpdatePlanCommandHandler
                 command, subject, Error.Of(nameof(ErrorMessages.PlanNameTaken), ErrorType.Conflict), cancellationToken);
         }
 
+        if (phpLimitsChanged)
+        {
+            // After the commit, one event per account on the plan: each pool carries the customer's
+            // settings clamped to these bounds, so a changed bound has to reach them.
+            var accountIds = await _dbContext.Accounts
+                .AsNoTracking()
+                .Where(a => a.PlanId == plan.Id)
+                .Select(a => a.Id)
+                .ToListAsync(cancellationToken);
+
+            await _announcer.AnnounceAsync(accountIds, cancellationToken);
+        }
+
         await _journal.RecordSuccessAsync(
             AccountAuditActions.PlanUpdated,
             DescribeEdit(subject, renames ? name : null, featuresBefore, plan.Features),
@@ -323,22 +371,40 @@ public sealed class UpdatePlanCommandHandler
         RuntimeLimits pushedRuntimeLimits,
         CancellationToken cancellationToken)
     {
-        var accountNames = await _dbContext.Accounts
-            .AsNoTracking()
-            .Where(a => a.PlanId == planId)
-            .OrderBy(a => a.Name)
-            .Select(a => a.Name)
-            .ToListAsync(cancellationToken);
+        var accounts = await AccountsOnPlanAsync(planId, cancellationToken);
 
         if (pushedQuotaMb != previousQuotaMb)
         {
-            await _quotas.ApplyAsync(accountNames, previousQuotaMb, cancellationToken);
+            await _quotas.ApplyAsync(accounts, previousQuotaMb, cancellationToken);
         }
 
         if (pushedRuntimeLimits != previousRuntimeLimits)
         {
-            await _runtimeLimits.ApplyAsync(accountNames, previousRuntimeLimits, cancellationToken);
+            await _runtimeLimits.ApplyAsync(accounts, previousRuntimeLimits, cancellationToken);
         }
+    }
+
+    /// <summary>
+    /// Reads every account on the plan with what it states in place of the plan's, in name order, so a
+    /// push to the host carries each account's own inode and process ceilings and not the plan's alone.
+    /// </summary>
+    /// <param name="planId">The plan whose accounts are wanted.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The accounts, each with its overrides.</returns>
+    private async Task<IReadOnlyList<AccountLimitTarget>> AccountsOnPlanAsync(
+        Guid planId,
+        CancellationToken cancellationToken)
+    {
+        var accounts = await _dbContext.Accounts
+            .AsNoTracking()
+            .Where(a => a.PlanId == planId)
+            .OrderBy(a => a.Name)
+            .ToListAsync(cancellationToken);
+
+        return accounts.Select(account =>
+        {
+            return new AccountLimitTarget(account.Name, account.LimitOverrides);
+        }).ToList();
     }
 
     /// <summary>Journals an edit the reseller rules refused and returns it as the typed failure.</summary>
@@ -378,17 +444,13 @@ public sealed class UpdatePlanCommandHandler
             return null;
         }
 
-        var accountNames = await _dbContext.Accounts
-            .AsNoTracking()
-            .Where(a => a.PlanId == plan.Id)
-            .OrderBy(a => a.Name)
-            .Select(a => a.Name)
-            .ToListAsync(cancellationToken);
+        var accounts = await AccountsOnPlanAsync(plan.Id, cancellationToken);
         if (newQuotaMb < plan.DiskQuotaMb)
         {
             // Every account is measured BEFORE any is changed, so a refusal leaves none of them
             // touched. See the type's remarks for why a lowered quota that does not fit is refused.
-            var fits = await _quotas.AllFitAsync(accountNames, newQuotaMb, cancellationToken);
+            var fits = await _quotas.AllFitAsync(
+                accounts.Select(account => { return account.Name; }).ToList(), newQuotaMb, cancellationToken);
             if (!fits.IsSuccess)
             {
                 return fits.Error!;
@@ -400,7 +462,7 @@ public sealed class UpdatePlanCommandHandler
             }
         }
 
-        return await _quotas.ApplyAsync(accountNames, newQuotaMb, cancellationToken);
+        return await _quotas.ApplyAsync(accounts, newQuotaMb, cancellationToken);
     }
 
     /// <summary>
@@ -421,14 +483,9 @@ public sealed class UpdatePlanCommandHandler
             return null;
         }
 
-        var accountNames = await _dbContext.Accounts
-            .AsNoTracking()
-            .Where(a => a.PlanId == plan.Id)
-            .OrderBy(a => a.Name)
-            .Select(a => a.Name)
-            .ToListAsync(cancellationToken);
+        var accounts = await AccountsOnPlanAsync(plan.Id, cancellationToken);
 
-        return await _runtimeLimits.ApplyAsync(accountNames, runtimeLimits, cancellationToken);
+        return await _runtimeLimits.ApplyAsync(accounts, runtimeLimits, cancellationToken);
     }
 
     /// <summary>

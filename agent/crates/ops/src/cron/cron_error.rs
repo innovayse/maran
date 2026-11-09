@@ -2,6 +2,7 @@
 
 use maran_agent_core::privs::priv_error::PrivError;
 use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::slots_full::SlotsFull;
 use maran_agent_core::validation::system::managed_account_error::ManagedAccountError;
 
 /// The `code` reported when `crontab` could not be started, or could not be
@@ -212,3 +213,10 @@ pub enum CronError {
 #[cfg(test)]
 #[path = "../tests/cron/cron_error_tests.rs"]
 mod tests;
+
+impl From<SlotsFull> for CronError {
+    /// A bounded count with no slot left is [`CronError::RunCapacityReached`].
+    fn from(_: SlotsFull) -> Self {
+        Self::RunCapacityReached
+    }
+}

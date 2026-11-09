@@ -427,6 +427,14 @@ main() {
   # absent this step prints one line and changes nothing. After 67 and before 70 so the panel's
   # services start on a host whose package policy is already settled.
   run_step 68-os-updates.sh   step_os_updates
+  # The units of the unattended security-patch update (issue #383), after the verb they run (66). The
+  # timer is enabled on the first install of the unit and left alone afterwards, and never enabled on
+  # an offline install.
+  run_step 69-update-schedule.sh step_update_schedule
+  # The units through which the panel's "Update now" button starts `maran update --requested` (issue
+  # #382), and the directory the panel's request goes in. Before 70: the API unit's ReadWritePaths= names
+  # that directory and a unit whose writable directory is missing does not start.
+  run_step 69-update-request.sh step_update_request
   run_step 70-services.sh     step_services
   run_step 80-nginx.sh        step_nginx
   # After 80, because it validates and reloads the tree 80 has just made complete, and before
@@ -451,6 +459,18 @@ main() {
   # distribution's own vsftpd.service, because on the Debian family the package's postinst
   # otherwise leaves port 21 listening with local logins in the clear.
   run_step 89-ftps.sh         step_ftps
+  # DNS (BIND 9, authoritative only), installed and switched OFF in the same way: no port is
+  # opened and no unit is enabled here. Its first action is to MASK the distribution's own
+  # unit(s), because on the Debian family the package's postinst otherwise starts a resolver
+  # that recurses under the distribution's configuration.
+  run_step 89-dns.sh          step_dns
+  # Mail (Postfix, Dovecot, Rspamd and the key-value server it keeps counters in), installed and
+  # switched OFF in the same way: no port is opened and no unit is enabled here. Its first action
+  # is to MASK the distribution's own units, because on the Debian family a package's postinst
+  # otherwise starts Postfix and Dovecot on port 25 and the IMAP ports under the distribution's
+  # configuration. It adds no package repository: what the host's repositories do not carry is
+  # reported as not installed, by name.
+  run_step 89-mail.sh         step_mail
   run_step 90-finish.sh       step_finish
 
   echo "Maran installer finished: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"

@@ -78,14 +78,15 @@ public sealed class SmtpSettings
     public string FromName { get; private set; }
 
     /// <summary>
-    /// Where alert mail goes — the operator's own address, not a customer's — or <c>null</c> when none
-    /// is set.
+    /// A copy of the FIRST alert recipient (<see cref="AlertRecipient"/>), or <c>null</c> when the list
+    /// is empty. Written by <see cref="MirrorFirstAlertRecipient"/> and read by nothing in this release.
     /// </summary>
     /// <remarks>
-    /// It is part of the mail settings rather than derived from the signed-in administrator because
-    /// an alert is raised by the sampler, in the background, with nobody signed in at all. There is
-    /// no caller whose address could be used, and a module may not reach into Identity to look one
-    /// up (rules/architecture.md "Backend: modular monolith").
+    /// Expand phase: the previous release kept its one alert address here and reads it back after a
+    /// rollback, so the first recipient is mirrored into it on every change of the list for one
+    /// release. The release after the one that stopped reading it drops this column, its legacy twin
+    /// and this property together (rules/architecture.md). The recipients themselves live in
+    /// <c>AlertRecipients</c>; this is not a second source of truth, it is a courtesy copy.
     /// </remarks>
     public string? AlertRecipientAddress { get; private set; }
 
@@ -137,7 +138,6 @@ public sealed class SmtpSettings
     /// <param name="password">The submission password; ignored when the server takes no credentials.</param>
     /// <param name="fromAddress">The address the panel's mail is sent from.</param>
     /// <param name="fromName">The display name beside the sender address; may be empty.</param>
-    /// <param name="alertRecipient">Where alert mail goes; blank when no operator address is set.</param>
     /// <param name="updatedAt">When the settings were saved, from the panel's clock.</param>
     public SmtpSettings(
         string host,
@@ -147,7 +147,6 @@ public sealed class SmtpSettings
         string password,
         string fromAddress,
         string fromName,
-        string alertRecipient,
         DateTimeOffset updatedAt)
     {
         Id = SingletonId;
@@ -162,7 +161,6 @@ public sealed class SmtpSettings
         LegacyAlertRecipient = string.Empty;
 
         ApplyAuthentication(username, password);
-        ApplyAlertRecipient(alertRecipient);
     }
 
     /// <summary>Parameterless constructor required by EF Core materialization.</summary>
@@ -187,15 +185,16 @@ public sealed class SmtpSettings
     /// </param>
     /// <param name="fromAddress">The address the panel's mail is sent from.</param>
     /// <param name="fromName">The display name beside the sender address; may be empty.</param>
-    /// <param name="alertRecipient">Where alert mail goes; blank clears the operator address.</param>
     /// <param name="updatedAt">When the settings were saved, from the panel's clock.</param>
     /// <remarks>
     /// The <c>null</c>-keeps-the-password rule is what makes the settings screen possible at all.
     /// The form cannot show the stored password (nothing ever returns it), so it submits no password
     /// when the administrator did not retype one — and a save that took that literally would
     /// silently change the panel's mail credentials the first time anybody changed the port. The
-    /// blank-means-none reading of <paramref name="username"/> and <paramref name="alertRecipient"/>
-    /// is the spelling of the settings form's request and is applied here, once, on the way in.
+    /// blank-means-none reading of <paramref name="username"/>
+    /// is the spelling of the settings form's request and is applied here, once, on the way in. The alert
+    /// address is no longer part of these settings: it is the alert recipients' list, which this
+    /// method leaves alone.
     /// </remarks>
     public void Replace(
         string host,
@@ -205,7 +204,6 @@ public sealed class SmtpSettings
         string? password,
         string fromAddress,
         string fromName,
-        string alertRecipient,
         DateTimeOffset updatedAt)
     {
         Host = host;
@@ -216,7 +214,6 @@ public sealed class SmtpSettings
         UpdatedAt = updatedAt;
 
         ApplyAuthentication(username, password ?? BasicPassword);
-        ApplyAlertRecipient(alertRecipient);
     }
 
     /// <summary>Sets the authentication mode and the credentials that exist only in basic mode.</summary>
@@ -241,11 +238,11 @@ public sealed class SmtpSettings
         LegacyPassword = BasicPassword ?? string.Empty;
     }
 
-    /// <summary>Sets the operator's alert address.</summary>
-    /// <param name="alertRecipient">The address; blank clears it.</param>
-    private void ApplyAlertRecipient(string alertRecipient)
+    /// <summary>Copies the first alert recipient into the columns the previous release reads.</summary>
+    /// <param name="address">The first recipient, or <c>null</c> when the list is empty.</param>
+    public void MirrorFirstAlertRecipient(string? address)
     {
-        AlertRecipientAddress = string.IsNullOrWhiteSpace(alertRecipient) ? null : alertRecipient;
+        AlertRecipientAddress = string.IsNullOrWhiteSpace(address) ? null : address;
         LegacyAlertRecipient = AlertRecipientAddress ?? string.Empty;
     }
 }

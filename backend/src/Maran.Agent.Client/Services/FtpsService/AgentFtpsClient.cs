@@ -1,4 +1,5 @@
 using Grpc.Net.Client;
+using Maran.Agent.Client.Channels;
 using Maran.Agent.Client.Errors;
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Resources;
@@ -55,11 +56,19 @@ public sealed class AgentFtpsClient : IAgentFtpsClient
         _logger = logger;
     }
 
-    /// <summary>Creates a client that calls the agent over <paramref name="channel"/>.</summary>
+    /// <summary>Creates a client whose every call goes to the server the current agent target selects.</summary>
+    /// <param name="channels">Hands out the channel of the server each call is aimed at.</param>
+    /// <param name="logger">Sink for the agent's diagnostic text.</param>
+    public AgentFtpsClient(IAgentChannels channels, ILogger<AgentFtpsClient> logger)
+        : this(new GrpcFtpsServiceInvoker(channels), logger)
+    {
+    }
+
+    /// <summary>Creates a client over one fixed <paramref name="channel"/>, whatever the target.</summary>
     /// <param name="channel">A channel to the agent, e.g. from <see cref="Channels.AgentChannel.CreateUnixSocket"/>.</param>
     /// <param name="logger">Sink for the agent's diagnostic text.</param>
     public AgentFtpsClient(GrpcChannel channel, ILogger<AgentFtpsClient> logger)
-        : this(new GrpcFtpsServiceInvoker(new V1.FtpsService.FtpsServiceClient(channel)), logger)
+        : this(new FixedAgentChannels(channel), logger)
     {
     }
 

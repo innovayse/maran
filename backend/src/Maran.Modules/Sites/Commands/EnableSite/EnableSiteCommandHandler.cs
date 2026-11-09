@@ -56,7 +56,10 @@ public sealed class EnableSiteCommandHandler
         _journal = journal;
     }
 
-    /// <summary>Applies the change. Idempotent: repeating it changes nothing.</summary>
+    /// <summary>
+    /// Applies the change. Idempotent in effect: repeating it leaves the site in the same state, though the
+    /// vhost is rendered again and the attempt is journaled again.
+    /// </summary>
     /// <param name="command">Which site to act on.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>The site in its new state, or <c>SiteNotFound</c>, <c>AccountNotFound</c>, or the agent's own typed failure.</returns>
@@ -104,7 +107,8 @@ public sealed class EnableSiteCommandHandler
             site.PhpVersion,
             site.Status,
             _siteNames.Of(site.Status),
-            site.CreatedAt));
+            site.CreatedAt,
+            site.LogRetentionDays));
     }
 
     /// <summary>Journals a refused operation and returns it as the typed failure.</summary>

@@ -71,6 +71,7 @@ public sealed class ModuleDisplayNameLawTests
         }).ToHashSet(StringComparer.Ordinal);
 
         Assert.Contains("sftp", byModule);
+        Assert.Contains("files", byModule);
         Assert.Contains("ftp", byModule);
         Assert.Contains("identity", byModule);
         Assert.True(

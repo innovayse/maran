@@ -1,4 +1,5 @@
 using Maran.Modules.Sites.Domain.Entities;
+using Maran.Modules.Sites.Domain.Policies;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Maran.Modules.Sites.Persistence.Configurations;
@@ -55,6 +56,23 @@ public sealed class SiteConfiguration : IEntityTypeConfiguration<Site>
 
         builder.Property(site => site.CreatedAt)
             .IsRequired();
+
+        // The column has a database default, not only the entity's: the previous release inserts sites
+        // without knowing this column exists, and expand-then-contract (rules/architecture.md) means it
+        // must keep working against the new schema. Existing rows take the default too.
+        builder.Property(site => site.LogRetentionDays)
+            .IsRequired()
+            .HasDefaultValue(SiteLogRetention.DefaultDays);
+
+        // At most one set of options per site, deleted with it, and ALWAYS loaded with it. The agent
+        // keeps no record of a site, so every operation that re-renders a vhost builds its descriptor
+        // from a Site row; with the options eager, a handler that loaded a site cannot render it
+        // without its redirects, credentials and IP rules, and none has to remember an Include.
+        builder.HasOne(site => site.Options)
+            .WithOne(options => options.Site)
+            .HasForeignKey<SiteOptions>(options => options.SiteId)
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(site => site.Options).AutoInclude();
 
         // A domain is served by exactly one vhost on this server, so the claim is unique across
         // every account rather than within one. Enforced here as well as in the create handler:

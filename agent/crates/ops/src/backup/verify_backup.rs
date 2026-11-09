@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
 use maran_agent_core::validation::db::database_name::DatabaseName;
+use maran_agent_core::validation::secrets::archive_key::ArchiveKey;
 use maran_agent_core::validation::system::backup_id::BackupId;
 use maran_agent_core::validation::system::local_backup_root::LocalBackupRoot;
 use maran_agent_core::validation::system::name::AccountName;
@@ -16,6 +17,7 @@ use maran_agent_core::validation::system::name::AccountName;
 use crate::accounts::take_account_lock;
 use crate::backup::archive::checksum_file::checksum_file;
 use crate::backup::archive::dump_database::dump_path;
+use crate::backup::archive::is_encrypted_artifact::is_encrypted_artifact;
 use crate::backup::archive::read_manifest::read_manifest;
 use crate::backup::archive::scan_members::scan_members;
 use crate::backup::backup_error::BackupError;
@@ -23,7 +25,9 @@ use crate::backup::backup_host::BackupHost;
 use crate::backup::backup_root::open_account_directory;
 use crate::backup::model::backup_manifest::BackupManifest;
 use crate::backup::model::backup_verification::BackupVerification;
+use crate::backup::model::sidecar_claim::SidecarClaim;
 use crate::backup::object_key::{artifact_file_name, sidecar_file_name};
+use crate::backup::open_readable_artifact::open_readable_artifact;
 use crate::backup::open_restore_scratch::open_restore_scratch;
 use crate::backup::read_sidecar::read_sidecar;
 use crate::backup::require_sidecar_agrees::require_sidecar_agrees;
@@ -142,7 +146,23 @@ const DATABASES_DIRECTORY: &str = "databases";
 /// [`BackupError::AlreadyRunning`], [`BackupError::Bound`],
 /// [`BackupError::FreeSpace`], [`BackupError::ChecksumUnreadable`],
 /// [`BackupError::ArchiveFailed`], [`BackupError::ScratchUnusable`],
-/// [`BackupError::BackupRootUnsafe`] and [`BackupError::BackupRootUnusable`].
+/// [`BackupError::BackupRootUnsafe`], [`BackupError::BackupRootUnusable`],
+/// [`BackupError::EncryptionKeyRequired`] and
+/// [`BackupError::ArtifactDecryptionFailed`]. The last two are about the key the
+/// call carried: the digest was already checked against the sidecar, so a sealed
+/// artifact that then refuses to open is far more likely opened with the wrong
+/// key than damaged, and this function cannot tell the two apart.
+///
+/// # A sealed (encrypted) artifact
+///
+/// `key` is the archive key the panel holds for the destination, or `None`. A
+/// plain artifact is verified exactly as before and the key is not looked at. A
+/// sealed one is decrypted once into the verification's own root-only scratch,
+/// and the listing and the manifest are read from that copy; the digest and size
+/// are still those of the stored file. The sidecar's `encrypted` label must
+/// agree with the file's own first bytes, or the verification is refused as
+/// [`BackupError::ManifestDisagreesWithSidecar`]. The scratch needs room for a
+/// second copy of the archive, and is removed on every path.
 ///
 /// [`BackupError::NotFound`] when the account has no directory under the root or
 /// the directory holds no artifact of that id; nothing is created to find out.
@@ -152,6 +172,7 @@ pub fn verify_backup(
     backup_id: &BackupId,
     root: &LocalBackupRoot,
     floor: &FreeSpaceFloor,
+    key: Option<&ArchiveKey>,
 ) -> Result<BackupVerification, BackupError> {
     let guard = take_account_lock(account).ok_or(BackupError::AlreadyRunning)?;
 
@@ -165,7 +186,7 @@ pub fn verify_backup(
                 floor: *floor,
             };
 
-            verify_in(&placement, host, account, backup_id, &directory)
+            verify_in(&placement, host, account, backup_id, &directory, key)
         }
         Ok(None) => Err(BackupError::NotFound),
         Err(error) => Err(error),
@@ -192,6 +213,7 @@ fn verify_in(
     account: &AccountName,
     backup_id: &BackupId,
     directory: &Path,
+    key: Option<&ArchiveKey>,
 ) -> Result<BackupVerification, BackupError> {
     let artifact = directory.join(artifact_file_name(backup_id));
     let sidecar = directory.join(sidecar_file_name(backup_id));
@@ -218,55 +240,60 @@ fn verify_in(
         return Err(BackupError::ArtifactSizeMismatch);
     }
 
-    // The whole listing, judged before anything is extracted; nothing of `home/`
-    // is ever extracted by a verification.
-    let members = scan_members(host, &artifact)?;
+    // The sidecar's label against the file's own first bytes. A sidecar that
+    // says "plain" over a sealed file, or the reverse, is a record that no longer
+    // describes its artifact — the shape a downgrade or a mislabel leaves.
+    if is_encrypted_artifact(&artifact)? != recorded.encrypted {
+        return Err(BackupError::ManifestDisagreesWithSidecar);
+    }
 
-    let databases = judge_manifest(
+    let judged = judge_artifact(
         placement,
         host,
         account,
         backup_id,
         &artifact,
-        &sidecar,
-        &actual_sha256,
-        &members,
+        &SidecarClaim {
+            sidecar: &sidecar,
+            artifact_sha256: &actual_sha256,
+        },
+        key,
     );
 
     // Removed on every path, written once and on the outside rather than at each
     // place the body above can return early.
     let _ = remove_dir_all(&placement.scratch);
 
+    let (member_count, database_count) = judged?;
+
     Ok(BackupVerification {
-        member_count: u32::try_from(members.len()).unwrap_or(u32::MAX),
-        database_count: databases?,
+        member_count,
+        database_count,
         artifact_bytes: actual_bytes,
     })
 }
 
-/// Extracts the manifest into the root-only scratch and judges it against the
-/// request, the sidecar and the member listing; answers how many dumps it named
-/// that were found.
+/// Opens the scratch, reads the artifact through it, and answers how many
+/// members the listing held and how many dumps the manifest named that were
+/// found.
 ///
-/// The scratch is left for the caller to remove, so that the one removal
-/// covers every return below.
+/// The scratch is left for the caller to remove, so that the one removal covers
+/// every return below — including the early ones, which now come after the
+/// scratch exists, because a sealed artifact is decrypted into it before the
+/// first listing.
 ///
 /// # Errors
 ///
-/// As documented on [`verify_backup`], for steps 5 and 6.
-// Eight parameters, each a different authority, for the reason `restore_backup`
-// gives for its own nine: named parameters cannot be left at a default.
-#[allow(clippy::too_many_arguments)]
-fn judge_manifest(
+/// As documented on [`verify_backup`].
+fn judge_artifact(
     placement: &VerificationPlacement,
     host: &dyn BackupHost,
     account: &AccountName,
     backup_id: &BackupId,
     artifact: &Path,
-    sidecar: &Path,
-    artifact_sha256: &str,
-    members: &[String],
-) -> Result<u32, BackupError> {
+    claim: &SidecarClaim<'_>,
+    key: Option<&ArchiveKey>,
+) -> Result<(u32, u32), BackupError> {
     let scratch = open_restore_scratch(
         &placement.scratch_base,
         &placement.scratch_root,
@@ -279,7 +306,42 @@ fn judge_manifest(
         .floor
         .admit(host.available_bytes(&placement.scratch))?;
 
-    let manifest = match read_manifest(host, artifact, &scratch, account.as_str()) {
+    // The stored file itself when it is a plain archive; a decrypted copy inside
+    // the scratch when it is sealed. The digest above was taken over the stored
+    // bytes and is the one the sidecar records.
+    let readable = open_readable_artifact(artifact, &scratch, key)?;
+
+    // The whole listing, judged before anything is extracted; nothing of `home/`
+    // is ever extracted by a verification.
+    let members = scan_members(host, &readable)?;
+
+    let databases = judge_manifest(
+        host, account, backup_id, &readable, &scratch, claim, &members,
+    )?;
+
+    Ok((u32::try_from(members.len()).unwrap_or(u32::MAX), databases))
+}
+
+/// Extracts the manifest into the root-only scratch and judges it against the
+/// request, the sidecar and the member listing; answers how many dumps it named
+/// that were found.
+///
+/// The scratch is opened, and its room asked, by the caller; this only writes
+/// into it.
+///
+/// # Errors
+///
+/// As documented on [`verify_backup`], for steps 5 and 6.
+fn judge_manifest(
+    host: &dyn BackupHost,
+    account: &AccountName,
+    backup_id: &BackupId,
+    artifact: &Path,
+    scratch: &Path,
+    claim: &SidecarClaim<'_>,
+    members: &[String],
+) -> Result<u32, BackupError> {
+    let manifest = match read_manifest(host, artifact, scratch, account.as_str()) {
         Ok(manifest) => manifest,
         // Create-side wording for a read-side fact: a manifest already on disk
         // that does not parse is a finding about the artifact.
@@ -292,7 +354,7 @@ fn judge_manifest(
     if manifest.backup_id != backup_id.as_str() {
         return Err(BackupError::ManifestBackupMismatch);
     }
-    require_sidecar_agrees(sidecar, &manifest, artifact_sha256)?;
+    require_sidecar_agrees(claim.sidecar, &manifest, claim.artifact_sha256)?;
 
     require_dumps_present(account, &manifest, members)
 }
@@ -308,7 +370,7 @@ fn judge_manifest(
 ///
 /// [`BackupError::ManifestUnreadable`] for a name no account could own;
 /// [`BackupError::DumpMissing`] for a dump absent from `members`.
-fn require_dumps_present(
+pub(super) fn require_dumps_present(
     account: &AccountName,
     manifest: &BackupManifest,
     members: &[String],
@@ -342,7 +404,7 @@ fn require_dumps_present(
 /// [`BackupError::ArtifactNotRegularFile`] for anything present that is not such
 /// a file; [`BackupError::BackupRootUnusable`] when the entry could not be
 /// stated for a reason other than its absence.
-fn is_plain_file_owned_by(path: &Path, owner: u32) -> Result<bool, BackupError> {
+pub(super) fn is_plain_file_owned_by(path: &Path, owner: u32) -> Result<bool, BackupError> {
     let metadata = match path.symlink_metadata() {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
@@ -361,7 +423,7 @@ fn is_plain_file_owned_by(path: &Path, owner: u32) -> Result<bool, BackupError> 
 ///
 /// Asked of the sidecar's value before it is compared, so a malformed digest is
 /// a sidecar that cannot be trusted and not a mismatch of an unspecified kind.
-fn is_sha256_hex(candidate: &str) -> bool {
+pub(super) fn is_sha256_hex(candidate: &str) -> bool {
     candidate.len() == SHA256_HEX_LENGTH
         && candidate
             .bytes()

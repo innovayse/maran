@@ -34,7 +34,7 @@ public sealed class PlanLimitsTests
     {
         var runtime = RuntimeLimits.Of(ResourceLimit.Limited(1), ResourceLimit.Limited(2), ResourceLimit.Limited(3));
 
-        var limits = new PlanLimits(10, 20, 30, 40, 50, 60, 70, AccountFeature.Dns, runtime);
+        var limits = new PlanLimits(10, 20, 30, 40, 50, 60, 70, AccountFeature.Dns, runtime, 80, 90);
 
         Assert.Equal(10, limits.DiskQuotaMb);
         Assert.Equal(20, limits.MaxSites);
@@ -45,5 +45,7 @@ public sealed class PlanLimitsTests
         Assert.Equal(70, limits.MaxPhpWorkersPerPool);
         Assert.Equal(AccountFeature.Dns, limits.Features);
         Assert.Equal(runtime, limits.RuntimeLimits);
+        Assert.Equal(80, limits.MaxMailboxes);
+        Assert.Equal(90, limits.MailboxQuotaPoolMib);
     }
 }

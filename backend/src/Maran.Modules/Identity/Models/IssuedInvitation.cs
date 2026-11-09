@@ -15,13 +15,19 @@ namespace Maran.Modules.Identity.Models;
 /// there does anything call <see cref="SensitiveString.Reveal"/>.
 /// </remarks>
 /// <param name="Username">The login's name, which is also the hosting account's system user.</param>
-/// <param name="OwnerEmail">The owner's own stored address, where a mail would be sent.</param>
+/// <param name="RecipientEmail">
+/// The invited login's own stored address, where a mail would be sent: the account owner's for an
+/// account invitation, the reseller contact's for a reseller invitation.
+/// </param>
 /// <param name="Token">The plaintext token. Its digest, not it, is what the database holds.</param>
 /// <param name="ExpiresAt">When the token stops being accepted.</param>
-/// <param name="OwnerLanguage">The account owner's language, which a mailed invitation is written in.</param>
+/// <param name="RecipientLanguage">
+/// The recipient's language, which a mailed invitation is written in: the account owner's language
+/// for an account invitation, the reseller contact's for a reseller invitation.
+/// </param>
 public sealed record IssuedInvitation(
     string Username,
-    string OwnerEmail,
+    string RecipientEmail,
     SensitiveString Token,
     DateTimeOffset ExpiresAt,
-    string OwnerLanguage);
+    string RecipientLanguage);

@@ -106,27 +106,37 @@ export interface AuditChainVerification {
   verifiedAt: string
 }
 
+/**
+ * Which part of the journal a screen reads. `all` is the administrator's whole journal; `reseller`
+ * is a reseller's own part of it (the entries about its accounts and its login, issue #370). The two
+ * answer in one shape from two endpoints, and the panel — not the SPA — decides what each holds.
+ */
+export type AuditScope = 'all' | 'reseller'
+
 /** The audit endpoints this SPA calls. */
 export interface AuditApi {
   /**
    * Reads one page of the journal, searched, filtered and sorted by the panel.
    * @param request The page, size, search, sort and the action, outcome, from and to filters.
+   * @param scope Whose journal to read: the administrator's whole one or a reseller's part of it.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The page.
    */
-  list: (request: ListRequest, signal?: AbortSignal) => Promise<Paged<AuditEvent>>
+  list: (request: ListRequest, scope: AuditScope, signal?: AbortSignal) => Promise<Paged<AuditEvent>>
   /**
    * Lists the distinct actions the journal holds, for the action filter.
+   * @param scope Whose journal to read the actions of.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The actions with their localized names.
    */
-  actions: (signal?: AbortSignal) => Promise<AuditActionChoice[]>
+  actions: (scope: AuditScope, signal?: AbortSignal) => Promise<AuditActionChoice[]>
   /**
    * Lists the outcomes the journal can be filtered by, for the outcome filter.
+   * @param scope Whose journal the filter is for.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The outcomes with their localized names.
    */
-  outcomes: (signal?: AbortSignal) => Promise<AuditOutcomeChoice[]>
+  outcomes: (scope: AuditScope, signal?: AbortSignal) => Promise<AuditOutcomeChoice[]>
   /**
    * Downloads the journal, narrowed by the same filters the list takes.
    * @param request The search and the filters (action, outcome, from, to, actor, account); page and sort are ignored.

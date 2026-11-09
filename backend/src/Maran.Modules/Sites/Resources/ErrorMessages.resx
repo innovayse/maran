@@ -78,4 +78,100 @@
   <data name="SiteStatusUnknown">
     <value>That is not a site status.</value>
   </data>
+  <data name="SiteBodySizeOutOfRange">
+    <value>That upload size is outside what a site may set.</value>
+  </data>
+  <data name="SiteCacheDaysOutOfRange">
+    <value>That cache lifetime is outside what a site may set.</value>
+  </data>
+  <data name="SiteRequestRateOutOfRange">
+    <value>That request limit is outside what a site may set.</value>
+  </data>
+  <data name="SiteRequestBurstOutOfRange">
+    <value>That burst size is outside what a site may set.</value>
+  </data>
+  <data name="SiteRedirectLimit">
+    <value>A site cannot have more redirect rules than the limit shown.</value>
+  </data>
+  <data name="SiteRedirectPathInvalid">
+    <value>One of the redirect paths is not valid.</value>
+  </data>
+  <data name="SiteRedirectTargetInvalid">
+    <value>One of the redirect targets is not valid.</value>
+  </data>
+  <data name="SiteRedirectDuplicated">
+    <value>Two redirect rules apply to the same path.</value>
+  </data>
+  <data name="SiteBasicAuthLimit">
+    <value>A site cannot have more password-protected users than the limit shown.</value>
+  </data>
+  <data name="SiteBasicAuthUserInvalid">
+    <value>One of the user names is not valid.</value>
+  </data>
+  <data name="SiteBasicAuthUserDuplicated">
+    <value>Two users have the same name.</value>
+  </data>
+  <data name="SiteBasicAuthPasswordInvalid">
+    <value>One of the passwords is too short or too long.</value>
+  </data>
+  <data name="SiteBasicAuthPasswordRequired">
+    <value>A new user needs a password.</value>
+  </data>
+  <data name="SiteIpRuleLimit">
+    <value>A site cannot have more addresses than the limit shown.</value>
+  </data>
+  <data name="SiteIpRuleInvalid">
+    <value>One of the addresses is not a valid address or range.</value>
+  </data>
+  <data name="SiteIpRuleDuplicated">
+    <value>The same address or range is listed twice.</value>
+  </data>
+  <data name="SiteIpAccessModeInvalid">
+    <value>The access mode does not match the list of addresses.</value>
+  </data>
+  <data name="SiteOptionUnknown">
+    <value>That is not one of the choices offered.</value>
+  </data>
+  <data name="SiteCanonicalHostNotServed">
+    <value>The site must answer for both its plain name and its www name before one of them can be the main one.</value>
+  </data>
+  <data name="SiteLogRetentionInvalid">
+    <value>Choose a log retention from 1 to 14 days.</value>
+  </data>
+  <data name="SiteTrafficWindowInvalid">
+    <value>Choose one of the periods offered for the traffic summary.</value>
+  </data>
+  <data name="PhpExtensionNotAllowed">
+    <value>This is not a PHP extension that can be switched here.</value>
+  </data>
+  <data name="PhpExtensionNotAvailable">
+    <value>This server's operating system cannot switch that extension in the way you asked.</value>
+  </data>
+  <data name="PhpExtensionToggleFailed">
+    <value>The server did not confirm that the extension changed, so the change counts as failed. Check the state of the PHP version before trying again.</value>
+  </data>
+  <data name="PhpSettingsRequired">
+    <value>The list of PHP settings is missing.</value>
+  </data>
+  <data name="PhpSettingNotAllowed">
+    <value>One of the settings is not a PHP setting you can change.</value>
+  </data>
+  <data name="PhpSettingDuplicated">
+    <value>The same PHP setting is listed twice.</value>
+  </data>
+  <data name="PhpSettingValueInvalid">
+    <value>One of the PHP settings has a value that is not allowed. Sizes, times and counts are whole numbers within the server's limits, and the timezone must be a zone name such as Europe/Berlin.</value>
+  </data>
+  <data name="PhpSettingAbovePlan">
+    <value>One of the PHP settings is above what your plan allows.</value>
+  </data>
+  <data name="PhpSettingSizesTogether">
+    <value>Set the upload size and the maximum request size together, or leave both unset.</value>
+  </data>
+  <data name="PhpSettingPostSizeBelowUpload">
+    <value>The maximum request size cannot be smaller than the upload size, or uploads of that size would be lost.</value>
+  </data>
+  <data name="SiteOptionNotForBackend">
+    <value>That option does not apply to this kind of site.</value>
+  </data>
 </root>

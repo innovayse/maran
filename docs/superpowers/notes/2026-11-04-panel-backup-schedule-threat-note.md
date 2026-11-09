@@ -404,3 +404,8 @@ says no new outbound calls and asks for a spec change first, not a PR. Section 4
 case; it cannot grant it. **The owner's decision is NOT recorded in this note or anywhere in this
 branch, and the spec has not been amended.** The pull request for this branch must say so in plain
 words, next to the OUTSTANDING second review, so that nobody reads the argument as an approval.
+
+## Later amendment
+
+The release guard on restore, the licence leg and the extra-schema leg of the proof are argued in
+`2026-11-07-panel-recovery-proof-threat-note.md`. That note does not decide the S3 question above.

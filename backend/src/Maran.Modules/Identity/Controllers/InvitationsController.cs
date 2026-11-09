@@ -1,7 +1,10 @@
 using Maran.Modules.Identity.Commands.IssueInvitationLink;
+using Maran.Modules.Identity.Commands.IssueResellerInvitationLink;
 using Maran.Modules.Identity.Commands.ResendInvitation;
+using Maran.Modules.Identity.Commands.ResendResellerInvitation;
 using Maran.Modules.Identity.Common;
 using Maran.Modules.Identity.Queries.GetInvitationStatus;
+using Maran.Modules.Identity.Queries.GetResellerInvitationStatus;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
 using Microsoft.AspNetCore.Authorization;
@@ -103,6 +106,65 @@ public sealed class InvitationsController : BaseApiController
     public async Task<IActionResult> IssueLinkAsync(Guid accountId, CancellationToken cancellationToken)
     {
         var command = new IssueInvitationLinkCommand(accountId, ClientIpAddress, CallerUserAgent);
+        return ToActionResult(await _bus.InvokeAsync<Result<InvitationLinkDto>>(command, cancellationToken));
+    }
+
+    /// <summary>
+    /// Retires every outstanding invitation token for the reseller's login and mails a new one.
+    /// </summary>
+    /// <remarks>
+    /// This action has no body: the reseller id from the route is everything the command needs
+    /// (rules/csharp.md "An action with no body constructs rather than binds").
+    /// </remarks>
+    /// <param name="resellerId">The reseller whose login is being (re)invited.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpPost("resellers/{resellerId:guid}/resend")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> ResendResellerAsync(Guid resellerId, CancellationToken cancellationToken)
+    {
+        var command = new ResendResellerInvitationCommand(resellerId, ClientIpAddress, CallerUserAgent);
+        return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
+    }
+
+    /// <summary>
+    /// Reports where a reseller's invitation stands: none issued, outstanding, expired or accepted.
+    /// Carries no token and no link.
+    /// </summary>
+    /// <param name="resellerId">The reseller being asked about.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpGet("resellers/{resellerId:guid}")]
+    [ProducesResponseType(typeof(InvitationStatusDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetResellerStatusAsync(Guid resellerId, CancellationToken cancellationToken)
+    {
+        var query = new GetResellerInvitationStatusQuery(resellerId);
+        return ToActionResult(await _bus.InvokeAsync<Result<InvitationStatusDto>>(query, cancellationToken));
+    }
+
+    /// <summary>
+    /// Issues a fresh invitation for the reseller's login and returns its one-time link to the
+    /// administrator, retiring every outstanding token. Nothing is mailed.
+    /// </summary>
+    /// <remarks>
+    /// The answer is a credential, so it is marked uncacheable, exactly as <see cref="IssueLinkAsync"/>'s is.
+    /// </remarks>
+    /// <param name="resellerId">The reseller whose login is being invited.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpPost("resellers/{resellerId:guid}/link")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    [ProducesResponseType(typeof(InvitationLinkDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> IssueResellerLinkAsync(Guid resellerId, CancellationToken cancellationToken)
+    {
+        var command = new IssueResellerInvitationLinkCommand(resellerId, ClientIpAddress, CallerUserAgent);
         return ToActionResult(await _bus.InvokeAsync<Result<InvitationLinkDto>>(command, cancellationToken));
     }
 }

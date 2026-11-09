@@ -78,6 +78,8 @@ public sealed class ResellerMapperTests
             maxFtpUsers: 8,
             maxCronEntries: 9,
             maxPhpWorkersPerPool: 10,
+            maxMailboxes: 11,
+            mailboxQuotaPoolMib: 12,
             features: AccountFeature.Mail | AccountFeature.Backups,
             runtimeLimits: RuntimeLimits.Of(
                 ResourceLimit.Limited(50),
@@ -87,6 +89,18 @@ public sealed class ResellerMapperTests
         var back = ResellerMapper.ToDomain(ResellerMapper.ToEnvelopeDto(envelope));
 
         Assert.Equal(envelope, back);
+    }
+
+    /// <summary>The mail ceilings sit in their own slots of the wire envelope (issue #177).</summary>
+    [Fact]
+    public void The_mail_ceilings_sit_in_their_own_slots_of_the_wire_envelope()
+    {
+        var envelope = ResellerTestData.Envelope(maxMailboxes: 11, mailboxQuotaPoolMib: 12);
+
+        var dto = ResellerMapper.ToEnvelopeDto(envelope);
+
+        Assert.Equal(11, dto.MaxMailboxes);
+        Assert.Equal(12, dto.MailboxQuotaPoolMib);
     }
 
     /// <summary>The wire ceilings are limited where a cap exists and unlimited where none does.</summary>

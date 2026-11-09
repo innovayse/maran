@@ -59,6 +59,11 @@ namespace Maran.Modules.Accounts.Persistence.Migrations
                     b.Property<Guid?>("ResellerId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("ShellAccess")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -103,6 +108,9 @@ namespace Maran.Modules.Accounts.Persistence.Migrations
                         .HasColumnType("integer");
 
                     b.Property<int>("MaxDatabases")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MaxDnsZones")
                         .HasColumnType("integer");
 
                     b.Property<int>("MaxFtpUsers")
@@ -190,6 +198,31 @@ namespace Maran.Modules.Accounts.Persistence.Migrations
                     b.ToTable("Resellers", "accounts");
                 });
 
+            modelBuilder.Entity("Maran.Modules.Accounts.Domain.Entities.ResellerBranding", b =>
+                {
+                    b.Property<Guid>("ResellerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AccentColor")
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)");
+
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("Logo")
+                        .HasMaxLength(140000)
+                        .HasColumnType("character varying(140000)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ResellerId");
+
+                    b.ToTable("ResellerBrandings", "accounts");
+                });
+
             modelBuilder.Entity("Maran.Modules.Accounts.Domain.Entities.Account", b =>
                 {
                     b.HasOne("Maran.Modules.Accounts.Domain.Entities.Plan", null)
@@ -204,6 +237,34 @@ namespace Maran.Modules.Accounts.Persistence.Migrations
                         .HasForeignKey("ResellerId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("FK_Accounts_Resellers_ResellerId");
+
+                    b.OwnsOne("Maran.Modules.Accounts.Domain.ValueObjects.AccountLimitOverrides", "LimitOverrides", b1 =>
+                        {
+                            b1.Property<Guid>("AccountId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<long?>("InodeLimit")
+                                .HasColumnType("bigint")
+                                .HasColumnName("InodeLimitOverride");
+
+                            b1.Property<int?>("OpenFilesLimit")
+                                .HasColumnType("integer")
+                                .HasColumnName("OpenFilesLimitOverride");
+
+                            b1.Property<int?>("ProcessLimit")
+                                .HasColumnType("integer")
+                                .HasColumnName("ProcessLimitOverride");
+
+                            b1.HasKey("AccountId");
+
+                            b1.ToTable("Accounts", "accounts");
+
+                            b1.WithOwner()
+                                .HasForeignKey("AccountId");
+                        });
+
+                    b.Navigation("LimitOverrides")
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Maran.Modules.Accounts.Domain.Entities.Plan", b =>
@@ -213,6 +274,64 @@ namespace Maran.Modules.Accounts.Persistence.Migrations
                         .HasForeignKey("ResellerId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("FK_Plans_Resellers_ResellerId");
+
+                    b.OwnsOne("Maran.Modules.Accounts.Domain.ValueObjects.MailLimits", "MailLimits", b1 =>
+                        {
+                            b1.Property<Guid>("PlanId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<int>("DefaultMailboxQuotaMib")
+                                .HasColumnType("integer")
+                                .HasColumnName("DefaultMailboxQuotaMib");
+
+                            b1.Property<int>("MailboxQuotaPoolMib")
+                                .HasColumnType("integer")
+                                .HasColumnName("MailboxQuotaPoolMib");
+
+                            b1.Property<int>("MailboxSendLimitPerHour")
+                                .HasColumnType("integer")
+                                .HasColumnName("MailboxSendLimitPerHour");
+
+                            b1.Property<int>("MaxMailboxes")
+                                .HasColumnType("integer")
+                                .HasColumnName("MaxMailboxes");
+
+                            b1.HasKey("PlanId");
+
+                            b1.ToTable("Plans", "accounts");
+
+                            b1.WithOwner()
+                                .HasForeignKey("PlanId");
+                        });
+
+                    b.OwnsOne("Maran.Modules.Accounts.Domain.ValueObjects.PhpLimits", "PhpLimits", b1 =>
+                        {
+                            b1.Property<Guid>("PlanId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<int>("MaxExecutionSeconds")
+                                .HasColumnType("integer")
+                                .HasColumnName("PhpMaxExecutionSeconds");
+
+                            b1.Property<int>("MaxInputVars")
+                                .HasColumnType("integer")
+                                .HasColumnName("PhpMaxInputVars");
+
+                            b1.Property<int>("MemoryLimitMaxMb")
+                                .HasColumnType("integer")
+                                .HasColumnName("PhpMemoryLimitMaxMb");
+
+                            b1.Property<int>("UploadMaxMb")
+                                .HasColumnType("integer")
+                                .HasColumnName("PhpUploadMaxMb");
+
+                            b1.HasKey("PlanId");
+
+                            b1.ToTable("Plans", "accounts");
+
+                            b1.WithOwner()
+                                .HasForeignKey("PlanId");
+                        });
 
                     b.OwnsOne("Maran.Modules.Accounts.Domain.ValueObjects.RuntimeLimits", "RuntimeLimits", b1 =>
                         {
@@ -317,6 +436,12 @@ namespace Maran.Modules.Accounts.Persistence.Migrations
                                 .IsRequired();
                         });
 
+                    b.Navigation("MailLimits")
+                        .IsRequired();
+
+                    b.Navigation("PhpLimits")
+                        .IsRequired();
+
                     b.Navigation("RuntimeLimits")
                         .IsRequired();
                 });
@@ -335,6 +460,10 @@ namespace Maran.Modules.Accounts.Persistence.Migrations
                             b1.Property<long>("Features")
                                 .HasColumnType("bigint")
                                 .HasColumnName("Features");
+
+                            b1.Property<int>("MailboxQuotaPoolMib")
+                                .HasColumnType("integer")
+                                .HasColumnName("MailboxQuotaPoolMib");
 
                             b1.Property<int>("MaxAccounts")
                                 .HasColumnType("integer")
@@ -355,6 +484,10 @@ namespace Maran.Modules.Accounts.Persistence.Migrations
                             b1.Property<int>("MaxFtpUsers")
                                 .HasColumnType("integer")
                                 .HasColumnName("MaxFtpUsers");
+
+                            b1.Property<int>("MaxMailboxes")
+                                .HasColumnType("integer")
+                                .HasColumnName("MaxMailboxes");
 
                             b1.Property<int>("MaxPhpWorkersPerPool")
                                 .HasColumnType("integer")
@@ -457,6 +590,15 @@ namespace Maran.Modules.Accounts.Persistence.Migrations
                         });
 
                     b.Navigation("Envelope")
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Maran.Modules.Accounts.Domain.Entities.ResellerBranding", b =>
+                {
+                    b.HasOne("Maran.Modules.Accounts.Domain.Entities.Reseller", null)
+                        .WithOne()
+                        .HasForeignKey("Maran.Modules.Accounts.Domain.Entities.ResellerBranding", "ResellerId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 #pragma warning restore 612, 618

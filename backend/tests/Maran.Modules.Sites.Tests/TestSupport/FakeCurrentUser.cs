@@ -36,7 +36,15 @@ public sealed class FakeCurrentUser : ICurrentUser
         return new FakeCurrentUser(Guid.NewGuid(), accountId, isAdmin: false);
     }
 
+    /// <summary>Creates the principal of unattended work: nobody is signed in, so every tenant filter shows nothing.</summary>
+    /// <returns>The anonymous principal.</returns>
+    public static FakeCurrentUser Anonymous()
+    {
+        return new FakeCurrentUser(AnonymousCaller.Instance);
+    }
+
     /// <summary>Creates an administrator principal, which no tenant filter narrows.</summary>
+    /// <returns>The administrator.</returns>
     public static FakeCurrentUser Admin()
     {
         return new FakeCurrentUser(Guid.NewGuid(), null, isAdmin: true);

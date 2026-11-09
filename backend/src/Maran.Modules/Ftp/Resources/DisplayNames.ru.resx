@@ -15,4 +15,10 @@
   <data name="FtpModuleDisplayName">
     <value>FTPS</value>
   </data>
+  <data name="FtpMenuFileTransferFtps">
+    <value>Логины FTPS</value>
+  </data>
+  <data name="FtpRouteFileTransferFtps">
+    <value>Логины FTPS</value>
+  </data>
 </root>

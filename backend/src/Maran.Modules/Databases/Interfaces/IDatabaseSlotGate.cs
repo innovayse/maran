@@ -1,4 +1,4 @@
-using Maran.Modules.Databases.Domain.Entities;
+using Maran.Modules.Databases.Models;
 
 namespace Maran.Modules.Databases.Interfaces;
 
@@ -32,7 +32,10 @@ namespace Maran.Modules.Databases.Interfaces;
 public interface IDatabaseSlotGate
 {
     /// <summary>Writes the row if, and only if, the account is still inside its allowance.</summary>
-    /// <param name="database">The row to write, for a database the agent has already created.</param>
+    /// <param name="records">
+    /// The rows to write, for a database the agent has already created: the database, its dedicated user
+    /// and that user's grant, which are committed together or not at all.
+    /// </param>
     /// <param name="allowance">How many databases the account's plan allows in total.</param>
     /// <param name="cancellationToken">Cancels the claim.</param>
     /// <returns>
@@ -45,5 +48,5 @@ public interface IDatabaseSlotGate
     /// whether the caller may drop what it made. An implementation that swallowed either would make
     /// the caller drop a database whose data belongs to whoever won the race.
     /// </remarks>
-    Task<bool> TryTakeAsync(Database database, int allowance, CancellationToken cancellationToken);
+    Task<bool> TryTakeAsync(ProvisionedDatabaseRecords records, int allowance, CancellationToken cancellationToken);
 }

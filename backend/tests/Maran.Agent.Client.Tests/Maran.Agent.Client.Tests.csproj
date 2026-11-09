@@ -18,6 +18,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Kestrel hosts the in-process node the mutual-TLS channel is tested against. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Maran.Agent.Client\Maran.Agent.Client.csproj" />
   </ItemGroup>
 

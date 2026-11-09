@@ -1,4 +1,7 @@
 using Maran.Sdk.Alerts;
+using Maran.Sdk.Interfaces;
+using Maran.Sdk.Modules;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Maran.Sdk;
 
@@ -10,14 +13,17 @@ namespace Maran.Sdk;
 public static class DependencyInjection
 {
     /// <summary>
-    /// Registers the Sdk's shared facilities: <see cref="OperatorAlertMailer"/>, scoped because the
-    /// recipient window it reads is a module's scoped service.
+    /// Registers the Sdk's shared facilities: <see cref="OperatorAlertDispatcher"/>, scoped because the
+    /// recipient window it reads is a module's scoped service, and <see cref="NullModuleLoader"/> as the
+    /// <see cref="IModuleLoader"/> only when none is registered yet (<c>TryAdd</c>), so a package that
+    /// provides a real loader replaces it by registering first.
     /// </summary>
     /// <param name="services">The application service collection.</param>
     /// <returns>The same collection, for chaining.</returns>
     public static IServiceCollection AddSdk(this IServiceCollection services)
     {
-        services.AddScoped<OperatorAlertMailer>();
+        services.AddScoped<OperatorAlertDispatcher>();
+        services.TryAddSingleton<IModuleLoader, NullModuleLoader>();
         return services;
     }
 }

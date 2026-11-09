@@ -45,7 +45,10 @@ use std::process::{Command, Stdio};
 use maran_agent_core::validation::system::managed_account_error::ManagedAccountError;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_distro::{DistroAdapter, adapter_for, detect};
-use maran_ops::accounts::{AccountError, AccountOperations, ProcessSystemHost};
+use maran_ops::accounts::{
+    AccountError, AccountOperations, LoginShell, NewAccountSettings, ProcessSystemHost,
+    ResourceCeiling,
+};
 use maran_ops::cron::{CronError, ProcessCronHost, list_cron_entries, set_cron_environment};
 use maran_ops::db::ProcessDbHost;
 use maran_ops::ftps::ProcessFtpsHost;
@@ -221,12 +224,15 @@ fn assert_every_lifecycle_operation_refuses(target: &AccountName, expected: &Man
         target.as_str()
     );
     assert!(
-        refused_as(&operations.unsuspend(target), expected),
+        refused_as(&operations.unsuspend(target, LoginShell::Nologin), expected),
         "unsuspend must refuse {}",
         target.as_str()
     );
     assert!(
-        refused_as(&operations.set_quota(target, 1024 * 1024), expected),
+        refused_as(
+            &operations.set_quota(target, 1024 * 1024, ResourceCeiling::Unlimited),
+            expected
+        ),
         "set_quota must refuse {}",
         target.as_str()
     );
@@ -396,7 +402,7 @@ fn creating_an_account_with_a_reserved_name_runs_no_useradd() {
         "this check needs a polygon image without a {ABSENT_RESERVED} user, or it proves nothing"
     );
 
-    let refused = operations().create(&name(ABSENT_RESERVED), 0);
+    let refused = operations().create(&name(ABSENT_RESERVED), &NewAccountSettings::with_quota(0));
 
     assert!(
         refused_as(&refused, &ManagedAccountError::Reserved),
@@ -426,7 +432,7 @@ fn an_account_the_panel_created_is_still_suspended_and_resumed() {
         .unwrap_or_else(|error| panic!("a managed account must be suspendable: {error}"));
     let suspended = observe("passwd", &["-S", user]);
     operations
-        .unsuspend(account.name())
+        .unsuspend(account.name(), LoginShell::Nologin)
         .unwrap_or_else(|error| panic!("a managed account must be resumable: {error}"));
     let resumed = observe("passwd", &["-S", user]);
 

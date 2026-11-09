@@ -183,7 +183,7 @@ public sealed class CreateBackupCommandHandler
         try
         {
             outcome = await _runner.RunAsync(
-                account.Username, backup.Id, destination.Value.Agent, taskId, cancellationToken);
+                account.Username, backup.Id, destination.Value.AgentForNewBackup, taskId, cancellationToken);
         }
         catch
         {

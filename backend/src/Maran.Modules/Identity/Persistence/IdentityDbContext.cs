@@ -184,6 +184,15 @@ public sealed class IdentityDbContext : DbContext
         }
     }
 
+    /// <summary>The entries of each person's own dashboard layout: widget and shortcut keys, kept per user.</summary>
+    public DbSet<DashboardPreference> DashboardPreferences
+    {
+        get
+        {
+            return Set<DashboardPreference>();
+        }
+    }
+
     /// <summary>
     /// The API keys administrators issued to integrations. Digests only: the key itself is shown once,
     /// at creation, and is never written down. Panel-level data, not an account's rows.
@@ -215,6 +224,7 @@ public sealed class IdentityDbContext : DbContext
         modelBuilder.ApplyConfiguration(new InvitationTokenConfiguration());
         modelBuilder.ApplyConfiguration(new SetupTokenWindowConfiguration());
         modelBuilder.ApplyConfiguration(new PinnedPageConfiguration());
+        modelBuilder.ApplyConfiguration(new DashboardPreferenceConfiguration());
         modelBuilder.ApplyConfiguration(new ApiKeyConfiguration());
         base.OnModelCreating(modelBuilder);
     }

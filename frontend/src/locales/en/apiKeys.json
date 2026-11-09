@@ -2,6 +2,16 @@
   "apiKeys": {
     "heading": "API keys",
     "subtitle": "Keys that let other systems call the panel's API without a signed-in person.",
+    "reseller": {
+      "subtitle": "Keys that let your integrations read your own plans and accounts without signing in.",
+      "emptyDescription": "Create a key to let one of your integrations read your plans and accounts."
+    },
+    "overseen": {
+      "heading": "API keys of the reseller",
+      "subtitle": "The keys this reseller created. Revoking one stops it at once; the reseller stays active and keeps its other keys.",
+      "emptyDescription": "This reseller has not created any API keys.",
+      "back": "Back to the reseller"
+    },
     "create": "Create key",
     "tableCaption": "API keys of this panel",
     "columns": {

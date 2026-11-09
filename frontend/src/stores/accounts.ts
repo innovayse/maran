@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useAccountsApi } from '../composables/apis/useAccountsApi'
+import { useLatestRead } from '../composables/useLatestRead'
 import { ApiError } from '../composables/useApi'
 import type {
   Account,
@@ -32,6 +33,7 @@ const CHOICES_PAGE_SIZE = 25
  */
 export const useAccountsStore = defineStore('accounts', () => {
   const api = useAccountsApi()
+  const latestRead = useLatestRead()
 
   /** The rows of the list page last answered by the panel; empty before the first answer. */
   const accounts: Ref<Account[]> = ref([])
@@ -150,9 +152,13 @@ export const useAccountsStore = defineStore('accounts', () => {
    * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
   const list = async (request: ListRequest): Promise<ListLoad<Account>> => {
+    const isLatest = latestRead.begin()
     try {
       const page = await api.list(request)
-      accounts.value = page.items
+      // A slower, older read must not replace the rows of a newer one.
+      if (isLatest()) {
+        accounts.value = page.items
+      }
       return { kind: 'loaded', page }
     } catch (error) {
       return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }
@@ -215,15 +221,16 @@ export const useAccountsStore = defineStore('accounts', () => {
    * {@link planChoicePage}. An answer to an older search arriving after a newer one was sent is
    * dropped, so a slow request can never overwrite the list for what the field now says.
    * @param search Narrows by name; empty for the first plans, alphabetical.
+   * @param forResellerId The reseller whose plans are offered; `null` (the default) offers the administrator's own.
    * @returns Resolves once the request has settled, successfully or not.
    */
-  const searchPlanChoices = async (search: string): Promise<void> => {
+  const searchPlanChoices = async (search: string, forResellerId: string | null = null): Promise<void> => {
     planChoicesTicket += 1
     const ticket = planChoicesTicket
     planChoicePage.value = { kind: 'loading' }
     let outcome: PlanChoicesLoad
     try {
-      outcome = { kind: 'loaded', page: await api.planChoices(search, CHOICES_PAGE_SIZE) }
+      outcome = { kind: 'loaded', page: await api.planChoices(search, CHOICES_PAGE_SIZE, forResellerId) }
     } catch (error) {
       outcome = error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }
     }
@@ -301,6 +308,21 @@ export const useAccountsStore = defineStore('accounts', () => {
   const changePlan = async (id: string, planId: string): Promise<boolean> => {
     return await edit(() => {
       return api.changePlan(id, { planId })
+    })
+  }
+
+  /**
+   * Hands the account to another owner with a plan of that owner and stores the account as the
+   * panel reports it back. The panel's refusals (an owner that is already the owner, an envelope
+   * with no room, an allocation that changed under the move) arrive localized in `editErrorMessage`.
+   * @param id The account to move.
+   * @param resellerId The reseller that is to own it; `null` hands it to the administrator.
+   * @param planId A plan of that owner.
+   * @returns True when the panel accepted the move; otherwise `editErrorMessage` says why.
+   */
+  const transfer = async (id: string, resellerId: string | null, planId: string): Promise<boolean> => {
+    return await edit(() => {
+      return api.transfer(id, { resellerId, planId })
     })
   }
 
@@ -529,6 +551,7 @@ export const useAccountsStore = defineStore('accounts', () => {
     create,
     loadOne,
     changePlan,
+    transfer,
     changeOwnerEmail,
     clearEditError,
     suspend,

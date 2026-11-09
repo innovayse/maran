@@ -1,0 +1,33 @@
+{
+  "alertSettings": {
+    "heading": "Alert settings",
+    "subtitle": "Who is told when the server needs attention, and at what level.",
+    "recipients": {
+      "title": "Alert recipients",
+      "description": "Alert mail goes to every address below, up to {max}.",
+      "listLabel": "Alert recipients",
+      "empty": "No recipients: alert mail is not sent.",
+      "addLabel": "Address to add",
+      "add": "Add",
+      "remove": "Remove {address}",
+      "save": "Save recipients",
+      "saved": "The alert recipients have been saved.",
+      "invalid": "Enter a valid email address.",
+      "duplicate": "That address is already in the list.",
+      "tooMany": "The list holds at most {max} addresses."
+    },
+    "thresholds": {
+      "title": "Alert thresholds",
+      "description": "The panel alarms when a reading stays above its threshold.",
+      "diskLabel": "Disk usage threshold (%)",
+      "watchCpu": "Watch processor usage",
+      "cpuLabel": "Processor usage threshold (%)",
+      "watchMemory": "Watch memory usage",
+      "memoryLabel": "Memory usage threshold (%)",
+      "sustainedHint": "A reading must stay above its threshold for 10 consecutive minutes before an alert is raised.",
+      "save": "Save thresholds",
+      "saved": "The alert thresholds have been saved.",
+      "outOfBounds": "Enter a whole number from {min} to {max}."
+    }
+  }
+}

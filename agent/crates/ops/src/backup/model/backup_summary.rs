@@ -126,8 +126,42 @@ impl BackupSummary {
                 manifest,
                 artifact_bytes,
                 artifact_sha256,
+                encrypted: false,
+                imported: false,
             }),
         }
+    }
+
+    /// Marks a readable summary as describing a sealed (encrypted) archive.
+    ///
+    /// A separate step and not a parameter of [`Self::readable`], so that the
+    /// many callers that describe an archive that was never sealed keep saying
+    /// so by saying nothing, and the one caller that sealed it says it where it
+    /// did it. An unreadable summary is returned unchanged: it describes
+    /// nothing, and a flag on nothing would be a claim with no subject.
+    #[must_use]
+    pub fn sealed(mut self) -> Self {
+        if let BackupState::Readable(details) = &mut self.state {
+            details.encrypted = true;
+        }
+
+        self
+    }
+
+    /// Marks a readable summary as describing an artifact received from another
+    /// host (issue #127), so that a restore loads its dumps through the
+    /// restricted loader and never as the database superuser.
+    ///
+    /// A separate step for the reason [`Self::sealed`] is one. An unreadable
+    /// summary is returned unchanged: a flag on nothing would be a claim with no
+    /// subject.
+    #[must_use]
+    pub fn imported(mut self) -> Self {
+        if let BackupState::Readable(details) = &mut self.state {
+            details.imported = true;
+        }
+
+        self
     }
 
     /// Builds the summary a listing reports for an artifact this agent could

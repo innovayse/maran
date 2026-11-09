@@ -17,7 +17,8 @@ public sealed class ApiKeyTests
         string tokenHash = "digest",
         string[]? scopes = null,
         string[]? allowedCidrs = null,
-        DateTimeOffset? expiresAt = null)
+        DateTimeOffset? expiresAt = null,
+        Guid? resellerId = null)
     {
         return ApiKey.Issue(
             Guid.NewGuid(),
@@ -28,7 +29,8 @@ public sealed class ApiKeyTests
             allowedCidrs,
             Guid.NewGuid(),
             Now,
-            expiresAt);
+            expiresAt,
+            resellerId);
     }
 
     /// <summary>A valid issue keeps the inputs, trims the name and starts active and unused.</summary>
@@ -109,6 +111,37 @@ public sealed class ApiKeyTests
         Assert.Throws<ArgumentException>(() =>
         {
             return Issue(scopes: [ApiKeyScopes.SelfRead, ApiKeyScopes.SelfRead]);
+        });
+    }
+
+    /// <summary>A key issued for a reseller records the owner and may hold the reseller-grade scopes.</summary>
+    [Fact]
+    public void A_key_issued_for_a_reseller_records_the_owner_and_accepts_reseller_grade_scopes()
+    {
+        var resellerId = Guid.NewGuid();
+
+        var key = Issue(scopes: [ApiKeyScopes.PlansRead, ApiKeyScopes.AccountsRead], resellerId: resellerId);
+
+        Assert.Equal(resellerId, key.ResellerId);
+        Assert.Equal([ApiKeyScopes.PlansRead, ApiKeyScopes.AccountsRead], key.Scopes);
+        Assert.Null(Issue().ResellerId);
+    }
+
+    /// <summary>A reseller's key refuses the administrator-grade scope, and the administrator's key refuses the reseller-grade ones.</summary>
+    [Fact]
+    public void A_scope_of_the_other_owners_grade_is_refused()
+    {
+        Assert.Throws<ArgumentException>(() =>
+        {
+            return Issue(scopes: [ApiKeyScopes.ServerRead], resellerId: Guid.NewGuid());
+        });
+        Assert.Throws<ArgumentException>(() =>
+        {
+            return Issue(scopes: [ApiKeyScopes.AccountsRead]);
+        });
+        Assert.Throws<ArgumentException>(() =>
+        {
+            return Issue(scopes: [ApiKeyScopes.PlansRead]);
         });
     }
 

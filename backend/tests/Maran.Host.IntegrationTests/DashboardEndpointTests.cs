@@ -11,6 +11,7 @@ using Maran.Modules.Firewall.Persistence;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
+using Maran.Modules.Notifications.Persistence;
 using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Ssl.Persistence;
 using Maran.Modules.Tasks.Persistence;
@@ -168,6 +169,10 @@ public sealed class DashboardEndpointTests : IAsyncLifetime
         AssertLoaded(attention.GetProperty("failedBackups"), 0);
         AssertLoaded(attention.GetProperty("bannedAddresses"), 0);
         AssertLoaded(attention.GetProperty("failedTasks"), 0);
+        AssertLoaded(attention.GetProperty("sitesOnEndOfLifePhp"), 0);
+
+        // The alert channels were read too; nothing has been sent, so neither is failing.
+        Assert.Equal("loaded", attention.GetProperty("alertDelivery").GetProperty("state").GetString());
 
         // The journal was read: loaded, even if what it holds is only this test's own sign-in.
         Assert.Equal("loaded", root.GetProperty("recentAudit").GetProperty("state").GetString());
@@ -280,6 +285,7 @@ public sealed class DashboardEndpointTests : IAsyncLifetime
         AssertLoaded(attention.GetProperty("certificatesExpiringSoon"), 0);
         AssertLoaded(attention.GetProperty("bannedAddresses"), 0);
         AssertLoaded(attention.GetProperty("failedTasks"), 0);
+        AssertLoaded(attention.GetProperty("sitesOnEndOfLifePhp"), 0);
     }
 
     /// <summary>Applies the migrations of the contexts these tests read through.</summary>
@@ -300,6 +306,7 @@ public sealed class DashboardEndpointTests : IAsyncLifetime
             typeof(SslDbContext),
             typeof(FirewallDbContext),
             typeof(TasksDbContext),
+            typeof(NotificationsDbContext),
         ];
 
         using var scope = factory.Services.CreateScope();

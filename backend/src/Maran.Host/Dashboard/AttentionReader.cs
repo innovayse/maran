@@ -2,6 +2,9 @@ using Maran.Modules.Backups.Queries.CountFailedBackups;
 using Maran.Modules.Firewall.Queries.CountBans;
 using Maran.Modules.Monitoring.Common;
 using Maran.Modules.Monitoring.Queries.GetClockSync;
+using Maran.Modules.Notifications.Common;
+using Maran.Modules.Notifications.Queries.GetAlertDeliveryStatus;
+using Maran.Modules.Sites.Queries.CountSitesOnEndOfLifePhp;
 using Maran.Modules.Ssl.Queries.CountExpiringCertificates;
 using Maran.Modules.Tasks.Queries.CountFailedTasks;
 using Wolverine;
@@ -14,7 +17,7 @@ namespace Maran.Host.Dashboard;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Two callers, one reading. The dashboard draws the five sources; the navigation badge adds them up
+/// Two callers, one reading. The dashboard draws the seven sources; the navigation badge adds them up
 /// (<see cref="AttentionTally"/>). Both ask this type, so the badge can never disagree with the block
 /// it points at, and a source added here reaches both.
 /// </para>
@@ -45,14 +48,14 @@ public static class AttentionReader
     /// <param name="logger">Where a source whose query threw is recorded.</param>
     /// <param name="clock">The panel's clock, which the certificate horizon is measured from.</param>
     /// <param name="cancellationToken">Cancels every dispatch.</param>
-    /// <returns>The five sources, each loaded or unavailable.</returns>
+    /// <returns>The seven sources, each loaded or unavailable.</returns>
     public static async Task<DashboardAttentionDto> ReadAsync(
         IMessageBus bus,
         ILogger logger,
         IClock clock,
         CancellationToken cancellationToken)
     {
-        // Together rather than one after another: the sources are independent, and the sum of five
+        // Together rather than one after another: the sources are independent, and the sum of seven
         // round-trips would be the wait of every screen that asks.
         var certificates = DashboardSectionReader.ReadAsync<int>(
             bus,
@@ -64,10 +67,16 @@ public static class AttentionReader
         var bans = DashboardSectionReader.ReadAsync<int>(bus, logger, new CountBansQuery(), cancellationToken);
         var failedTasks = DashboardSectionReader.ReadAsync<int>(
             bus, logger, new CountFailedTasksQuery(), cancellationToken);
+        var sitesOnEndOfLifePhp = DashboardSectionReader.ReadAsync<int>(
+            bus, logger, new CountSitesOnEndOfLifePhpQuery(), cancellationToken);
         var clockSync = DashboardSectionReader.ReadAsync<ClockSyncDto>(
             bus, logger, new GetClockSyncQuery(), cancellationToken);
 
-        await Task.WhenAll(certificates, failedBackups, bans, failedTasks, clockSync);
+        var alertDelivery = DashboardSectionReader.ReadAsync<AlertDeliveryStatusDto>(
+            bus, logger, new GetAlertDeliveryStatusQuery(), cancellationToken);
+
+        await Task.WhenAll(
+            certificates, failedBackups, bans, failedTasks, sitesOnEndOfLifePhp, clockSync, alertDelivery);
 
         return new DashboardAttentionDto(
             // Already-expired certificates are included, deliberately: the horizon is an upper
@@ -77,6 +86,8 @@ public static class AttentionReader
             FailedBackups: await failedBackups,
             BannedAddresses: await bans,
             FailedTasks: await failedTasks,
-            Clock: await clockSync);
+            SitesOnEndOfLifePhp: await sitesOnEndOfLifePhp,
+            Clock: await clockSync,
+            AlertDelivery: await alertDelivery);
     }
 }

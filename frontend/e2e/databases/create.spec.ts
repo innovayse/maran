@@ -8,7 +8,7 @@ import type { Account } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
 
 const LICENSED: PanelModule[] = [
-  { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
+  { name: 'databases', displayName: 'Databases', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 const ALICE: Account = {

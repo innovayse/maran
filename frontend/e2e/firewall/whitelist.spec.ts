@@ -7,7 +7,7 @@ import type { WhitelistEntry } from '../../src/types/firewall'
 import type { PanelModule } from '../../src/types/module'
 
 const LICENSED: PanelModule[] = [
-  { name: 'firewall', displayName: 'Firewall', tier: 'included', state: 'enabled' },
+  { name: 'firewall', displayName: 'Firewall', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 // The row the installer seeds: the address the panel was installed from. Nothing on the wire marks

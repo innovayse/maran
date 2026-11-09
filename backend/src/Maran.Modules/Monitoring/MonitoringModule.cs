@@ -1,4 +1,5 @@
 using System.Resources;
+using Maran.Modules.Monitoring.Options;
 using Maran.Modules.Monitoring.Persistence;
 using Maran.Modules.Monitoring.Services;
 using Maran.Sdk.Contracts;
@@ -59,12 +60,20 @@ public sealed class MonitoringModule : IPanelModule
             options.UseNpgsql(connectionString);
         });
 
+        // Singleton and stateless: it opens a scope of its own per call, so the Host's migrate verb can bring this
+        // module's schema up to date without knowing MonitoringDbContext.
+        services.AddSingleton<IModuleMigrations, MonitoringModuleMigrations>();
+
         // Scoped, because it reads the request's own ICurrentUser for the journal's actor — and
         // records the panel itself as the actor when there is no request, which is most of the time
         // in this module.
         services.AddScoped<MonitoringAuditJournal>();
         services.AddScoped<AlertObserver>();
         services.AddScoped<AlertEvaluator>();
+
+        // The outcome of the unattended security-patch update, reported by the root command through
+        // `Maran.Host --cli report-update` (issue #383). Scoped, like the journal it writes through.
+        services.AddScoped<PanelUpdateReporter>();
 
         // The Sdk-facing seam the closed PluginLoader calls into
         // (docs/superpowers/plans/2026-09-19-maran-code-integrity.md Task 2/3). Scoped like
@@ -83,6 +92,20 @@ public sealed class MonitoringModule : IPanelModule
         // is resolvable — and therefore drivable by a test — exactly as the Tasks module's equivalent
         // is. A handler only the bus can build is a handler only a booted bus can exercise.
         services.AddScoped<Jobs.SampleRetentionHandler>();
+
+        // The shared feed behind the dashboard stream (issue #199): a singleton, because it holds the
+        // last hour of readings and the registrations across requests, and registered under its Sdk
+        // contract as well so the Host's stream reads it without naming this module's type. Its
+        // poller is a hosted service and is the Host's to register, for the reason given below.
+        services.AddOptions<LiveMetricsOptions>()
+            .Bind(configuration.GetSection(LiveMetricsOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddSingleton<LiveMetricsFeed>();
+        services.AddSingleton<ILiveMetricsFeed>(provider =>
+        {
+            return provider.GetRequiredService<LiveMetricsFeed>();
+        });
 
         // MetricsSampler is deliberately NOT registered here. It is a hosted service, and a module
         // may not register one: the schedule is Host composition (see BackgroundWorkExtensions),

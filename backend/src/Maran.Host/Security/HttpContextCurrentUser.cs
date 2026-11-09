@@ -133,9 +133,9 @@ public sealed class HttpContextCurrentUser : ICurrentUser
     /// <param name="principal">The validated principal of the request.</param>
     /// <returns>
     /// The key caller. It carries the scopes the current vocabulary knows and no others, so a stored
-    /// scope this build has never heard of grants nothing.
+    /// scope this build has never heard of grants nothing, and the reseller that owns the key when one does.
     /// </returns>
-    /// <exception cref="UnrecognisedPrincipalException">The principal carries no readable key id.</exception>
+    /// <exception cref="UnrecognisedPrincipalException">The principal carries no readable key id, or an owner that is not an id.</exception>
     private static ApiKeyCaller ReadApiKey(ClaimsPrincipal principal)
     {
         if (!Guid.TryParse(principal.FindFirst(PanelClaimTypes.ApiKeyId)?.Value, out var keyId))
@@ -149,7 +149,20 @@ public sealed class HttpContextCurrentUser : ICurrentUser
             .Distinct(StringComparer.Ordinal)
             .ToArray();
 
-        return new ApiKeyCaller(keyId, scopes);
+        // Absent is a key the administrator owns; present but not an id is a damaged principal, which
+        // is refused rather than read as "no owner" because that would change what the key may see.
+        Guid? resellerId = null;
+        if (principal.FindFirst(PanelClaimTypes.ApiKeyReseller) is { } resellerClaim)
+        {
+            if (!Guid.TryParse(resellerClaim.Value, out var ownerId))
+            {
+                throw new UnrecognisedPrincipalException("The API key principal carries an unreadable owner.");
+            }
+
+            resellerId = ownerId;
+        }
+
+        return new ApiKeyCaller(keyId, scopes, resellerId);
     }
 
     /// <summary>Reads a reseller's caller out of a token whose role is <c>Reseller</c>.</summary>

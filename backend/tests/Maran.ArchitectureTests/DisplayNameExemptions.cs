@@ -215,5 +215,187 @@ public static class DisplayNameExemptions
             + "sentence the backend resolves for the reader's culture (issue #272). The defect this "
             + "law is about is a code printed AS the name of the thing; a code labelled as a code "
             + "beside its own sentence is the cure for it, not an instance of it."),
+        new(
+            "Maran.Modules.Files.Common.FileBatchItemResultDto",
+            "Code",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/types/file.ts",
+            "Read only to branch on the outcome and never printed: the file manager's batch notice words each "
+            + "failed item with its sibling Message, the sentence the backend resolves for the reader's culture, "
+            + "so no screen draws the code as the name of anything."),
+        new(
+            "Maran.Modules.Mail.Common.MailServerStatusDto",
+            "ObservedEnabled",
+            DisplayNameExemptionKind.PendingFix,
+            "the administrator's mail server screen, which is not built yet",
+            "An observation of the host (yes, no, or not observed) that only the administrator's mail server screen reads; the screen and its wording arrive with it, in the same change as the SPA locale keys."),
+        new(
+            "Maran.Modules.Mail.Common.MailServerStatusDto",
+            "TlsInUse",
+            DisplayNameExemptionKind.PendingFix,
+            "the administrator's mail server screen, which is not built yet",
+            "An observation of the host (yes, no, or not observed) that only the administrator's mail server screen reads; the screen and its wording arrive with it, in the same change as the SPA locale keys."),
+        new(
+            "Maran.Modules.Mail.Common.MailServerStatusDto",
+            "SieveAvailable",
+            DisplayNameExemptionKind.PendingFix,
+            "the administrator's mail server screen, which is not built yet",
+            "An observation of the host (yes, no, or not observed) that only the administrator's mail server screen reads; the screen and its wording arrive with it, in the same change as the SPA locale keys."),
+        new(
+            "Maran.Modules.Mail.Common.MailServerStatusDto",
+            "PasswordScheme",
+            DisplayNameExemptionKind.PendingFix,
+            "the administrator's mail server screen, which is not built yet",
+            "A closed vocabulary of the mail stack that only the administrator's mail server screen reads; the screen and its wording arrive with it."),
+        new(
+            "Maran.Modules.Mail.Common.MailDaemonStatusDto",
+            "Kind",
+            DisplayNameExemptionKind.PendingFix,
+            "the administrator's mail server screen, which is not built yet",
+            "A closed vocabulary of the mail stack that only the administrator's mail server screen reads; the screen and its wording arrive with it."),
+        new(
+            "Maran.Modules.Mail.Common.MailDaemonStatusDto",
+            "Installed",
+            DisplayNameExemptionKind.PendingFix,
+            "the administrator's mail server screen, which is not built yet",
+            "An observation of the host (yes, no, or not observed) that only the administrator's mail server screen reads; the screen and its wording arrive with it, in the same change as the SPA locale keys."),
+        new(
+            "Maran.Modules.Mail.Common.MailDaemonStatusDto",
+            "Active",
+            DisplayNameExemptionKind.PendingFix,
+            "the administrator's mail server screen, which is not built yet",
+            "An observation of the host (yes, no, or not observed) that only the administrator's mail server screen reads; the screen and its wording arrive with it, in the same change as the SPA locale keys."),
+        new(
+            "Maran.Modules.Mail.Common.MailDaemonStatusDto",
+            "ListenersObserved",
+            DisplayNameExemptionKind.PendingFix,
+            "the administrator's mail server screen, which is not built yet",
+            "An observation of the host (yes, no, or not observed) that only the administrator's mail server screen reads; the screen and its wording arrive with it, in the same change as the SPA locale keys."),
+        new(
+            "Maran.Modules.Mail.Common.MailQueueEntryDto",
+            "Queue",
+            DisplayNameExemptionKind.PendingFix,
+            "the administrator's mail server screen, which is not built yet",
+            "A closed vocabulary of the mail stack that only the administrator's mail server screen reads; the screen and its wording arrive with it."),
+        new(
+            "Maran.Modules.Mail.Common.MailQueueEntryDto",
+            "DeferralClass",
+            DisplayNameExemptionKind.PendingFix,
+            "the administrator's mail server screen, which is not built yet",
+            "A closed vocabulary of the mail stack that only the administrator's mail server screen reads; the screen and its wording arrive with it."),
+        new(
+            "Maran.Modules.Mail.Common.MailDnsRecordDto",
+            "Type",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/types/mailDomain.ts",
+            "The DNS record type as DNS itself spells it (MX, TXT): a protocol token the customer copies into their zone, framed as one, with the record's purpose named beside it in their language."),
+        new(
+            "Maran.Host.Dashboard.FirstRunStepDto",
+            "Key",
+            DisplayNameExemptionKind.SpaOwnedVocabulary,
+            "firstRun.steps.{member}.title",
+            "The five steps of the first-run checklist are a closed set the card words itself, a title, a description and an action each, in the bundle beside the card; a step this bundle has no wording for is left out rather than drawn as a token."),
+        new(
+            "Maran.Host.Dashboard.FirstRunStepDto",
+            "RouteName",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/components/dashboard/DashboardFirstRunChecklist.vue",
+            "A closed route name the card maps to a page it has and never prints; the words an operator reads are the step's own title and action, drawn from the step key."),
+        new(
+            "Maran.Host.Search.SearchGroupDto",
+            "Kind",
+            DisplayNameExemptionKind.SpaOwnedVocabulary,
+            "search.groups.{member}",
+            "Accounts and sites are the two things the jump-to palette searches, and it heads each group with the same word the shell already uses for them."),
+        new(
+            "Maran.Host.Search.SearchGroupDto",
+            "State",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/components/shell/ShellCommandPalette.vue",
+            "Read only to decide whether a group lists hits or a muted note; the note is the shell's own sentence about the group, so the state is never printed as the name of anything."),
+        new(
+            "Maran.Modules.Databases.Common.DatabasePrivilegeDto",
+            "Key",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/components/databases/DatabaseUserPrivilegesDialog.vue",
+            "The key is the privilege's identity, which the dialog ticks and sends back; the words an operator reads are the sibling Name, resolved by the panel for the request's culture. No screen prints the key."),
+        new(
+            "Maran.Modules.Databases.Common.DatabasePrivilegePresetDto",
+            "Key",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/components/databases/DatabaseUserPrivilegesDialog.vue",
+            "The key is the preset's identity, which the dialog uses to tell one preset from another and to apply it; the words an operator reads are the sibling Name, resolved by the panel for the request's culture. No screen prints the key."),
+        new(
+            "Maran.Modules.Dns.Common.DnsStatusDto",
+            "RecursionRefused",
+            DisplayNameExemptionKind.SpaOwnedVocabulary,
+            "dns.server.policy.{member}",
+            "Not observed, in force and not in force are the three answers of the server panel's policy rows, worded as an admission when the agent did not look rather than as off; the set is closed by the agent's own three-valued answer."),
+        new(
+            "Maran.Modules.Dns.Common.DnsStatusDto",
+            "ResponseRateLimiting",
+            DisplayNameExemptionKind.SpaOwnedVocabulary,
+            "dns.server.policy.{member}",
+            "The same three-valued answer as RecursionRefused, drawn by the same row component through the same keys."),
+        new(
+            "Maran.Modules.Dns.Common.RecordTypeDto",
+            "Type",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/components/dns/DnsRecordDialog.vue",
+            "The record type as DNS itself spells it (A, MX), the value the picker sends back; the words an operator reads are the sibling Label and Description of the same catalogue row, resolved by the panel for the request's culture."),
+        new(
+            "Maran.Modules.Dns.Common.ZoneRecordDto",
+            "Type",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/components/dns/DnsRecordsTable.vue",
+            "The record type as DNS itself spells it, the key the table looks up in the panel's own type catalogue, whose Label is the backend's word for it; the raw token is only the fallback while the catalogue has not arrived."),
+        new(
+            "Maran.Modules.Notifications.Common.AlertChannelStatusDto",
+            "State",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/components/dashboard/DashboardAttentionList.vue",
+            "Read only to decide whether a channel needs attention; the sentence an operator reads is the sibling FailureMessage, resolved by the panel for the reader's culture, and the state itself is never printed."),
+        new(
+            "Maran.Modules.Notifications.Common.NotificationDto",
+            "Source",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/types/notification.ts",
+            "Which part of the panel raised the entry, carried for scripts and support; no screen draws it, the headline and detail beside it are the panel's sentences in the reader's language."),
+        new(
+            "Maran.Modules.Notifications.Common.NotificationDto",
+            "Severity",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/components/shell/ShellNotificationRow.vue",
+            "Chooses the glyph and colour of the entry's mark and is never printed as a word; the headline sentence beside it, worded by the panel, carries the meaning, so the colour is never the only signal."),
+        new(
+            "Maran.Modules.Sites.Common.PhpSettingItemDto",
+            "Kind",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/components/sites/PhpSettingsForm.vue",
+            "Chooses which control edits the setting (a size, a number, a switch, a choice, a time zone) and is never printed; the words an operator reads are the sibling Label and the unit, worded by the panel."),
+        new(
+            "Maran.Modules.Sites.Common.SiteOptionsDto",
+            "CanonicalHost",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/components/sites/SiteCanonicalHostCard.vue",
+            "The current value echoed into the card's picker, whose choices and their names are the panel's own (SiteOptionsChoicesDto.CanonicalHosts); the card never prints this field as a name."),
+        new(
+            "Maran.Modules.Sites.Common.SiteOptionsDto",
+            "IpAccessMode",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/composables/useSiteOptionsForm.ts",
+            "The current value echoed into the access-rules picker, whose choices and their names are the panel's own (SiteOptionsChoicesDto.IpAccessModes); no screen prints this field as a name."),
+        new(
+            "Maran.Modules.Sites.Common.SiteRedirectDto",
+            "Match",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/components/sites/SiteRedirectsEditor.vue",
+            "The current value echoed into the rule's picker, whose choices and their names are the panel's own (SiteOptionsChoicesDto.RedirectMatches); the editor never prints this field as a name."),
+        new(
+            "Maran.Modules.Sites.Common.SiteRedirectDto",
+            "Status",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/components/sites/SiteRedirectsEditor.vue",
+            "The current value echoed into the rule's picker, whose choices and their names are the panel's own (SiteOptionsChoicesDto.RedirectStatuses); the editor never prints this field as a name."),
     ];
 }

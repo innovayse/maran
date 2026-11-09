@@ -58,7 +58,7 @@ public sealed class RefreshSessionCommandHandlerTests
         {
             Issued++;
             LastAccountId = accountId;
-            return Task.FromResult(new AccessToken("signed", Now.AddMinutes(15), false));
+            return Task.FromResult(new AccessToken("signed", Now.AddMinutes(15), false, false));
         }
 
         /// <summary>Counts the call; a refresh must never reach it.</summary>
@@ -69,7 +69,7 @@ public sealed class RefreshSessionCommandHandlerTests
         public AccessToken IssueViewAs(User viewedUser, Session session, User actor)
         {
             Issued++;
-            return new AccessToken("signed", Now.AddMinutes(15), false);
+            return new AccessToken("signed", Now.AddMinutes(15), false, false);
         }
     }
 

@@ -39,6 +39,13 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Maran.Agent.Client.Tests" />
+    <!-- The simulated agent answers with the real client's error codes, spelled as nameof of its resource
+         table so that a renamed or removed code stops that project compiling. -->
+    <InternalsVisibleTo Include="Maran.Agent.Simulated" />
+    <!-- The Files module's tests build the stream the agent hands back for a read, which has no public
+         constructor: a handler's behaviour on a stream that ends short or fails is only observable by
+         giving it one that does. -->
+    <InternalsVisibleTo Include="Maran.Modules.Files.Tests" />
   </ItemGroup>
 
 </Project>

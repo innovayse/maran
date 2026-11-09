@@ -54,10 +54,42 @@ namespace Maran.Host.Modules;
 /// <c>AgentCapabilityGuard</c> refuses the module at composition, before any request exists to
 /// check (rules/security.md item 13).
 /// </param>
+/// <param name="MinPanelVersion">
+/// The oldest panel version the module runs on, from its <see cref="Manifest"/>. It is a disclosure
+/// for the administrator reading the catalogue; the refusal to compose a module that needs a newer
+/// panel is made at composition, not here.
+/// </param>
+/// <param name="Kind">
+/// Whether the module is part of the core every panel needs or one that can be installed separately
+/// (<see cref="ModuleKind"/>). Serialized as its member name by the panel-wide
+/// <see cref="System.Text.Json.Serialization.JsonStringEnumConverter"/>.
+/// </param>
+/// <param name="KindDisplayName">
+/// The same kind as an operator reads it, resolved server-side in the request's culture by
+/// <see cref="ModuleKindDisplayNames"/>, for the reason <paramref name="TierDisplayName"/> travels
+/// beside <paramref name="Tier"/>: the SPA owns no words for a server-side concept.
+/// </param>
+/// <param name="Permissions">
+/// The authorization policy names the module's endpoints use, from its <see cref="Manifest"/>, so an
+/// administrator sees what the module asks for beside the agent capabilities. A disclosure, never the
+/// enforcement: each endpoint carries its own policy.
+/// </param>
+/// <param name="Menu">
+/// The navigation entries the module contributes that the caller is offered, localized in the
+/// request's culture by <see cref="ModuleMenuLocalizer"/> and ordered by their declared order. Empty
+/// for a module whose screens live inside another module's.
+/// </param>
+/// <param name="Routes">The screen routes the module contributes, with titles localized in the request's culture.</param>
 public sealed record ModuleDto(
     string Name,
     LicenceTier Tier,
     string TierDisplayName,
     string DisplayName,
     ModuleState State,
-    IReadOnlyList<AgentCapability> AgentCapabilities);
+    IReadOnlyList<AgentCapability> AgentCapabilities,
+    string MinPanelVersion,
+    ModuleKind Kind,
+    string KindDisplayName,
+    IReadOnlyList<string> Permissions,
+    IReadOnlyList<ModuleMenuItemDto> Menu,
+    IReadOnlyList<ModuleRouteDto> Routes);

@@ -1,9 +1,11 @@
 using Maran.Host.BackgroundServices;
 using Maran.Modules.Backups.Services;
+using Maran.Modules.Dns.Services;
 using Maran.Modules.Firewall.Services;
 using Maran.Modules.Monitoring.Services;
 using Maran.Modules.Sites.Services;
 using Maran.Modules.Tasks.Services;
+using Maran.Modules.Updates.Services;
 
 namespace Maran.Host.Extensions;
 
@@ -45,6 +47,11 @@ public static class BackgroundWorkExtensions
         // the window and does the deleting — and this owns the CADENCE it runs on.
         services.AddHostedService<TaskRetentionScheduler>();
 
+        // The same split for the administrators' notification feed: the Notifications module owns the
+        // JOB (ninety days, five hundred entries) and this the CADENCE. Without it the feed's table
+        // grows for as long as the panel runs.
+        services.AddHostedService<NotificationRetentionScheduler>();
+
         // The audit journal's upkeep, hourly because the part that matters most is sealing: a row is
         // outside the hash chain's protection until the tick seals it, so the interval is the length
         // of that window. The once-a-day work (retention, the orphan-actor sweep, chain verification)
@@ -65,10 +72,21 @@ public static class BackgroundWorkExtensions
         // the alerts — and this owns how often it runs.
         services.AddHostedService<MetricsSampler>();
 
+        // The dashboard stream's source of readings (issue #199). Unlike the sampler above it polls the agent
+        // only while a dashboard is open, and sleeps otherwise, so a panel nobody is watching costs the
+        // agent nothing. The Monitoring module owns the ROUND and the ring; this owns that it runs.
+        services.AddHostedService<LiveMetricsPoller>();
+
         // And its counterweight, the same shape as the two above: monitoring.Samples gains a row a
         // minute and nothing else ever removes one, so without this the table grows for as long as
         // the panel runs. The module owns the JOB (the seven-day window of R10) and this the CADENCE.
         services.AddHostedService<MetricsRetentionScheduler>();
+
+        // The hourly pass over every site's logs: the cursor read of each access log into the Traffic
+        // tab's daily figures, then the removal of rotated archives beyond each site's own retention
+        // (issue #152). The Sites module owns the JOB and this owns the CADENCE; without this line the
+        // tab stays empty and a retention a customer chose is never applied after the moment it is saved.
+        services.AddHostedService<SiteLogMaintenanceScheduler>();
 
         // The one cadence that is not daily, because a backup schedule names an hour of the day and
         // a daily tick could not see it. Without this line the Backups module's schedules never fire
@@ -90,6 +108,11 @@ public static class BackgroundWorkExtensions
         // ever be reclaimed.
         services.AddHostedService<StartupBackupReconciler>();
 
+        // The daily purge of every account's file-manager trash beyond its retention. The Files module owns
+        // the JOB (which accounts, what a failing account does to the rest) and this owns the CADENCE;
+        // without this line a trashed entry stays for ever and keeps counting toward its account's quota.
+        services.AddHostedService<TrashRetentionScheduler>();
+
         // A one-off for the layout a site was written in: the agent moved the PHP-FPM sockets to a
         // new directory, and a pool and vhost rendered by an older agent still name the old one, so
         // the site answers 502 until something re-renders it. The Sites module owns the PASS — it
@@ -97,11 +120,25 @@ public static class BackgroundWorkExtensions
         // every start, because the panel records nothing about which site was converged.
         services.AddHostedService<StartupPhpSiteReconciler>();
 
+        // A one-off for the name server: the database is the truth for every zone and the daemon serves files
+        // derived from it, so a zone served at a serial that differs from its row is published again and a
+        // served zone with no row is removed. The Dns module owns the PASS (what differs, which side wins,
+        // the lock an edit takes) and this owns the fact that it runs at every start, because the panel
+        // records nothing about which zone was reconciled. Without this line a save that failed after the
+        // agent applied an edit would leave the daemon serving data the database does not have, for ever.
+        services.AddHostedService<DnsZoneReconciler>();
+
         // A one-off that reads a CHOICE rather than repairing state: an administrator's runtime log
         // level lives in the logger's switch, which a restart resets to the configured level. The
         // Monitoring module owns the stored choice and this owns the fact that it is applied at
         // every start (issue #131).
         services.AddHostedService<StartupLogLevelRestorer>();
+
+        // The pass that closes a panel-update task whose report never arrived (issue #382): the root
+        // unit never started, or its report command failed. The task is kept across the restart the
+        // update itself causes, so nothing else would ever close it. The Updates module owns the PASS
+        // and its thresholds; this owns the fact that it runs.
+        services.AddHostedService<PanelUpdateTaskReaper>();
 
         return services;
     }

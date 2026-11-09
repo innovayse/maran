@@ -13,7 +13,7 @@ import type { Site } from '../../src/types/site'
 // nothing.
 
 const LICENSED_SITES: PanelModule[] = [
-  { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
+  { name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 const PHONE = { width: 390, height: 844 }
@@ -44,6 +44,7 @@ const ALPHA: Site = {
   status: 'enabled',
   statusName: 'Enabled',
   createdAt: '2026-08-01T10:00:00Z',
+  logRetentionDays: 14,
 }
 
 const BETA: Site = {
@@ -57,6 +58,7 @@ const BETA: Site = {
   status: 'disabled',
   statusName: 'Disabled',
   createdAt: '2026-08-02T10:00:00Z',
+  logRetentionDays: 14,
 }
 
 /**
@@ -81,6 +83,7 @@ const catalogue = (count: number): Site[] => {
       status: index % 5 === 4 ? 'disabled' : 'enabled',
       statusName: index % 5 === 4 ? 'Disabled' : 'Enabled',
       createdAt: `2026-08-${number}T10:00:00Z`,
+      logRetentionDays: 14,
     }
   })
 }

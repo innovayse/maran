@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useResellersApi } from '../composables/apis/useResellersApi'
+import { useLatestRead } from '../composables/useLatestRead'
 import { ApiError } from '../composables/useApi'
 import type { ListLoad, ListRequest } from '../types/list'
 import type { LoadingState } from '../types/loading'
@@ -10,6 +11,7 @@ import type {
   Reseller,
   ResellerChoicesLoad,
   ResellerDetail,
+  UpdateResellerRequest,
 } from '../types/reseller'
 
 /**
@@ -31,6 +33,7 @@ const CHOICES_PAGE_SIZE = 25
  */
 export const useResellersStore = defineStore('resellers', () => {
   const api = useResellersApi()
+  const latestRead = useLatestRead()
 
   /** The rows of the list page last answered by the panel; empty before the first answer. */
   const resellers: Ref<Reseller[]> = ref([])
@@ -59,10 +62,10 @@ export const useResellersStore = defineStore('resellers', () => {
   /** The panel's message for the last failed read of {@link mine}, or `null`. */
   const mineErrorMessage: Ref<string | null> = ref(null)
 
-  /** True while a create or an envelope change is in flight. */
+  /** True while a create, an update or an envelope change is in flight. */
   const saving: Ref<boolean> = ref(false)
 
-  /** The panel's message for the last refused create or envelope change, or `null`. */
+  /** The panel's message for the last refused create, update or envelope change, or `null`. */
   const saveErrorMessage: Ref<string | null> = ref(null)
 
   /** True while a suspend, reactivate or delete is in flight. */
@@ -91,9 +94,13 @@ export const useResellersStore = defineStore('resellers', () => {
    * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
   const list = async (request: ListRequest): Promise<ListLoad<Reseller>> => {
+    const isLatest = latestRead.begin()
     try {
       const page = await api.list(request)
-      resellers.value = page.items
+      // A slower, older read must not replace the rows of a newer one.
+      if (isLatest()) {
+        resellers.value = page.items
+      }
       return { kind: 'loaded', page }
     } catch (error) {
       return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }
@@ -202,6 +209,34 @@ export const useResellersStore = defineStore('resellers', () => {
       const created = await api.create(request)
       saveErrorMessage.value = null
       return created
+    } catch (error) {
+      saveErrorMessage.value = error instanceof ApiError ? error.message : null
+      return null
+    } finally {
+      saving.value = false
+    }
+  }
+
+  /**
+   * Renames a reseller and replaces its contact address and language, and swaps the opened reseller
+   * for the server's answer. The cached name of the reseller is dropped so a chip naming it reads the
+   * new one.
+   * @param id The reseller's identity.
+   * @param request The reseller's new name, contact address and language.
+   * @returns The reseller as it now stands, or `null` when the panel refused; the reason is in {@link saveErrorMessage}.
+   */
+  const update = async (id: string, request: UpdateResellerRequest): Promise<ResellerDetail | null> => {
+    saving.value = true
+    try {
+      const updated = await api.update(id, request)
+      if (selected.value?.id === id) {
+        selected.value = updated
+      }
+      if (id in resellerNames.value) {
+        resellerNames.value = { ...resellerNames.value, [id]: updated.name }
+      }
+      saveErrorMessage.value = null
+      return updated
     } catch (error) {
       saveErrorMessage.value = error instanceof ApiError ? error.message : null
       return null
@@ -322,6 +357,7 @@ export const useResellersStore = defineStore('resellers', () => {
     loadMine,
     clearErrors,
     create,
+    update,
     changeEnvelope,
     suspend,
     reactivate,

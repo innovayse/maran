@@ -23,7 +23,7 @@ const alerts = (page: Page): Locator => {
 }
 
 const LICENSED: PanelModule[] = [
-  { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
+  { name: 'databases', displayName: 'Databases', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 /**

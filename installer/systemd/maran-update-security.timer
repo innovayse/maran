@@ -1,0 +1,31 @@
+# Starts maran-update-security.service once a day: the unattended security-patch update (issue #383).
+#
+# The interval is the documented default and is fixed here on purpose. Nothing an operator or the
+# panel supplies is written into this unit, so there is no drop-in, no value to validate and no way to
+# turn the schedule into a different command. `maran update-schedule enable|disable|status` switches
+# the whole timer; it does not edit it.
+#
+# The installer enables this timer on a first install of the unit and never again afterwards, so a
+# `maran update-schedule disable` survives a reboot, an installer re-run and `maran update`
+# (installer/lib/69-update-schedule.sh).
+[Unit]
+Description=Maran automatic security-patch update schedule
+
+[Timer]
+# Midnight, server local time, plus the random delay below: the check lands somewhere between 00:00 and
+# 04:00. A feature release is never applied by this timer; only a release the signed manifest marks as a
+# security release, and only within the installed major version (maran update --security-only).
+OnCalendar=daily
+# Up to four hours of random delay, so a fleet of servers does not ask the release host in the same
+# minute. Applied on top of the calendar time. This spreads load and exposure over a window; it is not a
+# safety control.
+RandomizedDelaySec=4h
+# Catches up a run the machine slept through: a server that was off at the scheduled time checks when it
+# next boots. The state is kept by systemd under /var/lib/systemd/timers. UNOBSERVED HERE: the catch-up
+# itself.
+Persistent=true
+# The service this timer starts, stated so the pairing does not rest on the shared file name alone.
+Unit=maran-update-security.service
+
+[Install]
+WantedBy=timers.target

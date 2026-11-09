@@ -23,6 +23,118 @@ namespace Maran.Modules.Notifications.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Maran.Modules.Notifications.Domain.Entities.AlertChannelState", b =>
+                {
+                    b.Property<int>("Channel")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("LastAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("LastFailedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastFailureCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset?>("LastSucceededAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Channel");
+
+                    b.ToTable("AlertChannelStates", "notifications");
+                });
+
+            modelBuilder.Entity("Maran.Modules.Notifications.Domain.Entities.AlertRecipient", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("AddedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Address")
+                        .IsUnique()
+                        .HasDatabaseName("IX_AlertRecipients_Address");
+
+                    b.ToTable("AlertRecipients", "notifications");
+                });
+
+            modelBuilder.Entity("Maran.Modules.Notifications.Domain.Entities.NotificationDismissal", b =>
+                {
+                    b.Property<Guid>("NotificationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("DismissedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("NotificationId", "UserId");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("IX_NotificationDismissals_UserId");
+
+                    b.ToTable("NotificationDismissals", "notifications");
+                });
+
+            modelBuilder.Entity("Maran.Modules.Notifications.Domain.Entities.PanelNotification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Arguments")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("DeepLink")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OccurredAt")
+                        .HasDatabaseName("IX_PanelNotifications_OccurredAt");
+
+                    b.ToTable("PanelNotifications", "notifications");
+                });
+
             modelBuilder.Entity("Maran.Modules.Notifications.Domain.Entities.SmtpSettings", b =>
                 {
                     b.Property<Guid>("Id")
@@ -91,6 +203,15 @@ namespace Maran.Modules.Notifications.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_SmtpSettings_BasicCredentialsOnlyInBasicMode", "(\"AuthenticationMode\" = 0 AND \"BasicUsername\" IS NULL AND \"BasicPassword\" IS NULL) OR (\"AuthenticationMode\" = 1 AND \"BasicUsername\" IS NOT NULL AND \"BasicPassword\" IS NOT NULL)");
                         });
+                });
+
+            modelBuilder.Entity("Maran.Modules.Notifications.Domain.Entities.NotificationDismissal", b =>
+                {
+                    b.HasOne("Maran.Modules.Notifications.Domain.Entities.PanelNotification", null)
+                        .WithMany()
+                        .HasForeignKey("NotificationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 #pragma warning restore 612, 618
         }

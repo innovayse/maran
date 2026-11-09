@@ -1,12 +1,17 @@
 //! What the command line asked this process to do.
 
 use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
+use maran_agent_core::validation::fleet::listen_address::ListenAddress;
 use maran_agent_core::validation::web::port::Port;
 use maran_ops::firewall::RulesetPorts;
 
+use super::absolute_directory::absolute_directory;
 use super::agent_options::{
-    ALLOW_UID_FLAG, AgentOptions, DEFAULT_SOCKET, FREE_SPACE_FLOOR_FLAG, SOCKET_FLAG,
+    ALLOW_UID_FLAG, AgentOptions, DEFAULT_SOCKET, FLEET_DIR_FLAG, FLEET_LISTEN_FLAG,
+    FREE_SPACE_FLOOR_FLAG, SOCKET_FLAG,
 };
+use super::fleet_options::FleetOptions;
+use super::node_identity_request::{GENERATE_NODE_IDENTITY_FLAG, NodeIdentityRequest};
 use super::options_error::OptionsError;
 
 /// Flags asking for the usage text instead of a running daemon.
@@ -34,6 +39,8 @@ pub const USAGE: &str = concat!(
     "maran-agent — the Maran root daemon\n",
     "\n",
     "Usage: maran-agent [--socket <path>] [--allow-uid <uid>] [--free-space-floor-mib <n>]\n",
+    "                   [--fleet-listen <ip:port> --fleet-dir <dir>]\n",
+    "       maran-agent --generate-node-identity <dir> --node-address <host-or-ip> [--replace]\n",
     "       maran-agent render-firewall-ruleset --ssh-port <port> [--ssh-port <port>]…\n",
     "                                          --panel-port <port>\n",
     "       maran-agent render-firewall-bans\n",
@@ -45,6 +52,12 @@ pub const USAGE: &str = concat!(
     "                      Refuse new accounts, backups, restores and uploads\n",
     "                      while less than <n> MiB is available on the\n",
     "                      filesystem they would write to (default: 1024)\n",
+    "  --fleet-listen <ip:port>\n",
+    "                      Also serve the contract on this TCP address, over mutual TLS,\n",
+    "                      to the one panel whose certificate is pinned in --fleet-dir.\n",
+    "                      Off unless BOTH fleet flags are given. The port is 1024 or above.\n",
+    "  --fleet-dir <dir>   Absolute path of the directory holding this node's key and\n",
+    "                      certificate and the pinned panel certificate\n",
     "  -h, --help          Print this text and exit\n",
     "\n",
     "Render subcommands print one file to standard output and exit. They start\n",
@@ -61,6 +74,16 @@ pub const USAGE: &str = concat!(
     "    --panel-port <port>     The public port the panel is reachable on.\n",
     "                            Required, for the same reason.\n",
     "  render-firewall-bans      The table runtime bans are added to.\n",
+    "\n",
+    "--generate-node-identity makes this host's fleet identity and exits. It must be\n",
+    "the first argument. It writes node.key and node.pem into <dir> (created 0700 when\n",
+    "absent, refused when looser), prints the certificate's SHA-256 fingerprint to\n",
+    "standard output, and refuses to touch an identity already there unless --replace.\n",
+    "\n",
+    "    --node-address <a>      The host name or IP the panel will dial this node on;\n",
+    "                            the certificate names it. Required, never defaulted.\n",
+    "    --replace               Replace an identity that already exists. Cuts the node\n",
+    "                            off from the panel approved against the old one.\n",
 );
 
 /// What the agent was asked to do.
@@ -86,6 +109,8 @@ pub enum Invocation {
     /// Print the nftables bans table, and exit. It takes no parameters — the
     /// table's text is constant, and every ban is an element added at runtime.
     RenderFirewallBans,
+    /// Generate this node's fleet identity, print its fingerprint, and exit (issue #180).
+    GenerateNodeIdentity(NodeIdentityRequest),
 }
 
 impl Invocation {
@@ -111,7 +136,7 @@ impl Invocation {
     /// back to a default because the value did not parse is how a typo in a unit
     /// file turns into an access rule nobody chose.
     ///
-    /// # The order of the three decisions, which is fixed on purpose
+    /// # The order of the four decisions, which is fixed on purpose
     ///
     /// 1. `--help` anywhere wins, swept across the WHOLE command line before
     ///    anything else, so it still answers when it stands beside the very flag
@@ -120,7 +145,8 @@ impl Invocation {
     ///    position only, so `--socket render-firewall-bans` binds a socket with
     ///    an odd name rather than printing a file, and so a subcommand's own
     ///    flags cannot leak into the daemon's parse.
-    /// 3. Everything else is the daemon's flag loop, unchanged. It has never
+    /// 3. `--generate-node-identity`, also matched at `arguments[0]` only, for the same reason.
+    /// 4. Everything else is the daemon's flag loop. It has never
     ///    heard of `--ssh-port` or `--panel-port` and refuses them as unknown,
     ///    which is what stops `maran-agent --ssh-port 22` from starting a root
     ///    daemon that ignored an argument its operator meant.
@@ -131,14 +157,19 @@ impl Invocation {
     /// # Errors
     ///
     /// Returns [`OptionsError::UnknownFlag`] for an argument this binary does
-    /// not define in the position it appeared, [`OptionsError::MissingValue`]
+    /// not define in the position it appeared (the daemon's own flags after
+    /// `--generate-node-identity` included), [`OptionsError::MissingValue`]
     /// for a flag left dangling or a required flag never given,
     /// [`OptionsError::InvalidUid`] when `--allow-uid` is not a number,
     /// [`OptionsError::InvalidPort`] when a render subcommand's port flag is
     /// not a number between 1 and 65535, [`OptionsError::InvalidFreeSpaceFloor`]
     /// when `--free-space-floor-mib` is not a whole number from 1 whose byte
-    /// count fits, and [`OptionsError::RepeatedFlag`] when `--panel-port` is
-    /// given twice.
+    /// count fits, [`OptionsError::RepeatedFlag`] when `--panel-port`,
+    /// `--fleet-listen` or `--fleet-dir` is given twice,
+    /// [`OptionsError::InvalidFleetListen`] and [`OptionsError::RelativePath`] for a fleet flag
+    /// with a value that is refused, [`OptionsError::FleetFlagMissing`] when only one of the
+    /// two fleet flags was given, and the errors of `--generate-node-identity` documented on
+    /// [`NodeIdentityRequest`]'s parser.
     pub fn parse(arguments: &[String], default_uid: u32) -> Result<Self, OptionsError> {
         // Swept across the WHOLE command line before anything is validated, so
         // `--help` still answers when it stands beside the very flag the person
@@ -162,6 +193,9 @@ impl Invocation {
             Some(RENDER_FIREWALL_BANS) => {
                 return Self::parse_render_bans(&arguments[1..]);
             }
+            Some(GENERATE_NODE_IDENTITY_FLAG) => {
+                return NodeIdentityRequest::parse(&arguments[1..]).map(Self::GenerateNodeIdentity);
+            }
             _ => {}
         }
 
@@ -169,7 +203,10 @@ impl Invocation {
             socket_path: std::path::PathBuf::from(DEFAULT_SOCKET),
             allow_uid: default_uid,
             free_space_floor: FreeSpaceFloor::default_floor(),
+            fleet: None,
         };
+        let mut fleet_listen = None;
+        let mut fleet_directory = None;
 
         let mut remaining = arguments.iter();
         while let Some(argument) = remaining.next() {
@@ -194,6 +231,29 @@ impl Invocation {
                     })?;
                     options.free_space_floor = parse_free_space_floor(value)?;
                 }
+                FLEET_LISTEN_FLAG => {
+                    let value = remaining.next().ok_or(OptionsError::MissingValue {
+                        flag: FLEET_LISTEN_FLAG,
+                    })?;
+                    let listen = ListenAddress::parse(value)
+                        .map_err(|reason| OptionsError::InvalidFleetListen { reason })?;
+                    if fleet_listen.replace(listen).is_some() {
+                        return Err(OptionsError::RepeatedFlag {
+                            flag: FLEET_LISTEN_FLAG,
+                        });
+                    }
+                }
+                FLEET_DIR_FLAG => {
+                    let value = remaining.next().ok_or(OptionsError::MissingValue {
+                        flag: FLEET_DIR_FLAG,
+                    })?;
+                    let directory = absolute_directory(FLEET_DIR_FLAG, value)?;
+                    if fleet_directory.replace(directory).is_some() {
+                        return Err(OptionsError::RepeatedFlag {
+                            flag: FLEET_DIR_FLAG,
+                        });
+                    }
+                }
                 unknown => {
                     return Err(OptionsError::UnknownFlag {
                         flag: unknown.to_owned(),
@@ -201,6 +261,23 @@ impl Invocation {
                 }
             }
         }
+
+        // Both or neither: the listener needs an address to bind AND an identity to
+        // authenticate with, and either alone is an operator who believes a listener is on.
+        options.fleet = match (fleet_listen, fleet_directory) {
+            (Some(listen), Some(directory)) => Some(FleetOptions { listen, directory }),
+            (None, None) => None,
+            (Some(_), None) => {
+                return Err(OptionsError::FleetFlagMissing {
+                    missing: FLEET_DIR_FLAG,
+                });
+            }
+            (None, Some(_)) => {
+                return Err(OptionsError::FleetFlagMissing {
+                    missing: FLEET_LISTEN_FLAG,
+                });
+            }
+        };
 
         Ok(Self::Run(options))
     }

@@ -5,6 +5,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Include="Baselines\sdk-surface.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Baselines\customer-operations.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 
@@ -20,6 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Maran.Host\Maran.Host.csproj" />
+    <ProjectReference Include="..\..\src\Maran.Host.Demo\Maran.Host.Demo.csproj" />
     <ProjectReference Include="..\..\src\Maran.Sdk\Maran.Sdk.csproj" />
     <ProjectReference Include="..\..\src\Maran.SharedKernel\Maran.SharedKernel.csproj" />
     <ProjectReference Include="..\..\src\Maran.Agent.Client\Maran.Agent.Client.csproj" />
@@ -33,9 +39,19 @@
     <ProjectReference Include="..\..\src\Maran.Modules\Sftp\Maran.Modules.Sftp.csproj" />
     <ProjectReference Include="..\..\src\Maran.Modules\Firewall\Maran.Modules.Firewall.csproj" />
     <ProjectReference Include="..\..\src\Maran.Modules\Cron\Maran.Modules.Cron.csproj" />
+    <ProjectReference Include="..\..\src\Maran.Modules\Files\Maran.Modules.Files.csproj" />
     <ProjectReference Include="..\..\src\Maran.Modules\Tasks\Maran.Modules.Tasks.csproj" />
+    <ProjectReference Include="..\..\src\Maran.Modules\Dns\Maran.Modules.Dns.csproj" />
     <ProjectReference Include="..\..\src\Maran.Modules\Ftp\Maran.Modules.Ftp.csproj" />
+    <ProjectReference Include="..\..\src\Maran.Modules\Mail\Maran.Modules.Mail.csproj" />
     <ProjectReference Include="..\..\src\Maran.Modules\Idempotency\Maran.Modules.Idempotency.csproj" />
+    <ProjectReference Include="..\..\src\Maran.Modules\Fleet\Maran.Modules.Fleet.csproj" />
+    <ProjectReference Include="..\..\src\Maran.Modules\Updates\Maran.Modules.Updates.csproj" />
+    <!-- The sample module (backend/samples) is packaged, not composed, so it is not in Maran.sln; this
+         reference is what builds it with the solution, and the architecture tests point the module contract
+         at it (SampleModuleContractTests). -->
+    <ProjectReference Include="..\..\samples\hello-module\Maran.Samples.Hello.csproj" />
+    <ProjectReference Include="..\..\src\Maran.Packaging\Maran.Packaging.csproj" />
   </ItemGroup>
 
 </Project>

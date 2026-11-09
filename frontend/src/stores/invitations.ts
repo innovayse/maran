@@ -2,10 +2,10 @@ import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useInvitationsApi } from '../composables/apis/useInvitationsApi'
 import { ApiError } from '../composables/useApi'
-import type { InvitationLink, InvitationStatus } from '../types/invitation'
+import type { InvitationLink, InvitationStatus, InvitationSubject } from '../types/invitation'
 
 /**
- * Owns what the account page knows about an account owner's invitation: where it stands, and the
+ * Owns what an account's or a reseller's page knows about its login's invitation: where it stands, and the
  * one-time link while the operator is looking at it. The card that renders it reads state from here
  * and calls its actions — it never touches the API composable (rules/vue.md: "API composables are
  * called from Pinia stores ONLY").
@@ -61,14 +61,14 @@ export const useInvitationsStore = defineStore('invitations', () => {
   /**
    * Loads where an account owner's invitation stands, first forgetting anything held — a link
    * shown for one account must never sit under another's heading, nor outlive a state change.
-   * @param accountId The hosting account being asked about.
+   * @param subject Whose invitation is asked about (an account's owner or a reseller).
    * @returns Resolves once the request has settled, successfully or not.
    */
-  const loadStatus = async (accountId: string): Promise<void> => {
+  const loadStatus = async (subject: InvitationSubject): Promise<void> => {
     forget()
     loading.value = true
     try {
-      status.value = await api.getStatus(accountId)
+      status.value = await api.getStatus(subject)
     } catch (error) {
       errorMessage.value = error instanceof ApiError ? error.message : null
     } finally {
@@ -79,15 +79,15 @@ export const useInvitationsStore = defineStore('invitations', () => {
   /**
    * Creates a one-time invitation link and holds it for the card to show. This retires every
    * invitation already sent, so the status becomes `pending` with the new expiry.
-   * @param accountId The hosting account whose owner is being invited.
+   * @param subject Whose login is being invited.
    * @returns True when the panel issued a link.
    */
-  const issueLink = async (accountId: string): Promise<boolean> => {
+  const issueLink = async (subject: InvitationSubject): Promise<boolean> => {
     acting.value = true
     errorMessage.value = null
     resent.value = false
     try {
-      const issued = await api.issueLink(accountId)
+      const issued = await api.issueLink(subject)
       link.value = issued
       status.value = { state: 'pending', expiresAt: issued.expiresAt }
       return true
@@ -105,18 +105,18 @@ export const useInvitationsStore = defineStore('invitations', () => {
    *
    * The panel's mail queue is deliberately non-durable, so a `true` here means the invitation was
    * SENT, never that it was delivered — the caller renders that distinction, not this action.
-   * @param accountId The hosting account whose owner is being (re)invited.
+   * @param subject Whose login is being (re)invited.
    * @returns True once a new invitation was sent.
    */
-  const resend = async (accountId: string): Promise<boolean> => {
+  const resend = async (subject: InvitationSubject): Promise<boolean> => {
     acting.value = true
     errorMessage.value = null
     resent.value = false
     try {
-      await api.resend(accountId)
+      await api.resend(subject)
       link.value = null
       resent.value = true
-      status.value = await api.getStatus(accountId)
+      status.value = await api.getStatus(subject)
       return true
     } catch (error) {
       errorMessage.value = error instanceof ApiError ? error.message : null

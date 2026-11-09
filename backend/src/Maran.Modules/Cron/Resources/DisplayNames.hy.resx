@@ -60,4 +60,13 @@
   <data name="CronRunOutcomeStopped">
     <value>Կանգնեցված</value>
   </data>
+  <data name="CronMenuList">
+    <value>Ժամանակացույց</value>
+  </data>
+  <data name="CronRouteList">
+    <value>Ժամանակացույց</value>
+  </data>
+  <data name="CronRouteRuns">
+    <value>Գործարկումների պատմություն</value>
+  </data>
 </root>

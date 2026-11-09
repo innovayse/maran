@@ -83,6 +83,7 @@ mod bound_or;
 // instead of after. `executable_lookup`/`real_executable_lookup` are the
 // injectable filesystem seam it is checked through.
 mod executable_lookup;
+mod export_backup;
 // Private: the inode check that stands between a validated configuration string
 // and a directory somebody chmodded since. Its only callers are this area's
 // operations, which is the point — it is not an inspection a caller may skip.
@@ -91,7 +92,12 @@ mod create_backup;
 mod create_partial;
 mod database_catalog;
 mod delete_backup;
+mod dump_lexer;
+mod dump_statement_checker;
 mod finalise_restore;
+mod import_backup;
+mod import_scratch;
+mod judge_staged_import;
 mod list_archive_members;
 mod list_backups;
 mod local_object_store_host;
@@ -99,15 +105,20 @@ pub mod model;
 mod object_key;
 mod object_store_host;
 mod open_backup_scratch;
+mod open_readable_artifact;
+mod open_restore_directory;
 mod open_restore_scratch;
+pub mod package;
 mod prepare_restore;
 mod process_backup_host;
+mod process_restricted_dump_host;
 mod publish_artifact;
 // Private: the one place a sidecar's bytes become a trusted `BackupSummary`.
 // `list_backups` and `restore_backup` both call it rather than each parsing
 // the file and checking its version on its own.
 mod read_sidecar;
 mod real_executable_lookup;
+mod reap_import_users;
 // Private: the selective startup cleanup of the bulk scratch. It exists because
 // the unit's `ExecStartPre=-/bin/rm -rf` used to delete the rollback dumps —
 // the only copy of a killed restore's pre-restore database state — on the very
@@ -122,23 +133,37 @@ mod replace_databases;
 #[path = "../tests/backup/recording_backup_host.rs"]
 pub(crate) mod recording_backup_host;
 mod recover_restores;
+#[cfg(test)]
+#[path = "../tests/backup/test_package.rs"]
+pub(crate) mod test_package;
 // Private: the pre-flight refusal. The scratch filesystem is asked whether it
 // can take what is about to be written, before it is written.
 mod require_scratch_room;
 mod require_sidecar_agrees;
 mod resolve_databases;
+mod resolve_one_database;
 mod restore_backup;
+mod restore_databases_only;
+mod restore_directory;
+mod restore_files_plan;
 // Private: the marker one restore writes before it moves a home, and the only
 // thing that lets a later process say WHOSE swap was interrupted as a fact
 // rather than by parsing a directory's name.
+mod load_dump_restricted;
 mod restore_marker_file;
 mod restore_placement;
 mod restore_plan;
+mod restricted_dump_host;
 mod root_only_chain;
 mod run_discarding;
 mod s3_object_store_host;
 // Private: the live per-dump ceiling, derived from the same measurement.
+mod scan_dump;
+mod scan_imported_dumps;
 mod scratch_dump_ceiling;
+mod seal_partial;
+mod stage_import;
+mod swap_directory_as_account;
 mod swap_home;
 // Private: where one verification stages its manifest and whose every file it
 // reads must be, filled from `AgentPaths` by the entry point and from a test's
@@ -154,7 +179,10 @@ pub use create_backup::create_backup;
 pub use database_catalog::DatabaseCatalog;
 pub use delete_backup::delete_backup;
 pub use executable_lookup::ExecutableLookup;
+pub use export_backup::export_backup;
+pub use import_backup::import_backup;
 pub use list_backups::list_backups;
+pub use load_dump_restricted::load_dump_restricted;
 pub use local_object_store_host::LocalObjectStoreHost;
 pub use model::archive_part::ArchivePart;
 pub use model::backup_manifest::{BackupManifest, MANIFEST_VERSION};
@@ -162,8 +190,18 @@ pub use model::backup_stage::BackupStage;
 pub use model::backup_state::BackupState;
 pub use model::backup_summary::BackupSummary;
 pub use model::backup_verification::BackupVerification;
+pub use model::creation_request::CreationRequest;
+pub use model::directory_swap::DirectorySwap;
+pub use model::dump_refusal::DumpRefusal;
+pub use model::export_sink::ExportSink;
+pub use model::export_stopped::ExportStopped;
 pub use model::extract_identity::ExtractIdentity;
 pub use model::extract_spec::ExtractSpec;
+pub use model::import_interrupted::ImportInterrupted;
+pub use model::import_request::ImportRequest;
+pub use model::import_source::ImportSource;
+pub use model::import_user::ImportUser;
+pub use model::imported_backup::ImportedBackup;
 pub use model::manifest_database::ManifestDatabase;
 pub use model::object_summary::ObjectSummary;
 pub use model::progress_sink::ProgressSink;
@@ -171,6 +209,7 @@ pub use model::public_read_verdict::PublicReadVerdict;
 pub use model::readable_backup::ReadableBackup;
 pub use model::restore_outcome::RestoreOutcome;
 pub use model::restore_recovery::RestoreRecovery;
+pub use model::restore_scope::RestoreScope;
 pub use model::restore_sink::RestoreSink;
 pub use model::restore_stage::RestoreStage;
 pub use model::swap_state::SwapState;
@@ -178,9 +217,12 @@ pub use model::unreadable_reason::UnreadableReason;
 pub use object_key::object_key;
 pub use object_store_host::ObjectStoreHost;
 pub use process_backup_host::ProcessBackupHost;
+pub use process_restricted_dump_host::ProcessRestrictedDumpHost;
 pub use real_executable_lookup::RealExecutableLookup;
+pub use reap_import_users::reap_import_users;
 pub use recover_restores::recover_restores;
 pub use restore_backup::restore_backup;
+pub use restricted_dump_host::RestrictedDumpHost;
 pub use s3_object_store_host::S3ObjectStoreHost;
 pub use verify_backup::verify_backup;
 pub use verify_backup_binaries::verify_backup_binaries;

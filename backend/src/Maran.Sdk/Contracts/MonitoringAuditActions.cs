@@ -1,7 +1,7 @@
 namespace Maran.Sdk.Contracts;
 
 /// <summary>
-/// The machine-stable audit action names for alert, runtime log level and code-integrity actions. Constants rather than an enum: a marketplace
+/// The machine-stable audit action names for alert, runtime log level, code-integrity and unattended panel update actions. Constants rather than an enum: a marketplace
 /// module records actions this assembly was never compiled knowing about, and an enum could not be
 /// extended from outside.
 /// </summary>
@@ -38,4 +38,36 @@ public static class MonitoringAuditActions
     /// closed side's own defect, not evidence the hash list could not be read.
     /// </summary>
     public const string CodeIntegrityReportRejected = "CodeIntegrityReportRejected";
+
+    /// <summary>
+    /// A scheduled, unattended security-patch update installed a release and the health check passed.
+    /// The subject names the release left and the release installed (issue #383).
+    /// </summary>
+    public const string PanelUpdateApplied = "PanelUpdateApplied";
+
+    /// <summary>
+    /// A scheduled update failed after the switch and the previous release is running again. The
+    /// database was not restored. Recorded as failed (issue #383).
+    /// </summary>
+    public const string PanelUpdateRolledBack = "PanelUpdateRolledBack";
+
+    /// <summary>
+    /// A scheduled update failed and the previous release did not become healthy either; an operator
+    /// has to act. Recorded as failed (issue #383).
+    /// </summary>
+    public const string PanelUpdateRollbackFailed = "PanelUpdateRollbackFailed";
+
+    /// <summary>
+    /// A scheduled update was interrupted after the release was switched; an operator has to finish it
+    /// or return to the previous release. Recorded as failed (issue #383).
+    /// </summary>
+    public const string PanelUpdateInterrupted = "PanelUpdateInterrupted";
+
+    /// <summary>
+    /// An administrator replaced the thresholds at which the disk, the processor and the memory
+    /// alarm. The subject carries all three figures before and after (<c>disk=90;cpu=off;memory=off
+    /// -> disk=85;cpu=80;memory=off</c>), because lowering a threshold is also how an alert is
+    /// silenced (issue #142).
+    /// </summary>
+    public const string AlertThresholdsSaved = "AlertThresholdsSaved";
 }

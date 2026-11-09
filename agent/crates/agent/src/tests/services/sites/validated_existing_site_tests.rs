@@ -15,6 +15,7 @@ fn a_static_spec(aliases: &[&str]) -> SiteSpec {
         php_version: String::new(),
         proxy_upstream: String::new(),
         has_certificate: false,
+        options: None,
     }
 }
 

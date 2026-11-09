@@ -5,7 +5,8 @@
  * nested under. State comes exclusively from the destinations store; the page never touches the API
  * layer (rules/vue.md: API composables are called from stores only).
  *
- * **The screen reads, and offers nothing to add or remove, because the panel can do neither.**
+ * **The screen offers nothing to add or remove, because the panel can do neither; the one setting
+ * it changes is whether new backups are encrypted (issue #160), behind a confirmation.**
  * `BackupDestinationsController` publishes no delete at all, and its `POST` has no success arm on
  * this build: every request it can be given is answered with a refusal, for a remote destination or
  * for a second local one. A control here would be a promise the product cannot keep — the same rule
@@ -23,8 +24,9 @@
  * and it is the default that every backup taken so far already went to. Its path is what the agent
  * said on this request and not an instruction — the agent refuses to be told a root and writes to
  * its own — so it is shown as machine text, is not editable anywhere in the panel, and is stated as
- * not established when the panel could not ask. The copies there are not encrypted at rest. All
- * three are said on the screen, because a page listing a storage location reads as a page where
+ * not established when the panel could not ask. Copies are encrypted at rest only when the
+ * administrator switches that on for the destination (issue #160), and the screen says the key stays
+ * in the panel. All three are said on the screen, because a page listing a storage location reads as a page where
  * storage is configured.
  *
  * **No credential is displayed, because none is received.** No destination on this build holds one;
@@ -61,7 +63,9 @@ import UiPagination from '../../components/ui/UiPagination.vue'
 import UiSearchInput from '../../components/ui/UiSearchInput.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
+import UiSwitch from '../../components/ui/UiSwitch.vue'
 import UiTable from '../../components/ui/UiTable.vue'
+import BackupDestinationEncryptionConfirm from '../../components/backups/BackupDestinationEncryptionConfirm.vue'
 import type { UiTableColumn } from '../../types/tableColumn'
 import { useBackupDestinationKindText } from '../../composables/useBackupDestinationKindText'
 import { useListLabels } from '../../composables/useListLabels'
@@ -73,6 +77,14 @@ import { useLocaleStore } from '../../stores/locale'
 import { formatIsoTimestamp } from '../../utils/formatIsoTimestamp'
 import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
 import type { BackupDestination, BackupDestinationKind } from '../../types/backupDestination'
+
+/** The change of encryption awaiting the administrator's answer: which destination, and to which setting. */
+interface PendingEncryption {
+  /** The destination the switch was flipped on. */
+  destination: BackupDestination
+  /** The setting asked for. */
+  enable: boolean
+}
 
 /**
  * The kinds of storage the panel knows, and whether this build writes to each. The second half is
@@ -121,6 +133,15 @@ const table = useServerTable<BackupDestination>({
   },
 })
 
+/** The encryption change awaiting confirmation, or `null` when no dialog is open. */
+const pending: Ref<PendingEncryption | null> = ref(null)
+
+/** Whether the confirmed change is with the panel. */
+const acting: Ref<boolean> = ref(false)
+
+/** Why the last change was not recorded: the panel's own sentence, or the SPA's "unreachable"; `null` when none failed. */
+const encryptionError: Ref<string | null> = ref(null)
+
 /** Whether the filter sheet is open. */
 const filtersOpen: Ref<boolean> = ref(false)
 
@@ -153,6 +174,7 @@ const columns: ComputedRef<UiTableColumn[]> = computed(() => {
     },
     { key: 'kind', label: t('backups.destinations.columns.kind'), kind: 'text' },
     { key: 'path', label: t('backups.destinations.columns.path'), kind: 'mono' },
+    { key: 'encryption', label: t('backups.destinations.columns.encryption'), kind: 'text', minWidth: '11rem' },
     {
       key: 'recordedAt',
       label: t('backups.destinations.columns.recordedAt'),
@@ -188,6 +210,46 @@ const chips: ComputedRef<ActiveFilterChip[]> = computed(() => {
  */
 const recordedAt = (at: string): string => {
   return formatIsoTimestamp(at, localeStore.current)
+}
+
+/**
+ * Opens the confirmation for flipping a destination's encryption switch. The switch itself keeps
+ * showing the recorded setting until the panel confirms the change, so a refusal leaves it truthful.
+ * @param destination The destination whose switch was flipped.
+ * @param enable The setting the switch was flipped to.
+ * @returns Nothing.
+ */
+const askEncryption = (destination: BackupDestination, enable: boolean): void => {
+  encryptionError.value = null
+  pending.value = { destination, enable }
+}
+
+/**
+ * Abandons the pending change.
+ * @returns Nothing.
+ */
+const cancelEncryption = (): void => {
+  pending.value = null
+}
+
+/**
+ * Sends the confirmed change through the store and closes the dialog once the panel has answered;
+ * a refusal is shown above the table in the panel's own words.
+ * @returns Resolves once the request settled.
+ */
+const confirmEncryption = async (): Promise<void> => {
+  if (pending.value === null) {
+    return
+  }
+  acting.value = true
+  const outcome = await store.setEncryption(pending.value.destination.id, pending.value.enable)
+  acting.value = false
+  pending.value = null
+  if (outcome.kind === 'saved') {
+    encryptionError.value = null
+  } else {
+    encryptionError.value = outcome.kind === 'refused' ? outcome.message : t('common.list.unreachable')
+  }
 }
 
 /**
@@ -255,6 +317,8 @@ useReloadOnLocale(optionsStore.load)
           @clear="table.clearFilters"
         />
 
+        <UiAlert v-if="encryptionError !== null" variant="error">{{ encryptionError }}</UiAlert>
+
         <UiLoadingRegion :state="table.loadingState.value">
           <!-- A refusal is the backend's own localized sentence, so the SPA holds no copy of it. -->
           <template #error>
@@ -320,6 +384,16 @@ useReloadOnLocale(optionsStore.load)
                 }}</span>
                 <span v-else>{{ t('common.emptyValue') }}</span>
               </template>
+              <template #cell-encryption="{ row }">
+                <!-- Enforcement is the backend's (administrator only); the screen is already behind the
+                     administrator-only route. The switch shows the recorded setting and flips only
+                     after the confirmation, which carries the key-custody warning. -->
+                <UiSwitch
+                  :model-value="row.encryptArchives"
+                  :label="t('backups.destinations.encryption.switchLabel')"
+                  @update:model-value="askEncryption(row, $event)"
+                />
+              </template>
               <template #cell-recordedAt="{ row }">{{ recordedAt(row.createdAt) }}</template>
             </UiTable>
 
@@ -371,10 +445,19 @@ useReloadOnLocale(optionsStore.load)
              does not. They are on the screen rather than in a doc comment because the operator
              reading a path is the person who would otherwise believe all three. -->
         <p class="text-sm text-text-secondary">{{ t('backups.destinations.about.notEditable') }}</p>
-        <p class="mt-2 text-sm text-text-secondary">{{ t('backups.destinations.about.notEncrypted') }}</p>
+        <p class="mt-2 text-sm text-text-secondary">{{ t('backups.destinations.about.encryption') }}</p>
         <p class="mt-2 text-sm text-text-secondary">{{ t('backups.destinations.about.adminOnly') }}</p>
       </UiCard>
     </div>
+
+    <BackupDestinationEncryptionConfirm
+      v-if="pending !== null"
+      :destination="pending.destination"
+      :enable="pending.enable"
+      :acting="acting"
+      @close="cancelEncryption"
+      @confirm="confirmEncryption"
+    />
 
     <UiFilterSheet
       :open="filtersOpen"

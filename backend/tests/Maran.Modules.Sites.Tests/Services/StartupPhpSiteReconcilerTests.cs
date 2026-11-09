@@ -68,6 +68,30 @@ public sealed class StartupPhpSiteReconcilerTests
         Assert.Equal(3u, Assert.Single(world.Agent.MaxChildren));
     }
 
+    /// <summary>Every call sends the account's stored settings, cut to its plan's bounds.</summary>
+    [Fact]
+    public async Task Every_call_sends_the_accounts_stored_settings()
+    {
+        // The agent's converge drops a setting that is on disk and absent from the call, so a pass
+        // that sent none would erase what every customer chose at each panel start.
+        using var world = World(
+            [Account(FirstAccount, "alpha"), Account(SecondAccount, "beta")],
+            Php(FirstAccount, "one.example"),
+            Php(SecondAccount, "two.example"));
+        world.Store(new PhpSetting(Guid.NewGuid(), FirstAccount, "memory_limit", "128M"));
+
+        Assert.True(await world.Reconciler.ReconcileAsync(CancellationToken.None));
+
+        // Calls and SettingOverrides are appended together, so index i of one describes index i of the other.
+        var alpha = world.Agent.Calls.IndexOf("change-php:alpha:one.example:8.3:False");
+        var beta = world.Agent.Calls.IndexOf("change-php:beta:two.example:8.3:False");
+        Assert.True(alpha >= 0 && beta >= 0);
+        var sent = Assert.Single(world.Agent.SettingOverrides[alpha]);
+        Assert.Equal("memory_limit", sent.Name);
+        Assert.Equal("128M", sent.Value);
+        Assert.Empty(world.Agent.SettingOverrides[beta]);
+    }
+
     /// <summary>Static and reverse-proxy sites are not touched.</summary>
     [Fact]
     public async Task Static_and_reverse_proxy_sites_are_not_touched()
@@ -248,6 +272,14 @@ public sealed class StartupPhpSiteReconcilerTests
 
             _scopes = new StartupPhpSiteScopeFactory(_dbContext, Agent, new StubAccountDirectory(accounts.ToArray()));
             Reconciler = new StartupPhpSiteReconciler(_scopes.Scopes, Log);
+        }
+
+        /// <summary>Stores a setting a customer chose, read back by the pass with no principal.</summary>
+        /// <param name="setting">The stored row.</param>
+        public void Store(PhpSetting setting)
+        {
+            _dbContext.PhpSettings.Add(setting);
+            _dbContext.SaveChanges();
         }
 
         /// <inheritdoc />

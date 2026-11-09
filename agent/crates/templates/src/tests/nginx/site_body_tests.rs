@@ -9,6 +9,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::SiteBody;
+use crate::nginx::site_options_block::SiteOptionsBlock;
 
 /// The one rule line a file-serving body must carry, trimmed.
 const RULE: &str = "disable_symlinks if_not_owner;";
@@ -21,6 +22,7 @@ fn php_body() -> String {
         document_root: "/home/acme/sites/example.com",
         fpm_socket: Some("/run/maran-php/acme-8.3.sock"),
         upstream: None,
+        options: &SiteOptionsBlock::NONE,
     }
     .render_config()
     .unwrap()
@@ -34,6 +36,7 @@ fn static_body() -> String {
         document_root: "/home/acme/sites/static.example",
         fpm_socket: None,
         upstream: None,
+        options: &SiteOptionsBlock::NONE,
     }
     .render_config()
     .unwrap()
@@ -47,6 +50,7 @@ fn proxy_body() -> String {
         document_root: "/home/acme/sites/app.example",
         fpm_socket: None,
         upstream: Some("127.0.0.1:3000"),
+        options: &SiteOptionsBlock::NONE,
     }
     .render_config()
     .unwrap()
@@ -126,4 +130,39 @@ fn a_body_does_not_start_with_the_comment_that_explains_it() {
     for render in [php_body(), static_body(), proxy_body()] {
         assert!(render.starts_with("    access_log "));
     }
+}
+
+/// Every `client_max_body_size` directive of a render, trimmed.
+fn body_limit_lines(render: &str) -> Vec<&str> {
+    render
+        .lines()
+        .map(str::trim)
+        .filter(|line| line.starts_with("client_max_body_size"))
+        .collect()
+}
+
+#[test]
+fn a_php_body_writes_the_body_limit_once_at_server_level() {
+    let render = php_body();
+
+    assert_eq!(
+        body_limit_lines(&render),
+        vec!["client_max_body_size 512m;"]
+    );
+    let limit = render.find("\n    client_max_body_size ").unwrap();
+    let location = render.find("\n    location ").unwrap();
+    assert!(limit < location, "the limit must precede every location");
+}
+
+#[test]
+fn a_proxied_body_writes_the_body_limit_once() {
+    assert_eq!(
+        body_limit_lines(&proxy_body()),
+        vec!["client_max_body_size 512m;"]
+    );
+}
+
+#[test]
+fn a_static_body_writes_no_body_limit() {
+    assert!(body_limit_lines(&static_body()).is_empty());
 }

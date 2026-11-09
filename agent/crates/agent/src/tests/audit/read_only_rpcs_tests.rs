@@ -56,3 +56,12 @@ fn the_handshake_and_every_monitor_rpc_are_read_only() {
         9
     );
 }
+
+#[test]
+fn listing_the_trash_is_read_only_and_not_mutating() {
+    assert!(READ_ONLY_RPCS.contains(&"/maran.agent.v1.FilesService/ListTrash"));
+    assert!(
+        !crate::audit::mutating_rpcs::MUTATING_RPCS
+            .contains(&"/maran.agent.v1.FilesService/ListTrash")
+    );
+}

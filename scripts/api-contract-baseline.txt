@@ -17,7 +17,7 @@
 #
 # Regenerate with `maran api --accept`, in its own reviewed commit.
 
-covered: 51 endpoints, 190 members
+covered: 88 endpoints, 347 members
 
 POST /api/v1/accounts  ->  CreateAccountCommand
   name: string
@@ -26,6 +26,16 @@ POST /api/v1/accounts  ->  CreateAccountCommand
   ownerEmail: string
   ownerLanguage: string
   resellerId: string?
+  loginMode: enum(initialPassword|invitation)
+  initialPassword: string?
+  inodeLimit: number?
+  processLimit: number?
+  openFilesLimit: number?
+  shellAccess: boolean [not sent]
+  backupEnabled: boolean [not sent]
+PUT /api/v1/accounts/{}/owner  ->  TransferAccountCommand
+  resellerId: string?
+  planId: string
 PUT /api/v1/accounts/{}/owner-email  ->  ChangeAccountOwnerEmailCommand
   ownerEmail: string
 PUT /api/v1/accounts/{}/plan  ->  ChangeAccountPlanCommand
@@ -60,6 +70,8 @@ POST /api/v1/auth/two-factor/confirm  ->  ConfirmTotpEnrolmentCommand
   code: string
 POST /api/v1/auth/two-factor/disable  ->  DisableTotpCommand
   code: string
+PUT /api/v1/backup-destinations/{}/encryption  ->  SetBackupDestinationEncryptionCommand
+  enabled: boolean
 PUT /api/v1/backup-schedules  ->  SaveBackupScheduleCommand
   accountId: string?
   destinationId: string?
@@ -72,6 +84,8 @@ POST /api/v1/backups  ->  CreateBackupCommand
   accountId: string
 POST /api/v1/backups/{}/restore  ->  RestoreBackupCommand
   confirmAccountUsername: string
+  databaseName: string?
+  siteDomain: string?
 POST /api/v1/certificates  ->  IssueCertificateCommand
   domain: string
 POST /api/v1/certificates/custom  ->  InstallCustomCertificateCommand
@@ -108,10 +122,93 @@ PUT /api/v1/cron-environment  ->  SetCronEnvironmentCommand
   variables[].value: string
 POST /api/v1/database-grants/repair  ->  RepairDatabaseGrantsCommand
   expectedRepairCount: number
+POST /api/v1/database-users  ->  CreateDatabaseUserCommand
+  accountId: string
+  nameSuffix: string
+PUT /api/v1/database-users/{}/grants/{}  ->  ChangeDatabaseUserPrivilegesCommand
+  privileges: enum(alter|alterRoutine|create|createRoutine|createTemporaryTables|createView|delete|drop|event|execute|index|insert|lockTables|references|select|showView|trigger|update)[]
 POST /api/v1/databases  ->  CreateDatabaseCommand
   accountId: string
   name: string
   dbUserName: string
+PUT /api/v1/dns-settings  ->  SaveDnsSettingsCommand
+  primaryNameserver: string
+  secondaryNameserver: string
+  hostmasterMailbox: string
+  publicIpv4: string
+  publicIpv6: string
+  defaultTtl: number
+POST /api/v1/dns-zones  ->  CreateZoneCommand
+  accountId: string
+  name: string
+POST /api/v1/dns-zones/{}/records  ->  AddRecordCommand
+  record: object
+  record.name: string
+  record.type: enum(a|aaaa|caa|cname|mx|ns|srv|txt)
+  record.ttl: number
+  record.value: string
+  record.priority: number
+  record.weight: number
+  record.port: number
+  record.flags: number
+  record.tag: string
+PUT /api/v1/dns-zones/{}/records/{}  ->  ChangeRecordCommand
+  record: object
+  record.name: string
+  record.type: enum(a|aaaa|caa|cname|mx|ns|srv|txt)
+  record.ttl: number
+  record.value: string
+  record.priority: number
+  record.weight: number
+  record.port: number
+  record.flags: number
+  record.tag: string
+POST /api/v1/files/archive  ->  CreateFileArchiveCommand
+  accountId: string
+  sourcePaths: string[]
+  destinationPath: string
+  format: enum(tar.gz|zip)
+PUT /api/v1/files/content  ->  SaveFileTextCommand
+  accountId: string
+  path: string
+  content: string
+  expectedModifiedAt: string?
+POST /api/v1/files/copy  ->  CopyFileEntriesCommand
+  accountId: string
+  sourcePaths: string[]
+  destinationDirectory: string
+POST /api/v1/files/delete  ->  DeleteFileEntriesCommand
+  accountId: string
+  paths: string[]
+  confirm: boolean
+POST /api/v1/files/entries  ->  CreateFileEntryCommand
+  accountId: string
+  path: string
+  kind: enum(directory|file)
+POST /api/v1/files/extract  ->  ExtractFileArchiveCommand
+  accountId: string
+  archivePath: string
+  destinationDirectory: string
+POST /api/v1/files/move  ->  MoveFileEntriesCommand
+  accountId: string
+  sourcePaths: string[]
+  destinationDirectory: string
+POST /api/v1/files/permissions  ->  ChangeFilePermissionsCommand
+  accountId: string
+  path: string
+  mode: string
+  recursive: boolean
+  directoryMode: string?
+POST /api/v1/files/rename  ->  RenameFileEntryCommand
+  accountId: string
+  path: string
+  newName: string
+POST /api/v1/files/trash  ->  TrashFileEntriesCommand
+  accountId: string
+  paths: string[]
+POST /api/v1/files/trash/restore  ->  RestoreTrashEntriesCommand
+  accountId: string
+  trashIds: string[]
 POST /api/v1/firewall/bans  ->  BanAddressCommand
   address: string
   durationMinutes: number?
@@ -131,19 +228,59 @@ POST /api/v1/ftps-server/enable  ->  EnableFtpsCommand
   passiveAddress: string
 PUT /api/v1/log-level  ->  ChangeLogLevelCommand
   level: enum(debug|error|fatal|information|verbose|warning)
+POST /api/v1/mail-aliases  ->  CreateMailAliasCommand
+  mailDomainId: string
+  kind: enum(alias|catchAll|forwarder)
+  localPart: string
+  targets: string[]
+PUT /api/v1/mail-aliases/{}  ->  UpdateMailAliasCommand
+  targets: string[]
+POST /api/v1/mail-domains  ->  CreateMailDomainCommand
+  accountId: string
+  name: string
+POST /api/v1/mailboxes  ->  CreateMailboxCommand
+  mailDomainId: string
+  localPart: string
+  password: string
+  quotaMib: number
+PUT /api/v1/mailboxes/{}  ->  UpdateMailboxCommand
+  quotaMib: number
+  sendLimitPerHour: number
+  enabled: boolean
+PUT /api/v1/mailboxes/{}/password  ->  ChangeMailboxPasswordCommand
+  password: string
 POST /api/v1/me/active-account  ->  SwitchActiveAccountCommand
   accountId: string
+PUT /api/v1/me/backup-schedule  ->  SaveMyBackupScheduleCommand
+  frequency: enum(daily|weekly)
+  hourUtc: number
+  dayOfWeekUtc: enum(friday|monday|saturday|sunday|thursday|tuesday|wednesday)?
+  retainCount: number
+  enabled: boolean
+PUT /api/v1/me/dashboard-layout  ->  SaveDashboardLayoutCommand
+  widgets: object[]
+  widgets[].key: string
+  widgets[].hidden: boolean
+  actions: object[]
+  actions[].key: string
+  actions[].hidden: boolean
 POST /api/v1/me/pinned-pages  ->  PinPageCommand
   itemKey: string
 POST /api/v1/me/sub-users  ->  InviteSubUserCommand
   username: string
   email: string
-  features: enum(backups|cron|databases|dns|fileTransfer|mail|php|sites|ssl|tasks)[]
+  features: enum(backups|cron|databases|dns|fileTransfer|files|mail|php|sites|ssl|tasks)[]
 PUT /api/v1/me/sub-users/{}/features  ->  ChangeSubUserGrantsCommand
-  features: enum(backups|cron|databases|dns|fileTransfer|mail|php|sites|ssl|tasks)[]
+  features: enum(backups|cron|databases|dns|fileTransfer|files|mail|php|sites|ssl|tasks)[]
 POST /api/v1/me/sub-users/existing  ->  OfferMembershipCommand
   identifier: string
-  features: enum(backups|cron|databases|dns|fileTransfer|mail|php|sites|ssl|tasks)[]
+  features: enum(backups|cron|databases|dns|fileTransfer|files|mail|php|sites|ssl|tasks)[]
+PUT /api/v1/monitoring/alert-thresholds  ->  SaveAlertThresholdsCommand
+  diskPercent: number
+  cpuPercent: number?
+  memoryPercent: number?
+PUT /api/v1/notifications/alert-recipients  ->  SaveAlertRecipientsCommand
+  addresses: string[]
 PUT /api/v1/notifications/smtp  ->  SaveSmtpSettingsCommand
   host: string
   port: number
@@ -152,9 +289,12 @@ PUT /api/v1/notifications/smtp  ->  SaveSmtpSettingsCommand
   password: string?
   fromAddress: string
   fromName: string
-  alertRecipient: string
 POST /api/v1/notifications/smtp/test  ->  SendTestMailCommand
   recipient: string
+PUT /api/v1/php-settings  ->  ReplacePhpSettingsCommand
+  settings: object[]
+  settings[].name: string
+  settings[].value: string
 POST /api/v1/plans  ->  CreatePlanCommand
   name: string
   diskQuotaMb: number
@@ -170,7 +310,14 @@ POST /api/v1/plans  ->  CreatePlanCommand
   memoryMaxMb<limited>.maximum: number
   maxProcesses: union(kind: limited|unlimited)
   maxProcesses<limited>.maximum: number
-  features: enum(backups|cron|databases|dns|fileTransfer|mail|php|sites|ssl|tasks)[]
+  features: enum(backups|cron|databases|dns|fileTransfer|files|mail|php|sites|ssl|tasks)[]
+  phpLimits: object?
+  phpLimits.memoryLimitMaxMb: number
+  phpLimits.uploadMaxMb: number
+  phpLimits.maxExecutionSeconds: number
+  phpLimits.maxInputVars: number
+  mailLimits: object? [not sent]
+  maxDnsZones: number? [not sent]
 PUT /api/v1/plans/{}  ->  UpdatePlanCommand
   name: string
   diskQuotaMb: number
@@ -186,7 +333,23 @@ PUT /api/v1/plans/{}  ->  UpdatePlanCommand
   memoryMaxMb<limited>.maximum: number
   maxProcesses: union(kind: limited|unlimited)
   maxProcesses<limited>.maximum: number
-  features: enum(backups|cron|databases|dns|fileTransfer|mail|php|sites|ssl|tasks)[]
+  features: enum(backups|cron|databases|dns|fileTransfer|files|mail|php|sites|ssl|tasks)[]
+  phpLimits: object?
+  phpLimits.memoryLimitMaxMb: number
+  phpLimits.uploadMaxMb: number
+  phpLimits.maxExecutionSeconds: number
+  phpLimits.maxInputVars: number
+  mailLimits: object? [not sent]
+  maxDnsZones: number? [not sent]
+POST /api/v1/reseller/api-keys  ->  CreateApiKeyCommand
+  name: string
+  scopes: string[]
+  allowedCidrs: string[]?
+  expiresAt: string?
+PUT /api/v1/reseller/branding  ->  SetResellerBrandingCommand
+  displayName: string?
+  accentColor: string?
+  logo: string?
 POST /api/v1/resellers  ->  CreateResellerCommand
   name: string
   contactEmail: string
@@ -201,13 +364,19 @@ POST /api/v1/resellers  ->  CreateResellerCommand
   envelope.maxFtpUsers: number
   envelope.maxCronEntries: number
   envelope.maxPhpWorkersPerPool: number
-  envelope.features: enum(backups|cron|databases|dns|fileTransfer|mail|php|sites|ssl|tasks)[]
+  envelope.maxMailboxes: number
+  envelope.mailboxQuotaPoolMib: number
+  envelope.features: enum(backups|cron|databases|dns|fileTransfer|files|mail|php|sites|ssl|tasks)[]
   envelope.cpuQuotaPercent: union(kind: limited|unlimited)
   envelope.cpuQuotaPercent<limited>.maximum: number
   envelope.memoryMaxMb: union(kind: limited|unlimited)
   envelope.memoryMaxMb<limited>.maximum: number
   envelope.maxProcesses: union(kind: limited|unlimited)
   envelope.maxProcesses<limited>.maximum: number
+  language: string
+PUT /api/v1/resellers/{}  ->  UpdateResellerCommand
+  name: string
+  contactEmail: string
   language: string
 PUT /api/v1/resellers/{}/envelope  ->  ChangeResellerEnvelopeCommand
   envelope: object
@@ -221,13 +390,17 @@ PUT /api/v1/resellers/{}/envelope  ->  ChangeResellerEnvelopeCommand
   envelope.maxFtpUsers: number
   envelope.maxCronEntries: number
   envelope.maxPhpWorkersPerPool: number
-  envelope.features: enum(backups|cron|databases|dns|fileTransfer|mail|php|sites|ssl|tasks)[]
+  envelope.maxMailboxes: number
+  envelope.mailboxQuotaPoolMib: number
+  envelope.features: enum(backups|cron|databases|dns|fileTransfer|files|mail|php|sites|ssl|tasks)[]
   envelope.cpuQuotaPercent: union(kind: limited|unlimited)
   envelope.cpuQuotaPercent<limited>.maximum: number
   envelope.memoryMaxMb: union(kind: limited|unlimited)
   envelope.memoryMaxMb<limited>.maximum: number
   envelope.maxProcesses: union(kind: limited|unlimited)
   envelope.maxProcesses<limited>.maximum: number
+POST /api/v1/search  ->  SearchRequest
+  term: string
 PUT /api/v1/security-policy  ->  SaveSecurityPolicyCommand
   minimumPasswordLength: number
   forceTwoFactorForAdmins: boolean
@@ -252,8 +425,29 @@ POST /api/v1/sites  ->  CreateSiteCommand
   aliases: string[]
   phpVersion: string
   proxyUpstream: string
+PUT /api/v1/sites/{}/log-retention  ->  ChangeSiteLogRetentionCommand
+  days: number
+PUT /api/v1/sites/{}/options  ->  ReplaceSiteOptionsCommand
+  canonicalHost: enum(apex|none|www)
+  clientMaxBodySizeMib: number?
+  staticCacheDays: number?
+  redirects: object[]
+  redirects[].path: string
+  redirects[].match: enum(exact|prefix)
+  redirects[].target: string
+  redirects[].status: enum(permanent|temporary)
+  basicAuthUsers: object[]
+  basicAuthUsers[].name: string
+  basicAuthUsers[].password: string?
+  ipAccessMode: enum(allowList|denyList)?
+  ipRules: string[]
+  requestRate: object?
+  requestRate.perSecond: number
+  requestRate.burst: number
 POST /api/v1/sites/{}/php-version  ->  ChangeSitePhpVersionCommand
   phpVersion: string
+PUT /api/v1/sites/php-versions/{}/extensions/{}  ->  SetPhpExtensionCommand
+  enabled: boolean
 POST /api/v1/sites/php-versions/install  ->  InstallPhpVersionCommand
   version: string
 POST /api/v1/view-as  ->  StartViewAsCommand
@@ -267,16 +461,25 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   DELETE /api/v1/backups/{} — route-only call, no JSON body
   DELETE /api/v1/certificates/{} — route-only call, no JSON body
   DELETE /api/v1/cron-entries/{} — query-string call, no JSON body
+  DELETE /api/v1/database-users/{} — route-only call, no JSON body
   DELETE /api/v1/databases/{} — route-only call, no JSON body
+  DELETE /api/v1/dns-zones/{} — route-only call, no JSON body
+  DELETE /api/v1/dns-zones/{}/records/{} — route-only call, no JSON body
+  DELETE /api/v1/files/trash — query-string call, no JSON body
   DELETE /api/v1/firewall/bans — query-string call, no JSON body
   DELETE /api/v1/firewall/rules — query-string call, no JSON body
   DELETE /api/v1/firewall/whitelist/{} — route-only call, no JSON body
   DELETE /api/v1/ftp-users/{} — route-only call, no JSON body
+  DELETE /api/v1/mail-aliases/{} — route-only call, no JSON body
+  DELETE /api/v1/mail-domains/{} — route-only call, no JSON body
+  DELETE /api/v1/mailboxes/{} — route-only call, no JSON body
   DELETE /api/v1/me/pinned-pages/{} — route-only call, no JSON body
   DELETE /api/v1/me/sub-users/{} — route-only call, no JSON body
   DELETE /api/v1/panel-certificate — route-only call, no JSON body
   DELETE /api/v1/plans/{} — route-only call, no JSON body
+  DELETE /api/v1/reseller/api-keys/{} — route-only call, no JSON body
   DELETE /api/v1/resellers/{} — route-only call, no JSON body
+  DELETE /api/v1/resellers/{}/api-keys/{} — route-only call, no JSON body
   DELETE /api/v1/sessions/{} — route-only call, no JSON body
   DELETE /api/v1/sftp-users/{} — route-only call, no JSON body
   DELETE /api/v1/sftp-users/{}/keys/{} — route-only call, no JSON body
@@ -290,24 +493,37 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   POST /api/v1/auth/refresh — route-only call, no JSON body
   POST /api/v1/auth/two-factor/enrol — route-only call, no JSON body
   POST /api/v1/backups/{}/verify — route-only call, no JSON body
+  POST /api/v1/database-users/{}/password — route-only call, no JSON body
   POST /api/v1/databases/{}/password — route-only call, no JSON body
+  POST /api/v1/dns-server/disable — route-only call, no JSON body
+  POST /api/v1/dns-server/enable — route-only call, no JSON body
   POST /api/v1/ftp-users/{}/password — route-only call, no JSON body
   POST /api/v1/ftps-server/disable — route-only call, no JSON body
+  POST /api/v1/invitations/resellers/{}/link — route-only call, no JSON body
+  POST /api/v1/invitations/resellers/{}/resend — route-only call, no JSON body
   POST /api/v1/invitations/{}/link — route-only call, no JSON body
   POST /api/v1/invitations/{}/resend — route-only call, no JSON body
+  POST /api/v1/mail-domains/{}/dkim-rotation — route-only call, no JSON body
   POST /api/v1/me/membership-offers/{}/accept — route-only call, no JSON body
   POST /api/v1/me/membership-offers/{}/decline — route-only call, no JSON body
   POST /api/v1/me/sub-users/{}/invitation — route-only call, no JSON body
+  POST /api/v1/notifications/feed/dismiss-all — route-only call, no JSON body
+  POST /api/v1/notifications/feed/{}/dismiss — route-only call, no JSON body
   POST /api/v1/panel-certificate — route-only call, no JSON body
+  POST /api/v1/panel-update — route-only call, no JSON body
   POST /api/v1/resellers/{}/reactivate — route-only call, no JSON body
   POST /api/v1/resellers/{}/suspend — route-only call, no JSON body
   POST /api/v1/sftp-users/{}/password — route-only call, no JSON body
   POST /api/v1/sites/{}/disable — route-only call, no JSON body
   POST /api/v1/sites/{}/enable — route-only call, no JSON body
+  DELETE /api/v1/mail-queue/{}
+  DELETE /api/v1/mailboxes/{}/autoresponder
+  DELETE /api/v1/reseller-api/accounts/{}
   GET /api/v1/account-home-groups
   GET /api/v1/accounts
   GET /api/v1/accounts/choices
   GET /api/v1/accounts/me
+  GET /api/v1/accounts/me/branding
   GET /api/v1/accounts/me/resource-summary
   GET /api/v1/accounts/owner-languages
   GET /api/v1/accounts/statuses
@@ -322,6 +538,9 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   GET /api/v1/audit/chain
   GET /api/v1/audit/export
   GET /api/v1/audit/outcomes
+  GET /api/v1/audit/reseller
+  GET /api/v1/audit/reseller/actions
+  GET /api/v1/audit/reseller/outcomes
   GET /api/v1/audit/retention
   GET /api/v1/backup-destinations
   GET /api/v1/backup-options
@@ -329,6 +548,7 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   GET /api/v1/backups
   GET /api/v1/backups/attention
   GET /api/v1/backups/{}
+  GET /api/v1/backups/{}/restore-choices
   GET /api/v1/certificates
   GET /api/v1/certificates/acme-directory
   GET /api/v1/cron-entries
@@ -338,8 +558,25 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   GET /api/v1/cron-environment
   GET /api/v1/cron-options
   GET /api/v1/database-grants
+  GET /api/v1/database-users
+  GET /api/v1/database-users/privilege-presets
+  GET /api/v1/database-users/{}
   GET /api/v1/databases
   GET /api/v1/databases/{}
+  GET /api/v1/demo/status
+  GET /api/v1/dns-server
+  GET /api/v1/dns-settings
+  GET /api/v1/dns-zones
+  GET /api/v1/dns-zones/record-types
+  GET /api/v1/dns-zones/{}
+  GET /api/v1/dns-zones/{}/records
+  GET /api/v1/files/content
+  GET /api/v1/files/download
+  GET /api/v1/files/entries
+  GET /api/v1/files/entries/info
+  GET /api/v1/files/options
+  GET /api/v1/files/search
+  GET /api/v1/files/trash
   GET /api/v1/firewall/bans
   GET /api/v1/firewall/rules
   GET /api/v1/firewall/rules/presets
@@ -348,15 +585,27 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   GET /api/v1/ftp-users
   GET /api/v1/ftp-users/{}
   GET /api/v1/ftps-server
+  GET /api/v1/invitations/resellers/{}
   GET /api/v1/invitations/{}
   GET /api/v1/licence-status
   GET /api/v1/log-level
+  GET /api/v1/mail-aliases
+  GET /api/v1/mail-domains
+  GET /api/v1/mail-domains/{}/dns-records
+  GET /api/v1/mail-queue
+  GET /api/v1/mail-server
+  GET /api/v1/mail/choices
+  GET /api/v1/mailboxes
+  GET /api/v1/mailboxes/{}/autoresponder
   GET /api/v1/me/accounts
+  GET /api/v1/me/backup-schedule
+  GET /api/v1/me/dashboard-layout
   GET /api/v1/me/membership-offers
   GET /api/v1/me/pinned-pages
   GET /api/v1/me/sub-users
   GET /api/v1/me/sub-users/features
   GET /api/v1/monitoring/accounts-disk
+  GET /api/v1/monitoring/alert-thresholds
   GET /api/v1/monitoring/chart
   GET /api/v1/monitoring/clock
   GET /api/v1/monitoring/metrics
@@ -365,9 +614,15 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   GET /api/v1/monitoring/updates/classifications
   GET /api/v1/monitoring/updates/count
   GET /api/v1/monitoring/updates/reboot-required
+  GET /api/v1/notifications/alert-delivery
+  GET /api/v1/notifications/alert-recipients
+  GET /api/v1/notifications/feed
+  GET /api/v1/notifications/feed/unread-count
   GET /api/v1/notifications/smtp
   GET /api/v1/notifications/smtp/security-modes
   GET /api/v1/panel-certificate
+  GET /api/v1/panel-update
+  GET /api/v1/php-settings
   GET /api/v1/plans
   GET /api/v1/plans/choices
   GET /api/v1/plans/features
@@ -375,10 +630,21 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   GET /api/v1/privacy/accounts/{}/export
   GET /api/v1/privacy/users/{}/export
   GET /api/v1/profile
+  GET /api/v1/reseller-api/accounts
+  GET /api/v1/reseller-api/accounts/{}
+  GET /api/v1/reseller-api/accounts/{}/usage
+  GET /api/v1/reseller-api/info
+  GET /api/v1/reseller-api/plans
+  GET /api/v1/reseller-api/plans/{}
+  GET /api/v1/reseller/api-keys
+  GET /api/v1/reseller/api-keys/scopes
+  GET /api/v1/reseller/api-keys/statuses
+  GET /api/v1/reseller/branding
   GET /api/v1/reseller/me
   GET /api/v1/resellers
   GET /api/v1/resellers/choices
   GET /api/v1/resellers/{}
+  GET /api/v1/resellers/{}/api-keys
   GET /api/v1/security-policy
   GET /api/v1/server/status
   GET /api/v1/servers
@@ -392,8 +658,11 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   GET /api/v1/sites/limits
   GET /api/v1/sites/php-versions
   GET /api/v1/sites/php-versions/installable
+  GET /api/v1/sites/php-versions/{}/extensions
   GET /api/v1/sites/{}
   GET /api/v1/sites/{}/logs
+  GET /api/v1/sites/{}/options
+  GET /api/v1/sites/{}/traffic
   GET /api/v1/tasks
   GET /api/v1/tasks/failed-count
   GET /api/v1/tasks/kinds
@@ -405,4 +674,15 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   GET /api/v1/view-as
   POST /api/v1/account-home-groups/repair (binds RepairAccountHomeGroupsCommand, no SPA caller)
   POST /api/v1/backup-destinations (binds SaveBackupDestinationCommand, no SPA caller)
+  POST /api/v1/files/upload
   POST /api/v1/licence-status/install (binds InstallLicenceCommand, no SPA caller)
+  POST /api/v1/mail-queue/flush
+  POST /api/v1/mail-server/disable
+  POST /api/v1/mail-server/enable (binds EnableMailServerCommand, no SPA caller)
+  POST /api/v1/reseller-api/accounts (binds CreateAccountCommand, no SPA caller)
+  POST /api/v1/reseller-api/accounts/{}/reactivate
+  POST /api/v1/reseller-api/accounts/{}/suspend
+  PUT /api/v1/dns-zones/{}/records (binds ReplaceRecordsCommand, no SPA caller)
+  PUT /api/v1/mail-server/settings (binds UpdateMailServerSettingsCommand, no SPA caller)
+  PUT /api/v1/mailboxes/{}/autoresponder (binds SetMailboxAutoresponderCommand, no SPA caller)
+  PUT /api/v1/reseller-api/accounts/{}/plan (binds ChangeAccountPlanCommand, no SPA caller)

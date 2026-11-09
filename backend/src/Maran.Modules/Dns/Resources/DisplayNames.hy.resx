@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="DnsModuleDisplayName">
+    <value>DNS գոտիներ</value>
+  </data>
+  <data name="DnsMenuZones">
+    <value>DNS գոտիներ</value>
+  </data>
+  <data name="DnsMenuNameservers">
+    <value>Անվանային սերվերներ</value>
+  </data>
+  <data name="DnsRouteZones">
+    <value>DNS գոտիներ</value>
+  </data>
+  <data name="DnsRouteNameservers">
+    <value>Անվանային սերվերներ</value>
+  </data>
+  <data name="DnsRecordTypeADescription">
+    <value>Անունը կապում է IPv4 հասցեի հետ։</value>
+  </data>
+  <data name="DnsRecordTypeAaaaDescription">
+    <value>Անունը կապում է IPv6 հասցեի հետ։</value>
+  </data>
+  <data name="DnsRecordTypeCnameDescription">
+    <value>Անունը դարձնում է մեկ այլ անվան կեղծանունը։</value>
+  </data>
+  <data name="DnsRecordTypeMxDescription">
+    <value>Նշում է դոմենի փոստն ընդունող սերվերը և նրա առաջնահերթությունը։</value>
+  </data>
+  <data name="DnsRecordTypeTxtDescription">
+    <value>Պահում է տեքստ, օրինակ՝ SPF, DKIM և հաստատման արժեքներ։</value>
+  </data>
+  <data name="DnsRecordTypeSrvDescription">
+    <value>Որոշում է ծառայությունը ըստ առաջնահերթության, կշռի, պորտի և հոսթի։</value>
+  </data>
+  <data name="DnsRecordTypeCaaDescription">
+    <value>Նշում է, թե որ սերտիֆիկացման կենտրոնները կարող են տրամադրել սերտիֆիկատներ դոմենի համար։</value>
+  </data>
+  <data name="DnsRecordTypeNsDescription">
+    <value>Գոտուց ցածր անունը փոխանցում է այլ անվանային սերվերների։</value>
+  </data>
+  <data name="DnsOriginCustomer">
+    <value>Ավելացվել է ձեռքով</value>
+  </data>
+  <data name="DnsOriginTemplate">
+    <value>Ձևանմուշից</value>
+  </data>
+  <data name="DnsOriginSystem">
+    <value>Կառավարվում է վահանակի կողմից</value>
+  </data>
+  <data name="DnsOriginMail">
+    <value>Կառավարվում է փոստի կողմից</value>
+  </data>
+  <data name="DnsOriginAcmeChallenge">
+    <value>Սերտիֆիկատի ստուգում</value>
+  </data>
+</root>

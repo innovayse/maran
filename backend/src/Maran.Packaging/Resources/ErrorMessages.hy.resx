@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="IpmArchiveMalformed">
+    <value>Փաթեթը ընթեռնելի արխիվ չէ։</value>
+  </data>
+  <data name="IpmDependencyUnsatisfied">
+    <value>Մոդուլը, որից կախված է փաթեթը, տեղադրված չէ թույլատրելի տարբերակով։</value>
+  </data>
+  <data name="IpmDowngradeRefused">
+    <value>Փաթեթը ավելի հին է, քան տեղադրված մոդուլը, և տարբերակը իջեցնելու պատճառ նշված չէ։</value>
+  </data>
+  <data name="IpmDuplicateEntry">
+    <value>Փաթեթում կան միևնույն անունով երկու գրառումներ։</value>
+  </data>
+  <data name="IpmEmptyInput">
+    <value>Փաթեթը դատարկ է։</value>
+  </data>
+  <data name="IpmEntryNameInvalid">
+    <value>Փաթեթում կա չթույլատրված անունով գրառում։</value>
+  </data>
+  <data name="IpmEntryNotRegular">
+    <value>Փաթեթում կա գրառում, որը սովորական ֆայլ չէ։</value>
+  </data>
+  <data name="IpmEntrySizeMismatch">
+    <value>Փաթեթի գրառման չափը չի համապատասխանում հայտարարվածին։</value>
+  </data>
+  <data name="IpmEntryTooLarge">
+    <value>Փաթեթում կա գրառում, որը մեծ է թույլատրելի չափից։</value>
+  </data>
+  <data name="IpmEntryTraversal">
+    <value>Փաթեթում կա գրառում, որի անունը դուրս է գալիս փաթեթի թղթապանակից։</value>
+  </data>
+  <data name="IpmFormatVersionUnknown">
+    <value>Փաթեթն օգտագործում է ձևաչափի տարբերակ, որը այս վահանակը չգիտի։</value>
+  </data>
+  <data name="IpmHashMismatch">
+    <value>Փաթեթի ֆայլը չի համապատասխանում մանիֆեստում ամրագրված հեշին։</value>
+  </data>
+  <data name="IpmManifestInvalid">
+    <value>Փաթեթի մանիֆեստը խախտում է մոդուլների կանոնները։</value>
+  </data>
+  <data name="IpmManifestMalformed">
+    <value>Փաթեթի մանիֆեստը հնարավոր չէ կարդալ։</value>
+  </data>
+  <data name="IpmManifestMissing">
+    <value>Փաթեթում մանիֆեստ չկա։</value>
+  </data>
+  <data name="IpmMissingEntry">
+    <value>Փաթեթում բացակայում է մանիֆեստում նշված ֆայլը։</value>
+  </data>
+  <data name="IpmNotYetValid">
+    <value>Փաթեթը դեռ վավեր չէ։</value>
+  </data>
+  <data name="IpmPackageTooLarge">
+    <value>Փաթեթը բացված վիճակում մեծ է թույլատրելի չափից։</value>
+  </data>
+  <data name="IpmPanelTooNew">
+    <value>Այս վահանակը ավելի նոր է, քան աջակցում է փաթեթը։</value>
+  </data>
+  <data name="IpmPanelTooOld">
+    <value>Այս վահանակը ավելի հին է, քան պահանջում է փաթեթը։</value>
+  </data>
+  <data name="IpmPublicKeyInvalid">
+    <value>Փաթեթների ստորագրությունների համար տրված բանալին օգտագործելի P-384 բանալի չէ։</value>
+  </data>
+  <data name="IpmRatioExceeded">
+    <value>Փաթեթը գրառումը սեղմում է ավելի, քան վահանակն է թույլ տալիս։</value>
+  </data>
+  <data name="IpmSignatureInvalid">
+    <value>Փաթեթի ստորագրությունը չի համապատասխանում իր մանիֆեստին։</value>
+  </data>
+  <data name="IpmSignatureMissing">
+    <value>Փաթեթը ստորագրված չէ։</value>
+  </data>
+  <data name="IpmTooManyEntries">
+    <value>Փաթեթում ավելի շատ գրառումներ կան, քան վահանակն ընդունում է։</value>
+  </data>
+  <data name="IpmUnlistedEntry">
+    <value>Փաթեթում կա ֆայլ, որը նշված չէ իր մանիֆեստում։</value>
+  </data>
+</root>

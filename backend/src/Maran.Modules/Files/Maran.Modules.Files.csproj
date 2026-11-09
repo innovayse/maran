@@ -1,0 +1,58 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- The resx triples' neutral file is English (rules/csharp.md "The backend owns all
+         user-facing message text"). -->
+    <NeutralLanguage>en</NeutralLanguage>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- A module is a plain class library: it contributes controllers into the Host's pipeline
+         but never hosts its own web server (rules/architecture.md "Backend: modular monolith"). -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Only the Sdk and the SharedKernel, never another module or the Host. The account's system
+         user name and state arrive through Maran.Sdk's IAccountDirectory. The agent client is the
+         only way to a customer's files: this module owns no table, because the files themselves
+         and the trash beside them are the agent's state. -->
+    <ProjectReference Include="..\..\Maran.Agent.Client\Maran.Agent.Client.csproj" />
+    <ProjectReference Include="..\..\Maran.Sdk\Maran.Sdk.csproj" />
+    <ProjectReference Include="..\..\Maran.SharedKernel\Maran.SharedKernel.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- WolverineFx: command/query dispatch. FluentValidation: command/query validators. -->
+    <PackageReference Include="WolverineFx" />
+    <PackageReference Include="FluentValidation" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ErrorMessages is strongly typed so Error.Of(nameof(ErrorMessages.FilesPathInvalid)) fails to
+         compile when the key is absent: the codes ARE the resx keys. -->
+    <EmbeddedResource Update="Resources\ErrorMessages.resx">
+      <Generator>MSBuild:Compile</Generator>
+      <StronglyTypedLanguage>CSharp</StronglyTypedLanguage>
+      <StronglyTypedNamespace>Maran.Modules.Files.Resources</StronglyTypedNamespace>
+      <StronglyTypedClassName>ErrorMessages</StronglyTypedClassName>
+      <StronglyTypedFileName>$(IntermediateOutputPath)ErrorMessages.Designer.cs</StronglyTypedFileName>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\ErrorMessages.ru.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\ErrorMessages.hy.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\DisplayNames.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\DisplayNames.ru.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\DisplayNames.hy.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+  </ItemGroup>
+
+</Project>

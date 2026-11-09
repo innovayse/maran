@@ -162,6 +162,7 @@ fn the_wire_permits_a_readable_arm_with_no_manifest_which_is_why_a_reader_must_r
             manifest: None,
             artifact_bytes: 0,
             artifact_sha256: String::new(),
+            encrypted: false,
         })),
     };
 
@@ -186,5 +187,19 @@ fn this_agent_never_produces_the_hazard_it_exhibits() {
     match received.state {
         Some(backup_info::State::Readable(details)) => assert!(details.manifest.is_some()),
         other => panic!("expected the readable arm, got {other:?}"),
+    }
+}
+
+#[test]
+fn a_sealed_backup_is_listed_as_encrypted_and_a_plain_one_is_not() {
+    let sealed = to_backup_info(readable().sealed());
+    let plain = to_backup_info(readable());
+
+    match (sealed.state, plain.state) {
+        (Some(backup_info::State::Readable(sealed)), Some(backup_info::State::Readable(plain))) => {
+            assert!(sealed.encrypted);
+            assert!(!plain.encrypted);
+        }
+        other => panic!("expected two readable arms, got {other:?}"),
     }
 }

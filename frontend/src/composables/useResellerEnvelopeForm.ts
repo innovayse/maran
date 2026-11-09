@@ -40,7 +40,7 @@ export interface ResellerEnvelopeForm {
 /**
  * The envelope's figures in the order the form draws them. The lower bound is 1 where "none" would
  * make the reseller unable to sell anything (accounts, plans, disk) and 0 where "none" is a product
- * (FTPS logins, cron entries). The upper bounds are typo and overflow guards, far above what a
+ * (FTPS logins, cron entries, mailboxes). The upper bounds are typo and overflow guards, far above what a
  * server can honour; the server's validator is the authority and these err wide.
  */
 const FIELDS: readonly EnvelopeLimitField[] = [
@@ -54,6 +54,8 @@ const FIELDS: readonly EnvelopeLimitField[] = [
   { key: 'maxFtpUsers', min: 0, max: 1_000_000 },
   { key: 'maxCronEntries', min: 0, max: 1_000_000 },
   { key: 'maxPhpWorkersPerPool', min: 1, max: 10_000 },
+  { key: 'maxMailboxes', min: 0, max: 1_000_000 },
+  { key: 'mailboxQuotaPoolMib', min: 0, max: 1_073_741_824 },
 ]
 
 /**
@@ -67,7 +69,7 @@ const parseWhole = (text: string): number | null => {
 }
 
 /**
- * The reseller form's envelope: ten figures typed as text, three runtime ceilings (each a figure
+ * The reseller form's envelope: twelve figures typed as text, three runtime ceilings (each a figure
  * or a ticked "No limit", through `usePlanCeilings`, because an envelope states them exactly as a
  * plan does) and the features the reseller may sell (through `usePlanFeatures`). The rules are the
  * client's mirror of the server's validator and are advice; the server re-validates and its
@@ -154,6 +156,8 @@ export const useResellerEnvelopeForm = (
       maxFtpUsers: figureOf('maxFtpUsers'),
       maxCronEntries: figureOf('maxCronEntries'),
       maxPhpWorkersPerPool: figureOf('maxPhpWorkersPerPool'),
+      maxMailboxes: figureOf('maxMailboxes'),
+      mailboxQuotaPoolMib: figureOf('mailboxQuotaPoolMib'),
       ...runtime.toRequest(),
       features: selected,
     }

@@ -1,4 +1,5 @@
 using Maran.Sdk.Contracts;
+using Maran.Sdk.Navigation;
 
 namespace Maran.Modules.Ftp;
 
@@ -26,13 +27,39 @@ public static class FtpManifest
     /// calls only READ whether material exists, and the reload only restarts a daemon so it picks
     /// up material the Ssl module put there.
     /// </para>
+    /// <para>
+    /// <see cref="ModuleKind.Packageable"/>: FTPS is optional compatibility, not part of the core.
+    /// <see cref="Manifest.SchemaName"/>
+    /// is the <c>ftp</c> schema. Its menu entry is the second child of the "File transfer" entry the Sftp module
+    /// declares, so it is not a top-level door.
+    /// </para>
     /// </remarks>
     public static Manifest Instance { get; } = new(
         Id: "ftp",
         DisplayNameKey: "FtpModuleDisplayName",
         Version: "1.0.0",
         Tier: LicenceTier.Included,
+        Kind: ModuleKind.Packageable,
+        MinPanelVersion: "1.0.0-beta.1",
+        SchemaName: "ftp",
         Dependencies: [],
         AgentCapabilities: [AgentCapability.Ftps],
+        Permissions: [AuthorizationPolicies.AdminOnly, AuthorizationPolicies.AnyAuthenticated],
+        Menu: [
+            new ModuleMenuItem(
+                Key: "file-transfer-ftps",
+                RouteName: "file-transfer-ftps",
+                IconKey: ModuleIconKeys.FolderKey,
+                LabelKey: "FtpMenuFileTransferFtps",
+                Order: 10,
+                Audience: ModuleAudience.Everyone),
+        ],
+        Routes: [
+            new ModuleRoute(
+                Name: "file-transfer-ftps",
+                Path: "/file-transfer/ftps",
+                TitleKey: "FtpRouteFileTransferFtps",
+                RequiresModule: null),
+        ],
         Audience: ModuleAudience.Everyone);
 }

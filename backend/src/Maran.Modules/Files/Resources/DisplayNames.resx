@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="FilesModuleDisplayName">
+    <value>Files</value>
+  </data>
+  <data name="FileEntryKindFile">
+    <value>File</value>
+  </data>
+  <data name="FileEntryKindDirectory">
+    <value>Folder</value>
+  </data>
+  <data name="FileEntryKindOther">
+    <value>Special file</value>
+  </data>
+  <data name="FilesMenuFileManager">
+    <value>File manager</value>
+  </data>
+  <data name="FilesRouteFileManager">
+    <value>File manager</value>
+  </data>
+  <data name="FilesRouteFileEditor">
+    <value>Edit file</value>
+  </data>
+  <data name="FilesRouteFileTrash">
+    <value>Trash</value>
+  </data>
+</root>

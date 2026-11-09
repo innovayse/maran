@@ -309,7 +309,7 @@ public sealed class HttpContextCurrentUserTests
             ApiKeyDefaults.Scheme,
             (PanelClaimTypes.ApiKeyId, keyId.ToString()),
             (PanelClaimTypes.ApiKeyScope, ApiKeyScopes.SelfRead),
-            (PanelClaimTypes.ApiKeyScope, "accounts.write"));
+            (PanelClaimTypes.ApiKeyScope, "backups.write"));
 
         var apiKey = Assert.IsType<ApiKeyCaller>(user.Caller);
         Assert.Equal(keyId, apiKey.KeyId);
@@ -342,6 +342,53 @@ public sealed class HttpContextCurrentUserTests
         {
             return user.Caller;
         });
+    }
+
+    /// <summary>A key principal carrying an owner claim is an API key caller that carries the reseller; without one it carries none.</summary>
+    [Fact]
+    public void An_api_key_principal_carries_the_reseller_that_owns_it_when_it_has_one()
+    {
+        var resellerId = Guid.Parse("77777777-7777-7777-7777-777777777777");
+        var owned = CurrentUser(
+            ApiKeyDefaults.Scheme,
+            (PanelClaimTypes.ApiKeyId, Guid.NewGuid().ToString()),
+            (PanelClaimTypes.ApiKeyReseller, resellerId.ToString()));
+
+        // Read before the next accessor is built: HttpContextAccessor keeps its context in an ambient
+        // slot shared by every instance, so a second accessor would replace this one's request.
+        Assert.Equal(resellerId, Assert.IsType<ApiKeyCaller>(owned.Caller).ResellerId);
+
+        var administrators = CurrentUser(ApiKeyDefaults.Scheme, (PanelClaimTypes.ApiKeyId, Guid.NewGuid().ToString()));
+        Assert.Null(Assert.IsType<ApiKeyCaller>(administrators.Caller).ResellerId);
+    }
+
+    /// <summary>An owner claim that is not an id is refused, never read as a key with no owner.</summary>
+    [Fact]
+    public void An_api_key_principal_with_an_unreadable_owner_is_refused()
+    {
+        var user = CurrentUser(
+            ApiKeyDefaults.Scheme,
+            (PanelClaimTypes.ApiKeyId, Guid.NewGuid().ToString()),
+            (PanelClaimTypes.ApiKeyReseller, "not-a-guid"));
+
+        Assert.Throws<UnrecognisedPrincipalException>(() =>
+        {
+            return user.Caller;
+        });
+    }
+
+    /// <summary>A bearer token carrying an owner claim and no key id is read as the login it is, and the claim grants nothing.</summary>
+    [Fact]
+    public void A_bearer_token_carrying_an_owner_claim_is_still_a_login_and_not_a_key()
+    {
+        var resellerId = Guid.NewGuid();
+        var user = CurrentUser(
+            "Bearer",
+            (PanelClaimTypes.UserId, UserId.ToString()),
+            (PanelClaimTypes.Role, nameof(UserRole.Admin)),
+            (PanelClaimTypes.ApiKeyReseller, resellerId.ToString()));
+
+        Assert.IsType<AdministratorCaller>(user.Caller);
     }
 
     /// <summary>Builds the accessor over a principal of the named authentication scheme.</summary>

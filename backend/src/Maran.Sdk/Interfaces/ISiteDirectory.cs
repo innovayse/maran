@@ -51,6 +51,22 @@ public interface ISiteDirectory
     /// </remarks>
     Task<SiteSnapshot?> FindByIdUnscopedAsync(Guid siteId, CancellationToken cancellationToken);
 
+    /// <summary>Lists the primary domains of one account's sites, scoped to what the current user may see.</summary>
+    /// <param name="accountId">The account whose sites are listed.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <returns>
+    /// The domains in ascending order. Empty when the account has no site, and also when the account
+    /// is another tenant's: the two are deliberately indistinguishable, for the reason
+    /// <see cref="FindByDomainAsync"/> gives. A caller that must tell them apart authorises the
+    /// ACCOUNT first, through <see cref="IAccountDirectory.FindAsync"/>.
+    /// </returns>
+    /// <remarks>
+    /// Names only, and the narrowest value that answers the question a restore screen asks — which
+    /// sites could this account's backup be restored into — so no document root, backend or
+    /// certificate state travels with it.
+    /// </remarks>
+    Task<IReadOnlyList<string>> ListDomainsAsync(Guid accountId, CancellationToken cancellationToken);
+
     /// <summary>Records that a TLS certificate is now installed for a site.</summary>
     /// <param name="siteId">The site whose vhost now has a certificate.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>

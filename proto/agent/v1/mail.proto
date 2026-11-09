@@ -1,0 +1,804 @@
+// Mail hosting for hosting accounts: the host's mail daemons (an MTA, an
+// IMAP/POP3/LMTP server with Sieve, a spam filter with DKIM signing, a
+// Redis-protocol server for rate limits and, off by default, a virus scanner)
+// and the per-account mail data they serve (issue #177).
+//
+// DESIGNED ONCE. Every rpc and field the mail module will ever need in v1 is
+// declared here, in one revision, so the contract revision (rules/proto.md
+// "The contract revision") is paid a single time and later phases add no
+// field. A phase that needs something this file lacks adds it additively and
+// raises the revision then; that is the exception, not the plan.
+//
+// Shape decisions worth keeping, each one a consequence of a rule:
+//
+// - **The host's daemons are driven, never described by the caller.** No field
+//   names a binary, an argument, a path or a template. A certificate is the
+//   panel's own (the agent knows where it keeps it), a mailbox directory is
+//   derived from the validated account, domain and local part, and a queue is
+//   addressed by an id the agent revalidates. Nothing here is "run this for
+//   me" (rules/security.md item 12).
+// - **Secrets travel in one direction.** `password_hash`, `webmail_master_hash`
+//   and `dkim_private_key_pem` are credentials at rest. They go from the panel
+//   to the agent and are never echoed in any response, error or log line; the
+//   agent holds them only in redacting wrappers. A password is NEVER sent in
+//   the clear: the panel hashes, the agent checks the SHAPE of the hash.
+// - **The hash scheme and the Dovecot generation are facts of the HOST, not
+//   choices of the caller.** The panel cannot know whether this host's
+//   Dovecot verifies Argon2id (some distribution builds omit the library) or
+//   which configuration generation it reads (2.3 and 2.4 are incompatible).
+//   The agent reports both in `MailStatus` (`password_scheme`,
+//   `dovecot_major`, `dovecot_minor`), reads them from its distro adapter, and refuses a
+//   hash of any other scheme with INVALID_INPUT. The panel asks first and
+//   hashes accordingly.
+// - **An observation is not a guess.** Whether a daemon is installed, active
+//   or listening is reported as a `MailObservation`, which has a value for
+//   "the agent could not tell". A status that folded "no" and "could not
+//   tell" into one `false` would show a healthy panel over a daemon nobody
+//   looked at (the same lesson as `TlsEnforcement` in ftp.proto). Listeners
+//   are read from the kernel, never from the rendered configuration.
+// - **Whole-set writes.** `SetMailAliases` replaces every alias, forwarder
+//   and the catch-all of one domain as a unit. The panel's record is the
+//   truth, so the agent converges the host to exactly the list it is handed.
+// - **Account-wide rpcs read the HOST, not a list.** `SetAccountMailSuspension`
+//   and `RemoveAccountMail` find the account's mail on the host itself, for
+//   the reason `DeleteAccount` gives: a list can only describe what the panel
+//   remembers creating, and what it forgot is exactly what a suspended or
+//   deleted customer must not keep.
+syntax = "proto3";
+
+package maran.agent.v1;
+
+option csharp_namespace = "Maran.Agent.V1";
+
+import "agent/v1/common.proto";
+
+service MailService {
+  // Reports the mail stack as it is NOW, read from the host and not from what
+  // the agent rendered: which daemons are installed and active, which
+  // addresses and ports each one actually listens on (read from the kernel),
+  // the effective server hostname (read from the running MTA), whether the
+  // scheme the panel hashes with is one this host's IMAP server verifies
+  // (read from the daemon), and the queue size. Read-only and idempotent.
+  //
+  // A host where mail was never enabled answers OK with everything NO or
+  // NOT_OBSERVED; that is a state, not an error.
+  rpc GetMailStatus(GetMailStatusRequest) returns (GetMailStatusResponse);
+
+  // Renders the host's mail configuration, starts the daemons and reports
+  // what they do. This is the ONE rpc that makes the host listen on mail
+  // ports; until it succeeds nothing does (the installer leaves every daemon
+  // stopped and not listening).
+  //
+  // Configuration is written through the agent's safe-write protocol: render,
+  // swap, validate with the daemons' own checkers on the real tree, reload,
+  // and restore the previous content on a refusal (VALIDATION_FAILED, state
+  // rolled back). The certificate is the panel's own, taken from the agent's
+  // fixed location; there is no path field to point it elsewhere.
+  //
+  // The agent opens no firewall port: the panel reports which ports to open
+  // and the operator (or the Firewall module) opens them.
+  //
+  // Idempotent: enabling an enabled stack converges it to the settings given
+  // and answers OK; a failure leaves the previous working configuration in
+  // place.
+  // Cancellation class: run to completion. A half-written configuration of
+  // four daemons is the one state nothing can reason about, so a dropped
+  // client must not stop it; the remedy for a lost answer is to ask again.
+  rpc EnableMail(EnableMailRequest) returns (EnableMailResponse);
+
+  // Stops the mail daemons and disables their units so nothing listens, and
+  // leaves all data and rendered per-account configuration untouched, so a
+  // later EnableMail brings every mailbox back. Idempotent: disabling a
+  // disabled stack answers OK.
+  // Cancellation class: run to completion.
+  rpc DisableMail(DisableMailRequest) returns (DisableMailResponse);
+
+  // Makes the daemons use the panel's current certificate: reloads them (never
+  // restarts, so live sessions survive). Called after the certificate was
+  // replaced. A stack that is not enabled answers OK and touches nothing, so
+  // a certificate renewal never fails on a host without mail. Idempotent.
+  // Cancellation class: run to completion.
+  rpc ReloadMailTls(ReloadMailTlsRequest) returns (ReloadMailTlsResponse);
+
+  // Makes one domain deliverable and signable for an account: the domain is
+  // added to the host's local-delivery set, owned by the account, and its DKIM
+  // signing key is installed. Mail DATA is untouched.
+  //
+  // Exactly one key signs a domain at a time; rotating is calling this again
+  // with a new selector and key, and the previous key file is removed. A key
+  // that is only being published in DNS while it retires is never sent: the
+  // agent has no use for it.
+  //
+  // The domain must not already belong to another account on this host
+  // (ALREADY_EXISTS, nothing written). Idempotent: the same call twice
+  // converges to the same files and answers OK with `changed` false.
+  // Cancellation class: run to completion.
+  rpc ConfigureMailDomain(ConfigureMailDomainRequest) returns (ConfigureMailDomainResponse);
+
+  // Withdraws a domain: stops accepting mail for it, removes its DKIM key and
+  // its rendered fragments. Mailboxes and mail data under it are NOT deleted
+  // (the panel removes mailboxes first when it means to). NOT_FOUND when the
+  // account does not hold the domain.
+  // Cancellation class: run to completion.
+  rpc RemoveMailDomain(RemoveMailDomainRequest) returns (RemoveMailDomainResponse);
+
+  // Creates or updates one mailbox and its entry in the login database. On
+  // creation the mailbox directory is made under the account's home BY THE
+  // ACCOUNT'S OWN UID, so the files are the customer's and never root's.
+  //
+  // An EMPTY `password_hash` keeps the existing hash and is refused on
+  // creation (INVALID_INPUT): a mailbox without a credential cannot exist. A
+  // non-empty one replaces it. The domain must be configured for the account
+  // first (NOT_FOUND otherwise).
+  // Cancellation class: run to completion.
+  rpc SetMailbox(SetMailboxRequest) returns (SetMailboxResponse);
+
+  // Removes one mailbox's login, aliases pointing only at it are left to the
+  // next SetMailAliases, and, when `delete_data` is set, its directory and
+  // every message in it. The data is deleted under the account's uid through
+  // a descriptor walk, never as root following a path. NOT_FOUND when the
+  // mailbox does not exist.
+  // Cancellation class: run to completion. A deletion stopped half way is a
+  // mailbox with some of its mail missing, which is the worse state.
+  rpc RemoveMailbox(RemoveMailboxRequest) returns (RemoveMailboxResponse);
+
+  // Replaces ALL aliases, forwarders and the catch-all of one domain with
+  // exactly the lists given (an empty request removes them all). An alias
+  // whose target is an address on this host delivers locally; a target on
+  // another host is a forwarder and is accepted only when the host was
+  // enabled with `allow_external_forwarding`. A target that is a local
+  // address which does not exist is accepted (it may be created next); mail
+  // to it bounces until it does.
+  // Cancellation class: run to completion.
+  rpc SetMailAliases(SetMailAliasesRequest) returns (SetMailAliasesResponse);
+
+  // Installs, replaces or clears the out-of-office reply of one mailbox. The
+  // reply is a fixed script with the customer's subject and text placed in it
+  // as literals; no part of the script is caller-written. NOT_FOUND when the
+  // mailbox does not exist.
+  // Cancellation class: run to completion.
+  rpc SetMailboxAutoresponder(SetMailboxAutoresponderRequest) returns (SetMailboxAutoresponderResponse);
+
+  // Suspends or resumes ALL mail of one account. Suspending removes every
+  // mailbox of the account from the login database, ends their open sessions
+  // (a locked entry does not end a session already admitted), defers
+  // incoming mail and switches off forwards and autoresponders. Resuming puts
+  // them back exactly as they were. Nothing is deleted.
+  //
+  // The mailboxes come from the host, not from a list the panel supplies.
+  // Idempotent in both directions; an account with no mail is a success that
+  // touches nothing.
+  // Cancellation class: run to completion; the sessions are ended before the
+  // answer is sent.
+  rpc SetAccountMailSuspension(SetAccountMailSuspensionRequest) returns (SetAccountMailSuspensionResponse);
+
+  // Removes EVERYTHING mail of one account: logins, aliases, DKIM keys,
+  // rendered fragments, autoresponders and the mail data under the account's
+  // home. Called by account deletion BEFORE the system user is removed, so a
+  // later account that is handed the same uid never inherits another
+  // customer's mail. Idempotent: an account with no mail answers OK with
+  // zeros.
+  // Cancellation class: run to completion.
+  rpc RemoveAccountMail(RemoveAccountMailRequest) returns (RemoveAccountMailResponse);
+
+  // Measures every mailbox of one account: bytes stored and messages held.
+  // Read-only. A mailbox the agent could not measure is listed WITHOUT a
+  // reading, never with zeros: zero would read as an empty mailbox.
+  rpc ListMailboxUsage(ListMailboxUsageRequest) returns (ListMailboxUsageResponse);
+
+  // Lists the host's outgoing and incoming queue, bounded. Read-only. Senders
+  // and the shape of a message come from the network and are untrusted text.
+  rpc ListMailQueue(ListMailQueueRequest) returns (ListMailQueueResponse);
+
+  // Removes one queued message by its id. NOT_FOUND when no such message is
+  // queued (it may have been delivered meanwhile). Idempotent.
+  // Cancellation class: run to completion.
+  rpc DeleteQueuedMessage(DeleteQueuedMessageRequest) returns (DeleteQueuedMessageResponse);
+
+  // Asks the MTA to attempt delivery of every deferred message now. Nothing is
+  // deleted. Idempotent.
+  // Cancellation class: run to completion.
+  rpc FlushMailQueue(FlushMailQueueRequest) returns (FlushMailQueueResponse);
+}
+
+// A three-valued fact about the host. The third value exists because "no" and
+// "I could not tell" are different statements and a screen must be able to
+// say which one it is showing.
+enum MailObservation {
+  // Never sent by an agent that knows this enum; means "this agent predates
+  // the field". A caller reads it as not observed.
+  MAIL_OBSERVATION_UNSPECIFIED = 0;
+  // Observed to be true.
+  MAIL_OBSERVATION_YES = 1;
+  // Observed to be false.
+  MAIL_OBSERVATION_NO = 2;
+  // The agent tried and could not tell (a tool failed, a file was unreadable).
+  // Nothing is known; a panel must not certify it either way.
+  MAIL_OBSERVATION_NOT_OBSERVED = 3;
+}
+
+// The host daemons mail is made of.
+enum MailDaemon {
+  // Never sent deliberately.
+  MAIL_DAEMON_UNSPECIFIED = 0;
+  // The MTA: accepts and relays mail on the SMTP ports.
+  MAIL_DAEMON_MTA = 1;
+  // The IMAP, POP3, LMTP and Sieve server; also the login database the MTA
+  // authenticates against.
+  MAIL_DAEMON_IMAP_SERVER = 2;
+  // The spam filter, which also signs outgoing mail with DKIM and checks
+  // SPF, DKIM and DMARC on incoming mail.
+  MAIL_DAEMON_SPAM_FILTER = 3;
+  // The Redis-protocol server (Redis or its successor on the distribution)
+  // holding the spam filter's per-mailbox send counters, on a unix socket.
+  MAIL_DAEMON_RATE_LIMIT_STORE = 4;
+  // The optional virus scanner. Off unless EnableMail asked for it.
+  MAIL_DAEMON_VIRUS_SCANNER = 5;
+}
+
+// The password hash schemes the IMAP server can verify. Which of them THIS
+// host's build supports is a fact of its distribution; the panel hashes with
+// the one `MailStatus.password_scheme` names.
+enum MailPasswordScheme {
+  // Never sent by an agent that knows this enum; means "not known" (mail not
+  // installed, or an agent predating the field).
+  MAIL_PASSWORD_SCHEME_UNSPECIFIED = 0;
+  // Argon2id, in the encoded form `$argon2id$v=19$m=<KiB>,t=<n>,p=<n>$<salt>$<hash>`.
+  // Preferred, and the only scheme on hosts whose IMAP server was built with
+  // the library.
+  MAIL_PASSWORD_SCHEME_ARGON2ID = 1;
+  // bcrypt (`$2y$<cost>$...`, cost 10-14), the scheme every build of the IMAP
+  // server can verify. The fallback where Argon2id is not built in.
+  MAIL_PASSWORD_SCHEME_BLF_CRYPT = 2;
+}
+
+// What the spam filter does with a message it scores as spam, per mailbox.
+enum MailSpamAction {
+  // The panel did not choose: the agent applies the default, FILE_TO_JUNK.
+  MAIL_SPAM_ACTION_UNSPECIFIED = 0;
+  // Deliver the message into the mailbox's Junk folder.
+  MAIL_SPAM_ACTION_FILE_TO_JUNK = 1;
+  // Deliver into the inbox with the spam headers added, for a customer who
+  // sorts it themselves.
+  MAIL_SPAM_ACTION_KEEP_IN_INBOX = 2;
+}
+
+// One address a daemon accepts connections on, read from the kernel.
+message MailListener {
+  // The bound address as the kernel reports it: an IPv4 or IPv6 literal, or
+  // `*` for every address. A unix socket is not a listener here.
+  string address = 1;
+  // The TCP port.
+  uint32 port = 2;
+}
+
+// What the agent could observe about one daemon.
+message MailDaemonStatus {
+  // Which daemon this describes.
+  MailDaemon daemon = 1;
+  // Whether the daemon's package is installed.
+  MailObservation installed = 2;
+  // The daemon's version as it reports it, for display only; empty when not
+  // observed. Never compared as a string: only the major matters and it has
+  // its own field where it matters (`MailStatus.dovecot_major`).
+  string version = 3;
+  // Whether the service manager reports the daemon's unit active.
+  MailObservation active = 4;
+  // The TCP addresses the daemon listens on right now, read from the kernel.
+  // Empty means it listens on none OR that listeners were not read; read
+  // `listeners_observed` to tell which.
+  repeated MailListener listeners = 5;
+  // Whether `listeners` was actually read. NO or NOT_OBSERVED with an empty
+  // list never means "listens on nothing".
+  MailObservation listeners_observed = 6;
+}
+
+// A reading of how many messages a queue holds.
+message MailQueueSize {
+  // Messages queued, all queues together.
+  uint32 messages = 1;
+}
+
+// The mail stack as observed. Carried by every lifecycle rpc so a caller is
+// never told "done" without being shown what the host does.
+message MailStatus {
+  // One entry per daemon the stack consists of, in the order of `MailDaemon`.
+  repeated MailDaemonStatus daemons = 1;
+  // Whether the stack is enabled: every daemon of the stack is active. Boot
+  // enablement is not read; each daemon's own state is in `daemons`.
+  MailObservation enabled = 2;
+  // The server hostname the running MTA presents, read from the daemon; empty
+  // when not observed.
+  string effective_hostname = 3;
+  // Whether the daemons present the panel's current certificate.
+  MailObservation tls_in_use = 4;
+  // The first number of the installed IMAP server's version, for example 2.
+  // Together with `dovecot_minor` it names the configuration GENERATION, which
+  // matters: 2.3 and 2.4 read incompatible configuration, and the agent renders
+  // the one this host reads. It is a fact of the host's distribution and is
+  // reported as read, never chosen by a caller. Zero when the IMAP server is
+  // not installed or its version was not read.
+  uint32 dovecot_major = 5;
+  // The password scheme this host's distribution says its IMAP server
+  // verifies. UNSPECIFIED when mail is not installed. The panel hashes with
+  // this scheme and no other.
+  MailPasswordScheme password_scheme = 6;
+  // Whether the running IMAP server actually lists `password_scheme` among the
+  // schemes it can verify. A distribution fact that the daemon contradicts is
+  // reported here as NO, not hidden.
+  MailObservation password_scheme_verified = 7;
+  // The queue size; ABSENT when it was not read. Absent is not zero.
+  MailQueueSize queue = 8;
+  // Whether the Sieve interpreter is available to the IMAP server (needed for
+  // junk filing, forwards and autoresponders).
+  MailObservation sieve_available = 9;
+  // The second number of the IMAP server's version, for example 3 for 2.3 and
+  // 4 for 2.4. Zero when `dovecot_major` is zero.
+  uint32 dovecot_minor = 10;
+}
+
+message GetMailStatusRequest {}
+
+message GetMailStatusResponse {
+  oneof result {
+    GetMailStatusOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message GetMailStatusOk {
+  // The observed stack.
+  MailStatus status = 1;
+}
+
+message EnableMailRequest {
+  // The name the server presents to the world (the MTA's hostname and the IMAP
+  // server's hostname) and the name its certificate is for. A fully qualified
+  // name of at least two labels; revalidated by the agent.
+  string hostname = 1;
+  // Whether the POP3 service runs. False (the absent value) keeps it off.
+  bool pop3_enabled = 2;
+  // Whether the virus scanner runs and scans incoming mail. False keeps it
+  // off.
+  bool antivirus_enabled = 3;
+  // The largest message the MTA accepts, in MiB. Zero is refused, not read as
+  // "no limit": an absent field decodes to zero. A panel value; the agent owns
+  // no default.
+  uint32 message_size_mib = 4;
+  // The spam score from which a message is delayed once (greylisted). Whole
+  // points of the filter's scale. Must be below `spam_add_header_score`.
+  uint32 spam_greylist_score = 5;
+  // The score from which a message is treated as spam (the per-mailbox
+  // MailSpamAction applies). Must be below `spam_reject_score`.
+  uint32 spam_add_header_score = 6;
+  // The score from which a message is refused at the SMTP stage.
+  uint32 spam_reject_score = 7;
+  // Whether an alias may forward to an address on another host. False (the
+  // absent value) refuses such a target. External forwarding re-sends mail
+  // under the original sender, which breaks the sender's SPF at the next hop;
+  // that cost is the operator's to accept, so it is a switch.
+  bool allow_external_forwarding = 8;
+  // The hash of the webmail master secret, in the scheme `MailStatus` reports
+  // for this host. SECRET: never echoed. EMPTY means webmail is not enabled
+  // and no master login exists. When set, the master login is accepted only
+  // on local sockets the panel's own process reaches, never on a TCP port.
+  string webmail_master_hash = 9;
+}
+
+message EnableMailResponse {
+  oneof result {
+    EnableMailOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message EnableMailOk {
+  // What the host does after enabling: the daemons the agent started, and
+  // the listeners it then read back. A daemon that did not come up is
+  // reported here as not active; the call answers an error instead only when
+  // the configuration was refused and rolled back.
+  MailStatus status = 1;
+}
+
+message DisableMailRequest {}
+
+message DisableMailResponse {
+  oneof result {
+    DisableMailOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message DisableMailOk {
+  // The observed stack after disabling; every daemon should read inactive and
+  // without listeners.
+  MailStatus status = 1;
+}
+
+message ReloadMailTlsRequest {}
+
+message ReloadMailTlsResponse {
+  oneof result {
+    ReloadMailTlsOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message ReloadMailTlsOk {
+  // The observed stack after the reload.
+  MailStatus status = 1;
+}
+
+message ConfigureMailDomainRequest {
+  // System username of the hosting account that owns the domain.
+  string account_username = 1;
+  // The mail domain, a name of at least two labels, lower-cased by the agent.
+  string domain = 2;
+  // The selector the active DKIM key is published under: lower-case letters,
+  // digits and hyphens, at most 32 characters, no dot.
+  string dkim_selector = 3;
+  // The active DKIM private key as PKCS#8 PEM (`BEGIN PRIVATE KEY`), RSA,
+  // 2048 to 4096 bits. SECRET: written root-owned and readable only by the
+  // signing daemon's group, never echoed, never logged.
+  string dkim_private_key_pem = 4;
+}
+
+message ConfigureMailDomainResponse {
+  oneof result {
+    ConfigureMailDomainOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message ConfigureMailDomainOk {
+  // True when the host's state differed and was changed; false when the call
+  // found everything already as asked (an idempotent retry).
+  bool changed = 1;
+}
+
+message RemoveMailDomainRequest {
+  // System username of the account that owns the domain.
+  string account_username = 1;
+  // The mail domain to withdraw.
+  string domain = 2;
+}
+
+message RemoveMailDomainResponse {
+  oneof result {
+    RemoveMailDomainOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message RemoveMailDomainOk {}
+
+message SetMailboxRequest {
+  // System username of the account the mailbox belongs to. Its uid owns the
+  // mail data.
+  string account_username = 1;
+  // The mail domain, already configured for the account.
+  string domain = 2;
+  // The part before the `@`: lower-case letters, digits and `.`, `-`, `_`, at
+  // most 64 characters, starting and ending with a letter or digit, no two
+  // dots in a row. A plus sign is refused: it is the MTA's address-extension
+  // delimiter.
+  string local_part = 3;
+  // The login password as a hash in the scheme `MailStatus.password_scheme`
+  // names. SECRET: never echoed. Empty keeps the current hash and is refused
+  // when the mailbox is being created.
+  string password_hash = 4;
+  // The mailbox's storage ceiling in MiB. Zero is refused (an absent field
+  // decodes to zero and must not read as "no quota").
+  uint32 quota_mib = 5;
+  // True switches the mailbox off: no login, no new mail accepted for it, mail
+  // and files kept. False (the absent value) keeps it on, so a caller that
+  // forgot the field never disables a mailbox.
+  bool disabled = 6;
+  // The most messages the mailbox may SEND per hour. Zero is refused.
+  uint32 send_limit_per_hour = 7;
+  // What happens to mail scored as spam. UNSPECIFIED means FILE_TO_JUNK.
+  MailSpamAction spam_action = 8;
+}
+
+message SetMailboxResponse {
+  oneof result {
+    SetMailboxOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message SetMailboxOk {
+  // True when the mailbox did not exist and was created.
+  bool created = 1;
+  // True when the stored password hash was replaced by this call.
+  bool password_changed = 2;
+}
+
+message RemoveMailboxRequest {
+  // System username of the account the mailbox belongs to.
+  string account_username = 1;
+  // The mail domain of the mailbox.
+  string domain = 2;
+  // The local part of the mailbox.
+  string local_part = 3;
+  // True deletes the mailbox directory and every message in it. False (the
+  // absent value) only removes the login and keeps the data, so a caller that
+  // forgot the field never destroys mail.
+  bool delete_data = 4;
+}
+
+message RemoveMailboxResponse {
+  oneof result {
+    RemoveMailboxOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message RemoveMailboxOk {
+  // True when the mailbox directory was deleted by this call.
+  bool data_deleted = 1;
+}
+
+// One alias of a domain: mail sent to `local_part@domain` goes to every
+// target.
+message MailAliasEntry {
+  // The local part the alias answers to; same grammar as a mailbox's.
+  string local_part = 1;
+  // Where the mail goes. One to twenty addresses (`local@domain`), no
+  // duplicates. An address on another host is a forwarder.
+  repeated string targets = 2;
+}
+
+// The catch-all of a domain: mail to any local part that is neither a mailbox
+// nor an alias of that same domain.
+message MailCatchAll {
+  // Where the mail goes. Same rules as `MailAliasEntry.targets`.
+  repeated string targets = 1;
+}
+
+message SetMailAliasesRequest {
+  // System username of the account that owns the domain.
+  string account_username = 1;
+  // The mail domain whose aliases are replaced.
+  string domain = 2;
+  // Every alias of the domain. The list REPLACES the domain's whole set. At
+  // most 500; no two entries share a local part.
+  repeated MailAliasEntry aliases = 3;
+  // The domain's catch-all. ABSENT means the domain has none.
+  MailCatchAll catch_all = 4;
+}
+
+message SetMailAliasesResponse {
+  oneof result {
+    SetMailAliasesOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message SetMailAliasesOk {
+  // How many aliases the domain has now.
+  uint32 alias_count = 1;
+  // Whether the domain has a catch-all now.
+  bool catch_all_set = 2;
+}
+
+// An out-of-office reply.
+message MailAutoresponder {
+  // The reply's subject: one line, at most 200 characters, no control or
+  // text-reordering characters, no double quote, no backslash and no `${`.
+  string subject = 1;
+  // The reply's text: at most 4096 bytes, lines separated by a line feed, no
+  // other control or text-reordering characters, no line beginning with a dot,
+  // no `${`.
+  string body = 2;
+  // The first instant the reply is active, in unix seconds. Zero means
+  // "from now".
+  int64 starts_at_unix = 3;
+  // The last instant the reply is active, in unix seconds. Zero means "until
+  // cleared". When set it must be after `starts_at_unix`.
+  int64 ends_at_unix = 4;
+  // Days before the same sender is answered again, 1 to 30. Zero means the
+  // agent's default of one day.
+  uint32 reply_interval_days = 5;
+}
+
+message SetMailboxAutoresponderRequest {
+  // System username of the account the mailbox belongs to.
+  string account_username = 1;
+  // The mail domain of the mailbox.
+  string domain = 2;
+  // The local part of the mailbox.
+  string local_part = 3;
+  // The reply to install. ABSENT clears the mailbox's autoresponder.
+  MailAutoresponder autoresponder = 4;
+}
+
+message SetMailboxAutoresponderResponse {
+  oneof result {
+    SetMailboxAutoresponderOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message SetMailboxAutoresponderOk {
+  // Whether the mailbox has an autoresponder installed after the call.
+  bool installed = 1;
+}
+
+message SetAccountMailSuspensionRequest {
+  // System username of the account whose mail is suspended or resumed.
+  string account_username = 1;
+  // True suspends all of the account's mail; false resumes it.
+  bool suspended = 2;
+}
+
+message SetAccountMailSuspensionResponse {
+  oneof result {
+    SetAccountMailSuspensionOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message SetAccountMailSuspensionOk {
+  // How many mailboxes the account holds, found on the host.
+  uint32 mailboxes = 1;
+  // How many open sessions were ended. Always zero on a resume.
+  uint32 sessions_ended = 2;
+}
+
+message RemoveAccountMailRequest {
+  // System username of the account whose mail is removed.
+  string account_username = 1;
+}
+
+message RemoveAccountMailResponse {
+  oneof result {
+    RemoveAccountMailOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message RemoveAccountMailOk {
+  // How many mailboxes were removed.
+  uint32 mailboxes_removed = 1;
+  // How many domains were withdrawn.
+  uint32 domains_removed = 2;
+}
+
+message ListMailboxUsageRequest {
+  // System username of the account whose mailboxes are measured.
+  string account_username = 1;
+}
+
+message ListMailboxUsageResponse {
+  oneof result {
+    ListMailboxUsageOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+// A measurement of one mailbox.
+message MailboxUsageReading {
+  // Bytes the mailbox stores.
+  uint64 bytes_used = 1;
+  // Messages the mailbox holds.
+  uint64 message_count = 2;
+}
+
+// One mailbox of an account and, when it could be measured, its usage.
+message MailboxUsage {
+  // The mail domain of the mailbox.
+  string domain = 1;
+  // The local part of the mailbox.
+  string local_part = 2;
+  // The measurement; ABSENT when the agent could not measure this mailbox.
+  // Absent is not an empty mailbox.
+  MailboxUsageReading reading = 3;
+}
+
+message ListMailboxUsageOk {
+  // One entry per mailbox the host holds for the account.
+  repeated MailboxUsage mailboxes = 1;
+}
+
+// The queue a message waits in.
+enum MailQueueName {
+  // Never sent deliberately.
+  MAIL_QUEUE_NAME_UNSPECIFIED = 0;
+  // Being delivered right now.
+  MAIL_QUEUE_NAME_ACTIVE = 1;
+  // Delivery failed temporarily and will be retried.
+  MAIL_QUEUE_NAME_DEFERRED = 2;
+  // Held by an operator or a policy and not retried.
+  MAIL_QUEUE_NAME_HELD = 3;
+  // Accepted and not yet picked up for delivery.
+  MAIL_QUEUE_NAME_INCOMING = 4;
+}
+
+// A closed classification of why a message was deferred. The agent maps the
+// MTA's own free-text reason onto this set so that no remote server's text
+// reaches a screen.
+enum MailDeferralClass {
+  // Never sent deliberately.
+  MAIL_DEFERRAL_CLASS_UNSPECIFIED = 0;
+  // Not deferred: no delivery attempt has failed yet.
+  MAIL_DEFERRAL_CLASS_NONE = 1;
+  // The remote host could not be reached, resolved or timed out.
+  MAIL_DEFERRAL_CLASS_NETWORK = 2;
+  // The remote host answered with a temporary refusal.
+  MAIL_DEFERRAL_CLASS_REMOTE_REFUSED = 3;
+  // This host could not deliver locally (quota, disk, a daemon down).
+  MAIL_DEFERRAL_CLASS_LOCAL_ERROR = 4;
+  // Any reason the agent does not classify.
+  MAIL_DEFERRAL_CLASS_OTHER = 5;
+}
+
+message ListMailQueueRequest {
+  // The most entries to return. Zero means the agent's default of 100; the
+  // agent caps it at 500.
+  uint32 limit = 1;
+}
+
+message ListMailQueueResponse {
+  oneof result {
+    ListMailQueueOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+// One queued message.
+message MailQueueEntry {
+  // The MTA's queue id, letters and digits only.
+  string queue_id = 1;
+  // The queue the message waits in.
+  MailQueueName queue = 2;
+  // The envelope sender. UNTRUSTED TEXT from the network: a screen escapes it
+  // and the panel never builds a path or a command from it.
+  string sender = 3;
+  // How many recipients are still undelivered.
+  uint32 recipient_count = 4;
+  // The message size in bytes.
+  uint64 size_bytes = 5;
+  // When the MTA accepted the message, in unix seconds.
+  int64 arrived_at_unix = 6;
+  // Why the message is deferred, as a closed class.
+  MailDeferralClass deferral_class = 7;
+}
+
+message ListMailQueueOk {
+  // The entries, newest first, at most the requested limit.
+  repeated MailQueueEntry entries = 1;
+  // How many messages the queues hold in all.
+  uint32 total_messages = 2;
+  // True when `entries` stops short of `total_messages`.
+  bool truncated = 3;
+}
+
+message DeleteQueuedMessageRequest {
+  // The queue id to delete. Revalidated: letters and digits, 10 to 25 of them,
+  // so the MTA's `ALL` selector can never be spelled.
+  string queue_id = 1;
+}
+
+message DeleteQueuedMessageResponse {
+  oneof result {
+    DeleteQueuedMessageOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message DeleteQueuedMessageOk {}
+
+message FlushMailQueueRequest {}
+
+message FlushMailQueueResponse {
+  oneof result {
+    FlushMailQueueOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message FlushMailQueueOk {
+  // The queue size after the flush was requested; ABSENT when not read.
+  MailQueueSize queue = 1;
+}

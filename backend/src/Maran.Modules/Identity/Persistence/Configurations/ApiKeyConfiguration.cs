@@ -38,6 +38,11 @@ public sealed class ApiKeyConfiguration : IEntityTypeConfiguration<ApiKey>
         builder.Property(k => k.CreatedByUserId)
             .IsRequired();
 
+        // The owning reseller, or null for a key the administrator owns. Deliberately not a foreign
+        // key: the reseller lives in another module's schema, and its deletion removes its keys through
+        // an event. Indexed because every reseller-side list and count asks for "this owner's keys".
+        builder.Property(k => k.ResellerId);
+
         builder.Property(k => k.CreatedAt)
             .IsRequired();
 
@@ -54,5 +59,8 @@ public sealed class ApiKeyConfiguration : IEntityTypeConfiguration<ApiKey>
         builder.HasIndex(k => k.Prefix)
             .IsUnique()
             .HasDatabaseName("UX_ApiKeys_Prefix");
+
+        builder.HasIndex(k => k.ResellerId)
+            .HasDatabaseName("IX_ApiKeys_ResellerId");
     }
 }

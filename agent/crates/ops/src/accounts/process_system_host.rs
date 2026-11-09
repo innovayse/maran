@@ -14,6 +14,8 @@ use maran_distro::{AdapterBinary, DistroAdapter};
 use crate::accounts::model::home_metadata::HomeMetadata;
 use crate::accounts::model::sysv_ipc_kind::SysvIpcKind;
 use crate::accounts::{AccountError, CommandOutcome, SystemHost};
+use crate::safe_write::model::{ConfigFile, Validator};
+use crate::safe_write::{SafeWriteError, write_unreloaded_config};
 use maran_agent_core::end_of_options::END_OF_OPTIONS;
 
 /// Runs the real `useradd`, `usermod`, `userdel`, `setquota` and friends.
@@ -43,6 +45,33 @@ impl ProcessSystemHost {
     #[must_use]
     pub fn new(distro: &'static dyn DistroAdapter) -> Self {
         Self { distro }
+    }
+}
+
+// Named in full and not imported: `ProcessSystemHost` answers `run` for BOTH seams,
+// and with both traits in scope every `self.run(..)` in this file would be ambiguous.
+impl crate::safe_write::ConfigHost for ProcessSystemHost {
+    /// Spawns `program` with `arguments` as an argv array, for the config-write
+    /// protocol's validator.
+    ///
+    /// The same bounded spawn as [`SystemHost::run`] with the other error
+    /// surface the protocol speaks: no shell, an [`AdapterBinary`] only the
+    /// distro crate can build, a deadline from `class`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SafeWriteError::SpawnFailed`] when the program cannot be
+    /// started and [`SafeWriteError::Bound`] when it outran its deadline or its
+    /// output ceiling. A non-zero exit is not an error: its status comes back
+    /// in the outcome for the protocol to judge.
+    fn run(
+        &self,
+        program: &AdapterBinary,
+        arguments: &[&str],
+        class: CallClass,
+    ) -> Result<CommandOutcome, SafeWriteError> {
+        spawn_argv(program.as_path(), arguments, class)
+            .map_err(|error| SafeWriteError::from_spawn(program, error))
     }
 }
 
@@ -172,6 +201,33 @@ impl SystemHost for ProcessSystemHost {
     /// As [`available_bytes`].
     fn available_bytes(&self, directory: &Path) -> Result<u64, std::io::Error> {
         available_bytes(directory)
+    }
+
+    /// Hands the drop-in to the config-write protocol with no reload.
+    ///
+    /// # Errors
+    ///
+    /// As [`SystemHost::write_limits_file`].
+    fn write_limits_file(
+        &self,
+        file: &ConfigFile<'_>,
+        validator: &Validator<'_>,
+    ) -> Result<(), AccountError> {
+        write_unreloaded_config(self, file, validator).map_err(AccountError::from_limits_write)
+    }
+
+    /// Removes the drop-in with `remove_file`; a file that is not there is
+    /// success.
+    ///
+    /// # Errors
+    ///
+    /// As [`SystemHost::remove_limits_file`].
+    fn remove_limits_file(&self, path: &Path) -> Result<(), AccountError> {
+        match fs::remove_file(path) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(_) => Err(AccountError::LimitsFileFailed),
+        }
     }
 }
 

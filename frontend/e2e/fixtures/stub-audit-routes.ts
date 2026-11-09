@@ -15,6 +15,15 @@ export const AUDIT_PATTERN = /\/api\/v1\/audit(\?.*)?$/
 /** The actions endpoint the action filter reads. */
 const AUDIT_ACTIONS_PATTERN = /\/api\/v1\/audit\/actions(\?.*)?$/
 
+/** The reseller's own part of the journal (issue #370). */
+export const RESELLER_AUDIT_PATTERN = /\/api\/v1\/audit\/reseller(\?.*)?$/
+
+/** The actions endpoint the reseller's action filter reads. */
+const RESELLER_AUDIT_ACTIONS_PATTERN = /\/api\/v1\/audit\/reseller\/actions(\?.*)?$/
+
+/** The outcomes endpoint the reseller's outcome filter reads. */
+const RESELLER_AUDIT_OUTCOMES_PATTERN = /\/api\/v1\/audit\/reseller\/outcomes(\?.*)?$/
+
 /** The outcomes endpoint the outcome filter reads. */
 export const AUDIT_OUTCOMES_PATTERN = /\/api\/v1\/audit\/outcomes(\?.*)?$/
 
@@ -162,6 +171,45 @@ export const stubAudit = async (
   })
   await stubAuditRetention(page)
   await stubAuditChain(page)
+  return () => {
+    return listRequests
+  }
+}
+
+/**
+ * Fulfils the reseller's part of the journal the way the panel does: `GET /api/v1/audit/reseller` as a
+ * page honouring the same search, sort and filters as the administrator's, and its `actions` and
+ * `outcomes` choices. The entries handed in ARE the reseller's part; deciding which entries a reseller
+ * may read is the panel's job and is held by the backend's tests, so nothing here narrows them.
+ * @param page The Playwright page whose network the routes are installed on.
+ * @param events The reseller's part of the journal, newest first.
+ * @param accountOf The account each entry (by id) was attributed to, for the `account` filter.
+ * @returns A function reporting every list request so far, oldest first.
+ */
+export const stubResellerAudit = async (
+  page: Page,
+  events: AuditEvent[],
+  accountOf: Readonly<Record<string, string>> = {},
+): Promise<() => readonly URL[]> => {
+  const listRequests: URL[] = []
+  await page.route(RESELLER_AUDIT_PATTERN, async (route: Route) => {
+    listRequests.push(new URL(route.request().url()))
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(pagedAnswer(events, route.request().url(), auditRules(accountOf))),
+    })
+  })
+  const actions = new Map<string, AuditActionChoice>()
+  for (const event of events) {
+    actions.set(event.action, { action: event.action, actionName: event.actionName })
+  }
+  await page.route(RESELLER_AUDIT_ACTIONS_PATTERN, async (route: Route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([...actions.values()]) })
+  })
+  await page.route(RESELLER_AUDIT_OUTCOMES_PATTERN, async (route: Route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(AUDIT_OUTCOME_CHOICES) })
+  })
   return () => {
     return listRequests
   }

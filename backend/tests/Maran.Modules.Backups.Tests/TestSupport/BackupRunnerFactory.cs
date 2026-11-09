@@ -60,7 +60,10 @@ public static class BackupRunnerFactory
     {
         return new BackupVerificationAnnouncer(
             new BackupAlertMailer(
-                new OperatorAlertMailer(recipients ?? new StubAlertRecipientDirectory("ops@example.test"), bus),
+                new OperatorAlertDispatcher(
+                    recipients ?? new StubAlertRecipientDirectory("ops@example.test"),
+                    bus,
+                    new FakeClock(DateTimeOffset.UnixEpoch)),
                 journal,
                 BackupsTestContext.AlertText(),
                 BackupsTestContext.FailureNames()),

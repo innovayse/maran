@@ -111,8 +111,16 @@ ExecStopPost=-/usr/bin/rm -f __MARAN_API_SOCKET__
 #
 # The path must EXIST before this unit starts: ProtectSystem=strict makes a missing
 # ReadWritePaths= entry a startup failure, by name. Step 40 creates it, and runs first.
-ReadWritePaths=/var/lib/maran /var/log/maran/panel __MARAN_API_SOCKET_DIR__
-NoExecPaths=/var/lib/maran /var/log/maran/panel __MARAN_API_SOCKET_DIR__
+#
+# /run/maran-update-request is the one directory the panel writes that a ROOT unit reads (issue #382):
+# the marker its "Update now" button creates, which maran-update-request.path turns into
+# `maran update --requested`. It is root-owned (0770, group = this unit's group), so this unit can
+# create and remove the marker and can never replace the directory, and it is on /run so a marker never
+# outlives a reboot. It must exist before this unit starts (installer/lib/69-update-request.sh builds it
+# and systemd-tmpfiles rebuilds it). The panel NEVER writes what root runs: the marker's content is
+# never read, and the command root runs is fixed in the other unit.
+ReadWritePaths=/var/lib/maran /var/log/maran/panel __MARAN_API_SOCKET_DIR__ /run/maran-update-request
+NoExecPaths=/var/lib/maran /var/log/maran/panel __MARAN_API_SOCKET_DIR__ /run/maran-update-request
 # No sockets/devices are opened directly by this unit beyond outbound network
 # (PostgreSQL over unix socket, the agent over unix socket, and the license lease
 # call) and the unix socket nginx proxies to; PrivateDevices removes device node

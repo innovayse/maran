@@ -45,36 +45,49 @@ export interface InvitationLink {
 }
 
 /**
+ * Whose invitation is being read or replaced: a hosting account's owner, or a reseller's login.
+ * The two live at different endpoints and mean different things to the person reading the screen,
+ * but share everything else (the states, the link, the resend), so one type names the target and
+ * the rest of the invitation code is written once.
+ */
+export interface InvitationSubject {
+  /** Which kind of login is invited: the owner of a hosting account, or a reseller. */
+  kind: 'account' | 'reseller'
+  /** The hosting account's or the reseller's identity. */
+  id: string
+}
+
+/**
  * Typed access to the invitation endpoints.
  *
  * Called from Pinia stores only — never from a component (rules/vue.md).
  */
 export interface InvitationsApi {
   /**
-   * Reads where an account owner's invitation stands.
-   * @param accountId The hosting account being asked about.
+   * Reads where an invitation stands.
+   * @param subject Whose invitation is asked about.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The invitation's state and, while it is pending, when it lapses.
    */
-  getStatus: (accountId: string, signal?: AbortSignal) => Promise<InvitationStatus>
+  getStatus: (subject: InvitationSubject, signal?: AbortSignal) => Promise<InvitationStatus>
 
   /**
    * Issues a fresh invitation and returns its one-time link, retiring every outstanding one.
    * Nothing is mailed. Administrator-only on the server; the SPA adds no matching check
    * (rules/architecture.md — the endpoint is the boundary).
-   * @param accountId The hosting account whose owner is being invited.
+   * @param subject Whose login is being invited.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The link, shown once, and when it expires.
    */
-  issueLink: (accountId: string, signal?: AbortSignal) => Promise<InvitationLink>
+  issueLink: (subject: InvitationSubject, signal?: AbortSignal) => Promise<InvitationLink>
 
   /**
-   * Retires every outstanding invitation token for the account's login and mails a new one.
+   * Retires every outstanding invitation token for the login and mails a new one.
    *
    * The single recovery path for an `AccountCreated` handler that failed after the account row
    * already existed. Administrator-only on the server.
-   * @param accountId The hosting account whose owner is being (re)invited.
+   * @param subject Whose login is being (re)invited.
    * @param signal Optional abort signal to cancel the in-flight request.
    */
-  resend: (accountId: string, signal?: AbortSignal) => Promise<void>
+  resend: (subject: InvitationSubject, signal?: AbortSignal) => Promise<void>
 }

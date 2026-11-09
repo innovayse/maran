@@ -30,6 +30,7 @@ fn local() -> BackupDestination {
         s3_access_key_id: String::new(),
         s3_secret_access_key: String::new(),
         s3_path_style: false,
+        archive_key: String::new(),
     }
 }
 
@@ -45,6 +46,7 @@ fn s3() -> BackupDestination {
         s3_access_key_id: "AKIAEXAMPLE".to_owned(),
         s3_secret_access_key: "s3cr3t".to_owned(),
         s3_path_style: true,
+        archive_key: String::new(),
     }
 }
 

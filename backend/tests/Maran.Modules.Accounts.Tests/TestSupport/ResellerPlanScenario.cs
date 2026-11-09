@@ -186,8 +186,8 @@ public sealed class ResellerPlanScenario : IDisposable
             ResourceCeilingTestValues.Unlimited,
             ResourceCeilingTestValues.Unlimited,
             [],
-            plan.Id,
-            "203.0.113.7",
-            "unit-tests");
+            PlanId: plan.Id,
+            IpAddress: "203.0.113.7",
+            UserAgent: "unit-tests");
     }
 }

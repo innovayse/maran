@@ -39,13 +39,22 @@
   <data name="SmtpFromNameInvalid">
     <value>The sender's display name must be a single line of ordinary text.</value>
   </data>
-  <data name="SmtpAlertRecipientInvalid">
-    <value>The alert recipient must be one plain e-mail address, with no display name.</value>
-  </data>
   <data name="MailRecipientInvalid">
     <value>The recipient must be one plain e-mail address, with no display name.</value>
   </data>
   <data name="MailServerUnreachable">
     <value>No mail server answered at the configured address. Check the host and port, or try again later.</value>
+  </data>
+  <data name="AlertRecipientsTooMany">
+    <value>An alert can go to at most 10 addresses.</value>
+  </data>
+  <data name="AlertRecipientInvalid">
+    <value>Each alert address must be a valid e-mail address.</value>
+  </data>
+  <data name="AlertRecipientDuplicate">
+    <value>An alert address can appear in the list only once.</value>
+  </data>
+  <data name="AlertDeliveryFailed">
+    <value>The last alert could not be delivered.</value>
   </data>
 </root>

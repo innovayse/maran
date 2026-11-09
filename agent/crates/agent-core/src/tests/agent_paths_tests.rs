@@ -25,6 +25,24 @@ fn entry() -> CronEntryId {
 }
 
 #[test]
+fn an_accounts_limits_file_is_named_after_it_inside_the_pam_directory() {
+    assert_eq!(
+        AgentPaths::account_limits_file(&account()),
+        Path::new("/etc/security/limits.d/maran-acme.conf")
+    );
+}
+
+#[test]
+fn two_accounts_never_share_a_limits_file() {
+    let other = AccountName::parse("acmf").unwrap();
+
+    assert_ne!(
+        AgentPaths::account_limits_file(&account()),
+        AgentPaths::account_limits_file(&other)
+    );
+}
+
+#[test]
 fn the_cron_directory_sits_inside_the_accounts_own_home() {
     assert_eq!(
         AgentPaths::account_cron_dir(&account()),
@@ -316,4 +334,88 @@ fn the_shared_temp_roots_are_exactly_the_three_host_bind_mounts_under_one_parent
     for root in AgentPaths::SHARED_TEMP_ROOTS {
         assert!(root.starts_with("/run/maran-host/"), "{root}");
     }
+}
+
+#[test]
+fn a_sites_credential_file_is_named_after_its_domain_inside_the_auth_directory() {
+    let domain = crate::validation::web::domain::Domain::parse("example.com").unwrap();
+    let file = AgentPaths::site_auth_file(&domain);
+
+    assert_eq!(
+        file,
+        Path::new("/etc/maran/nginx/auth/example.com.htpasswd")
+    );
+    assert_eq!(
+        file.parent(),
+        Some(Path::new(AgentPaths::SITE_AUTH_DIRECTORY))
+    );
+    // Outside the directory the web server includes `*.conf` from.
+    assert!(!file.starts_with(AgentPaths::NGINX_INCLUDE_DIRECTORY));
+}
+
+#[test]
+fn the_trash_layout_names_are_single_plain_components() {
+    for name in [
+        AgentPaths::TRASH_DIRECTORY_NAME,
+        AgentPaths::TRASH_ENTRIES_DIRECTORY_NAME,
+        AgentPaths::TRASH_STAGING_DIRECTORY_NAME,
+        AgentPaths::TRASH_PAYLOAD_NAME,
+        AgentPaths::TRASH_ORIGINAL_NAME,
+    ] {
+        assert!(!name.is_empty());
+        assert!(!name.contains('/'), "{name}");
+        assert_ne!(name, ".");
+        assert_ne!(name, "..");
+    }
+    assert_eq!(AgentPaths::TRASH_DIRECTORY_NAME, ".maran-trash");
+}
+
+#[test]
+fn the_fleet_identity_files_are_plain_names_that_stay_inside_the_fleet_directory() {
+    let directory = std::path::Path::new(AgentPaths::FLEET_DIRECTORY);
+
+    let names = [
+        AgentPaths::FLEET_NODE_KEY_FILE,
+        AgentPaths::FLEET_NODE_CERTIFICATE_FILE,
+        AgentPaths::FLEET_PANEL_PIN_FILE,
+    ];
+    for name in names {
+        assert_eq!(
+            std::path::Path::new(name).components().count(),
+            1,
+            "{name} must be a single path component"
+        );
+        assert_eq!(directory.join(name).parent(), Some(directory));
+    }
+
+    let mut distinct = names.to_vec();
+    distinct.sort_unstable();
+    distinct.dedup();
+    assert_eq!(distinct.len(), names.len(), "the three files must differ");
+}
+
+#[test]
+fn the_fleet_directory_and_its_files_are_owner_only() {
+    assert_eq!(AgentPaths::FLEET_DIRECTORY_MODE & 0o077, 0);
+    assert_eq!(AgentPaths::FLEET_FILE_MODE & 0o077, 0);
+}
+
+#[test]
+fn the_fleet_directory_is_not_the_panels_tls_directory() {
+    assert_ne!(AgentPaths::FLEET_DIRECTORY, AgentPaths::PANEL_TLS_DIRECTORY);
+}
+
+#[test]
+fn an_imports_scratch_is_a_sibling_of_the_backup_and_verification_scratches() {
+    let id = backup();
+    let import = AgentPaths::backup_import_scratch_dir(&id);
+
+    assert!(import.starts_with(AgentPaths::BULK_SCRATCH_ROOT));
+    assert!(import.ends_with(id.as_str()));
+    assert_ne!(import, AgentPaths::backup_scratch_dir(&id));
+    assert_ne!(import, AgentPaths::backup_verification_scratch_dir(&id));
+    assert!(
+        !import.starts_with(AgentPaths::BULK_SCRATCH_ROOT.to_owned() + "/backup"),
+        "the start-up reaper keeps backup/ and removes the rest"
+    );
 }

@@ -19,6 +19,10 @@
 #      account and its owner's login exist, and the fresh install's own host settings were kept.
 #   5. Restores once more from the manual archive, to show that path restores too.
 #
+# install-polygon-recovery-guards.sh adds three observations to that round trip: the licence file
+# travelling with the archive, a fresh panel that holds a schema the archive lacks, and the refusal
+# of an archive from a newer release.
+#
 # A second container rather than uninstall-then-reinstall: it is a different server, so nothing of
 # the first one's disk (a leftover system account, a database role, a key file) can leak into the
 # proof, and the old server can be stopped to make "dead" mean dead.
@@ -293,6 +297,7 @@ rec_assert_restored() {
   rec_call GET /api/v1/accounts "" "$REC_TOKEN"
   recovery_expect "${label}: the administrator sees the account" \
     "$(case "$REC_BODY" in *"\"name\":\"${REC_ACCOUNT_NAME}\""*) echo listed ;; *) echo missing ;; esac)" listed
+  rec_licence_assert_restored "$label" "$REC_TOKEN"
 
   rec_login "$REC_ACCOUNT_NAME" "$REC_OWNER_PASSWORD"
   recovery_expect "${label}: the account owner signs in with their own password" \
@@ -331,15 +336,28 @@ rec_restore_leg() {
   rec_login "$REC_ADMIN_USER" "$REC_ADMIN_PASSWORD"
   recovery_expect "after the refused restore the old administrator is still unknown" "$REC_CODE" 401
 
-  # The restore itself: the same archive, the right passphrase, the inverse of the refusal above.
+  # A fresh panel that holds a schema the archive lacks, and an install that claims to be OLDER than
+  # the archive: the restore is refused before it changes anything, the planted schema proving it.
+  rec_guards_fresh_controls
+  rec_extra_schema_plant
+  if [ "$REC_RELEASE_GUARD" = "yes" ]; then
+    rec_release_guard_refusal /root/polygon-restore-scheduled.tar.gpg /root/polygon-panel-passphrase
+    # The inverse control: the same archive against an install NEWER than it restores.
+    rec_release_set "$REC_RELEASE_RAISED"
+  fi
+
+  # The restore itself: the same archive, the right passphrase, the inverse of the refusals above.
   rec_restore /root/polygon-restore-scheduled.tar.gpg /root/polygon-panel-passphrase
   recovery_expect "panel-restore with the right passphrase succeeds" "$REC_STATUS" 0
   recovery_expect "the restore printed no secret" "$(rec_leak_count "$REC_OUT")" 0
   [ "$REC_STATUS" -eq 0 ] || printf '%s\n' "$REC_OUT" | sed 's/^/      restore: /' >&2
   rec_assert_restored "restore from the scheduled archive"
+  recovery_expect "the restore removed the schema the archive lacks" "$(rec_extra_schema_count)" 0
 
-  # The manual archive restores too. The panel is a restored one now, so this also shows a second
-  # restore onto a panel that is already in use.
+  # The manual archive restores too, against an install of exactly its own release. The panel is a
+  # restored one now, so this also shows a second restore onto a panel that is already in use, and
+  # onto a database with no extra schema.
+  [ "$REC_RELEASE_GUARD" != "yes" ] || rec_release_put_back
   rec_stage_archive "${REC_WORK}/manual.tar.gpg" "$REC_PASSPHRASE" /root/polygon-restore-manual.tar.gpg /root/polygon-panel-passphrase
   rec_restore /root/polygon-restore-manual.tar.gpg /root/polygon-panel-passphrase
   recovery_expect "panel-restore from the manual archive succeeds" "$REC_STATUS" 0
@@ -352,7 +370,7 @@ rec_print_blind_spots() {
   echo "    panel-recovery: ${recovery_checks} checks so far (this stage: administrator second factor, account and owner login, scheduled runs under KEEP=2, refusals, restore onto a second server)"
   echo "    UNOBSERVED HERE: the timer FIRING on its schedule, and Persistent=true catching up after downtime. The service was started by name; the clock was not waited for."
   echo "    UNOBSERVED HERE: disk quota. The account was created with the suite images' setquota stand-in in place because the container's filesystem has no quota accounting."
-  echo "    UNOBSERVED HERE: the licence. This install holds no licence file, so the licence half of the restore moved nothing."
+  rec_guards_blind_spots
   echo "    UNOBSERVED HERE: the account's files, sites and databases. A panel backup holds the panel's records of them; on the second server the account exists in the panel with no system user behind it, as the documentation says."
   echo "    UNOBSERVED HERE: one PostgreSQL major and one family per run. The stage proves ${os} (${family} family) only; the other majors and families are proved by running it against them."
   echo "    UNOBSERVED HERE: SELinux enforcing. Containers on this host do not run it, so the labels restorecon sets after a restore are unexercised."
@@ -381,6 +399,7 @@ stage_panel_recovery() {
   REC_PASSPHRASE="$(openssl rand -base64 33 | tr -d '/+=\n')-polygon"
 
   if rec_seed_panel; then
+    rec_guards_prepare
     if rec_curl_supports_sigv4; then
       if rec_s3_start "${origin}-s3"; then
         REC_S3_ENABLED="yes"

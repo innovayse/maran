@@ -35,5 +35,6 @@ pub fn created_backup(
         size_bytes: details.artifact_bytes,
         sha256: details.artifact_sha256.clone(),
         database_count: details.manifest.databases.len() as u64,
+        encrypted: details.encrypted,
     })
 }

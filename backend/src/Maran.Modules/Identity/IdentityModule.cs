@@ -58,6 +58,10 @@ public sealed class IdentityModule : IPanelModule
             options.UseNpgsql(connectionString);
         });
 
+        // A singleton, because it holds no state: it opens its own scope per call, so the Host can run the
+        // module's migrations through the root provider (rules/architecture.md "The database evolves the same way").
+        services.AddSingleton<IModuleMigrations, IdentityModuleMigrations>();
+
         // ValidateOnStart, like every options class the panel binds (rules/csharp.md "Options
         // validated at startup"). A threshold of zero would ban the first person to mistype a
         // password and a window of zero would ban nobody ever; both must stop the boot rather than
@@ -98,6 +102,10 @@ public sealed class IdentityModule : IPanelModule
         services.AddScoped<InvitationLinkBuilder>();
         services.AddScoped<InvitationIssuer>();
         services.AddScoped<AccountOwnerFinder>();
+        services.AddScoped<InitialPasswordPolicy>();
+        services.AddScoped<IInitialPasswordPolicy>(provider => { return provider.GetRequiredService<InitialPasswordPolicy>(); });
+        services.AddScoped<ResellerInvitationIssuer>();
+        services.AddScoped<InvitationStatusReader>();
 
         // Sub-users: the owner check every operation asks first, and the Sdk window the plan-feature
         // filter asks to learn whether a person was given a feature. Scoped, because both read the
@@ -116,6 +124,7 @@ public sealed class IdentityModule : IPanelModule
         // scoped, because each works through the request's own DbContext (the maintenance job and the
         // account-deletion handler get a scope of their own, so they share nothing with a request).
         services.AddScoped<AuditEventQuery>();
+        services.AddScoped<AuditEventScopeReader>();
         services.AddScoped<AuditChainSealer>();
         services.AddScoped<AuditChainVerifier>();
         services.AddScoped<AuditRetentionRunner>();
@@ -152,6 +161,10 @@ public sealed class IdentityModule : IPanelModule
         // policies by the Host (RolePolicies); the handler that decides it lives here, with the
         // module that issues the claim it reads.
         services.AddSingleton<IAuthorizationHandler, TwoFactorEnrolmentCompleteHandler>();
+
+        // The first-password gate: the same shape, attached to the same policies by the Host. A login
+        // created with an initial password can do nothing but replace it until it has.
+        services.AddSingleton<IAuthorizationHandler, PasswordChangeCompleteHandler>();
 
         // View as (issue #317): the endpoint boundary a view-as token may not cross, attached to the
         // policies by the Host like the steering above; and the per-request check of the view-as

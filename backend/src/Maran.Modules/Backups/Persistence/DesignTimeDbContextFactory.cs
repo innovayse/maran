@@ -1,3 +1,4 @@
+using Maran.SharedKernel.Security;
 using Microsoft.EntityFrameworkCore.Design;
 using Npgsql;
 
@@ -32,7 +33,8 @@ public sealed class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<Bac
 
         var optionsBuilder = new DbContextOptionsBuilder<BackupsDbContext>();
         optionsBuilder.UseNpgsql(BuildConnectionString(configuration));
-        return new BackupsDbContext(optionsBuilder.Options, new DesignTimeCurrentUser());
+        return new BackupsDbContext(
+            optionsBuilder.Options, new DesignTimeCurrentUser(), new DesignTimeEncryptionService());
     }
 
     /// <summary>

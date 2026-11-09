@@ -1,0 +1,45 @@
+// Maran DNS: an authoritative-only name server. Rendered by maran-agent and
+// replaced whole on every change; an edit made here does not survive.
+include "{{ control_key_path }}";
+
+controls {
+    inet 127.0.0.1 port {{ control_port }} allow { 127.0.0.1; } keys { "{{ control_key_name }}"; };
+};
+
+options {
+    directory "{{ state_directory }}";
+    new-zones-directory "{{ state_directory }}";
+    allow-new-zones yes;
+    pid-file none;
+    lock-file none;
+    listen-on { any; };
+    listen-on-v6 { any; };
+    recursion no;
+    allow-recursion { none; };
+    allow-query-cache { none; };
+    allow-query { any; };
+    allow-transfer { none; };
+    allow-update { none; };
+    notify no;
+    dnssec-validation no;
+    version none;
+    hostname none;
+    server-id none;
+    minimal-responses yes;
+    minimal-any yes;
+    edns-udp-size 1232;
+    max-udp-size 1232;
+    rate-limit {
+        responses-per-second 10;
+        referrals-per-second 5;
+        nodata-per-second 5;
+        nxdomains-per-second 5;
+        errors-per-second 5;
+        all-per-second 20;
+        window 5;
+        slip 2;
+        min-table-size 500;
+        max-table-size 20000;
+    };
+};
+

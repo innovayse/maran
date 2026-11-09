@@ -1,3 +1,4 @@
+using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Services;
 using Maran.Modules.Identity.Tests.TestSupport;
@@ -208,5 +209,98 @@ public sealed class ApiKeyAuthenticatorTests : IDisposable
         var authenticated = Assert.IsType<ApiKeyAuthenticated>(outcome);
         Assert.Equal(key.Id, authenticated.KeyId);
         Assert.Null((await _context.ApiKeys.AsNoTracking().SingleAsync(row => row.Id == key.Id)).LastUsedAt);
+    }
+
+    /// <summary>Stores an active reseller login, optionally suspended, so a key can name its reseller.</summary>
+    private async Task<User> AddResellerLoginAsync(Guid resellerId, bool suspended = false, bool activated = true)
+    {
+        var login = User.InviteReseller(Guid.NewGuid(), "reseller-" + resellerId.ToString("N")[..8], "r@example.com", resellerId, Now);
+        if (activated)
+        {
+            login.Activate("hash");
+        }
+
+        if (suspended)
+        {
+            login.Suspend();
+        }
+
+        _context.Users.Add(login);
+        await _context.SaveChangesAsync();
+        return login;
+    }
+
+    /// <summary>A key a reseller owns authenticates while the reseller's login may sign in, and carries the reseller's id.</summary>
+    [Fact]
+    public async Task A_key_a_reseller_owns_authenticates_with_the_resellers_id_while_its_login_may_sign_in()
+    {
+        var resellerId = Guid.NewGuid();
+        await AddResellerLoginAsync(resellerId);
+        var (key, plaintext) = await ApiKeySeed.AddAsync(
+            _context, Now.AddDays(-1), scopes: [ApiKeyScopes.AccountsRead], resellerId: resellerId);
+
+        var authenticated = Assert.IsType<ApiKeyAuthenticated>(await AuthenticateAsync(plaintext));
+
+        Assert.Equal(key.Id, authenticated.KeyId);
+        Assert.Equal(resellerId, authenticated.ResellerId);
+        Assert.Equal([ApiKeyScopes.SelfRead, ApiKeyScopes.AccountsRead], authenticated.Scopes);
+    }
+
+    /// <summary>A key the administrator owns authenticates with no reseller id.</summary>
+    [Fact]
+    public async Task A_key_the_administrator_owns_authenticates_with_no_reseller_id()
+    {
+        var (_, plaintext) = await ApiKeySeed.AddAsync(_context, Now.AddDays(-1), scopes: [ApiKeyScopes.ServerRead]);
+
+        var authenticated = Assert.IsType<ApiKeyAuthenticated>(await AuthenticateAsync(plaintext));
+
+        Assert.Null(authenticated.ResellerId);
+    }
+
+    /// <summary>Suspending the reseller stops its keys on the next call with the one shared denial, and resuming restores them.</summary>
+    [Fact]
+    public async Task A_key_stops_working_while_its_resellers_login_is_suspended_and_works_again_after()
+    {
+        var resellerId = Guid.NewGuid();
+        var login = await AddResellerLoginAsync(resellerId);
+        var (_, plaintext) = await ApiKeySeed.AddAsync(_context, Now.AddDays(-1), resellerId: resellerId);
+        Assert.IsType<ApiKeyAuthenticated>(await AuthenticateAsync(plaintext));
+
+        login.Suspend();
+        await _context.SaveChangesAsync();
+        Assert.Same(ApiKeyDenied.Instance, await AuthenticateAsync(plaintext));
+
+        login.Resume();
+        await _context.SaveChangesAsync();
+        Assert.IsType<ApiKeyAuthenticated>(await AuthenticateAsync(plaintext));
+    }
+
+    /// <summary>A key whose reseller has no login at all, or one that never accepted its invitation, is refused.</summary>
+    [Fact]
+    public async Task A_key_whose_reseller_has_no_active_login_is_refused()
+    {
+        var withoutLogin = Guid.NewGuid();
+        var notActivated = Guid.NewGuid();
+        await AddResellerLoginAsync(notActivated, activated: false);
+        var (_, orphan) = await ApiKeySeed.AddAsync(_context, Now.AddDays(-1), name: "orphan", resellerId: withoutLogin);
+        var (_, pending) = await ApiKeySeed.AddAsync(_context, Now.AddDays(-1), name: "pending", resellerId: notActivated);
+
+        Assert.Same(ApiKeyDenied.Instance, await AuthenticateAsync(orphan));
+        Assert.Same(ApiKeyDenied.Instance, await AuthenticateAsync(pending));
+    }
+
+    /// <summary>One reseller's suspension does not stop another reseller's key.</summary>
+    [Fact]
+    public async Task Suspending_one_reseller_does_not_stop_another_resellers_key()
+    {
+        var suspended = Guid.NewGuid();
+        var other = Guid.NewGuid();
+        await AddResellerLoginAsync(suspended, suspended: true);
+        await AddResellerLoginAsync(other);
+        var (_, suspendedKey) = await ApiKeySeed.AddAsync(_context, Now.AddDays(-1), name: "a", resellerId: suspended);
+        var (_, otherKey) = await ApiKeySeed.AddAsync(_context, Now.AddDays(-1), name: "b", resellerId: other);
+
+        Assert.Same(ApiKeyDenied.Instance, await AuthenticateAsync(suspendedKey));
+        Assert.IsType<ApiKeyAuthenticated>(await AuthenticateAsync(otherKey));
     }
 }

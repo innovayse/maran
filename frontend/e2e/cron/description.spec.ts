@@ -14,7 +14,7 @@ import type { PanelModule } from '../../src/types/module'
 // minute, and adding an entry is confirmed by a toast.
 
 const LICENSED: PanelModule[] = [
-  { name: 'cron', displayName: 'Scheduled tasks', tier: 'included', state: 'enabled' },
+  { name: 'cron', displayName: 'Scheduled tasks', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 const ALICE: Account = {

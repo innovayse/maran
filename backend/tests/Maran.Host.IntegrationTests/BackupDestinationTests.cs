@@ -66,6 +66,7 @@ public sealed class BackupDestinationTests : IAsyncLifetime
         {
             { "GET", "/api/v1/backup-destinations" },
             { "POST", "/api/v1/backup-destinations" },
+            { "PUT", "/api/v1/backup-destinations/" + BackupDestination.DefaultDestinationId + "/encryption" },
         };
     }
 
@@ -208,6 +209,71 @@ public sealed class BackupDestinationTests : IAsyncLifetime
         Assert.Equal("BackupDestinationRemoteUnsupported", body.RootElement.GetProperty("code").GetString());
     }
 
+    /// <summary>
+    /// An administrator switches encryption on: the answer is 204, the listing says so, the key is
+    /// stored encrypted and appears in no response.
+    /// </summary>
+    /// <remarks>
+    /// The key is read back two ways. Through the entity it is the 64 hexadecimal characters the agent
+    /// accepts; through a raw query of the column it is something else entirely — the panel cipher's
+    /// output — which is what pins that the converter is on the column and the key is not stored as it
+    /// was made. The response bodies are searched for the key for the reason every check of this kind
+    /// is: the answer is a bare 204 and the list has no such member, and a later change that adds one
+    /// should fail here.
+    /// </remarks>
+    [Fact]
+    public async Task An_administrator_switching_encryption_on_stores_the_key_encrypted_and_never_returns_it()
+    {
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        await SeedAsync(factory);
+        await ReconcileAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+
+        var switched = await client.PutAsJsonAsync(
+            "/api/v1/backup-destinations/" + BackupDestination.DefaultDestinationId + "/encryption",
+            new { enabled = true });
+
+        Assert.Equal(HttpStatusCode.NoContent, switched.StatusCode);
+        Assert.Equal(string.Empty, await switched.Content.ReadAsStringAsync());
+
+        using var scope = factory.Services.CreateScope();
+        var backups = scope.ServiceProvider.GetRequiredService<BackupsDbContext>();
+        var row = await backups.BackupDestinations.AsNoTracking().SingleAsync();
+        Assert.True(row.EncryptArchives);
+        Assert.Matches("^[0-9a-f]{64}$", row.ArchiveKey!);
+
+        var stored = await backups.Database
+            .SqlQueryRaw<string>("select \"ArchiveKey\" as \"Value\" from backups.\"BackupDestinations\"")
+            .SingleAsync();
+        Assert.NotEqual(row.ArchiveKey, stored);
+        Assert.DoesNotContain(row.ArchiveKey!, stored, StringComparison.Ordinal);
+
+        var listed = await client.GetAsync("/api/v1/backup-destinations");
+        var text = await listed.Content.ReadAsStringAsync();
+        using var body = JsonDocument.Parse(text);
+        var only = Assert.Single(body.RootElement.GetProperty("items").EnumerateArray().ToList());
+        Assert.True(only.GetProperty("encryptArchives").GetBoolean());
+        Assert.DoesNotContain(row.ArchiveKey!, text, StringComparison.Ordinal);
+    }
+
+    /// <summary>A destination that does not exist is a 404, and nothing is created to find that out.</summary>
+    [Fact]
+    public async Task Switching_encryption_on_for_an_unknown_destination_is_not_found()
+    {
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        await SeedAsync(factory);
+        await ReconcileAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+
+        var response = await client.PutAsJsonAsync(
+            "/api/v1/backup-destinations/" + Guid.NewGuid() + "/encryption",
+            new { enabled = true });
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     /// <summary>A second default destination is refused by the database, not by hope.</summary>
     [Fact]
     public async Task A_second_default_destination_is_refused_by_the_database()
@@ -273,6 +339,11 @@ public sealed class BackupDestinationTests : IAsyncLifetime
         if (method is "POST")
         {
             request.Content = JsonContent.Create(new { name = "Off-site", kind = "Local" });
+        }
+
+        if (method is "PUT")
+        {
+            request.Content = JsonContent.Create(new { enabled = true });
         }
 
         return await client.SendAsync(request);

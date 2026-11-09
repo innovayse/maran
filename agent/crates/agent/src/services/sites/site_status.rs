@@ -51,14 +51,24 @@ pub fn to_agent_error(error: &SitesOpError) -> AgentError {
         // the caller naming a site the agent will not serve, not a fault of
         // this host — so it is the caller's input that is wrong.
         SitesOpError::UnsafeDocumentRoot { .. } => (ErrorCode::InvalidInput, String::new()),
+        // Options that do not fit the site they were sent for: the caller's
+        // input, decided before the host was touched.
+        SitesOpError::InvalidOptions(_) => (ErrorCode::InvalidInput, String::new()),
         // Valid config the service manager refused: a fault of the machine,
         // with the reload's own stderr for the operator.
         SitesOpError::ReloadFailed { stderr } => (ErrorCode::SystemFailure, stderr.clone()),
         SitesOpError::Render { .. }
         | SitesOpError::ConfigWrite { .. }
         | SitesOpError::DocumentRoot { .. }
+        // The credential file or its directory could not be maintained: a fault
+        // of the host (the web server's group missing, a full disk), never of
+        // the request.
+        | SitesOpError::AuthFile { .. }
         | SitesOpError::ConfigUnreadable { .. }
         | SitesOpError::LogUnreadable { .. } => (ErrorCode::SystemFailure, String::new()),
+        // The host's concurrent summaries are all taken: a fault of the moment,
+        // not of the request, and the panel's next hourly pass asks again.
+        SitesOpError::TrafficBusy => (ErrorCode::SystemFailure, String::new()),
         // A deadline or an output cap ended the program and its process group was
         // killed. This is a fault of the host, never a verdict on the request: the
         // work may or may not have finished, and `tool_output` stays empty because

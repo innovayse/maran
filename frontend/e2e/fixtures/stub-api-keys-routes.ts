@@ -2,17 +2,44 @@ import type { Page, Route } from '@playwright/test'
 import { pagedAnswer, type PagedRules } from './paged-answer'
 import type { ApiKey, ApiKeyChoice, CreateApiKeyRequest } from '../../src/types/apiKey'
 
-/** The collection: answers the paged listing (with or without a query) and the create. */
-const COLLECTION_PATTERN = /\/api\/v1\/api-keys(\?.*)?$/
+/**
+ * Where a stubbed panel serves one owner's keys: the collection (list, create, and the revoke beneath
+ * it) and the base the states are read from. The states live in one place for every owner, so an
+ * overseen reseller's keys are listed under its own path while the states come from the administrator's.
+ */
+export interface ApiKeyPaths {
+  /** The keys collection path, such as `/api/v1/api-keys`. */
+  collection: string
+  /** The path whose `/statuses` answers the states filter. */
+  statusesBase: string
+}
 
-/** One key, which answers the revoke. */
-const ENTRY_PATTERN = /\/api\/v1\/api-keys\/[^/?]+$/
+/** The administrator's own keys. */
+export const ADMINISTRATOR_KEY_PATHS: ApiKeyPaths = { collection: '/api/v1/api-keys', statusesBase: '/api/v1/api-keys' }
 
-/** The scopes a key may be granted. */
-const SCOPES_PATTERN = /\/api\/v1\/api-keys\/scopes(\?.*)?$/
+/** A signed-in reseller's own keys. */
+export const RESELLER_KEY_PATHS: ApiKeyPaths = {
+  collection: '/api/v1/reseller/api-keys',
+  statusesBase: '/api/v1/reseller/api-keys',
+}
 
-/** The states a key can be filtered by. */
-const STATUSES_PATTERN = /\/api\/v1\/api-keys\/statuses(\?.*)?$/
+/**
+ * The paths an administrator reads one reseller's keys under.
+ * @param resellerId The reseller whose keys they are.
+ * @returns The reseller's collection, with the states taken from the administrator's.
+ */
+export const overseenKeyPaths = (resellerId: string): ApiKeyPaths => {
+  return { collection: `/api/v1/resellers/${resellerId}/api-keys`, statusesBase: '/api/v1/api-keys' }
+}
+
+/**
+ * Escapes a path for use inside a regular expression.
+ * @param path The literal path.
+ * @returns The path with every pattern character escaped.
+ */
+const literal = (path: string): string => {
+  return path.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')
+}
 
 /** The secret a stubbed create answers with, `mk_<prefix>_<token>`. Distinctive so a search for it cannot hit anything else. */
 export const stubbedPlaintext = 'mk_9f8e7d6c_Zq3VbN8xTt2LrPw6KdYh5GsA1JcUe4MoXi7'
@@ -159,10 +186,19 @@ const refuse = async (route: Route, status: number, detail: string): Promise<voi
  * answers an empty 204, so a re-read after a change reports what the change did.
  * @param page The Playwright page whose network the routes are installed on.
  * @param state The keys and refusals the stub plays.
+ * @param paths Where the keys are served; the administrator's own unless a spec says otherwise.
  * @returns A live view of the calls made.
  */
-export const stubApiKeys = async (page: Page, state: StubbedApiKeys): Promise<ApiKeyCalls> => {
+export const stubApiKeys = async (
+  page: Page,
+  state: StubbedApiKeys,
+  paths: ApiKeyPaths = ADMINISTRATOR_KEY_PATHS,
+): Promise<ApiKeyCalls> => {
   const calls: ApiKeyCalls = { lists: [], created: [], revoked: [], scopeReads: 0 }
+  const COLLECTION_PATTERN = new RegExp(`${literal(paths.collection)}(\\?.*)?$`)
+  const ENTRY_PATTERN = new RegExp(`${literal(paths.collection)}/[^/?]+$`)
+  const SCOPES_PATTERN = new RegExp(`${literal(paths.collection)}/scopes(\\?.*)?$`)
+  const STATUSES_PATTERN = new RegExp(`${literal(paths.statusesBase)}/statuses(\\?.*)?$`)
 
   await page.route(COLLECTION_PATTERN, async (route) => {
     const request = route.request()

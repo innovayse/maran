@@ -8,7 +8,9 @@ use maran_agent_core::validation::system::name::AccountName;
 use crate::backup::backup_error::BackupError;
 use crate::backup::model::account_identity::AccountIdentity;
 use crate::backup::model::archive_spec::ArchiveSpec;
+use crate::backup::model::directory_swap::DirectorySwap;
 use crate::backup::model::extract_spec::ExtractSpec;
+use crate::backup::restricted_dump_host::RestrictedDumpHost;
 
 /// Everything a backup creation asks of this machine that is not a plain file
 /// operation.
@@ -87,6 +89,22 @@ pub trait BackupHost: Send + Sync {
     /// database holds no such account or cannot be read — which, asked the
     /// second time, is the account having been removed while the restore ran.
     fn account_identity(&self, account: &AccountName) -> Result<AccountIdentity, BackupError>;
+
+    /// Whether the password database holds an entry of this name, whoever the
+    /// entry belongs to.
+    ///
+    /// Asked by an import to keep a name that is taken from being published
+    /// under (issue #127, decision D1). It is NOT [`BackupHost::account_identity`]
+    /// read for success: that one refuses root, system accounts and an account
+    /// with a root group, and answers the same error for a database it could not
+    /// read, so using it here would read every one of those as "nobody has this
+    /// name".
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BackupError::ExtractionIdentityUnavailable`] when the database
+    /// could not be read, which is neither a yes nor a no.
+    fn account_exists(&self, account: &AccountName) -> Result<bool, BackupError>;
 
     /// Dumps `database` into the file at `into` and answers its size in bytes.
     ///
@@ -296,4 +314,47 @@ pub trait BackupHost: Send + Sync {
     /// run, or the dump file cannot be read, and [`BackupError::Bound`] when it
     /// was killed at its deadline.
     fn load_dump(&self, database: &DatabaseName, from: &Path) -> Result<(), BackupError>;
+
+    /// The seam the restricted loader runs against: how a dump somebody else
+    /// wrote is loaded (issue #127).
+    ///
+    /// A restore of an imported archive loads each of its dumps through
+    /// [`load_dump_restricted`](crate::backup::load_dump_restricted) over THIS
+    /// host, never through [`Self::load_dump`], which is the database
+    /// superuser's. It is a method of this trait and not a parameter of the
+    /// restore because the two seams are one machine: whatever runs a restore's
+    /// drops and loads is also what creates the temporary user, and a test that
+    /// replaces the one replaces the other.
+    fn restricted_loader(&self) -> &dyn RestrictedDumpHost;
+
+    /// Replaces one directory of `account`'s home with a tree already extracted
+    /// into `swap.staging`, **inside `fork_as_account`**, by renames between
+    /// directories held open (issue #160).
+    ///
+    /// The single-directory counterpart of the whole-home swap, and the only
+    /// place a single-directory restore touches the live home. An implementation
+    /// MUST run as the account, MUST reach every directory by descriptor with no
+    /// link followed, and MUST NOT copy: a rename that cannot be done (another
+    /// filesystem, a taken name) is a failed restore with the live directory put
+    /// back, never a partial copy.
+    ///
+    /// The child can report only that it succeeded or failed, so the typed
+    /// outcome is decided here, in the parent: a failure that left the displaced
+    /// tree in `swap.parked` is [`BackupError::DirectoryParkedAt`] and every other
+    /// failure is [`BackupError::StagingUnusable`], which is a restore that
+    /// changed nothing.
+    ///
+    /// Implementations MUST be called from `tokio::task::spawn_blocking`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BackupError::ExtractionIdentityUnavailable`] when the account
+    /// cannot be entered, [`BackupError::DirectoryParkedAt`] when the displaced
+    /// directory could not be put back, and [`BackupError::StagingUnusable`] for
+    /// every other refusal, in which case the live directory is where it was.
+    fn swap_directory(
+        &self,
+        account: &AccountName,
+        swap: &DirectorySwap,
+    ) -> Result<(), BackupError>;
 }

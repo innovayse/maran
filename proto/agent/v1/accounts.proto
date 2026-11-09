@@ -150,6 +150,34 @@ service AccountsService {
   rpc SetAccountResourceLimits(SetAccountResourceLimitsRequest)
       returns (SetAccountResourceLimitsResponse);
 
+  // Added 2026-11-07 (issue #194). Sets the most files one session of the
+  // account may hold open at once (`nofile`), by writing the account's own
+  // drop-in under the host's PAM limits directory and removing it again for
+  // "none".
+  //
+  // What it reaches: a process started inside a PAM session that loads
+  // `pam_limits` - an SSH or SFTP login, `su`, a login shell. It does NOT reach
+  // the php-fpm workers of the account's pools (they are children of the
+  // php-fpm master, which no PAM session of the account started) or a cron job
+  // on a host whose cron PAM stack does not load `pam_limits`; this rpc says so
+  // rather than claiming "the account's processes". The limit applies from the
+  // account's NEXT session: a session already open keeps the limit it started
+  // with.
+  //
+  // The file is rendered from one validated integer and named from the
+  // validated account name, so no caller text reaches it. "none" removes the
+  // file: an account with no ceiling carries no file at all, and a deleted
+  // account's file is removed with the account (DeleteAccount).
+  //
+  // Refuses a user that is not a hosting account (ERROR_CODE_INVALID_INPUT), an
+  // absent account (ERROR_CODE_NOT_FOUND), and a request without `open_files`
+  // (ERROR_CODE_INVALID_INPUT): an absent ceiling is never read as "none",
+  // which is a value of its own - the same law as SetAccountResourceLimits.
+  //
+  // Idempotent: the same request converges to the same file (or to no file).
+  rpc SetAccountOpenFilesLimit(SetAccountOpenFilesLimitRequest)
+      returns (SetAccountOpenFilesLimitResponse);
+
   // Reads current disk usage and quota for an account.
   rpc GetAccountUsage(GetAccountUsageRequest) returns (GetAccountUsageResponse);
 
@@ -186,6 +214,33 @@ message CreateAccountRequest {
   string username = 1;
   // Filesystem quota to apply at creation time, in bytes.
   uint64 quota_bytes = 2;
+  // Added 2026-11-07 (issue #194). The most files and directories the account
+  // may own on its home's filesystem (the inode quota), 1..=4294967295 when
+  // limited. ABSENT means unlimited - what a caller written before this field
+  // existed asks for, so the old behaviour is unchanged. Unlike
+  // SetAccountResourceLimits, where an absent ceiling is refused, an absent one
+  // here is the compatible reading; a ceiling that sets neither case is still
+  // refused.
+  ResourceCeiling inode_limit = 3;
+  // Added 2026-11-07 (issue #194). The login shell the account is created
+  // with. UNSPECIFIED is what a caller written before this field existed sends
+  // and means NOLOGIN, so the old behaviour is unchanged.
+  LoginShell login_shell = 4;
+}
+
+// The login shell an account is given. A closed set: the agent maps each case
+// to the shell path of the host's distribution, so no caller text ever reaches
+// `useradd --shell`.
+enum LoginShell {
+  // Never sent by a caller that knows this enum; means "a caller older than
+  // this field" and is read as LOGIN_SHELL_NOLOGIN, never as an error.
+  LOGIN_SHELL_UNSPECIFIED = 0;
+  // The account has no interactive login: SFTP and cron work through it, a
+  // terminal does not.
+  LOGIN_SHELL_NOLOGIN = 1;
+  // The account may log in to a bash shell (if sshd admits the account's own
+  // user at all). Suspension still takes it away: SuspendAccount sets nologin.
+  LOGIN_SHELL_BASH = 2;
 }
 
 message CreateAccountResponse {
@@ -219,6 +274,13 @@ message SuspendAccountOk {}
 message UnsuspendAccountRequest {
   // System username of the account to unsuspend.
   string username = 1;
+  // Added 2026-11-07 (issue #194). The shell the account gets back. The agent
+  // keeps no record of the shell an account was created with, so the panel
+  // states it on every unsuspension: without it a shell granted at creation
+  // would be silently revoked by the first suspend and unsuspend cycle.
+  // UNSPECIFIED is what a caller written before this field existed sends and
+  // means NOLOGIN, which is what unsuspension always restored.
+  LoginShell login_shell = 2;
 }
 
 message UnsuspendAccountResponse {
@@ -252,6 +314,14 @@ message SetAccountQuotaRequest {
   string username = 1;
   // New quota, in bytes.
   uint64 quota_bytes = 2;
+  // Added 2026-11-07 (issue #194). The inode quota to set beside the byte
+  // quota, 1..=4294967295 when limited. ABSENT means unlimited, which is what
+  // this rpc always did to the inode figure before the field existed. The
+  // quota tool replaces blocks and inodes in one call and the agent keeps no
+  // record of the figure it set at creation, so a caller that holds an
+  // account's inode limit states it here on every quota change; one that does
+  // not removes the limit.
+  ResourceCeiling inode_limit = 3;
 }
 
 message SetAccountQuotaResponse {
@@ -303,6 +373,27 @@ message SetAccountResourceLimitsResponse {
 
 // The slice now holds the requested ceilings.
 message SetAccountResourceLimitsOk {}
+
+// Asks for the open-files limit of one account to be set or removed.
+message SetAccountOpenFilesLimitRequest {
+  // System username of the account.
+  string username = 1;
+  // The most files one session of the account may hold open at once, 1..=1048576
+  // when limited. Required: absent is refused, "no ceiling" is the `unlimited`
+  // case and removes the account's drop-in file.
+  ResourceCeiling open_files = 2;
+}
+
+// The outcome of SetAccountOpenFilesLimit: the limit now held, or a typed failure.
+message SetAccountOpenFilesLimitResponse {
+  oneof result {
+    SetAccountOpenFilesLimitOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+// The account's open-files limit now is the requested one.
+message SetAccountOpenFilesLimitOk {}
 
 message GetAccountUsageRequest {
   // System username of the account.

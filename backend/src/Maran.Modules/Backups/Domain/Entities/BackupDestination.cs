@@ -86,6 +86,48 @@ public sealed class BackupDestination
     /// <summary>When the panel first recorded this destination.</summary>
     public DateTimeOffset CreatedAt { get; private set; }
 
+    /// <summary>Whether NEW backups written to this destination are sealed (encrypted) by the agent.</summary>
+    /// <remarks>
+    /// <para>
+    /// A policy about the future and nothing else. It says what the next backup does; it says nothing
+    /// about backups already written, which are sealed or not according to what was true the day they
+    /// were taken and which the agent recognises by the file's own first bytes. Switching it off
+    /// therefore never strands a sealed backup: <see cref="ArchiveKey"/> stays, and every restore,
+    /// verification and safety copy reads with it.
+    /// </para>
+    /// <para>
+    /// <b>True implies <see cref="ArchiveKey"/> is not <c>null</c></b>, and only
+    /// <see cref="EnableArchiveEncryption"/> sets it, which is what makes "encrypt with a key that
+    /// does not exist" unrepresentable.
+    /// </para>
+    /// </remarks>
+    public bool EncryptArchives { get; private set; }
+
+    /// <summary>
+    /// The key this destination's sealed archives were sealed with, or <c>null</c> when encryption has
+    /// never been switched on here.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Plain text in the domain, ciphertext in the database.</b> The column goes through
+    /// <c>EncryptedStringConverter</c> (the panel's <c>IEncryptionService</c>, whose key is in
+    /// <c>panel.env</c>), exactly as the TOTP secret and the SMTP password do (rules/security.md
+    /// item 8). It is NEVER copied onto a DTO, a log line, an audit entry, a personal-data export or
+    /// an exception: <c>BackupDestinationDto</c> carries <see cref="EncryptArchives"/> and no key, and
+    /// the one reader is <c>BackupDestinationMapper</c>, which hands it to the agent.
+    /// </para>
+    /// <para>
+    /// <b>One key per destination for the life of the row, and it is never replaced.</b> Rotating it
+    /// would need a key identity on every backup so that restore knew which one to send; no use case
+    /// calls for that yet (rules/csharp.md: no method no use case calls), and a rotation that
+    /// overwrote this value would silently strand every backup sealed under the old one.
+    /// Losing this value, or the panel key that decrypts it, makes every sealed backup of the
+    /// destination permanently unreadable — which is why the panel's own recovery archive carries
+    /// both (docs/backups/encryption.md).
+    /// </para>
+    /// </remarks>
+    public string? ArchiveKey { get; private set; }
+
     /// <summary>Opens a destination.</summary>
     /// <param name="id">The destination's identity.</param>
     /// <param name="name">The label an operator reads.</param>
@@ -114,6 +156,43 @@ public sealed class BackupDestination
     {
         Name = string.Empty;
         Path = string.Empty;
+    }
+
+    /// <summary>Switches encryption of new backups on, minting nothing: the caller supplies the key.</summary>
+    /// <param name="newArchiveKey">
+    /// A freshly generated 256-bit key as 64 lowercase hexadecimal characters. Used only when this
+    /// destination has never had a key; an existing key is kept, so switching encryption off and on
+    /// again does not strand the backups sealed in between.
+    /// </param>
+    /// <remarks>
+    /// Idempotent: calling it on a destination that already encrypts changes nothing. It does not
+    /// validate the key's shape — the generator that makes it is the only caller and the agent
+    /// refuses anything but a whole key — and it refuses an empty one, because a key of nothing would
+    /// turn on an encryption the agent reads as "plain".
+    /// </remarks>
+    public void EnableArchiveEncryption(string newArchiveKey)
+    {
+        if (ArchiveKey is null)
+        {
+            if (string.IsNullOrEmpty(newArchiveKey))
+            {
+                return;
+            }
+
+            ArchiveKey = newArchiveKey;
+        }
+
+        EncryptArchives = true;
+    }
+
+    /// <summary>Switches encryption of new backups off, keeping the key that opens the old ones.</summary>
+    /// <remarks>
+    /// The key is deliberately NOT cleared: a backup sealed while encryption was on is opened with it,
+    /// and clearing it here would turn a policy change into the loss of those backups.
+    /// </remarks>
+    public void DisableArchiveEncryption()
+    {
+        EncryptArchives = false;
     }
 
     /// <summary>Drops any path this destination once recorded.</summary>

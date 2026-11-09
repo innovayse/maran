@@ -4,13 +4,15 @@
 // IS the reporting mechanism there.
 #![allow(clippy::unwrap_used)]
 
+use std::fs::File;
 use std::fs::{OpenOptions, Permissions, create_dir_all, set_permissions};
-use std::io::Write as _;
+use std::io::{Read as _, Write as _};
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 
+use maran_agent_core::secret_string::SecretString;
 use maran_agent_core::utils::bound_exceeded::BoundExceeded;
 use maran_agent_core::validation::db::database_name::DatabaseName;
 use maran_agent_core::validation::system::name::AccountName;
@@ -22,8 +24,11 @@ use crate::backup::model::account_identity::AccountIdentity;
 use crate::backup::model::archive_part::ArchivePart;
 use crate::backup::model::archive_spec::ArchiveSpec;
 use crate::backup::model::backup_manifest::BackupManifest;
+use crate::backup::model::directory_swap::DirectorySwap;
 use crate::backup::model::extract_identity::ExtractIdentity;
 use crate::backup::model::extract_spec::ExtractSpec;
+use crate::backup::model::import_user::ImportUser;
+use crate::backup::restricted_dump_host::RestrictedDumpHost;
 use crate::test_support::recording_commands::RecordingCommands;
 
 /// The program name this fake records a dump under.
@@ -117,6 +122,8 @@ pub(crate) struct RecordingBackupHost {
     identities: Mutex<Vec<Option<AccountIdentity>>>,
     /// Every call to `account_identity`, counted.
     identity_calls: Mutex<usize>,
+    /// When set, `account_exists` cannot read the password database.
+    account_lookup_fails: Mutex<bool>,
     /// When set, the archiver writes HALF its bytes into the artifact and then
     /// exits with this status — what `tar` does when the disk fills under it
     /// (`tar: …: Cannot write: No space left on device`, exit 2).
@@ -126,6 +133,20 @@ pub(crate) struct RecordingBackupHost {
     available: Mutex<u64>,
     /// Every directory `available_bytes` was asked about, in order.
     measured: Mutex<Vec<PathBuf>>,
+    /// Every directory swap asked for, in order.
+    swaps: Mutex<Vec<DirectorySwap>>,
+    /// When set, every directory swap is refused as a swap that changed nothing.
+    swap_fails: Mutex<bool>,
+    /// What the restricted loader's seam was asked, in order: `create <database>`,
+    /// `load` and `drop`.
+    restricted_calls: Mutex<Vec<String>>,
+    /// The text each restricted load was handed, in order.
+    restricted_loaded: Mutex<Vec<String>>,
+    /// The database the temporary user was last created for, which is the one
+    /// its load is for.
+    restricted_current: Mutex<Option<String>>,
+    /// When set, the restricted load for this database fails.
+    fail_restricted_load_for: Mutex<Option<String>>,
 }
 
 impl RecordingBackupHost {
@@ -162,10 +183,43 @@ impl RecordingBackupHost {
             // in its `Placement`.
             identities: Mutex::new(vec![None]),
             identity_calls: Mutex::new(0),
+            account_lookup_fails: Mutex::new(false),
             archive_runs_out_of_space: Mutex::new(None),
             available: Mutex::new(u64::MAX),
             measured: Mutex::new(Vec::new()),
+            swaps: Mutex::new(Vec::new()),
+            swap_fails: Mutex::new(false),
+            restricted_calls: Mutex::new(Vec::new()),
+            restricted_loaded: Mutex::new(Vec::new()),
+            restricted_current: Mutex::new(None),
+            fail_restricted_load_for: Mutex::new(None),
         }
+    }
+
+    /// Makes the restricted load of `database` fail, as a server that refuses a
+    /// statement of the dump.
+    pub(crate) fn fail_restricted_load_for(&self, database: &str) {
+        *self.fail_restricted_load_for.lock().unwrap() = Some(database.to_owned());
+    }
+
+    /// What the restricted loader's seam was asked, in order.
+    pub(crate) fn restricted_calls(&self) -> Vec<String> {
+        self.restricted_calls.lock().unwrap().clone()
+    }
+
+    /// The text each restricted load was handed, in order.
+    pub(crate) fn restricted_loaded(&self) -> Vec<String> {
+        self.restricted_loaded.lock().unwrap().clone()
+    }
+
+    /// Makes every directory swap fail without changing anything.
+    pub(crate) fn fail_directory_swaps(&self) {
+        *self.swap_fails.lock().unwrap() = true;
+    }
+
+    /// Every directory swap asked for, in order.
+    pub(crate) fn swaps(&self) -> Vec<DirectorySwap> {
+        self.swaps.lock().unwrap().clone()
     }
 
     /// Makes the archiver write part of the artifact and then fail as `tar`
@@ -187,6 +241,11 @@ impl RecordingBackupHost {
     /// Makes `account_identity` answer these in order, the last one repeating.
     pub(crate) fn answers_identities(&self, answers: &[Option<AccountIdentity>]) {
         *self.identities.lock().unwrap() = answers.to_vec();
+    }
+
+    /// Makes `account_exists` fail as a password database that cannot be read.
+    pub(crate) fn fails_account_lookup(&self) {
+        *self.account_lookup_fails.lock().unwrap() = true;
     }
 
     /// How many times `account_identity` has been asked.
@@ -283,7 +342,63 @@ impl RecordingBackupHost {
     }
 }
 
+impl RestrictedDumpHost for RecordingBackupHost {
+    fn create_import_user(
+        &self,
+        _user: &ImportUser,
+        _password: &SecretString,
+        database: &DatabaseName,
+    ) -> Result<(), BackupError> {
+        self.restricted_calls
+            .lock()
+            .unwrap()
+            .push(format!("create {}", database.as_str()));
+        *self.restricted_current.lock().unwrap() = Some(database.as_str().to_owned());
+
+        Ok(())
+    }
+
+    fn load_dump_as(
+        &self,
+        _user: &ImportUser,
+        _password: &SecretString,
+        mut dump: File,
+    ) -> Result<(), BackupError> {
+        self.restricted_calls
+            .lock()
+            .unwrap()
+            .push("load".to_owned());
+        let mut text = String::new();
+        dump.read_to_string(&mut text).unwrap();
+        self.restricted_loaded.lock().unwrap().push(text);
+
+        let current = self.restricted_current.lock().unwrap().clone();
+        if current.is_some() && *self.fail_restricted_load_for.lock().unwrap() == current {
+            return Err(BackupError::LoadFailed { status: 1 });
+        }
+
+        Ok(())
+    }
+
+    fn drop_import_user(&self, _user: &ImportUser) -> Result<(), BackupError> {
+        self.restricted_calls
+            .lock()
+            .unwrap()
+            .push("drop".to_owned());
+
+        Ok(())
+    }
+
+    fn leftover_import_users(&self) -> Result<Vec<ImportUser>, BackupError> {
+        Ok(Vec::new())
+    }
+}
+
 impl BackupHost for RecordingBackupHost {
+    fn restricted_loader(&self) -> &dyn RestrictedDumpHost {
+        self
+    }
+
     fn now_unix(&self) -> i64 {
         FIXED_NOW
     }
@@ -291,6 +406,21 @@ impl BackupHost for RecordingBackupHost {
     fn available_bytes(&self, directory: &Path) -> Result<u64, std::io::Error> {
         self.measured.lock().unwrap().push(directory.to_path_buf());
         Ok(*self.available.lock().unwrap())
+    }
+
+    fn account_exists(&self, _account: &AccountName) -> Result<bool, BackupError> {
+        if *self.account_lookup_fails.lock().unwrap() {
+            return Err(BackupError::ExtractionIdentityUnavailable);
+        }
+
+        Ok(self
+            .identities
+            .lock()
+            .unwrap()
+            .first()
+            .copied()
+            .flatten()
+            .is_some())
     }
 
     fn account_identity(&self, _account: &AccountName) -> Result<AccountIdentity, BackupError> {
@@ -374,7 +504,7 @@ impl BackupHost for RecordingBackupHost {
             .unwrap()
             .push((spec.member().to_owned(), spec.identity()));
 
-        match spec.part {
+        match &spec.part {
             ArchivePart::Manifest => {
                 if let Some(manifest) = self.archive_manifest.lock().unwrap().as_ref() {
                     create_dir_all(&spec.into).unwrap();
@@ -389,10 +519,38 @@ impl BackupHost for RecordingBackupHost {
                     write_file(&directory.join(format!("{name}.sql")), contents);
                 }
             }
+            ArchivePart::Database { database } => {
+                let directory = spec.into.join("databases");
+                create_dir_all(&directory).unwrap();
+                for (name, contents) in self.archive_dumps.lock().unwrap().iter() {
+                    if name == database.as_str() {
+                        write_file(&directory.join(format!("{name}.sql")), contents);
+                    }
+                }
+            }
             ArchivePart::Home { .. } => {
                 create_dir_all(spec.into.join("public")).unwrap();
                 write_file(&spec.into.join("public").join("index.php"), "<?php");
             }
+            ArchivePart::Directory { directory, .. } => {
+                let tree = spec.into.join(directory.file_name());
+                create_dir_all(&tree).unwrap();
+                write_file(&tree.join("index.php"), "<?php");
+            }
+        }
+
+        Ok(())
+    }
+
+    fn swap_directory(
+        &self,
+        _account: &AccountName,
+        swap: &DirectorySwap,
+    ) -> Result<(), BackupError> {
+        self.swaps.lock().unwrap().push(swap.clone());
+
+        if *self.swap_fails.lock().unwrap() {
+            return Err(BackupError::StagingUnusable);
         }
 
         Ok(())

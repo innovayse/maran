@@ -29,6 +29,26 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
         _reloadFailure = reloadFailure;
     }
 
+    /// <inheritdoc/>
+    public Task<Result<SiteTrafficReading>> SummariseTrafficAsync(
+        string accountUsername,
+        string domain,
+        SiteTrafficCursor? cursor,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double answers the batch reload only.");
+    }
+
+    /// <inheritdoc/>
+    public Task<Result<PrunedSiteLogs>> PruneLogsAsync(
+        string accountUsername,
+        string domain,
+        uint retainRotations,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double answers the batch reload only.");
+    }
+
     /// <inheritdoc />
     public Task<Result> ReloadWebServerAsync(CancellationToken cancellationToken)
     {

@@ -1,0 +1,52 @@
+# The unattended security-patch update (issue #383): `maran update --security-only --scheduled`, run by
+# maran-update-security.timer. It is the operator's `maran update` with one more gate in front of the
+# download (the signed manifest must call the release a security release, of the installed major
+# version) and one more report after it (a failure reaches the panel's audit journal and the operator's
+# mail). The lock, the version check, the pre-update dump, the migration, the restart, the health gate
+# and the automatic rollback that never restores the database are the same code, not a copy.
+# docs/superpowers/notes/2026-11-07-security-patch-updates-threat-note.md carries the argument.
+#
+# Installed root:root 0644 as it stands by installer/lib/69-update-schedule.sh. There is no placeholder.
+[Unit]
+Description=Maran automatic security-patch update
+After=network-online.target postgresql.service maran-api.service maran-agent.service
+Wants=network-online.target
+# A run that fails is not retried by systemd: the next scheduled run, or the operator, decides.
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/local/sbin/maran update --security-only --scheduled
+RemainAfterExit=no
+# Bounds a hung run: three downloads of up to 30 minutes each, the migration, two restarts and the
+# 120 second health gate (twice, with a rollback) fit well inside this.
+TimeoutStartSec=3h
+Nice=10
+IOSchedulingClass=idle
+UMask=0077
+
+# The update writes the code root runs, so this sandbox is opened exactly as far as the verb's writes go
+# and no further. The writable set is: the release tree and `current` (/usr/local/maran), the release
+# state and the failed-release memory (/etc/maran), the pre-update dumps (/var/backups/maran-update),
+# the verb's staging directory (/var/lib/maran-cli-staging) and the lock (/run). /var/lib/maran, which
+# the panel's service account can write, is deliberately NOT here. UNOBSERVED HERE: a run under this
+# sandbox on a real host; the list was derived by reading the verb's libraries.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/usr/local/maran /etc/maran /var/backups/maran-update /var/lib/maran-cli-staging /run
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+# IP for the release host, unix for PostgreSQL, systemd and the panel's sockets, netlink for name lookups.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK

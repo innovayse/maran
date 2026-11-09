@@ -91,4 +91,50 @@ public sealed class RevokeApiKeyCommandHandlerTests : IDisposable
 
         Assert.Null((await _context.ApiKeys.SingleAsync(key => key.Id == other.Id)).RevokedAt);
     }
+
+    /// <summary>A reseller revokes its own key, and the journal names the reseller's login as the actor.</summary>
+    [Fact]
+    public async Task A_reseller_revokes_its_own_key()
+    {
+        var reseller = Guid.NewGuid();
+        var (key, _) = await ApiKeySeed.AddAsync(_context, Now.AddDays(-1), scopes: [ApiKeyScopes.PlansRead], resellerId: reseller);
+
+        var result = await NewHandler().HandleAsync(Command(key.Id) with { OwnerResellerId = reseller }, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(Now, (await _context.ApiKeys.SingleAsync()).RevokedAt);
+    }
+
+    /// <summary>A reseller revoking another reseller's key, or the administrator's, is answered like a key that does not exist.</summary>
+    [Fact]
+    public async Task A_reseller_cannot_revoke_a_key_another_owner_holds()
+    {
+        var (others, _) = await ApiKeySeed.AddAsync(_context, Now.AddDays(-1), name: "other", scopes: [ApiKeyScopes.PlansRead], resellerId: Guid.NewGuid());
+        var (administrators, _) = await ApiKeySeed.AddAsync(_context, Now.AddDays(-1), name: "admin");
+        var caller = Guid.NewGuid();
+
+        var first = await NewHandler().HandleAsync(Command(others.Id) with { OwnerResellerId = caller }, CancellationToken.None);
+        var second = await NewHandler().HandleAsync(Command(administrators.Id) with { OwnerResellerId = caller }, CancellationToken.None);
+
+        Assert.Equal("ApiKeyNotFound", first.Error!.Code);
+        Assert.Equal("ApiKeyNotFound", second.Error!.Code);
+        Assert.Equal(ErrorType.NotFound, first.Error.Type);
+        Assert.All(_context.ApiKeys, key =>
+        {
+            Assert.Null(key.RevokedAt);
+        });
+        Assert.Empty(_audit.Written);
+    }
+
+    /// <summary>The administrator's revoke finds only keys the administrator owns, never a reseller's.</summary>
+    [Fact]
+    public async Task The_administrators_revoke_does_not_reach_a_resellers_key()
+    {
+        var (key, _) = await ApiKeySeed.AddAsync(_context, Now.AddDays(-1), scopes: [ApiKeyScopes.PlansRead], resellerId: Guid.NewGuid());
+
+        var result = await NewHandler().HandleAsync(Command(key.Id), CancellationToken.None);
+
+        Assert.Equal("ApiKeyNotFound", result.Error!.Code);
+        Assert.Null((await _context.ApiKeys.SingleAsync()).RevokedAt);
+    }
 }

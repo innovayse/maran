@@ -39,3 +39,44 @@ fn rendering_the_same_input_twice_gives_the_same_bytes() {
         render_pool(distro(), &input, &paths).unwrap()
     );
 }
+
+#[test]
+fn a_pool_with_no_overrides_sets_both_size_limits_to_the_same_default() {
+    let input = pool_input(Vec::new());
+    let paths = PoolPaths::for_pool(distro(), &input.account, &input.version);
+
+    let rendered = render_pool(distro(), &input, &paths).unwrap();
+
+    assert!(rendered.contains("php_value[upload_max_filesize] = 32M\n"));
+    assert!(rendered.contains("php_value[post_max_size] = 32M\n"));
+}
+
+#[test]
+fn an_override_follows_the_default_so_it_wins() {
+    let input = pool_input(vec![
+        PhpOverride::parse("upload_max_filesize", "64M").unwrap(),
+        PhpOverride::parse("post_max_size", "64M").unwrap(),
+    ]);
+    let paths = PoolPaths::for_pool(distro(), &input.account, &input.version);
+
+    let rendered = render_pool(distro(), &input, &paths).unwrap();
+
+    let last = |needle: &str| rendered.rfind(needle).unwrap();
+    assert!(last("php_value[post_max_size] = 64M") > last("php_value[post_max_size] = 32M"));
+    assert!(
+        last("php_value[upload_max_filesize] = 64M") > last("php_value[upload_max_filesize] = 32M")
+    );
+}
+
+#[test]
+fn a_pool_whose_post_size_is_below_its_upload_size_is_not_rendered() {
+    let input = pool_input(vec![
+        PhpOverride::parse("upload_max_filesize", "64M").unwrap(),
+    ]);
+    let paths = PoolPaths::for_pool(distro(), &input.account, &input.version);
+
+    assert!(matches!(
+        render_pool(distro(), &input, &paths),
+        Err(crate::php::PhpOpError::OverridePostSizeBelowUpload { .. })
+    ));
+}

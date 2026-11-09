@@ -95,9 +95,9 @@ const stubPanel = async (page: Page): Promise<void> => {
   await stubMyAccount(page, OWN_ACCOUNT)
   await stubMyAccountResources(page, OWN_RESOURCES)
   await stubModules(page, [
-    { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
-    { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
-    { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
+    { name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+    { name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+    { name: 'databases', displayName: 'Databases', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
   ])
   await stubAccounts(page, [ACME])
   await stubInvitation(page, ACME.id, 'accepted')

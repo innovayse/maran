@@ -110,6 +110,12 @@
   - Both arms need privileges a default container does not have; run the SFTP and account-deletion suites with `--privileged` (below). Without it the mount fails, `create_sftp_user` returns `JailFailed`, and the suite goes **red** rather than passing on a jail that was never filled.
   - The consequence, stated rather than hidden: **the reload half of the config-write protocol cannot fail in the polygon**, so `ReloadFailed` and its rollback stay covered by the `ops::safe_write` unit tests, not by any polygon test. And the mount arm is an emulation of systemd's load-time check, not systemd itself: what the polygon proves is that the unit name and the mount are right, not that a real `systemd` would schedule the unit at boot.
 
+- **`polygon/stand-ins/timedatectl-stand-in.sh`**: installed at `/usr/bin/timedatectl` in both images (issue #392).
+  - A container boots no systemd, so the real `timedatectl` fails with "System has not been booted with systemd" and the agent's clock reading (`timedatectl show --property=NTP --property=NTPSynchronized`) could never succeed: the `maran dev` stack showed "Needs attention: The clock could not be checked" for ever.
+  - It answers only that one `show` call, from `/run/polygon-clock/state` (`synchronized`, `notSynchronized` or `syncServiceDisabled`; no file reads `synchronized`, a healthy host). Anything else is refused with exit 1 rather than succeeding silently.
+  - The consequence, stated rather than hidden: **it reports a file, not the kernel's flag**, so the polygon proves the agent's classification and the binary path, not that a real `timedatectl` prints these properties; the committed capture in the `ops::monitor` unit tests stands behind that. `monitor_on_a_real_host.rs` flips the file and requires the agent's answer to follow.
+  - A dev agent container created before this change keeps the old image: rebuild it (`maran agent build` / the polygon image) to get the stand-in.
+
 - **`polygon/stand-ins/setquota-stand-in.sh`**: installed at `/usr/sbin/setquota` in both images — the path the distro adapter names, since the agent no longer resolves the tool through `PATH`.
   - A container's overlay filesystem has no quota support, and creating an account applies a quota — so without this every polygon test would fail at account creation, before reaching the privilege or nginx behaviour it exists for.
   - It accepts every invocation and does nothing.
@@ -305,7 +311,7 @@ docker run --rm \
 
 ## Running the Polygon Suites
 
-Nineteen test files are `#[ignore]`d by default and run only inside a polygon:
+Twenty-five test files are `#[ignore]`d by default and run only inside a polygon:
 `sites_on_a_real_host.rs`, `php_pools_on_a_real_host.rs`,
 `privileges_on_a_real_host.rs`, `databases_on_a_real_host.rs`,
 `monitor_on_a_real_host.rs`, `binary_paths_on_a_real_host.rs`,
@@ -315,8 +321,9 @@ Nineteen test files are `#[ignore]`d by default and run only inside a polygon:
 `backup_on_a_real_host.rs`, `restore_recovery_on_a_real_host.rs`,
 `ftps_on_a_real_host.rs`, `account_identity_on_a_real_host.rs`,
 `account_leftovers_on_a_real_host.rs` (what a deleted account leaves in `/tmp`, `/var/tmp`, `/dev/shm`, `/var/mail`, the `at` queue and SysV IPC; needs `--privileged` and `at`) and
-`php_socket_migration_on_a_real_host.rs` and
-`panel_certificate_on_a_real_host.rs` (the panel's own certificate: the production panel vhost loaded in the real nginx, a challenge fetched over port 80, issuance, renewal and fallback observed by a real TLS handshake). They create real system accounts and real database
+`php_socket_migration_on_a_real_host.rs`, `panel_certificate_on_a_real_host.rs` (the panel's own certificate: the production panel vhost loaded in the real nginx, a challenge fetched over port 80, issuance, renewal and fallback observed by a real TLS handshake), `account_limits_on_a_real_host.rs` (an account's login shell and open-files limit, judged by the password database and a real `su` session),
+`php_extensions_on_a_real_host.rs` (the extension list and switch against the real `php-fpm`) and
+`site_traffic_on_a_real_host.rs` (the traffic summary and the log prune on a root-owned log directory), `dns_zone_files_on_a_real_host.rs` (rendered zone files handed to the platform's own `named-checkzone`), `files_archives_on_a_real_host.rs` (the archive rpcs and every hostile archive, against a real home and the real privilege drop) and the three browse suites of the file manager (issue #166), `files_browse_on_a_real_host.rs` (listing, sorting, paging, byte-exact reads and name search against a real home), `files_browse_containment_on_a_real_host.rs` (traversal, symlink, other-account, other-owner, hard link and FIFO/device/socket attacks, each with a positive control) and `files_browse_bounds_on_a_real_host.rs` (every size, depth, result and concurrency ceiling, crossed by exactly one and sat on exactly). One case of the first mounts a tmpfs inside a home, so the three run in the privileged command below and print `UNOBSERVED HERE` when the container may not mount. They create real system accounts and real database
 users, write real vhosts and pools, mount real filesystems, log in to a real
 sshd and drop real privileges, so they refuse to run unless the image's
 `MARAN_POLYGON` marker is set and the process is root — asked to run anywhere
@@ -333,6 +340,11 @@ docker run --rm -v "$PWD:/maran" -w /maran/agent -e CARGO_TARGET_DIR=/tmp/target
     --test restore_recovery_on_a_real_host \
     --test php_socket_migration_on_a_real_host \
     --test panel_certificate_on_a_real_host \
+    --test account_limits_on_a_real_host \
+    --test php_extensions_on_a_real_host \
+    --test site_traffic_on_a_real_host \
+    --test dns_zone_files_on_a_real_host \
+    --test files_archives_on_a_real_host \
     --no-fail-fast \
     -- --ignored --test-threads=1
 ```
@@ -375,7 +387,7 @@ of against a constant. Run without the mount the case does not go red: it prints
 `UNOBSERVED HERE` and returns, so an unprivileged run reports a green suite whose
 most valuable case never executed.
 
-The other six run separately, because each needs `--privileged`: SFTP, FTPS and
+The privileged ones run separately, because each needs `--privileged`: SFTP, FTPS and
 account-deletion for the jail's bind mount, `backup` because one of its cases
 mounts a real tmpfs at the bulk scratch root, `firewall` because `nft` cannot
 initialise its cache without `NET_ADMIN`, and `cron` because the Debian family's
@@ -390,6 +402,8 @@ docker run --rm --privileged -v "$PWD:/maran" -w /maran/agent -e CARGO_TARGET_DI
     --test account_deletion_on_a_real_host --test account_identity_on_a_real_host \
     --test account_leftovers_on_a_real_host \
     --test backup_on_a_real_host \
+    --test files_browse_on_a_real_host --test files_browse_containment_on_a_real_host \
+    --test files_browse_bounds_on_a_real_host \
     --test firewall_on_a_real_host --test cron_on_a_real_host \
     --no-fail-fast \
     -- --ignored --test-threads=1
@@ -658,7 +672,7 @@ is one this project keeps paying for when it is blurred:
 | folder | what lives there | what it does to a test |
 |---|---|---|
 | `images/` | the five `.Dockerfile`s | provides the host under test |
-| `stand-ins/` | `systemctl-stand-in.sh`, `setquota-stand-in.sh`, `s3-stand-in.py` | makes a test PASS by pretending |
+| `stand-ins/` | `systemctl-stand-in.sh`, `setquota-stand-in.sh`, `timedatectl-stand-in.sh`, `s3-stand-in.py` | makes a test PASS by pretending |
 | `asserts/` | `assert-installer-steps.sh`, `quota-harness.sh`, `pam-witness.c` | makes a test FAIL by measuring |
 
 A stand-in is not a weaker assert; it is the opposite of one. `systemctl-stand-in.sh` "starts or
@@ -668,7 +682,7 @@ stops NOTHING" by its own header, and four defects hid behind exactly that (#39,
 
     maran installer [--os <version>] [--mode local|get|offline] [--bundle PATH] [--arch <a>]
                     [--publish PORT] [--browser] [--no-panel-recovery]
-                    [--no-update-rollback] [--keep]
+                    [--no-update-rollback] [--no-account-restore] [--keep]
 
 `<version>` is any folder under `docker/polygon/images`: thirteen at the time of writing, covering
 Ubuntu 22.04/24.04/26.04, Debian 12/13, and AlmaLinux, Rocky Linux and Oracle Linux 8/9/10 — except
@@ -718,8 +732,9 @@ runs; other browsers' TLS stacks are unobserved.
 **The panel-recovery stage (issue #129)** is the closing criterion of the panel backup work, and it runs
 by default after the lockout-recovery and diagnostics stages; `--no-panel-recovery` skips it, because it
 costs a second full install. It lives in `scripts/lib/install-polygon-recovery.sh`, with the panel API
-helpers, the S3 stand-in's setup and the scheduled-backup half in `install-polygon-panel-api.sh`,
-`install-polygon-s3.sh` and `install-polygon-schedule.sh`. In order, against the container the other
+helpers, the S3 stand-in's setup, the scheduled-backup half and the licence, extra-schema and release-guard
+observations in `install-polygon-panel-api.sh`, `install-polygon-s3.sh`, `install-polygon-schedule.sh` and
+`install-polygon-recovery-guards.sh`. In order, against the container the other
 stages use:
 
 1. On the installed panel it creates a plan, a hosting account and the account owner's login through the
@@ -740,6 +755,15 @@ stages use:
    password AND one-time code (computed from the ORIGINAL secret), the account in the list, the owner's
    login, the old keys back and every other line of the new install's `panel.env` unchanged. A second
    restore, from the archive the manual verb wrote, repeats it.
+5. Three further observations (`install-polygon-recovery-guards.sh`). A licence fixture (a file that is
+   not a signed licence) planted on the first server must arrive on the second byte-identical, owned
+   `maran:maran` 0640 and read by the panel (state `refused`, where a missing or unreadable file reads
+   `absent`). A schema planted in the second server's database by the panel's own role must be gone after
+   the restore. And the release guard: with the second server's recorded release rewritten to `0.0.0` the
+   restore is refused, naming both releases, with one audit line, the panel service never stopped (its
+   start time unchanged), `panel.env` byte-identical and the planted schema still in place; with it
+   rewritten to `999.0.0` the same archive restores; the manual archive restores against the original
+   release.
 
 `s3-stand-in.py` runs in a third container of the same image (python is installed into it at run time, never
 into a server under test), serves one bucket path-style over TLS with a certificate the harness made and
@@ -748,8 +772,8 @@ and a wrong secret are both refused. It is a stand-in in this directory's sense:
 by pretending to be a provider, and it proves nothing about any real one. On a system whose `curl` predates
 `--aws-sigv4` (7.75; AlmaLinux and Rocky 8) the upload cannot run and the stage prints `UNOBSERVED HERE`
 instead. The stage also prints, every run, what it did not see: the timer firing on the clock, disk quota
-(the account is created with the suite images' `setquota` stand-in in place), the licence, the account's
-files, SELinux enforcing, and curl's argv during the upload.
+(the account is created with the suite images' `setquota` stand-in in place), a valid licence surviving a
+restore, the account's files, SELinux enforcing, and curl's argv during the upload.
 
 The three modes answer three different questions. `local` installs from the working tree over the
 released artifacts, so an installer fix is testable with no release at all. `offline` installs a
@@ -766,6 +790,39 @@ container only), seeds data and a site, runs `maran update --offline-tarball` to
 `maran rollback`, then plants a release whose api cannot run and requires the automatic rollback,
 and bundles with a flipped artifact byte, another signing key or no signature, which must change
 nothing. The network fetch path is NOT exercised.
+
+**The account destroy-and-restore stage (issue #6)** runs by default after the update-and-rollback
+stage; `--no-account-restore` skips it, because it costs a fourth full install. It lives in
+`scripts/lib/install-polygon-account-snapshot.sh` (the snapshot and the comparison), `-account-restore.sh`
+(the whole-account leg) and `-account-restore-kill.sh` (the interrupted-restore leg). On a fresh server
+it seeds an account through the API (a static site, a database with rows, a home with a symlink, a
+dangling symlink, an empty directory, a setgid directory, a 0600 file, binary content and a name with a
+space), takes a snapshot of the home (path, type, owner, group, mode, size, link target, content hash)
+and of every table (row count, hash of the dump), and first shows the snapshot a real `chmod`, `chown`,
+`chgrp`, flipped byte, removed file, removed empty directory, added file, retargeted link, altered row
+and added row, each of which it must name, and each of which it reverts exactly. Then it backs the
+account up through `POST /api/v1/backups` (completed, verified, the artifact's own sha256), damages the
+account (files deleted, a mode changed, a stray file added, the database dropped), requires the damage
+to be visible, refuses a restore typed with the wrong account name, restores through
+`POST /api/v1/backups/{id}/restore` with the real confirmation and requires the account identical on
+every axis, the task Completed and the audit entry present, and restores a second time to show the
+operation converges. The comparison is also proved against synthetic snapshots with no container: every
+axis planted once, plus the inverse control of a snapshot compared with itself.
+
+The interrupted-restore leg adds 128 MiB, two thousand small files and 300000 database rows, prints how
+long an uninterrupted restore of them takes, and then kills the root agent with `systemctl kill -s SIGKILL`
+while a restore is extracting its home, while it replaces a database, and while the swap marker is on the
+disk. A killer that never saw its window fails the leg rather than passing it. After systemd restarts the
+agent the stage reads the agent's start-up reconciliation line, compares the account with what the
+restore-interruption note promises for that window (untouched; database partly loaded with the
+pre-restore dump kept; finished forward), prints the panel's own answer and task row for the killed
+restore, and requires a retry of the same restore to end in the backed-up account.
+
+**What the account-restore stage does not settle:** a power cut (SIGKILL stops a process, not the
+machine, so fsync is not tested), disk quota, SELinux, a remote destination, an encrypted or partial
+restore, extended attributes and ACLs, and a restore under a concurrent customer workload. It prints these
+as `UNOBSERVED HERE` lines. A manual run on a real server is the other half of the criterion; its
+procedure is `docs/operations/backups.md`.
 
 **What it does not settle**, for the same reasons `systemd.Dockerfile`'s section below gives: the
 kernel is this machine's, so quota, SELinux, firewall rules and enablement-at-boot remain claims

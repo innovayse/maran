@@ -50,7 +50,7 @@ public sealed class ApiKeyScopePolicyTests
     public void Unknown_stored_scopes_grant_nothing()
     {
         var key = Key(ApiKeyScopes.SelfRead);
-        StoreScopes(key, "accounts.write", "SERVER.READ", "server.read ", "*", string.Empty);
+        StoreScopes(key, "backups.write", "SERVER.READ", "server.read ", "*", string.Empty);
 
         Assert.Equal([ApiKeyScopes.SelfRead], ApiKeyScopePolicy.EffectiveOf(key));
     }
@@ -60,7 +60,7 @@ public sealed class ApiKeyScopePolicyTests
     public void An_unknown_stored_scope_beside_a_known_one_leaves_only_the_known_one()
     {
         var key = Key(ApiKeyScopes.SelfRead);
-        StoreScopes(key, "accounts.read", ApiKeyScopes.ServerRead);
+        StoreScopes(key, "backups.write", ApiKeyScopes.ServerRead);
 
         Assert.Equal([ApiKeyScopes.SelfRead, ApiKeyScopes.ServerRead], ApiKeyScopePolicy.EffectiveOf(key));
     }
@@ -70,5 +70,40 @@ public sealed class ApiKeyScopePolicyTests
     public void A_null_key_is_refused()
     {
         Assert.Throws<ArgumentNullException>(() => { return ApiKeyScopePolicy.EffectiveOf(null!); });
+    }
+
+    /// <summary>A scope stored on a key whose owner may not hold it grants nothing, whichever way round the mismatch is.</summary>
+    [Fact]
+    public void A_stored_scope_the_owner_may_not_hold_grants_nothing()
+    {
+        var resellerKey = ApiKey.Issue(
+            Guid.NewGuid(), "R", "0a1b2c3d", "digest", [ApiKeyScopes.AccountsRead], null, Guid.NewGuid(),
+            new DateTimeOffset(2026, 11, 7, 12, 0, 0, TimeSpan.Zero), null, Guid.NewGuid());
+        StoreScopes(resellerKey, ApiKeyScopes.ServerRead, ApiKeyScopes.AccountsRead);
+
+        Assert.Equal([ApiKeyScopes.SelfRead, ApiKeyScopes.AccountsRead], ApiKeyScopePolicy.EffectiveOf(resellerKey));
+
+        var administratorKey = Key(ApiKeyScopes.ServerRead);
+        StoreScopes(administratorKey, ApiKeyScopes.ServerRead, ApiKeyScopes.AccountsRead, ApiKeyScopes.PlansRead);
+
+        Assert.Equal([ApiKeyScopes.SelfRead, ApiKeyScopes.ServerRead], ApiKeyScopePolicy.EffectiveOf(administratorKey));
+    }
+
+    /// <summary>A write scope stored on an administrator-owned key grants nothing, while the same scope on a reseller's key is effective.</summary>
+    [Fact]
+    public void A_write_scope_is_effective_only_on_a_resellers_key()
+    {
+        var resellerKey = ApiKey.Issue(
+            Guid.NewGuid(), "R", "0a1b2c3d", "digest", [ApiKeyScopes.AccountsWrite, ApiKeyScopes.AccountsDelete], null, Guid.NewGuid(),
+            new DateTimeOffset(2026, 11, 7, 12, 0, 0, TimeSpan.Zero), null, Guid.NewGuid());
+
+        Assert.Equal(
+            [ApiKeyScopes.SelfRead, ApiKeyScopes.AccountsWrite, ApiKeyScopes.AccountsDelete],
+            ApiKeyScopePolicy.EffectiveOf(resellerKey));
+
+        var administratorKey = Key(ApiKeyScopes.ServerRead);
+        StoreScopes(administratorKey, ApiKeyScopes.AccountsWrite, ApiKeyScopes.AccountsDelete);
+
+        Assert.Equal([ApiKeyScopes.SelfRead], ApiKeyScopePolicy.EffectiveOf(administratorKey));
     }
 }

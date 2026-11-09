@@ -1,57 +1,72 @@
 //! Server assembly: socket preparation, peer-cred enforcement, service registry.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
+use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
 use maran_ops::accounts::{AccountOperations, ProcessSystemHost};
-use maran_ops::backup::ProcessBackupHost;
+use maran_ops::backup::{ProcessBackupHost, ProcessRestrictedDumpHost};
 use maran_ops::cron::ProcessCronHost;
 use maran_ops::db::ProcessDbHost;
-use maran_ops::files::ProcessFilesHost;
+use maran_ops::dns::ProcessDnsHost;
+use maran_ops::files::{ProcessArchiveHost, ProcessBrowseHost, ProcessFilesHost};
 use maran_ops::firewall::ProcessFirewallHost;
 use maran_ops::ftps::ProcessFtpsHost;
 use maran_ops::logins::ProcessLoginsHost;
+use maran_ops::mail::ProcessMailHost;
 use maran_ops::monitor::ProcessMonitorHost;
 use maran_ops::php::ProcessPhpHost;
 use maran_ops::sftp::ProcessSftpHost;
 use maran_ops::sites::ProcessSiteHost;
 use maran_ops::ssl::{ProcessPanelChallengeHost, ProcessSslHost};
-use tokio_stream::wrappers::UnixListenerStream;
 use tonic::transport::Server;
 
 use crate::audit::audit_layer::AuditLayer;
 use crate::error::StartupError;
+use crate::fleet::agent_incoming::agent_incoming;
+use crate::fleet::fleet_admission_layer::FleetAdmissionLayer;
+use crate::fleet::fleet_listener::FleetListener;
 use crate::peercred::{PeerGuard, PeerPolicy};
 use crate::proto::accounts_service_server::AccountsServiceServer;
 use crate::proto::backup_service_server::BackupServiceServer;
 use crate::proto::cron_service_server::CronServiceServer;
 use crate::proto::db_service_server::DbServiceServer;
+use crate::proto::dns_service_server::DnsServiceServer;
 use crate::proto::files_service_server::FilesServiceServer;
 use crate::proto::firewall_service_server::FirewallServiceServer;
 use crate::proto::ftps_service_server::FtpsServiceServer;
+use crate::proto::mail_service_server::MailServiceServer;
 use crate::proto::monitor_service_server::MonitorServiceServer;
 use crate::proto::php_service_server::PhpServiceServer;
 use crate::proto::sftp_service_server::SftpServiceServer;
 use crate::proto::sites_service_server::SitesServiceServer;
 use crate::proto::ssl_service_server::SslServiceServer;
 use crate::proto::system_service_server::SystemServiceServer;
+use crate::proto::transfer_service_server::TransferServiceServer;
 use crate::services::accounts::accounts_service::AccountsServiceImpl;
 use crate::services::backup::backup_service::BackupServiceImpl;
 use crate::services::cron::cron_service::CronServiceImpl;
 use crate::services::db::db_service::DbServiceImpl;
+use crate::services::dns::dns_service::DnsServiceImpl;
 use crate::services::files::files_service::FilesServiceImpl;
 use crate::services::firewall::firewall_service::FirewallServiceImpl;
 use crate::services::ftps::ftps_service::FtpsServiceImpl;
+use crate::services::mail::mail_service::MailServiceImpl;
 use crate::services::monitor::monitor_service::MonitorServiceImpl;
 use crate::services::php::php_service::PhpServiceImpl;
 use crate::services::sftp::sftp_service::SftpServiceImpl;
 use crate::services::sites::sites_service::SitesServiceImpl;
 use crate::services::ssl::ssl_service::SslServiceImpl;
 use crate::services::system::system_service::SystemServiceImpl;
+use crate::services::transfer::transfer_service::TransferServiceImpl;
 use crate::shutdown::{StopSignals, drain_deadline};
 use crate::startup::bind_socket::bind_socket;
+use crate::startup::reconcile_dns_zones::reconcile_dns_zones;
+use crate::startup::reconcile_import_users::reconcile_import_users;
+use crate::startup::reconcile_opcache_drop_ins::reconcile_opcache_drop_ins;
 use crate::startup::reconcile_php_pool_trees::reconcile_php_pool_trees;
 use crate::startup::reconcile_sftp_key_files::reconcile_sftp_key_files;
+use crate::startup::reconcile_site_auth_files::reconcile_site_auth_files;
 use crate::startup::reconcile_web_tree::reconcile_web_tree;
 
 /// Binds `socket_path` and serves the contract until the process is stopped.
@@ -62,14 +77,22 @@ use crate::startup::reconcile_web_tree::reconcile_web_tree;
 /// services here and to the monitor service, which reports it so the panel can
 /// warn before the refusals begin.
 ///
+/// `fleet` is the TCP listener of fleet mode (issue #180), and `None` is the
+/// shipped default: no second socket, no TLS code run, nothing listening but the
+/// unix socket. When it is given, the same router and the same services answer
+/// both listeners; only who is admitted differs (`fleet::fleet_admission_service`
+/// for a network peer, `PeerGuard`'s uid check for a local one).
+///
 /// # Errors
 ///
-/// Returns [`StartupError`] when the socket cannot be prepared, the host is
-/// unsupported, or the server terminates abnormally.
+/// Returns [`StartupError`] when the socket cannot be prepared, the fleet
+/// listener cannot be bound or configured, the host is unsupported, or the
+/// server terminates abnormally.
 pub async fn serve(
     socket_path: &Path,
     policy: PeerPolicy,
     floor: FreeSpaceFloor,
+    fleet: Option<FleetListener>,
 ) -> Result<(), StartupError> {
     // Detection first: refusing an unsupported host before the socket exists
     // means the panel sees "agent absent" rather than an agent that accepts
@@ -131,27 +154,83 @@ pub async fn serve(
     // `DistroInfo` is handed to the system service further down, which takes
     // ownership of it, so the family is read while it is still here.
     let adapter = maran_distro::adapter_for(distro.family);
+    // The release, for the same reason: the system service below takes the
+    // `DistroInfo` whole, and mail's Dovecot generation is a fact of the release.
+    let release = distro.version_id.clone();
 
-    // BEFORE the socket, and for the same reason as the restore reconciliation
-    // above: `reload_web_server` does NOT take `safe_write::config_tree_lock`,
-    // so a `CreateSite` accepted while it ran would be writing the very tree it
-    // is validating. No connection has been accepted yet, so there is nothing
-    // to race.
-    reconcile_web_tree(&ProcessSiteHost::new(), adapter);
+    // The reconciliation passes below are synchronous: they run programs, write
+    // configuration and take `safe_write::config_tree_lock`, whose
+    // `blocking_lock` refuses a runtime worker. They therefore run together on
+    // the blocking pool, still strictly BEFORE the socket is bound, which is the
+    // ordering every comment below relies on. A panic in a pass is re-raised
+    // here unchanged, exactly as if it had run inline.
+    let passes = tokio::task::spawn_blocking(move || {
+        // BEFORE the socket, and for the same reason as the restore reconciliation
+        // above: `reload_web_server` does NOT take `safe_write::config_tree_lock`,
+        // so a `CreateSite` accepted while it ran would be writing the very tree it
+        // is validating. No connection has been accepted yet, so there is nothing
+        // to race.
+        reconcile_web_tree(&ProcessSiteHost::new(), adapter);
 
-    // And the same window over the OTHER tree `safe_write` renames into: the
-    // php-fpm pools. Here for the same two reasons — the pass takes no
-    // `config_tree_lock`, so a `WritePool` accepted while it ran would be
-    // writing the very tree it is validating, and no connection has been
-    // accepted yet.
-    reconcile_php_pool_trees(&ProcessPhpHost::new(), adapter);
+        // And the same window over the OTHER tree `safe_write` renames into: the
+        // php-fpm pools. Here for the same two reasons — the pass takes no
+        // `config_tree_lock`, so a `WritePool` accepted while it ran would be
+        // writing the very tree it is validating, and no connection has been
+        // accepted yet.
+        reconcile_php_pool_trees(&ProcessPhpHost::new(), adapter);
 
-    // The SFTP logins' key directory against the password database (issue
-    // #338). BEFORE the socket for the same reason as the passes above: no
-    // `CreateSftpUser` or `SetSftpAuthorizedKeys` can be writing a key file
-    // while the sweep decides which ones are orphans, because no connection has
-    // been accepted yet.
-    reconcile_sftp_key_files(&ProcessSftpHost::new(), adapter);
+        // Each installed PHP version's OPcache drop-in, the isolation settings of the
+        // cache every tenant of a version shares. After the pool-tree pass so a tree
+        // it found broken is reported before a reload is asked of the same master, and
+        // before the socket for the same reason as the passes around it.
+        reconcile_opcache_drop_ins(&ProcessPhpHost::new(), adapter);
+
+        // The SFTP logins' key directory against the password database (issue
+        // #338). BEFORE the socket for the same reason as the passes above: no
+        // `CreateSftpUser` or `SetSftpAuthorizedKeys` can be writing a key file
+        // while the sweep decides which ones are orphans, because no connection has
+        // been accepted yet.
+        reconcile_sftp_key_files(&ProcessSftpHost::new(), adapter);
+
+        // The sites' credential files against the vhost directory (issue #151).
+        // BEFORE the socket, for the same reason as the passes above: no `CreateSite`
+        // can be writing a credential file and a vhost while the sweep decides which
+        // files are orphans, because no connection has been accepted yet.
+        reconcile_site_auth_files(&ProcessSiteHost::new());
+
+        // The zone files against the DNS daemon's own zone list (issue #178). BEFORE
+        // the socket, so no `PutZone` or `DeleteZone` can be changing a zone while the
+        // pass decides which files the daemon has lost, because no connection has
+        // been accepted yet. A host that has not enabled DNS has no daemon to ask,
+        // which is not a fault.
+        reconcile_dns_zones(&ProcessDnsHost::new(), adapter);
+
+        // The temporary database users an interrupted import left behind (issue
+        // #127). BEFORE the socket, so no `ImportBackup` can be between creating its
+        // user and dropping it while the pass drops every user of that shape,
+        // because no connection has been accepted yet.
+        reconcile_import_users(&ProcessRestrictedDumpHost::new(
+            adapter,
+            PathBuf::from(AgentPaths::BULK_SCRATCH_ROOT),
+        ));
+    });
+    if let Err(failure) = passes.await {
+        std::panic::resume_unwind(failure.into_panic());
+    }
+
+    // The fleet listener's address is bound BEFORE the unix socket: the socket file is what
+    // tells the panel and the tests that the agent is ready, so a node whose fleet address is
+    // taken or whose identity is unusable must fail here, leaving no socket behind. Nothing is
+    // accepted on it until the server starts below.
+    let fleet = match fleet {
+        Some(listener) => Some(listener.bind().await?),
+        None => None,
+    };
+    let fleet_admission = fleet
+        .as_ref()
+        .map_or_else(FleetAdmissionLayer::refusing_every_fleet_peer, |bound| {
+            bound.admission_layer()
+        });
 
     // The socket directory, a stale socket and the bind itself are `bind_socket`'s.
     let listener = bind_socket(socket_path)?;
@@ -192,6 +271,11 @@ pub async fn serve(
         // mutating rpc and nothing for any other path, and changes no request and no
         // response (issue #106, docs/superpowers/notes/2026-11-06-agent-audit-lines-threat-note.md).
         .layer(AuditLayer)
+        // Inside the audit layer and outside every `PeerGuard`: a request from the fleet
+        // listener is checked against the pinned panel certificate before any service sees
+        // it, and a refused one still leaves its audit line. Requests from the unix socket
+        // pass through it untouched.
+        .layer(fleet_admission)
         .add_service(SystemServiceServer::with_interceptor(
             SystemServiceImpl::new(distro),
             PeerGuard::new(policy),
@@ -247,8 +331,18 @@ pub async fn serve(
         // every family (`AgentPaths`). A service that took an adapter it never
         // asked a question of would suggest there is a platform difference
         // here, and there is not.
+        //
+        // The read side is a second host and the archive side a third, each
+        // built ONCE here: their concurrency bounds (per account and for the
+        // whole host) are state inside the host, so a host constructed per
+        // request would bound nothing.
         .add_service(FilesServiceServer::with_interceptor(
-            FilesServiceImpl::new(ProcessFilesHost::new(), floor),
+            FilesServiceImpl::new(
+                ProcessFilesHost::new(),
+                ProcessBrowseHost::new(),
+                ProcessArchiveHost::new(),
+                floor,
+            ),
             PeerGuard::new(policy),
         ))
         // No distro adapter either, and for the same kind of reason: the one
@@ -272,6 +366,20 @@ pub async fn serve(
         // what keeps a password change inside one account and one daemon.
         .add_service(FtpsServiceServer::with_interceptor(
             FtpsServiceImpl::new(ProcessFtpsHost::new(), adapter),
+            PeerGuard::new(policy),
+        ))
+        // The authoritative DNS daemon. The adapter carries the checker, the
+        // control client and the service manager; the daemon arrives switched
+        // off and `EnableDns` is the only thing that starts it.
+        .add_service(DnsServiceServer::with_interceptor(
+            DnsServiceImpl::new(ProcessDnsHost::new(), adapter, floor),
+            PeerGuard::new(policy),
+        ))
+        // The host's mail stack. The adapter carries the daemons' programs, units
+        // and the password scheme; the release picks the Dovecot generation. The
+        // daemons arrive masked and `EnableMail` is the only thing that starts them.
+        .add_service(MailServiceServer::with_interceptor(
+            MailServiceImpl::new(ProcessMailHost::new(), adapter, release),
             PeerGuard::new(policy),
         ))
         // The adapter is passed on: a crontab line names the interpreter by
@@ -311,7 +419,14 @@ pub async fn serve(
             ),
             PeerGuard::new(policy),
         ))
-        .serve_with_incoming_shutdown(UnixListenerStream::new(listener), async move {
+        // Moves a backup artifact in and out (issue #127). It needs only the backup
+        // host and the floor: the agent opens no connection for it, and no database
+        // is touched (restoring a received artifact is the BackupService's own call).
+        .add_service(TransferServiceServer::with_interceptor(
+            TransferServiceImpl::new(ProcessBackupHost::new(adapter), floor),
+            PeerGuard::new(policy),
+        ))
+        .serve_with_incoming_shutdown(agent_incoming(listener, fleet), async move {
             stop_signals.stopped().await;
             // Failure means the deadline half was dropped, which only happens
             // when the whole select below is going away: nothing to report.

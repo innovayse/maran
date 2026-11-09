@@ -16,7 +16,14 @@ import type { ResourceCeiling } from './resourceCeiling'
  * server lists only the kinds whose module is installed, so the SPA never draws a row for a module
  * this server lacks.
  */
-export type AccountResourceKind = 'sites' | 'databases' | 'sftpLogins' | 'ftpLogins' | 'cronEntries' | 'backups'
+export type AccountResourceKind =
+  | 'sites'
+  | 'databases'
+  | 'sftpLogins'
+  | 'ftpLogins'
+  | 'cronEntries'
+  | 'backups'
+  | 'mailboxes'
 
 /**
  * How many of a resource an account holds, mirroring `ResourceCountDto`. Exactly one of two shapes

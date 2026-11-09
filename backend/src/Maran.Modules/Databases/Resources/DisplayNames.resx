@@ -39,4 +39,85 @@
   <data name="GrantRepairAdvicePartiallyOrUnfamiliarlyEscaped">
     <value>The stored name is escaped in a way this panel never produces, so escaping it again could have destroyed a working grant. Nothing was changed. Compare it with a grant the panel issued, and correct it by hand if it is wrong.</value>
   </data>
+  <data name="DatabasesMenuDatabasesList">
+    <value>Database list</value>
+  </data>
+  <data name="DatabasesMenuDatabasesGrantRepair">
+    <value>Grant repair</value>
+  </data>
+  <data name="DatabasesRouteDatabases">
+    <value>Databases</value>
+  </data>
+  <data name="DatabasesRouteDatabaseGrantRepair">
+    <value>Grant repair</value>
+  </data>
+  <data name="DatabasesMenuDatabasesUsers">
+    <value>Database users</value>
+  </data>
+  <data name="DatabasesRouteDatabaseUsers">
+    <value>Database users and privileges</value>
+  </data>
+  <data name="DatabasePrivilegePresetReadOnly">
+    <value>Read only</value>
+  </data>
+  <data name="DatabasePrivilegePresetReadWrite">
+    <value>Read and write</value>
+  </data>
+  <data name="DatabasePrivilegePresetFullAccess">
+    <value>Full access</value>
+  </data>
+  <data name="DatabasePrivilegeSelect">
+    <value>Read rows (SELECT)</value>
+  </data>
+  <data name="DatabasePrivilegeInsert">
+    <value>Add rows (INSERT)</value>
+  </data>
+  <data name="DatabasePrivilegeUpdate">
+    <value>Change rows (UPDATE)</value>
+  </data>
+  <data name="DatabasePrivilegeDelete">
+    <value>Delete rows (DELETE)</value>
+  </data>
+  <data name="DatabasePrivilegeCreate">
+    <value>Create tables (CREATE)</value>
+  </data>
+  <data name="DatabasePrivilegeDrop">
+    <value>Drop tables (DROP)</value>
+  </data>
+  <data name="DatabasePrivilegeAlter">
+    <value>Change table structure (ALTER)</value>
+  </data>
+  <data name="DatabasePrivilegeIndex">
+    <value>Manage indexes (INDEX)</value>
+  </data>
+  <data name="DatabasePrivilegeReferences">
+    <value>Create foreign keys (REFERENCES)</value>
+  </data>
+  <data name="DatabasePrivilegeCreateTemporaryTables">
+    <value>Create temporary tables (CREATE TEMPORARY TABLES)</value>
+  </data>
+  <data name="DatabasePrivilegeLockTables">
+    <value>Lock tables (LOCK TABLES)</value>
+  </data>
+  <data name="DatabasePrivilegeCreateView">
+    <value>Create views (CREATE VIEW)</value>
+  </data>
+  <data name="DatabasePrivilegeShowView">
+    <value>Read view definitions (SHOW VIEW)</value>
+  </data>
+  <data name="DatabasePrivilegeCreateRoutine">
+    <value>Create routines (CREATE ROUTINE)</value>
+  </data>
+  <data name="DatabasePrivilegeAlterRoutine">
+    <value>Change routines (ALTER ROUTINE)</value>
+  </data>
+  <data name="DatabasePrivilegeExecute">
+    <value>Run routines (EXECUTE)</value>
+  </data>
+  <data name="DatabasePrivilegeTrigger">
+    <value>Manage triggers (TRIGGER)</value>
+  </data>
+  <data name="DatabasePrivilegeEvent">
+    <value>Manage scheduled events (EVENT)</value>
+  </data>
 </root>

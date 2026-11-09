@@ -1,3 +1,6 @@
+using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Security;
+
 namespace Maran.Sdk.Events;
 
 /// <summary>
@@ -28,4 +31,26 @@ namespace Maran.Sdk.Events;
 /// The owner's language, one of <c>PanelLanguages.Supported</c>: the invitation is written in it,
 /// not in the language of the administrator whose request created the account (issue #194).
 /// </param>
-public sealed record AccountCreated(Guid AccountId, string Username, string OwnerEmail, string OwnerLanguage);
+/// <param name="LoginMode">
+/// How the owner gets their first way in: an invitation mail (the default) or a password the creator
+/// chose. Identity reads it; no other subscriber needs it.
+/// </param>
+/// <param name="InitialPassword">
+/// The owner's first password when <paramref name="LoginMode"/> is
+/// <see cref="OwnerLoginMode.InitialPassword"/>, otherwise null. A <see cref="SensitiveString"/> because
+/// this record is a compiler-generated <c>ToString()</c> away from printing every member: the type masks
+/// the value in logs, exception text and the debugger. The event is only ever invoked in-process and is
+/// never published to a durable queue, so the value is never written to a table.
+/// </param>
+/// <param name="BackupEnabled">
+/// False when the creator asked for the account to be left out of scheduled backups. Backups reads it;
+/// the default keeps an account in the schedule.
+/// </param>
+public sealed record AccountCreated(
+    Guid AccountId,
+    string Username,
+    string OwnerEmail,
+    string OwnerLanguage,
+    OwnerLoginMode LoginMode = OwnerLoginMode.Invitation,
+    SensitiveString? InitialPassword = null,
+    bool BackupEnabled = true);

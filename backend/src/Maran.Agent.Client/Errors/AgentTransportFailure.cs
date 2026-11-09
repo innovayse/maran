@@ -81,7 +81,29 @@ public static class AgentTransportFailure
     /// </remarks>
     public static bool IsUnreachable(Exception exception)
     {
-        return exception is RpcException { StatusCode: StatusCode.Unavailable or StatusCode.DeadlineExceeded };
+        return exception is RpcException { StatusCode: StatusCode.Unavailable or StatusCode.DeadlineExceeded }
+            || IsRefusedHandshake(exception);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="exception"/> is a TLS handshake the panel itself refused: the node's
+    /// certificate failed the pin or its validity window, or the node offered less than TLS 1.3.
+    /// </summary>
+    /// <param name="exception">What the call threw.</param>
+    /// <returns><c>true</c> for a call that ended because the secure connection could not be established.</returns>
+    /// <remarks>
+    /// <c>Grpc.Net.Client</c> 2.84.0 reports a handshake that ended in an
+    /// <see cref="System.Security.Authentication.AuthenticationException"/> (the validation callback
+    /// said no) as <see cref="StatusCode.Internal"/>, while one that ended in an I/O error is
+    /// <see cref="StatusCode.Unavailable"/>; the framework's own classification of both is
+    /// <see cref="HttpRequestError.SecureConnectionError"/> on the exception beneath the
+    /// <see cref="RpcException"/>, which is the test used here. Nothing was sent, and the node cannot
+    /// be spoken to, so it is an unreachable node and not a server fault.
+    /// </remarks>
+    private static bool IsRefusedHandshake(Exception exception)
+    {
+        return exception is RpcException { StatusCode: StatusCode.Internal } rpc
+            && rpc.InnerException is HttpRequestException { HttpRequestError: HttpRequestError.SecureConnectionError };
     }
 
     /// <summary>The typed failure the panel answers a transport failure with.</summary>
@@ -122,6 +144,11 @@ public static class AgentTransportFailure
     public static Error ToError(RpcException exception)
     {
         ArgumentNullException.ThrowIfNull(exception);
+
+        if (IsRefusedHandshake(exception))
+        {
+            return Unavailable();
+        }
 
         return exception.StatusCode switch
         {

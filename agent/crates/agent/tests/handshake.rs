@@ -68,7 +68,8 @@ async fn handshake_over_a_unix_socket_reports_the_agent_and_the_host() {
     let policy = PeerPolicy::new(maran_agent_core::utils::current_uid::current_uid().unwrap());
     let server_path = socket_path.clone();
     let mut server = tokio::spawn(async move {
-        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor()).await
+        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor(), None)
+            .await
     });
 
     match wait_until_listening(&socket_path, &mut server).await {
@@ -91,7 +92,7 @@ async fn handshake_over_a_unix_socket_reports_the_agent_and_the_host() {
         other => panic!("the handshake must succeed on a supported host, got {other:?}"),
     };
 
-    assert_eq!(info.proto_version, 20);
+    assert_eq!(info.proto_version, 21);
     assert!(
         !info.version.is_empty(),
         "the agent must report its version"
@@ -176,7 +177,8 @@ async fn every_new_service_refuses_a_uid_the_policy_does_not_allow() {
     let policy = PeerPolicy::new(uid.wrapping_add(1));
     let server_path = socket_path.clone();
     let mut server = tokio::spawn(async move {
-        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor()).await
+        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor(), None)
+            .await
     });
 
     match wait_until_listening(&socket_path, &mut server).await {
@@ -253,6 +255,13 @@ async fn every_new_service_refuses_a_uid_the_policy_does_not_allow() {
         .await;
     assert_denied("FtpsService", ftps.err());
 
+    // The DNS service is the one that can bring up a listener on port 53, so it
+    // is checked through the request that would do exactly that.
+    let dns = maran_agent::proto::dns_service_client::DnsServiceClient::new(channel.clone())
+        .enable_dns(maran_agent::proto::EnableDnsRequest::default())
+        .await;
+    assert_denied("DnsService", dns.err());
+
     // The streaming rpc too: the interceptor runs per request, but a service
     // registered without a guard would leak through whichever rpc nobody
     // checked.
@@ -290,7 +299,8 @@ async fn the_files_service_answers_over_the_wire_and_refuses_what_it_does_not_im
     let policy = PeerPolicy::new(maran_agent_core::utils::current_uid::current_uid().unwrap());
     let server_path = socket_path.clone();
     let mut server = tokio::spawn(async move {
-        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor()).await
+        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor(), None)
+            .await
     });
 
     match wait_until_listening(&socket_path, &mut server).await {
@@ -328,22 +338,117 @@ async fn the_files_service_answers_over_the_wire_and_refuses_what_it_does_not_im
         other => panic!("recursive removal must be refused, got {other:?}"),
     }
 
-    // An rpc this agent does not implement answers with the transport's own
-    // UNIMPLEMENTED rather than an ok payload, so a panel calling it cannot
-    // read "nothing happened" as "it worked".
-    let unimplemented = FilesServiceClient::new(channel)
+    // Wire validation needs no root and no account: a traversing path is refused
+    // as invalid input before any account is resolved, and the refusal travels in
+    // the response payload (the paired acceptance is the browse test below, whose
+    // valid shapes pass validation).
+    let refused_directory = FilesServiceClient::new(channel)
         .create_directory(CreateDirectoryRequest {
             account_username: "acme".to_owned(),
-            path: "sites".to_owned(),
+            path: "../escape".to_owned(),
             mode: 0o755,
         })
-        .await;
+        .await
+        .unwrap()
+        .into_inner();
 
-    assert_eq!(
-        unimplemented.err().map(|status| status.code()),
-        Some(tonic::Code::Unimplemented),
-        "an rpc that is not built must say so"
+    match refused_directory.result {
+        Some(maran_agent::proto::create_directory_response::Result::Error(error)) => assert_eq!(
+            error.code,
+            ErrorCode::InvalidInput as i32,
+            "a traversing path must be refused as invalid input"
+        ),
+        other => panic!("a traversing path must be refused, got {other:?}"),
+    }
+
+    server.abort();
+}
+
+#[tokio::test]
+async fn the_files_browse_rpcs_answer_over_the_wire_and_refuse_input_before_any_account_is_resolved()
+ {
+    use maran_agent::proto::{
+        ListDirectoryRequest, ReadFileRequest, SearchEntriesRequest, list_directory_response,
+        read_file_response, search_entries_response,
+    };
+
+    let directory = tempfile::tempdir().unwrap();
+    let socket_path = directory.path().join("agent.sock");
+
+    let policy = PeerPolicy::new(maran_agent_core::utils::current_uid::current_uid().unwrap());
+    let server_path = socket_path.clone();
+    let mut server = tokio::spawn(async move {
+        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor(), None)
+            .await
+    });
+
+    match wait_until_listening(&socket_path, &mut server).await {
+        Started::Listening => {}
+        Started::UnsupportedHost(reason) => {
+            eprintln!("skipping the files browse test: {reason}");
+            return;
+        }
+    }
+
+    let channel = connect(&socket_path).await;
+    let invalid = ErrorCode::InvalidInput as i32;
+
+    // Each refusal below is decided before any account is resolved, so the
+    // answer is the same on every machine and without root. Together they prove
+    // the three rpcs are registered (not UNIMPLEMENTED), that a refusal travels
+    // in the payload rather than as a transport status, and that the read
+    // stream carries its refusal as a message and then ends.
+    let listing = FilesServiceClient::new(channel.clone())
+        .list_directory(ListDirectoryRequest {
+            account_username: "acme".to_owned(),
+            path: "../etc".to_owned(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    match listing.result {
+        Some(list_directory_response::Result::Error(error)) => assert_eq!(error.code, invalid),
+        other => panic!("a traversal path must be refused, got {other:?}"),
+    }
+
+    let mut read = FilesServiceClient::new(channel.clone())
+        .read_file(ReadFileRequest {
+            account_username: "acme".to_owned(),
+            path: "index.html".to_owned(),
+            max_bytes: 0,
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    match read
+        .message()
+        .await
+        .unwrap()
+        .and_then(|message| message.result)
+    {
+        Some(read_file_response::Result::Error(error)) => assert_eq!(error.code, invalid),
+        other => panic!("a read without a limit must be refused, got {other:?}"),
+    }
+    assert!(
+        read.message().await.unwrap().is_none(),
+        "the refusal must be the last message of the stream"
     );
+
+    let search = FilesServiceClient::new(channel)
+        .search_entries(SearchEntriesRequest {
+            account_username: "acme".to_owned(),
+            path: String::new(),
+            query: String::new(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    match search.result {
+        Some(search_entries_response::Result::Error(error)) => assert_eq!(error.code, invalid),
+        other => panic!("an empty query must be refused, got {other:?}"),
+    }
 
     server.abort();
 }
@@ -356,7 +461,8 @@ async fn the_database_and_sftp_services_answer_over_the_wire_with_a_typed_refusa
     let policy = PeerPolicy::new(maran_agent_core::utils::current_uid::current_uid().unwrap());
     let server_path = socket_path.clone();
     let mut server = tokio::spawn(async move {
-        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor()).await
+        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor(), None)
+            .await
     });
 
     match wait_until_listening(&socket_path, &mut server).await {
@@ -460,7 +566,8 @@ async fn a_create_site_naming_one_host_twice_is_refused_over_the_wire_as_invalid
     let policy = PeerPolicy::new(maran_agent_core::utils::current_uid::current_uid().unwrap());
     let server_path = socket_path.clone();
     let mut server = tokio::spawn(async move {
-        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor()).await
+        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor(), None)
+            .await
     });
 
     match wait_until_listening(&socket_path, &mut server).await {
@@ -510,7 +617,8 @@ async fn the_ftps_service_answers_its_own_typed_errors_rather_than_unimplemented
     let policy = PeerPolicy::new(maran_agent_core::utils::current_uid::current_uid().unwrap());
     let server_path = socket_path.clone();
     let mut server = tokio::spawn(async move {
-        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor()).await
+        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor(), None)
+            .await
     });
 
     match wait_until_listening(&socket_path, &mut server).await {
@@ -703,7 +811,8 @@ async fn the_enable_shape_the_panel_sends_passes_the_agents_input_boundary_and_a
     let policy = PeerPolicy::new(maran_agent_core::utils::current_uid::current_uid().unwrap());
     let server_path = socket_path.clone();
     let mut server = tokio::spawn(async move {
-        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor()).await
+        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor(), None)
+            .await
     });
 
     match wait_until_listening(&socket_path, &mut server).await {
@@ -876,7 +985,8 @@ async fn a_reserved_account_name_is_refused_over_the_wire_before_any_tool_runs()
     let policy = PeerPolicy::new(maran_agent_core::utils::current_uid::current_uid().unwrap());
     let server_path = socket_path.clone();
     let mut server = tokio::spawn(async move {
-        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor()).await
+        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor(), None)
+            .await
     });
 
     match wait_until_listening(&socket_path, &mut server).await {
@@ -907,6 +1017,7 @@ async fn a_reserved_account_name_is_refused_over_the_wire_before_any_tool_runs()
         .create_account(CreateAccountRequest {
             username: "root".to_owned(),
             quota_bytes: 0,
+            ..Default::default()
         })
         .await
         .unwrap()
@@ -1023,7 +1134,8 @@ async fn a_reserved_host_name_is_refused_over_the_wire_as_invalid_input_at_every
     let policy = PeerPolicy::new(maran_agent_core::utils::current_uid::current_uid().unwrap());
     let server_path = socket_path.clone();
     let mut server = tokio::spawn(async move {
-        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor()).await
+        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor(), None)
+            .await
     });
 
     match wait_until_listening(&socket_path, &mut server).await {

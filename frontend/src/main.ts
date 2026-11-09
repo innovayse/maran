@@ -44,4 +44,12 @@ watchEffect(() => {
 // when the first navigation resolves and the tab never keeps index.html's static title.
 useDocumentTitle(router, i18n.global)
 
+// The public demo's own copy is merged in before the first render, and only in the demo build:
+// `__MARAN_DEMO__` is a build-time constant, so the normal bundle drops this branch and the module
+// it imports (vite.config.ts).
+if (__MARAN_DEMO__) {
+  const { installDemoMessages } = await import('./utils/installDemoMessages')
+  installDemoMessages(i18n)
+}
+
 app.mount('#app')

@@ -16,8 +16,8 @@ use maran_agent_core::validation::web::php_version::PhpVersion;
 use super::DebianAdapter;
 use crate::AdapterBinary;
 use crate::{
-    AccountPrograms, BackupFacts, DatabaseFacts, FileTransferFacts, FirewallFacts, PackageFacts,
-    PhpFacts, SchedulingFacts, ServiceManagerFacts, WebServerFacts,
+    AccountPrograms, BackupFacts, DatabaseFacts, DnsFacts, FileTransferFacts, FirewallFacts,
+    MailFacts, PackageFacts, PhpFacts, SchedulingFacts, ServiceManagerFacts, WebServerFacts,
 };
 
 /// The Debian family spawns the MariaDB client from the path its package installs it at.
@@ -210,12 +210,14 @@ fn no_tool_is_named_by_something_path_would_resolve() {
 /// The adapter traits' own sources (every concern trait `DistroAdapter` composes),
 /// read as text so the table below is checked against the traits and not against a
 /// number somebody has to remember to bump.
-const TRAIT_SOURCES: [&str; 10] = [
+const TRAIT_SOURCES: [&str; 12] = [
     include_str!("../../account_programs.rs"),
     include_str!("../../backup_facts.rs"),
     include_str!("../../database_facts.rs"),
+    include_str!("../../dns_facts.rs"),
     include_str!("../../file_transfer_facts.rs"),
     include_str!("../../firewall_facts.rs"),
+    include_str!("../../mail_facts.rs"),
     include_str!("../../package_facts.rs"),
     include_str!("../../php_facts.rs"),
     include_str!("../../scheduling_facts.rs"),
@@ -242,7 +244,7 @@ fn declared_binary_methods() -> usize {
 
 /// Every program the Debian adapter lets the agent execute, with the method that names it.
 ///
-/// One entry per `AdapterBinary`-returning method of the trait (30 fixed paths
+/// One entry per `AdapterBinary`-returning method of the trait (the fixed paths
 /// plus the version-built php-fpm validator). `sh` and the login shell are not
 /// here: they are written somewhere, never executed by the agent, so they stay
 /// plain strings (see the type assertion below).
@@ -260,6 +262,9 @@ fn every_executable() -> Vec<(&'static str, AdapterBinary)> {
         ("database_dump", DebianAdapter.database_dump_binary()),
         ("mysql_client", DebianAdapter.mysql_client_binary()),
         ("vsftpd", DebianAdapter.vsftpd_binary()),
+        ("dns_checkconf", DebianAdapter.dns_checkconf_binary()),
+        ("dns_checkzone", DebianAdapter.dns_checkzone_binary()),
+        ("dns_control", DebianAdapter.dns_control_binary()),
         ("useradd", DebianAdapter.useradd_binary()),
         ("userdel", DebianAdapter.userdel_binary()),
         ("usermod", DebianAdapter.usermod_binary()),
@@ -283,6 +288,14 @@ fn every_executable() -> Vec<(&'static str, AdapterBinary)> {
         ("ssh-keygen", DebianAdapter.ssh_keygen_binary()),
         ("crontab", DebianAdapter.crontab_binary()),
         ("nft", DebianAdapter.nft_binary()),
+        ("postfix", DebianAdapter.postfix_binary()),
+        ("postconf", DebianAdapter.postconf_binary()),
+        ("postmap", DebianAdapter.postmap_binary()),
+        ("postqueue", DebianAdapter.postqueue_binary()),
+        ("postsuper", DebianAdapter.postsuper_binary()),
+        ("doveadm", DebianAdapter.doveadm_binary()),
+        ("doveconf", DebianAdapter.doveconf_binary()),
+        ("rspamadm", DebianAdapter.rspamadm_binary()),
     ]
 }
 
@@ -373,6 +386,14 @@ fn sh_and_nologin_stay_plain_paths_and_are_not_executable_typed() {
     assert!(nologin.starts_with('/'));
 }
 
+/// The Debian family documents `/bin/bash` for a login shell, and a login shell is a
+/// different path from the shell of an account that must not log in.
+#[test]
+fn the_debian_family_names_its_documented_bash_and_not_its_nologin_shell() {
+    assert_eq!(DebianAdapter.bash_shell(), "/bin/bash");
+    assert_ne!(DebianAdapter.bash_shell(), DebianAdapter.nologin_shell());
+}
+
 /// The Debian family keeps `at` job files in the directory its `at` package spools to.
 #[test]
 fn the_debian_family_names_the_directory_its_at_daemon_spools_to() {
@@ -454,5 +475,36 @@ fn the_debian_family_refuses_to_read_a_program_status_for_its_marker_probe() {
     assert_eq!(
         DebianAdapter.read_reboot_probe_run(0),
         Err(crate::RebootProbeFailure::NotAProgramProbe)
+    );
+}
+
+/// The Debian family names the daemon's checkers and control client by absolute path.
+#[test]
+fn the_debian_family_names_the_dns_checkers_and_control_client() {
+    assert_eq!(
+        DebianAdapter.dns_checkconf_binary(),
+        "/usr/bin/named-checkconf"
+    );
+    assert_eq!(
+        DebianAdapter.dns_checkzone_binary(),
+        "/usr/bin/named-checkzone"
+    );
+    assert_eq!(DebianAdapter.dns_control_binary(), "/usr/sbin/rndc");
+}
+
+/// The Debian family runs the DNS daemon as `bind`, whose group is the one the control key is readable by.
+#[test]
+fn the_debian_family_runs_the_dns_daemon_as_its_own_user_and_group() {
+    assert_eq!(DebianAdapter.dns_user(), "bind");
+    assert_eq!(DebianAdapter.dns_group(), "bind");
+}
+
+/// Zone files sit below the daemon's state directory, never beside it, so a zone name can never name the zone-list store.
+#[test]
+fn the_debian_family_keeps_zone_files_below_the_dns_state_directory() {
+    assert_eq!(DebianAdapter.dns_state_directory(), "/var/lib/bind/maran");
+    assert_eq!(
+        DebianAdapter.dns_zone_directory(),
+        "/var/lib/bind/maran/zones"
     );
 }

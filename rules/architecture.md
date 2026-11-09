@@ -119,6 +119,7 @@ agent/                 Rust root daemon (rules/rust.md)
 frontend/              Vue 3 SPA (rules/vue.md)
 installer/             native production install: lib/ (numbered steps), systemd/, nginx/
 installer/cli/         the root-only `maran` break-glass command (status, admin-reset-password,
+                       issue-panel-certificate,
                        collect-diagnostics, panel-backup (also `--scheduled`, the unattended run),
                        panel-backup-schedule, panel-restore, update, rollback): a fixed-verb wrapper plus
                        lib/, installed by lib/66-cli.sh

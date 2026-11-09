@@ -10,6 +10,7 @@
 use maran_templates::nginx::php_site::PhpSite;
 use maran_templates::nginx::proxy_site::ProxySite;
 use maran_templates::nginx::site_body::SiteBody;
+use maran_templates::nginx::site_options_block::SiteOptionsBlock;
 use maran_templates::nginx::ssl_block::SslBlock;
 use maran_templates::nginx::static_site::StaticSite;
 use maran_templates::nginx::suspended_site::SuspendedSite;
@@ -135,6 +136,7 @@ fn site(shape: Shape, tls: bool) -> String {
             Shape::Proxy => Some("127.0.0.1:3000"),
             _ => None,
         },
+        options: &SiteOptionsBlock::NONE,
     }
     .render_config()
     .unwrap();
@@ -151,6 +153,7 @@ fn site(shape: Shape, tls: bool) -> String {
             aliases: &aliases,
             document_root: ROOT,
             body: &body,
+            options: &SiteOptionsBlock::NONE,
             ssl,
         }
         .render_config()
@@ -160,6 +163,7 @@ fn site(shape: Shape, tls: bool) -> String {
             aliases: &aliases,
             document_root: ROOT,
             body: &body,
+            options: &SiteOptionsBlock::NONE,
             ssl,
         }
         .render_config()
@@ -169,6 +173,7 @@ fn site(shape: Shape, tls: bool) -> String {
             aliases: &aliases,
             document_root: ROOT,
             body: &body,
+            options: &SiteOptionsBlock::NONE,
             ssl,
         }
         .render_config()

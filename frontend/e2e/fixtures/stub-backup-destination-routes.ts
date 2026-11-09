@@ -79,3 +79,22 @@ export const stubBackupDestinationsRefusal = async (
     })
   })
 }
+
+/**
+ * Fulfils `PUT /api/v1/backup-destinations/{id}/encryption` with 204, as the panel does, and records
+ * every body it was sent so a spec can assert what the screen asked for.
+ * @param page The Playwright page whose network the route is installed on.
+ * @returns A function reporting every parsed request body so far, oldest first.
+ */
+export const stubBackupDestinationEncryption = async (page: Page): Promise<() => readonly unknown[]> => {
+  const bodies: unknown[] = []
+
+  await page.route(/\/api\/v1\/backup-destinations\/[^/]+\/encryption$/, async (route) => {
+    bodies.push(route.request().postDataJSON())
+    await route.fulfill({ status: 204 })
+  })
+
+  return () => {
+    return bodies
+  }
+}

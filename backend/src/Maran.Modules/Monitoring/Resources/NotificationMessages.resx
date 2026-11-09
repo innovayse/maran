@@ -101,4 +101,46 @@
   <data name="AlertClockUnsynchronizedResolvedBody">
     <value>The server's clock is synchronised with a time source again.</value>
   </data>
+  <data name="AlertCpuUsageRaisedSubject">
+    <value>The server's processor is overloaded</value>
+  </data>
+  <data name="AlertCpuUsageRaisedBody">
+    <value>The processor of this server has been busier than the configured threshold for ten consecutive checks (now {1}%). Find the process using it, or raise the threshold in the alert settings if this load is normal.</value>
+  </data>
+  <data name="AlertCpuUsageResolvedSubject">
+    <value>The server's processor load has recovered</value>
+  </data>
+  <data name="AlertCpuUsageResolvedBody">
+    <value>The processor load of this server is back below the configured threshold, at {1}%.</value>
+  </data>
+  <data name="AlertMemoryUsageRaisedSubject">
+    <value>The server is running out of memory</value>
+  </data>
+  <data name="AlertMemoryUsageRaisedBody">
+    <value>More memory than the configured threshold has been in use on this server for ten consecutive checks (now {1}%). Find what is using it, add memory, or raise the threshold in the alert settings if this is normal.</value>
+  </data>
+  <data name="AlertMemoryUsageResolvedSubject">
+    <value>The server's memory use has recovered</value>
+  </data>
+  <data name="AlertMemoryUsageResolvedBody">
+    <value>The memory use of this server is back below the configured threshold, at {1}%.</value>
+  </data>
+  <data name="AlertPanelUpdateRolledBackSubject">
+    <value>The automatic security update of the panel failed and was rolled back</value>
+  </data>
+  <data name="AlertPanelUpdateRolledBackBody">
+    <value>The panel tried to update itself from {0} to {1} and the update failed after it was switched. The previous release is running again. The database was not restored. Run "maran update" on the server to try again, or see the audit log.</value>
+  </data>
+  <data name="AlertPanelUpdateRollbackFailedSubject">
+    <value>The automatic security update of the panel failed and the panel may be down</value>
+  </data>
+  <data name="AlertPanelUpdateRollbackFailedBody">
+    <value>The panel tried to update itself from {0} to {1}. The update failed and the previous release did not become healthy either. Log in to the server and run "maran status", then "maran rollback". The database was not restored.</value>
+  </data>
+  <data name="AlertPanelUpdateInterruptedSubject">
+    <value>The automatic security update of the panel was interrupted</value>
+  </data>
+  <data name="AlertPanelUpdateInterruptedBody">
+    <value>The automatic update of the panel from {0} to {1} was interrupted after the new release was switched in. Log in to the server and run "maran rollback" to return to {0}, or "maran update" to finish.</value>
+  </data>
 </root>

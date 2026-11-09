@@ -11,11 +11,21 @@ import type {
   AuditExportFormat,
   AuditOutcomeChoice,
   AuditRetention,
+  AuditScope,
 } from '../../types/audit'
 import type { ListRequest, Paged } from '../../types/list'
 
 /** The endpoint the append-only audit journal is read through. Administrators only. */
 const AUDIT_PATH = '/api/v1/audit'
+
+/** The endpoint a reseller reads its own part of the journal through (issue #370); a reseller only. */
+const RESELLER_AUDIT_PATH = '/api/v1/audit/reseller'
+
+/** The path each scope reads the list, the actions and the outcomes from. */
+const SCOPE_PATHS: Readonly<Record<AuditScope, string>> = {
+  all: AUDIT_PATH,
+  reseller: RESELLER_AUDIT_PATH,
+}
 
 /** The list endpoint's parameter for each filter the audit page reads from its URL. */
 const LIST_FILTER_PARAMS: Readonly<Record<string, string>> = {
@@ -38,29 +48,35 @@ export const useAuditApi = (): AuditApi => {
   /**
    * Reads one page of the journal; the panel searches, filters, sorts and counts.
    * @param request The page, size, search, sort and the action, outcome, from and to filters.
+   * @param scope Whose journal to read: the whole one, or a reseller's part of it.
    * @param signal Abort signal, so a page left before the response arrives cancels the request.
    * @returns The page.
    */
-  const list = (request: ListRequest, signal?: AbortSignal): Promise<Paged<AuditEvent>> => {
-    return api.get<Paged<AuditEvent>>(`${AUDIT_PATH}${listQuery(withInstantWindow(request), LIST_FILTER_PARAMS)}`, signal)
+  const list = (request: ListRequest, scope: AuditScope, signal?: AbortSignal): Promise<Paged<AuditEvent>> => {
+    return api.get<Paged<AuditEvent>>(
+      `${SCOPE_PATHS[scope]}${listQuery(withInstantWindow(request), LIST_FILTER_PARAMS)}`,
+      signal,
+    )
   }
 
   /**
    * Lists the distinct actions the journal holds, for the action filter.
+   * @param scope Whose journal to read the actions of.
    * @param signal Optional abort signal.
    * @returns The actions with their backend-localized names.
    */
-  const actions = (signal?: AbortSignal): Promise<AuditActionChoice[]> => {
-    return api.get<AuditActionChoice[]>(`${AUDIT_PATH}/actions`, signal)
+  const actions = (scope: AuditScope, signal?: AbortSignal): Promise<AuditActionChoice[]> => {
+    return api.get<AuditActionChoice[]>(`${SCOPE_PATHS[scope]}/actions`, signal)
   }
 
   /**
    * Lists the outcomes the journal can be filtered by, for the outcome filter.
+   * @param scope Whose journal the filter is for.
    * @param signal Optional abort signal.
    * @returns The outcomes with their backend-localized names.
    */
-  const outcomes = (signal?: AbortSignal): Promise<AuditOutcomeChoice[]> => {
-    return api.get<AuditOutcomeChoice[]>(`${AUDIT_PATH}/outcomes`, signal)
+  const outcomes = (scope: AuditScope, signal?: AbortSignal): Promise<AuditOutcomeChoice[]> => {
+    return api.get<AuditOutcomeChoice[]>(`${SCOPE_PATHS[scope]}/outcomes`, signal)
   }
 
   /**

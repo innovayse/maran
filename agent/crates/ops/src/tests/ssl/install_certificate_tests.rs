@@ -5,7 +5,9 @@
 use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::web::domain::Domain;
 
-use crate::sites::fake_site_host::{create_test_site, distro, legacy_suspended_text, php_input};
+use crate::sites::fake_site_host::{
+    create_test_site, distro, legacy_suspended_text, php_input, php_input_with_options,
+};
 use crate::sites::{SiteCertificate, SitePaths, disable_site};
 use crate::ssl::fake_ssl_host::{
     EXPIRY_UNIX, Event, FakeSslHost, KEY_PEM, matching_material, mismatched_material,
@@ -368,4 +370,28 @@ fn the_material_write_validates_with_nginx_as_a_validate_and_reloads_with_the_ma
     assert_eq!(protocol.reload[0], distro().service_manager().as_str());
     assert_eq!(protocol.reload[1], "reload");
     assert_eq!(protocol.reload[marker + 1], distro().nginx_service());
+}
+
+/// A certificate installed on a site with options must not drop them.
+///
+/// The certificate paths re-render the vhost from the site description the panel
+/// restates, and that description is the one place the options travel. A
+/// description that lost them would turn a renewal, every sixty to ninety days,
+/// into the silent removal of a site's password, its IP list and its redirects.
+#[test]
+fn installing_a_certificate_keeps_the_sites_options_in_the_tls_block() {
+    let host = FakeSslHost::passing();
+    let input = php_input_with_options();
+    create_test_site(&host, &input).unwrap();
+
+    install_certificate(&host, distro(), &input, &matching_material()).unwrap();
+
+    let vhost = host
+        .config(&SitePaths::for_site(&input.account, &input.domain).config_path)
+        .unwrap();
+    let secure = &vhost[vhost.find("listen 443").unwrap()..];
+    assert!(secure.contains("auth_basic_user_file"), "{secure}");
+    assert!(secure.contains("allow 203.0.113.0/24;"), "{secure}");
+    assert!(secure.contains("location = /old {"), "{secure}");
+    assert!(secure.contains("client_max_body_size 100m;"), "{secure}");
 }

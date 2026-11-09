@@ -63,6 +63,9 @@
   <data name="AuditActionAccountPlanChanged">
     <value>Тариф аккаунта изменён</value>
   </data>
+  <data name="AuditActionAccountOwnerChanged">
+    <value>Владелец аккаунта изменён</value>
+  </data>
   <data name="AuditActionAccountOwnerEmailChanged">
     <value>Email владельца аккаунта изменён</value>
   </data>
@@ -87,8 +90,14 @@
   <data name="AuditActionPhpVersionInstalled" xml:space="preserve">
     <value>Установлена версия PHP</value>
   </data>
+  <data name="AuditActionPhpSettingsChanged">
+    <value>Изменены настройки PHP</value>
+  </data>
   <data name="AuditActionSitePhpVersionChanged">
     <value>Изменена версия PHP сайта</value>
+  </data>
+  <data name="AuditActionSiteOptionsChanged">
+    <value>Изменены параметры сайта</value>
   </data>
   <data name="AuditActionSiteEnabled">
     <value>Сайт включён</value>
@@ -110,6 +119,18 @@
   </data>
   <data name="AuditActionDatabasePasswordReset">
     <value>Сброшен пароль базы данных</value>
+  </data>
+  <data name="AuditActionDatabaseUserCreated">
+    <value>Создан пользователь базы данных</value>
+  </data>
+  <data name="AuditActionDatabaseUserDropped">
+    <value>Пользователь базы данных удалён</value>
+  </data>
+  <data name="AuditActionDatabaseUserPasswordReset">
+    <value>Сброшен пароль пользователя базы данных</value>
+  </data>
+  <data name="AuditActionDatabasePrivilegesChanged">
+    <value>Изменены права пользователя базы данных</value>
   </data>
   <data name="AuditActionDatabaseGrantsRepaired">
     <value>Сужены права доступа к базам данных</value>
@@ -174,11 +195,11 @@
   <data name="AuditActionCertificateRenewed">
     <value>Сертификат продлён</value>
   </data>
-  <data name="AuditActionCronEntryCreated">
-    <value>Создана запись cron</value>
-  </data>
   <data name="AuditActionCertificateSelfSignedRestored">
     <value>Сертификат панели заменён самоподписанным</value>
+  </data>
+  <data name="AuditActionCronEntryCreated">
+    <value>Создана запись cron</value>
   </data>
   <data name="AuditActionCronEntryUpdated">
     <value>Изменена запись cron</value>
@@ -231,11 +252,32 @@
   <data name="AuditActionMailSendFailed">
     <value>Не удалось отправить письмо</value>
   </data>
+  <data name="AuditActionAlertRecipientsSaved">
+    <value>Получатели оповещений сохранены</value>
+  </data>
+  <data name="AuditActionAlertWebhookSaved">
+    <value>Вебхук оповещений сохранён</value>
+  </data>
+  <data name="AuditActionAlertWebhookSecretRotated">
+    <value>Секрет вебхука оповещений заменён</value>
+  </data>
+  <data name="AuditActionAlertWebhookTestSent">
+    <value>Отправлено тестовое событие вебхука</value>
+  </data>
+  <data name="AuditActionWebhookDeliveryFailed">
+    <value>Не удалось доставить вебхук оповещения</value>
+  </data>
+  <data name="AuditActionNotificationsDismissed">
+    <value>Уведомления закрыты</value>
+  </data>
   <data name="AuditActionAlertRaised">
     <value>Сработало оповещение</value>
   </data>
   <data name="AuditActionAlertResolved">
     <value>Оповещение снято</value>
+  </data>
+  <data name="AuditActionAlertThresholdsSaved">
+    <value>Изменены пороги оповещений</value>
   </data>
   <!-- TODO(owner): review naturalness. "отклонён как некорректный" for "rejected (malformed)". -->
   <data name="AuditActionCodeIntegrityReportRejected">
@@ -274,6 +316,12 @@
   <data name="AuditActionBackupVerificationNotPerformed">
     <value>Проверку резервной копии не удалось выполнить</value>
   </data>
+  <data name="AuditActionBackupDestinationEncryptionChanged">
+    <value>Изменена настройка шифрования резервных копий</value>
+  </data>
+  <data name="AuditActionBackupOptedOut">
+    <value>Учётная запись исключена из резервного копирования по расписанию</value>
+  </data>
   <data name="AuditActionLicenceStatusRead">
     <value>Прочитан статус лицензии</value>
   </data>
@@ -282,6 +330,9 @@
   </data>
   <data name="AuditActionCustomerInvited">
     <value>Клиент приглашён</value>
+  </data>
+  <data name="AuditActionCustomerCreatedWithPassword">
+    <value>Клиент создан с начальным паролем</value>
   </data>
   <data name="AuditActionInvitationLinkIssued">
     <value>Создана ссылка-приглашение</value>
@@ -312,6 +363,9 @@
   </data>
   <data name="AuditActionPageUnpinned">
     <value>Страница откреплена от верхней панели</value>
+  </data>
+  <data name="AuditActionDashboardLayoutSaved">
+    <value>Раскладка панели сохранена</value>
   </data>
   <data name="AuditActionSubUserInvited">
     <value>Пользователь приглашён</value>
@@ -382,6 +436,9 @@
   <data name="AuditActionResellerCreated">
     <value>Создан реселлер</value>
   </data>
+  <data name="AuditActionResellerUpdated">
+    <value>Изменены данные реселлера</value>
+  </data>
   <data name="AuditActionResellerEnvelopeChanged">
     <value>Изменены лимиты реселлера</value>
   </data>
@@ -393,6 +450,9 @@
   </data>
   <data name="AuditActionResellerDeleted">
     <value>Реселлер удалён</value>
+  </data>
+  <data name="AuditActionResellerBrandingChanged">
+    <value>Изменено оформление реселлера</value>
   </data>
   <data name="AuditOutcomeSucceeded">
     <value>Успешно</value>
@@ -414,6 +474,18 @@
   </data>
   <data name="ApiKeyScopeServerRead">
     <value>Чтение сведений о сервере</value>
+  </data>
+  <data name="ApiKeyScopePlansRead">
+    <value>Чтение тарифных планов реселлера</value>
+  </data>
+  <data name="ApiKeyScopeAccountsRead">
+    <value>Чтение аккаунтов реселлера</value>
+  </data>
+  <data name="ApiKeyScopeAccountsWrite">
+    <value>Создание и изменение аккаунтов реселлера</value>
+  </data>
+  <data name="ApiKeyScopeAccountsDelete">
+    <value>Удаление аккаунтов реселлера</value>
   </data>
   <data name="ApiKeyStatusActive">
     <value>Активен</value>
@@ -441,5 +513,227 @@
   </data>
   <data name="AuditActionPersonalDataErased">
     <value>Персональные данные удалены</value>
+  </data>
+  <data name="AuditActionPanelUpdateApplied">
+    <value>Панель обновилась сама (автоматическое обновление безопасности)</value>
+  </data>
+  <data name="AuditActionPanelUpdateRolledBack">
+    <value>Автоматическое обновление панели не удалось и было отменено</value>
+  </data>
+  <data name="AuditActionPanelUpdateRollbackFailed">
+    <value>Автоматическое обновление панели не удалось, откат тоже не удался</value>
+  </data>
+  <data name="AuditActionPanelUpdateInterrupted">
+    <value>Автоматическое обновление панели было прервано</value>
+  </data>
+  <data name="AuditActionSiteLogRetentionChanged">
+    <value>Изменён срок хранения журналов сайта</value>
+  </data>
+  <data name="AuditActionSiteLogsPruned">
+    <value>Удалены старые журналы сайта</value>
+  </data>
+  <data name="AuditActionPhpExtensionChanged">
+    <value>Переключено расширение PHP</value>
+  </data>
+  <data name="AuditActionFileCreated">
+    <value>Создан файл или папка</value>
+  </data>
+  <data name="AuditActionFileSaved">
+    <value>Файл сохранён в редакторе</value>
+  </data>
+  <data name="AuditActionFileUploadStarted">
+    <value>Начата загрузка файла</value>
+  </data>
+  <data name="AuditActionFileUploaded">
+    <value>Файл загружен</value>
+  </data>
+  <data name="AuditActionFileUploadAborted">
+    <value>Загрузка файла прервана</value>
+  </data>
+  <data name="AuditActionFileDownloadStarted">
+    <value>Начато скачивание файла</value>
+  </data>
+  <data name="AuditActionFileDownloadCompleted">
+    <value>Файл скачан</value>
+  </data>
+  <data name="AuditActionFileDownloadAborted">
+    <value>Скачивание файла прервано</value>
+  </data>
+  <data name="AuditActionFileRenamed">
+    <value>Файл или папка переименованы</value>
+  </data>
+  <data name="AuditActionFileMoved">
+    <value>Файл или папка перемещены</value>
+  </data>
+  <data name="AuditActionFileCopied">
+    <value>Файл или папка скопированы</value>
+  </data>
+  <data name="AuditActionFilePermissionsChanged">
+    <value>Права доступа к файлу изменены</value>
+  </data>
+  <data name="AuditActionFileTrashed">
+    <value>Файл или папка перемещены в корзину</value>
+  </data>
+  <data name="AuditActionFileRestored">
+    <value>Файл или папка восстановлены из корзины</value>
+  </data>
+  <data name="AuditActionFileTrashEmptied">
+    <value>Корзина очищена</value>
+  </data>
+  <data name="AuditActionFileDeleted">
+    <value>Файл или папка удалены навсегда</value>
+  </data>
+  <data name="AuditActionFileArchived">
+    <value>Архив создан</value>
+  </data>
+  <data name="AuditActionFileExtracted">
+    <value>Архив распакован</value>
+  </data>
+  <data name="AuditActionFileTrashRetentionPurged">
+    <value>Просроченная корзина очищена</value>
+  </data>
+  <data name="AuditActionFileAccessRefused">
+    <value>В доступе к файлам отказано</value>
+  </data>
+  <data name="AccountFeatureFiles">
+    <value>Файлы</value>
+  </data>
+  <data name="IdentityMenuApiKeys">
+    <value>API-ключи</value>
+  </data>
+  <data name="IdentityRouteApiKeys">
+    <value>API-ключи</value>
+  </data>
+  <data name="AuditActionPanelUpdateRequested">
+    <value>Администратор запросил обновление панели</value>
+  </data>
+  <data name="AuditActionPanelUpdateRunApplied">
+    <value>Запрошенное обновление панели установлено</value>
+  </data>
+  <data name="AuditActionPanelUpdateRunUnchanged">
+    <value>Запрошенное обновление панели не нашло более новой версии</value>
+  </data>
+  <data name="AuditActionPanelUpdateRunRefused">
+    <value>Запрошенное обновление панели отклонено до внесения изменений</value>
+  </data>
+  <data name="AuditActionPanelUpdateRunRolledBack">
+    <value>Запрошенное обновление панели не прошло проверку и было отменено</value>
+  </data>
+  <data name="AuditActionPanelUpdateRunRollbackFailed">
+    <value>Запрошенное обновление панели не удалось, и откат тоже не удался</value>
+  </data>
+  <data name="AuditActionPanelUpdateRunInterrupted">
+    <value>Запрошенное обновление панели прервано после переключения</value>
+  </data>
+  <data name="AuditActionPanelUpdateRunNotStarted">
+    <value>Запрошенное обновление панели не началось</value>
+  </data>
+  <data name="AuditActionPanelUpdateRunOutcomeUnknown">
+    <value>Запрошенное обновление панели завершилось без отчёта о результате</value>
+  </data>
+  <data name="AuditActionModuleInstalled">
+    <value>Модуль установлен (запустится при следующем перезапуске)</value>
+  </data>
+  <data name="AuditActionModuleUpgraded">
+    <value>Модуль обновлён (запустится при следующем перезапуске)</value>
+  </data>
+  <data name="AuditActionModuleRolledBack">
+    <value>Модуль возвращён к предыдущей версии</value>
+  </data>
+  <data name="AuditActionModuleUnloaded">
+    <value>Модуль выгружен</value>
+  </data>
+  <data name="AuditActionModuleDegraded">
+    <value>Модуль перестал работать: лицензия его больше не покрывает</value>
+  </data>
+  <data name="AuditActionModuleRefused">
+    <value>Пакет модуля отклонён</value>
+  </data>
+  <data name="AuditActionModuleRestartRequested">
+    <value>Запрошен перезапуск панели для запуска модуля</value>
+  </data>
+  <data name="AuditActionDnsEnabled">
+    <value>Сервер DNS включён</value>
+  </data>
+  <data name="AuditActionDnsDisabled">
+    <value>Сервер DNS выключен</value>
+  </data>
+  <data name="AuditActionDnsSettingsSaved">
+    <value>Настройки DNS сохранены</value>
+  </data>
+  <data name="AuditActionDnsZoneCreated">
+    <value>Создана DNS-зона</value>
+  </data>
+  <data name="AuditActionDnsZoneDeleted">
+    <value>DNS-зона удалена</value>
+  </data>
+  <data name="AuditActionDnsRecordAdded">
+    <value>Добавлена DNS-запись</value>
+  </data>
+  <data name="AuditActionDnsRecordChanged">
+    <value>DNS-запись изменена</value>
+  </data>
+  <data name="AuditActionDnsRecordDeleted">
+    <value>DNS-запись удалена</value>
+  </data>
+  <data name="AuditActionDnsRecordsReplaced">
+    <value>DNS-записи заменены</value>
+  </data>
+  <data name="AuditActionMailServerEnabled">
+    <value>Почтовый сервер включён</value>
+  </data>
+  <data name="AuditActionMailServerDisabled">
+    <value>Почтовый сервер выключен</value>
+  </data>
+  <data name="AuditActionMailServerSettingsUpdated">
+    <value>Изменены настройки почтового сервера</value>
+  </data>
+  <data name="AuditActionMailQueueMessageDeleted">
+    <value>Письмо удалено из очереди</value>
+  </data>
+  <data name="AuditActionMailQueueFlushed">
+    <value>Очередь почты отправлена повторно</value>
+  </data>
+  <data name="AuditActionMailDomainCreated">
+    <value>Добавлен почтовый домен</value>
+  </data>
+  <data name="AuditActionMailDomainDeleted">
+    <value>Почтовый домен удалён</value>
+  </data>
+  <data name="AuditActionMailDkimKeyRotated">
+    <value>Ключ DKIM заменён</value>
+  </data>
+  <data name="AuditActionMailboxCreated">
+    <value>Создан почтовый ящик</value>
+  </data>
+  <data name="AuditActionMailboxUpdated">
+    <value>Почтовый ящик изменён</value>
+  </data>
+  <data name="AuditActionMailboxPasswordChanged">
+    <value>Пароль почтового ящика изменён</value>
+  </data>
+  <data name="AuditActionMailboxDeleted">
+    <value>Почтовый ящик удалён</value>
+  </data>
+  <data name="AuditActionMailAliasCreated">
+    <value>Создан почтовый псевдоним</value>
+  </data>
+  <data name="AuditActionMailAliasUpdated">
+    <value>Почтовый псевдоним изменён</value>
+  </data>
+  <data name="AuditActionMailAliasDeleted">
+    <value>Почтовый псевдоним удалён</value>
+  </data>
+  <data name="AuditActionMailCatchAllSet">
+    <value>Адрес «для всей почты» изменён</value>
+  </data>
+  <data name="AuditActionMailCatchAllCleared">
+    <value>Адрес «для всей почты» удалён</value>
+  </data>
+  <data name="AuditActionMailAutoresponderSet">
+    <value>Автоответ изменён</value>
+  </data>
+  <data name="AuditActionMailAutoresponderCleared">
+    <value>Автоответ удалён</value>
   </data>
 </root>

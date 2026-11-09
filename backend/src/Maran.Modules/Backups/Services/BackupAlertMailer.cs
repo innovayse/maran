@@ -17,8 +17,8 @@ namespace Maran.Modules.Backups.Services;
 /// <b>It owns the words; the path is shared.</b> Only this module knows what the mail is about, so
 /// the subject and body are composed here. Journalling the alert, finding where operator alerts go,
 /// publishing <see cref="SendMailRequested"/> and journalling
-/// <see cref="MailAuditActions.MailSkippedNoSmtp"/> when there is nobody to tell are
-/// <see cref="OperatorAlertMailer"/>'s, the one implementation the Monitoring module's alert
+/// <see cref="OutgoingMailAuditActions.MailSkippedNoSmtp"/> when there is nobody to tell are
+/// <see cref="OperatorAlertDispatcher"/>'s, the one implementation the Monitoring module's alert
 /// evaluator calls too (issue #290). The entries are written through this module's own journal, so
 /// they carry its actor. It holds no mailer and no SMTP settings.
 /// </para>
@@ -68,7 +68,7 @@ public sealed class BackupAlertMailer
     private const string InstantFormat = "yyyy-MM-dd HH:mm";
 
     /// <summary>The panel's one path for an operator alert: journal, recipient, mail.</summary>
-    private readonly OperatorAlertMailer _operatorAlerts;
+    private readonly OperatorAlertDispatcher _operatorAlerts;
 
     /// <summary>This module's audit journal.</summary>
     private readonly BackupAuditJournal _journal;
@@ -85,7 +85,7 @@ public sealed class BackupAlertMailer
     /// <param name="text">The localized subjects and bodies of the alert mail.</param>
     /// <param name="failures">Names a failure code as an operator reads it.</param>
     public BackupAlertMailer(
-        OperatorAlertMailer operatorAlerts,
+        OperatorAlertDispatcher operatorAlerts,
         BackupAuditJournal journal,
         IStringLocalizer<NotificationMessages> text,
         BackupFailureDisplayNames failures)
@@ -100,7 +100,7 @@ public sealed class BackupAlertMailer
     /// <param name="accountUsername">The account the run was for.</param>
     /// <param name="failureCode">The code the failed row recorded.</param>
     /// <param name="cancellationToken">Cancels the journal writes.</param>
-    /// <returns>A task that completes once the alert is journalled and the mail requested.</returns>
+    /// <returns>A task that completes once the alert is journalled and dispatched.</returns>
     public Task ScheduledRunFailedAsync(
         string accountUsername,
         string failureCode,
@@ -109,6 +109,8 @@ public sealed class BackupAlertMailer
         return AlertAsync(
             BackupAlertKind.ScheduledRunFailed,
             accountUsername,
+            accountUsername,
+            _failures.Of(failureCode) ?? failureCode,
             _text[ScheduledRunFailedSubject, accountUsername].Value,
             _text[ScheduledRunFailedBody, accountUsername, _failures.Of(failureCode) ?? failureCode, failureCode].Value,
             cancellationToken);
@@ -118,7 +120,7 @@ public sealed class BackupAlertMailer
     /// <param name="accountUsername">The account the run was for.</param>
     /// <param name="refusalCode">The code the destination resolver refused with.</param>
     /// <param name="cancellationToken">Cancels the journal writes.</param>
-    /// <returns>A task that completes once the alert is journalled and the mail requested.</returns>
+    /// <returns>A task that completes once the alert is journalled and dispatched.</returns>
     public Task DestinationRefusedAsync(
         string accountUsername,
         string refusalCode,
@@ -127,6 +129,8 @@ public sealed class BackupAlertMailer
         return AlertAsync(
             BackupAlertKind.DestinationRefused,
             accountUsername,
+            accountUsername,
+            _failures.Of(refusalCode) ?? refusalCode,
             _text[DestinationRefusedSubject, accountUsername].Value,
             _text[DestinationRefusedBody, accountUsername, _failures.Of(refusalCode) ?? refusalCode, refusalCode].Value,
             cancellationToken);
@@ -138,7 +142,7 @@ public sealed class BackupAlertMailer
     /// <param name="dueAt">The named hour that was missed.</param>
     /// <param name="startedAt">When the late run started.</param>
     /// <param name="cancellationToken">Cancels the journal writes.</param>
-    /// <returns>A task that completes once the alert is journalled and the mail requested.</returns>
+    /// <returns>A task that completes once the alert is journalled and dispatched.</returns>
     public Task ScheduledRunMissedAsync(
         Guid scheduleId,
         IReadOnlyList<string> accountUsernames,
@@ -149,6 +153,8 @@ public sealed class BackupAlertMailer
         return AlertAsync(
             BackupAlertKind.ScheduledRunMissed,
             scheduleId.ToString(),
+            string.Join(", ", accountUsernames),
+            $"dueAt={FormatInstant(dueAt)} startedAt={FormatInstant(startedAt)}",
             _text[ScheduledRunMissedSubject].Value,
             _text[
                 ScheduledRunMissedBody,
@@ -164,7 +170,7 @@ public sealed class BackupAlertMailer
     /// <param name="backupAt">When the backup was taken: the instant its run finished.</param>
     /// <param name="failureCode">The closed code the verification failed with.</param>
     /// <param name="cancellationToken">Cancels the journal writes.</param>
-    /// <returns>A task that completes once the alert is journalled and the mail requested.</returns>
+    /// <returns>A task that completes once the alert is journalled and dispatched.</returns>
     public Task VerificationFailedAsync(
         Guid backupId,
         string accountUsername,
@@ -175,6 +181,8 @@ public sealed class BackupAlertMailer
         return AlertAsync(
             BackupAlertKind.VerificationFailed,
             backupId.ToString(),
+            accountUsername,
+            _failures.Of(failureCode) ?? failureCode,
             _text[VerificationFailedSubject, accountUsername].Value,
             _text[
                 VerificationFailedBody,
@@ -196,21 +204,36 @@ public sealed class BackupAlertMailer
         return instant.ToUniversalTime().ToString(InstantFormat, CultureInfo.InvariantCulture);
     }
 
-    /// <summary>Journals one alert and asks for its mail.</summary>
-    /// <param name="kind">What the alert reports.</param>
-    /// <param name="subject">What it is about — an account name or a schedule id.</param>
+    /// <summary>Journals one alert and hands it to the operator-alert dispatcher.</summary>
+    /// <param name="kind">What the alert reports; its name is the alert's code.</param>
+    /// <param name="subject">What it is about in the journal - an account name or a schedule id.</param>
+    /// <param name="alertSubject">What it is about for a reader: the account name, or every account's name.</param>
+    /// <param name="alertDetail">The failure's closed words, or the two instants of a missed run.</param>
     /// <param name="mailSubject">The localized subject line.</param>
     /// <param name="mailBody">The localized body.</param>
     /// <param name="cancellationToken">Cancels the journal writes.</param>
-    /// <returns>A task that completes once the alert is journalled and the mail requested.</returns>
+    /// <returns>A task that completes once the alert is journalled and dispatched.</returns>
+    /// <remarks>
+    /// Every backup alert is a one-off event with no end, so its transition is
+    /// <see cref="AlertTransition.Occurred"/>.
+    /// </remarks>
     private Task AlertAsync(
         BackupAlertKind kind,
         string subject,
+        string alertSubject,
+        string alertDetail,
         string mailSubject,
         string mailBody,
         CancellationToken cancellationToken)
     {
+        var alert = new OperatorAlert(AlertSource.Backups, kind.ToString(), AlertTransition.Occurred, alertSubject, alertDetail);
         return _operatorAlerts.AlertAsync(
-            _journal, MonitoringAuditActions.AlertRaised, $"{kind}:{subject}", mailSubject, mailBody, cancellationToken);
+            _journal,
+            MonitoringAuditActions.AlertRaised,
+            $"{kind}:{subject}",
+            alert,
+            mailSubject,
+            mailBody,
+            cancellationToken);
     }
 }

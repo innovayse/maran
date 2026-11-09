@@ -60,7 +60,7 @@ public sealed class MonitoringAuditJournalTests
         var journal = new MonitoringAuditJournal(audit, user);
 
         await journal.RecordRequestAsync(
-            MailAuditActions.SmtpSettingsSaved,
+            OutgoingMailAuditActions.SmtpSettingsSaved,
             "smtp.example.com",
             "203.0.113.7",
             "Mozilla/5.0",

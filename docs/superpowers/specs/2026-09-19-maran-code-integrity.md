@@ -50,7 +50,7 @@ never a floating or latest-only list.
 
 §14 already commits the installer to a signed manifest (`installer/lib/50-artifacts.sh`) that
 authenticates three downloaded component archives (`api`, `agent`, `frontend`) before extraction —
-one sha256 per archive, checked twice, gated by an Ed25519 signature over a baked-in public key
+one sha256 per archive, checked twice, gated by an ECDSA P-384 (SHA-384) signature over a baked-in public key
 (`installer/lib/50-artifacts.sh:28-97`). That manifest is a TRANSPORT-integrity check, read once, by
 root, before anything is unpacked.
 
@@ -118,7 +118,7 @@ customer holding a BSL right to modify their own installation must never read an
 
 **To the cloud (§18, §229):** the finding rides on the EXISTING documented phone-home exchange
 (the daily licence-lease renewal), never a new outbound call — §15's standing rule ("без скрытой
-телеметрии: единственный исходящий вызов — документированный phone-home") and rules/security.md
+телеметрии: исходящие вызовы — документированный phone-home и запускаемая оператором загрузка релиза") and rules/security.md
 item 10 ("no new outbound calls... anything of the kind requires a spec change first") both forbid
 opening a second one. This repository's obligation ends at making the finding available to whatever
 closed component already performs that exchange; the exchange's payload shape and the cloud

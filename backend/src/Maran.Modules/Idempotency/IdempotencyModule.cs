@@ -58,6 +58,10 @@ public sealed class IdempotencyModule : IPanelModule
             options.UseNpgsql(connectionString);
         });
 
+        // Singleton and stateless: it opens a scope of its own per call, so the Host's migrate verb can bring this
+        // module's schema up to date without knowing IdempotencyDbContext.
+        services.AddSingleton<IModuleMigrations, IdempotencyModuleMigrations>();
+
         // Scoped: the store shares the request's context, and the filter that calls it is per request.
         services.AddScoped<IIdempotencyStore, IdempotencyStore>();
 
@@ -67,7 +71,7 @@ public sealed class IdempotencyModule : IPanelModule
 
         // The shared resource pool the panel-wide ResxErrorTextProvider resolves error codes and
         // Manifest.DisplayNameKey against. The codes the Sdk filter raises (IdempotencyKeyInvalid and
-        // its three siblings) are defined here.
+        // its four siblings) are defined here.
         services.AddSingleton(new ResourceManager(ErrorMessagesResourceBaseName, typeof(IdempotencyModule).Assembly));
         services.AddSingleton(new ResourceManager(DisplayNamesResourceBaseName, typeof(IdempotencyModule).Assembly));
     }

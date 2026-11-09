@@ -1,5 +1,6 @@
 using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
+using Maran.Modules.Sites.Mappers;
 using Maran.Modules.Sites.Persistence;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
@@ -36,6 +37,19 @@ public sealed class SiteDirectory : ISiteDirectory
             .FirstOrDefaultAsync(candidate => candidate.Domain == domain, cancellationToken);
 
         return site is null ? null : ToSnapshot(site);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<string>> ListDomainsAsync(Guid accountId, CancellationToken cancellationToken)
+    {
+        // The global filter still applies on top of the account clause, so a customer asking about
+        // another account's sites is answered with an empty list, never with that account's domains.
+        return await _dbContext.Sites
+            .AsNoTracking()
+            .Where(site => site.AccountId == accountId)
+            .OrderBy(site => site.Domain)
+            .Select(site => site.Domain)
+            .ToListAsync(cancellationToken);
     }
 
     /// <inheritdoc />
@@ -76,7 +90,8 @@ public sealed class SiteDirectory : ISiteDirectory
             ToSdkBackend(site.BackendType),
             site.PhpVersion,
             site.ProxyUpstream,
-            site.HasCertificate);
+            site.HasCertificate,
+            SiteOptionsSnapshotMapper.From(site.Options));
     }
 
     /// <summary>Maps this module's backend enum onto the Sdk's cross-module one.</summary>

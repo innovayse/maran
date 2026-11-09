@@ -42,6 +42,12 @@ namespace Maran.Modules.Backups.Jobs;
 /// returns leaves this process.
 /// </para>
 /// <para>
+/// <b>An account created without backups is skipped.</b> <see cref="AccountBackupOptOut"/> names the
+/// accounts the creator asked to leave out; they are removed from the list before any schedule is
+/// applied, so neither the host-wide policy nor a per-account override takes a backup of them, and the
+/// missed-run alert does not count them as a target. A backup asked for by hand is not this handler's.
+/// </para>
+/// <para>
 /// <b>One failing account does not stop the sweep.</b> Each account's run is enclosed, so an agent
 /// refusal for one customer still leaves the rest of the host backed up — the opposite arrangement
 /// makes the account with the biggest database the reason nobody else has a backup.
@@ -160,7 +166,14 @@ public sealed class BackupRunHandler
             return 0;
         }
 
-        var accounts = await _accounts.ListAsync(cancellationToken);
+        // The accounts the schedule may cover: everyone the directory lists except the ones created with
+        // the instruction to leave them out. Filtered here, once, so every schedule — the host-wide one
+        // and an override naming the account alike — sees the same set and the exclusion cannot be
+        // honoured by one path and missed by the other.
+        var optedOut = await OptedOutAccountIdsAsync(cancellationToken);
+        var accounts = (await _accounts.ListAsync(cancellationToken))
+            .Where(account => { return !optedOut.Contains(account.Id); })
+            .ToList();
         var started = 0;
 
         foreach (var schedule in due)
@@ -212,6 +225,27 @@ public sealed class BackupRunHandler
         }
 
         return accounts.Where(account => { return account.Id == schedule.AccountId.Value; });
+    }
+
+    /// <summary>Reads the id of every account left out of scheduled backups, ignoring the tenant filter.</summary>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The opted-out account ids; empty when every account is backed up.</returns>
+    /// <remarks>
+    /// Unscoped for the reason the schedule read below is: the sweep has no principal, and the tenant
+    /// filter would show it no row, so every opted-out account would be backed up every night while the
+    /// table said otherwise. Observed rather than assumed by a test that runs the sweep as an anonymous
+    /// caller.
+    /// </remarks>
+    private async Task<HashSet<Guid>> OptedOutAccountIdsAsync(CancellationToken cancellationToken)
+    {
+#pragma warning disable RS0030 // unattended sweep with no principal; scoped, it would exclude nobody, every night
+        var ids = await _dbContext.AccountBackupOptOuts
+            .IgnoreQueryFilters()
+            .Select(row => row.AccountId)
+            .ToListAsync(cancellationToken);
+#pragma warning restore RS0030
+
+        return ids.ToHashSet();
     }
 
     /// <summary>Reads every enabled schedule, ignoring the tenant filter this pass cannot satisfy.</summary>
@@ -277,7 +311,7 @@ public sealed class BackupRunHandler
         try
         {
             var outcome = await _runner.RunAsync(
-                account.Username, backup.Id, destination.Value.Agent, taskId, cancellationToken);
+                account.Username, backup.Id, destination.Value.AgentForNewBackup, taskId, cancellationToken);
 
             // The account, not the backup id — the same subject the task above records, and the one
             // AuditEntry asks for: what the operation acts on, as an operator would search for it.

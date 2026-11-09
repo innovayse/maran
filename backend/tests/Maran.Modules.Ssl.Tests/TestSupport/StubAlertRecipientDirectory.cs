@@ -22,8 +22,9 @@ public sealed class StubAlertRecipientDirectory : IAlertRecipientDirectory
     }
 
     /// <inheritdoc />
-    public Task<string?> GetAlertRecipientAsync(CancellationToken cancellationToken)
+    public Task<IReadOnlyList<string>> GetAlertRecipientsAsync(CancellationToken cancellationToken)
     {
-        return Task.FromResult(_recipient);
+        IReadOnlyList<string> recipients = _recipient is null ? [] : [_recipient];
+        return Task.FromResult(recipients);
     }
 }

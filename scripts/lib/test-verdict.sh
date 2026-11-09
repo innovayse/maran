@@ -47,6 +47,9 @@
 #   maran test [stack] --accept   record the current totals as the baseline (then commit it)
 #   maran test backend --shard i/N --out DIR   run shard i of N of the main part (test-shards.sh)
 #   maran test backend --combine DIR           the verdict over every shard in DIR (test-shards.sh)
+#   maran test spa --shard i/N --out DIR       run shard i of N of the SPA spec files (spa-shards.sh)
+#   maran test spa --combine DIR               the verdict over every SPA shard in DIR (spa-shards.sh)
+#   maran test spa --shards-selftest           the combine step against planted bad shards (spa-shards.sh)
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -57,7 +60,8 @@ root="$(cd "$(dirname "$0")/../.." && pwd)"
 
 usage() {
   echo "usage: maran test [rust|backend|spa|all] [--accept]" >&2
-  echo "       maran test backend --shard i/N --out DIR | --combine DIR" >&2
+  echo "       maran test backend|spa --shard i/N --out DIR | --combine DIR" >&2
+  echo "       maran test spa --shards-selftest" >&2
   exit 2
 }
 
@@ -73,6 +77,7 @@ while [ $# -gt 0 ]; do
     # verdict (scripts/lib/test-shards.sh).
     --shard) shard_args=(--shard "${2:-}" "${3:-}" "${4:-}"); shift $(( $# < 4 ? $# : 4 )) ;;
     --combine) shard_args=(--combine "${2:-}"); shift $(( $# < 2 ? $# : 2 )) ;;
+    --shards-selftest) shard_args=(--shards-selftest); shift ;;
     -h|--help) usage ;;
     --filter|-p|--package)
       echo "REFUSED: $1 narrows the run, and this command's job is to compare a WHOLE suite" >&2
@@ -112,19 +117,26 @@ if ! tree_lock_refuse_pending "$root" readonly; then
 fi
 
 if [ "${#shard_args[@]}" -gt 0 ]; then
-  if [ "$which_stacks" != backend ] || [ "$accept" = 1 ]; then
-    echo "REFUSED: --shard and --combine are backend-only and never record a baseline." >&2
+  if { [ "$which_stacks" != backend ] && [ "$which_stacks" != spa ]; } || [ "$accept" = 1 ]; then
+    echo "REFUSED: --shard and --combine are backend- and spa-only and never record a baseline." >&2
+    exit 2
+  fi
+  if [ "${shard_args[0]}" = --shards-selftest ] && [ "$which_stacks" != spa ]; then
+    echo "REFUSED: --shards-selftest is spa-only (maran test spa --shards-selftest)." >&2
     exit 2
   fi
   if [ "${shard_args[0]}" = --shard ]; then
-    if ! suite_require_toolchain backend "$root" || ! suite_selftest_parsers backend ||
-       ! suite_refuse_concurrency backend "$root"; then
+    if ! suite_require_toolchain "$which_stacks" "$root" || ! suite_selftest_parsers "$which_stacks" ||
+       ! suite_refuse_concurrency "$which_stacks" "$root"; then
       suite_did_not_run "TEST VERDICT" "the shard could not be measured (see above)."
       exit "$SUITE_STATUS_DID_NOT_RUN"
     fi
-  elif ! suite_selftest_parsers backend; then
+  elif [ "${shard_args[0]}" = --combine ] && ! suite_selftest_parsers "$which_stacks"; then
     suite_did_not_run "TEST VERDICT" "the log parsers are blind (see the self-test above)."
     exit "$SUITE_STATUS_DID_NOT_RUN"
+  fi
+  if [ "$which_stacks" = spa ]; then
+    exec bash "$root/scripts/lib/spa-shards.sh" "${shard_args[@]}"
   fi
   exec bash "$root/scripts/lib/test-shards.sh" "${shard_args[@]}"
 fi

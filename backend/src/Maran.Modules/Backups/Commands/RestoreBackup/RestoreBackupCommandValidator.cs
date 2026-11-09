@@ -1,5 +1,6 @@
 using FluentValidation;
 using Maran.Modules.Backups.Resources;
+using Maran.SharedKernel.Utilities.Network;
 
 namespace Maran.Modules.Backups.Commands.RestoreBackup;
 
@@ -43,6 +44,13 @@ public sealed class RestoreBackupCommandValidator : AbstractValidator<RestoreBac
     /// <summary>The longest confirmation accepted, matching the ceiling on a system user name.</summary>
     private const int MaximumUsernameLength = 32;
 
+    /// <summary>The alphabet a database name is accepted in: the one the panel creates them in.</summary>
+    /// <remarks>Anchored with <c>\z</c> for the reason <see cref="UsernamePattern"/> is.</remarks>
+    private const string DatabaseNamePattern = @"\A[A-Za-z0-9_]+\z";
+
+    /// <summary>The longest database name accepted, the database server's own ceiling.</summary>
+    private const int MaximumDatabaseNameLength = 64;
+
     /// <summary>Configures the field rules for <see cref="RestoreBackupCommand"/>.</summary>
     public RestoreBackupCommandValidator()
     {
@@ -54,5 +62,22 @@ public sealed class RestoreBackupCommandValidator : AbstractValidator<RestoreBac
             .MaximumLength(MaximumUsernameLength)
             .Matches(UsernamePattern)
             .WithMessage(nameof(ErrorMessages.RestoreConfirmationRequired));
+
+        // The scope's shape only. Whether the database is the account's, and the site hosted here,
+        // are the handler's tenant-scoped reads; this is what a name must look like to be asked about.
+        RuleFor(command => command.SiteDomain)
+            .Must((command, _) => { return command.DatabaseName is null || command.SiteDomain is null; })
+            .WithMessage(nameof(ErrorMessages.RestoreScopeAmbiguous));
+
+        RuleFor(command => command.DatabaseName!)
+            .NotEmpty().WithMessage(nameof(ErrorMessages.RestoreDatabaseInvalid))
+            .MaximumLength(MaximumDatabaseNameLength).WithMessage(nameof(ErrorMessages.RestoreDatabaseInvalid))
+            .Matches(DatabaseNamePattern).WithMessage(nameof(ErrorMessages.RestoreDatabaseInvalid))
+            .When(command => { return command.DatabaseName is not null; });
+
+        RuleFor(command => command.SiteDomain!)
+            .MaximumLength(HostNameRule.MaximumLength).WithMessage(nameof(ErrorMessages.RestoreSiteInvalid))
+            .Must(HostNameRule.IsHostName).WithMessage(nameof(ErrorMessages.RestoreSiteInvalid))
+            .When(command => { return command.SiteDomain is not null; });
     }
 }

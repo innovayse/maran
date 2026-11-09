@@ -27,7 +27,7 @@ pub struct AuditLine {
 }
 
 impl AuditLine {
-    /// Builds a line. `list_entry` is a path from `MUTATING_RPCS` (the leading slash
+    /// Builds a line. `list_entry` is a path from `MUTATING_RPCS` or `DISCLOSING_RPCS` (the leading slash
     /// is dropped), never the request's own bytes.
     #[must_use]
     pub fn new(

@@ -469,6 +469,25 @@ impl SiteHost for FakeSslHost {
         self.sites.remove_config(target, validator, reload)
     }
 
+    fn write_auth_file(
+        &self,
+        target: &Path,
+        contents: &str,
+        placement: &crate::sites::model::auth_file_placement::AuthFilePlacement<'_>,
+        validator: &Validator<'_>,
+    ) -> Result<(), SitesOpError> {
+        self.sites
+            .write_auth_file(target, contents, placement, validator)
+    }
+
+    fn remove_auth_file(&self, target: &Path) -> Result<(), SitesOpError> {
+        self.sites.remove_auth_file(target)
+    }
+
+    fn list_auth_files(&self) -> Result<Vec<PathBuf>, SitesOpError> {
+        self.sites.list_auth_files()
+    }
+
     fn resolve_in_account_home(
         &self,
         account: &AccountName,

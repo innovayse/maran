@@ -3,6 +3,7 @@ using Maran.Modules.Tasks.Persistence;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 using Microsoft.Extensions.Logging;
+using Wolverine;
 
 namespace Maran.Modules.Tasks.Services;
 
@@ -66,15 +67,20 @@ public sealed class TaskRecorder : ITaskRecorder
     /// <summary>Where a failed recording becomes visible to an operator.</summary>
     private readonly ILogger<TaskRecorder> _logger;
 
+    /// <summary>Where a task's failure is announced to the administrators' notification feed.</summary>
+    private readonly IMessageBus _bus;
+
     /// <summary>Creates the recorder.</summary>
     /// <param name="dbContext">The Tasks module's database context.</param>
     /// <param name="clock">The injected time source stamping each task.</param>
     /// <param name="logger">Sink for recordings that could not be written.</param>
-    public TaskRecorder(TasksDbContext dbContext, IClock clock, ILogger<TaskRecorder> logger)
+    /// <param name="bus">The bus a failed task is announced on.</param>
+    public TaskRecorder(TasksDbContext dbContext, IClock clock, ILogger<TaskRecorder> logger, IMessageBus bus)
     {
         _dbContext = dbContext;
         _clock = clock;
         _logger = logger;
+        _bus = bus;
     }
 
     /// <inheritdoc />
@@ -133,17 +139,61 @@ public sealed class TaskRecorder : ITaskRecorder
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// <para>
+    /// <b>A failure — and only a failure — is announced.</b> Once the failure is stored, a
+    /// <see cref="PanelNotificationRaised"/> is published for the administrators' feed. Completions
+    /// are not announced: success already shows on the tasks page, and a feed that listed every
+    /// finished operation would bury the ones that need a person. A second failure report for a task
+    /// that already finished is refused by the entity and is not announced either.
+    /// </para>
+    /// <para>
+    /// Published AFTER the commit, so the feed never announces a failure that was not stored, on a
+    /// non-durable queue: a notification lost in the instant a process dies is acceptable because
+    /// the task row and the tasks page are the record. The publish is inside this class's
+    /// never-throw rule — a bus that fails costs the feed an entry and the operation nothing.
+    /// </para>
+    /// </remarks>
     public async Task FailAsync(Guid taskId, string errorCode, CancellationToken cancellationToken)
     {
         var at = _clock.UtcNow;
-        await MutateAsync(
+        var failedNow = false;
+        var stored = await MutateAsync(
             taskId,
             nameof(FailAsync),
             task =>
             {
-                task.Fail(errorCode, at);
+                failedNow = task.Fail(errorCode, at);
             },
             cancellationToken);
+
+        if (stored is not null && failedNow)
+        {
+            await AnnounceFailureAsync(stored, cancellationToken);
+        }
+    }
+
+    /// <summary>Publishes the notification for a task that has just been stored as failed.</summary>
+    /// <param name="task">The failed task.</param>
+    /// <param name="cancellationToken">Cancels the publish.</param>
+    /// <returns>Resolves once published, or once the failure to publish has been logged.</returns>
+    private async Task AnnounceFailureAsync(PanelTask task, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _bus.PublishAsync(new PanelNotificationRaised(
+                NotificationSource.Task,
+                task.ErrorCode ?? string.Empty,
+                NotificationSeverity.Warning,
+                task.Subject,
+                [],
+                NotificationDeepLinks.Tasks,
+                task.FinishedAt ?? _clock.UtcNow));
+        }
+        catch (Exception exception)
+        {
+            LogRecordingFailed(_logger, nameof(AnnounceFailureAsync), task.Id.ToString(), exception);
+        }
     }
 
     /// <summary>Loads one task, applies a change to it and saves — swallowing every failure.</summary>
@@ -151,7 +201,7 @@ public sealed class TaskRecorder : ITaskRecorder
     /// <param name="operation">The recorder method being performed, for the log line.</param>
     /// <param name="change">What to do to the task. The entity decides whether it applies.</param>
     /// <param name="cancellationToken">Cancellation token for the read and the write.</param>
-    /// <returns>Resolves once the change is stored, or once its failure has been logged.</returns>
+    /// <returns>The stored task, or <c>null</c> when it was not found or its change could not be stored.</returns>
     /// <remarks>
     /// <see cref="Guid.Empty"/> is the id <see cref="BeginAsync"/> answers when it could not record
     /// anything, and it short-circuits here so that an operation whose task was never opened costs
@@ -164,7 +214,7 @@ public sealed class TaskRecorder : ITaskRecorder
     /// which only the operation that opened it holds, and the only thing that happens to it is the
     /// change the operation asked for.
     /// </remarks>
-    private async Task MutateAsync(
+    private async Task<PanelTask?> MutateAsync(
         Guid taskId,
         string operation,
         Action<PanelTask> change,
@@ -172,7 +222,7 @@ public sealed class TaskRecorder : ITaskRecorder
     {
         if (taskId == Guid.Empty)
         {
-            return;
+            return null;
         }
 
         try
@@ -184,15 +234,18 @@ public sealed class TaskRecorder : ITaskRecorder
 #pragma warning restore RS0030
             if (task is null)
             {
-                return;
+                return null;
             }
 
             change(task);
             await _dbContext.SaveChangesAsync(cancellationToken);
+
+            return task;
         }
         catch (Exception exception)
         {
             LogRecordingFailed(_logger, operation, taskId.ToString(), exception);
+            return null;
         }
     }
 }

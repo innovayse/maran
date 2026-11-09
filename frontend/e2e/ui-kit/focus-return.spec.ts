@@ -61,7 +61,7 @@ const DATABASES: Database[] = [
 
 /** The catalogue that licenses the databases screen. */
 const LICENSED: PanelModule[] = [
-  { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
+  { name: 'databases', displayName: 'Databases', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 /**

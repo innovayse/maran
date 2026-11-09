@@ -78,6 +78,15 @@ public sealed class MonitoringDbContext : DbContext
         }
     }
 
+    /// <summary>The administrator's stored alert thresholds; at most one row, none on an unconfigured panel (issue #142).</summary>
+    public DbSet<AlertThresholds> AlertThresholds
+    {
+        get
+        {
+            return Set<AlertThresholds>();
+        }
+    }
+
     /// <summary>Applies the schema and the entity configurations.</summary>
     /// <param name="modelBuilder">The model builder supplied by EF Core.</param>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -87,6 +96,7 @@ public sealed class MonitoringDbContext : DbContext
         modelBuilder.ApplyConfiguration(new AlertStateConfiguration());
         modelBuilder.ApplyConfiguration(new MetricBucketRowConfiguration());
         modelBuilder.ApplyConfiguration(new LogLevelSettingConfiguration());
+        modelBuilder.ApplyConfiguration(new AlertThresholdsConfiguration());
 
         base.OnModelCreating(modelBuilder);
     }

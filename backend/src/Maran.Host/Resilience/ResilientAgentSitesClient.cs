@@ -135,6 +135,36 @@ public sealed class ResilientAgentSitesClient : IAgentSitesClient
     }
 
     /// <inheritdoc/>
+    public Task<Result<SiteTrafficReading>> SummariseTrafficAsync(
+        string accountUsername,
+        string domain,
+        SiteTrafficCursor? cursor,
+        CancellationToken cancellationToken)
+    {
+        // Read-only, so the pipeline's bounded retry of a connection that could not be established
+        // is as safe here as for any other read.
+        return ExecuteAsync(token =>
+        {
+            return _inner.SummariseTrafficAsync(accountUsername, domain, cursor, token);
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public Task<Result<PrunedSiteLogs>> PruneLogsAsync(
+        string accountUsername,
+        string domain,
+        uint retainRotations,
+        CancellationToken cancellationToken)
+    {
+        // Idempotent on the agent (repeating it removes nothing more), so it is retried like the
+        // other mutating calls.
+        return ExecuteAsync(token =>
+        {
+            return _inner.PruneLogsAsync(accountUsername, domain, retainRotations, token);
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public Task<Result> ReloadWebServerAsync(CancellationToken cancellationToken)
     {
         return ExecuteAsync(token =>

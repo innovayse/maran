@@ -159,6 +159,31 @@ internal sealed class RecordingAgentSitesClient : IAgentSitesClient
     }
 
     /// <inheritdoc/>
+    public async Task<Result<SiteTrafficReading>> SummariseTrafficAsync(
+        string accountUsername,
+        string domain,
+        SiteTrafficCursor? cursor,
+        CancellationToken cancellationToken)
+    {
+        await AttemptAsync(cancellationToken);
+
+        return Result<SiteTrafficReading>.Ok(
+            new SiteTrafficReading([], new SiteTrafficCursor(string.Empty, 0), true, false, 0));
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result<PrunedSiteLogs>> PruneLogsAsync(
+        string accountUsername,
+        string domain,
+        uint retainRotations,
+        CancellationToken cancellationToken)
+    {
+        await AttemptAsync(cancellationToken);
+
+        return Result<PrunedSiteLogs>.Ok(new PrunedSiteLogs(0));
+    }
+
+    /// <inheritdoc/>
     public async Task<Result> ReloadWebServerAsync(CancellationToken cancellationToken)
     {
         await AttemptAsync(cancellationToken);

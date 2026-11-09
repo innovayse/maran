@@ -1,0 +1,197 @@
+{
+  "dns": {
+    "detail": {
+      "heading": "DNS zone",
+      "subtitle": "The records this server answers with for the name, and how to point the name here.",
+      "backToList": "Back to the zones",
+      "notFoundTitle": "No such zone",
+      "notFoundDescription": "This zone does not exist, or it belongs to another account.",
+      "tabs": {
+        "overview": "Overview",
+        "records": "Records"
+      }
+    },
+    "zones": {
+      "heading": "DNS zones",
+      "subtitle": "The domain names this server answers DNS queries for.",
+      "createAction": "New zone",
+      "emptyTitle": "No zones yet",
+      "emptyDescription": "Create a zone to publish the DNS records of a domain from this server.",
+      "tableCaption": "DNS zones",
+      "columns": {
+        "name": "Zone",
+        "owner": "Owner",
+        "records": "Records",
+        "createdAt": "Created",
+        "serial": "SOA serial"
+      },
+      "rowActions": "Actions for the zone {name}",
+      "searchLabel": "Search zones",
+      "searchPlaceholder": "Search by name or owner…",
+      "searchClear": "Clear the search",
+      "noResultsTitle": "No zones match",
+      "noResultsDescription": "Change the search or the filters, or clear them to see every zone.",
+      "filters": {
+        "account": "Account"
+      },
+      "confirmDeleteTitle": "Delete the zone {name}?",
+      "confirmDelete": "Every record in the zone is deleted and this server stops answering for the name. The domain stops resolving here until a zone is created again.",
+      "confirmDeleteAction": "Delete zone",
+      "deleted": "The zone {name} was deleted."
+    },
+    "zoneForm": {
+      "heading": "New zone",
+      "subtitle": "The panel checks these values before sending them, and the server checks them again.",
+      "fields": {
+        "account": "Account",
+        "name": "Domain name"
+      },
+      "placeholders": {
+        "account": "Choose an account",
+        "name": "example.com"
+      },
+      "hints": {
+        "name": "The domain of one of the account's sites. The server refuses a name no site of the account serves."
+      },
+      "errors": {
+        "accountRequired": "Choose the account that owns the zone.",
+        "nameRequired": "Enter the domain name of the zone.",
+        "nameInvalid": "Enter a domain name of two or more parts, such as example.com."
+      },
+      "submit": "Create zone",
+      "created": "The zone {name} was created."
+    },
+    "overview": {
+      "name": "Zone",
+      "nameservers": "Name servers",
+      "owner": "Owner",
+      "records": "Records",
+      "serial": "SOA serial",
+      "createdAt": "Created",
+      "updatedAt": "Last changed"
+    },
+    "records": {
+      "addAction": "Add record",
+      "added": "The record was added.",
+      "saved": "The record was saved.",
+      "deleted": "The record was deleted.",
+      "edit": "Edit",
+      "managed": "Managed by the panel",
+      "tableCaption": "DNS records",
+      "columns": {
+        "name": "Name",
+        "type": "Type",
+        "ttl": "TTL",
+        "value": "Value",
+        "origin": "Source"
+      },
+      "rowActions": "Actions for the {type} record {name}",
+      "searchLabel": "Search records",
+      "searchPlaceholder": "Search by name or value…",
+      "searchClear": "Clear the search",
+      "emptyTitle": "No records yet",
+      "emptyDescription": "Add a record to publish an address, a mail server or any other data for this zone.",
+      "noResultsTitle": "No records match",
+      "noResultsDescription": "Change the search or the filters, or clear them to see every record.",
+      "filters": {
+        "type": "Type"
+      },
+      "confirmDeleteTitle": "Delete the {type} record {name}?",
+      "confirmDelete": "The name server stops answering with this record as soon as the zone is applied.",
+      "confirmDeleteAction": "Delete record"
+    },
+    "record": {
+      "addTitle": "Add a record",
+      "editTitle": "Change a record",
+      "save": "Save record",
+      "fields": {
+        "name": "Name",
+        "type": "Type",
+        "ttl": "TTL (seconds)",
+        "value": "Value",
+        "priority": "Priority",
+        "weight": "Weight",
+        "port": "Port",
+        "flags": "Flags",
+        "tag": "Tag"
+      },
+      "placeholders": {
+        "name": "{'@'} for the zone itself, or www",
+        "tag": "Choose a tag"
+      },
+      "errors": {
+        "nameRequired": "Enter a name. Use {'@'} for the zone itself.",
+        "nameInvalid": "Use letters, digits, hyphens and underscores in dot-separated parts. A * may stand alone as the first part.",
+        "typeRequired": "Choose a record type.",
+        "ttlInvalid": "Enter the TTL as a whole number of seconds.",
+        "ttlRange": "The TTL must be between {min} and {max} seconds.",
+        "valueRequired": "Enter a value.",
+        "numberRange": "Enter a whole number from 0 to {max}.",
+        "tagInvalid": "Choose one of the listed tags.",
+        "valueControl": "A value cannot contain line breaks or other control characters.",
+        "valueTooLong": "A value can be up to {max} characters long."
+      }
+    },
+    "nameservers": {
+      "heading": "Nameservers",
+      "subtitle": "The name server on this host and the values written into every zone it serves.",
+      "settingsHeading": "Zone values",
+      "settingsSubtitle": "Written into the SOA and the NS set of every zone.",
+      "fields": {
+        "defaultTtl": "Default TTL (seconds)",
+        "hostmasterMailbox": "Hostmaster mailbox (SOA form)",
+        "primaryNameserver": "Primary name server",
+        "publicIpv4": "Public IPv4 address",
+        "publicIpv6": "Public IPv6 address",
+        "secondaryNameserver": "Secondary name server"
+      },
+      "hints": {
+        "nameservers": "One host name per line, such as ns1.example.com. Create glue records for them at the registrar of their domain.",
+        "hostmaster": "The contact address of the zones, written the way the SOA record writes it: a dot instead of the at sign, so hostmaster.example.com stands for hostmaster{'@'}example.com.",
+        "rerender": "Saving writes the new values into every zone on this server."
+      },
+      "errors": {
+        "nameserverInvalid": "A name server must be a host name such as ns1.example.net.",
+        "hostmasterInvalid": "Write the mailbox with a dot instead of the at sign, such as hostmaster.example.com.",
+        "ipv4Invalid": "Enter an IPv4 address such as 203.0.113.10.",
+        "ipv6Invalid": "Enter an IPv6 address such as 2001:db8::10.",
+        "primaryRequired": "Enter the primary name server."
+      },
+      "save": "Save settings",
+      "saved": "The settings were saved.",
+      "incomplete": "The settings are incomplete, so zones cannot be created yet. Fill in the primary name server and the hostmaster mailbox, then save."
+    },
+    "server": {
+      "heading": "Name server",
+      "recursionLabel": "Refuses recursion",
+      "rateLimitLabel": "Limits response rate",
+      "policy": {
+        "inForce": "In force",
+        "notInForce": "Not in force",
+        "notObserved": "Not observed"
+      },
+      "enabledLabel": "Turned on",
+      "on": "On",
+      "off": "Off",
+      "onExplanation": "This server answers DNS queries on port 53 for the zones it holds.",
+      "offExplanation": "This server does not answer DNS queries and port 53 is closed. Zones are kept.",
+      "turnOn": "Turn on",
+      "turnOff": "Turn off",
+      "turnedOn": "The name server was turned on.",
+      "turnedOff": "The name server was turned off.",
+      "confirmOnTitle": "Turn the name server on?",
+      "confirmOn": "This opens port 53 to the internet. Domains start resolving here once their registrars delegate them to this server.",
+      "confirmOffTitle": "Turn the name server off?",
+      "confirmOff": "This closes port 53. Every zone stops resolving from this server, and the zones are kept.",
+      "agentUnreachable": "The panel could not reach the agent on this host, so the state below is what the panel last stored.",
+      "answering": "Answering",
+      "listeningLabel": "Listening on port 53",
+      "no": "No",
+      "notAnswering": "Not answering",
+      "runningLabel": "Process running",
+      "versionLabel": "Version",
+      "yes": "Yes",
+      "zonesLabel": "Zones held"
+    }
+  }
+}

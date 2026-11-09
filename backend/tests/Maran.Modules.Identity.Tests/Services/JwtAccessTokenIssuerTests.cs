@@ -399,4 +399,43 @@ public sealed class JwtAccessTokenIssuerTests
         Assert.Throws<InvalidOperationException>(() => { issuer.IssueViewAs(owner, startedByAnother, admin); });
         Assert.NotEmpty(issuer.IssueViewAs(owner, good, admin).Value);
     }
+
+    /// <summary>A login that owes a password change gets a token that says so, in the claim and in the flag.</summary>
+    [Fact]
+    public async Task A_login_that_owes_a_password_change_gets_a_token_that_says_so()
+    {
+        var owner = User.CreateWithPassword(Guid.NewGuid(), "owner", "o@example.com", "hash", Now);
+
+        var token = await NewIssuer().IssueAsync(owner, Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
+
+        Assert.True(token.RequiresPasswordChange);
+        Assert.Equal("true", Read(token.Value).GetClaim(PanelClaimTypes.PasswordChangeRequired).Value);
+    }
+
+    /// <summary>A login that owes nothing gets a token with no password-change claim at all.</summary>
+    /// <remarks>The accepting control: the claim's presence is the restriction, so its absence must be real.</remarks>
+    [Fact]
+    public async Task A_login_that_owes_nothing_gets_a_token_without_the_claim()
+    {
+        var token = await NewIssuer().IssueAsync(NewCustomer(), Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
+
+        Assert.False(token.RequiresPasswordChange);
+        Assert.False(Read(token.Value).TryGetClaim(PanelClaimTypes.PasswordChangeRequired, out _));
+    }
+
+    /// <summary>A token issued after the password was changed carries no restriction: a refresh cannot launder it either way.</summary>
+    [Fact]
+    public async Task A_token_issued_after_the_password_change_is_free_and_one_before_it_is_not()
+    {
+        var owner = User.CreateWithPassword(Guid.NewGuid(), "owner", "o@example.com", "hash", Now);
+        var issuer = NewIssuer();
+
+        var before = await issuer.IssueAsync(owner, Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
+        owner.ChangePassword("chosen-hash");
+        var after = await issuer.IssueAsync(owner, Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
+
+        Assert.True(before.RequiresPasswordChange);
+        Assert.False(after.RequiresPasswordChange);
+        Assert.False(Read(after.Value).TryGetClaim(PanelClaimTypes.PasswordChangeRequired, out _));
+    }
 }

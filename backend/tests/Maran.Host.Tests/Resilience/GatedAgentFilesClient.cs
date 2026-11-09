@@ -1,4 +1,5 @@
 using Maran.Agent.Client.Interfaces;
+using Maran.Agent.Client.Services.FilesService;
 using Maran.SharedKernel.Results;
 
 namespace Maran.Host.Tests.Resilience;
@@ -65,6 +66,18 @@ internal sealed class GatedAgentFilesClient : IAgentFilesClient
     }
 
     /// <inheritdoc/>
+    public Task<Result<ulong>> WriteFileStreamAsync(
+        string accountUsername,
+        string path,
+        uint mode,
+        Stream body,
+        ulong maxBytes,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double does not model streamed uploads.");
+    }
+
+    /// <inheritdoc/>
     public async Task<Result> DeleteEntryAsync(
         string accountUsername,
         string path,
@@ -74,6 +87,177 @@ internal sealed class GatedAgentFilesClient : IAgentFilesClient
         await EnterAsync(cancellationToken);
 
         return Result.Ok();
+    }
+
+    /// <inheritdoc/>
+    public Task<Result<DirectoryListingDto>> ListDirectoryAsync(
+        string accountUsername,
+        string path,
+        uint offset,
+        uint limit,
+        bool includeHidden,
+        DirectorySortOrder sort,
+        bool descending,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double does not model browsing or reading.");
+    }
+
+    /// <inheritdoc/>
+    public Task<Result<FileSearchResultDto>> SearchEntriesAsync(
+        string accountUsername,
+        string path,
+        string query,
+        uint maxDepth,
+        uint maxResults,
+        bool includeHidden,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double does not model browsing or reading.");
+    }
+
+    /// <inheritdoc/>
+    public Task<Result<OpenedFileRead>> ReadFileAsync(
+        string accountUsername,
+        string path,
+        ulong maxBytes,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double does not model browsing or reading.");
+    }
+
+    /// <inheritdoc/>
+    public Task<Result> CreateDirectoryAsync(
+        string accountUsername,
+        string path,
+        uint mode,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double does not model changing a customer's tree.");
+    }
+
+    /// <inheritdoc/>
+    public Task<Result> CreateFileAsync(
+        string accountUsername,
+        string path,
+        uint mode,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double does not model changing a customer's tree.");
+    }
+
+    /// <inheritdoc/>
+    public Task<Result> MoveEntryAsync(
+        string accountUsername,
+        string sourcePath,
+        string destinationPath,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double does not model changing a customer's tree.");
+    }
+
+    /// <inheritdoc/>
+    public Task<Result> CopyEntryAsync(
+        string accountUsername,
+        string sourcePath,
+        string destinationPath,
+        ulong maxEntries,
+        ulong maxBytes,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double does not model changing a customer's tree.");
+    }
+
+    /// <inheritdoc/>
+    public Task<Result<PermissionChangeDto>> ChangePermissionsAsync(
+        string accountUsername,
+        string path,
+        uint mode,
+        bool recursive,
+        uint directoryMode,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double does not model changing a customer's tree.");
+    }
+
+    /// <inheritdoc/>
+    public Task<Result<string>> TrashEntryAsync(
+        string accountUsername,
+        string path,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double does not model changing a customer's tree.");
+    }
+
+    /// <inheritdoc/>
+    public Task<Result<IReadOnlyList<TrashedEntryDto>>> ListTrashAsync(
+        string accountUsername,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double does not model changing a customer's tree.");
+    }
+
+    /// <inheritdoc/>
+    public Task<Result<string>> RestoreTrashEntryAsync(
+        string accountUsername,
+        string trashId,
+        string destinationPath,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double does not model changing a customer's tree.");
+    }
+
+    /// <inheritdoc/>
+    public Task<Result<ulong>> EmptyTrashAsync(
+        string accountUsername,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double does not model changing a customer's tree.");
+    }
+
+    /// <inheritdoc/>
+    public Task<Result<ulong>> PurgeExpiredTrashAsync(
+        string accountUsername,
+        uint olderThanDays,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double does not model changing a customer's tree.");
+    }
+
+    /// <inheritdoc/>
+    public Task<Result> ForceDeleteEntryAsync(
+        string accountUsername,
+        string path,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double does not model changing a customer's tree.");
+    }
+
+    /// <inheritdoc/>
+    public Task<Result<ulong>> CreateArchiveAsync(
+        string accountUsername,
+        IReadOnlyList<string> sourcePaths,
+        string destinationPath,
+        AgentArchiveFormat format,
+        ulong maxEntries,
+        ulong maxSourceBytes,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double does not model changing a customer's tree.");
+    }
+
+    /// <inheritdoc/>
+    public Task<Result<uint>> ExtractArchiveAsync(
+        string accountUsername,
+        string archivePath,
+        string destinationPath,
+        AgentArchiveFormat format,
+        ulong maxEntries,
+        ulong maxExpandedBytes,
+        uint maxRatio,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double does not model changing a customer's tree.");
     }
 
     /// <summary>Records this caller's arrival and waits for the gate the last arrival opens.</summary>

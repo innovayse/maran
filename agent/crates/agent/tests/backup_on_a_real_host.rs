@@ -397,8 +397,8 @@ use maran_agent_core::validation::system::local_backup_root::LocalBackupRoot;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_ops::accounts::{AccountError, AccountOperations, ProcessSystemHost};
 use maran_ops::backup::{
-    BackupError, BackupStage, ProgressSink, RestoreSink, RestoreStage, create_backup,
-    delete_backup, list_backups, restore_backup, verify_backup,
+    BackupError, BackupStage, CreationRequest, ProgressSink, RestoreScope, RestoreSink,
+    RestoreStage, create_backup, delete_backup, list_backups, restore_backup, verify_backup,
 };
 use maran_ops::db::{CreateDatabaseRequest, ProcessDbHost, create_database};
 use maran_ops::php::ProcessPhpHost;
@@ -610,11 +610,14 @@ fn a_backup_of_a_real_account_publishes_a_root_only_artifact_whose_digest_is_the
     let summary = create_backup(
         &ProcessBackupHost::new(polygon_distro()),
         &catalog(),
-        account.name(),
-        &fixture_id(),
-        &root(),
-        &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
-            .expect("a one-mebibyte floor"),
+        &CreationRequest {
+            account: account.name(),
+            backup_id: &fixture_id(),
+            root: &root(),
+            floor: &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+                .expect("a one-mebibyte floor"),
+            key: None,
+        },
         &mut sink,
     )
     .unwrap_or_else(|error| panic!("a backup of a real account must succeed: {error}"));
@@ -681,11 +684,14 @@ fn a_symbolic_link_in_a_home_is_archived_as_a_link_and_never_followed() {
     create_backup(
         &ProcessBackupHost::new(polygon_distro()),
         &catalog(),
-        account.name(),
-        &fixture_id(),
-        &root(),
-        &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
-            .expect("a one-mebibyte floor"),
+        &CreationRequest {
+            account: account.name(),
+            backup_id: &fixture_id(),
+            root: &root(),
+            floor: &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+                .expect("a one-mebibyte floor"),
+            key: None,
+        },
         &mut RecordingSink::default(),
     )
     .unwrap_or_else(|error| panic!("a backup of a home holding a link must succeed: {error}"));
@@ -741,11 +747,14 @@ fn a_restore_puts_the_home_and_the_database_back_and_leaves_the_home_as_the_acco
     let summary = create_backup(
         &ProcessBackupHost::new(polygon_distro()),
         &catalog(),
-        account.name(),
-        &fixture_id(),
-        &root(),
-        &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
-            .expect("a one-mebibyte floor"),
+        &CreationRequest {
+            account: account.name(),
+            backup_id: &fixture_id(),
+            root: &root(),
+            floor: &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+                .expect("a one-mebibyte floor"),
+            key: None,
+        },
         &mut RecordingSink::default(),
     )
     .unwrap_or_else(|error| panic!("the backup must succeed: {error}"));
@@ -774,10 +783,12 @@ fn a_restore_puts_the_home_and_the_database_back_and_leaves_the_home_as_the_acco
         &fixture_id(),
         &root(),
         std::slice::from_ref(&database),
+        &RestoreScope::Whole,
         &digest,
         group,
         &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
             .expect("a one-mebibyte floor"),
+        None,
         &mut sink,
     )
     .unwrap_or_else(|error| panic!("the restore must succeed: {error}"));
@@ -824,11 +835,14 @@ fn an_archive_naming_a_member_outside_the_layout_is_refused_and_writes_nothing()
     create_backup(
         &ProcessBackupHost::new(polygon_distro()),
         &catalog(),
-        account.name(),
-        &fixture_id(),
-        &root(),
-        &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
-            .expect("a one-mebibyte floor"),
+        &CreationRequest {
+            account: account.name(),
+            backup_id: &fixture_id(),
+            root: &root(),
+            floor: &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+                .expect("a one-mebibyte floor"),
+            key: None,
+        },
         &mut RecordingSink::default(),
     )
     .unwrap_or_else(|error| panic!("the backup must succeed: {error}"));
@@ -872,10 +886,12 @@ fn an_archive_naming_a_member_outside_the_layout_is_refused_and_writes_nothing()
         &fixture_id(),
         &root(),
         &[database],
+        &RestoreScope::Whole,
         &sha256sum_of(&artifact),
         group,
         &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
             .expect("a one-mebibyte floor"),
+        None,
         &mut RecordingSink::default(),
     )
     .expect_err("a hostile archive must be refused");
@@ -913,11 +929,14 @@ fn creating_the_same_backup_twice_reports_already_exists_and_does_not_rewrite_it
     create_backup(
         &ProcessBackupHost::new(polygon_distro()),
         &catalog(),
-        account.name(),
-        &fixture_id(),
-        &root(),
-        &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
-            .expect("a one-mebibyte floor"),
+        &CreationRequest {
+            account: account.name(),
+            backup_id: &fixture_id(),
+            root: &root(),
+            floor: &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+                .expect("a one-mebibyte floor"),
+            key: None,
+        },
         &mut RecordingSink::default(),
     )
     .unwrap_or_else(|error| panic!("the first backup must succeed: {error}"));
@@ -929,11 +948,14 @@ fn creating_the_same_backup_twice_reports_already_exists_and_does_not_rewrite_it
     let repeated = create_backup(
         &ProcessBackupHost::new(polygon_distro()),
         &catalog(),
-        account.name(),
-        &fixture_id(),
-        &root(),
-        &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
-            .expect("a one-mebibyte floor"),
+        &CreationRequest {
+            account: account.name(),
+            backup_id: &fixture_id(),
+            root: &root(),
+            floor: &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+                .expect("a one-mebibyte floor"),
+            key: None,
+        },
         &mut RecordingSink::default(),
     )
     .expect_err("a repeated creation is refused");
@@ -959,11 +981,14 @@ fn deleting_a_backup_removes_both_files_and_deleting_again_reports_not_found() {
     create_backup(
         &ProcessBackupHost::new(polygon_distro()),
         &catalog(),
-        account.name(),
-        &fixture_id(),
-        &root(),
-        &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
-            .expect("a one-mebibyte floor"),
+        &CreationRequest {
+            account: account.name(),
+            backup_id: &fixture_id(),
+            root: &root(),
+            floor: &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+                .expect("a one-mebibyte floor"),
+            key: None,
+        },
         &mut RecordingSink::default(),
     )
     .unwrap_or_else(|error| panic!("the backup must succeed: {error}"));
@@ -1006,10 +1031,13 @@ fn a_real_artifact_verifies_and_one_flipped_byte_in_it_is_refused() {
     create_backup(
         &ProcessBackupHost::new(polygon_distro()),
         &catalog(),
-        account.name(),
-        &fixture_id(),
-        &root(),
-        &floor,
+        &CreationRequest {
+            account: account.name(),
+            backup_id: &fixture_id(),
+            root: &root(),
+            floor: &floor,
+            key: None,
+        },
         &mut RecordingSink::default(),
     )
     .unwrap_or_else(|error| panic!("the backup must succeed: {error}"));
@@ -1019,7 +1047,7 @@ fn a_real_artifact_verifies_and_one_flipped_byte_in_it_is_refused() {
     // The inverse control: the artifact exactly as creation published it
     // verifies, so the refusal below is about the byte and not about a
     // verification that refuses every real artifact.
-    let verified = verify_backup(&host, account.name(), &fixture_id(), &root(), &floor)
+    let verified = verify_backup(&host, account.name(), &fixture_id(), &root(), &floor, None)
         .unwrap_or_else(|error| panic!("a freshly created artifact must verify: {error}"));
     assert_eq!(
         verified.artifact_bytes,
@@ -1047,7 +1075,7 @@ fn a_real_artifact_verifies_and_one_flipped_byte_in_it_is_refused() {
     damaged[middle] ^= 0xff;
     std::fs::write(&artifact, &damaged).expect("root rewrites the artifact in place");
 
-    let refused = verify_backup(&host, account.name(), &fixture_id(), &root(), &floor);
+    let refused = verify_backup(&host, account.name(), &fixture_id(), &root(), &floor, None);
     assert!(
         matches!(refused, Err(BackupError::ChecksumMismatch)),
         "an artifact with one flipped byte must be a checksum mismatch, got {refused:?}"
@@ -1061,7 +1089,7 @@ fn a_real_artifact_verifies_and_one_flipped_byte_in_it_is_refused() {
     // refusal followed the byte and that a verification changes nothing it
     // read.
     std::fs::write(&artifact, &original).expect("root restores the artifact");
-    let again = verify_backup(&host, account.name(), &fixture_id(), &root(), &floor)
+    let again = verify_backup(&host, account.name(), &fixture_id(), &root(), &floor, None)
         .unwrap_or_else(|error| panic!("the restored artifact must verify again: {error}"));
     assert_eq!(again, verified);
 }
@@ -1375,11 +1403,14 @@ fn a_dump_is_refused_at_nine_tenths_of_what_the_scratch_filesystem_actually_hold
     let refusal = create_backup(
         &host,
         &catalog(),
-        account.name(),
-        &fixture_id(),
-        &root(),
-        &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
-            .expect("a one-mebibyte floor"),
+        &CreationRequest {
+            account: account.name(),
+            backup_id: &fixture_id(),
+            root: &root(),
+            floor: &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+                .expect("a one-mebibyte floor"),
+            key: None,
+        },
         &mut RecordingSink::default(),
     )
     .expect_err("a dump larger than the scratch's share must be refused");
@@ -1513,11 +1544,14 @@ fn a_deletion_that_overlaps_a_restore_is_refused_and_the_home_keeps_its_own_uid(
     let summary = create_backup(
         &ProcessBackupHost::new(polygon_distro()),
         &catalog(),
-        &name,
-        &fixture_id(),
-        &root(),
-        &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
-            .expect("a one-mebibyte floor"),
+        &CreationRequest {
+            account: &name,
+            backup_id: &fixture_id(),
+            root: &root(),
+            floor: &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+                .expect("a one-mebibyte floor"),
+            key: None,
+        },
         &mut RecordingSink::default(),
     )
     .unwrap_or_else(|error| panic!("the backup must succeed: {error}"));
@@ -1543,10 +1577,12 @@ fn a_deletion_that_overlaps_a_restore_is_refused_and_the_home_keeps_its_own_uid(
                 &fixture_id(),
                 &root(),
                 std::slice::from_ref(&database),
+                &RestoreScope::Whole,
                 &digest,
                 group,
                 &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
                     .expect("a one-mebibyte floor"),
+                None,
                 &mut RecordingSink::default(),
             )
         }

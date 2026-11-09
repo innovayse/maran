@@ -6,7 +6,7 @@ import {
   type RegionLoadingScenario,
 } from './fixtures/expect-region-loading'
 import { stubSignedIn } from './fixtures/stub-auth-routes'
-import { loaded, stubDashboard, stubDashboardProblem, SYNCHRONIZED_CLOCK } from './fixtures/stub-dashboard-route'
+import { ALERT_DELIVERY_OK, loaded, stubDashboard, stubDashboardProblem, SYNCHRONIZED_CLOCK } from './fixtures/stub-dashboard-route'
 import { stubHealthy } from './fixtures/stub-health-route'
 import { stubModules } from './fixtures/stub-modules-route'
 import type { Dashboard } from '../src/types/dashboard'
@@ -16,9 +16,9 @@ import type { PanelModule } from '../src/types/module'
 // tiles are drawn with their real labels and a placeholder for every figure.
 
 const LICENSED: PanelModule[] = [
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
-  { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
-  { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
+  { name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'databases', displayName: 'Databases', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 // Every attention source read and clear: the notice is drawn above the counts once the answer is in
@@ -48,6 +48,8 @@ const DASHBOARD: Dashboard = {
   attention: {
     certificatesExpiringSoon: loaded(0),
     failedBackups: loaded(0),
+    sitesOnEndOfLifePhp: loaded(0),
+    alertDelivery: ALERT_DELIVERY_OK,
     bannedAddresses: loaded(0),
     failedTasks: loaded(0),
     clock: SYNCHRONIZED_CLOCK,
@@ -82,7 +84,10 @@ const DASHBOARD_SCENARIO: RegionLoadingScenario = {
   pattern: '**/api/v1/dashboard',
   path: '/',
   anchor: (page) => {
-    return page.getByRole('heading', { name: 'On this server' })
+    // The first section on the screen: the shortcuts are drawn at once, and everything the answer fills
+    // in (the notice, the resource cards, the services) sits below them and may change height as the
+    // live reading arrives, so only what is above the figures can be required to hold still.
+    return page.getByRole('heading', { name: 'Quick actions' })
   },
   contentText: '0.21 · 0.34 · 0.55',
   failureText: REFUSAL,

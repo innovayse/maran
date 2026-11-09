@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AccountNotFound">
+    <value>Այս հաշիվը չի գտնվել։</value>
+  </data>
+  <data name="FilesAccountSuspended">
+    <value>Հաշիվը կասեցված է, ուստի նրա ֆայլերից օգտվել հնարավոր չէ։ Վերսկսեք հաշիվը և կրկնեք փորձը։</value>
+  </data>
+  <data name="FilesPathInvalid">
+    <value>Ուղին վավեր չէ։ Նշեք ուղի ձեր տնային թղթապանակի ներսում՝ առանց «..», հակադարձ շեղ գծերի և կառավարող նիշերի։</value>
+  </data>
+  <data name="FilesSearchTermRequired">
+    <value>Մուտքագրեք, թե ինչ եք որոնում։</value>
+  </data>
+  <data name="FilesPathReserved">
+    <value>Այս անունը վերապահված է աղբարկղի համար և այստեղ չի կարող օգտագործվել։</value>
+  </data>
+  <data name="FilesEntryNotFound">
+    <value>Ֆայլը կամ թղթապանակը չի գտնվել։</value>
+  </data>
+  <data name="FilesEntryExists">
+    <value>Այս անունով ֆայլ կամ թղթապանակ արդեն կա։</value>
+  </data>
+  <data name="FilesNotEditable">
+    <value>Այս ֆայլն այստեղ խմբագրել հնարավոր չէ։ այն չափազանց մեծ է, սովորական տեքստ չէ կամ UTF-8 չէ։ Ներբեռնեք այն։</value>
+  </data>
+  <data name="FilesUploadTooLarge">
+    <value>Ֆայլը գերազանցում է վերբեռնման թույլատրելի չափը։</value>
+  </data>
+  <data name="FilesDownloadTooLarge">
+    <value>Ֆայլը գերազանցում է ներբեռնման թույլատրելի չափը։</value>
+  </data>
+  <data name="FilesModeInvalid">
+    <value>Մուտքի իրավունքները պետք է լինեն մեկից երեք ութական թվանշան՝ 0-ից 777։</value>
+  </data>
+  <data name="FilesBatchTooLarge">
+    <value>Մեկ հարցման համար ընտրվել է չափազանց շատ տարր։</value>
+  </data>
+  <data name="FilesBatchEmpty">
+    <value>Ընտրեք առնվազն մեկ տարր։</value>
+  </data>
+  <data name="FilesDeleteNotConfirmed">
+    <value>Անդառնալի ջնջումը պետք է հաստատվի։</value>
+  </data>
+  <data name="FilesRestoreTargetExists">
+    <value>Նախկին տեղում արդեն կա այս անունով տարր, ուստի վերականգնումը չի կատարվել։</value>
+  </data>
+  <data name="FilesDestinationInsideSource">
+    <value>Թղթապանակը չի կարելի տեղափոխել կամ պատճենել իր մեջ։</value>
+  </data>
+  <data name="FilesQuotaExceeded">
+    <value>Ձեր սակագնում սկավառակի տարածքը բավարար չէ այս գործողության համար։</value>
+  </data>
+  <data name="FilesArchiveRefused">
+    <value>Արխիվը մերժվել է։ այն անվտանգ չէ կամ գերազանցում է բացման սահմանափակումները։</value>
+  </data>
+  <data name="FilesArchiveFormatUnknown">
+    <value>Արխիվի ձևաչափը չի աջակցվում։ Օգտագործեք .zip կամ .tar.gz ֆայլ։</value>
+  </data>
+  <data name="FilesAccountBusy">
+    <value>Ձեր փոխանցումներից մեկը դեռ ընթանում է։ Սպասեք դրա ավարտին և կրկնեք փորձը։</value>
+  </data>
+  <data name="FilesServerBusy">
+    <value>Սերվերը զբաղված է այլ փոխանցումներով։ Փորձեք մի փոքր ուշ։</value>
+  </data>
+  <data name="FilesAgentFailed">
+    <value>Ֆայլերի գործողությունը չհաջողվեց։ Կրկնեք փորձը։</value>
+  </data>
+  <data name="FilesEditConflict">
+    <value>Ֆայլը փոփոխվել է բացելուց հետո։ Պահպանելուց առաջ վերբեռնեք այն, որպեսզի նոր տարբերակը չվերագրվի։</value>
+  </data>
+</root>

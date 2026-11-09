@@ -44,6 +44,15 @@ public enum AgentCapability
     /// <summary>Database servers, databases and their users: <c>IAgentDbClient</c>.</summary>
     Db,
 
+    /// <summary>
+    /// This panel's own authoritative DNS daemon and the zones it serves: <c>IAgentDnsClient</c>.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="Firewall"/> on purpose: the module that manages DNS does not open
+    /// port 53 itself, the agent's enable operation does, as part of switching the daemon on.
+    /// </remarks>
+    Dns,
+
     /// <summary>Files under an account's home, written as that account: <c>IAgentFilesClient</c>.</summary>
     Files,
 
@@ -63,6 +72,18 @@ public enum AgentCapability
     /// <see cref="Ssl"/>, because nothing behind this capability ever writes certificate material.
     /// </remarks>
     Ftps,
+
+    /// <summary>
+    /// The hosted mail daemons (SMTP, IMAP/POP3, spam filtering) — their configuration, their observed
+    /// state, and the domains, mailboxes and aliases they serve: <c>IAgentMailClient</c>.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="Firewall"/> on purpose: the module that manages mail does NOT open the
+    /// mail ports, it reports which ports an operator would have to open. And from <see cref="Ssl"/> and
+    /// <see cref="Files"/>: nothing behind this capability writes certificate material or customer files
+    /// outside the account's own mail directory, which the agent creates as that account.
+    /// </remarks>
+    Mail,
 
     /// <summary>Host metrics and service states: <c>IAgentMonitorClient</c>.</summary>
     Monitor,

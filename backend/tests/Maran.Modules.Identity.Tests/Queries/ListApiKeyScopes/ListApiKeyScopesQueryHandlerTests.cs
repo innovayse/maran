@@ -34,13 +34,13 @@ public sealed class ListApiKeyScopesQueryHandlerTests
         }
     }
 
-    /// <summary>The choices are exactly the scope vocabulary, in its order, each with a readable name.</summary>
+    /// <summary>The administrator's choices are exactly the administrator-grade scopes, in the vocabulary's order, each with a readable name.</summary>
     [Fact]
-    public async Task The_choices_are_exactly_the_scope_vocabulary_each_with_a_readable_name()
+    public async Task The_administrators_choices_are_exactly_its_grantable_scopes_each_with_a_readable_name()
     {
         var choices = await ChoicesAsync("en");
 
-        Assert.Equal(ApiKeyScopes.All, choices.Select(choice => { return choice.Value; }));
+        Assert.Equal(ApiKeyScopes.AdministratorGrantable, choices.Select(choice => { return choice.Value; }));
         Assert.All(choices, choice =>
         {
             Assert.False(string.IsNullOrWhiteSpace(choice.Name));
@@ -81,5 +81,46 @@ public sealed class ListApiKeyScopesQueryHandlerTests
         var names = new ApiKeyScopeDisplayNames(IdentityTestContext.DisplayNameResources());
 
         Assert.Equal("future.write", names.Of("future.write"));
+    }
+
+    /// <summary>A reseller is offered the reseller-grade scopes and not the administrator-grade one, each named in every language.</summary>
+    [Fact]
+    public async Task A_reseller_is_offered_the_reseller_grade_scopes_each_named_in_every_language()
+    {
+        foreach (var culture in new[] { "en", "ru", "hy" })
+        {
+            var previous = CultureInfo.CurrentUICulture;
+            try
+            {
+                CultureInfo.CurrentUICulture = new CultureInfo(culture);
+                var result = await NewHandler().HandleAsync(new ListApiKeyScopesQuery(Guid.NewGuid()), CancellationToken.None);
+
+                Assert.Equal(ApiKeyScopes.ResellerGrantable, result.Value.Select(choice => { return choice.Value; }));
+                Assert.DoesNotContain(result.Value, choice => { return choice.Value == ApiKeyScopes.ServerRead; });
+                Assert.All(result.Value, choice =>
+                {
+                    Assert.NotEqual(choice.Value, choice.Name);
+                });
+            }
+            finally
+            {
+                CultureInfo.CurrentUICulture = previous;
+            }
+        }
+    }
+
+    /// <summary>Every scope in the vocabulary is grantable to at least one kind of owner, so none is unreachable.</summary>
+    [Fact]
+    public void Every_scope_in_the_vocabulary_is_grantable_to_some_owner()
+    {
+        var grantable = ApiKeyScopes.AdministratorGrantable.Concat(ApiKeyScopes.ResellerGrantable).ToHashSet();
+
+        Assert.True(ApiKeyScopes.All.All(grantable.Contains));
+        Assert.DoesNotContain(
+            ApiKeyScopes.AdministratorGrantable.Intersect(ApiKeyScopes.ResellerGrantable),
+            scope =>
+            {
+                return scope != ApiKeyScopes.SelfRead;
+            });
     }
 }

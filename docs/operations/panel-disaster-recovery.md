@@ -6,6 +6,11 @@ stored secret is encrypted with, the licence, or `/etc/maran`. Without those, a 
 even read the secrets a copied database holds. `maran panel-backup` and `maran panel-restore` are
 the two root-only commands that close that gap.
 
+This includes the key that opens encrypted account backups: when a backup destination has encryption
+switched on, that key is stored in the panel database under the key above, so this archive is the only
+place it can come back from ([backup encryption](../backups/encryption.md)). Lose both and every sealed
+account backup is unreadable.
+
 ## What a panel backup holds
 
 | Part | Restored by `panel-restore` |
@@ -17,6 +22,11 @@ the two root-only commands that close that gap.
 
 Everything else in `panel.env` (the host name, ssh ports, the web server's uid) describes the
 server it is on, so a restore keeps what the new install wrote.
+
+The archive also carries a small manifest naming its format, the time it was taken, the database and
+the release of Maran that took it (`release=`, read from `/etc/maran/release.state`). The restore
+uses the release to refuse an archive that is newer than the install (see "Restoring onto a clean
+server"). A server with no recorded release writes no such line.
 
 ## Taking a backup
 
@@ -324,11 +334,26 @@ move `OUT_DIR` to a larger volume (see "A different OUT_DIR").
    two keys into `panel.env`, puts the licence back, applies this release's migrations and starts
    the panel. If it is refused part-way it starts the panel again as it was.
 
+   **An archive from a newer release than the one installed is refused**, before the panel is
+   stopped or anything is changed: its database may hold tables and columns this release's
+   migrations do not know and cannot undo. The message names both releases; install the archive's
+   release or a newer one (`maran update`, or `maran update --offline-tarball` where the server
+   cannot reach the release server) and run the restore again. An archive from an older release, or
+   the same one, restores, and the migrations of the installed release then bring the schema
+   forward. Two cases cannot be compared and are restored with a notice on standard error: an
+   archive taken before the manifest carried `release=`, and an install with no recorded release.
+   A refusal is written to the journal as `verb=panel-restore outcome=refused`.
+
+   Anything the new server's database holds that the archive does not, such as a schema a newer
+   release created, is removed by the restore together with the rest of the database: the panel
+   database afterwards is the archive's, not a merge.
+
 4. Sign in with an administrator of the old panel. Every session from the old server has ended.
 5. Restore the customers' files, sites and databases from the account backups: a panel backup holds
    the panel's records of them, not their contents.
 
-A licence bound to the old server may need to be re-issued for the new one.
+The licence file comes back byte for byte, owned by the panel's service account with mode 0640. A
+licence bound to the old server may need to be re-issued for the new one.
 
 ## Restoring onto a clean server from an off-site copy
 
@@ -399,15 +424,26 @@ The installer polygon runs the whole round trip against a real systemd container
 - `rec_manual_backup`, then `rec_take_archives_off` and `rec_fresh_leg` stop the first server for
   good and install a second, fresh one whose keys are shown to differ.
 - `rec_restore_leg` shows a wrong passphrase is refused with the fresh panel unchanged, then
-  restores the scheduled archive and shows the same administrator signs in with the same password
-  and the same one-time-code secret (so the encrypted column decrypted under the restored key),
-  the account and its owner exist and the fresh install's own host settings were kept, then
-  restores once more from the manual archive.
+  plants a schema the archive lacks in the fresh panel's database and rewrites the fresh install's
+  recorded release to be older than the archive's. It shows the restore is refused (naming both
+  releases, writing one audit line), that the panel service was never stopped (its start time is
+  unchanged), `panel.env` is byte-identical and the planted schema is still there. It then records
+  a newer release and restores the scheduled archive, and shows the same administrator signs in
+  with the same password and the same one-time-code secret (so the encrypted column decrypted
+  under the restored key), the account and its owner exist, the planted schema is gone, the fresh
+  install's own host settings were kept and the licence file arrived byte-identical with the right
+  owner and mode and was read by the panel. The recorded release is then put back and the manual
+  archive is restored once more, against an install of exactly its own release.
+- `scripts/lib/install-polygon-recovery-guards.sh` holds those three observations (the licence
+  file, the extra schema, the release guard). The licence is a fixture that is not signed, so the
+  panel reports it as refused; the observation is that it arrived intact and was read, not that a
+  valid licence survives.
 
 The assertions on the installed units, the configuration checks and the schedule verb are in
 `docker/polygon/asserts/parts/panel-backup-units.sh`. Not observed there, and printed as such by
 the stage: the timer firing on the clock and `Persistent=true` catching up, any particular S3
 provider accepting the request (the stand-in is one bucket, path-style), the upload's `curl`
-command line while it runs, the licence half of a restore (the polygon install holds no licence),
-SELinux enforcing, and any PostgreSQL major or family other than the one the run was started on.
+command line while it runs, a VALID licence surviving a restore (the fixture is unsigned),
+a schema left by a real newer release (the stage plants one by hand), SELinux enforcing, and any
+PostgreSQL major or family other than the one the run was started on.
 The upload leg is skipped, with the reason printed, where the container's `curl` is older than 7.75.

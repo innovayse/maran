@@ -1,0 +1,104 @@
+//! Creating the lookup tables a mail stack with no customers still needs.
+
+// A failing assertion IS the reporting mechanism for a test.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::mail::fake_mail_host::{FakeMailHost, distro};
+use crate::mail::model::mail_daemon::MailDaemon;
+use crate::mail::seed_mail_maps::seed_mail_maps;
+
+const TABLES: [&str; 4] = [
+    "/etc/maran/mail/virtual_domains",
+    "/etc/maran/mail/virtual_mailboxes",
+    "/etc/maran/mail/virtual_aliases",
+    "/etc/maran/mail/sender_login_maps",
+];
+
+#[test]
+fn every_table_is_created_empty_on_a_host_that_has_none() {
+    let host = FakeMailHost::new();
+
+    seed_mail_maps(&host, distro()).unwrap();
+
+    for table in TABLES {
+        assert_eq!(host.file(table).as_deref(), Some(""), "{table}");
+    }
+    assert_eq!(
+        host.file("/etc/maran/mail/dovecot/users").as_deref(),
+        Some("")
+    );
+    assert_eq!(
+        host.file("/etc/maran/mail/dkim/selectors").as_deref(),
+        Some("")
+    );
+}
+
+#[test]
+fn a_table_that_already_holds_data_is_never_touched() {
+    // A populated table is a customer's mail routing; an enable is not the
+    // operation that re-pushes it.
+    let host = FakeMailHost::new()
+        .with_file("/etc/maran/mail/virtual_domains", "example.com OK\n")
+        .with_file(
+            "/etc/maran/mail/dovecot/users",
+            "box@example.com:{BLF-CRYPT}x\n",
+        );
+
+    seed_mail_maps(&host, distro()).unwrap();
+
+    assert_eq!(
+        host.file("/etc/maran/mail/virtual_domains").as_deref(),
+        Some("example.com OK\n")
+    );
+    assert_eq!(
+        host.file("/etc/maran/mail/dovecot/users").as_deref(),
+        Some("box@example.com:{BLF-CRYPT}x\n")
+    );
+    let written: Vec<_> = host
+        .writes()
+        .into_iter()
+        .flat_map(|write| write.targets)
+        .map(|target| target.to_string_lossy().into_owned())
+        .collect();
+    assert!(!written.contains(&"/etc/maran/mail/virtual_domains".to_owned()));
+}
+
+#[test]
+fn a_postfix_table_is_indexed_by_postmap_in_the_hosts_map_type() {
+    let host = FakeMailHost::new();
+
+    seed_mail_maps(&host, distro()).unwrap();
+
+    let indexed: Vec<_> = host
+        .spawns()
+        .into_iter()
+        .filter(|spawn| spawn.argv[0] == distro().postmap_binary().as_str())
+        .map(|spawn| spawn.argv[1].clone())
+        .collect();
+    assert_eq!(indexed, TABLES.map(|table| format!("lmdb:{table}")));
+}
+
+#[test]
+fn the_dovecot_and_rspamd_files_are_checked_by_their_own_daemons() {
+    let host = FakeMailHost::new();
+
+    seed_mail_maps(&host, distro()).unwrap();
+
+    let programs: Vec<_> = host
+        .spawns()
+        .into_iter()
+        .map(|spawn| spawn.argv[0].clone())
+        .collect();
+    assert!(programs.contains(&distro().doveconf_binary().as_str().to_owned()));
+    assert!(programs.contains(&distro().rspamadm_binary().as_str().to_owned()));
+    assert!(
+        host.writes()
+            .iter()
+            .any(|write| write.daemon == MailDaemon::Dovecot)
+    );
+    assert!(
+        host.writes()
+            .iter()
+            .any(|write| write.daemon == MailDaemon::Rspamd)
+    );
+}

@@ -62,7 +62,10 @@ public sealed class DropDatabaseCommandHandler
         _journal = journal;
     }
 
-    /// <summary>Drops the database. Idempotent from the customer's side: a second attempt is not found.</summary>
+    /// <summary>
+    /// Drops the database. Not idempotent: the end state repeats, but a second attempt finds no row and
+    /// answers not found.
+    /// </summary>
     /// <param name="command">Which database to drop.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>Success, or <c>DatabaseNotFound</c>, <c>AccountNotFound</c>, or the agent's own typed failure.</returns>
@@ -103,6 +106,19 @@ public sealed class DropDatabaseCommandHandler
         // database anybody will later be able to search for — the suffix alone is ambiguous across
         // accounts.
         var fullName = database.FullName;
+
+        // The dedicated user went with the database on the server, so its row goes with the database's.
+        // Every grant on this database goes by the cascade from the database row, and the user's grants
+        // on other databases by the cascade from the user row: nothing is left to attach itself to a
+        // later database of the same name.
+        var dedicatedUser = await _dbContext.DatabaseUsers
+            .SingleOrDefaultAsync(
+                user => user.AccountId == database.AccountId && user.NameSuffix == database.DbUserNameSuffix,
+                cancellationToken);
+        if (dedicatedUser is not null)
+        {
+            _dbContext.DatabaseUsers.Remove(dedicatedUser);
+        }
 
         _dbContext.Databases.Remove(database);
         await _dbContext.SaveChangesAsync(cancellationToken);

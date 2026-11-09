@@ -12,7 +12,7 @@ import type { PanelModule } from '../../src/types/module'
 // names below are deliberately NOT the ones the panel ships — a form with its own labels would
 // show "TCP" and "UDP" and fail every assertion here.
 
-const LICENSED: PanelModule[] = [{ name: 'firewall', displayName: 'Firewall', tier: 'included', state: 'enabled' }]
+const LICENSED: PanelModule[] = [{ name: 'firewall', displayName: 'Firewall', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }]
 
 /** Protocols named unlike anything the SPA could have in its own locale files. */
 const PANEL_PROTOCOLS: FirewallProtocolChoice[] = [

@@ -52,8 +52,14 @@ public sealed class UndeclaredAgentModule : IPanelModule
         DisplayNameKey: "UndeclaredModuleDisplayName",
         Version: "0.0.0",
         Tier: LicenceTier.Included,
+        Kind: ModuleKind.Packageable,
+        MinPanelVersion: "1.0.0",
+        SchemaName: null,
         Dependencies: [],
         AgentCapabilities: [],
+        Permissions: [],
+        Menu: [],
+        Routes: [],
         Audience: ModuleAudience.AdministratorOnly);
 
     /// <inheritdoc />

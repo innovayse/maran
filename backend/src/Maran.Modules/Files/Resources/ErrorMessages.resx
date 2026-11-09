@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AccountNotFound">
+    <value>This account could not be found.</value>
+  </data>
+  <data name="FilesAccountSuspended">
+    <value>This account is suspended, so its files cannot be used. Reactivate the account and try again.</value>
+  </data>
+  <data name="FilesPathInvalid">
+    <value>This path is not valid. Use a path inside your home folder, without “..”, backslashes or control characters.</value>
+  </data>
+  <data name="FilesSearchTermRequired">
+    <value>Enter something to search for.</value>
+  </data>
+  <data name="FilesPathReserved">
+    <value>This name is reserved for the trash and cannot be used here.</value>
+  </data>
+  <data name="FilesEntryNotFound">
+    <value>This file or folder could not be found.</value>
+  </data>
+  <data name="FilesEntryExists">
+    <value>A file or folder with this name already exists.</value>
+  </data>
+  <data name="FilesNotEditable">
+    <value>This file cannot be edited here. It is too large, is not plain text, or is not valid UTF-8; download it instead.</value>
+  </data>
+  <data name="FilesUploadTooLarge">
+    <value>This file is larger than the upload limit.</value>
+  </data>
+  <data name="FilesDownloadTooLarge">
+    <value>This file is larger than the download limit.</value>
+  </data>
+  <data name="FilesModeInvalid">
+    <value>The permissions must be one to three octal digits, from 0 to 777.</value>
+  </data>
+  <data name="FilesBatchTooLarge">
+    <value>Too many items were selected for one request.</value>
+  </data>
+  <data name="FilesBatchEmpty">
+    <value>Select at least one item.</value>
+  </data>
+  <data name="FilesDeleteNotConfirmed">
+    <value>Permanent deletion must be confirmed.</value>
+  </data>
+  <data name="FilesRestoreTargetExists">
+    <value>Something with this name already exists where the item was, so it was not restored.</value>
+  </data>
+  <data name="FilesDestinationInsideSource">
+    <value>A folder cannot be moved or copied into itself.</value>
+  </data>
+  <data name="FilesQuotaExceeded">
+    <value>There is not enough disk space left in your plan for this.</value>
+  </data>
+  <data name="FilesArchiveRefused">
+    <value>This archive was refused: it is unsafe or exceeds the extraction limits.</value>
+  </data>
+  <data name="FilesArchiveFormatUnknown">
+    <value>This archive format is not supported. Use a .zip or .tar.gz file.</value>
+  </data>
+  <data name="FilesAccountBusy">
+    <value>One of your transfers is still running. Wait for it to finish and try again.</value>
+  </data>
+  <data name="FilesServerBusy">
+    <value>The server is busy with other transfers. Try again in a moment.</value>
+  </data>
+  <data name="FilesAgentFailed">
+    <value>The file operation failed. Try again.</value>
+  </data>
+  <data name="FilesEditConflict">
+    <value>The file was changed since you opened it. Reload it before saving, so you do not overwrite the newer version.</value>
+  </data>
+</root>

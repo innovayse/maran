@@ -1,5 +1,7 @@
 //! The RHEL-family adapter implementation.
 
+use maran_agent_core::validation::mail::mail_password_scheme::MailPasswordScheme;
+use maran_agent_core::validation::web::php_extension_name::PhpExtensionName;
 use maran_agent_core::validation::web::php_version::PhpVersion;
 
 use crate::DistroAdapter;
@@ -8,18 +10,24 @@ use crate::adapter_binary::AdapterBinary;
 use crate::backup_facts::BackupFacts;
 use crate::catalogue_probe::CatalogueProbe;
 use crate::database_facts::DatabaseFacts;
+use crate::dns_facts::DnsFacts;
+use crate::dovecot_major::DovecotMajor;
 use crate::family::DistroFamily;
 use crate::file_transfer_facts::FileTransferFacts;
 use crate::firewall_facts::FirewallFacts;
+use crate::key_value_server::KeyValueServer;
+use crate::mail_facts::MailFacts;
 use crate::package_facts::PackageFacts;
 use crate::package_failure::PackageFailure;
 use crate::pending_update::PendingUpdate;
 use crate::pending_updates_failure::PendingUpdatesFailure;
+use crate::php_extension_facts::PhpExtensionFacts;
+use crate::php_extension_switch::PhpExtensionSwitch;
 use crate::php_facts::PhpFacts;
 use crate::reboot_probe::RebootProbe;
 use crate::reboot_probe_failure::RebootProbeFailure;
 use crate::reboot_requirement::RebootRequirement;
-use crate::rhel::{rhel_packages, rhel_paths, rhel_services};
+use crate::rhel::{rhel_packages, rhel_paths, rhel_php_extensions, rhel_services};
 use crate::scheduling_facts::SchedulingFacts;
 use crate::service_manager_facts::ServiceManagerFacts;
 use crate::vsftpd_tls_version_keys::VsftpdTlsVersionKeys;
@@ -39,6 +47,10 @@ impl DistroAdapter for RhelAdapter {
 impl AccountPrograms for RhelAdapter {
     fn nologin_shell(&self) -> &'static str {
         rhel_paths::nologin_shell()
+    }
+
+    fn bash_shell(&self) -> &'static str {
+        rhel_paths::bash_shell()
     }
 
     fn useradd_binary(&self) -> AdapterBinary {
@@ -170,6 +182,28 @@ impl PhpFacts for RhelAdapter {
     }
 }
 
+impl PhpExtensionFacts for RhelAdapter {
+    fn php_extension_package(
+        &self,
+        version: &PhpVersion,
+        extension: PhpExtensionName,
+    ) -> Option<String> {
+        rhel_php_extensions::php_extension_package(version, extension)
+    }
+
+    fn php_extension_switch(
+        &self,
+        version: &PhpVersion,
+        extension: PhpExtensionName,
+    ) -> Option<PhpExtensionSwitch> {
+        rhel_php_extensions::php_extension_switch(version, extension)
+    }
+
+    fn php_ini_drop_in_directory(&self, version: &PhpVersion) -> String {
+        rhel_php_extensions::php_ini_drop_in_directory(version)
+    }
+}
+
 impl PackageFacts for RhelAdapter {
     fn package_manager(&self) -> &'static str {
         rhel_packages::package_manager()
@@ -235,6 +269,36 @@ impl PackageFacts for RhelAdapter {
 
     fn read_reboot_probe_run(&self, status: i32) -> Result<RebootRequirement, RebootProbeFailure> {
         rhel_packages::read_reboot_probe_run(status)
+    }
+}
+
+impl DnsFacts for RhelAdapter {
+    fn dns_checkconf_binary(&self) -> AdapterBinary {
+        rhel_services::dns_checkconf_binary()
+    }
+
+    fn dns_checkzone_binary(&self) -> AdapterBinary {
+        rhel_services::dns_checkzone_binary()
+    }
+
+    fn dns_control_binary(&self) -> AdapterBinary {
+        rhel_services::dns_control_binary()
+    }
+
+    fn dns_user(&self) -> &'static str {
+        rhel_services::dns_user()
+    }
+
+    fn dns_group(&self) -> &'static str {
+        rhel_services::dns_group()
+    }
+
+    fn dns_state_directory(&self) -> &'static str {
+        rhel_services::dns_state_directory()
+    }
+
+    fn dns_zone_directory(&self) -> &'static str {
+        rhel_services::dns_zone_directory()
     }
 }
 
@@ -335,6 +399,124 @@ impl SchedulingFacts for RhelAdapter {
 impl FirewallFacts for RhelAdapter {
     fn nft_binary(&self) -> AdapterBinary {
         rhel_services::nft_binary()
+    }
+}
+
+impl MailFacts for RhelAdapter {
+    fn postfix_binary(&self) -> AdapterBinary {
+        rhel_services::postfix_binary()
+    }
+
+    fn postconf_binary(&self) -> AdapterBinary {
+        rhel_services::postconf_binary()
+    }
+
+    fn postmap_binary(&self) -> AdapterBinary {
+        rhel_services::postmap_binary()
+    }
+
+    fn postqueue_binary(&self) -> AdapterBinary {
+        rhel_services::postqueue_binary()
+    }
+
+    fn postsuper_binary(&self) -> AdapterBinary {
+        rhel_services::postsuper_binary()
+    }
+
+    fn doveadm_binary(&self) -> AdapterBinary {
+        rhel_services::doveadm_binary()
+    }
+
+    fn doveconf_binary(&self) -> AdapterBinary {
+        rhel_services::doveconf_binary()
+    }
+
+    fn rspamadm_binary(&self) -> AdapterBinary {
+        rhel_services::rspamadm_binary()
+    }
+
+    fn postfix_service(&self) -> &'static str {
+        rhel_services::postfix_service()
+    }
+
+    fn dovecot_service(&self) -> &'static str {
+        rhel_services::dovecot_service()
+    }
+
+    fn rspamd_service(&self) -> &'static str {
+        rhel_services::rspamd_service()
+    }
+
+    fn clamd_service(&self) -> &'static str {
+        rhel_services::clamd_service()
+    }
+
+    fn freshclam_service(&self) -> &'static str {
+        rhel_services::freshclam_service()
+    }
+
+    fn postfix_user(&self) -> &'static str {
+        rhel_services::postfix_user()
+    }
+
+    fn postdrop_group(&self) -> &'static str {
+        rhel_services::postdrop_group()
+    }
+
+    fn dovecot_user(&self) -> &'static str {
+        rhel_services::dovecot_user()
+    }
+
+    fn dovecot_login_user(&self) -> &'static str {
+        rhel_services::dovecot_login_user()
+    }
+
+    fn rspamd_user(&self) -> &'static str {
+        rhel_services::rspamd_user()
+    }
+
+    fn clamd_user(&self) -> &'static str {
+        rhel_services::clamd_user()
+    }
+
+    fn postfix_config_directory(&self) -> &'static str {
+        rhel_paths::postfix_config_directory()
+    }
+
+    fn dovecot_config_directory(&self) -> &'static str {
+        rhel_paths::dovecot_config_directory()
+    }
+
+    fn rspamd_config_directory(&self) -> &'static str {
+        rhel_paths::rspamd_config_directory()
+    }
+
+    fn clamd_config_file(&self) -> &'static str {
+        rhel_paths::clamd_config_file()
+    }
+
+    fn mail_packages(&self) -> &'static [&'static str] {
+        rhel_packages::mail_packages()
+    }
+
+    fn antivirus_packages(&self) -> &'static [&'static str] {
+        rhel_packages::antivirus_packages()
+    }
+
+    fn postfix_map_type(&self) -> &'static str {
+        rhel_packages::postfix_map_type()
+    }
+
+    fn mail_password_scheme(&self) -> MailPasswordScheme {
+        rhel_packages::mail_password_scheme()
+    }
+
+    fn dovecot_major(&self, version_id: &str) -> Option<DovecotMajor> {
+        rhel_packages::dovecot_major(version_id)
+    }
+
+    fn key_value_server(&self, version_id: &str) -> Option<KeyValueServer> {
+        rhel_packages::key_value_server(version_id)
     }
 }
 

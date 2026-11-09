@@ -104,6 +104,66 @@ public sealed class ResilientAgentDbClient : IAgentDbClient
     }
 
     /// <inheritdoc/>
+    public async Task<Result<string>> CreateUserAsync(
+        string accountUsername,
+        string dbUsername,
+        SensitiveString password,
+        CancellationToken cancellationToken)
+    {
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
+            async (state, token) =>
+            {
+                return await state.Client.CreateUserAsync(
+                    state.AccountUsername, state.DbUsername, state.Password, token);
+            },
+            (Client: _inner,
+             AccountUsername: accountUsername,
+             DbUsername: dbUsername,
+             Password: password),
+            cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result> DropUserAsync(
+        string accountUsername,
+        string dbUsername,
+        CancellationToken cancellationToken)
+    {
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
+            async (state, token) =>
+            {
+                return await state.Client.DropUserAsync(state.AccountUsername, state.DbUsername, token);
+            },
+            (Client: _inner, AccountUsername: accountUsername, DbUsername: dbUsername),
+            cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result> SetPrivilegesAsync(
+        string accountUsername,
+        string dbUsername,
+        string databaseName,
+        IReadOnlyCollection<DatabasePrivilegeKind> privileges,
+        CancellationToken cancellationToken)
+    {
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
+            async (state, token) =>
+            {
+                return await state.Client.SetPrivilegesAsync(
+                    state.AccountUsername, state.DbUsername, state.DatabaseName, state.Privileges, token);
+            },
+            (Client: _inner,
+             AccountUsername: accountUsername,
+             DbUsername: dbUsername,
+             DatabaseName: databaseName,
+             Privileges: privileges),
+            cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public async Task<Result<IReadOnlyList<DatabaseSummaryDto>>> ListAsync(
         string accountUsername,
         CancellationToken cancellationToken)

@@ -127,10 +127,11 @@ public sealed class PlanListEndpointTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// The picker answers identity, name and the two printed limits only, alphabetically, searched by name.
+    /// The picker answers identity, name, the two printed limits and the process ceiling only, alphabetically,
+    /// searched by name.
     /// </summary>
     [Fact]
-    public async Task The_picker_answers_identity_name_and_the_two_printed_limits_searched_by_name()
+    public async Task The_picker_answers_identity_name_the_printed_limits_and_the_process_ceiling_searched_by_name()
     {
         await using var factory = EndpointHarness.CreateFactory(_pg);
         await SeedAsync(factory, ["Studio", "Agency", "Starter"]);
@@ -143,7 +144,7 @@ public sealed class PlanListEndpointTests : IAsyncLifetime
         Assert.Equal(["Starter", "Studio"], Names(narrowed));
         var first = all.RootElement.GetProperty("items")[0];
         Assert.Equal(
-            ["id", "displayName", "diskQuotaMb", "maxSites"],
+            ["id", "displayName", "diskQuotaMb", "maxSites", "maxProcesses"],
             first.EnumerateObject().Select(property => { return property.Name; }));
     }
 

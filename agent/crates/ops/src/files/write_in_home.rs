@@ -1,7 +1,7 @@
 //! Putting one file into a customer's home without ever following a name.
 
 use std::ffi::OsStr;
-use std::fs::Permissions;
+use std::fs::{File, Permissions};
 use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
@@ -9,140 +9,155 @@ use std::path::Path;
 use maran_agent_core::privs::create_file_in_directory::create_file_in_directory;
 use maran_agent_core::privs::remove_file_in_directory::remove_file_in_directory;
 use maran_agent_core::privs::rename_in_directory::rename_in_directory;
-use maran_agent_core::validation::fs::file_mode::FileMode;
-use maran_agent_core::validation::fs::relative_path::RelativePath;
+use maran_agent_core::privs::rename_no_replace_between_directories::rename_no_replace_between_directories;
 
 use crate::files::FilesOpError;
+use crate::files::io_failure::io_failure;
+use crate::files::model::limit_kind::LimitKind;
 use crate::files::model::missing_parents::MissingParents;
-use crate::files::open_parent_directory::open_parent_directory;
+use crate::files::model::upload_source::UploadSource;
+use crate::files::model::write_file_input::WriteFileInput;
+use crate::files::open_mutable_parent::open_mutable_parent;
+use crate::files::rename_failure::rename_failure;
 
 /// Permission bits the temporary file is CREATED with, before it is published.
 ///
 /// Not the caller's mode, and not a value the caller can influence at all. The
-/// file is widened to [`FileMode`] on its own descriptor before the rename, so
-/// creating it at `0o600` means the content is never, at any instant, readable
-/// by anybody but the account — which matters for a file whose content is a
-/// single-use proof. This also replaces a line that could not be wrong: the
-/// caller's mode used to be converted into a `mode_t` here, and the conversion
-/// was `u32 -> u32` on every supported target while the value it produced was
-/// unobservable, because the `fchmod` below overwrites it either way.
+/// file is widened to the requested [`FileMode`] on its own descriptor before the
+/// rename, so creating it at `0o600` means the content is never, at any instant,
+/// readable by anybody but the account.
 ///
 /// **And that is still true of this constant, so it is written down rather than
 /// left for a mutation table to imply otherwise.** Changing `0o600` to `0o644`
 /// here is invisible to every test, and always will be: the only difference is
 /// the permissions the file carries during the microseconds between `openat` and
 /// `fchmod`, which no test in this process can observe. The narrow value is
-/// chosen on the argument above — a single-use proof should not be world
+/// chosen because a file that is still being uploaded should not be world
 /// readable even for an instant, and a crash in that window should leave a
-/// private file rather than a public one — and not because a test demands it.
+/// private file rather than a public one.
 const CREATE_MODE: libc::mode_t = 0o600;
 
-/// Writes `contents` at `relative` inside `home`, as the account owning `uid`.
+/// Streams an upload into a new file at `path` inside `home`, as the account owning `uid`.
 ///
-/// Runs inside `fork_as_account`, so the process performing every step below is
-/// the customer and not root. The steps, and what each one refuses:
+/// Runs inside the forked child, so the process performing every step below is the
+/// customer and not root. The steps, and what each one refuses:
 ///
-/// 1. **Descend by descriptor.** [`open_parent_directory`] walks from the home
-///    to the file's directory with `O_NOFOLLOW` at every level, so no component
-///    can be a symlink and no component can be swapped between the check and
-///    the use. It is asked to REQUIRE the levels rather than create them: the
-///    operation created them in an earlier, separate drop, and a write that
-///    could also build directories is a write that can be aimed at a tree
-///    nobody asked for.
-/// 2. **Create a new file, exclusively.** `O_CREAT | O_EXCL` refuses a name that
-///    is already taken — by a regular file, and by a symlink whether or not it
-///    resolves — so the bytes cannot go through a descriptor a customer opened
-///    first, and cannot land wherever a link they planted points.
-/// 3. **Set the mode on the descriptor.** Not on a path, which would be a second
-///    lookup and therefore a second chance to be redirected, and not left to
-///    `O_CREAT`'s mode argument, which the daemon's umask silently narrows. A
-///    challenge the web server cannot read is an issuance that fails with
-///    nothing in any log to explain it.
-/// 4. **`fsync`, then rename into place.** The rename is atomic, so a reader
-///    sees the whole file or no file; and it REPLACES whatever name is at the
-///    destination instead of writing through it, which is what makes finishing
-///    the write safe when the customer owns the directory. A destination that is
-///    a directory is refused by the kernel rather than emptied.
+/// 1. **Descend by descriptor, creating what is missing.** [`open_mutable_parent`]
+///    walks from the home with `O_NOFOLLOW` at every level, each required to be a
+///    directory the account owns, so no component can be a symlink and none can be
+///    swapped between the check and the use.
+/// 2. **Create a new temporary file, exclusively.** `O_CREAT | O_EXCL` refuses a
+///    name that is already taken, by a file or by a symlink whether or not it
+///    resolves, so the bytes cannot go through a descriptor a customer opened
+///    first and cannot land wherever a link they planted points.
+/// 3. **Copy the upload in, counting.** Every chunk is added to a running total
+///    BEFORE it is written, and the chunk that would cross `input.limit` is refused
+///    with [`FilesOpError::LimitReached`]: the cap is a bound on what lands on
+///    disk and not a report on what already did. The source ending without its
+///    terminator ([`UploadAborted`](crate::files::model::upload_aborted::UploadAborted))
+///    is a failed write, never a short file.
+/// 4. **Set the mode on the descriptor, `fsync`, then publish by rename.** The
+///    rename is atomic, so a reader sees the whole file or the previous one.
+///    With `fail_if_exists` the rename cannot replace anything (the check and the
+///    publish are one syscall, with no window between them); without it, the
+///    rename REPLACES whatever name is at the destination instead of writing
+///    through it, and a destination that is a directory is refused by the kernel
+///    rather than emptied.
 ///
-/// `temporary_name` is supplied by the caller rather than built here, and that
-/// is deliberate: this function runs in a forked child of a multi-threaded
-/// daemon, where the less it does the better (`fork_as_account`'s own
-/// contract). Building a unique name means asking the clock and formatting a
-/// string, so the parent does it before the fork, when it is safe to.
+/// Every failure after the temporary file exists takes it away again: a
+/// half-written `.maran-write-*` left in a customer's directory is litter they
+/// cannot explain.
 ///
-/// `mode` is a [`FileMode`] and not a number, so there is no mode check in this
-/// function and no way to reach it with one that asks for setuid, setgid or the
-/// sticky bit. That validation is a property of the type now
-/// (rules/rust.md "Validation first"): it used to be two hand-written `if`s in
-/// two layers, which left the EDGES of it — the wire code it produces, and
-/// whether a layer refuses or quietly masks — untested and separately mutable.
+/// `temporary_name` is supplied by the caller because this function runs in a
+/// forked child of a multi-threaded daemon, where the less it does the better.
+///
+/// Returns the number of bytes written.
 ///
 /// # Errors
 ///
-/// Returns [`FilesOpError::HomeUnusable`] and
-/// [`FilesOpError::DirectoryUnusable`] as [`open_parent_directory`] does; and
-/// [`FilesOpError::WriteFailed`] when the file cannot be created, written,
-/// synced or renamed into place.
+/// Returns [`FilesOpError::HomeUnusable`] and [`FilesOpError::DirectoryUnusable`]
+/// as [`open_mutable_parent`] does; [`FilesOpError::LimitReached`] when the upload
+/// is longer than `input.limit`; [`FilesOpError::QuotaExceeded`] when the account's quota
+/// ends the write; [`FilesOpError::AlreadyExists`] when `fail_if_exists` is set and
+/// the name is taken; and [`FilesOpError::WriteFailed`] when the file cannot be
+/// created, written (including an upload that did not arrive whole), synced or
+/// renamed into place.
 pub(crate) fn write_in_home(
     home: &Path,
-    relative: &RelativePath,
+    input: &WriteFileInput,
     temporary_name: &str,
-    contents: &[u8],
-    mode: FileMode,
     uid: u32,
-) -> Result<(), FilesOpError> {
-    let directory = open_parent_directory(home, relative, uid, MissingParents::Require)?;
+    source: &mut dyn UploadSource,
+) -> Result<u64, FilesOpError> {
+    let directory = open_mutable_parent(home, &input.path, uid, MissingParents::Create)?;
 
     let temporary = OsStr::new(temporary_name);
     let mut file = create_file_in_directory(&directory, temporary, CREATE_MODE)
-        .map_err(|_| FilesOpError::WriteFailed)?;
+        .map_err(|error| io_failure(&error, FilesOpError::WriteFailed))?;
 
     // From here on the temporary file exists, so every failure has to take it
-    // away again: a half-written `.maran-*` left in a customer's document root
-    // is litter the customer cannot explain and the next renewal cannot reuse.
-    let finished = write_and_place(&mut file, contents, mode, &directory, temporary, relative);
+    // away again. Best effort, and its failure is deliberately not reported: the
+    // operation already failed for a reason worth reporting, and replacing that
+    // reason with "cleanup failed" would hide it.
+    let finished = fill_and_place(&mut file, source, input, &directory, temporary);
     if finished.is_err() {
-        // Best effort, and its failure is deliberately not reported: the
-        // operation already failed for a reason worth reporting, and replacing
-        // that reason with "cleanup failed" would hide it.
         let _ = remove_file_in_directory(&directory, temporary);
     }
 
     finished
 }
 
-/// Fills the temporary file, gives it its mode, and renames it into place.
+/// Fills the temporary file from the upload, gives it its mode, and renames it into place.
 ///
 /// Split out so that the caller above has exactly one place to hang the cleanup
-/// of the temporary file on. Inline, the cleanup would have to be repeated at
-/// four `?` sites, and a fifth added later would not have it.
+/// of the temporary file on.
 ///
 /// # Errors
 ///
-/// Returns [`FilesOpError::WriteFailed`] when the write, the mode change, the
-/// `fsync` or the rename fails.
-fn write_and_place(
-    file: &mut std::fs::File,
-    contents: &[u8],
-    mode: FileMode,
-    directory: &std::fs::File,
+/// As documented on [`write_in_home`], from the write onward.
+fn fill_and_place(
+    file: &mut File,
+    source: &mut dyn UploadSource,
+    input: &WriteFileInput,
+    directory: &File,
     temporary: &OsStr,
-    relative: &RelativePath,
-) -> Result<(), FilesOpError> {
-    file.write_all(contents)
+) -> Result<u64, FilesOpError> {
+    let mut written: u64 = 0;
+    loop {
+        let chunk = match source.next_chunk() {
+            Ok(Some(chunk)) => chunk,
+            Ok(None) => break,
+            Err(_aborted) => return Err(FilesOpError::WriteFailed),
+        };
+        // Counted before it is written; saturating, so no sum can wrap into "under the cap".
+        let length = u64::try_from(chunk.len()).unwrap_or(u64::MAX);
+        if written.saturating_add(length) > input.limit.bytes() {
+            return Err(FilesOpError::LimitReached(LimitKind::Bytes));
+        }
+        file.write_all(chunk)
+            .map_err(|error| io_failure(&error, FilesOpError::WriteFailed))?;
+        written += length;
+    }
+
+    file.set_permissions(Permissions::from_mode(input.mode.bits()))
         .map_err(|_| FilesOpError::WriteFailed)?;
 
-    file.set_permissions(Permissions::from_mode(mode.bits()))
-        .map_err(|_| FilesOpError::WriteFailed)?;
+    // Before the rename, not after: publishing a name whose content is still only
+    // in the page cache is how a reboot leaves an empty file at a path a reader is
+    // already fetching. A quota that bites at write-back surfaces here.
+    file.sync_all()
+        .map_err(|error| io_failure(&error, FilesOpError::WriteFailed))?;
 
-    // Before the rename, not after: the rename is what publishes the file, and
-    // publishing a name whose content is still only in the page cache is how a
-    // reboot leaves an empty challenge at a path the authority is already
-    // fetching.
-    file.sync_all().map_err(|_| FilesOpError::WriteFailed)?;
+    let name = OsStr::new(input.path.file_name());
+    if input.fail_if_exists {
+        rename_no_replace_between_directories(directory, temporary, directory, name)
+            .map_err(|error| rename_failure(&error))?;
+    } else {
+        rename_in_directory(directory, temporary, name)
+            .map_err(|error| io_failure(&error, FilesOpError::WriteFailed))?;
+    }
 
-    rename_in_directory(directory, temporary, OsStr::new(relative.file_name()))
-        .map_err(|_| FilesOpError::WriteFailed)
+    Ok(written)
 }
 
 #[cfg(test)]

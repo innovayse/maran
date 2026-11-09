@@ -108,7 +108,8 @@ public sealed class SslHandlerFixture : IDisposable
                 SiteBackend.Php,
                 "8.3",
                 string.Empty,
-                HasCertificate: false);
+                HasCertificate: false,
+                SiteOptionsSnapshot.None);
         }).ToArray();
         Sites = new StubSiteDirectory(Snapshots);
         Accounts = knowsAccount

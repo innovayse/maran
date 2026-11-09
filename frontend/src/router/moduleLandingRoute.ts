@@ -52,7 +52,14 @@ const LANDING_ROUTES: Readonly<Record<string, string | typeof NO_LANDING_ROUTE>>
   // No sidebar entry of its own by design: the FTPS logins page is the second child of the "File
   // transfer" entry the `sftp` key names, so a top-level entry would be a second door to one room.
   ftp: NO_LANDING_ROUTE,
+  // The file manager: browse, edit, upload and trash an account's files.
+  files: 'file-manager',
+  // The DNS module's entry opens on the zones list, the page both its menus start from.
+  dns: 'dns-zones',
   firewall: 'firewall',
+  // The Mail module's entry opens on the mailboxes, the page a customer uses most; domains and
+  // aliases are the other children of its submenu (`navigationTree.ts`).
+  mail: 'mailboxes',
   // The Identity module's own screens are the signed-in user's security ones. Sessions is the
   // first of them and the one that answers "who is in my panel right now".
   identity: 'sessions',

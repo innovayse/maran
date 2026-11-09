@@ -5,10 +5,12 @@
 <h1 align="center">Maran</h1>
 
 <p align="center">
-  <strong>A modern web hosting control panel for Linux servers.</strong><br>
-  Install it on a server and manage websites, PHP versions, SSL certificates, databases, files,
-  backups and the firewall from a browser, with a separate cabinet for every hosting customer and
-  an API that billing systems drive to create accounts automatically.
+  <strong>A self-hosted hosting control panel for Linux servers.</strong><br>
+  Manage websites, PHP versions, SSL certificates, databases, files, backups and the firewall from a
+  browser, with a separate cabinet for every hosting customer and an API that billing systems drive
+  to create accounts automatically. Built for hosting providers, agencies and system administrators
+  who run their own servers. It differs in one way that matters: the web application never runs as
+  root, and a small Rust agent is the only process that does, accepting a fixed set of typed commands.
 </p>
 
 <p align="center">

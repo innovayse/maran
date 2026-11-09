@@ -7,6 +7,7 @@ using Maran.Host.Dashboard;
 using Maran.Host.Extensions;
 using Maran.Host.HealthChecks;
 using Maran.Host.Modules;
+using Maran.Host.Search;
 using Maran.Sdk;
 using Maran.SharedKernel;
 
@@ -46,8 +47,14 @@ public sealed class Program
         var connectionString = ResolveConnectionString(builder.Configuration);
         PublishConnectionString(builder.Configuration, connectionString);
 
+        // Which modules this start runs, decided once: the ones that ship with the panel plus any packaged
+        // module that passes the composition checks. The open panel offers none; a separately distributed
+        // loader replaces this line with the modules it has staged and verified. Handlers and services are
+        // both taken from this one list so they cannot disagree.
+        var modules = PackagedModuleComposer.Compose(ModuleRegistry.All, [], new PanelVersion());
+
         builder.Host.AddPanelObservability(cli is not null);
-        builder.Host.AddPanelMessaging(connectionString);
+        builder.Host.AddPanelMessaging(connectionString, modules.Composed);
 
         builder.Services.AddPanelForwardedHeaders();
         builder.Services.AddPanelConfiguration(builder.Configuration);
@@ -59,10 +66,13 @@ public sealed class Program
         builder.Services.AddAgentClient(ResolveAgentSocketPath(builder.Configuration));
         builder.Services.AddPanelHealthChecks(connectionString);
         builder.Services.AddPanelResilience();
+        builder.Services.AddResilientAgentClients();
+        builder.Services.AddPanelDashboardStream(builder.Configuration);
         builder.Services.AddPanelRateLimiting();
         builder.Services.AddPanelJsonSerialization();
         builder.Services.AddPanelModelBinding();
-        builder.Services.AddPanelModules(builder.Configuration);
+        builder.Services.AddPanelModules(builder.Configuration, modules);
+        builder.Services.AddPanelSearch();
         builder.Services.AddPanelBackgroundWork();
         builder.Services.AddPanelSeeding();
         builder.Services.AddLicensingStartupCheck(builder.Configuration);
@@ -112,11 +122,20 @@ public sealed class Program
         app.MapPanelHealth();
         app.MapModuleCatalogue();
         app.MapDashboard();
+        app.MapDashboardStream();
         app.MapAttentionCount();
+        app.MapFirstRun();
+        app.MapSearch();
         app.MapControllers();
 
+        // Taken before Run: Run disposes the host's container when it returns, and the request is read after.
+        var restart = app.Services.GetRequiredService<PanelRestartRequest>();
+
         app.Run();
-        return 0;
+
+        // A stop the module loader asked for exits non-zero, so the service manager starts the panel
+        // again with the staged module composed (restart-to-activate, PanelRestartRequest).
+        return restart.Requested ? PanelRestartRequest.ExitStatus : 0;
     }
 
     /// <summary>Runs one command-line verb to completion on the process's own streams.</summary>

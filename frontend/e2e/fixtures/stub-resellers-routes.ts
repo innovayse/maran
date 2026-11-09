@@ -9,6 +9,7 @@ import type {
   ResellerChoice,
   ResellerDetail,
   ResellerEnvelope,
+  UpdateResellerRequest,
 } from '../../src/types/reseller'
 
 /** The resellers collection: the paged list (`GET`) and the create form (`POST`), with or without a query. */
@@ -17,7 +18,7 @@ const RESELLERS_PATTERN = /\/api\/v1\/resellers(\?.*)?$/
 /** The reseller choices the owner pickers read, with or without a query. */
 const CHOICES_PATTERN = /\/api\/v1\/resellers\/choices(\?.*)?$/
 
-/** One reseller by its identity: the detail read and the delete. */
+/** One reseller by its identity: the detail read, the rename and contact change, and the delete. */
 const RESELLER_PATTERN = /\/api\/v1\/resellers\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/
 
 /** The envelope write for one reseller. */
@@ -53,6 +54,8 @@ export const RESELLER_ENVELOPE: ResellerEnvelope = {
   maxFtpUsers: 4,
   maxCronEntries: 9,
   maxPhpWorkersPerPool: 7,
+  maxMailboxes: 15,
+  mailboxQuotaPoolMib: 30720,
   cpuQuotaPercent: { kind: 'limited', maximum: 200 },
   memoryMaxMb: { kind: 'limited', maximum: 2048 },
   maxProcesses: { kind: 'unlimited' },
@@ -91,6 +94,8 @@ export const BRAVO_HOSTING: ResellerDetail = {
 export interface ResellerRequests {
   /** The body of every `POST /api/v1/resellers`, in order. */
   created: CreateResellerRequest[]
+  /** The path id and body of every `PUT /api/v1/resellers/{id}`, in order. */
+  updated: { id: string; body: UpdateResellerRequest }[]
   /** The path id and body of every `PUT /api/v1/resellers/{id}/envelope`, in order. */
   envelopes: { id: string; body: ChangeResellerEnvelopeRequest }[]
   /** The id of every suspend request, in order. */
@@ -108,6 +113,8 @@ export interface ResellerRequests {
 export interface ResellerRefusals {
   /** Refuses every create, as the real panel does for a name another reseller has. */
   create?: string
+  /** Refuses every rename and contact change, as the real panel does for a name another login holds. */
+  update?: string
   /** Refuses every suspend. */
   suspend?: string
   /** Refuses every reactivate. */
@@ -194,7 +201,7 @@ export const stubResellers = async (
   }),
   refusals: ResellerRefusals = {},
 ): Promise<ResellerRequests> => {
-  const requests: ResellerRequests = { created: [], envelopes: [], suspended: [], reactivated: [], deleted: [] }
+  const requests: ResellerRequests = { created: [], updated: [], envelopes: [], suspended: [], reactivated: [], deleted: [] }
 
   /**
    * Finds the reseller a request path names.
@@ -208,6 +215,12 @@ export const stubResellers = async (
       return candidate.id === id
     })
   }
+
+  // The detail page reads the reseller's invitation. These specs are not about it, so every
+  // reseller reads as having accepted; reseller-invitation.spec.ts stubs the real states.
+  await page.route('**/api/v1/invitations/resellers/*', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ state: 'accepted' }) })
+  })
 
   await page.route(FEATURES_PATTERN, async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(PLAN_FEATURE_CHOICES) })
@@ -273,6 +286,20 @@ export const stubResellers = async (
       }
       resellers.splice(resellers.indexOf(current), 1)
       await route.fulfill({ status: 204 })
+      return
+    }
+
+    if (route.request().method() === 'PUT') {
+      const body = route.request().postDataJSON() as UpdateResellerRequest
+      requests.updated.push({ id: current.id, body })
+      if (refusals.update !== undefined) {
+        await refuse(route, 'ResellerNameTaken', refusals.update)
+        return
+      }
+      current.name = body.name
+      current.contactEmail = body.contactEmail
+      current.language = body.language
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(current) })
       return
     }
 

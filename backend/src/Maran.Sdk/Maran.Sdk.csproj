@@ -20,7 +20,7 @@
          validator derives from, so the paging bounds are enforced in one place for ours and
          third-party modules alike. -->
     <PackageReference Include="FluentValidation" />
-    <!-- WolverineFx: Alerts/OperatorAlertMailer publishes SendMailRequested — the message this
+    <!-- WolverineFx: Alerts/OperatorAlertDispatcher publishes SendMailRequested — the message this
          project already declares — so the operator-alert path every module shares is one
          implementation here rather than a copy per module (issue #290). The Sdk declares no
          handler; Wolverine discovers handlers only in the module assemblies the Host names. -->
@@ -42,6 +42,21 @@
       <Generator></Generator>
     </EmbeddedResource>
     <EmbeddedResource Update="Resources\ValidationMessages.hy.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <!-- ErrorMessages defines the codes the module-loading seam answers with (MarketplaceNotAvailable
+         today); the generated class makes a code that is not a resx key a build error. -->
+    <EmbeddedResource Update="Resources\ErrorMessages.resx">
+      <Generator>MSBuild:Compile</Generator>
+      <StronglyTypedLanguage>CSharp</StronglyTypedLanguage>
+      <StronglyTypedNamespace>Maran.Sdk.Resources</StronglyTypedNamespace>
+      <StronglyTypedClassName>ErrorMessages</StronglyTypedClassName>
+      <StronglyTypedFileName>$(IntermediateOutputPath)ErrorMessages.Designer.cs</StronglyTypedFileName>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\ErrorMessages.ru.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\ErrorMessages.hy.resx">
       <Generator></Generator>
     </EmbeddedResource>
   </ItemGroup>

@@ -1,0 +1,26 @@
+# How many routes of the SPA's router (frontend/src/router/index.ts) declare `meta: { module: '<id>' }`
+# for each module, as of the day the module contract was written.
+#
+# The SPA still lists every module's screens itself, so a packageable module has entries here today.
+# The contract is that a packageable module's menu and routes come from its manifest
+# (docs/modules/module-contract.md), so this file is a RATCHET and not a permission: the count for a
+# packageable module may fall (as screens move to the manifest) and may never rise. When it falls,
+# lower the number here in the same change; a number higher than the router holds fails the test.
+#
+# One entry per line: <module id>|<count>. Read by PackageableSpaRouteTests. A line for a module that
+# is not packageable is ignored by that test and should be deleted.
+
+accounts|13
+backups|4
+cron|2
+databases|3
+dns|4
+files|3
+firewall|3
+ftp|1
+identity|1
+mail|3
+monitoring|2
+sftp|1
+sites|4
+tasks|1

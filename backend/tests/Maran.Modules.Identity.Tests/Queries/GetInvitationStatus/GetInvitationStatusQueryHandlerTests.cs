@@ -39,7 +39,8 @@ public sealed class GetInvitationStatusQueryHandlerTests : IDisposable
     private async Task<InvitationStatusDto> AskAsync()
     {
         var handler = new GetInvitationStatusQueryHandler(
-            _context, new AccountOwnerFinder(_context), _clock, IdentityTestContext.DisplayNameResources());
+            new AccountOwnerFinder(_context),
+            new InvitationStatusReader(_context, _clock, IdentityTestContext.DisplayNameResources()));
         var result = await handler.HandleAsync(new GetInvitationStatusQuery(AccountId), CancellationToken.None);
 
         Assert.True(result.IsSuccess);

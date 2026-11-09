@@ -70,4 +70,14 @@ public static class DatabasesTestContext
                 new OptionsWrapper<LocalizationOptions>(new LocalizationOptions()),
                 NullLoggerFactory.Instance)));
     }
+
+    /// <summary>Builds the privilege and preset name resolver over the module's real display-name table.</summary>
+    /// <returns>A resolver answering in the current culture.</returns>
+    public static DatabasePrivilegeDisplayNames PrivilegeNames()
+    {
+        return new DatabasePrivilegeDisplayNames(new StringLocalizer<DisplayNames>(
+            new ResourceManagerStringLocalizerFactory(
+                new OptionsWrapper<LocalizationOptions>(new LocalizationOptions()),
+                NullLoggerFactory.Instance)));
+    }
 }

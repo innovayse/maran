@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * One site, in three tabs: what it is, what it is logging, and what certifies it.
+ * One site, in four tabs: what it is, what it is logging, how much traffic it serves, and what certifies it.
  *
  * Every action asks first, in {@link UiConfirm}, and the question names the consequence rather
  * than asking the operator to repeat themselves. Deletion in particular says exactly what the contract does:
@@ -38,7 +38,9 @@ import UiSkeleton from '../../components/ui/UiSkeleton.vue'
 import PhpVersionSelect from '../../components/sites/PhpVersionSelect.vue'
 import SiteStatusBadge from '../../components/sites/SiteStatusBadge.vue'
 import SiteLogsTab from './SiteLogsTab.vue'
+import SiteOptionsTab from './SiteOptionsTab.vue'
 import SiteSslTab from './SiteSslTab.vue'
+import SiteTrafficTab from './SiteTrafficTab.vue'
 import { useLocaleStore } from '../../stores/locale'
 import { usePhpVersionsStore } from '../../stores/phpVersions'
 import { useSiteLogsStore } from '../../stores/siteLogs'
@@ -47,7 +49,7 @@ import { formatDate } from '../../utils/formatDate'
 import type { SiteDetail } from '../../types/site'
 
 /** Which pane of the detail page is on screen. */
-type DetailTab = 'overview' | 'logs' | 'ssl'
+type DetailTab = 'overview' | 'logs' | 'traffic' | 'ssl' | 'options'
 
 /** The lifecycle action awaiting confirmation, or `null` when none is. */
 type PendingAction = 'enable' | 'disable' | 'delete' | null
@@ -116,7 +118,9 @@ const tabOptions: ComputedRef<SegmentOption[]> = computed(() => {
   return [
     { value: 'overview', label: t('sites.detail.tabs.overview') },
     { value: 'logs', label: t('sites.detail.tabs.logs') },
+    { value: 'traffic', label: t('siteTraffic.tabLabel') },
     { value: 'ssl', label: t('sites.detail.tabs.ssl') },
+    { value: 'options', label: t('siteOptions.tabLabel') },
   ]
 })
 
@@ -378,6 +382,10 @@ onBeforeUnmount(() => {
         </div>
 
         <SiteLogsTab v-else-if="tab === 'logs'" :site-id="props.id" />
+
+        <SiteTrafficTab v-else-if="tab === 'traffic'" :site-id="props.id" />
+
+        <SiteOptionsTab v-else-if="tab === 'options'" :site-id="props.id" />
 
         <SiteSslTab v-else-if="site !== null" :site-id="props.id" :domain="site.domain" />
       </div>

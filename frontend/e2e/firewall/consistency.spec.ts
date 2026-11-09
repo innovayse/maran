@@ -12,7 +12,7 @@ import type { PanelModule } from '../../src/types/module'
 
 test.use({ timezoneId: 'UTC' })
 
-const LICENSED: PanelModule[] = [{ name: 'firewall', displayName: 'Firewall', tier: 'included', state: 'enabled' }]
+const LICENSED: PanelModule[] = [{ name: 'firewall', displayName: 'Firewall', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }]
 
 const RULE: FirewallRule = { port: 8443, portTo: null, protocol: 'tcp', sourceCidr: '0.0.0.0/0' }
 

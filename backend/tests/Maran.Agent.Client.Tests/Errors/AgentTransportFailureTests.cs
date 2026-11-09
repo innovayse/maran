@@ -1,6 +1,7 @@
 using Grpc.Core;
 using Maran.Agent.Client.Channels;
 using Maran.Agent.Client.Errors;
+using Maran.Agent.Client.Resources;
 using Maran.Agent.Client.Tests.TestSupport;
 using Maran.SharedKernel.Results;
 
@@ -144,6 +145,33 @@ public sealed class AgentTransportFailureTests
         bool expected)
     {
         Assert.Equal(expected, AgentTransportFailure.IsUnreachable(new RpcException(new Status(status, "detail"))));
+    }
+
+    /// <summary>A handshake the panel refused (an internal status over a secure-connection error) is an unreachable node.</summary>
+    [Fact]
+    public void A_refused_tls_handshake_is_unreachable_and_answers_agent_unavailable()
+    {
+        var thrown = new RpcException(new Status(
+            StatusCode.Internal,
+            "detail",
+            new HttpRequestException(HttpRequestError.SecureConnectionError, "refused")));
+
+        Assert.True(AgentTransportFailure.IsUnreachable(thrown));
+        Assert.False(AgentTransportFailure.IsConnectFailure(thrown));
+        Assert.Equal(nameof(ErrorMessages.AgentUnavailable), AgentTransportFailure.ToError(thrown).Code);
+    }
+
+    /// <summary>An internal status over any other transport error stays a server fault, so the handshake rule is not "every internal".</summary>
+    [Fact]
+    public void An_internal_status_over_another_transport_error_is_still_an_invalid_response()
+    {
+        var thrown = new RpcException(new Status(
+            StatusCode.Internal,
+            "detail",
+            new HttpRequestException(HttpRequestError.InvalidResponse, "garbled")));
+
+        Assert.False(AgentTransportFailure.IsUnreachable(thrown));
+        Assert.Equal(nameof(ErrorMessages.AgentInvalidResponse), AgentTransportFailure.ToError(thrown).Code);
     }
 
     /// <summary>Makes one real unary call to <paramref name="agent"/> and returns what the transport threw.</summary>

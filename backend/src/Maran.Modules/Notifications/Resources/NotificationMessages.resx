@@ -18,4 +18,91 @@
   <data name="TestMailBody">
     <value>This message confirms that the panel can send mail with the settings you saved. Nothing else is needed.</value>
   </data>
+  <data name="FeedAlertDiskUsageCritical">
+    <value>Disk usage is high: {0}</value>
+  </data>
+  <data name="FeedAlertDiskUsageInfo">
+    <value>Disk usage is back to normal: {0}</value>
+  </data>
+  <data name="FeedAlertServiceStoppedCritical">
+    <value>A service has stopped: {0}</value>
+  </data>
+  <data name="FeedAlertServiceStoppedInfo">
+    <value>A service is running again: {0}</value>
+  </data>
+  <data name="FeedAlertSftpJailDriftedCritical">
+    <value>SFTP isolation has drifted: {0}</value>
+  </data>
+  <data name="FeedAlertSftpJailDriftedInfo">
+    <value>SFTP isolation is correct again: {0}</value>
+  </data>
+  <data name="FeedAlertQuotaNotEnforceableCritical">
+    <value>Disk quotas cannot be enforced: {0}</value>
+  </data>
+  <data name="FeedAlertQuotaNotEnforceableInfo">
+    <value>Disk quotas are enforced again: {0}</value>
+  </data>
+  <data name="FeedAlertCodeIntegrityDriftedCritical">
+    <value>Panel files differ from the release: {0}</value>
+  </data>
+  <data name="FeedAlertCodeIntegrityDriftedInfo">
+    <value>Panel files match the release again: {0}</value>
+  </data>
+  <data name="FeedAlertFreeSpaceFloorApproachingCritical">
+    <value>Free disk space is running low: {0}</value>
+  </data>
+  <data name="FeedAlertFreeSpaceFloorApproachingInfo">
+    <value>Free disk space has recovered: {0}</value>
+  </data>
+  <data name="FeedAlertClockUnsynchronizedCritical">
+    <value>The server clock is not synchronised: {0}</value>
+  </data>
+  <data name="FeedAlertClockUnsynchronizedInfo">
+    <value>The server clock is synchronised again: {0}</value>
+  </data>
+  <data name="FeedAlertCpuUsageCritical">
+    <value>CPU usage is high: {0}</value>
+  </data>
+  <data name="FeedAlertCpuUsageInfo">
+    <value>CPU usage is back to normal: {0}</value>
+  </data>
+  <data name="FeedAlertMemoryUsageCritical">
+    <value>Memory usage is high: {0}</value>
+  </data>
+  <data name="FeedAlertMemoryUsageInfo">
+    <value>Memory usage is back to normal: {0}</value>
+  </data>
+  <data name="FeedAlertPanelUpdateRolledBackCritical">
+    <value>The scheduled update was rolled back: {0}</value>
+  </data>
+  <data name="FeedAlertPanelUpdateRollbackFailedCritical">
+    <value>The scheduled update failed and could not be rolled back: {0}</value>
+  </data>
+  <data name="FeedAlertPanelUpdateInterruptedCritical">
+    <value>The scheduled update was interrupted: {0}</value>
+  </data>
+  <data name="FeedBackupScheduledRunFailedWarning">
+    <value>A scheduled backup failed: {0}</value>
+  </data>
+  <data name="FeedBackupDestinationRefusedWarning">
+    <value>A backup destination refused the copy: {0}</value>
+  </data>
+  <data name="FeedBackupScheduledRunMissedWarning">
+    <value>A scheduled backup did not run: {0}</value>
+  </data>
+  <data name="FeedBackupVerificationFailedWarning">
+    <value>A backup failed verification: {0}</value>
+  </data>
+  <data name="FeedAlertGeneric">
+    <value>Server alert: {0}</value>
+  </data>
+  <data name="FeedBackupGeneric">
+    <value>Backup alert: {0}</value>
+  </data>
+  <data name="FeedTaskFailed">
+    <value>A task did not finish: {0}</value>
+  </data>
+  <data name="FeedTaskFailureUnexplained">
+    <value>The operation did not finish; the tasks page has the details.</value>
+  </data>
 </root>

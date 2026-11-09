@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="MarketplaceNotAvailable">
+    <value>Փաթեթներից մոդուլների տեղադրումը հասանելի չէ վահանակի այս կառուցվածքում։</value>
+  </data>
+  <data name="ModuleNotPackageable">
+    <value>Փաթեթը հայտարարում է մոդուլ, որը մտնում է հենց վահանակի մեջ, ուստի այն հնարավոր չէ տեղադրել փաթեթից։</value>
+  </data>
+  <data name="ModuleIdTaken">
+    <value>Այս նույնացուցիչով մոդուլն արդեն վահանակի մաս է։</value>
+  </data>
+  <data name="ModuleAssemblyReserved">
+    <value>Փաթեթը պարունակում է հավաքակազմ, որը վահանակը վերապահել է իրեն։</value>
+  </data>
+  <data name="ModuleAssemblyUnreadable">
+    <value>Մոդուլի հավաքակազմը չհաջողվեց կարդալ։</value>
+  </data>
+  <data name="ModuleAgentCapabilityUndeclared">
+    <value>Մոդուլն օգտագործում է գործակալի մի մաս, որը նշված չէ նրա մանիֆեստում։</value>
+  </data>
+  <data name="ModuleManifestUnreadable">
+    <value>Մոդուլի մանիֆեստը չհաջողվեց կարդալ։</value>
+  </data>
+  <data name="ModuleManifestInvalid">
+    <value>Մոդուլի մանիֆեստը խախտում է մոդուլների պայմանագիրը։</value>
+  </data>
+</root>

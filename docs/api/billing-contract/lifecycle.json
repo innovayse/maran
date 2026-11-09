@@ -1,0 +1,1268 @@
+{
+  "contract": "maran-billing-lifecycle",
+  "revision": 1,
+  "description": "The sequence a billing provider relies on when it provisions hosting accounts through the reseller API of a Maran panel. Read docs/api/billing-contract/README.md before editing.",
+  "basePath": "/api/v1/reseller-api",
+  "inputs": {
+    "planId": "required: a plan the reseller owns, with room in the reseller's disk pool for one more account",
+    "smallPlanId": "optional: a second plan of the reseller with less disk than planId",
+    "largePlanId": "optional: a plan of the reseller whose disk would take the reseller over its disk pool when the account moves to it",
+    "fullPoolPlanId": "optional: a plan of the reseller that no longer fits the reseller's disk pool when a new account is created on it",
+    "foreignPlanId": "optional: the id of a plan another reseller owns",
+    "foreignAccountId": "optional: the id of an account another reseller owns"
+  },
+  "credentials": {
+    "full": "required: a key of the reseller holding accounts.read, accounts.write and accounts.delete",
+    "provisioner": "optional: a key of the reseller holding accounts.read and accounts.write only",
+    "reader": "optional: a key of the reseller holding accounts.read only",
+    "unknown": "built in: a well-formed key the panel has never issued",
+    "none": "built in: no key header at all"
+  },
+  "arrangements": {
+    "diskUsedAbovePlan": "the host measures more disk used by the account than the plan named in the interaction allows",
+    "finalBackupFails": "the final backup that terminating an account takes first fails"
+  },
+  "builtins": {
+    "run": "a fresh identifier per replay, so Idempotency-Key values never collide between replays",
+    "suffix": "eight lower-case hexadecimal characters, fresh per replay, so account names and domains never collide",
+    "randomGuid": "a GUID that names nothing"
+  },
+  "interactions": [
+    {
+      "name": "server-info",
+      "request": {
+        "method": "GET",
+        "path": "/info"
+      },
+      "response": {
+        "status": 200,
+        "properties": [
+          {
+            "name": "apiRevision",
+            "type": "integer"
+          },
+          {
+            "name": "accountCount",
+            "type": "integer"
+          },
+          {
+            "name": "planCount",
+            "type": "integer"
+          },
+          {
+            "name": "diskAllocatedMb",
+            "type": "integer"
+          },
+          {
+            "name": "envelope",
+            "type": "object"
+          },
+          {
+            "name": "envelope.maxAccounts",
+            "type": "integer"
+          },
+          {
+            "name": "envelope.diskPoolMb",
+            "type": "integer"
+          }
+        ]
+      }
+    },
+    {
+      "name": "create-account",
+      "request": {
+        "method": "POST",
+        "path": "/accounts",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-create"
+        },
+        "body": {
+          "name": "bc{{suffix}}",
+          "primaryDomain": "bc{{suffix}}.example.com",
+          "planId": "{{planId}}",
+          "ownerEmail": "owner-{{suffix}}@example.com",
+          "ownerLanguage": "en"
+        }
+      },
+      "response": {
+        "status": 201,
+        "properties": [
+          {
+            "name": "id",
+            "type": "guid"
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "equals": "bc{{suffix}}"
+          },
+          {
+            "name": "primaryDomain",
+            "type": "string"
+          },
+          {
+            "name": "planId",
+            "type": "guid",
+            "equalsVariable": "planId"
+          },
+          {
+            "name": "status",
+            "type": "string",
+            "equals": "active"
+          },
+          {
+            "name": "statusName",
+            "type": "string"
+          },
+          {
+            "name": "createdAt",
+            "type": "instant"
+          },
+          {
+            "name": "resellerId",
+            "type": "guid"
+          },
+          {
+            "name": "resellerName",
+            "type": "string"
+          }
+        ],
+        "absent": [
+          "ownerEmail"
+        ],
+        "capture": {
+          "accountId": "id"
+        }
+      }
+    },
+    {
+      "name": "create-account-replayed-with-the-same-key",
+      "request": {
+        "method": "POST",
+        "path": "/accounts",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-create"
+        },
+        "body": {
+          "name": "bc{{suffix}}",
+          "primaryDomain": "bc{{suffix}}.example.com",
+          "planId": "{{planId}}",
+          "ownerEmail": "owner-{{suffix}}@example.com",
+          "ownerLanguage": "en"
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "Idempotent-Replayed": "true"
+        },
+        "properties": [
+          {
+            "name": "id",
+            "type": "guid",
+            "equalsVariable": "accountId"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "primaryDomain",
+            "type": "string"
+          },
+          {
+            "name": "planId",
+            "type": "guid",
+            "equalsVariable": "planId"
+          },
+          {
+            "name": "status",
+            "type": "string",
+            "equals": "active"
+          },
+          {
+            "name": "statusName",
+            "type": "string"
+          },
+          {
+            "name": "createdAt",
+            "type": "instant"
+          },
+          {
+            "name": "resellerId",
+            "type": "guid"
+          },
+          {
+            "name": "resellerName",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "create-account-with-a-key-already-used-for-another-body",
+      "request": {
+        "method": "POST",
+        "path": "/accounts",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-create"
+        },
+        "body": {
+          "name": "bz{{suffix}}",
+          "primaryDomain": "bz{{suffix}}.example.com",
+          "planId": "{{planId}}",
+          "ownerEmail": "owner-{{suffix}}@example.com",
+          "ownerLanguage": "en"
+        }
+      },
+      "response": {
+        "status": 422,
+        "code": "IdempotencyKeyReused"
+      }
+    },
+    {
+      "name": "create-account-without-an-idempotency-key",
+      "request": {
+        "method": "POST",
+        "path": "/accounts",
+        "body": {
+          "name": "bc{{suffix}}",
+          "primaryDomain": "bc{{suffix}}.example.com",
+          "planId": "{{planId}}",
+          "ownerEmail": "owner-{{suffix}}@example.com",
+          "ownerLanguage": "en"
+        }
+      },
+      "response": {
+        "status": 400,
+        "code": "IdempotencyKeyRequired"
+      }
+    },
+    {
+      "name": "create-account-with-a-taken-name",
+      "request": {
+        "method": "POST",
+        "path": "/accounts",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-name-taken"
+        },
+        "body": {
+          "name": "bc{{suffix}}",
+          "primaryDomain": "other{{suffix}}.example.com",
+          "planId": "{{planId}}",
+          "ownerEmail": "owner-{{suffix}}@example.com",
+          "ownerLanguage": "en"
+        }
+      },
+      "response": {
+        "status": 409,
+        "code": "AccountNameTaken"
+      }
+    },
+    {
+      "name": "create-account-with-a-taken-domain",
+      "request": {
+        "method": "POST",
+        "path": "/accounts",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-domain-taken"
+        },
+        "body": {
+          "name": "bd{{suffix}}",
+          "primaryDomain": "bc{{suffix}}.example.com",
+          "planId": "{{planId}}",
+          "ownerEmail": "owner-{{suffix}}@example.com",
+          "ownerLanguage": "en"
+        }
+      },
+      "response": {
+        "status": 409,
+        "code": "AccountDomainTaken"
+      }
+    },
+    {
+      "name": "create-account-with-an-invalid-name",
+      "request": {
+        "method": "POST",
+        "path": "/accounts",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-bad-name"
+        },
+        "body": {
+          "name": "Bad-Name",
+          "primaryDomain": "bad{{suffix}}.example.com",
+          "planId": "{{planId}}",
+          "ownerEmail": "owner-{{suffix}}@example.com",
+          "ownerLanguage": "en"
+        }
+      },
+      "response": {
+        "status": 400,
+        "code": "AccountNameInvalid"
+      }
+    },
+    {
+      "name": "create-account-on-an-unknown-plan",
+      "request": {
+        "method": "POST",
+        "path": "/accounts",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-unknown-plan"
+        },
+        "body": {
+          "name": "be{{suffix}}",
+          "primaryDomain": "be{{suffix}}.example.com",
+          "planId": "{{randomGuid}}",
+          "ownerEmail": "owner-{{suffix}}@example.com",
+          "ownerLanguage": "en"
+        }
+      },
+      "response": {
+        "status": 404,
+        "code": "PlanNotFound"
+      }
+    },
+    {
+      "name": "create-account-on-a-plan-of-another-reseller",
+      "requires": [
+        "foreignPlanId"
+      ],
+      "request": {
+        "method": "POST",
+        "path": "/accounts",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-foreign-plan"
+        },
+        "body": {
+          "name": "bf{{suffix}}",
+          "primaryDomain": "bf{{suffix}}.example.com",
+          "planId": "{{foreignPlanId}}",
+          "ownerEmail": "owner-{{suffix}}@example.com",
+          "ownerLanguage": "en"
+        }
+      },
+      "response": {
+        "status": 404,
+        "code": "PlanNotFound"
+      }
+    },
+    {
+      "name": "create-account-beyond-the-disk-pool",
+      "requires": [
+        "fullPoolPlanId"
+      ],
+      "request": {
+        "method": "POST",
+        "path": "/accounts",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-pool-full"
+        },
+        "body": {
+          "name": "bg{{suffix}}",
+          "primaryDomain": "bg{{suffix}}.example.com",
+          "planId": "{{fullPoolPlanId}}",
+          "ownerEmail": "owner-{{suffix}}@example.com",
+          "ownerLanguage": "en"
+        }
+      },
+      "response": {
+        "status": 409,
+        "code": "ResellerDiskPoolExceeded"
+      }
+    },
+    {
+      "name": "read-account",
+      "request": {
+        "method": "GET",
+        "path": "/accounts/{{accountId}}"
+      },
+      "response": {
+        "status": 200,
+        "properties": [
+          {
+            "name": "id",
+            "type": "guid",
+            "equalsVariable": "accountId"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "primaryDomain",
+            "type": "string"
+          },
+          {
+            "name": "planId",
+            "type": "guid",
+            "equalsVariable": "planId"
+          },
+          {
+            "name": "status",
+            "type": "string",
+            "equals": "active"
+          },
+          {
+            "name": "statusName",
+            "type": "string"
+          },
+          {
+            "name": "createdAt",
+            "type": "instant"
+          },
+          {
+            "name": "resellerId",
+            "type": "guid"
+          },
+          {
+            "name": "resellerName",
+            "type": "string"
+          }
+        ],
+        "absent": [
+          "ownerEmail"
+        ]
+      }
+    },
+    {
+      "name": "read-account-with-a-read-only-key",
+      "credential": "reader",
+      "request": {
+        "method": "GET",
+        "path": "/accounts/{{accountId}}"
+      },
+      "response": {
+        "status": 200,
+        "properties": [
+          {
+            "name": "id",
+            "type": "guid",
+            "equalsVariable": "accountId"
+          }
+        ]
+      }
+    },
+    {
+      "name": "read-an-unknown-account",
+      "request": {
+        "method": "GET",
+        "path": "/accounts/{{randomGuid}}"
+      },
+      "response": {
+        "status": 404,
+        "code": "AccountNotFound"
+      }
+    },
+    {
+      "name": "read-an-account-of-another-reseller",
+      "requires": [
+        "foreignAccountId"
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/accounts/{{foreignAccountId}}"
+      },
+      "response": {
+        "status": 404,
+        "code": "AccountNotFound"
+      }
+    },
+    {
+      "name": "read-usage",
+      "request": {
+        "method": "GET",
+        "path": "/accounts/{{accountId}}/usage"
+      },
+      "response": {
+        "status": 200,
+        "properties": [
+          {
+            "name": "accountId",
+            "type": "guid",
+            "equalsVariable": "accountId"
+          },
+          {
+            "name": "status",
+            "type": "string",
+            "equals": "active"
+          },
+          {
+            "name": "statusName",
+            "type": "string"
+          },
+          {
+            "name": "planId",
+            "type": "guid"
+          },
+          {
+            "name": "planDisplayName",
+            "type": "string"
+          },
+          {
+            "name": "disk",
+            "type": "object"
+          },
+          {
+            "name": "disk.usedBytes",
+            "type": "integer"
+          },
+          {
+            "name": "disk.limitBytes",
+            "type": "integer"
+          },
+          {
+            "name": "resources",
+            "type": "array"
+          }
+        ]
+      }
+    },
+    {
+      "name": "read-usage-of-an-account-of-another-reseller",
+      "requires": [
+        "foreignAccountId"
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/accounts/{{foreignAccountId}}/usage"
+      },
+      "response": {
+        "status": 404,
+        "code": "AccountNotFound"
+      }
+    },
+    {
+      "name": "suspend-account",
+      "request": {
+        "method": "POST",
+        "path": "/accounts/{{accountId}}/suspend",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-suspend"
+        }
+      },
+      "response": {
+        "status": 200,
+        "properties": [
+          {
+            "name": "id",
+            "type": "guid",
+            "equalsVariable": "accountId"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "primaryDomain",
+            "type": "string"
+          },
+          {
+            "name": "planId",
+            "type": "guid"
+          },
+          {
+            "name": "status",
+            "type": "string",
+            "equals": "suspended"
+          },
+          {
+            "name": "statusName",
+            "type": "string"
+          },
+          {
+            "name": "createdAt",
+            "type": "instant"
+          },
+          {
+            "name": "resellerId",
+            "type": "guid"
+          },
+          {
+            "name": "resellerName",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "suspend-account-again",
+      "note": "Repeating a suspension is answered 200 with the account as it is; nothing is refused.",
+      "request": {
+        "method": "POST",
+        "path": "/accounts/{{accountId}}/suspend",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-suspend-again"
+        }
+      },
+      "response": {
+        "status": 200,
+        "properties": [
+          {
+            "name": "id",
+            "type": "guid",
+            "equalsVariable": "accountId"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "primaryDomain",
+            "type": "string"
+          },
+          {
+            "name": "planId",
+            "type": "guid"
+          },
+          {
+            "name": "status",
+            "type": "string",
+            "equals": "suspended"
+          },
+          {
+            "name": "statusName",
+            "type": "string"
+          },
+          {
+            "name": "createdAt",
+            "type": "instant"
+          },
+          {
+            "name": "resellerId",
+            "type": "guid"
+          },
+          {
+            "name": "resellerName",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "suspend-account-without-an-idempotency-key",
+      "request": {
+        "method": "POST",
+        "path": "/accounts/{{accountId}}/suspend"
+      },
+      "response": {
+        "status": 400,
+        "code": "IdempotencyKeyRequired"
+      }
+    },
+    {
+      "name": "suspend-an-unknown-account",
+      "request": {
+        "method": "POST",
+        "path": "/accounts/{{randomGuid}}/suspend",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-suspend-unknown"
+        }
+      },
+      "response": {
+        "status": 404,
+        "code": "AccountNotFound"
+      }
+    },
+    {
+      "name": "suspend-an-account-of-another-reseller",
+      "requires": [
+        "foreignAccountId"
+      ],
+      "request": {
+        "method": "POST",
+        "path": "/accounts/{{foreignAccountId}}/suspend",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-suspend-foreign"
+        }
+      },
+      "response": {
+        "status": 404,
+        "code": "AccountNotFound"
+      }
+    },
+    {
+      "name": "reactivate-account",
+      "request": {
+        "method": "POST",
+        "path": "/accounts/{{accountId}}/reactivate",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-reactivate"
+        }
+      },
+      "response": {
+        "status": 200,
+        "properties": [
+          {
+            "name": "id",
+            "type": "guid",
+            "equalsVariable": "accountId"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "primaryDomain",
+            "type": "string"
+          },
+          {
+            "name": "planId",
+            "type": "guid"
+          },
+          {
+            "name": "status",
+            "type": "string",
+            "equals": "active"
+          },
+          {
+            "name": "statusName",
+            "type": "string"
+          },
+          {
+            "name": "createdAt",
+            "type": "instant"
+          },
+          {
+            "name": "resellerId",
+            "type": "guid"
+          },
+          {
+            "name": "resellerName",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "reactivate-account-again",
+      "note": "Repeating a reactivation is answered 200 with the account as it is; nothing is refused.",
+      "request": {
+        "method": "POST",
+        "path": "/accounts/{{accountId}}/reactivate",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-reactivate-again"
+        }
+      },
+      "response": {
+        "status": 200,
+        "properties": [
+          {
+            "name": "id",
+            "type": "guid",
+            "equalsVariable": "accountId"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "primaryDomain",
+            "type": "string"
+          },
+          {
+            "name": "planId",
+            "type": "guid"
+          },
+          {
+            "name": "status",
+            "type": "string",
+            "equals": "active"
+          },
+          {
+            "name": "statusName",
+            "type": "string"
+          },
+          {
+            "name": "createdAt",
+            "type": "instant"
+          },
+          {
+            "name": "resellerId",
+            "type": "guid"
+          },
+          {
+            "name": "resellerName",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "reactivate-an-account-of-another-reseller",
+      "requires": [
+        "foreignAccountId"
+      ],
+      "request": {
+        "method": "POST",
+        "path": "/accounts/{{foreignAccountId}}/reactivate",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-reactivate-foreign"
+        }
+      },
+      "response": {
+        "status": 404,
+        "code": "AccountNotFound"
+      }
+    },
+    {
+      "name": "change-plan-below-the-disk-the-account-uses",
+      "requires": [
+        "smallPlanId"
+      ],
+      "arrange": "diskUsedAbovePlan",
+      "request": {
+        "method": "PUT",
+        "path": "/accounts/{{accountId}}/plan",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-plan-overuse"
+        },
+        "body": {
+          "planId": "{{smallPlanId}}"
+        }
+      },
+      "response": {
+        "status": 409,
+        "code": "AccountPlanQuotaBelowUsage"
+      }
+    },
+    {
+      "name": "change-plan-beyond-the-disk-pool",
+      "requires": [
+        "largePlanId"
+      ],
+      "request": {
+        "method": "PUT",
+        "path": "/accounts/{{accountId}}/plan",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-plan-pool"
+        },
+        "body": {
+          "planId": "{{largePlanId}}"
+        }
+      },
+      "response": {
+        "status": 409,
+        "code": "ResellerDiskPoolExceeded"
+      }
+    },
+    {
+      "name": "change-plan",
+      "requires": [
+        "smallPlanId"
+      ],
+      "request": {
+        "method": "PUT",
+        "path": "/accounts/{{accountId}}/plan",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-plan"
+        },
+        "body": {
+          "planId": "{{smallPlanId}}"
+        }
+      },
+      "response": {
+        "status": 200,
+        "properties": [
+          {
+            "name": "id",
+            "type": "guid",
+            "equalsVariable": "accountId"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "primaryDomain",
+            "type": "string"
+          },
+          {
+            "name": "planId",
+            "type": "guid",
+            "equalsVariable": "smallPlanId"
+          },
+          {
+            "name": "status",
+            "type": "string",
+            "equals": "active"
+          },
+          {
+            "name": "statusName",
+            "type": "string"
+          },
+          {
+            "name": "createdAt",
+            "type": "instant"
+          },
+          {
+            "name": "resellerId",
+            "type": "guid"
+          },
+          {
+            "name": "resellerName",
+            "type": "string"
+          }
+        ],
+        "absent": [
+          "ownerEmail"
+        ]
+      }
+    },
+    {
+      "name": "change-plan-to-the-plan-it-is-on",
+      "requires": [
+        "smallPlanId"
+      ],
+      "request": {
+        "method": "PUT",
+        "path": "/accounts/{{accountId}}/plan",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-plan-same"
+        },
+        "body": {
+          "planId": "{{smallPlanId}}"
+        }
+      },
+      "response": {
+        "status": 200,
+        "properties": [
+          {
+            "name": "planId",
+            "type": "guid",
+            "equalsVariable": "smallPlanId"
+          }
+        ]
+      }
+    },
+    {
+      "name": "change-plan-to-an-unknown-plan",
+      "request": {
+        "method": "PUT",
+        "path": "/accounts/{{accountId}}/plan",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-plan-unknown"
+        },
+        "body": {
+          "planId": "{{randomGuid}}"
+        }
+      },
+      "response": {
+        "status": 404,
+        "code": "PlanNotFound"
+      }
+    },
+    {
+      "name": "change-plan-to-a-plan-of-another-reseller",
+      "requires": [
+        "foreignPlanId"
+      ],
+      "request": {
+        "method": "PUT",
+        "path": "/accounts/{{accountId}}/plan",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-plan-foreign"
+        },
+        "body": {
+          "planId": "{{foreignPlanId}}"
+        }
+      },
+      "response": {
+        "status": 404,
+        "code": "PlanNotFound"
+      }
+    },
+    {
+      "name": "change-plan-of-an-account-of-another-reseller",
+      "requires": [
+        "foreignAccountId"
+      ],
+      "request": {
+        "method": "PUT",
+        "path": "/accounts/{{foreignAccountId}}/plan",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-plan-foreign-account"
+        },
+        "body": {
+          "planId": "{{planId}}"
+        }
+      },
+      "response": {
+        "status": 404,
+        "code": "AccountNotFound"
+      }
+    },
+    {
+      "name": "change-plan-without-an-idempotency-key",
+      "request": {
+        "method": "PUT",
+        "path": "/accounts/{{accountId}}/plan",
+        "body": {
+          "planId": "{{planId}}"
+        }
+      },
+      "response": {
+        "status": 400,
+        "code": "IdempotencyKeyRequired"
+      }
+    },
+    {
+      "name": "server-info-after-the-changes",
+      "request": {
+        "method": "GET",
+        "path": "/info"
+      },
+      "response": {
+        "status": 200,
+        "properties": [
+          {
+            "name": "apiRevision",
+            "type": "integer"
+          },
+          {
+            "name": "accountCount",
+            "type": "integer"
+          },
+          {
+            "name": "planCount",
+            "type": "integer"
+          },
+          {
+            "name": "diskAllocatedMb",
+            "type": "integer"
+          },
+          {
+            "name": "envelope",
+            "type": "object"
+          },
+          {
+            "name": "envelope.maxAccounts",
+            "type": "integer"
+          },
+          {
+            "name": "envelope.diskPoolMb",
+            "type": "integer"
+          }
+        ]
+      }
+    },
+    {
+      "name": "create-account-with-a-read-only-key",
+      "credential": "reader",
+      "request": {
+        "method": "POST",
+        "path": "/accounts",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-reader-create"
+        },
+        "body": {
+          "name": "bh{{suffix}}",
+          "primaryDomain": "bh{{suffix}}.example.com",
+          "planId": "{{planId}}",
+          "ownerEmail": "owner-{{suffix}}@example.com",
+          "ownerLanguage": "en"
+        }
+      },
+      "response": {
+        "status": 403
+      }
+    },
+    {
+      "name": "terminate-account-without-the-delete-scope",
+      "credential": "provisioner",
+      "request": {
+        "method": "DELETE",
+        "path": "/accounts/{{accountId}}",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-provisioner-terminate"
+        }
+      },
+      "response": {
+        "status": 403
+      }
+    },
+    {
+      "name": "read-account-with-an-unknown-key",
+      "credential": "unknown",
+      "request": {
+        "method": "GET",
+        "path": "/accounts/{{accountId}}"
+      },
+      "response": {
+        "status": 401,
+        "empty": true
+      }
+    },
+    {
+      "name": "read-account-with-no-key",
+      "credential": "none",
+      "request": {
+        "method": "GET",
+        "path": "/accounts/{{accountId}}"
+      },
+      "response": {
+        "status": 401,
+        "empty": true
+      }
+    },
+    {
+      "name": "terminate-account-without-an-idempotency-key",
+      "request": {
+        "method": "DELETE",
+        "path": "/accounts/{{accountId}}"
+      },
+      "response": {
+        "status": 400,
+        "code": "IdempotencyKeyRequired"
+      }
+    },
+    {
+      "name": "terminate-an-account-of-another-reseller",
+      "requires": [
+        "foreignAccountId"
+      ],
+      "request": {
+        "method": "DELETE",
+        "path": "/accounts/{{foreignAccountId}}",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-terminate-foreign"
+        }
+      },
+      "response": {
+        "status": 404,
+        "code": "AccountNotFound"
+      }
+    },
+    {
+      "name": "terminate-account-when-the-final-backup-fails",
+      "note": "The deletion is refused and the account stays as it was. The answer is a server error, not a conflict; a server error is not stored, so the same Idempotency-Key may be sent again.",
+      "arrange": "finalBackupFails",
+      "request": {
+        "method": "DELETE",
+        "path": "/accounts/{{accountId}}",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-terminate-backup"
+        }
+      },
+      "response": {
+        "status": 500,
+        "code": "FinalBackupFailed"
+      }
+    },
+    {
+      "name": "read-account-after-the-refused-termination",
+      "request": {
+        "method": "GET",
+        "path": "/accounts/{{accountId}}"
+      },
+      "response": {
+        "status": 200,
+        "properties": [
+          {
+            "name": "id",
+            "type": "guid",
+            "equalsVariable": "accountId"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "primaryDomain",
+            "type": "string"
+          },
+          {
+            "name": "planId",
+            "type": "guid"
+          },
+          {
+            "name": "status",
+            "type": "string",
+            "equals": "active"
+          },
+          {
+            "name": "statusName",
+            "type": "string"
+          },
+          {
+            "name": "createdAt",
+            "type": "instant"
+          },
+          {
+            "name": "resellerId",
+            "type": "guid"
+          },
+          {
+            "name": "resellerName",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "terminate-account",
+      "request": {
+        "method": "DELETE",
+        "path": "/accounts/{{accountId}}",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-terminate"
+        }
+      },
+      "response": {
+        "status": 200,
+        "properties": [
+          {
+            "name": "$",
+            "type": "integer"
+          }
+        ]
+      }
+    },
+    {
+      "name": "terminate-account-replayed-with-the-same-key",
+      "request": {
+        "method": "DELETE",
+        "path": "/accounts/{{accountId}}",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-terminate"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Idempotent-Replayed": "true"
+        },
+        "properties": [
+          {
+            "name": "$",
+            "type": "integer"
+          }
+        ]
+      }
+    },
+    {
+      "name": "read-account-after-termination",
+      "request": {
+        "method": "GET",
+        "path": "/accounts/{{accountId}}"
+      },
+      "response": {
+        "status": 404,
+        "code": "AccountNotFound"
+      }
+    },
+    {
+      "name": "terminate-account-again",
+      "request": {
+        "method": "DELETE",
+        "path": "/accounts/{{accountId}}",
+        "headers": {
+          "Idempotency-Key": "bc-{{run}}-terminate-again"
+        }
+      },
+      "response": {
+        "status": 404,
+        "code": "AccountNotFound"
+      }
+    }
+  ]
+}

@@ -16,8 +16,8 @@ use maran_agent_core::validation::web::php_version::PhpVersion;
 use super::RhelAdapter;
 use crate::AdapterBinary;
 use crate::{
-    AccountPrograms, BackupFacts, DatabaseFacts, FileTransferFacts, FirewallFacts, PackageFacts,
-    PhpFacts, SchedulingFacts, ServiceManagerFacts, WebServerFacts,
+    AccountPrograms, BackupFacts, DatabaseFacts, DnsFacts, FileTransferFacts, FirewallFacts,
+    MailFacts, PackageFacts, PhpFacts, SchedulingFacts, ServiceManagerFacts, WebServerFacts,
 };
 
 /// The RHEL family spawns the MariaDB client from the path its package installs it at.
@@ -210,12 +210,14 @@ fn no_tool_is_named_by_something_path_would_resolve() {
 /// The adapter traits' own sources (every concern trait `DistroAdapter` composes),
 /// read as text so the table below is checked against the traits and not against a
 /// number somebody has to remember to bump.
-const TRAIT_SOURCES: [&str; 10] = [
+const TRAIT_SOURCES: [&str; 12] = [
     include_str!("../../account_programs.rs"),
     include_str!("../../backup_facts.rs"),
     include_str!("../../database_facts.rs"),
+    include_str!("../../dns_facts.rs"),
     include_str!("../../file_transfer_facts.rs"),
     include_str!("../../firewall_facts.rs"),
+    include_str!("../../mail_facts.rs"),
     include_str!("../../package_facts.rs"),
     include_str!("../../php_facts.rs"),
     include_str!("../../scheduling_facts.rs"),
@@ -242,7 +244,7 @@ fn declared_binary_methods() -> usize {
 
 /// Every program the RHEL adapter lets the agent execute, with the method that names it.
 ///
-/// One entry per `AdapterBinary`-returning method of the trait (30 fixed paths
+/// One entry per `AdapterBinary`-returning method of the trait (the fixed paths
 /// plus the version-built php-fpm validator). `sh` and the login shell are not
 /// here: they are written somewhere, never executed by the agent, so they stay
 /// plain strings (see the type assertion below).
@@ -260,6 +262,9 @@ fn every_executable() -> Vec<(&'static str, AdapterBinary)> {
         ("database_dump", RhelAdapter.database_dump_binary()),
         ("mysql_client", RhelAdapter.mysql_client_binary()),
         ("vsftpd", RhelAdapter.vsftpd_binary()),
+        ("dns_checkconf", RhelAdapter.dns_checkconf_binary()),
+        ("dns_checkzone", RhelAdapter.dns_checkzone_binary()),
+        ("dns_control", RhelAdapter.dns_control_binary()),
         ("useradd", RhelAdapter.useradd_binary()),
         ("userdel", RhelAdapter.userdel_binary()),
         ("usermod", RhelAdapter.usermod_binary()),
@@ -283,6 +288,14 @@ fn every_executable() -> Vec<(&'static str, AdapterBinary)> {
         ("ssh-keygen", RhelAdapter.ssh_keygen_binary()),
         ("crontab", RhelAdapter.crontab_binary()),
         ("nft", RhelAdapter.nft_binary()),
+        ("postfix", RhelAdapter.postfix_binary()),
+        ("postconf", RhelAdapter.postconf_binary()),
+        ("postmap", RhelAdapter.postmap_binary()),
+        ("postqueue", RhelAdapter.postqueue_binary()),
+        ("postsuper", RhelAdapter.postsuper_binary()),
+        ("doveadm", RhelAdapter.doveadm_binary()),
+        ("doveconf", RhelAdapter.doveconf_binary()),
+        ("rspamadm", RhelAdapter.rspamadm_binary()),
     ]
 }
 
@@ -374,6 +387,14 @@ fn sh_and_nologin_stay_plain_paths_and_are_not_executable_typed() {
 
     assert!(sh.starts_with('/'));
     assert!(nologin.starts_with('/'));
+}
+
+/// The RHEL family documents `/bin/bash` for a login shell, and a login shell is a
+/// different path from the shell of an account that must not log in.
+#[test]
+fn the_rhel_family_names_its_documented_bash_and_not_its_nologin_shell() {
+    assert_eq!(RhelAdapter.bash_shell(), "/bin/bash");
+    assert_ne!(RhelAdapter.bash_shell(), RhelAdapter.nologin_shell());
 }
 
 /// The Rhel family keeps `at` job files in the directory its `at` package spools to.
@@ -474,4 +495,32 @@ fn the_rhel_family_reads_the_reboot_probe_status() {
         RhelAdapter.read_reboot_probe_run(127),
         Err(crate::RebootProbeFailure::Unsuccessful { status: 127 })
     );
+}
+
+/// The RHEL family names the daemon's checkers and control client by absolute path.
+#[test]
+fn the_rhel_family_names_the_dns_checkers_and_control_client() {
+    assert_eq!(
+        RhelAdapter.dns_checkconf_binary(),
+        "/usr/sbin/named-checkconf"
+    );
+    assert_eq!(
+        RhelAdapter.dns_checkzone_binary(),
+        "/usr/sbin/named-checkzone"
+    );
+    assert_eq!(RhelAdapter.dns_control_binary(), "/usr/sbin/rndc");
+}
+
+/// The RHEL family runs the DNS daemon as `named`, whose group is the one the control key is readable by.
+#[test]
+fn the_rhel_family_runs_the_dns_daemon_as_its_own_user_and_group() {
+    assert_eq!(RhelAdapter.dns_user(), "named");
+    assert_eq!(RhelAdapter.dns_group(), "named");
+}
+
+/// Zone files sit below the daemon's state directory, never beside it, so a zone name can never name the zone-list store.
+#[test]
+fn the_rhel_family_keeps_zone_files_below_the_dns_state_directory() {
+    assert_eq!(RhelAdapter.dns_state_directory(), "/var/named/maran");
+    assert_eq!(RhelAdapter.dns_zone_directory(), "/var/named/maran/zones");
 }

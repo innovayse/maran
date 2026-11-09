@@ -24,6 +24,9 @@
   <data name="ListSearchInvalid">
     <value>Որոնման տեքստը պարունակում է անթույլատրելի նիշեր։</value>
   </data>
+  <data name="SearchTermTooShort">
+    <value>Որոնման տեքստը պետք է պարունակի առնվազն 2 նիշ։</value>
+  </data>
   <data name="ListSortUnknown">
     <value>Այս ցուցակը հնարավոր չէ դասավորել այդ կերպ։</value>
   </data>

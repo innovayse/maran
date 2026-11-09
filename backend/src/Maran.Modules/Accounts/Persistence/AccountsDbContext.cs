@@ -17,7 +17,8 @@ namespace Maran.Modules.Accounts.Persistence;
 /// decision per kind of caller. An administrator sees every row. A reseller sees the rows it owns —
 /// its accounts, its plans and its own reseller row, and no other reseller's, so one cannot even
 /// learn that another exists through this context. A customer sees the one account it acts for and
-/// that account's plan, and no reseller. The anonymous caller and a customer login acting for no
+/// that account's plan, and no reseller. An API key sees what the reseller that owns it sees, and a
+/// key the administrator owns sees nothing. The anonymous caller and a customer login acting for no
 /// account see nothing. A handler that forgets a <c>Where</c> therefore cannot return another
 /// tenant's row, and the row that is hidden answers exactly like one that does not exist (404, never
 /// 403).
@@ -82,6 +83,15 @@ public sealed class AccountsDbContext : DbContext
         }
     }
 
+    /// <summary>What resellers chose their customers' shell should show: one row per reseller that set any of it.</summary>
+    public DbSet<ResellerBranding> ResellerBrandings
+    {
+        get
+        {
+            return Set<ResellerBranding>();
+        }
+    }
+
     /// <summary>
     /// Whether the caller may see every account, plan and reseller: true only for an administrator.
     /// Read per context instance by the filters, which an expression tree cannot express as a type
@@ -107,7 +117,9 @@ public sealed class AccountsDbContext : DbContext
 
     /// <summary>
     /// The one reseller the caller acts for, or null when the caller is not a reseller (which narrows
-    /// to nothing here, never to everything: every filter checks for null before it compares).
+    /// to nothing here, never to everything: every filter checks for null before it compares). An API
+    /// key a reseller owns acts for that reseller, so it is narrowed exactly as the reseller's login is;
+    /// a key the administrator owns carries no reseller and is narrowed to nothing.
     /// </summary>
     private Guid? ResellerScope
     {
@@ -116,9 +128,9 @@ public sealed class AccountsDbContext : DbContext
             return _currentUser.Caller switch
             {
                 ResellerCaller reseller => reseller.ResellerId,
+                ApiKeyCaller key => key.ResellerId,
                 AdministratorCaller => null,
                 CustomerCaller => null,
-                ApiKeyCaller => null,
                 AnonymousCaller => null,
                 AccountlessCustomerCaller => null,
                 _ => throw new UnreachableException("Caller is sealed to SharedKernel: six cases exist."),
@@ -155,6 +167,7 @@ public sealed class AccountsDbContext : DbContext
         modelBuilder.ApplyConfiguration(new AccountConfiguration());
         modelBuilder.ApplyConfiguration(new PlanConfiguration());
         modelBuilder.ApplyConfiguration(new ResellerConfiguration());
+        modelBuilder.ApplyConfiguration(new ResellerBrandingConfiguration());
 
         // Fail closed (see the type's remarks). Every scope is compared only after a null check: EF
         // compares a nullable column with a null parameter as "both null", which would hand a caller
@@ -176,6 +189,17 @@ public sealed class AccountsDbContext : DbContext
         // A customer is never shown a reseller row, so only the administrator and the reseller itself match.
         modelBuilder.Entity<Reseller>().HasQueryFilter(reseller =>
             SeesEveryRow || (ResellerScope != null && reseller.Id == ResellerScope));
+
+        // The one reseller row a customer may read, and only this slice of it: a reseller's branding is
+        // meant for its customers. A customer matches the branding of the reseller that owns the account
+        // it acts for (the subquery is itself narrowed by the Account filter above); a reseller matches
+        // its own; a caller with no scope matches nothing.
+        modelBuilder.Entity<ResellerBranding>().HasQueryFilter(branding =>
+            SeesEveryRow
+            || (ResellerScope != null && branding.ResellerId == ResellerScope)
+            || (CustomerAccountScope != null
+                && Set<Account>().Any(account =>
+                    account.Id == CustomerAccountScope && account.ResellerId == branding.ResellerId)));
 
         base.OnModelCreating(modelBuilder);
     }

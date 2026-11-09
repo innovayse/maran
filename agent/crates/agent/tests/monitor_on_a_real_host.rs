@@ -50,9 +50,9 @@ use maran_distro::{
     detect,
 };
 use maran_ops::monitor::{
-    AccountSelection, MachineIdentity, PrimaryInterface, ProcessMonitorHost, ServiceState,
-    ServiceStatus, SftpJailStatus, get_accounts_disk_usage, get_host_metrics,
-    get_reboot_requirement, get_server_fingerprint_inputs, get_service_statuses,
+    AccountSelection, ClockSyncState, MachineIdentity, PrimaryInterface, ProcessMonitorHost,
+    ServiceState, ServiceStatus, SftpJailStatus, get_accounts_disk_usage, get_clock_sync,
+    get_host_metrics, get_reboot_requirement, get_server_fingerprint_inputs, get_service_statuses,
     get_sftp_jail_status, list_pending_updates,
 };
 
@@ -66,6 +66,12 @@ use polygon_account::PolygonAccount;
 /// apart — and a suite whose overrides land nowhere would report every unit in
 /// its default state and assert that happily.
 const UNIT_STATE_DIRECTORY: &str = "/run/polygon-units";
+
+/// Where the polygon's `timedatectl` stand-in keeps the recorded clock state.
+///
+/// It MUST match `STATE_FILE` in `docker/polygon/stand-ins/timedatectl-stand-in.sh`,
+/// written out here for the reason `UNIT_STATE_DIRECTORY` is.
+const CLOCK_STATE_FILE: &str = "/run/polygon-clock/state";
 
 /// Position of the web server in `DistroAdapter::managed_units`' fixed order.
 const WEB_SERVER: usize = 0;
@@ -722,4 +728,39 @@ fn the_reboot_probe_answers_from_the_host_and_an_absent_probe_is_an_error_not_a_
             }
         }
     }
+}
+
+#[test]
+#[ignore = "reads the clock through the polygon's timedatectl stand-in: polygon only"]
+fn the_clock_is_readable_in_a_container_with_no_init_and_follows_what_the_host_reports() {
+    PolygonAccount::require_polygon();
+    let host = ProcessMonitorHost::new();
+    let state_file = Path::new(CLOCK_STATE_FILE);
+    let _ = std::fs::remove_file(state_file);
+
+    // A container boots no systemd, so the real timedatectl could never answer;
+    // an answer at all is what the dev stack was missing (issue #392).
+    let healthy = get_clock_sync(&host, polygon_distro())
+        .unwrap_or_else(|error| panic!("the clock must be readable in the polygon: {error}"));
+    assert_eq!(healthy, ClockSyncState::Synchronized);
+
+    // The same call, a different answer: the reading follows the host rather
+    // than echoing a constant, so the agent can still say no here.
+    std::fs::create_dir_all(state_file.parent().unwrap()).unwrap();
+    for (word, expected) in [
+        ("notSynchronized", ClockSyncState::NotSynchronized),
+        ("syncServiceDisabled", ClockSyncState::SyncServiceDisabled),
+    ] {
+        std::fs::write(state_file, word).unwrap();
+        let reading = get_clock_sync(&host, polygon_distro())
+            .unwrap_or_else(|error| panic!("`{word}` must be readable: {error}"));
+        assert_eq!(reading, expected, "recorded `{word}`");
+    }
+
+    // Restored, so the next test starts from the state this one found.
+    std::fs::remove_file(state_file).unwrap();
+    assert_eq!(
+        get_clock_sync(&host, polygon_distro()).unwrap(),
+        ClockSyncState::Synchronized
+    );
 }

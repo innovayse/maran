@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
 use maran_agent_core::validation::db::database_name::DatabaseName;
+use maran_agent_core::validation::secrets::archive_key::ArchiveKey;
 use maran_agent_core::validation::system::backup_id::BackupId;
 use maran_agent_core::validation::system::local_backup_root::LocalBackupRoot;
 use maran_agent_core::validation::system::name::AccountName;
@@ -16,10 +17,14 @@ use crate::backup::backup_host::BackupHost;
 use crate::backup::backup_root::prepare_account_directory;
 use crate::backup::finalise_restore::{HOME_MODE, finalise_restore};
 use crate::backup::model::restore_outcome::RestoreOutcome;
+use crate::backup::model::restore_scope::RestoreScope;
 use crate::backup::model::restore_sink::RestoreSink;
 use crate::backup::object_key::{artifact_file_name, sidecar_file_name};
 use crate::backup::prepare_restore::prepare_restore;
 use crate::backup::replace_databases::replace_databases;
+use crate::backup::restore_databases_only::restore_databases_only;
+use crate::backup::restore_directory::restore_directory;
+use crate::backup::restore_files_plan::RestoreFilesPlan;
 use crate::backup::restore_marker_file::{
     remove_restore_marker, restore_marker_path, write_restore_marker,
 };
@@ -117,6 +122,33 @@ const ROOT_UID: u32 = 0;
 /// pre-restore backup happened inside this function would have no reason to
 /// check that anyone takes it.
 ///
+/// # A sealed (encrypted) archive
+///
+/// `key` is the archive key the panel holds for this destination, or `None`.
+/// A plain archive is restored exactly as before and the key is not looked at,
+/// so every backup taken before archives could be sealed stays restorable. A
+/// sealed archive is first checked against the panel's digest (step 1, over the
+/// stored bytes), then decrypted once into the root-only scratch (before step
+/// 2), and every later step reads that copy; with no key, or a key it does not
+/// open under, the restore stops there as [`BackupError::EncryptionKeyRequired`]
+/// or [`BackupError::ArtifactDecryptionFailed`], before anything is extracted
+/// and with the account untouched. The scratch needs room for a second copy of
+/// the archive, asked before the first byte is written.
+///
+/// # An imported archive (issue #127)
+///
+/// An artifact that arrived through `ImportBackup` carries `imported: true` in
+/// its sidecar, and its database dumps are text somebody else wrote. They are
+/// never loaded as the database superuser: every dump of the plan is scanned
+/// right after step 4, before the home is extracted and before anything is
+/// dropped, and a refused scan ends the restore there with the account
+/// untouched ([`BackupError::RestrictedLoadRefused`]). In step 6 each is then
+/// loaded by [`load_dump_restricted`](crate::backup::load_dump_restricted), a
+/// temporary user that holds that one database. The rollback dumps are this
+/// agent's own output and are reloaded as the superuser either way. The flag is
+/// the agent's own record, read from the sidecar that was just compared with the
+/// manifest, and never from the archive.
+///
 /// # Errors
 ///
 /// Every restore-side variant of [`BackupError`]. The ones that matter to a
@@ -139,9 +171,11 @@ pub fn restore_backup(
     backup_id: &BackupId,
     root: &LocalBackupRoot,
     allowed_databases: &[DatabaseName],
+    scope: &RestoreScope,
     expected_sha256: &str,
     home_group: u32,
     floor: &FreeSpaceFloor,
+    key: Option<&ArchiveKey>,
     sink: &mut dyn RestoreSink,
 ) -> Result<RestoreOutcome, BackupError> {
     let guard = take_account_lock(account).ok_or(BackupError::AlreadyRunning)?;
@@ -175,7 +209,9 @@ pub fn restore_backup(
             backup_id,
             &directory,
             allowed_databases,
+            scope,
             expected_sha256,
+            key,
             sink,
         )
     });
@@ -202,15 +238,22 @@ fn restore_in(
     backup_id: &BackupId,
     directory: &Path,
     allowed_databases: &[DatabaseName],
+    scope: &RestoreScope,
     expected_sha256: &str,
+    key: Option<&ArchiveKey>,
     sink: &mut dyn RestoreSink,
 ) -> Result<RestoreOutcome, BackupError> {
     // Before anything is staged or extracted: the home filesystem must still
     // have the floor left, or the extraction would fill it part-way and leave
-    // the account's home on a disk nothing else can write to either.
-    placement
-        .floor
-        .admit(host.available_bytes(&placement.home_root))?;
+    // the account's home on a disk nothing else can write to either. A
+    // single-database restore (issue #160) writes nothing into the home: its dump
+    // goes to the root-only scratch, whose room is asked before the first drop,
+    // so it is not held to the home filesystem's floor.
+    if !matches!(scope, RestoreScope::Database(_)) {
+        placement
+            .floor
+            .admit(host.available_bytes(&placement.home_root))?;
+    }
 
     let artifact = directory.join(artifact_file_name(backup_id));
     let sidecar = directory.join(sidecar_file_name(backup_id));
@@ -222,7 +265,9 @@ fn restore_in(
         &artifact,
         &sidecar,
         allowed_databases,
+        scope,
         expected_sha256,
+        key,
         sink,
     );
 
@@ -262,6 +307,16 @@ fn perform(
     planned: &RestorePlan,
     sink: &mut dyn RestoreSink,
 ) -> Result<RestoreOutcome, BackupError> {
+    // The two partial scopes (issue #160) have their own, narrower second half;
+    // everything below this match is the whole-account restore, unchanged.
+    match &planned.files {
+        RestoreFilesPlan::WholeHome => {}
+        RestoreFilesPlan::None => return restore_databases_only(placement, host, planned, sink),
+        RestoreFilesPlan::Directory(directory) => {
+            return restore_directory(placement, host, account, directory, sink);
+        }
+    }
+
     let total = u32::try_from(planned.databases.len()).unwrap_or(u32::MAX);
     let restored = replace_databases(placement, host, planned, sink)?;
 

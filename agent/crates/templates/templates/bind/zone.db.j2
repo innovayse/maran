@@ -1,0 +1,13 @@
+; Maran DNS zone. Rendered by maran-agent from the panel's records and replaced
+; whole on every change; an edit made here does not survive.
+$ORIGIN {{ origin }}
+$TTL {{ default_ttl }}
+@ IN SOA {{ primary_nameserver }} {{ hostmaster }} (
+        {{ serial }} ; serial
+        {{ refresh }} ; refresh
+        {{ retry }} ; retry
+        {{ expire }} ; expire
+        {{ negative_ttl }} ) ; negative caching ttl
+{% for nameserver in nameservers %}@ IN NS {{ nameserver }}
+{% endfor %}{% for record in records %}{{ record.owner }} {{ record.ttl }} IN {{ record.record_type }} {{ record.rdata }}
+{% endfor %}

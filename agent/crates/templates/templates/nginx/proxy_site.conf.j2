@@ -1,5 +1,6 @@
 # Rendered by Maran. Do not edit: this file is replaced whenever the site changes.
-server {
+{% if let Some(rate) = options.request_rate %}limit_req_zone $binary_remote_addr zone={{ rate.zone }}:1m rate={{ rate.per_second }}r/s;
+{% endif %}server {
     listen 80;
     listen [::]:80;
     server_name {{ domain }}{% for alias in aliases %} {{ alias }}{% endfor %};
@@ -12,7 +13,11 @@ server {
         # (see SiteBody).
         disable_symlinks if_not_owner;
         default_type "text/plain";
-    }
+{% if options.restricts_access() %}        # A site-wide password or address list must not reach the certificate
+        # authority: this location answers everyone.
+        auth_basic off;
+        allow all;
+{% endif %}    }
 
 {% if ssl.is_some() %}    location / {
         return 301 https://$host$request_uri;

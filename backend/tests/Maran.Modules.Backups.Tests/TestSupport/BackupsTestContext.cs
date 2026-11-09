@@ -5,6 +5,7 @@ using Maran.Modules.Backups.Resources;
 using Maran.Modules.Backups.Services;
 using Maran.SharedKernel.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -31,7 +32,30 @@ public static class BackupsTestContext
         var builder = new DbContextOptionsBuilder<BackupsDbContext>()
             .UseInMemoryDatabase(databaseName ?? Guid.NewGuid().ToString());
 
-        return new BackupsDbContext(builder.Options, currentUser);
+        return new BackupsDbContext(builder.Options, currentUser, new MarkingEncryptionService());
+    }
+
+    /// <summary>
+    /// Builds a context whose encrypted columns use a cipher that changes nothing, so the model's
+    /// converter shows what the column would store for a value.
+    /// </summary>
+    /// <param name="currentUser">The principal whose tenant scope the context is bound to.</param>
+    /// <param name="databaseName">The in-memory database to open.</param>
+    /// <returns>A context whose model converts encrypted columns with the identity function.</returns>
+    /// <remarks>
+    /// It exists to be the positive control of a test that a column is encrypted at rest. The in-memory
+    /// provider keeps the CLR value and never applies a converter to what it stores, so what a column
+    /// would hold can only be observed on the model's converter; the identity-cipher model shows that
+    /// the probe can tell a converter that encrypts from one that does not. The stored bytes themselves
+    /// are asserted against PostgreSQL in <c>BackupDestinationTests</c>.
+    /// </remarks>
+    public static BackupsDbContext CreateReadingRaw(ICurrentUser currentUser, string databaseName)
+    {
+        var builder = new DbContextOptionsBuilder<BackupsDbContext>()
+            .UseInMemoryDatabase(databaseName)
+            .ReplaceService<IModelCacheKeyFactory, RawReadModelCacheKeyFactory>();
+
+        return new BackupsDbContext(builder.Options, currentUser, new IdentityEncryptionService());
     }
 
     /// <summary>The directory a healthy agent reports writing backups into.</summary>

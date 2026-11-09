@@ -33,8 +33,8 @@ namespace Maran.Modules.Accounts.Commands.SuspendReseller;
 /// </para>
 /// <para>
 /// <b>Idempotent, and the event is repeated on purpose.</b> Suspending a suspended reseller changes no
-/// row, but the login is asked again, so a login that somehow came back (a restored backup, a manual
-/// edit) is closed by repeating the call.
+/// reseller row (the repeat still journals its own audit entry), but the login is asked again, so a
+/// login that somehow came back (a restored backup, a manual edit) is closed by repeating the call.
 /// </para>
 /// </remarks>
 public sealed class SuspendResellerCommandHandler

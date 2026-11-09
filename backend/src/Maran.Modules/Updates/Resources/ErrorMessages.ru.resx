@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="PanelUpdateRunning">
+    <value>Обновление уже поставлено в очередь или выполняется.</value>
+  </data>
+  <data name="PanelUpdateUnavailable">
+    <value>Панель сейчас не может запустить обновление на этом сервере.</value>
+  </data>
+  <data name="PanelUpdateRefused">
+    <value>Обновление было отклонено до внесения каких-либо изменений. Запустите обновление из командной строки сервера, чтобы увидеть причину.</value>
+  </data>
+  <data name="PanelUpdateRolledBack">
+    <value>Обновление не прошло проверку работоспособности, и панель вернулась к предыдущей версии. База данных не восстанавливалась.</value>
+  </data>
+  <data name="PanelUpdateRollbackFailed">
+    <value>Обновление не удалось, и предыдущая версия тоже не заработала корректно. Проверьте сервер из командной строки.</value>
+  </data>
+  <data name="PanelUpdateInterrupted">
+    <value>Обновление было прервано после переключения на новую версию. Проверьте сервер из командной строки.</value>
+  </data>
+  <data name="PanelUpdateNotStarted">
+    <value>Обновление не началось: служба обновления сервера не приняла запрос.</value>
+  </data>
+  <data name="PanelUpdateOutcomeUnknown">
+    <value>Обновление завершилось, не сообщив результат. Проверьте, какая версия панели работает сейчас.</value>
+  </data>
+</root>

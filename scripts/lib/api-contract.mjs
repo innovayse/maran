@@ -216,7 +216,8 @@ const readPolymorphicBase = (typeName) => {
  * Reads the member names of a C# enum, in the wire spelling the panel serialises them with.
  *
  * The Host registers `JsonStringEnumConverter(JsonNamingPolicy.CamelCase)`, so an enum crosses as
- * its camelCased member name.
+ * its camelCased member name, unless the member carries `[JsonStringEnumMemberName("...")]`, which
+ * states the wire spelling exactly (a value such as `tar.gz` is not an identifier).
  *
  * **A `[Flags]` enum is read as its single flags.** Its zero member and its composite members
  * (`None`, `All`) name SETS, not values: a list of them crosses the wire one flag per element, and
@@ -241,13 +242,36 @@ const readEnumMembers = (typeName) => {
     const value = BigInt(initializer.replace(/L$/, ''))
     return value > 0n && (value & (value - 1n)) === 0n
   }
-  return body
-    .split(',')
-    .map((entry) => entry.split('='))
-    .filter(([name]) => /^[A-Za-z_]\w*$/.test(name.trim()))
-    .filter(([, initializer]) => !isFlags || isSingleFlag((initializer ?? '').trim()))
-    .map(([name]) => name.trim())
-    .map((entry) => entry[0].toLowerCase() + entry.slice(1))
+  // Split on commas outside an attribute's brackets and quotes; `<` is not a bracket here, because
+  // an initializer such as `1L << 3` would unbalance the generic-type-aware splitter above.
+  const entries = []
+  let depth = 0
+  let quoted = false
+  let current = ''
+  for (const char of body) {
+    if (char === '"') quoted = !quoted
+    if (!quoted && char === '[') depth += 1
+    if (!quoted && char === ']') depth -= 1
+    if (char === ',' && depth === 0 && !quoted) {
+      entries.push(current)
+      current = ''
+      continue
+    }
+    current += char
+  }
+  entries.push(current)
+  return entries
+    .map((raw) => {
+      const attributes = (raw.match(/\[[^\]]*\]/g) ?? []).join('')
+      const [name, initializer] = raw.replace(/\[[^\]]*\]/g, '').split('=')
+      // `[JsonStringEnumMemberName("tar.gz")]` states the member's exact wire spelling; it is not
+      // camel-cased, because the serializer takes it as written.
+      const named = /JsonStringEnumMemberName\(\s*"([^"]*)"\s*\)/.exec(attributes)
+      return { name: name.trim(), initializer: (initializer ?? '').trim(), wire: named ? named[1] : null }
+    })
+    .filter((entry) => /^[A-Za-z_]\w*$/.test(entry.name))
+    .filter((entry) => !isFlags || isSingleFlag(entry.initializer))
+    .map((entry) => entry.wire ?? entry.name[0].toLowerCase() + entry.name.slice(1))
 }
 
 /**
@@ -279,6 +303,9 @@ const SCALARS = new Map([
   ['float', 'number'],
   ['decimal', 'number'],
   ['bool', 'boolean'],
+  // A secret the panel masks in logs; its registered JSON converter reads and writes a plain JSON string
+  // (backend/src/Maran.SharedKernel/Security/SensitiveStringJsonConverter.cs), so on the wire it IS a string.
+  ['SensitiveString', 'string'],
 ])
 
 const COLLECTIONS = /^(IReadOnlyList|IReadOnlyCollection|IList|ICollection|List|IEnumerable)<(.+)>$/
@@ -385,6 +412,36 @@ const readEndpoints = () => {
       endpoints.push({
         verb: match[1].toUpperCase(),
         path: `/${route[1]}${suffix}`.replace(/\{[^}]*\}/g, '{}'),
+        command: body ? body[1] : null,
+        file: relative(ROOT, file),
+      })
+    }
+  }
+  return [...endpoints, ...readMinimalEndpoints()]
+}
+
+/**
+ * Reads the minimal-API endpoints that change something: `endpoints.MapPost("/api/v1/x", async
+ * ([FromBody] XRequest request, ...) => ...)`. They are rare (the Host's global search is the one that
+ * takes a body) and they bind a body exactly as a controller action does, so the same comparison
+ * applies; they are reached by one rule only: the body parameter is stated with `[FromBody]`, as it
+ * is on a controller. An implicit body (a complex-type parameter with no attribute) is not guessed
+ * at, because telling it from a service parameter needs the container, so that endpoint binds no
+ * command here and a SPA body sent to it fails as "binds no [FromBody] command".
+ * @returns {{verb: string, path: string, command: string|null, file: string}[]} One entry per endpoint.
+ */
+const readMinimalEndpoints = () => {
+  const endpoints = []
+  for (const file of csharpFiles) {
+    const text = stripComments(readFileSync(file, 'utf8'))
+    const call = /\.Map(Post|Put|Patch|Delete)\(\s*"([^"]+)"\s*,\s*(?:async\s*)?\(/g
+    let match
+    while ((match = call.exec(text)) !== null) {
+      const parameters = balanced(text, match.index + match[0].length - 1)
+      const body = /\[FromBody\]\s+([A-Za-z_][\w.]*)\s+\w+/.exec(parameters)
+      endpoints.push({
+        verb: match[1].toUpperCase(),
+        path: match[2].replace(/\{[^}]*\}/g, '{}'),
         command: body ? body[1] : null,
         file: relative(ROOT, file),
       })
@@ -832,6 +889,22 @@ const selfTest = () => {
         problems.push(`refusing control '${entry.label}' was not refused for the right reason (got: ${raised.join(' / ') || 'nothing'})`)
       }
     })
+    // An enum member that states its wire spelling is read as stated, and one that does not is
+    // camel-cased. The accepting half (`tar.gz` survives) and the refusing half (a plain member is
+    // NOT left as `Plain`) are one assertion on purpose: a reader mutated either way changes it.
+    plantedSources.set('SelfArchiveKind', `
+      public enum SelfArchiveKind
+      {
+          [JsonStringEnumMemberName("zip")]
+          Zip,
+          [JsonStringEnumMemberName("tar.gz")]
+          TarGz,
+          PlainMember = 2,
+      }`)
+    const archiveKinds = (readEnumMembers('SelfArchiveKind') ?? []).join('|')
+    if (archiveKinds !== 'zip|tar.gz|plainMember') {
+      problems.push(`enum wire spelling control read '${archiveKinds}', expected 'zip|tar.gz|plainMember'`)
+    }
   } finally {
     checker = realChecker
     plantedSources.clear()
@@ -847,7 +920,7 @@ if (selfProblems.length > 0) {
   for (const problem of selfProblems) console.error(`  ${problem}`)
   process.exit(2)
 }
-console.log(`api-contract: self-test passed — ${SELF_CASES.length} planted union controls (accepting and refusing).`)
+console.log(`api-contract: self-test passed — ${SELF_CASES.length} planted union controls and one enum spelling control (accepting and refusing).`)
 if (process.argv.includes('--selftest')) process.exit(0)
 
 const endpoints = readEndpoints()

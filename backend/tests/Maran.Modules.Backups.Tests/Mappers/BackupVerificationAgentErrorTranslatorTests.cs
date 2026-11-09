@@ -9,13 +9,14 @@ namespace Maran.Modules.Backups.Tests.Mappers;
 /// </summary>
 public sealed class BackupVerificationAgentErrorTranslatorTests
 {
-    /// <summary>The two refusals that are findings are named with this module's own codes.</summary>
+    /// <summary>The three refusals that are findings are named with this module's own codes.</summary>
     /// <param name="agentCode">The code the agent client reported.</param>
     /// <param name="type">The kind it carried.</param>
     /// <param name="finding">The finding the module records.</param>
     [Theory]
     [InlineData("AgentValidationFailed", ErrorType.Validation, "BackupVerificationFailed")]
     [InlineData("AgentNotFound", ErrorType.NotFound, "BackupVerificationArtifactMissing")]
+    [InlineData("AgentArchiveUnopenable", ErrorType.Validation, "BackupVerificationArchiveKeyRejected")]
     public void A_refusal_about_the_artifact_is_named_as_a_finding(string agentCode, ErrorType type, string finding)
     {
         Assert.Equal(finding, BackupVerificationAgentErrorTranslator.ToFindingCode(Error.Of(agentCode, type)));

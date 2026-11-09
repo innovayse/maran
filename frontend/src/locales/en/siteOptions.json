@@ -1,0 +1,73 @@
+{
+  "siteOptions": {
+    "tabLabel": "Options",
+    "saved": "The options were saved.",
+    "save": "Save options",
+    "saving": "Saving…",
+    "errors": {
+      "notANumber": "Enter a whole number, or leave the field empty.",
+      "burstNeedsRate": "Enter a requests-per-second limit too, or clear the burst."
+    },
+    "canonicalHost": {
+      "heading": "Main name",
+      "subtitle": "Send visitors who arrive on the other form of your name to the one you choose, so every page has a single address.",
+      "label": "Main name"
+    },
+    "limits": {
+      "heading": "Uploads and caching",
+      "subtitle": "How large a request may be, and how long browsers may keep your static files.",
+      "uploadLabel": "Largest upload (MiB)",
+      "uploadPlaceholder": "Server default",
+      "uploadHint": "From {minimum} to {maximum} MiB; leave empty for the server's default. PHP has upload limits of its own, and the smaller of the two applies. Applies to PHP and reverse-proxied sites.",
+      "cacheLabel": "Browser cache for static files (days)",
+      "cachePlaceholder": "No cache headers",
+      "cacheHint": "From {minimum} to {maximum} days; leave empty to send no cache headers. Applies to PHP and static sites."
+    },
+    "redirects": {
+      "heading": "Redirects",
+      "subtitle": "Send visitors from an old address to a new one. Rules are applied for the paths you list.",
+      "empty": "This site has no redirects.",
+      "pathLabel": "Path of rule {number}",
+      "pathPlaceholder": "/old-page",
+      "matchLabel": "Applies to, rule {number}",
+      "targetLabel": "Send to, rule {number}",
+      "targetPlaceholder": "https://example.com/new-page or /new-page",
+      "statusLabel": "Kind of redirect, rule {number}",
+      "remove": "Remove rule {number}",
+      "add": "Add a redirect",
+      "limit": "{count} of {maximum} rules"
+    },
+    "basicAuth": {
+      "heading": "Password protection",
+      "subtitle": "Ask visitors for a user name and a password before they see any page. Certificate renewal keeps working.",
+      "empty": "This site is open to everyone.",
+      "nameLabel": "User name {number}",
+      "passwordLabel": "Password for user {number}",
+      "keepPlaceholder": "Leave empty to keep the current password",
+      "remove": "Remove user {number}",
+      "add": "Add a user",
+      "hint": "{count} of {maximum} users. Passwords are at least {length} characters and are never shown again.",
+      "confirmTitle": "Turn on password protection",
+      "confirmQuestion": "From now on every visitor, search engines included, must sign in with one of these users to see any page of this site. Make sure you have noted the password.",
+      "confirmAction": "Turn on protection"
+    },
+    "ipRules": {
+      "heading": "Access by address",
+      "subtitle": "Let in only some networks, or keep some networks out.",
+      "modeLabel": "What the list does",
+      "listLabel": "Addresses",
+      "listPlaceholder": "203.0.113.5\n198.51.100.0/24",
+      "hint": "One address or range per line, up to {maximum}. A list that allows only some addresses locks out everyone else, you included; leave it empty for no restriction."
+    },
+    "requestRate": {
+      "heading": "Request limit",
+      "subtitle": "Slow down a visitor address that asks for too many pages too quickly. Over the limit, the site answers “too many requests” (429). Leave the limit empty for no restriction.",
+      "rateLabel": "Requests per second, per visitor",
+      "ratePlaceholder": "No limit",
+      "rateHint": "From {minimum} to {maximum}; leave empty for no limit. The limit counts the address that connects to the server: behind a proxy or CDN that is the proxy's address, so all its visitors share one limit.",
+      "burstLabel": "Extra requests allowed at once",
+      "burstPlaceholder": "None",
+      "burstHint": "From {minimum} to {maximum}; leave empty for none. A burst lets a page that loads many files at once through without being refused. Used only together with a limit."
+    }
+  }
+}

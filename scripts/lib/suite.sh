@@ -506,9 +506,22 @@ suite_run() {
       # executed nothing for exactly that reason. Choosing a free port removes the collision; the
       # number is printed so a reader of the log knows which server was measured.
       echo "harness: E2E_PORT=$port (chosen free; override by exporting E2E_PORT)" >"$log"
+      # SUITE_SPA_SPECS narrows the run to the listed spec files (one path relative to `e2e/` per
+      # line). It is set by exactly one caller, scripts/lib/spa-shards.sh, whose combine step proves
+      # that the slices of all shards are disjoint and add up to the whole suite and then scores the
+      # sum against the baseline; `maran test spa` itself refuses every narrowing flag and leaves
+      # the variable unset. Each path becomes an anchored, escaped regex, because Playwright takes
+      # its positional arguments as regular expressions matched against the file's full path.
+      local spec_args=() spec_file
+      if [ -n "${SUITE_SPA_SPECS:-}" ]; then
+        while IFS= read -r spec_file; do
+          [ -n "$spec_file" ] || continue
+          spec_args+=("/e2e/$(printf '%s' "$spec_file" | sed -E 's/[].*^$()+?{}|\\[]/\\&/g')\$")
+        done <<<"$SUITE_SPA_SPECS"
+      fi
       (cd "$root/frontend" &&
         E2E_PORT="$port" PLAYWRIGHT_JSON_OUTPUT_NAME="$log.json" \
-          npx playwright test --reporter=list,json) >>"$log" 2>&1 || true
+          npx playwright test --reporter=list,json ${spec_args[@]+"${spec_args[@]}"}) >>"$log" 2>&1 || true
       ;;
   esac
   return 0

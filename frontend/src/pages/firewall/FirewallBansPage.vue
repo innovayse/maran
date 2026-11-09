@@ -30,6 +30,7 @@ import FirewallBanForm from '../../components/firewall/FirewallBanForm.vue'
 import FirewallBansTable from '../../components/firewall/FirewallBansTable.vue'
 import { useListLabels } from '../../composables/useListLabels'
 import { useServerTable } from '../../composables/useServerTable'
+import { useQueryAction } from '../../composables/useQueryAction'
 import { useFirewallStore } from '../../stores/firewall'
 import type { Ban, BanAddressRequest } from '../../types/firewall'
 import type { ListLoad, ListRequest } from '../../types/list'
@@ -51,6 +52,9 @@ const table = useServerTable<Ban>({
 
 /** The ban form, so an accepted ban can empty the fields it owns. */
 const banForm = useTemplateRef<{ reset: () => void }>('banForm')
+
+/** A dashboard shortcut (`?action=create`) brings this form into view and focuses its first field. */
+useQueryAction(banForm)
 
 /** The confirmation shown after an accepted addition; `null` while there is none. */
 const notice: Ref<string | null> = ref(null)

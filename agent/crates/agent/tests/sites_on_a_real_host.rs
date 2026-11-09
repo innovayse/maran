@@ -37,11 +37,13 @@ use maran_agent_core::privs::priv_error::PrivError;
 use maran_agent_core::utils::bound_exceeded::BoundExceeded;
 use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::fs::file_mode::FileMode;
-use maran_agent_core::validation::fs::relative_path::RelativePath;
+use maran_agent_core::validation::fs::mutable_path::MutablePath;
+use maran_agent_core::validation::fs::upload_limit::UploadLimit;
 use maran_agent_core::validation::web::domain::Domain;
 use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_agent_core::validation::web::upstream::Upstream;
 use maran_distro::{DistroAdapter, adapter_for, detect};
+use maran_ops::files::model::buffered_upload::BufferedUpload;
 use maran_ops::files::{ProcessFilesHost, WriteFileInput};
 use maran_ops::php::ProcessPhpHost;
 use maran_ops::sites::{
@@ -131,6 +133,40 @@ fn a_php_site_is_written_and_the_real_nginx_accepts_it() {
     // from "nginx never reached it", which is what a missing include line looks
     // like — so the dump is asked whether the file is in the configuration it
     // actually loaded.
+    assert_nginx_loads(vhost);
+}
+
+#[test]
+#[ignore = "writes a real vhost and runs the real nginx -t: polygon only"]
+fn a_site_with_a_request_limit_is_written_and_the_real_nginx_accepts_every_directive_of_it() {
+    // Issue #159. The limit writes `limit_req_zone` at http level and `limit_req`,
+    // `limit_req_status` and `limit_req_log_level` at server level, with `nodelay`
+    // only beside a burst. A directive or a combination this nginx does not
+    // accept would make `nginx -t` refuse, and `create_site` would then refuse
+    // every limited site: this is the test that asks the real binary, on the
+    // real tree, for each shipped nginx version the polygon image carries.
+    PolygonAccount::require_polygon();
+    ensure_nginx_is_running();
+    let account = PolygonAccount::create("polysiteslimit");
+    let _pool = pool_guard(&account);
+    let domain = Domain::parse("limit.example.test").expect("a valid domain");
+    let rate = maran_agent_core::validation::web::request_rate::RequestRate::parse(20, 40)
+        .expect("a valid request limit");
+    let input = CreateSiteInput {
+        options: maran_ops::sites::SiteOptions::default().with_request_rate(Some(rate)),
+        ..php_site(&account, &domain)
+    };
+    let created = create_polygon_site(&ProcessSiteHost::new(), &input)
+        .unwrap_or_else(|error| panic!("a limited site must be accepted by nginx: {error}"));
+
+    let vhost = Path::new(&created.config_path);
+    let _vhost = PolygonConfigFile::at(vhost);
+    let contents = std::fs::read_to_string(vhost).expect("the vhost must be readable");
+    assert!(
+        contents.contains("limit_req zone=rl_limit.example.test burst=40 nodelay;"),
+        "the vhost must carry the limit that was asked for:\n{contents}"
+    );
+    assert_valid_nginx_tree("the vhost with a request limit");
     assert_nginx_loads(vhost);
 }
 
@@ -273,6 +309,7 @@ fn php_site(account: &PolygonAccount, domain: &Domain) -> CreateSiteInput {
             version: PhpVersion::parse(POLYGON_PHP_VERSION).expect("a valid PHP version"),
         },
         certificate: None,
+        options: Default::default(),
     }
 }
 
@@ -395,6 +432,7 @@ fn a_real_nginx_serves_a_site_out_of_the_accounts_own_home() {
         aliases: Vec::new(),
         kind: SiteKind::Static,
         certificate: None,
+        options: Default::default(),
     };
     let created = create_polygon_site(&ProcessSiteHost::new(), &input)
         .unwrap_or_else(|error| panic!("creating a static site must succeed: {error}"));
@@ -428,11 +466,13 @@ fn a_real_nginx_serves_a_site_out_of_the_accounts_own_home() {
                 &ProcessFilesHost::new(),
                 &WriteFileInput {
                     account: name,
-                    path: RelativePath::parse("sites/serves.example.test/index.html")
+                    path: MutablePath::parse("sites/serves.example.test/index.html")
                         .expect("the page path must be valid"),
-                    contents: SERVED_BODY.as_bytes().to_vec(),
                     mode: FileMode::parse(0o644).expect("a plain permission mode"),
+                    fail_if_exists: false,
+                    limit: UploadLimit::parse(0).expect("the default cap"),
                 },
+                &mut BufferedUpload::new(SERVED_BODY.as_bytes().to_vec()),
                 &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
                     .expect("a one-mebibyte floor"),
             )
@@ -747,7 +787,7 @@ const ACME_TOKEN_BODY: &str = "maran-acme-challenge-ok";
 fn write_as_account(account: &PolygonAccount, path: &str, contents: &str) {
     let written = within("the page write", {
         let name = account.name().clone();
-        let path = RelativePath::parse(path).expect("the page path must be valid");
+        let path = MutablePath::parse(path).expect("the page path must be valid");
         let contents = contents.as_bytes().to_vec();
         let length = contents.len() as u64;
         move || {
@@ -757,9 +797,11 @@ fn write_as_account(account: &PolygonAccount, path: &str, contents: &str) {
                     &WriteFileInput {
                         account: name,
                         path,
-                        contents,
                         mode: FileMode::parse(0o644).expect("a plain permission mode"),
+                        fail_if_exists: false,
+                        limit: UploadLimit::parse(0).expect("the default cap"),
                     },
+                    &mut BufferedUpload::new(contents),
                     &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
                         .expect("a one-mebibyte floor"),
                 ),
@@ -779,6 +821,7 @@ fn served_polygon_site(account: &PolygonAccount, domain: &Domain) -> CreateSiteI
         aliases: Vec::new(),
         kind: SiteKind::Static,
         certificate: None,
+        options: Default::default(),
     };
     create_polygon_site(&ProcessSiteHost::new(), &input)
         .unwrap_or_else(|error| panic!("creating a static site must succeed: {error}"));
@@ -1341,6 +1384,7 @@ fn served_site_input(account: &PolygonAccount, domain: &Domain) -> CreateSiteInp
         aliases: Vec::new(),
         kind: SiteKind::Static,
         certificate: None,
+        options: Default::default(),
     }
 }
 
@@ -1653,6 +1697,25 @@ impl SiteHost for RacingSiteHost {
         self.inner.remove_config(target, validator, reload)
     }
 
+    fn write_auth_file(
+        &self,
+        target: &Path,
+        contents: &str,
+        placement: &maran_ops::sites::model::auth_file_placement::AuthFilePlacement<'_>,
+        validator: &maran_ops::safe_write::model::Validator<'_>,
+    ) -> Result<(), SitesOpError> {
+        self.inner
+            .write_auth_file(target, contents, placement, validator)
+    }
+
+    fn remove_auth_file(&self, target: &Path) -> Result<(), SitesOpError> {
+        self.inner.remove_auth_file(target)
+    }
+
+    fn list_auth_files(&self) -> Result<Vec<std::path::PathBuf>, SitesOpError> {
+        self.inner.list_auth_files()
+    }
+
     fn resolve_in_account_home(
         &self,
         account: &maran_agent_core::validation::system::name::AccountName,
@@ -1682,6 +1745,7 @@ fn static_site(account: &PolygonAccount, domain: &Domain) -> CreateSiteInput {
         aliases: Vec::new(),
         kind: SiteKind::Static,
         certificate: None,
+        options: Default::default(),
     }
 }
 
@@ -2405,6 +2469,7 @@ fn a_link_in_a_proxy_sites_challenge_directory_is_refused() {
             upstream: Upstream::parse("127.0.0.1:9").expect("a valid upstream"),
         },
         certificate: None,
+        options: Default::default(),
     };
     create_polygon_site(&ProcessSiteHost::new(), &input)
         .unwrap_or_else(|error| panic!("creating a proxy site must succeed: {error}"));

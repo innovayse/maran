@@ -1,8 +1,10 @@
 using FluentValidation;
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Domain.Entities;
+using Maran.Modules.Accounts.Domain.ValueObjects;
 using Maran.Modules.Accounts.Interfaces;
 using Maran.Modules.Accounts.Resources;
+using Maran.Sdk.Contracts;
 using Maran.Sdk.Extensions;
 
 namespace Maran.Modules.Accounts.Validators;
@@ -82,6 +84,11 @@ public abstract class PlanDefinitionValidator<TCommand> : AbstractValidator<TCom
         RuleFor(command => command.MaxSftpUsers).InclusiveBetween(1, MaxCount);
         RuleFor(command => command.MaxFtpUsers).InclusiveBetween(0, MaxCount);
         RuleFor(command => command.MaxCronEntries).InclusiveBetween(0, MaxCount);
+        RuleFor(command => command.MaxDnsZones)
+            .Must(zones =>
+            {
+                return zones is null || (zones >= 0 && zones <= MaxCount);
+            });
         RuleFor(command => command.MaxPhpWorkersPerPool).InclusiveBetween(1, MaxWorkers);
 
         // Each stated feature must name exactly one feature: the JSON converter also accepts a number
@@ -116,6 +123,69 @@ public abstract class PlanDefinitionValidator<TCommand> : AbstractValidator<TCom
             {
                 CeilingRules(ceiling, MaxProcessCeiling);
             });
+
+        // The PHP bounds are optional: a request that does not state them keeps the default on creation
+        // and the current bounds on an edit. Stated, each must be positive and no larger than what the
+        // agent will ever write into a pool, so a plan cannot sell a figure the host refuses.
+        RuleFor(command => command.PhpLimits!)
+            .ChildRules(limits =>
+            {
+                PhpLimitsRules(limits);
+            })
+            .When(command =>
+            {
+                return command.PhpLimits is not null;
+            });
+
+        // The mail figures are optional like the PHP bounds: left out, creation sells the default and an
+        // edit keeps the current figures. Stated, each must sit in its range and the default quota of a
+        // new mailbox must fit the pool, so the value's own guard can never be the first to refuse.
+        RuleFor(command => command.MailLimits!)
+            .ChildRules(limits =>
+            {
+                MailLimitsRules(limits);
+            })
+            .When(command =>
+            {
+                return command.MailLimits is not null;
+            });
+    }
+
+    /// <summary>
+    /// The rules for stated mail figures, each in the range <see cref="MailLimits.Of"/> accepts, and the
+    /// default quota no larger than the pool (a pool already refused for its own range is not judged
+    /// again). Child rules rather than a validator class of its own, for the reason
+    /// <see cref="CeilingRules"/> gives.
+    /// </summary>
+    /// <param name="limits">The child validator for the stated figures.</param>
+    private static void MailLimitsRules(InlineValidator<MailLimitsDto> limits)
+    {
+        limits.RuleFor(l => l.MaxMailboxes).InclusiveBetween(0, MailLimits.MaxMailboxesBound);
+        limits.RuleFor(l => l.DefaultMailboxQuotaMib).InclusiveBetween(1, MailLimits.MaxQuotaMib);
+        limits.RuleFor(l => l.MailboxSendLimitPerHour).InclusiveBetween(1, MailLimits.MaxSendLimitPerHourBound);
+        limits.RuleFor(l => l.MailboxQuotaPoolMib).InclusiveBetween(1, MailLimits.MaxQuotaMib);
+        limits.RuleFor(l => l.DefaultMailboxQuotaMib)
+            .LessThanOrEqualTo(l => l.MailboxQuotaPoolMib)
+            .WithMessage(nameof(ErrorMessages.PlanMailLimitsInvalid))
+            .When(l =>
+            {
+                // A pool that is itself out of range is reported on the pool alone, not twice.
+                return l.MailboxQuotaPoolMib >= 1;
+            });
+    }
+
+    /// <summary>
+    /// The rules for stated PHP bounds: each from 1 to the agent's own ceiling for that setting
+    /// (<see cref="PhpSettingCeilings"/>, kept equal to the agent's table). Child rules rather than a
+    /// validator class of its own, for the reason <see cref="CeilingRules"/> gives.
+    /// </summary>
+    /// <param name="limits">The child validator for the stated bounds.</param>
+    private static void PhpLimitsRules(InlineValidator<PhpLimitsDto> limits)
+    {
+        limits.RuleFor(l => l.MemoryLimitMaxMb).InclusiveBetween(1, PhpSettingCeilings.MaxSizeMb);
+        limits.RuleFor(l => l.UploadMaxMb).InclusiveBetween(1, PhpSettingCeilings.MaxSizeMb);
+        limits.RuleFor(l => l.MaxExecutionSeconds).InclusiveBetween(1, PhpSettingCeilings.MaxExecutionSeconds);
+        limits.RuleFor(l => l.MaxInputVars).InclusiveBetween(1, PhpSettingCeilings.MaxInputVars);
     }
 
     /// <summary>

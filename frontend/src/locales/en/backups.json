@@ -70,7 +70,7 @@
       "keptOwnership": "Scheduled tasks, firewall rules, and SFTP and FTPS logins.",
       "keptExplanation": "A restore replaces what the copy holds and nothing else. It is not an undo: an account restored from a two-week-old copy is a two-week-old home under today's site configuration.",
       "pointOfNoReturn": "The point of no return is the first database that is dropped. Up to there nothing has been touched; after it, a database comes back only by loading a dump taken moments earlier, and that can itself fail.",
-      "noSafetyCopy": "No copy is taken of the account as it stands now. The panel does not back up before it restores, so today's state is not recoverable once this starts.",
+      "preRestoreCopy": "Before it replaces anything, the panel takes a backup of the account as it stands now and waits for it to finish. If that backup cannot be made, the restore does not start. The backup holds the home directory and the databases, so it can put those back; it can be found in the backup list.",
       "confirmLabel": "Account name",
       "confirmHint": "Type {name} exactly to confirm. It is not filled in for you.",
       "confirmHintUnknown": "This panel does not hold a name for the account this copy belongs to. Type the account's system user name; the server is what checks it.",
@@ -94,7 +94,29 @@
       "changedDatabasesValue": "{restored} of {total} replaced",
       "changedNoRetry": "Do not restore over it again. A second attempt on a half-replaced account can destroy what this one left usable. Read the task the panel recorded for this account, and the server's own log, before anything else is done to it.",
       "changedNoList": "The panel cannot list which databases were put back and which were not: the agent reports those names only in the log it writes on the server, and nothing carries them to the browser.",
-      "replacedNoDatabases": "The copy holds no database, so none is dropped or loaded."
+      "replacedNoDatabases": "The copy holds no database, so none is dropped or loaded.",
+      "scopeLegend": "What to restore",
+      "scopeWhole": "The whole account",
+      "scopeDatabase": "One database",
+      "scopeSite": "One site",
+      "scopeNote": "Only the part you choose is replaced. The panel still takes a backup of the whole account first. The list shows what the account has now, so a database or site created after this copy was taken will be refused.",
+      "scopeUnavailable": "The account's databases and sites could not be listed, so only the whole account can be restored from this copy.",
+      "databaseLabel": "Database",
+      "databasePlaceholder": "Choose a database",
+      "siteLabel": "Site",
+      "sitePlaceholder": "Choose a site",
+      "theChosenPart": "the part you choose",
+      "replacedOneDatabase": "The database {name} is dropped, re-created and loaded again from the copy. No file is touched.",
+      "replacedOneSite": "The files of the site {name} are replaced by the copy's. No database is touched.",
+      "keptRestOfDatabase": "The home directory and every other database.",
+      "keptRestOfSite": "Every other file in the home directory, and every database.",
+      "pointOfNoReturnSite": "The site's current files are moved aside and the copy's put in their place. Nothing is deleted until both moves have succeeded, and the backup taken first is the way back.",
+      "submitPart": "Restore this part",
+      "donePartTitle": "{name} was replaced",
+      "doneDatabase": "Database",
+      "doneSite": "Site",
+      "doneReplaced": "replaced",
+      "donePartNote": "Only this part was replaced. The rest of the account was not touched."
     },
     "schedule": {
       "heading": "Backup schedule",
@@ -146,10 +168,15 @@
         "storage": "Copies are written to this server and stay on it, and they are not encrypted at rest."
       }
     },
+    "mySchedule": {
+      "heading": "My backup schedule",
+      "subtitle": "When your account is backed up on its own, and how many copies are kept.",
+      "unscheduled": "You have not saved a schedule of your own. Your account is backed up automatically only if the server's own policy covers it; save one below to choose when."
+    },
     "destinations": {
       "heading": "Backup destinations",
       "subtitle": "Where this server records that its copies live.",
-      "readOnlyNote": "This screen reads. The panel publishes no way to add or remove a destination, so nothing here can be changed.",
+      "readOnlyNote": "You cannot add or remove a destination here, because the panel publishes no way to do either. You can switch encryption of new backups on or off.",
       "emptyTitle": "Nothing recorded yet",
       "emptyDescription": "The panel writes down its default destination when it starts. A server that answers with none has not finished starting, or was started with no backup storage configured.",
       "default": "Default",
@@ -175,7 +202,7 @@
       "aboutHeading": "What this does not cover",
       "about": {
         "notEditable": "The agent decides the directory and refuses to be told another. The panel asks it and shows the answer; it keeps no copy.",
-        "notEncrypted": "The copies are not encrypted where they rest. Anyone who can read that directory can read them.",
+        "encryption": "Copies are encrypted where they rest only when encryption is switched on for the destination, and only the backups taken after that. The key stays in the panel, so keep the panel recovery archive.",
         "adminOnly": "Only an administrator can read this screen. Anyone else is refused by the panel, in their own language."
       },
       "sectionHeading": "Recorded destinations",
@@ -189,10 +216,20 @@
         "name": "Name",
         "kind": "Kind of storage",
         "path": "Directory on this server",
-        "recordedAt": "Recorded"
+        "recordedAt": "Recorded",
+        "encryption": "Encryption"
       },
       "filters": {
         "kind": "Kind of storage"
+      },
+      "encryption": {
+        "switchLabel": "Encrypt new backups",
+        "enableTitle": "Encrypt new backups on {name}",
+        "enableQuestion": "From now on every backup written to this destination is encrypted. Backups already taken stay as they are. The key is made and kept by the panel, and the only copy that matters is inside the panel's recovery archive: without that archive, encrypted backups cannot be opened after the panel is lost. Keep the panel recovery archive somewhere safe.",
+        "enableAction": "Turn encryption on",
+        "disableTitle": "Stop encrypting new backups on {name}",
+        "disableQuestion": "New backups written to this destination will be stored unencrypted. The key is kept, so backups already encrypted can still be restored.",
+        "disableAction": "Turn encryption off"
       }
     },
     "verify": {

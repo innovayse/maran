@@ -1,12 +1,15 @@
 using Maran.Agent.Client.Interfaces;
+using Maran.Agent.Client.Services.AccountsService;
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Mappers;
+using Maran.Modules.Accounts.Models;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Resources;
 using Maran.Modules.Accounts.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Events;
+using Maran.Sdk.Interfaces;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 using Wolverine;
@@ -37,7 +40,23 @@ namespace Maran.Modules.Accounts.Commands.CreateAccount;
 ///
 /// The quota travels with the creation call rather than as a second round trip: the plan's
 /// <see cref="Plan.DiskQuotaMb"/> is part of what the account IS, and an account that briefly
-/// exists without one is an account that briefly has the whole disk.
+/// exists without one is an account that briefly has the whole disk. So do the inode ceiling and the
+/// login shell the creator chose (issue #194).
+///
+/// <b>What the account holds is its own figure, else its plan's.</b> The ceilings the creator states
+/// are decided by <see cref="AccountLimitOverrideResolver"/> before anything is provisioned, stored on
+/// the row, and pushed to the host with the plan's (<see cref="AccountRuntimeLimitsEnforcer"/>); the
+/// open-files ceiling, which no plan states, is pushed after the user exists, and a refusal there
+/// undoes the user as a refused runtime ceiling does.
+///
+/// <b>A weak initial password is refused before the account exists.</b> The login is issued after the
+/// account, so the password is judged first through <see cref="IInitialPasswordPolicy"/>, the window
+/// Identity implements; Accounts holds no copy of the policy.
+///
+/// <b>The owner's login is announced with how it is to be made.</b> The password an administrator
+/// states travels to Identity only on <see cref="AccountCreated"/>, as a
+/// <see cref="Maran.SharedKernel.Security.SensitiveString"/>; it is not stored on the row and not
+/// journalled, which lists the mode only (<see cref="AccountAuditJournal.RecordCreatedAsync"/>).
 /// </remarks>
 public sealed class CreateAccountCommandHandler
 {
@@ -81,8 +100,14 @@ public sealed class CreateAccountCommandHandler
     /// <summary>The agent, which owns everything about the account that lives on the host.</summary>
     private readonly IAgentAccountsClient _agent;
 
-    /// <summary>Puts the plan's runtime ceilings on the new account's slice.</summary>
+    /// <summary>Puts the account's runtime ceilings on its slice and its open-files ceiling on the host.</summary>
     private readonly AccountRuntimeLimitsEnforcer _runtimeLimits;
+
+    /// <summary>Holds the ceilings the creator stated to the plan and to who is creating.</summary>
+    private readonly AccountLimitOverrideResolver _overrides;
+
+    /// <summary>Judges an initial password by the panel's password policy, which Identity owns.</summary>
+    private readonly IInitialPasswordPolicy _passwordPolicy;
 
     /// <summary>The injected time source; never the ambient clock (rules/csharp.md).</summary>
     private readonly IClock _clock;
@@ -106,7 +131,9 @@ public sealed class CreateAccountCommandHandler
     /// <param name="claims">Answers, across every tenant, whether a name or a domain is already claimed.</param>
     /// <param name="resellerNames">Names the owning reseller in the answer.</param>
     /// <param name="agent">The agent client that provisions the system user.</param>
-    /// <param name="runtimeLimits">Puts the plan's runtime ceilings on the new account's slice.</param>
+    /// <param name="runtimeLimits">Puts the account's runtime ceilings on its slice and its open-files ceiling on the host.</param>
+    /// <param name="overrides">Holds the ceilings the creator stated to the plan and to who is creating.</param>
+    /// <param name="passwordPolicy">Judges an initial password by the panel's password policy.</param>
     /// <param name="clock">The injected time source used to stamp the new account's creation time.</param>
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="bus">The bus <see cref="AccountCreated"/> is invoked on.</param>
@@ -120,6 +147,8 @@ public sealed class CreateAccountCommandHandler
         ResellerNameDirectory resellerNames,
         IAgentAccountsClient agent,
         AccountRuntimeLimitsEnforcer runtimeLimits,
+        AccountLimitOverrideResolver overrides,
+        IInitialPasswordPolicy passwordPolicy,
         IClock clock,
         AccountAuditJournal journal,
         IMessageBus bus,
@@ -133,6 +162,8 @@ public sealed class CreateAccountCommandHandler
         _resellerNames = resellerNames;
         _agent = agent;
         _runtimeLimits = runtimeLimits;
+        _overrides = overrides;
+        _passwordPolicy = passwordPolicy;
         _clock = clock;
         _journal = journal;
         _bus = bus;
@@ -149,6 +180,8 @@ public sealed class CreateAccountCommandHandler
     /// The created account, <c>AccountNameTaken</c>/<c>AccountDomainTaken</c>/<c>PlanNotFound</c>,
     /// <c>ResellerSuspended</c>, <c>ResellerNotFound</c>, <c>PlanOwnerMismatch</c>,
     /// <c>ResellerAccountLimitReached</c> or <c>ResellerDiskPoolExceeded</c> for a reseller's account,
+    /// <c>AccountLimitAbovePlan</c> when a reseller states a process ceiling above its plan's,
+    /// <c>AccountInitialPasswordInvalid</c> when the initial password fails the panel's password policy,
     /// the agent's own typed failure when the system user could not be provisioned, or
     /// <c>AccountLoginIssuanceFailed</c> when the account was created but its owner's login was not
     /// — see the remarks on the invocation below for why creating the account again is not the
@@ -188,6 +221,23 @@ public sealed class CreateAccountCommandHandler
             return await FailAsync(command, Error.Of(nameof(ErrorMessages.PlanNotFound), ErrorType.NotFound), cancellationToken);
         }
 
+        var limits = _overrides.Resolve(command.InodeLimit, command.ProcessLimit, command.OpenFilesLimit, plan);
+        if (!limits.IsSuccess)
+        {
+            return await FailAsync(command, limits.Error!, cancellationToken);
+        }
+
+        // Judged before anything exists on the host: the login is issued after the account, so a weak
+        // password found there would leave an account nobody can sign in to (issue #194).
+        if (command.InitialPassword is not null
+            && !await _passwordPolicy.AcceptsAsync(command.InitialPassword, command.Name, cancellationToken))
+        {
+            return await FailAsync(
+                command,
+                Error.Of(nameof(ErrorMessages.AccountInitialPasswordInvalid), ErrorType.Validation),
+                cancellationToken);
+        }
+
         var refusal = await _allocation.AdmitAccountAsync(ownerId, plan, cancellationToken)
             ?? ResellerAllocationGuard.RequirePlanOwnedBy(ownerId, plan);
         if (refusal is not null)
@@ -195,7 +245,10 @@ public sealed class CreateAccountCommandHandler
             return await FailAsync(command, refusal.Error, cancellationToken);
         }
 
-        var provisioned = await _agent.CreateAsync(command.Name, QuotaBytes(plan), cancellationToken);
+        var provisioning = new AccountProvisioningDto(
+            (ulong?)limits.Value.InodeLimit,
+            AccountLoginShellMapper.ToAgent(command.ShellAccess));
+        var provisioned = await _agent.CreateAsync(command.Name, QuotaBytes(plan), provisioning, cancellationToken);
         if (!provisioned.IsSuccess)
         {
             return await FailAsync(command, provisioned.Error!, cancellationToken);
@@ -204,8 +257,13 @@ public sealed class CreateAccountCommandHandler
         // Always pushed, unlimited included: a uid recycled from a deleted account must not keep a
         // ceiling its previous owner's plan put on the slice. A refusal undoes the system user, as the
         // agent undoes its own half-made creation: an account the panel has no row for blocks its name
-        // for good, because the agent never adopts an existing user.
-        var ceilingFailure = await _runtimeLimits.ApplyAsync([command.Name], plan.RuntimeLimits, cancellationToken);
+        // for good, because the agent never adopts an existing user. The open-files ceiling follows the
+        // slice's, and only when the account states one: no plan does, and a new account has no
+        // drop-in to clear.
+        var ceilingFailure =
+            await _runtimeLimits.ApplyAsync(
+                [new AccountLimitTarget(command.Name, limits.Value)], plan.RuntimeLimits, cancellationToken)
+            ?? await _runtimeLimits.ApplyOpenFilesAsync(command.Name, limits.Value, cancellationToken);
         if (ceilingFailure is not null)
         {
             await RemoveSystemUserAsync(command.Name, cancellationToken);
@@ -221,7 +279,9 @@ public sealed class CreateAccountCommandHandler
             _clock.UtcNow,
             command.OwnerEmail,
             command.OwnerLanguage,
-            ownerId);
+            ownerId,
+            command.ShellAccess,
+            limits.Value);
 
         _dbContext.Accounts.Add(account);
         try
@@ -241,13 +301,13 @@ public sealed class CreateAccountCommandHandler
                 cancellationToken);
         }
 
-        await _journal.RecordSuccessAsync(
-            AccountAuditActions.AccountCreated,
+        await _journal.RecordCreatedAsync(
             account.Name,
+            new AccountCreationOptions(command.LoginMode, command.ShellAccess, command.BackupEnabled, limits.Value),
             command.IpAddress,
             command.UserAgent,
-            cancellationToken,
-            account.Id);
+            account.Id,
+            cancellationToken);
 
         // INVOKED, not published: a failure to issue the login must reach the caller. The account
         // already exists at this point and is not rolled back — see AccountCreated's remarks — so
@@ -259,7 +319,14 @@ public sealed class CreateAccountCommandHandler
         try
         {
             await _bus.InvokeAsync(
-                new AccountCreated(account.Id, account.Name, command.OwnerEmail, account.OwnerLanguage),
+                new AccountCreated(
+                    account.Id,
+                    account.Name,
+                    command.OwnerEmail,
+                    account.OwnerLanguage,
+                    command.LoginMode,
+                    command.InitialPassword,
+                    command.BackupEnabled),
                 cancellationToken);
         }
         catch (Exception exception)

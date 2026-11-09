@@ -6,11 +6,10 @@ namespace Maran.Modules.Backups.Domain.Enums;
 /// pruned", and a copy taken as a safety net before a destructive operation must not become an
 /// ordinary daily that retention eats (the plan's R12).
 ///
-/// All four values were declared before their writers existed; every one but
-/// <see cref="PreRestore"/> is produced today. This is the one place a value ahead of its caller is
-/// right rather than speculative: the column is persisted with the value's NAME, so adding a member
-/// later renumbers nothing but adding one to the middle of a numeric mapping would — and, more importantly, retention and the deletion cascade are
-/// written against the closed set, so a reader can see today which kinds they must never touch.
+/// All four values are produced: <see cref="Manual"/> and <see cref="Scheduled"/> by the create path,
+/// <see cref="PreDeletion"/> and <see cref="PreRestore"/> by <c>SafetyBackupService</c>. Retention
+/// and the deletion cascade are written against this closed set, so a reader can see which kinds
+/// they must never touch.
 /// </remarks>
 public enum BackupKind
 {
@@ -27,8 +26,11 @@ public enum BackupKind
     PreDeletion = 2,
 
     /// <summary>
-    /// Taken automatically before a restore replaces the account, and never pruned. Nothing produces
-    /// this yet — restore is later work.
+    /// Taken automatically before a restore replaces the account, and never pruned;
+    /// <c>RestoreBackupCommandHandler</c> asks <c>SafetyBackupService</c> for it and refuses the
+    /// restore when it cannot be made. The agent's restore does not take it (it expects its caller
+    /// to), so this kind has exactly one meaning: the copy of the account as it was the moment before
+    /// a restore replaced it.
     /// </summary>
     PreRestore = 3,
 }

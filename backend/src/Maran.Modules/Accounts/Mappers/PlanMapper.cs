@@ -61,15 +61,23 @@ public static class PlanMapper
             plan.Features.Members(),
             accountCount,
             plan.ResellerId,
-            resellerName);
+            resellerName,
+            PhpLimitsMapper.ToDto(plan.PhpLimits),
+            MailLimitsMapper.ToDto(plan.MailLimits),
+            plan.MaxDnsZones);
     }
 
     /// <summary>Projects one plan onto the picker's wire shape.</summary>
     /// <param name="plan">The plan to project.</param>
     /// <param name="displayNames">Resolves a shipped plan's resource key in the request's culture.</param>
-    /// <returns>The plan's identity, name and the two limits a picker prints.</returns>
+    /// <returns>The plan's identity, name, the two limits a picker prints and its process ceiling.</returns>
     public static PlanChoiceDto ToChoiceDto(Plan plan, IStringLocalizer<DisplayNames> displayNames)
     {
-        return new PlanChoiceDto(plan.Id, DisplayNameOf(plan, displayNames), plan.DiskQuotaMb, plan.MaxSites);
+        return new PlanChoiceDto(
+            plan.Id,
+            DisplayNameOf(plan, displayNames),
+            plan.DiskQuotaMb,
+            plan.MaxSites,
+            RuntimeLimitsMapper.ToDto(plan.RuntimeLimits.MaxProcesses));
     }
 }

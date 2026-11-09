@@ -30,7 +30,7 @@
  * Administrator-only on the server (`InvitationsController`); this card adds no matching role
  * check of its own (rules/architecture.md — the endpoint is the boundary).
  */
-import { computed, onBeforeUnmount, onMounted, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../ui/UiAlert.vue'
 import UiButton from '../ui/UiButton.vue'
@@ -38,11 +38,9 @@ import UiCard from '../ui/UiCard.vue'
 import UiIcon from '../ui/UiIcon.vue'
 import UiSectionHeading from '../ui/UiSectionHeading.vue'
 import UiSpinner from '../ui/UiSpinner.vue'
-import { useInvitationsStore } from '../../stores/invitations'
-import { useLocaleStore } from '../../stores/locale'
+import { useInvitationCard } from '../../composables/useInvitationCard'
 import type { AccountStatus } from '../../types/account'
-import { absoluteInvitationLink } from '../../utils/absoluteInvitationLink'
-import { formatDate } from '../../utils/formatDate'
+import type { InvitationState, InvitationSubject } from '../../types/invitation'
 
 /** Props accepted by {@link AccountInvitationCard}. */
 const props = defineProps<{
@@ -56,17 +54,11 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const store = useInvitationsStore()
-const localeStore = useLocaleStore()
 
-/**
- * Whether the link on screen has been copied to the clipboard.
- *
- * Reported because a copy button that looks the same before and after a click invites a second
- * click, and a second click is how somebody walks away believing they copied when the first
- * attempt threw.
- */
-const copied: Ref<boolean> = ref(false)
+/** The invitation this card addresses: the owner of the hosting account it was given. */
+const subject: ComputedRef<InvitationSubject> = computed(() => {
+  return { kind: 'account', id: props.accountId }
+})
 
 /**
  * Whether the panel will issue this account an invitation, decided from its lifecycle state so a
@@ -76,29 +68,21 @@ const issuance: ComputedRef<'allowed' | 'refused'> = computed(() => {
   return issuanceOf(props.status)
 })
 
-/** The link to show: the panel's own, made absolute against the origin the operator is looking at. */
-const displayedLink: ComputedRef<string> = computed(() => {
-  return store.link === null ? '' : absoluteInvitationLink(store.link.link, window.location.origin)
-})
+/**
+ * Words one invitation state in the panel's language; the pending sentence carries the expiry.
+ * @param state Where the invitation stands.
+ * @param date The formatted expiry, empty unless the state is `pending`.
+ * @returns The sentence for the state.
+ */
+const describeState = (state: InvitationState, date: string): string => {
+  return state === 'pending' ? t('invitations.state.pending', { date }) : t(`invitations.state.${state}`)
+}
 
-/** When the link on screen stops working, formatted for the panel's current language. */
-const linkExpiry: ComputedRef<string> = computed(() => {
-  return store.link === null ? '' : formatDate(store.link.expiresAt, localeStore.current)
-})
-
-/** The sentence describing where the invitation stands, or an empty string before it is known. */
-const stateText: ComputedRef<string> = computed(() => {
-  const status = store.status
-  if (status === null) {
-    return ''
-  }
-
-  if (status.state === 'pending') {
-    return t('invitations.state.pending', { date: formatDate(status.expiresAt, localeStore.current) })
-  }
-
-  return t(`invitations.state.${status.state}`)
-})
+// Loading, minting, resending, copying and forgetting the link are shared with the reseller card.
+const { store, copied, displayedLink, linkExpiry, stateText, createLink, resend, copyLink } = useInvitationCard(
+  subject,
+  describeState,
+)
 
 /**
  * Says whether an account in the given lifecycle state may be issued an invitation.
@@ -116,66 +100,6 @@ const issuanceOf = (status: AccountStatus): 'allowed' | 'refused' => {
       return 'refused'
   }
 }
-
-/**
- * Loads the invitation's state for the account the card is showing.
- * @returns Resolves once the request has settled.
- */
-const load = async (): Promise<void> => {
-  copied.value = false
-  await store.loadStatus(props.accountId)
-}
-
-/**
- * Creates a one-time link and puts it on screen. Asked again, it replaces the link on screen
- * with a newer one and the older stops working.
- * @returns Resolves once the request has settled.
- */
-const createLink = async (): Promise<void> => {
-  copied.value = false
-  await store.issueLink(props.accountId)
-}
-
-/**
- * Mails the owner a fresh invitation.
- * @returns Resolves once the request has settled.
- */
-const resend = async (): Promise<void> => {
-  copied.value = false
-  await store.resend(props.accountId)
-}
-
-/**
- * Copies the link to the clipboard. Reached only from a click on the copy button.
- *
- * A failure is swallowed on purpose and leaves {@link copied} false: the clipboard is blocked
- * outright in some browser configurations, and the honest answer there is the unchanged button
- * beside a link the operator can still select by hand.
- * @returns Resolves once the clipboard write has settled, successfully or not.
- */
-const copyLink = async (): Promise<void> => {
-  try {
-    await navigator.clipboard.writeText(displayedLink.value)
-    copied.value = true
-  } catch {
-    copied.value = false
-  }
-}
-
-onMounted(load)
-
-// A different account under the same card must start from a clean slate, not from the last
-// account's link.
-watch(
-  (): string => {
-    return props.accountId
-  },
-  load,
-)
-
-// Leaving the page is the end of the link's usefulness; the store forgets it so it cannot be found
-// again by returning to the screen.
-onBeforeUnmount(store.forget)
 </script>
 
 <template>

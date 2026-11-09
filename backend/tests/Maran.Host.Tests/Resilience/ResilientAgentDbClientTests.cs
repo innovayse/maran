@@ -1,3 +1,4 @@
+using Maran.Agent.Client.Services.DbService;
 using Maran.Host.Resilience;
 using Maran.Host.Tests.Fixtures;
 using Maran.SharedKernel.Results;
@@ -202,6 +203,65 @@ public sealed class ResilientAgentDbClientTests
         var result = await Decorate(inner).RepairGrantsAsync(default).WaitAsync(TestTimeout);
 
         Assert.False(result.IsSuccess);
+        Assert.Equal("AgentUnavailable", result.Error!.Code);
+        Assert.Equal(ErrorType.Unavailable, result.Error.Type);
+    }
+
+    /// <summary>User creation retries a transport failure and every argument reaches the inner client unchanged.</summary>
+    [Fact]
+    public async Task User_creation_retries_a_transport_failure_and_every_argument_reaches_the_inner_client_unchanged()
+    {
+        var inner = new RecordingAgentDbClient { FailuresBeforeSuccess = 1 };
+
+        var result = await Decorate(inner).CreateUserAsync("alice", "reader", Password, default).WaitAsync(TestTimeout);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, inner.Calls);
+        Assert.Equal("alice", inner.LastAccountUsername);
+        Assert.Equal("reader", inner.LastDbUsername);
+        Assert.Same(Password, inner.LastPassword);
+    }
+
+    /// <summary>User removal retries a transport failure through the pipeline.</summary>
+    [Fact]
+    public async Task User_removal_retries_a_transport_failure_through_the_pipeline()
+    {
+        var inner = new RecordingAgentDbClient { FailuresBeforeSuccess = 1 };
+
+        var result = await Decorate(inner).DropUserAsync("alice", "reader", default).WaitAsync(TestTimeout);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, inner.Calls);
+        Assert.Equal("reader", inner.LastDbUsername);
+    }
+
+    /// <summary>A privilege change retries a transport failure and the set reaches the inner client unchanged.</summary>
+    [Fact]
+    public async Task A_privilege_change_retries_a_transport_failure_and_the_set_reaches_the_inner_client_unchanged()
+    {
+        var inner = new RecordingAgentDbClient { FailuresBeforeSuccess = 1 };
+        DatabasePrivilegeKind[] privileges = [DatabasePrivilegeKind.Select, DatabasePrivilegeKind.Event];
+
+        var result = await Decorate(inner)
+            .SetPrivilegesAsync("alice", "reader", "shop", privileges, default)
+            .WaitAsync(TestTimeout);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, inner.Calls);
+        Assert.Equal("shop", inner.LastDatabaseName);
+        Assert.Equal(privileges, inner.LastPrivileges);
+    }
+
+    /// <summary>A privilege change that never returns is abandoned by the pipelines timeout.</summary>
+    [Fact]
+    public async Task A_privilege_change_that_never_returns_is_abandoned_by_the_pipelines_timeout()
+    {
+        var inner = new RecordingAgentDbClient { Hangs = true };
+
+        var result = await Decorate(inner)
+            .SetPrivilegesAsync("alice", "reader", "shop", [], default)
+            .WaitAsync(TestTimeout);
+
         Assert.Equal("AgentUnavailable", result.Error!.Code);
         Assert.Equal(ErrorType.Unavailable, result.Error.Type);
     }

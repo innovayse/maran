@@ -24,8 +24,8 @@ namespace Maran.Modules.Notifications;
 /// </para>
 /// <para>
 /// <b>Consumers reach it through the Sdk and never through this assembly.</b>
-/// <see cref="SendMailRequested"/> for sending, <see cref="IAlertRecipientDirectory"/> for the one
-/// stored address a background alert needs. <c>IMailer</c> stays module-internal: only this module
+/// <see cref="SendMailRequested"/> for sending, <see cref="IAlertRecipientDirectory"/> for the
+/// addresses a background alert needs. <c>IMailer</c> stays module-internal: only this module
 /// sends, and a cross-module mail interface would put the credential-holding seam in everybody's
 /// reach.
 /// </para>
@@ -71,6 +71,10 @@ public sealed class NotificationsModule : IPanelModule
             options.UseNpgsql(connectionString);
         });
 
+        // Singleton and stateless: it opens a scope of its own per call, so the Host's migrate verb can bring this
+        // module's schema up to date without knowing NotificationsDbContext.
+        services.AddSingleton<IModuleMigrations, NotificationsModuleMigrations>();
+
         // A SINGLETON, unlike everything else here, and deliberately: it is a cache, and a scoped one
         // would be a fresh empty cache per request, which is not a cache. It resolves the scoped
         // context through IServiceScopeFactory rather than capturing one (R12).
@@ -80,7 +84,7 @@ public sealed class NotificationsModule : IPanelModule
         // use it, including the background handler's own per-message scope.
         services.AddScoped<IMailer, SmtpMailer>();
 
-        // The one field of the mail settings another module may read. Scoped like the handlers that
+        // The alert recipients, the one thing here another module may read. Scoped like the handlers that
         // resolve it, and registered here rather than in the Sdk because a contract's implementation
         // belongs to the module that owns the data.
         services.AddScoped<IAlertRecipientDirectory, AlertRecipientDirectory>();
@@ -94,6 +98,17 @@ public sealed class NotificationsModule : IPanelModule
         // resolvable — and therefore drivable by a test — rather than exercisable only through a
         // booted bus.
         services.AddScoped<IntegrationEvents.Handlers.SendMailRequestedHandler>();
+
+        // Scoped, like the context it writes through: the mail handler records the outcome of an
+        // operator alert in its own per-message scope.
+        services.AddScoped<AlertChannelStateRecorder>();
+
+        // The feed. The handler writes through the request-less scope the bus opens per message; the
+        // resolver and the writer read the caller and the culture, so all four are scoped.
+        services.AddScoped<IntegrationEvents.Handlers.PanelNotificationRaisedHandler>();
+        services.AddScoped<Services.NotificationTextResolver>();
+        services.AddScoped<Services.NotificationDismissalWriter>();
+        services.AddScoped<Jobs.NotificationRetentionHandler>();
 
         // Scoped, because it reads the request's culture through the localizer: the settings read-back
         // and the security-mode list name a protection mode through the one resolver.

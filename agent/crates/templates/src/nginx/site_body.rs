@@ -3,6 +3,7 @@
 
 use askama::Template;
 
+use crate::nginx::site_options_block::SiteOptionsBlock;
 use crate::render_error::RenderError;
 
 /// Renders the part of a site's configuration that says what it actually
@@ -96,6 +97,22 @@ use crate::render_error::RenderError;
 /// them. Here there is one rendered string, and the caller puts the same bytes
 /// in both places, so the two cannot disagree.
 ///
+/// The site's options (issue #151) land in three places of the body, and
+/// [`SiteOptionsBlock::NONE`] adds nothing to any of them, so a site without
+/// options renders the same bytes it did before they existed. The upload size
+/// REPLACES the body's default `client_max_body_size` rather than adding a
+/// second line, because nginx refuses a directive repeated in one context. The
+/// access rules (`auth_basic`, `allow` / `deny`) go at server level before the
+/// first `location` so every location inherits them. The redirect and cache
+/// locations go last: the cache rule is a regular-expression location, those
+/// are tried in order, and it must come after the one denying dot-files.
+///
+/// The request limit (issue #159) is the one option that lives in two files'
+/// worth of config: the body writes `limit_req` at server level, and the site's
+/// own template declares the `limit_req_zone` it names at the top of the file.
+/// Both read [`SiteOptionsBlock::request_rate`], so they cannot name different
+/// zones.
+///
 /// The variant is chosen by which optional field is set, not by a flag the
 /// caller could contradict:
 ///
@@ -130,6 +147,8 @@ pub struct SiteBody<'a> {
     pub fpm_socket: Option<&'a str>,
     /// The validated `host:port` a proxied site forwards to.
     pub upstream: Option<&'a str>,
+    /// The site's options; [`SiteOptionsBlock::NONE`] for a site that has none.
+    pub options: &'a SiteOptionsBlock<'a>,
 }
 
 impl SiteBody<'_> {

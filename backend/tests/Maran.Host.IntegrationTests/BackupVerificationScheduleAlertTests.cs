@@ -170,7 +170,7 @@ public sealed class BackupVerificationScheduleAlertTests : IAsyncLifetime
         Assert.Equal("DestinationRefused:acme", alert.Subject);
 
         var skipped = Assert.Single(await BackupVerificationWorld.AuditEntriesAsync(
-            factory, MailAuditActions.MailSkippedNoSmtp));
+            factory, OutgoingMailAuditActions.MailSkippedNoSmtp));
         Assert.Equal(alert.Subject, skipped.Subject);
         Assert.True(skipped.Succeeded);
         Assert.Empty(await BackupVerificationWorld.DrainedMailAsync(factory, mailer));

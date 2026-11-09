@@ -299,10 +299,17 @@ public sealed class AuthController : BaseApiController
     /// sign-in they had. The caller's own sign-in stays; no new session or cookie is issued.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Rate limited by the sign-in policy: a wrong current password is a guess at a password, and it
     /// comes out of the same budget as a guess at <c>login</c>. Bearer-authenticated and cookie-free,
     /// so a cross-site request cannot reach it. Threat note:
     /// docs/superpowers/notes/2026-10-31-change-password-threat-note.md.
+    /// </para>
+    /// <para>
+    /// It is the ONE endpoint a caller holding a first password somebody else chose may reach
+    /// (<see cref="AllowDuringPasswordChangeAttribute"/>): a completed change clears the obligation, and
+    /// the SPA then refreshes the session to receive a token without the restriction.
+    /// </para>
     /// </remarks>
     /// <param name="command">Both passwords. The caller, their session, address and user agent are
     /// stamped here.</param>
@@ -310,6 +317,7 @@ public sealed class AuthController : BaseApiController
     [HttpPost("change-password")]
     [ViewAsAccess(ViewAsAccess.Refused)]
     [Authorize(Policy = AuthorizationPolicies.AnyAuthenticated)]
+    [AllowDuringPasswordChange]
     [EnableRateLimiting(RateLimitPolicies.Login)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

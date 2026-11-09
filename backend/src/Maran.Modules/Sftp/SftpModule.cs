@@ -55,6 +55,10 @@ public sealed class SftpModule : IPanelModule
             options.UseNpgsql(connectionString);
         });
 
+        // A singleton, because it holds no state: it opens its own scope per call, so the Host can run the
+        // module's migrations through the root provider (rules/architecture.md "The database evolves the same way").
+        services.AddSingleton<IModuleMigrations, SftpModuleMigrations>();
+
         // Scoped, because it reads the request's own tenant-scoped DbContext: this module's answer to the
         // personal-data export, an allow-list of fields and never a secret.
         services.AddScoped<IPersonalDataProvider, SftpPersonalDataProvider>();

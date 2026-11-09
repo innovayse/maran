@@ -11,7 +11,7 @@ import type { Site, SiteDetail } from '../../src/types/site'
 // them, so the bundle holds no copy of the vocabulary (issue #330).
 
 const LICENSED_SITES: PanelModule[] = [
-  { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
+  { name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 /** Names no bundle contains, so a screen printing one can only have read it off the panel's answer. */
@@ -26,6 +26,7 @@ const SITE: Site = {
   status: 'disabled',
   statusName: 'Panel-named paused',
   createdAt: '2026-08-01T10:00:00Z',
+  logRetentionDays: 14,
 }
 
 const DETAIL: SiteDetail = {
@@ -42,6 +43,7 @@ const DETAIL: SiteDetail = {
   status: SITE.status,
   statusName: SITE.statusName,
   createdAt: SITE.createdAt,
+  logRetentionDays: 14,
 }
 
 /**

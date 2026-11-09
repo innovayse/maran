@@ -1,3 +1,4 @@
+using Maran.SharedKernel.Security;
 using Microsoft.EntityFrameworkCore.Design;
 using Npgsql;
 

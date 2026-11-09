@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useAuthApi } from '../composables/apis/useAuthApi'
+import { useLatestRead } from '../composables/useLatestRead'
 import { ApiError } from '../composables/useApi'
 import type { Session } from '../types/auth'
 import type { ListLoad, ListRequest } from '../types/list'
@@ -11,6 +12,7 @@ import type { ListLoad, ListRequest } from '../types/list'
  */
 export const useSessionsStore = defineStore('sessions', () => {
   const api = useAuthApi()
+  const latestRead = useLatestRead()
 
   /**
    * The page of the caller's live sessions last answered by the panel; empty before the first
@@ -46,9 +48,13 @@ export const useSessionsStore = defineStore('sessions', () => {
    * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
   const listSessions = async (request: ListRequest): Promise<ListLoad<Session>> => {
+    const isLatest = latestRead.begin()
     try {
       const page = await api.listSessions(request)
-      sessions.value = page.items
+      // A slower, older read must not replace the rows of a newer one.
+      if (isLatest()) {
+        sessions.value = page.items
+      }
       return { kind: 'loaded', page }
     } catch (error) {
       return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }

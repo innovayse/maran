@@ -1,4 +1,6 @@
+using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Domain.Entities;
+using Maran.Modules.Accounts.Domain.ValueObjects;
 using Maran.Modules.Accounts.Mappers;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.Sdk.Contracts;
@@ -44,6 +46,30 @@ public sealed class PlanMapperTests
 
         Assert.Null(dto.ResellerId);
         Assert.Null(dto.ResellerName);
+    }
+
+    /// <summary>A plan's PHP bounds travel on its outward view figure for figure.</summary>
+    [Fact]
+    public void A_plans_php_bounds_travel_on_its_outward_view_figure_for_figure()
+    {
+        var plan = Plan.Define(Guid.NewGuid(), "Agency", 1_000, 5, 5, 5, 5, 5, 5);
+        plan.ChangePhpLimits(PhpLimits.Of(101, 202, 103, 204));
+
+        var dto = PlanMapper.ToDto(plan, new StubDisplayNames(), 0, null);
+
+        Assert.Equal(new PhpLimitsDto(101, 202, 103, 204), dto.PhpLimits);
+    }
+
+    /// <summary>A plan's mail figures travel on its outward view figure for figure.</summary>
+    [Fact]
+    public void A_plans_mail_figures_travel_on_its_outward_view_figure_for_figure()
+    {
+        var plan = Plan.Define(Guid.NewGuid(), "Agency", 1_000, 5, 5, 5, 5, 5, 5);
+        plan.ChangeMailLimits(MailLimits.Of(11, 202, 33, 4_404));
+
+        var dto = PlanMapper.ToDto(plan, new StubDisplayNames(), 0, null);
+
+        Assert.Equal(new MailLimitsDto(11, 202, 33, 4_404), dto.MailLimits);
     }
 
     /// <summary>The picker view restates the identity, the name and the two limits a picker prints.</summary>

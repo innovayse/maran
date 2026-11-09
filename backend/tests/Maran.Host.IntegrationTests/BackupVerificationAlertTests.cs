@@ -248,7 +248,7 @@ public sealed class BackupVerificationAlertTests : IAsyncLifetime
         Assert.Equal($"{AlertSubjectPrefix}{backupId}", alert.Subject);
 
         var skipped = Assert.Single(await BackupVerificationWorld.WaitForAuditAsync(
-            factory, MailAuditActions.MailSkippedNoSmtp, 1));
+            factory, OutgoingMailAuditActions.MailSkippedNoSmtp, 1));
         Assert.Equal(alert.Subject, skipped.Subject);
         Assert.True(skipped.Succeeded);
 

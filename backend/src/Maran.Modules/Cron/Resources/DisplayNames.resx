@@ -60,4 +60,13 @@
   <data name="CronRunOutcomeStopped">
     <value>Stopped</value>
   </data>
+  <data name="CronMenuList">
+    <value>Scheduled tasks</value>
+  </data>
+  <data name="CronRouteList">
+    <value>Scheduled tasks</value>
+  </data>
+  <data name="CronRouteRuns">
+    <value>Run history</value>
+  </data>
 </root>

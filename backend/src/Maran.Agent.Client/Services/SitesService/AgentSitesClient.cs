@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using Grpc.Net.Client;
+using Maran.Agent.Client.Channels;
 using Maran.Agent.Client.Errors;
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Resources;
@@ -36,11 +37,19 @@ public sealed class AgentSitesClient : IAgentSitesClient
         _logger = logger;
     }
 
-    /// <summary>Creates a client that calls the agent over <paramref name="channel"/>.</summary>
+    /// <summary>Creates a client whose every call goes to the server the current agent target selects.</summary>
+    /// <param name="channels">Hands out the channel of the server each call is aimed at.</param>
+    /// <param name="logger">Sink for the agent's diagnostic text.</param>
+    public AgentSitesClient(IAgentChannels channels, ILogger<AgentSitesClient> logger)
+        : this(new GrpcSitesServiceInvoker(channels), logger)
+    {
+    }
+
+    /// <summary>Creates a client over one fixed <paramref name="channel"/>, whatever the target.</summary>
     /// <param name="channel">A channel to the agent, e.g. from <see cref="Channels.AgentChannel.CreateUnixSocket"/>.</param>
     /// <param name="logger">Sink for the agent's diagnostic text.</param>
     public AgentSitesClient(GrpcChannel channel, ILogger<AgentSitesClient> logger)
-        : this(new GrpcSitesServiceInvoker(new V1.SitesService.SitesServiceClient(channel)), logger)
+        : this(new FixedAgentChannels(channel), logger)
     {
     }
 
@@ -192,6 +201,56 @@ public sealed class AgentSitesClient : IAgentSitesClient
     }
 
     /// <inheritdoc/>
+    public async Task<Result<SiteTrafficReading>> SummariseTrafficAsync(
+        string accountUsername,
+        string domain,
+        SiteTrafficCursor? cursor,
+        CancellationToken cancellationToken)
+    {
+        var request = new SummariseSiteTrafficRequest
+        {
+            AccountUsername = accountUsername,
+            Domain = domain,
+            Cursor = SiteTrafficMapper.ToWire(cursor),
+        };
+        var response = await _invoker.SummariseSiteTrafficAsync(request, cancellationToken);
+
+        return response.ResultCase switch
+        {
+            SummariseSiteTrafficResponse.ResultOneofCase.Ok => SiteTrafficMapper.Read(response.Ok),
+            SummariseSiteTrafficResponse.ResultOneofCase.Error => Result<SiteTrafficReading>.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(SummariseTrafficAsync))),
+            _ => Result<SiteTrafficReading>.Fail(
+                Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result<PrunedSiteLogs>> PruneLogsAsync(
+        string accountUsername,
+        string domain,
+        uint retainRotations,
+        CancellationToken cancellationToken)
+    {
+        var request = new PruneSiteLogsRequest
+        {
+            AccountUsername = accountUsername,
+            Domain = domain,
+            RetainRotations = retainRotations,
+        };
+        var response = await _invoker.PruneSiteLogsAsync(request, cancellationToken);
+
+        return response.ResultCase switch
+        {
+            PruneSiteLogsResponse.ResultOneofCase.Ok => Result<PrunedSiteLogs>.Ok(
+                new PrunedSiteLogs(response.Ok.RemovedFiles)),
+            PruneSiteLogsResponse.ResultOneofCase.Error => Result<PrunedSiteLogs>.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(PruneLogsAsync))),
+            _ => Result<PrunedSiteLogs>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
+
+    /// <inheritdoc/>
     public async Task<Result> ReloadWebServerAsync(CancellationToken cancellationToken)
     {
         var response = await _invoker.ReloadWebServerAsync(new ReloadWebServerRequest(), cancellationToken);
@@ -219,9 +278,9 @@ public sealed class AgentSitesClient : IAgentSitesClient
     {
         return AgentStreamGuard.EndOnTransportFailureAsync(
             TailLogEventsAsync(accountUsername, domain, logSource, historyLines, cancellationToken),
-            exception =>
+            error =>
             {
-                return new SiteLogFailed(AgentTransportFailure.ToError(exception).Code);
+                return new SiteLogFailed(error.Code);
             },
             cancellationToken);
     }

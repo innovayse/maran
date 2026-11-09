@@ -1,5 +1,6 @@
 using System.Reflection;
 using Maran.Host.Modules;
+using Maran.Sdk.Interfaces;
 using Maran.SharedKernel.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
@@ -42,7 +43,21 @@ public static class ModuleDbContexts
     /// </exception>
     public static IReadOnlyList<DbContext> CreateAll()
     {
-        return ModuleRegistry.All
+        return CreateFor(ModuleRegistry.All);
+    }
+
+    /// <summary>Creates one instance of every <c>DbContext</c> declared in the assemblies of the given modules.</summary>
+    /// <remarks>
+    /// For a law that judges the modules built and not yet composed beside the composed ones
+    /// (<c>ModuleContractCensus.UnregisteredModules</c>): <see cref="CreateAll"/> stays the registry's contexts,
+    /// which is what the tenant walk and its positive control are about.
+    /// </remarks>
+    /// <param name="modules">The modules whose assemblies are read.</param>
+    /// <returns>One context per declared type, ready for <see cref="DbContext.Model"/> to be read.</returns>
+    /// <exception cref="InvalidOperationException">See <see cref="CreateAll"/>.</exception>
+    public static IReadOnlyList<DbContext> CreateFor(IEnumerable<IPanelModule> modules)
+    {
+        return modules
             .Select(module => { return module.GetType().Assembly; })
             .Distinct()
             .SelectMany(assembly => { return assembly.GetTypes(); })

@@ -1,8 +1,44 @@
 //! The `FilesService` handler, its error mapping, and the checks that turn a
 //! proto file request into a validated operation input.
 
+pub mod accepted;
+pub mod changed_permissions;
+pub mod channel_upload;
+pub mod copied_entry;
+pub mod created_archive;
+pub mod created_directory;
+pub mod emptied_trash;
+pub mod extracted_archive;
 pub mod file_status;
 pub mod files_service;
+pub mod force_deleted_entry;
+pub mod listed_trash;
+pub mod moved_entry;
+pub mod purged_trash;
+pub mod read_terminal;
+pub mod refuse_reserved_path;
+pub mod restored_trash_entry;
+pub mod run_file_operation;
+pub mod stream_chunk_sink;
+pub mod to_wire_directory_listing;
+pub mod to_wire_listed_entry;
+pub mod to_wire_search_outcome;
+pub mod to_wire_trash_entry;
+pub mod trashed_entry;
+pub mod validated_archive;
+pub mod validated_archive_format;
+pub mod validated_copy;
+pub mod validated_create_directory;
 pub mod validated_delete;
+pub mod validated_extract;
+pub mod validated_force_delete;
+pub mod validated_listing;
+pub mod validated_move;
+pub mod validated_permissions;
+pub mod validated_purge;
+pub mod validated_read;
+pub mod validated_restore;
+pub mod validated_search;
+pub mod validated_trash;
 pub mod validated_write;
 pub mod write_collector;

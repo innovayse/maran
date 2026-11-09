@@ -124,6 +124,9 @@ readonly UNINSTALLER="${INSTALLER_ROOT}/uninstall.sh"
 # `vsftpd_packages_for_family`, so a package name that stops being right on a family stops that
 # family's image build rather than a customer's install.
 readonly FTPS_STEP="${INSTALLER_LIB}/89-ftps.sh"
+# Step 89's DNS half. SOURCED, and its mask and ordering functions are RUN by parts/dns.sh against
+# a host with no BIND package; the names it spells are COMPARED with the agent's source text.
+readonly DNS_STEP="${INSTALLER_LIB}/89-dns.sh"
 # Step 66, the break-glass `maran` command, and the sources it installs. The step is RUN (its own
 # step_cli, in a child) and the sources are READ: parts/cli-recovery.sh looks at what the step left
 # on the disk and at the wrapper's text. SOURCE paths are the installer package's layout, which the
@@ -256,12 +259,14 @@ require_installer_file "${INSTALLER_LIB}/85-mysql.sh" installer/lib/85-mysql.sh
 require_installer_file "${INSTALLER_LIB}/86-sftp.sh" installer/lib/86-sftp.sh
 require_installer_file "$UNINSTALLER" installer/uninstall.sh
 require_installer_file "$FTPS_STEP" installer/lib/89-ftps.sh
+require_installer_file "$DNS_STEP" installer/lib/89-dns.sh
+require_installer_file "${INSTALLER_ROOT}/systemd/maran-dns.service" installer/systemd/maran-dns.service
 require_installer_file "$CLI_STEP" installer/lib/66-cli.sh
 require_installer_file "$CLI_WRAPPER_SOURCE" installer/cli/maran
-for __cli_lib in common.sh status.sh reset.sh diagnostics.sh panel-archive.sh panel-backup-config.sh \
+for __cli_lib in common.sh status.sh reset.sh panel-certificate.sh diagnostics.sh panel-archive.sh panel-backup-config.sh \
   panel-backup-retention.sh panel-backup-upload.sh panel-backup.sh panel-backup-schedule.sh panel-restore.sh \
   release-version.sh release-verify.sh release-unpack.sh release-layout.sh panel-dump.sh update-dumps.sh \
-  update-health.sh update.sh rollback.sh; do
+  update-health.sh update-unattended.sh update.sh update-schedule.sh rollback.sh; do
   require_installer_file "${CLI_LIB_SOURCE_DIR}/${__cli_lib}" "installer/cli/lib/${__cli_lib}"
 done
 unset __cli_lib
@@ -342,6 +347,8 @@ require_systemctl_stand_in
 . "$DEPENDENCIES_STEP"
 # shellcheck source=/dev/null
 . "$FTPS_STEP"
+# shellcheck source=/dev/null
+. "$DNS_STEP"
 
 # sql: one statement, as root over the socket, with an optional password for the
 # states where root has one. Double quotes around identifiers and literals so the
@@ -522,10 +529,13 @@ for __part in \
   "${ASSERT_PARTS_DIR}/units-and-preflight.sh" \
   "${ASSERT_PARTS_DIR}/php-install-unit.sh" \
   "${ASSERT_PARTS_DIR}/panel-backup-units.sh" \
+  "${ASSERT_PARTS_DIR}/update-request-units.sh" \
   "${ASSERT_PARTS_DIR}/os-security-updates.sh" \
   "${ASSERT_PARTS_DIR}/os-security-updates-step.sh" \
   "${ASSERT_PARTS_DIR}/uninstaller.sh" \
   "${ASSERT_PARTS_DIR}/ftps.sh" \
+  "${ASSERT_PARTS_DIR}/dns.sh" \
+  "${ASSERT_PARTS_DIR}/mail-uninstall.sh" \
   "${ASSERT_PARTS_DIR}/artifacts-and-packages.sh" \
   "${ASSERT_PARTS_DIR}/cli-recovery.sh" \
   "${ASSERT_PARTS_DIR}/cli-update.sh" \
@@ -584,6 +594,8 @@ main() {
   # or the served path while the two assertions above drive that same step. It puts the served
   # path, the document root and both log files back, and stops the server it started.
   assert_the_panel_vhost_can_never_log_a_query_string
+  # The file manager's upload and download location renders its body limit from panel.env (issue #169).
+  assert_the_file_transfer_location_carries_the_configured_body_limit
   # After it, because it needs the `panel` group that assertion's prepare step creates, and because
   # it is the other assertion that installs files outside /tmp.
   assert_the_panel_socket_directory_is_built_and_then_looked_at
@@ -598,6 +610,10 @@ main() {
   assert_the_panel_backup_service_and_timer_are_what_the_design_allows
   assert_step_67_installs_the_panel_backup_units_with_exact_modes_and_enables_nothing
   assert_the_panel_backup_service_cannot_be_started_by_a_non_root_user
+  # The units through which the panel's "Update now" starts a root update (issue #382): text checkers shown
+  # to refuse before they are trusted. They read the package's files and install nothing, so they take no
+  # part in the ordering above.
+  assert_the_update_request_units_are_what_the_design_allows
   # Step 68, the opt-in unattended OS security updates (issue #163): the refusing half (the flag off writes
   # nothing) and then its inverse control (the flag on writes the exact file and enables the distribution's
   # timers). After the panel backup assertions, which leave /etc/systemd/system as they found it, because the
@@ -659,6 +675,19 @@ main() {
   # below plants a .wants entry pointing at it and must refuse.
   assert_the_ftps_step_says_it_is_off_and_can_see_when_it_is_not
 
+  # Step 89's DNS half: the ordering that keeps the distribution's resolver from ever running, the
+  # masks on every unit name the package can start it under, and the names the installer and the
+  # agent both spell. After the FTPS group, which is what leaves the image in the state these expect.
+  assert_the_dns_package_is_refused_while_a_packaged_unit_is_startable
+  assert_the_dns_mask_covers_every_packaged_unit
+  assert_the_installer_and_the_agent_spell_the_dns_names_the_same
+
+  # The mail uninstall half of step 89 (issue #177): remove_mail stops and disables only the key-value
+  # unit 89-mail.sh recorded, and leaves an operator's own redis or valkey unit running. It runs the
+  # uninstaller's remove_mail against the systemctl stand-in and removes only /etc/maran/mail, which
+  # it refuses to start without, so it does not depend on the order of anything above it.
+  assert_remove_mail_stops_only_the_recorded_key_value_unit
+
   # Last of everything: it runs the uninstaller's real deleters at their real paths, which takes
   # /var/lib/maran, the scratch and the SFTP jail base with them. It puts all three back through
   # the installer's own steps and checks they came back, but nothing above it should have to
@@ -683,6 +712,8 @@ main() {
   # run only as root (issue #129). Before the uninstaller ones: it installs the wrapper and step 67's
   # units, and removes them again, and the two below install and remove them for their own reasons.
   assert_the_scheduled_panel_backup_verbs_refuse_what_they_should
+  # The restore refuses an archive taken by a newer release than the installed one (issue #129).
+  assert_the_panel_restore_refuses_an_archive_from_a_newer_release
   # The update and rollback verbs (issue #128) refuse before they read, hostile values reach no
   # command, and a refused run changes nothing. Right after the scheduled-backup verbs, which it
   # reuses the helpers of and which leave the image as they found it.

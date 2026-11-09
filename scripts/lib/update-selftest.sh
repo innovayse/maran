@@ -13,6 +13,9 @@
 #   update-selftest-install.sh install from verified archives, the second sha256 check, replace
 #   update-selftest-unpack.sh  archive member vetting and extraction, set-id stripping
 #   update-selftest-dumps.sh   the pre-update dump name grammar, newest-by-name, pruning
+#   update-selftest-notes.sh   the signed release date and notes URL: valid, absent, hostile, tampered
+#   update-selftest-security.sh the signed security flag, the major rule, the unattended decision and report
+#   update-selftest-requested.sh --requested, the check record and running state the panel reads, the report back
 # The parts share this shell's variables and functions; none of them is run on its own.
 #
 # WHAT IT EXERCISES. The real CLI libraries installer/cli/lib/{common,release-version,release-verify,
@@ -208,6 +211,12 @@ fi
 . "${SELFTEST_PARTS_DIR}/update-selftest-unpack.sh"
 # shellcheck source=scripts/lib/update-selftest-dumps.sh
 . "${SELFTEST_PARTS_DIR}/update-selftest-dumps.sh"
+# shellcheck source=scripts/lib/update-selftest-notes.sh
+. "${SELFTEST_PARTS_DIR}/update-selftest-notes.sh"
+# shellcheck source=scripts/lib/update-selftest-security.sh
+. "${SELFTEST_PARTS_DIR}/update-selftest-security.sh"
+# shellcheck source=scripts/lib/update-selftest-requested.sh
+. "${SELFTEST_PARTS_DIR}/update-selftest-requested.sh"
 
 echo
 echo "UNOBSERVED HERE: a real systemd - no unit is restarted and no health gate polls anything (update-health.sh is not driven)."

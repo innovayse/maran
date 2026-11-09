@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AccountNotFound">
+    <value>Аккаунт не найден.</value>
+  </data>
+  <data name="FilesAccountSuspended">
+    <value>Аккаунт приостановлен, поэтому его файлами нельзя пользоваться. Возобновите аккаунт и повторите попытку.</value>
+  </data>
+  <data name="FilesPathInvalid">
+    <value>Недопустимый путь. Укажите путь внутри домашней папки, без «..», обратных косых черт и управляющих символов.</value>
+  </data>
+  <data name="FilesSearchTermRequired">
+    <value>Введите, что нужно найти.</value>
+  </data>
+  <data name="FilesPathReserved">
+    <value>Это имя зарезервировано для корзины и не может использоваться здесь.</value>
+  </data>
+  <data name="FilesEntryNotFound">
+    <value>Файл или папка не найдены.</value>
+  </data>
+  <data name="FilesEntryExists">
+    <value>Файл или папка с таким именем уже существует.</value>
+  </data>
+  <data name="FilesNotEditable">
+    <value>Этот файл нельзя редактировать здесь: он слишком большой, не является обычным текстом или не в кодировке UTF-8. Скачайте его.</value>
+  </data>
+  <data name="FilesUploadTooLarge">
+    <value>Файл больше допустимого размера загрузки.</value>
+  </data>
+  <data name="FilesDownloadTooLarge">
+    <value>Файл больше допустимого размера скачивания.</value>
+  </data>
+  <data name="FilesModeInvalid">
+    <value>Права доступа должны состоять из одной, двух или трёх восьмеричных цифр, от 0 до 777.</value>
+  </data>
+  <data name="FilesBatchTooLarge">
+    <value>Выбрано слишком много элементов для одного запроса.</value>
+  </data>
+  <data name="FilesBatchEmpty">
+    <value>Выберите хотя бы один элемент.</value>
+  </data>
+  <data name="FilesDeleteNotConfirmed">
+    <value>Безвозвратное удаление необходимо подтвердить.</value>
+  </data>
+  <data name="FilesRestoreTargetExists">
+    <value>На прежнем месте уже есть элемент с таким именем, поэтому восстановление не выполнено.</value>
+  </data>
+  <data name="FilesDestinationInsideSource">
+    <value>Папку нельзя переместить или скопировать в саму себя.</value>
+  </data>
+  <data name="FilesQuotaExceeded">
+    <value>В вашем тарифе недостаточно места на диске для этого действия.</value>
+  </data>
+  <data name="FilesArchiveRefused">
+    <value>Архив отклонён: он небезопасен или превышает ограничения распаковки.</value>
+  </data>
+  <data name="FilesArchiveFormatUnknown">
+    <value>Формат архива не поддерживается. Используйте файл .zip или .tar.gz.</value>
+  </data>
+  <data name="FilesAccountBusy">
+    <value>Одна из ваших передач ещё выполняется. Дождитесь её завершения и повторите попытку.</value>
+  </data>
+  <data name="FilesServerBusy">
+    <value>Сервер занят другими передачами. Повторите попытку чуть позже.</value>
+  </data>
+  <data name="FilesAgentFailed">
+    <value>Не удалось выполнить операцию с файлами. Повторите попытку.</value>
+  </data>
+  <data name="FilesEditConflict">
+    <value>Файл изменён после того, как вы его открыли. Перезагрузите его перед сохранением, чтобы не затереть новую версию.</value>
+  </data>
+</root>

@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using Grpc.Core;
+using Maran.SharedKernel.Results;
 
 namespace Maran.Agent.Client.Errors;
 
@@ -27,6 +28,11 @@ namespace Maran.Agent.Client.Errors;
 /// <see cref="StatusCode.Cancelled"/> status does, and takes the same typed answer.
 /// </para>
 /// <para>
+/// A server the panel declined to dial (<see cref="AgentEndpointRefusedException"/>: unknown, not approved
+/// or disabled) ends the stream the same way, carrying the refusal's own typed failure instead of the
+/// generic unavailable one, so a stream aimed at a node that is not approved says so.
+/// </para>
+/// <para>
 /// What it never swallows: a cancellation the caller asked for (the caller leaving is not a failure
 /// of the agent) and any exception that is neither a transport status nor such a cancellation, which
 /// is a defect of the panel and must stay loud.
@@ -40,12 +46,12 @@ public static class AgentStreamGuard
     /// </summary>
     /// <typeparam name="TEvent">The client's event type.</typeparam>
     /// <param name="source">The client's own event sequence, which may throw a transport status.</param>
-    /// <param name="toTerminal">Builds the failed terminal event from the status the transport raised.</param>
+    /// <param name="toTerminal">Builds the failed terminal event from the typed failure the stream ended with.</param>
     /// <param name="cancellationToken">The caller's token; a status raised after it fired is not mapped.</param>
     /// <returns>The events of <paramref name="source"/>, followed by the terminal event when it failed.</returns>
     public static async IAsyncEnumerable<TEvent> EndOnTransportFailureAsync<TEvent>(
         IAsyncEnumerable<TEvent> source,
-        Func<RpcException, TEvent> toTerminal,
+        Func<Error, TEvent> toTerminal,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -71,12 +77,18 @@ public static class AgentStreamGuard
             }
             catch (RpcException exception) when (!cancellationToken.IsCancellationRequested)
             {
-                current = toTerminal(exception);
+                current = toTerminal(AgentTransportFailure.ToError(exception));
                 failed = true;
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
-                current = toTerminal(new RpcException(new Status(StatusCode.Cancelled, string.Empty)));
+                current = toTerminal(
+                    AgentTransportFailure.ToError(new RpcException(new Status(StatusCode.Cancelled, string.Empty))));
+                failed = true;
+            }
+            catch (AgentEndpointRefusedException exception)
+            {
+                current = toTerminal(exception.Error);
                 failed = true;
             }
 

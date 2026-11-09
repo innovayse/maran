@@ -1,8 +1,11 @@
+using Maran.Modules.Notifications.Domain.Enums;
 using Maran.Modules.Notifications.IntegrationEvents.Handlers;
+using Maran.Modules.Notifications.Persistence;
 using Maran.Modules.Notifications.Services;
 using Maran.Modules.Notifications.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Maran.Modules.Notifications.Tests.IntegrationEvents.Handlers;
@@ -32,6 +35,13 @@ public sealed class SendMailRequestedHandlerTests
         "Reset your password",
         "Use this link within the hour: https://panel.example.com/reset?token=SECRET-TOKEN-VALUE");
 
+    /// <summary>An alert mail, which the dashboard's delivery state is about.</summary>
+    private static readonly SendMailRequested AlertMail = new(
+        "ops@example.com",
+        "Disk is full",
+        "The disk is 95% full.",
+        MailPurpose.OperatorAlert);
+
     /// <summary>A mailer failure is journalled and never thrown.</summary>
     /// <remarks>
     /// The named test R11 rests on. Its mutation — rethrowing instead of catching — must turn it red,
@@ -51,7 +61,7 @@ public sealed class SendMailRequestedHandlerTests
         await handler.HandleAsync(ResetMail, CancellationToken.None);
 
         var entry = Assert.Single(audit.Entries);
-        Assert.Equal(MailAuditActions.MailSendFailed, entry.Action);
+        Assert.Equal(OutgoingMailAuditActions.MailSendFailed, entry.Action);
         Assert.Equal(ResetMail.Recipient, entry.Subject);
         Assert.False(entry.Succeeded);
     }
@@ -72,7 +82,7 @@ public sealed class SendMailRequestedHandlerTests
         await handler.HandleAsync(ResetMail, CancellationToken.None);
 
         var entry = Assert.Single(audit.Entries);
-        Assert.Equal(MailAuditActions.MailSendFailed, entry.Action);
+        Assert.Equal(OutgoingMailAuditActions.MailSendFailed, entry.Action);
     }
 
     /// <summary>Cancellation is caught too, because a shutdown must not dead-letter the envelope either.</summary>
@@ -115,7 +125,7 @@ public sealed class SendMailRequestedHandlerTests
         await handler.HandleAsync(ResetMail, CancellationToken.None);
 
         var entry = Assert.Single(audit.Entries);
-        Assert.Equal(MailAuditActions.MailSkippedNoSmtp, entry.Action);
+        Assert.Equal(OutgoingMailAuditActions.MailSkippedNoSmtp, entry.Action);
         // And SUCCEEDED, which is the half this test did not assert: changing the outcome broke
         // nothing here, so a fresh install kept writing a red FAILED row for mail that was
         // correctly not sent (issue #71). The send-failure test above asserts the opposite, so the
@@ -170,13 +180,74 @@ public sealed class SendMailRequestedHandlerTests
         Assert.DoesNotContain("SECRET-TOKEN-VALUE", serialized, StringComparison.Ordinal);
     }
 
+    /// <summary>A failed operator alert marks the mail channel as failing, with the failure's code and not the server's words.</summary>
+    [Fact]
+    public async Task A_failed_operator_alert_marks_the_mail_channel_failing()
+    {
+        await using var dbContext = NotificationsTestContext.Create();
+        var mailer = new RecordingMailer { Outcome = Result.Fail(Error.Of(MailDeliveryFailedCode, ErrorType.UpstreamRefused)) };
+
+        await Handler(mailer, new RecordingAuditWriter(), dbContext).HandleAsync(AlertMail, CancellationToken.None);
+
+        var state = await dbContext.AlertChannelStates.SingleAsync();
+        Assert.Equal(AlertChannel.Mail, state.Channel);
+        Assert.True(state.IsFailing);
+        Assert.Equal(MailDeliveryFailedCode, state.LastFailureCode);
+    }
+
+    /// <summary>A delivered operator alert after a failure clears the failing state (the inverse control).</summary>
+    [Fact]
+    public async Task A_delivered_operator_alert_after_a_failure_clears_the_failing_state()
+    {
+        await using var dbContext = NotificationsTestContext.Create();
+        var mailer = new RecordingMailer { Outcome = Result.Fail(Error.Of(MailDeliveryFailedCode, ErrorType.UpstreamRefused)) };
+        var handler = Handler(mailer, new RecordingAuditWriter(), dbContext);
+        await handler.HandleAsync(AlertMail, CancellationToken.None);
+
+        mailer.Outcome = Result.Ok();
+        await handler.HandleAsync(AlertMail, CancellationToken.None);
+
+        var state = await dbContext.AlertChannelStates.SingleAsync();
+        Assert.False(state.IsFailing);
+        Assert.NotNull(state.LastSucceededAt);
+    }
+
+    /// <summary>A failed password-reset mail says nothing about alerts, so it records no channel state.</summary>
+    [Fact]
+    public async Task A_failed_transactional_mail_records_no_alert_channel_state()
+    {
+        await using var dbContext = NotificationsTestContext.Create();
+        var mailer = new RecordingMailer { Outcome = Result.Fail(Error.Of(MailDeliveryFailedCode, ErrorType.UpstreamRefused)) };
+
+        await Handler(mailer, new RecordingAuditWriter(), dbContext).HandleAsync(ResetMail, CancellationToken.None);
+
+        Assert.Empty(await dbContext.AlertChannelStates.ToListAsync());
+    }
+
+    /// <summary>An operator alert skipped because mail is not configured is not a delivery failure.</summary>
+    [Fact]
+    public async Task A_skipped_operator_alert_records_no_alert_channel_state()
+    {
+        await using var dbContext = NotificationsTestContext.Create();
+        var mailer = new RecordingMailer { Outcome = Result.Fail(Error.Of(SmtpNotConfiguredCode, ErrorType.Validation)) };
+
+        await Handler(mailer, new RecordingAuditWriter(), dbContext).HandleAsync(AlertMail, CancellationToken.None);
+
+        Assert.Empty(await dbContext.AlertChannelStates.ToListAsync());
+    }
+
     /// <summary>Builds the handler over the doubles a test supplies.</summary>
     /// <param name="mailer">The mailer double.</param>
     /// <param name="audit">The journal double.</param>
+    /// <param name="dbContext">The context the channel state is written through; a fresh one when omitted.</param>
     /// <returns>The handler.</returns>
-    private static SendMailRequestedHandler Handler(RecordingMailer mailer, Sdk.Interfaces.IAuditWriter audit)
+    private static SendMailRequestedHandler Handler(
+        RecordingMailer mailer,
+        Sdk.Interfaces.IAuditWriter audit,
+        NotificationsDbContext? dbContext = null)
     {
         var journal = new NotificationsAuditJournal(audit, new FakeCurrentUser());
-        return new SendMailRequestedHandler(mailer, journal, NullLogger<SendMailRequestedHandler>.Instance);
+        var recorder = new AlertChannelStateRecorder(dbContext ?? NotificationsTestContext.Create(), new FakeClock());
+        return new SendMailRequestedHandler(mailer, journal, recorder, NullLogger<SendMailRequestedHandler>.Instance);
     }
 }

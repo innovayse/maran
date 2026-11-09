@@ -75,4 +75,25 @@
   <data name="AgentRunNotStopped">
     <value>The server could not confirm that the operation was stopped, so it may still be running. Check on it before you try again.</value>
   </data>
+  <data name="AgentQuotaExceeded">
+    <value>The disk quota for this account is used up, so nothing was saved. Free some space or ask for a larger quota, then try again.</value>
+  </data>
+  <data name="AgentArchiveUnsafe">
+    <value>This archive contains items that are not safe to unpack here, so nothing was extracted. Check the archive and try a different one.</value>
+  </data>
+  <data name="AgentTooLarge">
+    <value>This file or folder is too large to open here, so nothing was read. Download it with SFTP instead.</value>
+  </data>
+  <data name="AgentArchiveUnopenable">
+    <value>This backup's archive could not be opened with the encryption key held for its destination, so nothing was changed. Check that destination's archive key; the copy itself may also be damaged.</value>
+  </data>
+  <data name="AgentServerUnknown">
+    <value>This server is not known to the panel, so nothing was done. Refresh the page and choose a server from the list.</value>
+  </data>
+  <data name="AgentServerNotApproved">
+    <value>This server has not been approved yet, so nothing was done. Approve it first, then try again.</value>
+  </data>
+  <data name="AgentServerDisabled">
+    <value>This server is switched off in the panel, so nothing was done. Switch it on again, then try again.</value>
+  </data>
 </root>

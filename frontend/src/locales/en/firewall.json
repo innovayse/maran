@@ -49,10 +49,10 @@
     "lockout": {
       "allowTitle": "Install this rule?",
       "denyTitle": "Remove this rule?",
-      "allowWarning": "This rule admits only the range shown. If it names the port your SSH daemon listens on, it replaces the unconditional accept that is holding your session open — and everybody outside that range, you included, stops reaching it.",
+      "allowWarning": "This rule admits only the range shown. If it names the port your SSH daemon listens on, the panel checks it before it is installed and refuses it when the address you are connected from is outside the range, because that would close SSH to you with no way back in. A rule for any other port is installed as written.",
       "denyWarning": "Removing a rule changes what reaches this host. If this is the rule restricting SSH, the panel's unconditional accept comes back and SSH answers every source again; if it is not, the port it names stops answering.",
       "lastRuleForPort": "This leaves no rule at all for that port.",
-      "sshPortUnknown": "This screen is not told which port your SSH daemon listens on: the panel holds that fact and does not send it to the browser. Read the port above before you confirm.",
+      "sshPortUnknown": "This screen is not told which port your SSH daemon listens on: the panel holds that fact and does not send it to the browser, so the panel makes the check itself when you confirm. It compares the address of this browser session, so if you reach SSH from a different address, read the port above before you confirm.",
       "confirmAllow": "Install the rule",
       "confirmDeny": "Remove the rule"
     },

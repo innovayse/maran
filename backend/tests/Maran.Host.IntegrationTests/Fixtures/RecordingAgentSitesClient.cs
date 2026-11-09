@@ -147,6 +147,42 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
         throw new NotSupportedException();
     }
 
+    /// <summary>The domains whose traffic was summarised, in order.</summary>
+    public List<string> Summarised { get; } = [];
+
+    /// <summary>The readings <see cref="SummariseTrafficAsync"/> answers with, one per call; empty answers a quiet log.</summary>
+    public Queue<Result<SiteTrafficReading>> TrafficReadings { get; } = new();
+
+    /// <summary>The domains whose archives were pruned and the retention each was pruned to, in order.</summary>
+    public List<(string Domain, uint Retain)> Pruned { get; } = [];
+
+    /// <inheritdoc/>
+    public Task<Result<SiteTrafficReading>> SummariseTrafficAsync(
+        string accountUsername,
+        string domain,
+        SiteTrafficCursor? cursor,
+        CancellationToken cancellationToken)
+    {
+        Summarised.Add(domain);
+
+        return Task.FromResult(TrafficReadings.Count > 0
+            ? TrafficReadings.Dequeue()
+            : Result<SiteTrafficReading>.Ok(
+                new SiteTrafficReading([], cursor ?? new SiteTrafficCursor("0:0:none", 0), true, false, 0)));
+    }
+
+    /// <inheritdoc/>
+    public Task<Result<PrunedSiteLogs>> PruneLogsAsync(
+        string accountUsername,
+        string domain,
+        uint retainRotations,
+        CancellationToken cancellationToken)
+    {
+        Pruned.Add((domain, retainRotations));
+
+        return Task.FromResult(Result<PrunedSiteLogs>.Ok(new PrunedSiteLogs(0)));
+    }
+
     /// <summary>Counts the reload the panel ordered, and answers as the agent would.</summary>
     /// <param name="cancellationToken">Unused: nothing here awaits.</param>
     /// <returns>Success.</returns>

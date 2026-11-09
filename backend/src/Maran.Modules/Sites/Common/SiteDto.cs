@@ -22,6 +22,7 @@ namespace Maran.Modules.Sites.Common;
 /// <param name="Status">Whether the site serves its own content or a suspension response.</param>
 /// <param name="StatusName">The serving state as an operator reads it, localized for the request's culture by <c>SiteDisplayNames</c>.</param>
 /// <param name="CreatedAt">The instant the site was created.</param>
+/// <param name="LogRetentionDays">How many days of rotated logs the site keeps, from 1 to 14.</param>
 public sealed record SiteDto(
     Guid Id,
     Guid AccountId,
@@ -32,4 +33,5 @@ public sealed record SiteDto(
     string PhpVersion,
     SiteStatus Status,
     string StatusName,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    int LogRetentionDays);

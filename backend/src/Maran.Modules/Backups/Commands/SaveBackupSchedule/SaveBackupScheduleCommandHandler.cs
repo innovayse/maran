@@ -1,9 +1,5 @@
 using Maran.Modules.Backups.Common;
-using Maran.Modules.Backups.Domain.Entities;
-using Maran.Modules.Backups.Domain.Enums;
-using Maran.Modules.Backups.Domain.ValueObjects;
 using Maran.Modules.Backups.Mappers;
-using Maran.Modules.Backups.Persistence;
 using Maran.Modules.Backups.Resources;
 using Maran.Modules.Backups.Services;
 using Maran.Sdk.Contracts;
@@ -17,12 +13,10 @@ namespace Maran.Modules.Backups.Commands.SaveBackupSchedule;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>The read before the insert is what keeps a schedule single, and for the host-wide row it is
-/// the only thing that does.</b> The per-account rows are held apart by a unique index; the
-/// host-wide row names no account and PostgreSQL counts NULLs as distinct, so the index cannot
-/// cover it on every supported platform (<c>BackupScheduleConfiguration</c> says why). Two
-/// host-wide schedules would mean two backups of every account a night, which is the failure this
-/// lookup exists against.
+/// <b>The row is created or reconfigured by <see cref="BackupScheduleWriter"/>, the one place that
+/// keeps a schedule single.</b> The administrator's surface and the customer's surface share it, so
+/// the lookup that holds the host-wide row to one (two host-wide schedules would mean two backups of
+/// every account a night) is written once.
 /// </para>
 /// <para>
 /// <b>A named account is resolved through the tenant-scoped directory even though the surface is
@@ -39,33 +33,27 @@ namespace Maran.Modules.Backups.Commands.SaveBackupSchedule;
 /// </remarks>
 public sealed class SaveBackupScheduleCommandHandler
 {
-    /// <summary>The Backups module's database context, and this module's tenant boundary.</summary>
-    private readonly BackupsDbContext _dbContext;
-
     /// <summary>The one window onto whether the named account exists.</summary>
     private readonly IAccountDirectory _accounts;
 
     /// <summary>This module's audit journal.</summary>
     private readonly BackupAuditJournal _journal;
 
-    /// <summary>The injected time source; never the ambient clock (rules/csharp.md).</summary>
-    private readonly IClock _clock;
+    /// <summary>The one place a schedule row is created or reconfigured.</summary>
+    private readonly BackupScheduleWriter _writer;
 
     /// <summary>Creates the handler.</summary>
-    /// <param name="dbContext">The Backups module's database context.</param>
     /// <param name="accounts">The window onto whether the named account exists.</param>
     /// <param name="journal">This module's audit journal.</param>
-    /// <param name="clock">The injected time source used to record when a schedule was switched on.</param>
+    /// <param name="writer">The one place a schedule row is created or reconfigured.</param>
     public SaveBackupScheduleCommandHandler(
-        BackupsDbContext dbContext,
         IAccountDirectory accounts,
         BackupAuditJournal journal,
-        IClock clock)
+        BackupScheduleWriter writer)
     {
-        _dbContext = dbContext;
         _accounts = accounts;
         _journal = journal;
-        _clock = clock;
+        _writer = writer;
     }
 
     /// <summary>Saves one schedule and answers with what was stored.</summary>
@@ -104,38 +92,19 @@ public sealed class SaveBackupScheduleCommandHandler
             subject = account.Username;
         }
 
-        var cadence = CadenceOf(command);
+        var cadence = BackupCadenceTranslator.From(command.Frequency, command.HourUtc, command.DayOfWeekUtc);
         if (cadence.Error is { } refusal)
         {
             return Result<BackupScheduleDto>.Fail(refusal);
         }
 
-        var schedule = await _dbContext.BackupSchedules
-            .FirstOrDefaultAsync(row => row.AccountId == command.AccountId, cancellationToken);
-
-        if (schedule is null)
-        {
-            schedule = new BackupSchedule(
-                Guid.NewGuid(),
-                command.AccountId,
-                command.DestinationId,
-                cadence.Value,
-                command.RetainCount);
-
-            _dbContext.BackupSchedules.Add(schedule);
-        }
-
-        // Reconfigure runs for a new schedule too, because a new schedule is created disabled and it
-        // is this call that switches it on — recording EnabledAt, from which the first run is the
-        // next named hour rather than the moment the form is saved.
-        schedule.Reconfigure(
+        var schedule = await _writer.SaveAsync(
+            command.AccountId,
             command.DestinationId,
             cadence.Value,
             command.RetainCount,
             command.Enabled,
-            _clock.UtcNow);
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
+            cancellationToken);
 
         await _journal.RecordSuccessAsync(
             BackupAuditActions.BackupScheduleSaved,
@@ -145,34 +114,5 @@ public sealed class SaveBackupScheduleCommandHandler
             cancellationToken);
 
         return Result<BackupScheduleDto>.Ok(BackupScheduleMapper.From(schedule));
-    }
-
-    /// <summary>Reads the command's frequency, weekday and hour as the one cadence they name.</summary>
-    /// <param name="command">The validated command.</param>
-    /// <returns>
-    /// The cadence, or the same refusal the validator raises when a weekly schedule names no weekday or
-    /// a daily one names one. A command dispatched on the bus is validated too, but the cadence cannot
-    /// be built from either pair, so the handler states the refusal rather than guessing a reading.
-    /// </returns>
-    private static Result<BackupCadence> CadenceOf(SaveBackupScheduleCommand command)
-    {
-        if (command.Frequency == BackupFrequency.Weekly)
-        {
-            if (command.DayOfWeekUtc is null)
-            {
-                return Result<BackupCadence>.Fail(
-                    Error.Of(nameof(ErrorMessages.BackupScheduleDayRequired), ErrorType.Validation));
-            }
-
-            return Result<BackupCadence>.Ok(new WeeklyBackupCadence(command.DayOfWeekUtc.Value, command.HourUtc));
-        }
-
-        if (command.DayOfWeekUtc is not null)
-        {
-            return Result<BackupCadence>.Fail(
-                Error.Of(nameof(ErrorMessages.BackupScheduleDayNotAllowed), ErrorType.Validation));
-        }
-
-        return Result<BackupCadence>.Ok(new DailyBackupCadence(command.HourUtc));
     }
 }

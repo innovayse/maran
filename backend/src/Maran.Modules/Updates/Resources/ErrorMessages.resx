@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="PanelUpdateRunning">
+    <value>An update is already queued or running.</value>
+  </data>
+  <data name="PanelUpdateUnavailable">
+    <value>The panel cannot start an update on this server right now.</value>
+  </data>
+  <data name="PanelUpdateRefused">
+    <value>The update was refused before anything was changed. Run the update from the server's command line to see why.</value>
+  </data>
+  <data name="PanelUpdateRolledBack">
+    <value>The update failed its health check and the panel returned to the previous version. The database was not restored.</value>
+  </data>
+  <data name="PanelUpdateRollbackFailed">
+    <value>The update failed and the previous version did not become healthy either. Check the server from its command line.</value>
+  </data>
+  <data name="PanelUpdateInterrupted">
+    <value>The update was interrupted after the new version was switched in. Check the server from its command line.</value>
+  </data>
+  <data name="PanelUpdateNotStarted">
+    <value>The update never started: the server's update service did not pick up the request.</value>
+  </data>
+  <data name="PanelUpdateOutcomeUnknown">
+    <value>The update ended without reporting its result. Check the version the panel runs now.</value>
+  </data>
+</root>

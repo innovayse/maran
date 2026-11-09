@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { expectTablesAsCards, type CardActions } from '../fixtures/expect-table-cards'
+import { expectNoHorizontalOverflow } from '../fixtures/measure-horizontal-extent'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubLogin, stubSetupState, stubSignedIn, stubSignedOut } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
@@ -13,7 +14,7 @@ import type { AuthenticatedUser, Session } from '../../src/types/auth'
 import type { AuditEvent } from '../../src/types/audit'
 import type { MyAccount } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
-import type { PhpVersion } from '../../src/types/phpVersion'
+import { completePhpVersion, type PhpVersionStub } from '../fixtures/stub-sites-routes'
 import type { SecurityPolicy } from '../../src/types/securityPolicy'
 
 /**
@@ -168,7 +169,7 @@ const POLICY: SecurityPolicy = {
 }
 
 /** Installed PHP runtimes, one of them the default and one of unknown default state. */
-const PHP_VERSIONS: PhpVersion[] = [
+const PHP_VERSIONS: PhpVersionStub[] = [
   { version: '8.4', defaultStatus: 'default' },
   { version: '8.3', defaultStatus: 'notDefault' },
   { version: '8.2', defaultStatus: 'unknown' },
@@ -197,6 +198,7 @@ const LOCKED_MODULES: PanelModule[] = [
   {
     name: 'backups',
     displayName: 'Backups and disaster recovery for every hosted account',
+    kindDisplayName: 'Core',
     tier: 'addOn',
     tierDisplayName: 'Professional add-on tier',
     state: 'locked',
@@ -408,7 +410,7 @@ const SCREENS: Screen[] = [
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify(PHP_VERSIONS),
+          body: JSON.stringify(PHP_VERSIONS.map(completePhpVersion)),
         })
       })
     },
@@ -494,72 +496,6 @@ const SCREENS: Screen[] = [
   },
 ]
 
-/** One element whose box leaves the viewport, described well enough to find it from a report. */
-interface Offender {
-  /** Tag name, accessible role hint and the first words of its text. */
-  element: string
-  /** Left edge in CSS pixels. */
-  left: number
-  /** Right edge in CSS pixels. */
-  right: number
-}
-
-/**
- * Collects every element inside the main region whose box pokes out of the viewport and is not
- * contained by an ancestor (below the main region) that clips or scrolls its overflow. That
- * exemption is what lets a table scroll inside its own container without being reported, while
- * an unclipped long word, an over-wide card or a rigid grid is.
- * @param main The main region.
- * @returns The offending elements; an empty list means the region fits.
- */
-const findOverflowing = async (main: Locator): Promise<Offender[]> => {
-  return main.evaluate((root: Element): Offender[] => {
-    const limit = window.innerWidth
-    const found: Offender[] = []
-
-    for (const element of Array.from(root.querySelectorAll('*'))) {
-      const rect = element.getBoundingClientRect()
-      const style = window.getComputedStyle(element)
-      if (
-        rect.width === 0 ||
-        rect.height === 0 ||
-        style.visibility === 'hidden' ||
-        style.display === 'none'
-      ) {
-        continue
-      }
-      if (rect.right <= limit + 0.5 && rect.left >= -0.5) {
-        continue
-      }
-
-      let contained = false
-      for (
-        let ancestor = element.parentElement;
-        ancestor !== null && ancestor !== root;
-        ancestor = ancestor.parentElement
-      ) {
-        const overflowX = window.getComputedStyle(ancestor).overflowX
-        if (overflowX !== 'visible') {
-          contained = true
-          break
-        }
-      }
-      if (contained) {
-        continue
-      }
-
-      const words = (element.textContent ?? '').trim().replace(/\s+/g, ' ').slice(0, 40)
-      found.push({
-        element: `${element.tagName.toLowerCase()} "${words}"`,
-        left: Math.round(rect.left),
-        right: Math.round(rect.right),
-      })
-    }
-
-    return found
-  })
-}
-
 /**
  * Asserts a locator is visible and its whole box lies inside the viewport.
  * @param page The page, for the viewport size.
@@ -588,38 +524,8 @@ for (const screen of SCREENS) {
 
       await page.goto(screen.path)
       await screen.ready(page)
-      // Webfont swaps change line breaks; measuring before they settle would measure a transient.
-      await page.evaluate(() => {
-        return document.fonts.ready
-      })
-
+      await expectNoHorizontalOverflow(page)
       const main = page.getByRole('main')
-      await expect(main).toBeVisible()
-
-      // 1. The document itself.
-      const documentWidth = await page.evaluate(() => {
-        return {
-          scrollWidth: window.document.documentElement.scrollWidth,
-          innerWidth: window.innerWidth,
-        }
-      })
-      expect(documentWidth.scrollWidth, 'the document is no wider than the viewport').toBeLessThanOrEqual(
-        documentWidth.innerWidth,
-      )
-
-      // 2. The main region, whose `overflow-x: hidden` would otherwise hide a failure from (1).
-      const region = await main.evaluate((element) => {
-        return {
-          scrollWidth: element.scrollWidth,
-          clientWidth: element.clientWidth,
-        }
-      })
-      expect(region.scrollWidth, 'the main region holds nothing wider than itself').toBeLessThanOrEqual(
-        region.clientWidth,
-      )
-
-      // 3. Every unclipped box inside it.
-      expect(await findOverflowing(main), 'no element leaves the viewport').toEqual([])
 
       if (screen.cards !== undefined) {
         await expectTablesAsCards(page, screen.cards)

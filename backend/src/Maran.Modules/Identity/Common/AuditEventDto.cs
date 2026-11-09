@@ -1,6 +1,7 @@
 namespace Maran.Modules.Identity.Common;
 
-/// <summary>Outward view of one audit journal row, for the administrator's audit screen.</summary>
+/// <summary>Outward view of one audit journal row, for the audit screens.</summary>
+/// <remarks>The administrator's reads the whole journal; the reseller's reads its own part of it, in this same shape.</remarks>
 /// <param name="Id">The event's identity.</param>
 /// <param name="OccurredAt">When it happened.</param>
 /// <param name="ActorUsername">The name the actor used.</param>

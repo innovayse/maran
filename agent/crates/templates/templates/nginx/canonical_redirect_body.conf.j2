@@ -1,0 +1,3 @@
+    location / {
+        return 301 {% if secure %}https{% else %}http{% endif %}://{{ canonical }}$request_uri;
+    }

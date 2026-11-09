@@ -9,6 +9,7 @@ use crate::php::model::php_override::PhpOverride;
 use crate::php::write_pool;
 use crate::sites::fake_site_host::{
     FakeSiteHost, create_test_site, distro, legacy_suspended_text, php_input,
+    php_input_with_options,
 };
 use crate::sites::model::php_switch::PhpSwitch;
 use crate::sites::model::site_paths::SitePaths;
@@ -458,4 +459,38 @@ fn switching_versions_on_a_site_serving_the_earlier_stub_leaves_the_stub() {
 
     assert_eq!(site_host.config(&vhost_path).unwrap(), legacy);
     assert_eq!(site_host.writes(), writes_before);
+}
+
+#[test]
+fn switching_versions_keeps_the_sites_options_and_its_credential_file() {
+    let site_host = FakeSiteHost::passing();
+    let php_host = FakePhpHost::with_installed(&["8.3", "8.4"]);
+    let site = php_input_with_options();
+    create_test_site(&site_host, &site).unwrap();
+    let credential = maran_agent_core::agent_paths::AgentPaths::site_auth_file(&site.domain);
+
+    update_site_php_version(
+        &site_host,
+        &php_host,
+        distro(),
+        &site,
+        &PhpSwitch {
+            version: &PhpVersion::parse("8.4").unwrap(),
+            max_children: WORKERS,
+            overrides: &[],
+            remove_previous_pool: false,
+        },
+    )
+    .unwrap();
+
+    let vhost = site_host
+        .config(std::path::Path::new(
+            "/etc/maran/nginx/sites/example.com.conf",
+        ))
+        .unwrap();
+    assert!(vhost.contains("-8.4.sock"), "{vhost}");
+    assert!(vhost.contains("auth_basic_user_file"), "{vhost}");
+    assert!(vhost.contains("location = /old {"), "{vhost}");
+    assert!(vhost.contains("client_max_body_size 100m;"), "{vhost}");
+    assert!(site_host.auth_file(&credential).is_some());
 }

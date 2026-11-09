@@ -32,6 +32,7 @@ import {
   ChevronsUpDown,
   CircleAlert,
   CircleCheck,
+  CircleDashed,
   Clock,
   Copy,
   Cpu,
@@ -42,7 +43,9 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
+  File,
   FileText,
+  Folder,
   FolderKey,
   Globe,
   HardDrive,
@@ -50,6 +53,7 @@ import {
   Info,
   KeyRound,
   LayoutGrid,
+  Link2,
   ListFilter,
   ListChecks,
   Lock,
@@ -172,6 +176,8 @@ export type UiIconName =
   | 'circleAlert'
   /** A tick in a disc — a success. */
   | 'circleCheck'
+  /** A dashed ring — a step not done yet, the open counterpart of `circleCheck`. */
+  | 'circleDashed'
   /** An "i" in a disc — neutral information. */
   | 'info'
   /** A right arrow — a link or action that moves on. */
@@ -202,6 +208,12 @@ export type UiIconName =
   | 'chevronsUpDown'
   /** A five-point star — a favourite: a page pinned to the app bar. Drawn filled when pinned. */
   | 'star'
+  /** A closed folder — a directory in the file manager. */
+  | 'folder'
+  /** A plain sheet — a file in the file manager. */
+  | 'file'
+  /** Two joined links — a symbolic link in the file manager. */
+  | 'link'
 
 /**
  * Every glyph the panel draws, mapped to its lucide component. The map is
@@ -254,6 +266,7 @@ const ICONS: Record<UiIconName, LucideIcon> = {
   triangleAlert: TriangleAlert,
   circleAlert: CircleAlert,
   circleCheck: CircleCheck,
+  circleDashed: CircleDashed,
   info: Info,
   arrowRight: ArrowRight,
   chevronUp: ChevronUp,
@@ -269,6 +282,9 @@ const ICONS: Record<UiIconName, LucideIcon> = {
   chevronsUpDown: ChevronsUpDown,
   package: Package,
   star: Star,
+  folder: Folder,
+  file: File,
+  link: Link2,
 }
 
 /**

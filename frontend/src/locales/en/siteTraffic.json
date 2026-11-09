@@ -1,0 +1,46 @@
+{
+  "siteTraffic": {
+    "tabLabel": "Traffic",
+    "windowLabel": "Period",
+    "emptyTitle": "No traffic recorded yet",
+    "emptyDescription": "Requests appear here once the site has served some and the panel has read its access log.",
+    "incomplete": "These figures may be incomplete since {date}: part of the access log was not available.",
+    "summary": {
+      "requests": "Requests",
+      "bytes": "Data sent",
+      "window": "Period",
+      "days": "{count} day | {count} days",
+      "period": "{from} to {to}"
+    },
+    "chart": {
+      "requests": "Requests per day",
+      "bytes": "Data sent per day"
+    },
+    "status": {
+      "heading": "Status codes",
+      "caption": "Requests by status code",
+      "columns": {
+        "code": "Status code",
+        "requests": "Requests"
+      }
+    },
+    "paths": {
+      "heading": "Most requested paths",
+      "caption": "Most requested paths",
+      "columns": {
+        "path": "Path",
+        "requests": "Requests"
+      }
+    },
+    "retention": {
+      "heading": "Log retention",
+      "description": "How long the site's rotated access and error logs are kept.",
+      "label": "Keep logs for",
+      "placeholder": "Choose a period",
+      "hint": "Older rotated logs are removed shortly after you save. The live log is not affected.",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "The log retention has been saved."
+    }
+  }
+}

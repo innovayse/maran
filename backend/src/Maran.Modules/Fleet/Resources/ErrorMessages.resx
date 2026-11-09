@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="ServerStateTransitionInvalid">
+    <value>This server is not in a state that allows that change.</value>
+  </data>
+  <data name="ServerNotEnrolled">
+    <value>No host has enrolled for this server yet, so there is nothing to approve.</value>
+  </data>
+  <data name="ServerFingerprintMismatch">
+    <value>The fingerprint you typed is not the one this server presented. Compare it with the one printed on the server and try again.</value>
+  </data>
+  <data name="ServerLocalImmutable">
+    <value>The server this panel runs on cannot be switched off.</value>
+  </data>
+</root>

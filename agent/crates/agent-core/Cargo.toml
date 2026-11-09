@@ -20,6 +20,15 @@ rustix.workspace = true
 # base64: decoding an SSH public key in validation/system/ssh_public_key.rs, so a
 # key is proven to be a key before root writes it (issue #135).
 base64.workspace = true
+# sha2 and subtle: the SHA-256 fingerprint of a fleet certificate and its constant-time
+# comparison, in validation/fleet/certificate_fingerprint.rs (issue #180).
+sha2.workspace = true
+subtle.workspace = true
+
+# tokio (`sync` only, no runtime): the counting semaphores behind
+# utils/bounded_slots, which bounds how many operations of one kind run at once.
+# Shared by two ops areas, so it lives here and not in either (rules/rust.md).
+tokio = { workspace = true, features = ["sync"] }
 
 [dev-dependencies]
 # tempfile: path containment is only meaningfully tested against a real filesystem.

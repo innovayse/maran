@@ -12,9 +12,12 @@
  * its three values, so there is no detail to open either.
  *
  * **Every rule change that could cost the operator their way in passes through
- * `FirewallLockoutDialog` first**, which is where the reasoning about that lives. The panel accepts
- * either operation whether or not the dialog was shown — the agent's SSH fallback makes removal
- * fail-open by design — so this is a moment to read the change back, not an enforcement point.
+ * `FirewallLockoutDialog` first**, which is where the reasoning about that lives. The dialog is a
+ * moment to read the change back, not the enforcement point: for an allow the panel itself refuses
+ * (409, with its own localized text) a rule that would close an SSH port to the address the request
+ * comes from, whether or not the dialog was shown, and this page keeps the form filled beside that
+ * text. A removal is never refused — the agent's SSH fallback makes it fail-open by design — so the
+ * dialog is the only check there.
  */
 import { computed, onMounted, ref, useTemplateRef, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'

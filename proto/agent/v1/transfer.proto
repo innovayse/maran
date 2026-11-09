@@ -1,0 +1,243 @@
+// Moving one account's backup between Maran servers (issue #127): the source
+// agent reads a published backup artifact out together with a signed
+// manifest, and the target agent verifies the signature and the operator's key
+// fingerprint, stages the artifact byte for byte and publishes it as a backup
+// of the target host.
+//
+// The agent opens no network connection for any of this. The panel relays the
+// bytes between two agents (and, between panels, carries them however the
+// operator chooses), so the only transports here are the agent's own unix
+// socket and a file on an administrator's disk.
+//
+// This service only MOVES an artifact. Restoring it is the ordinary
+// BackupService.RestoreBackup, and an artifact that arrived through ImportBackup
+// is marked as imported in its sidecar so that a restore treats its database
+// dumps as the work of someone else (they are loaded through the restricted
+// loader and never as the database superuser).
+syntax = "proto3";
+
+package maran.agent.v1;
+
+option csharp_namespace = "Maran.Agent.V1";
+
+import "agent/v1/common.proto";
+
+service TransferService {
+  // Reads one published, UNSEALED backup artifact of an account out, in bounded
+  // chunks, preceded by a manifest the agent signs with the key the request
+  // carries. Streams exactly one ExportBackupHeader, then ExportBackupChunk
+  // messages, and ends with exactly one terminal message: ExportBackupDone or
+  // an AgentError. A stream that ends without a terminal message is a
+  // truncation and MUST be treated as a failed export.
+  //
+  // What the manifest claims (artifact size and SHA-256) is what the account's
+  // sidecar recorded when the backup was made. The agent hashes the bytes
+  // while it sends them and ends the stream with ERROR_CODE_VALIDATION_FAILED
+  // when they no longer match, so a receiver that checks the digest it was
+  // signed refuses the same artifact the sender would have.
+  //
+  // AUDIT CLASS: MUTATING, although nothing on the host changes. A customer's
+  // whole home and every database dump leaving the host is the event the
+  // independent audit trail exists for (issue #127, decision D12).
+  //
+  // The account's backup lock is taken first and never waited for: when a
+  // backup, a restore, a delete, a verification or another export of the
+  // account holds it, the answer is ERROR_CODE_ACCOUNT_BUSY at once and
+  // nothing was read. The lock is held for the whole stream.
+  //
+  // A sealed (encrypted) artifact is refused with ERROR_CODE_VALIDATION_FAILED:
+  // its bytes cannot be read by the receiving host, which has no key for them.
+  // The panel exports from an unsealed backup made for the purpose.
+  //
+  // CANCELLATION: stop. The only product of the work is the stream, so a client
+  // that goes away or stops reading ends the read and releases the lock. Nothing
+  // is left to reclaim: the rpc writes nothing on the host.
+  rpc ExportBackup(ExportBackupRequest) returns (stream ExportBackupResponse);
+
+  // Receives one backup artifact exported by another host, verifies it, and
+  // publishes it as a backup of the account it names. Client-streaming: the
+  // first message carries the header, every later message carries a chunk.
+  //
+  // NOTHING of the package is written before these have all held, in this order:
+  //   1. the key fingerprint the operator confirmed equals the fingerprint of
+  //      the public key in the header;
+  //   2. the signature verifies over the exact manifest bytes;
+  //   3. the manifest is well formed, of a known version, names a valid
+  //      account and backup id, and declares a size within the ceiling;
+  //   4. no system user of that name exists on this host (decision D1: an
+  //      imported account keeps its system user name, so the name must be free);
+  //   5. the filesystem has room for the declared size and still keeps the
+  //      free-space floor. The room is measured where the artifact will land,
+  //      so the account's backup directory is created for the measurement: an
+  //      empty directory is the only thing a refusal at this step leaves.
+  //
+  // Then the artifact is staged under a name this agent mints, hashed while it
+  // is written, refused when the stream carries more or fewer bytes than the
+  // signed manifest declares or when the SHA-256 differs, listed (the same
+  // member scan a restore applies), and its embedded manifest is required to
+  // name the same account, the same backup id and the same databases as the
+  // signed one and to hold a dump for each. Only then is it published under
+  // the SOURCE backup id, with a sidecar marking it imported.
+  //
+  // WHAT A SUCCESS DOES NOT ESTABLISH. That the SQL loads, or that a restore
+  // will succeed. A valid signature proves only that the holder of the key
+  // signed the manifest; whether that holder is the server the operator
+  // believes it is rests on the fingerprint comparison the operator made.
+  //
+  // IDEMPOTENT: when a backup with the same id and the same SHA-256 is already
+  // published, the answer is ok with already_present = true and nothing is
+  // written. The same id with a different SHA-256 is refused
+  // (IMPORT_REFUSAL_REASON_BACKUP_ID_TAKEN).
+  //
+  // The account's backup lock is taken without waiting (ERROR_CODE_ACCOUNT_BUSY).
+  //
+  // CANCELLATION: stop and reclaim. A client that disappears or sends a malformed
+  // stream aborts the import; the half-written stage and the scratch are
+  // removed and nothing is published. Publishing is the final rename, so there
+  // is no midpoint to protect.
+  rpc ImportBackup(stream ImportBackupRequest) returns (ImportBackupResponse);
+}
+
+// ExportBackup request.
+message ExportBackupRequest {
+  // System user name of the account whose backup is exported. Revalidated by
+  // the agent.
+  string account_username = 1;
+  // Id of the published backup to export, as minted by CreateBackup. Revalidated
+  // by the agent.
+  string backup_id = 2;
+  // The per-server package signing key: an unencrypted PKCS#8 (RFC 5208) DER
+  // document holding an ECDSA P-384 private key. A SECRET: it is held for the
+  // call only, never logged and never written to disk; the agent overwrites its
+  // own copy of the bytes once the key is parsed. The manifest is signed with
+  // ECDSA P-384 and SHA-384, the signature DER-encoded (RFC 3279
+  // ecdsa-with-SHA384 sequence).
+  bytes signing_key = 3;
+}
+
+// One message of the ExportBackup stream.
+message ExportBackupResponse {
+  oneof result {
+    // The first message: the signed manifest. Exactly once, before any chunk.
+    ExportBackupHeader header = 1;
+    // A slice of the artifact, in order. Never empty.
+    ExportBackupChunk chunk = 2;
+    // The terminal message of a complete export.
+    ExportBackupDone done = 3;
+    // The terminal message of a failed export.
+    maran.agent.v1.AgentError error = 4;
+  }
+}
+
+// What a receiver verifies before it accepts a single artifact byte.
+message ExportBackupHeader {
+  // The manifest, as the exact UTF-8 JSON bytes that were signed. A receiver
+  // MUST verify the signature over these bytes and MUST NOT re-serialise them.
+  // Fields: schema version, account, backup_id, artifact_bytes,
+  // artifact_sha256 (lowercase hex), home_bytes, databases (names), created_at
+  // (unix seconds), agent_version and signer_fingerprint.
+  bytes manifest = 1;
+  // ECDSA P-384 / SHA-384 signature over `manifest`, ASN.1 DER encoded.
+  bytes signature = 2;
+  // The signer's public key as an uncompressed SEC1 point (0x04 || X || Y,
+  // 97 bytes for P-384).
+  bytes public_key = 3;
+}
+
+// A slice of the artifact.
+message ExportBackupChunk {
+  // Artifact bytes, at most 1 MiB per message.
+  bytes data = 1;
+}
+
+// The terminal ok of ExportBackup.
+message ExportBackupDone {
+  // Artifact bytes sent; equals the manifest's artifact_bytes.
+  uint64 artifact_bytes = 1;
+}
+
+// One message of the ImportBackup stream.
+message ImportBackupRequest {
+  oneof part {
+    // The first message, exactly once.
+    ImportBackupHeader header = 1;
+    // Every later message: a slice of the artifact, in order.
+    bytes chunk = 2;
+  }
+}
+
+// What ImportBackup verifies before it touches anything.
+message ImportBackupHeader {
+  // The exact manifest bytes ExportBackup produced (ExportBackupHeader.manifest).
+  bytes manifest = 1;
+  // The signature over `manifest` (ExportBackupHeader.signature).
+  bytes signature = 2;
+  // The signer's public key (ExportBackupHeader.public_key).
+  bytes public_key = 3;
+  // The fingerprint of the signer's key that the OPERATOR confirmed against
+  // the sending server: the lowercase hexadecimal SHA-256 of `public_key`, 64
+  // characters. Required: an import without a confirmed fingerprint is refused,
+  // because the signature alone proves nothing about who signed.
+  string expected_key_fingerprint = 4;
+  // The most artifact bytes the caller is willing to receive, or 0 for the
+  // agent's own ceiling. The smaller of the two applies.
+  uint64 max_bytes = 5;
+}
+
+// ImportBackup response.
+message ImportBackupResponse {
+  oneof result {
+    // The artifact is published (or already was).
+    ImportBackupOk ok = 1;
+    // The import failed or was refused; nothing is published.
+    maran.agent.v1.AgentError error = 2;
+  }
+  // Why a refusal was a refusal, for the cases the panel tells the operator
+  // apart. Set only together with `error`; IMPORT_REFUSAL_REASON_UNSPECIFIED
+  // otherwise, including for failures of the host itself.
+  ImportRefusalReason refusal_reason = 3;
+}
+
+// A published import.
+message ImportBackupOk {
+  // The id the artifact is published under: the SOURCE backup id.
+  string backup_id = 1;
+  // Artifact size in bytes.
+  uint64 artifact_bytes = 2;
+  // Lowercase hexadecimal SHA-256 of the artifact.
+  string artifact_sha256 = 3;
+  // How many database dumps the artifact holds.
+  uint32 database_count = 4;
+  // True when this very artifact (same id, same digest) was already published,
+  // so nothing was written by this call.
+  bool already_present = 5;
+}
+
+// The refusals of ImportBackup that a caller acts on differently.
+enum ImportRefusalReason {
+  // No refusal reason: success, or a failure of the host.
+  IMPORT_REFUSAL_REASON_UNSPECIFIED = 0;
+  // The signature does not verify over the manifest bytes, or the key or
+  // signature is not an ECDSA P-384 one.
+  IMPORT_REFUSAL_REASON_SIGNATURE_INVALID = 1;
+  // The public key's fingerprint is not the one the operator confirmed.
+  IMPORT_REFUSAL_REASON_FINGERPRINT_MISMATCH = 2;
+  // The manifest is not a manifest this agent understands.
+  IMPORT_REFUSAL_REASON_MANIFEST_MALFORMED = 3;
+  // A system user of the manifest's account name already exists on this host
+  // (decision D1).
+  IMPORT_REFUSAL_REASON_ACCOUNT_EXISTS = 4;
+  // A backup with the manifest's id is already published with another digest.
+  IMPORT_REFUSAL_REASON_BACKUP_ID_TAKEN = 5;
+  // The declared size is over the ceiling, or the host has no room for it.
+  IMPORT_REFUSAL_REASON_TOO_LARGE = 6;
+  // The stream carried a different number of bytes than the signed manifest
+  // declares.
+  IMPORT_REFUSAL_REASON_LENGTH_MISMATCH = 7;
+  // The stream's SHA-256 differs from the signed one.
+  IMPORT_REFUSAL_REASON_DIGEST_MISMATCH = 8;
+  // The artifact is not one this host will publish: a member outside the
+  // fixed layout, an embedded manifest that disagrees with the signed one, a
+  // missing dump, or a sealed artifact.
+  IMPORT_REFUSAL_REASON_ARTIFACT_REFUSED = 9;
+}

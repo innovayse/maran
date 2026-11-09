@@ -25,7 +25,7 @@
 # the database, write release.state, restart, gate. The switch comes BEFORE the restore on purpose:
 # a kill or a switch failure after the restore would let the EXIT trap start the services with the
 # NEW release against the OLD schema. Done this way, every interruption after the switch leaves
-# `current` on the previous release over a database that is either untouched (pg_restore is one
+# `current` on the previous release over a database that is either untouched (the restore is one
 # transaction) or already restored, and release.state still naming the release left: the `finish`
 # situation above, which `maran rollback --restore-database` recovers by running again.
 #
@@ -186,7 +186,8 @@ so there is no failed update whose dump could be restored"
 # `current` when this is a switch, and only then restores the dump. From the first stop the EXIT
 # trap starts the services again if this run ends early. The pending outcome is restore-failed
 # while pg_restore runs and the trap names the retry command. A failed restore changes nothing in
-# the database (one transaction), and `current` already matches that database's schema.
+# the database (one transaction, and a dump pg_restore cannot read fails before it starts), and
+# `current` already matches that database's schema.
 #   $1 = the dump to restore.
 cli_rollback_restore_database() {
   CLI_ROLLBACK_STOPPED=1

@@ -32,7 +32,7 @@ const SUSPENDED: Account = { ...ACTIVE, status: 'suspended', statusName: 'Suspen
 const stubDetail = async (page: Page, account: Account): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
-  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' }])
+  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
   await stubInvitation(page, account.id, 'pending')
   await page.route(`**/api/v1/accounts/${account.id}`, async (route) => {
     if (route.request().method() !== 'GET') {

@@ -13,7 +13,7 @@ import type { PanelModule } from '../../src/types/module'
 
 /** Catalogue every spec here starts from: the accounts module licensed, so the route is reachable. */
 const LICENSED_ACCOUNTS: PanelModule[] = [
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
+  { name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 /** Two accounts, one in each state, in name order. */

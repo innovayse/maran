@@ -42,10 +42,10 @@ public sealed class AlertEvaluatorTests
 
         for (var observation = 0; observation < 20; observation++)
         {
-            await evaluator.EvaluateAsync(95.0, null, [], null, null, null, null, Start.AddMinutes(observation), CancellationToken.None);
+            await evaluator.EvaluateAsync(95.0, null, [], null, null, null, null, null, Start.AddMinutes(observation), CancellationToken.None);
         }
 
-        var mail = Assert.IsType<SendMailRequested>(Assert.Single(scopes.Bus.Published));
+        var mail = Assert.IsType<SendMailRequested>(Assert.Single(scopes.Bus.Mail));
         Assert.Equal("ops@example.com", mail.Recipient);
 
         var raises = audit.Entries.Where(entry =>
@@ -68,13 +68,13 @@ public sealed class AlertEvaluatorTests
 
         for (var observation = 0; observation < AlertState.BreachesBeforeAlert; observation++)
         {
-            await evaluator.EvaluateAsync(95.0, null, [], null, null, null, null, Start.AddMinutes(observation), CancellationToken.None);
+            await evaluator.EvaluateAsync(95.0, null, [], null, null, null, null, null, Start.AddMinutes(observation), CancellationToken.None);
         }
 
-        await evaluator.EvaluateAsync(40.0, null, [], null, null, null, null, Start.AddMinutes(30), CancellationToken.None);
-        await evaluator.EvaluateAsync(40.0, null, [], null, null, null, null, Start.AddMinutes(31), CancellationToken.None);
+        await evaluator.EvaluateAsync(40.0, null, [], null, null, null, null, null, Start.AddMinutes(30), CancellationToken.None);
+        await evaluator.EvaluateAsync(40.0, null, [], null, null, null, null, null, Start.AddMinutes(31), CancellationToken.None);
 
-        Assert.Equal(2, scopes.Bus.Published.Count);
+        Assert.Equal(2, scopes.Bus.Mail.Count);
         Assert.Single(audit.Entries, entry =>
         {
             return entry.Action == MonitoringAuditActions.AlertResolved;
@@ -94,10 +94,10 @@ public sealed class AlertEvaluatorTests
         for (var observation = 0; observation < 20; observation++)
         {
             await evaluator.EvaluateAsync(
-                AlertEvaluator.DiskUsageThresholdPercent, null, [], null, null, null, null, Start.AddMinutes(observation), CancellationToken.None);
+                AlertThresholds.DefaultDiskPercent, null, [], null, null, null, null, null, Start.AddMinutes(observation), CancellationToken.None);
         }
 
-        Assert.Empty(scopes.Bus.Published);
+        Assert.Empty(scopes.Bus.Mail);
     }
 
     /// <summary>An unmeasurable filesystem is not observed at all, so it neither raises nor resolves.</summary>
@@ -117,10 +117,10 @@ public sealed class AlertEvaluatorTests
 
         for (var observation = 0; observation < 20; observation++)
         {
-            await evaluator.EvaluateAsync(null, null, [], null, null, null, null, Start.AddMinutes(observation), CancellationToken.None);
+            await evaluator.EvaluateAsync(null, null, [], null, null, null, null, null, Start.AddMinutes(observation), CancellationToken.None);
         }
 
-        Assert.Empty(scopes.Bus.Published);
+        Assert.Empty(scopes.Bus.Mail);
         Assert.Empty(dbContext.AlertStates);
     }
 
@@ -144,10 +144,10 @@ public sealed class AlertEvaluatorTests
 
         for (var observation = 0; observation < 30; observation++)
         {
-            await evaluator.EvaluateAsync(null, null, [unknown], null, null, null, null, Start.AddMinutes(observation), CancellationToken.None);
+            await evaluator.EvaluateAsync(null, null, [unknown], null, null, null, null, null, Start.AddMinutes(observation), CancellationToken.None);
         }
 
-        Assert.Empty(scopes.Bus.Published);
+        Assert.Empty(scopes.Bus.Mail);
         Assert.Empty(dbContext.AlertStates);
     }
 
@@ -166,10 +166,10 @@ public sealed class AlertEvaluatorTests
 
         for (var observation = 0; observation < 20; observation++)
         {
-            await evaluator.EvaluateAsync(null, null, [stopped], null, null, null, null, Start.AddMinutes(observation), CancellationToken.None);
+            await evaluator.EvaluateAsync(null, null, [stopped], null, null, null, null, null, Start.AddMinutes(observation), CancellationToken.None);
         }
 
-        Assert.Single(scopes.Bus.Published);
+        Assert.Single(scopes.Bus.Mail);
         Assert.Single(audit.Entries, entry =>
         {
             return entry.Action == MonitoringAuditActions.AlertRaised && entry.Subject == "ServiceStopped:WebServer";
@@ -193,10 +193,10 @@ public sealed class AlertEvaluatorTests
 
         for (var observation = 0; observation < 20; observation++)
         {
-            await evaluator.EvaluateAsync(null, null, [], drifted, null, null, null, Start.AddMinutes(observation), CancellationToken.None);
+            await evaluator.EvaluateAsync(null, null, [], drifted, null, null, null, null, Start.AddMinutes(observation), CancellationToken.None);
         }
 
-        var mail = Assert.IsType<SendMailRequested>(Assert.Single(scopes.Bus.Published));
+        var mail = Assert.IsType<SendMailRequested>(Assert.Single(scopes.Bus.Mail));
         Assert.Equal("ops@example.com", mail.Recipient);
         Assert.Single(audit.Entries, entry =>
         {
@@ -220,13 +220,13 @@ public sealed class AlertEvaluatorTests
 
         for (var observation = 0; observation < AlertState.BreachesBeforeAlert; observation++)
         {
-            await evaluator.EvaluateAsync(null, null, [], drifted, null, null, null, Start.AddMinutes(observation), CancellationToken.None);
+            await evaluator.EvaluateAsync(null, null, [], drifted, null, null, null, null, Start.AddMinutes(observation), CancellationToken.None);
         }
 
-        await evaluator.EvaluateAsync(null, null, [], intact, null, null, null, Start.AddMinutes(30), CancellationToken.None);
-        await evaluator.EvaluateAsync(null, null, [], intact, null, null, null, Start.AddMinutes(31), CancellationToken.None);
+        await evaluator.EvaluateAsync(null, null, [], intact, null, null, null, null, Start.AddMinutes(30), CancellationToken.None);
+        await evaluator.EvaluateAsync(null, null, [], intact, null, null, null, null, Start.AddMinutes(31), CancellationToken.None);
 
-        Assert.Equal(2, scopes.Bus.Published.Count);
+        Assert.Equal(2, scopes.Bus.Mail.Count);
         Assert.Single(audit.Entries, entry =>
         {
             return entry.Action == MonitoringAuditActions.AlertResolved
@@ -249,10 +249,10 @@ public sealed class AlertEvaluatorTests
 
         for (var observation = 0; observation < 20; observation++)
         {
-            await evaluator.EvaluateAsync(null, null, [], null, null, null, null, Start.AddMinutes(observation), CancellationToken.None);
+            await evaluator.EvaluateAsync(null, null, [], null, null, null, null, null, Start.AddMinutes(observation), CancellationToken.None);
         }
 
-        Assert.Empty(scopes.Bus.Published);
+        Assert.Empty(scopes.Bus.Mail);
         Assert.Empty(dbContext.AlertStates);
     }
 
@@ -274,10 +274,10 @@ public sealed class AlertEvaluatorTests
 
         for (var observation = 0; observation < 20; observation++)
         {
-            await evaluator.EvaluateAsync(null, null, [], null, unenforceable, null, null, Start.AddMinutes(observation), CancellationToken.None);
+            await evaluator.EvaluateAsync(null, null, [], null, unenforceable, null, null, null, Start.AddMinutes(observation), CancellationToken.None);
         }
 
-        var mail = Assert.IsType<SendMailRequested>(Assert.Single(scopes.Bus.Published));
+        var mail = Assert.IsType<SendMailRequested>(Assert.Single(scopes.Bus.Mail));
         Assert.Equal("ops@example.com", mail.Recipient);
         Assert.Single(audit.Entries, entry =>
         {
@@ -301,13 +301,13 @@ public sealed class AlertEvaluatorTests
 
         for (var observation = 0; observation < AlertState.BreachesBeforeAlert; observation++)
         {
-            await evaluator.EvaluateAsync(null, null, [], null, unenforceable, null, null, Start.AddMinutes(observation), CancellationToken.None);
+            await evaluator.EvaluateAsync(null, null, [], null, unenforceable, null, null, null, Start.AddMinutes(observation), CancellationToken.None);
         }
 
-        await evaluator.EvaluateAsync(null, null, [], null, enforceable, null, null, Start.AddMinutes(30), CancellationToken.None);
-        await evaluator.EvaluateAsync(null, null, [], null, enforceable, null, null, Start.AddMinutes(31), CancellationToken.None);
+        await evaluator.EvaluateAsync(null, null, [], null, enforceable, null, null, null, Start.AddMinutes(30), CancellationToken.None);
+        await evaluator.EvaluateAsync(null, null, [], null, enforceable, null, null, null, Start.AddMinutes(31), CancellationToken.None);
 
-        Assert.Equal(2, scopes.Bus.Published.Count);
+        Assert.Equal(2, scopes.Bus.Mail.Count);
         Assert.Single(audit.Entries, entry =>
         {
             return entry.Action == MonitoringAuditActions.AlertResolved
@@ -330,10 +330,10 @@ public sealed class AlertEvaluatorTests
 
         for (var observation = 0; observation < 20; observation++)
         {
-            await evaluator.EvaluateAsync(null, null, [], null, null, null, null, Start.AddMinutes(observation), CancellationToken.None);
+            await evaluator.EvaluateAsync(null, null, [], null, null, null, null, null, Start.AddMinutes(observation), CancellationToken.None);
         }
 
-        Assert.Empty(scopes.Bus.Published);
+        Assert.Empty(scopes.Bus.Mail);
         Assert.Empty(dbContext.AlertStates);
     }
 
@@ -356,17 +356,17 @@ public sealed class AlertEvaluatorTests
 
         for (var observation = 0; observation < 20; observation++)
         {
-            await evaluator.EvaluateAsync(99.0, null, [], null, null, null, null, Start.AddMinutes(observation), CancellationToken.None);
+            await evaluator.EvaluateAsync(99.0, null, [], null, null, null, null, null, Start.AddMinutes(observation), CancellationToken.None);
         }
 
-        Assert.Empty(scopes.Bus.Published);
+        Assert.Empty(scopes.Bus.Mail);
         Assert.Single(audit.Entries, entry =>
         {
             return entry.Action == MonitoringAuditActions.AlertRaised;
         });
         Assert.Single(audit.Entries, entry =>
         {
-            return entry.Action == MailAuditActions.MailSkippedNoSmtp;
+            return entry.Action == OutgoingMailAuditActions.MailSkippedNoSmtp;
         });
     }
 
@@ -393,10 +393,10 @@ public sealed class AlertEvaluatorTests
 
         for (var observation = 0; observation < AlertState.BreachesBeforeAlert; observation++)
         {
-            await evaluator.EvaluateAsync(null, null, [], null, null, null, report, Start.AddMinutes(observation), CancellationToken.None);
+            await evaluator.EvaluateAsync(null, null, [], null, null, null, report, null, Start.AddMinutes(observation), CancellationToken.None);
         }
 
-        var mail = Assert.IsType<SendMailRequested>(Assert.Single(scopes.Bus.Published));
+        var mail = Assert.IsType<SendMailRequested>(Assert.Single(scopes.Bus.Mail));
         Assert.Contains("api/Maran.Host", mail.Body);
         Assert.Contains("agent/maran-agent", mail.Body);
         Assert.Contains("frontend/index.html", mail.Body);
@@ -424,10 +424,10 @@ public sealed class AlertEvaluatorTests
 
         for (var observation = 0; observation < 20; observation++)
         {
-            await evaluator.EvaluateAsync(null, null, [], null, null, null, report, Start.AddMinutes(observation), CancellationToken.None);
+            await evaluator.EvaluateAsync(null, null, [], null, null, null, report, null, Start.AddMinutes(observation), CancellationToken.None);
         }
 
-        Assert.Empty(scopes.Bus.Published);
+        Assert.Empty(scopes.Bus.Mail);
         Assert.DoesNotContain(audit.Entries, entry =>
         {
             return entry.Action == MonitoringAuditActions.AlertRaised;
@@ -457,15 +457,15 @@ public sealed class AlertEvaluatorTests
         // open at once.
         for (var observation = 0; observation < AlertState.BreachesBeforeAlert; observation++)
         {
-            await evaluator.EvaluateAsync(null, null, [], null, null, null, unavailable, Start.AddMinutes(observation), CancellationToken.None);
+            await evaluator.EvaluateAsync(null, null, [], null, null, null, unavailable, null, Start.AddMinutes(observation), CancellationToken.None);
         }
 
         for (var observation = 10; observation < 10 + AlertState.BreachesBeforeAlert; observation++)
         {
-            await evaluator.EvaluateAsync(null, null, [], null, null, null, drifted, Start.AddMinutes(observation), CancellationToken.None);
+            await evaluator.EvaluateAsync(null, null, [], null, null, null, drifted, null, Start.AddMinutes(observation), CancellationToken.None);
         }
 
-        await evaluator.EvaluateAsync(null, null, [], null, null, null, clean, Start.AddMinutes(30), CancellationToken.None);
+        await evaluator.EvaluateAsync(null, null, [], null, null, null, clean, null, Start.AddMinutes(30), CancellationToken.None);
 
         var installedFiles = await dbContext.AlertStates.SingleAsync(row => row.Kind == AlertKind.CodeIntegrityDrifted && row.Subject == AlertEvaluator.InstalledFilesSubject);
         var hashList = await dbContext.AlertStates.SingleAsync(row => row.Kind == AlertKind.CodeIntegrityDrifted && row.Subject == AlertEvaluator.HashListSubject);
@@ -493,20 +493,20 @@ public sealed class AlertEvaluatorTests
 
         for (var observation = 0; observation < AlertState.BreachesBeforeAlert; observation++)
         {
-            await evaluator.EvaluateAsync(null, null, [], null, null, null, drifted, Start.AddMinutes(observation), CancellationToken.None);
+            await evaluator.EvaluateAsync(null, null, [], null, null, null, drifted, null, Start.AddMinutes(observation), CancellationToken.None);
         }
 
         var beforeUnanswered = await dbContext.AlertStates.SingleAsync(row => row.Kind == AlertKind.CodeIntegrityDrifted && row.Subject == AlertEvaluator.InstalledFilesSubject);
         Assert.Equal(AlertPhase.Firing, beforeUnanswered.Phase);
         var consecutiveBefore = beforeUnanswered.ConsecutiveBreaches;
-        var publishedBefore = scopes.Bus.Published.Count;
+        var publishedBefore = scopes.Bus.Mail.Count;
 
-        await evaluator.EvaluateAsync(null, null, [], null, null, null, null, Start.AddMinutes(30), CancellationToken.None);
+        await evaluator.EvaluateAsync(null, null, [], null, null, null, null, null, Start.AddMinutes(30), CancellationToken.None);
 
         var afterUnanswered = await dbContext.AlertStates.SingleAsync(row => row.Kind == AlertKind.CodeIntegrityDrifted && row.Subject == AlertEvaluator.InstalledFilesSubject);
         Assert.Equal(AlertPhase.Firing, afterUnanswered.Phase);
         Assert.Equal(consecutiveBefore, afterUnanswered.ConsecutiveBreaches);
-        Assert.Equal(publishedBefore, scopes.Bus.Published.Count);
+        Assert.Equal(publishedBefore, scopes.Bus.Mail.Count);
     }
 
     /// <summary>
@@ -525,9 +525,9 @@ public sealed class AlertEvaluatorTests
 
         var malformed = new DriftedCodeIntegrityVerdict("1.4.2", [], Start);
 
-        await evaluator.EvaluateAsync(null, null, [], null, null, null, malformed, Start, CancellationToken.None);
+        await evaluator.EvaluateAsync(null, null, [], null, null, null, malformed, null, Start, CancellationToken.None);
 
-        Assert.Empty(scopes.Bus.Published);
+        Assert.Empty(scopes.Bus.Mail);
         Assert.Empty(dbContext.AlertStates);
         Assert.Single(audit.Entries, entry =>
         {
@@ -549,7 +549,7 @@ public sealed class AlertEvaluatorTests
 
         for (var observation = 0; observation < AlertState.BreachesBeforeAlert; observation++)
         {
-            await evaluator.EvaluateAsync(null, null, [], null, null, null, unavailable, Start.AddMinutes(observation), CancellationToken.None);
+            await evaluator.EvaluateAsync(null, null, [], null, null, null, unavailable, null, Start.AddMinutes(observation), CancellationToken.None);
         }
 
         Assert.DoesNotContain(dbContext.AlertStates.ToList(), row =>
@@ -560,7 +560,7 @@ public sealed class AlertEvaluatorTests
         var hashList = await dbContext.AlertStates.SingleAsync(row => row.Kind == AlertKind.CodeIntegrityDrifted && row.Subject == AlertEvaluator.HashListSubject);
         Assert.Equal(AlertPhase.Firing, hashList.Phase);
 
-        var mail = Assert.IsType<SendMailRequested>(Assert.Single(scopes.Bus.Published));
+        var mail = Assert.IsType<SendMailRequested>(Assert.Single(scopes.Bus.Mail));
         Assert.Contains("signature verification failed", mail.Body);
     }
 }

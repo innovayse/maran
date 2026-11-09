@@ -7,6 +7,11 @@ on:
       - 'backend/**'
       - 'proto/**'
       - 'scripts/**'
+      - 'installer/cli/**'
+      - 'installer/install.sh'
+      - 'installer/uninstall.sh'
+      - 'installer/get.sh'
+      - 'docs/operations/**'
       - '.github/workflows/cross.yml'
   pull_request:
     paths:
@@ -14,6 +19,11 @@ on:
       - 'backend/**'
       - 'proto/**'
       - 'scripts/**'
+      - 'installer/cli/**'
+      - 'installer/install.sh'
+      - 'installer/uninstall.sh'
+      - 'installer/get.sh'
+      - 'docs/operations/**'
       - '.github/workflows/cross.yml'
 
 # One run per pull request: a new push to the same PR cancels the run it supersedes. Pushes to
@@ -51,6 +61,34 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+
+      # The operator's verbs and flags (installer/cli/commands.json, printed by `maran help --json`)
+      # against the wrapper's dispatcher, the flag parsers and the commands docs/operations quotes
+      # (issue #155). It needs python3 and nothing else, so it runs before the toolchains are set up.
+      # Scored on the PRINTED VERDICT like the handshake below: the selftest first (planted breakage
+      # must FAIL, an unchanged copy must pass), then the check on this tree. `DID NOT RUN` fails here
+      # under its own message, because it means nothing was compared.
+      - name: Operator commands
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/operator-commands"
+          for mode in selftest check; do
+            status=0
+            bash scripts/maran operator-commands "$mode" 2>&1 |
+              tee "$RUNNER_TEMP/operator-commands/$mode.log" || status=$?
+            if grep -qa '^OPERATOR-COMMANDS VERDICT: DID NOT RUN' "$RUNNER_TEMP/operator-commands/$mode.log"; then
+              echo "::error::operator-commands $mode REFUSED and compared nothing; the reason is printed above."
+              exit 1
+            fi
+            if ! grep -qa '^OPERATOR-COMMANDS VERDICT: OK' "$RUNNER_TEMP/operator-commands/$mode.log"; then
+              echo "::error::operator-commands $mode did not print 'OPERATOR-COMMANDS VERDICT: OK'. This lane passes on the verdict line, never on an exit code."
+              exit 1
+            fi
+            if [ "$status" -ne 0 ]; then
+              echo "::error::operator-commands $mode printed OK and then exited $status; those disagree, so neither is evidence."
+              exit 1
+            fi
+          done
 
       - uses: dtolnay/rust-toolchain@stable
 

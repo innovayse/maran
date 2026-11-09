@@ -18,9 +18,9 @@ const CUSTOMER: AuthenticatedUser = {
 }
 
 const CUSTOMER_MODULES: PanelModule[] = [
-  { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
-  { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
-  { name: 'backups', displayName: 'Backups', tier: 'included', state: 'enabled' },
+  { name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'databases', displayName: 'Databases', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'backups', displayName: 'Backups', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 test('a customer sidebar carries no administrator entries', async ({ page }) => {

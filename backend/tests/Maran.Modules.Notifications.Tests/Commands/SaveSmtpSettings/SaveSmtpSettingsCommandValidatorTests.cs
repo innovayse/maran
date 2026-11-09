@@ -83,15 +83,6 @@ public sealed class SaveSmtpSettingsCommandValidatorTests
             .ShouldHaveValidationErrorFor(candidate => candidate.FromAddress);
     }
 
-    /// <summary>An alert recipient that is not one bare address is refused.</summary>
-    [Fact]
-    public void An_alert_recipient_that_is_not_one_bare_address_is_refused()
-    {
-        var command = Valid() with { AlertRecipient = "ops@example.com\r\nBcc: attacker@example.net" };
-
-        _validator.TestValidate(command).ShouldHaveValidationErrorFor(candidate => candidate.AlertRecipient);
-    }
-
     /// <summary>An absent password is accepted, because it means "keep the stored one".</summary>
     [Fact]
     public void An_absent_password_is_accepted_because_it_means_keep_the_stored_one()
@@ -118,7 +109,6 @@ public sealed class SaveSmtpSettingsCommandValidatorTests
             "hunter2",
             "panel@example.com",
             "Maran Panel",
-            "ops@example.com",
             "203.0.113.7",
             "curl/8");
     }

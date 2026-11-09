@@ -15,10 +15,13 @@ namespace Maran.Modules.Identity.Commands.CreateApiKey;
 /// is refused: it binds nothing.
 /// </param>
 /// <param name="ExpiresAt">When the key stops working, which must be in the future, or <c>null</c> for a key that lives until revoked.</param>
-/// <param name="CreatedByUserId">The administrator creating the key, established by the server from their own access token and
-/// stamped by the action. Never bound from the request (rules/csharp.md "Server-established members of a command").</param>
+/// <param name="CreatedByUserId">The login creating the key (the administrator, or a reseller's own login), established by the
+/// server from their own access token and stamped by the action. Never bound from the request (rules/csharp.md "Server-established members of a command").</param>
 /// <param name="IpAddress">The caller's address, established by the server from the connection and stamped by the action. Never bound from the request.</param>
 /// <param name="UserAgent">The caller's user agent, established by the server from the request headers and stamped by the action. Never bound from the request.</param>
+/// <param name="OwnerResellerId">The reseller that will own the key, established by the server from the reseller's own access token
+/// and stamped by the reseller's action; <c>null</c> on the administrator's, which creates keys the administrator owns. Never bound
+/// from the request, so a caller cannot create a key for anyone but itself.</param>
 public sealed record CreateApiKeyCommand(
     string Name,
     IReadOnlyList<string> Scopes,
@@ -26,4 +29,5 @@ public sealed record CreateApiKeyCommand(
     DateTimeOffset? ExpiresAt = null,
     [property: JsonIgnore][property: BindNever][BindNever] Guid CreatedByUserId = default,
     [property: JsonIgnore][property: BindNever][BindNever] string IpAddress = "",
-    [property: JsonIgnore][property: BindNever][BindNever] string UserAgent = "");
+    [property: JsonIgnore][property: BindNever][BindNever] string UserAgent = "",
+    [property: JsonIgnore][property: BindNever][BindNever] Guid? OwnerResellerId = null);

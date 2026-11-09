@@ -12,7 +12,7 @@ public sealed class ResellerEnvelopeTests
     public void An_envelope_states_exactly_the_figures_it_was_given()
     {
         var envelope = ResellerEnvelope.Of(
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, AccountFeature.Mail, RuntimeLimits.Unlimited());
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, AccountFeature.Mail, RuntimeLimits.Unlimited());
 
         Assert.Equal(1, envelope.MaxAccounts);
         Assert.Equal(2, envelope.DiskPoolMb);
@@ -24,6 +24,8 @@ public sealed class ResellerEnvelopeTests
         Assert.Equal(8, envelope.MaxFtpUsers);
         Assert.Equal(9, envelope.MaxCronEntries);
         Assert.Equal(10, envelope.MaxPhpWorkersPerPool);
+        Assert.Equal(11, envelope.MaxMailboxes);
+        Assert.Equal(12, envelope.MailboxQuotaPoolMib);
         Assert.Equal(AccountFeature.Mail, envelope.Features);
     }
 
@@ -32,14 +34,14 @@ public sealed class ResellerEnvelopeTests
     public void Zero_is_accepted_for_every_figure()
     {
         var envelope = ResellerEnvelope.Of(
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, AccountFeature.None, RuntimeLimits.Unlimited());
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, AccountFeature.None, RuntimeLimits.Unlimited());
 
         Assert.Equal(0, envelope.MaxAccounts);
         Assert.Equal(0, envelope.DiskPoolMb);
     }
 
     /// <summary>A negative figure is refused, whichever figure it is.</summary>
-    /// <param name="position">Which of the ten figures, counted from zero, is made negative.</param>
+    /// <param name="position">Which of the twelve figures, counted from zero, is made negative.</param>
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
@@ -51,9 +53,11 @@ public sealed class ResellerEnvelopeTests
     [InlineData(7)]
     [InlineData(8)]
     [InlineData(9)]
+    [InlineData(10)]
+    [InlineData(11)]
     public void A_negative_figure_is_refused(int position)
     {
-        var figures = new int[10];
+        var figures = new int[12];
         figures[position] = -1;
 
         Assert.Throws<ArgumentOutOfRangeException>(() =>
@@ -69,6 +73,8 @@ public sealed class ResellerEnvelopeTests
                 figures[7],
                 figures[8],
                 figures[9],
+                figures[10],
+                figures[11],
                 AccountFeature.None,
                 RuntimeLimits.Unlimited());
         });
@@ -92,7 +98,7 @@ public sealed class ResellerEnvelopeTests
     {
         Assert.Throws<ArgumentNullException>(() =>
         {
-            return ResellerEnvelope.Of(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, AccountFeature.None, null!);
+            return ResellerEnvelope.Of(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, AccountFeature.None, null!);
         });
     }
 

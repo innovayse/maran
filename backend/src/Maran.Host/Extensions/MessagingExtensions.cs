@@ -2,6 +2,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.RuntimeCompiler;
 using Maran.Host.Modules;
+using Maran.Sdk.Interfaces;
 using Wolverine;
 using Wolverine.FluentValidation;
 using Wolverine.Postgresql;
@@ -27,6 +28,25 @@ public static class MessagingExtensions
     /// </param>
     /// <returns>The same builder, for chaining.</returns>
     public static IHostBuilder AddPanelMessaging(this IHostBuilder builder, string connectionString)
+    {
+        return builder.AddPanelMessaging(connectionString, ModuleRegistry.All);
+    }
+
+    /// <summary>
+    /// Adds the message bus, taking handlers from the given composed modules - the ones that ship with
+    /// the panel and the packaged ones that were composed - and from nowhere else.
+    /// </summary>
+    /// <param name="builder">The host builder to configure messaging on.</param>
+    /// <param name="connectionString">The panel database connection string; empty means in memory only.</param>
+    /// <param name="modules">
+    /// The composed modules (<see cref="PackagedModuleComposition.Composed"/>). The same list the services
+    /// are registered from, so a refused package contributes no handler either.
+    /// </param>
+    /// <returns>The same builder, for chaining.</returns>
+    public static IHostBuilder AddPanelMessaging(
+        this IHostBuilder builder,
+        string connectionString,
+        IReadOnlyList<IPanelModule> modules)
     {
         return builder
             .ConfigureServices(services =>
@@ -75,7 +95,7 @@ public static class MessagingExtensions
             // the composed ones: a module whose licence lapses must lose its live handlers, not
             // merely its menu entry. That is a change to one expression here, which is the point of
             // having a single source.
-            foreach (var assembly in ModuleRegistry.All.Select(module =>
+            foreach (var assembly in modules.Select(module =>
             {
                 return module.GetType().Assembly;
             }).Distinct())

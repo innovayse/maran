@@ -78,6 +78,9 @@
   <data name="PlanFeatureUnknown">
     <value>Возможность тарифного плана должна быть одной из перечисленных в панели.</value>
   </data>
+  <data name="PlanMailLimitsInvalid">
+    <value>Квота почтового ящика по умолчанию в тарифном плане не должна превышать пул, из которого берутся квоты ящиков.</value>
+  </data>
   <data name="ResellerNotFound">
     <value>Реселлер не найден.</value>
   </data>
@@ -116,5 +119,44 @@
   </data>
   <data name="ResellerEnvelopeInvalid">
     <value>Лимиты реселлера недопустимы. Каждое значение должно быть неотрицательным и не превышать допустимого предела, а лимиты ресурсов должны быть положительными.</value>
+  </data>
+  <data name="BrandingDisplayNameInvalid">
+    <value>Название должно быть не длиннее 40 символов и не содержать управляющих символов.</value>
+  </data>
+  <data name="BrandingAccentColorInvalid">
+    <value>Цвет нужно записать как # и шесть шестнадцатеричных цифр, например #2468dc.</value>
+  </data>
+  <data name="BrandingAccentColorLowContrast">
+    <value>Этот цвет слишком светлый: белый текст на нём плохо читается. Выберите более тёмный цвет.</value>
+  </data>
+  <data name="BrandingLogoInvalid">
+    <value>Логотип должен быть изображением PNG, JPEG или WebP.</value>
+  </data>
+  <data name="BrandingLogoTooLarge">
+    <value>Логотип слишком большой. Используйте изображение не более 100 КБ.</value>
+  </data>
+  <data name="BrandingChangedConcurrently">
+    <value>Оформление только что сохранил другой запрос. Обновите страницу и сохраните ещё раз.</value>
+  </data>
+  <data name="AccountOwnerUnchanged">
+    <value>Аккаунт уже принадлежит этому владельцу. Чтобы перевести его на другой тариф того же владельца, измените тариф аккаунта.</value>
+  </data>
+  <data name="ResellerAllocationChanged">
+    <value>Распределение ресурсов реселлера изменилось, пока аккаунт переносился. Повторите попытку.</value>
+  </data>
+  <data name="AccountInitialPasswordInvalid">
+    <value>Выберите, как владелец войдёт в панель: отправьте приглашение или задайте начальный пароль и укажите его.</value>
+  </data>
+  <data name="AccountProcessLimitInvalid">
+    <value>Лимит процессов должен быть целым числом от 1 до 4194304. Оставьте поле пустым, чтобы использовать значение тарифа.</value>
+  </data>
+  <data name="AccountInodeLimitInvalid">
+    <value>Лимит inode должен быть целым числом от 0 до 4294967295, где 0 означает отсутствие лимита. Оставьте поле пустым, чтобы использовать значение тарифа.</value>
+  </data>
+  <data name="AccountOpenFilesLimitInvalid">
+    <value>Лимит открытых файлов должен быть целым числом от 0 до 1048576, где 0 означает отсутствие лимита. Оставьте поле пустым, чтобы использовать значение тарифа.</value>
+  </data>
+  <data name="AccountLimitAbovePlan">
+    <value>Этот лимит выше, чем допускает тариф. Реселлер может только снижать лимиты тарифа.</value>
   </data>
 </root>

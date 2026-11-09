@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <!-- DI.Abstractions: only for the AddSimulatedAgent registration entry point (DependencyInjection.cs). -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <ProjectReference Include="../Maran.Agent.Client/Maran.Agent.Client.csproj" />
+    <ProjectReference Include="../Maran.SharedKernel/Maran.SharedKernel.csproj" />
+  </ItemGroup>
+
+</Project>

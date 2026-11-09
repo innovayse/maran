@@ -28,8 +28,9 @@ use tonic::Status;
 
 use crate::proto::{AgentError, ErrorCode, TailSiteLogResponse};
 
-use super::super::sink_clock::SinkClock;
-use super::{RETRY_INTERVAL, StreamLogSink};
+use super::StreamLogSink;
+use crate::services::wire::deadline_sender::RETRY_INTERVAL;
+use crate::services::wire::sink_clock::SinkClock;
 
 /// The deadline the stall tests run against.
 ///

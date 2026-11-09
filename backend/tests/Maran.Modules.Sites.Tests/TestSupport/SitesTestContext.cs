@@ -22,12 +22,20 @@ public static class SitesTestContext
     /// <summary>Creates a context over a fresh database, seen as <paramref name="currentUser"/>.</summary>
     /// <param name="currentUser">The principal whose tenant scope the context is bound to.</param>
     /// <param name="databaseName">The in-memory database to open; a fresh one when omitted.</param>
-    public static SitesDbContext Create(ICurrentUser currentUser, string? databaseName = null)
+    /// <param name="failingSave">When set, the context saves through this interceptor, which a test arms to refuse a save.</param>
+    public static SitesDbContext Create(
+        ICurrentUser currentUser,
+        string? databaseName = null,
+        FailingSaveInterceptor? failingSave = null)
     {
-        var options = new DbContextOptionsBuilder<SitesDbContext>()
-            .UseInMemoryDatabase(databaseName ?? Guid.NewGuid().ToString())
-            .Options;
-        return new SitesDbContext(options, currentUser);
+        var builder = new DbContextOptionsBuilder<SitesDbContext>()
+            .UseInMemoryDatabase(databaseName ?? Guid.NewGuid().ToString());
+        if (failingSave is not null)
+        {
+            builder.AddInterceptors(failingSave);
+        }
+
+        return new SitesDbContext(builder.Options, currentUser);
     }
 
     /// <summary>Builds the site display-name resolver over this module's REAL resource files.</summary>

@@ -191,7 +191,8 @@ public sealed class CertificateRenewalAnonymousCallerTests : IAsyncLifetime
         var accounts = OpenAccounts();
         var ssl = OpenSsl();
         var site = new SiteSnapshot(
-            world.SiteId, world.AccountId, Domain, [], SiteBackend.Php, "8.3", string.Empty, HasCertificate: false);
+            world.SiteId, world.AccountId, Domain, [], SiteBackend.Php, "8.3", string.Empty, HasCertificate: false,
+            SiteOptionsSnapshot.None);
         var sites = new KnownSiteDirectory(site);
         var acme = new RecordingAcmeClient();
         var agent = new RecordingSslAgent();
@@ -272,6 +273,12 @@ public sealed class CertificateRenewalAnonymousCallerTests : IAsyncLifetime
         public Task<SiteSnapshot?> FindByDomainAsync(string domain, CancellationToken cancellationToken)
         {
             return Task.FromResult<SiteSnapshot?>(domain == site.Domain ? site : null);
+        }
+
+        /// <inheritdoc />
+        public Task<IReadOnlyList<string>> ListDomainsAsync(Guid accountId, CancellationToken cancellationToken)
+        {
+            return Task.FromResult<IReadOnlyList<string>>(accountId == site.AccountId ? [site.Domain] : []);
         }
 
         /// <inheritdoc />

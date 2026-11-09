@@ -1,610 +1,129 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
-#
-# RE-MEASURED 2026-11-07 (issue #425, return the panel to a self-signed certificate; also the drift of earlier merges on the rows it touches): maran_agent lib 554, maran_ops lib 1985, Agent.Client.Tests 488, Ssl.Tests 345, Sdk.Tests 438, ArchitectureTests 117, Host.Tests 575, Host.IntegrationTests 1335, spa admin/panel-certificate.spec.ts 4->8. Measured on a snapshot of the index, not by `maran test --accept`.
-# RE-MEASURED 2026-11-07 (issue #420): edited by hand, NOT measured. sites_on_a_real_host ignored 36->37 (the new nginx control test a_symlink_at_a_log_nginx_names_is_followed_by_the_nginx_master); the polygon lane re-measures.
-# NEW ROW 2026-11-05 (issues #144/#136/#143, one branch): edited by hand, NOT measured. backend Maran.Modules.Idempotency.Tests.dll 29 is the count of [Fact]/[Theory] attributes (a Theory counts once, so the real total is at least this); CI re-measures every row. Rows of projects that gained tests on the branch (Sdk, SharedKernel, Identity, Host.Tests) are left unraised: a gain is not gated, a drop is.
-# RE-MEASURED 2026-11-01 (merge of dev's #133 into #132): edited by hand, each row base + #132's delta + #133's delta.
-# maran_agent [unittests src/lib.rs] 436+6+4 = 446; maran_agent_core [unittests src/lib.rs] 515+8+12 = 535;
-# maran_ops [unittests src/lib.rs] 1770+10+7 = 1787; Maran.Agent.Client.Tests.dll 380+4+3 = 387;
-# Maran.Host.Tests.dll 406+8 = 414 (#132 only). Maran.Host.IntegrationTests.dll keeps dev's #289 split (814 + 19):
-# #132 added no integration test, so its 833 equals dev's total. CI re-measures every row.
-# RE-MEASURED 2026-11-01 (issue #132, the panel's own certificate): edited by hand. maran_agent [unittests src/lib.rs] 436->442; maran_agent_core [unittests src/lib.rs] 515->523; maran_ops [unittests src/lib.rs] 1770->1780; Maran.Agent.Client.Tests.dll 380->384; Maran.Modules.Ssl.Tests.dll 235->250; Maran.Sdk.Tests.dll 268->271; Maran.Host.Tests.dll 406->414; new spa row admin/panel-certificate.spec.ts 3.
-# RE-MEASURED 2026-11-02 (issue #158, cron run now): edited by hand. new spa row cron/run-now.spec.ts 2 (maran test spa: 167 targets, 1120 passed / 0 failed / 2 ignored).
-# RE-MEASURED 2026-11-01 (merge of dev's #292 and #294 into #133): edited by hand. Neither changed a baseline row since the last merge,
-# so every row keeps its value; #133's deltas stand as recorded below.
-# RE-MEASURED 2026-11-01 (merge of dev's #134 and #286 into #133): edited by hand. The rows do not overlap, so each keeps its own
-# delta: Backups.Tests 237->247 (#134) beside #133's Accounts.Tests 514->529 and Agent.Client.Tests 380->383. Run recorded in PR #285.
-# RE-MEASURED 2026-11-01 (issue #133, account runtime limits, merged on top of dev's #148): edited by hand, #133's deltas added to #148's rows.
-# rust: maran_agent 436->440 (+4), maran_agent_core 515->527 (+12), maran_ops 1770->1777 (+7); backend: Agent.Client.Tests 380->383,
-# Modules.Accounts.Tests 514->529; spa: plans/plans.spec.ts 15->17. Pre-merge #133 runs: rust 2883 passed / 0 failed / 155 ignored;
-# backend 20 targets 5156 passed / 0 failed; spa 165 targets 1115 passed. Post-merge: rust 35 targets 2907 passed / 0 failed / 155 ignored;
-# backend 20 targets 5165 passed / 0 failed; spa 165 targets 1115 passed / 0 failed / 2 ignored; all TEST VERDICT: OK.
-# RE-MEASURED 2026-11-01 (issue #148, free-space floor): edited by hand. maran_agent [unittests src/lib.rs] 428->436; maran_agent_core [unittests src/lib.rs] 508->515; maran_ops [unittests src/lib.rs] 1761->1770; Maran.Modules.Monitoring.Tests.dll 87->95; Maran.Sdk.Tests.dll 267->268. Full runs: `maran test rust` 35 targets: 2884 passed / 0 failed / 155 ignored; `maran test backend` 20 targets: 5147 passed / 0 failed / 0 ignored; both TEST VERDICT: OK.
-# RE-MEASURED 2026-10-31 (issue #275, merged with dev's #274: Host.IntegrationTests 824+7 = 831;, a site carries at most 99 aliases): edited by hand.
-# backend: Host.IntegrationTests 820->827 (SiteAliasLimitEndpointTests 5, SitesAuthorizationTests +2 for GET /api/v1/sites/limits),
-# Modules.Sites.Tests 270->275 (validator 3, entity 2), Sdk.Tests 266->267 (SiteAliasLimitExceeded in the status census).
-# Full `maran test backend`: 20 targets: 5125 passed / 0 failed / 0 ignored, TEST VERDICT: OK.
-# rust: maran_agent lib 420->428 (this branch: validated_site 3, validated_existing_site 1; the other 4 are dev's unrecorded
-# growth). Full `maran test rust`: 35 targets: 2857 passed / 0 failed / 155 ignored, TEST VERDICT: OK.
-# spa: new sites/alias-limit.spec.ts 3. `E2E_PORT=5199 maran test spa`: 163 targets: 1104 passed / 0 failed / 2 ignored.
-# RE-MEASURED 2026-10-31 (merge of dev's #272 into #274): edited by hand, rows taken on top of dev's. Maran.Modules.Tasks.Tests.dll 106->109 (#274's RunningTasksStreamServiceTests 3); Maran.Host.IntegrationTests.dll 820->824 (#274's RunningTasksStreamTests 3, plus 1 asserting a failed task on the running stream carries the localized sentence). Full run: backend 20 targets 5119 passed / 0 failed / 0 ignored, TEST VERDICT: OK.
-# RE-MEASURED 2026-10-31 (issue #274, one multiplexed running-tasks stream): edited by hand. Maran.Modules.Tasks.Tests.dll 101->104; Maran.Host.IntegrationTests.dll 810->813; new spa row tasks/running-stream.spec.ts 3. Full runs: backend 20 targets 5102 passed / 0 failed; spa 163 targets 1104 passed / 0 failed / 2 ignored.
-# RE-MEASURED 2026-10-31 (issue #272, merged with dev's #196 phase 4: Host.IntegrationTests 810+10 = 820;, task failure sentence resolved by the backend per reader): edited by hand.
-# One clean whole-solution `maran test backend`: 20 targets: 5073 passed / 0 failed / 0 ignored, TEST VERDICT: OK.
-# Rows raised to that run: Modules.Tasks.Tests 76->106 (this branch: TaskFailureMessagesTests 5; the rest is dev's
-# unrecorded growth), Host.IntegrationTests 745->796 (this branch: TaskFailureSentenceTests 6,
-# TaskFailureCodeCensusTests 4), Sdk.Tests 259->266 (this branch: 1, TaskFailureUnexplained in the status census; the rest is dev's).
-# spa: no row moved (tasks/failure-sentence.spec.ts stays 5). `E2E_PORT=5199 maran test spa`: 162 targets: 1098
-# passed / 0 failed / 2 ignored, TEST VERDICT: OK.
-# RE-MEASURED 2026-10-31 (issue #196 phase 4, accounts-disk paged at the agent, scale dataset and list budget, two indexes): edited by hand. Identity, Tasks, Firewall and Sdk rows were already below the branch's measured counts before this change (phase 3 left them stale); Maran.Agent.Client.Tests.dll 378->380; Maran.Modules.Identity.Tests.dll 334->373; Maran.Modules.Tasks.Tests.dll 76->101; Maran.Modules.Monitoring.Tests.dll 70->83; Maran.Modules.Firewall.Tests.dll 255->286; Maran.Sdk.Tests.dll 259->265; Maran.Host.IntegrationTests.dll 745->810; monitoring/monitoring.spec.ts 11->14. Full runs: backend 20 targets 5096 passed / 0 failed; rust 35 targets 2853 passed; spa 161 targets 1087 passed / 0 failed.
-# RE-MEASURED 2026-10-31 (issue #218, UI consistency: spa auth/signed-out-console.spec.ts 2 -> 7; new spa firewall/consistency.spec.ts 5, ui-kit/actions-and-links.spec.ts 8, ui-kit/type-consistency.spec.ts 7): edited by hand. Full `maran test spa`: 155 targets, 1048 passed / 0 failed.
-# RE-MEASURED 2026-10-31 (issue #209 merged with dev's #196 phase 3, firewall split into three pages): edited by hand.
-# spa: shell/breadcrumb-trail 9->11 (Firewall -> Bans, Firewall -> Never banned), shell/navigation-destination-labels
-# 8->10 (the two firewall children open their titled pages). page-eyebrow and the 216px check gained firewall
-# assertions inside existing tests (counts unchanged). Every other row is the merge of both sides, unchanged.
-# Measured `E2E_PORT=5199 maran test spa`: 157 targets: 1052 passed / 1 failed / 2 ignored; the one failure,
-# sites/detail-loading "a fast answer shows no placeholder", is a timing assertion untouched by this merge: it passed
-# in the previous full run and 30/30 with --repeat-each=5 --workers=1, so its row stays 6.
-# RE-MEASURED 2026-10-31 (issue #209, one navigation source for sidebar, eyebrow and breadcrumb; #72): edited by hand.
-# spa: NEW rows shell/breadcrumb-trail 9, shell/navigation-destination-labels 8, shell/page-eyebrow 3,
-# shell/submenu-current-child 5, shell/tasks-naming 1. Every other row unchanged. Before the edit
-# `E2E_PORT=5199 maran test spa`: 153 targets: 1001 passed / 0 failed / 2 ignored (only finding: the five new rows).
-# RE-MEASURED 2026-10-31 (issue #232 merged with dev's #245/#251: Host.IntegrationTests 738+7 = 745 (with #260), Sdk.Tests 258+1 = 259;, change password while signed in): edited by hand.
-# Modules.Identity.Tests 318->334 (ChangePasswordCommandHandlerTests 11, ChangePasswordCommandValidatorTests 5),
-# Host.IntegrationTests 731->738 (ChangePasswordEndpointTests 7), Sdk.Tests 254->255 (CurrentPasswordIncorrect in
-# the code census). spa: NEW row shell/change-password.spec.ts 6 (both roles x success and refusal, mismatch,
-# permissive length). Full `maran test backend` run before this edit: 20 targets, 4890 passed / 1 failed (the
-# rate-limit test, since rewritten to configure its own budget). After the edit: `maran test backend` 20 targets:
-# 4891 passed / 0 failed / 0 ignored; `E2E_PORT=5199 maran test spa` 148 targets: 975 passed / 0 failed / 2 ignored.
-# RE-MEASURED 2026-10-31 (issue #260, the sixth sign-in attempt at the shipped settings): edited by hand. Full
-# `maran test backend` from a shell that had sourced scripts/dev (15 .env values withheld by the harness): 20 targets:
-# 4885 passed / 0 failed / 0 ignored. Host.IntegrationTests 737->738 (AuthEndpointTests, the sixth attempt answers
-# 429 problem+json with Retry-After). Every other row unchanged.
-#
-# RE-MEASURED 2026-10-31 (issue #245 merged with dev's #248/#251: Host.IntegrationTests 733+4 = 737, Sdk.Tests 256+2 = 258;, an unbindable request value refused with RequestParameterInvalid): edited by
-# hand. Full `maran test backend`: 20 targets: 4858 passed / 0 failed / 0 ignored, Host.IntegrationTests included.
-# Host.IntegrationTests 730->734 (the codeless status test became a 3-case theory plus a ru/hy theory), Sdk.Tests
-# 254->256 (InvalidModelStateRefusalTests, the census row for the new code). Every other row unchanged.
-#
-# RE-MEASURED 2026-10-31 (issue #251 merged with dev's #248: Host.IntegrationTests 730+2+1 = 733; package-source failure codes): edited by hand. Full `maran test backend`:
-# 20 targets, 0 failed / 0 ignored; full `maran test rust`: 35 targets, 0 failed. Changed rows: maran_agent [unittests
-# src/lib.rs] 418->420, maran_agent_core [unittests src/lib.rs] 486->508, maran_distro [unittests src/lib.rs] 57->79,
-# maran_ops [unittests src/lib.rs] 1624->1754, Maran.Agent.Client.Tests.dll 375->378, Maran.Sdk.Tests.dll 254->256,
-# Maran.Modules.Sites.Tests.dll 266->270, Maran.Host.IntegrationTests.dll 730->732. agent_core and most of ops' growth
-# predates this change (the rows were already behind the tree before #251; only ~15 ops tests are new here).
-# RE-MEASURED 2026-10-31 (issue #248, every dashboard section is loaded or unavailable): edited by hand.
-# Host.Tests 392->406 (DashboardSectionTests 6, DashboardSectionJsonConverterTests 8), Host.IntegrationTests
-# 730->731 (an attention source that cannot answer is unavailable and not an all-clear). spa: dashboard.spec 7->10
-# (an unread attention source is named; beside real counts; an unread journal). ArchitectureTests 91 unchanged (the
-# DashboardCountDto display-name exemption is gone with the type; the law walks the list in one test).
-# RE-MEASURED 2026-10-31 (issue #196 phase 2, databases/backups/plans/certificates/file-transfer lists paged on the
-# server, merged with dev's #243 loading-spec fix below): edited by hand. Full `maran test backend`: 20 targets: 4852
-# passed / 0 failed / 0 ignored, Host.IntegrationTests included. Host.IntegrationTests 662->730, Modules.Accounts.Tests
-# 498->514, Modules.Ssl.Tests 224->235, Modules.Databases.Tests 112->129, Modules.Ftp.Tests 154->169,
-# Modules.Sftp.Tests 89->104, Modules.Backups.Tests 215->237, Sdk.Tests 249->254; ArchitectureTests 91 unchanged.
-# spa: file-transfer/create, list and protocol removed with the merged page; NEW rows file-transfer/{sftp,ftps}-{list,
-# create}, navigation, own-module, plans/list. The table loading specs follow their screens: backups/loading 3->6
-# (destinations is now a paged table), file-transfer/loading 3->6 (one SFTP and one FTPS page), databases/loading 6,
-# accounts/detail-loading 6, sites/detail-loading 6. Every */loading row is keyed by its own spec file; no fixture-file
-# row exists (dev's #243 fix, below). Counts per spec file from `npx playwright test --list --reporter=json`.
-# RE-MEASURED 2026-10-31 (issue #243, loading tests declared by their own spec): edited by hand. SPA-only change.
-# The 23 */*loading specs used to call describeTableLoading/describeRegionLoading, which called test() from
-# e2e/fixtures/expect-*-loading.ts, so Playwright attributed those tests to the fixture and CI named every spec
-# VANISHED. Each spec now declares its own test() calls and the fixtures export only assertion functions; every
-# scenario and assertion is kept. No row moved, no fixture-file row exists.
-# RE-MEASURED 2026-10-31 (issue #243, skeletons drawn from each screen's own schema): edited by hand. SPA-only
-# change, no backend target touched. spa: 24 NEW rows (the */loading specs, dashboard-loading 3, ui-kit/skeleton 9),
-# 90 tests in all; no existing row moved. Full `E2E_PORT=5199 npx playwright test` run: 911 passed / 0 failed /
-# 2 skipped, counted per spec file from the json reporter.
-# RE-MEASURED 2026-10-30 (issue #244, sentence case everywhere in the UI): edited by hand. SPA-only change, no
-# backend target touched. spa: NEW row ui-kit/sentence-case.spec.ts 36 (5 screens + the task badge, x en/ru/hy,
-# x 1440/390). Full `E2E_PORT=5199 npx playwright test` run: 821 passed / 0 failed / 2 skipped; no other row moved.
-# RE-MEASURED 2026-10-30 (issue #204, upstream refusals 502/409/503, quiet signed-out refresh, site not-found): edited by hand.
-# One clean whole-solution `maran test backend` run: 20 targets: 4683 passed / 0 failed / 0 ignored, TEST VERDICT: OK.
-# Host.IntegrationTests 659->662 (UpstreamRefusalStatusTests x2, the present-but-invalid refresh cookie control),
-# Modules.Ssl.Tests 221->224, Modules.Databases.Tests 111->112, Modules.Notifications.Tests 52->53, Sdk.Tests 246->249.
-# Agent.Client 375, Ftp 154 and Backups 215 measured unchanged (tests renamed and re-asserted, none added).
-# Host.IntegrationTests also ran filtered to UpstreamRefusal, Session, Ssl, Ftp, Notification, Smtp, Backup and Database
-# classes (160/0). spa: full `E2E_PORT=5199 npx playwright test` run, 785 passed / 0 failed / 2 skipped;
-# sites/detail.spec.ts 5->8, auth/signed-out-console.spec.ts new at 2.
-#
-# RE-MEASURED 2026-10-30 (issue #203, the two-factor page shows one flow per state; 409 conflicts): edited by hand.
-# One clean whole-solution `maran test backend` run: 20 targets: 4672 passed / 0 failed / 0 ignored, TEST VERDICT: OK.
-# Modules.Identity.Tests 312->318 (begin, confirm and disable handler conflict tests + inverse controls); Sdk.Tests 246
-# unchanged (two codes renamed, kind Forbidden->Conflict). Host.IntegrationTests ran filtered to CustomerSelfService,
-# Auth, TwoFactorEnrolmentSteering, Profile, Session and Setup endpoint tests (34/0); its row is left to CI.
-# spa: NEW row auth/two-factor-settings.spec.ts 5. Full suite at E2E_PORT=5199: 780 passed / 0 failed / 2 skipped.
-# RE-MEASURED 2026-10-30 (issue #196 Phase 1, the paged list contract for Accounts and Sites): edited by hand.
-# One clean whole-solution `maran test backend` run, nothing else building: 20 targets: 4666 passed /
-# 0 failed / 0 ignored, TEST VERDICT: OK. SharedKernel.Tests 230->343 (the pagers, SortMap builder,
-# SearchTerm, SortRequest), Sdk.Tests 224->246 (validator, code census), Modules.Accounts.Tests 468->498,
-# Modules.Sites.Tests 236->266 (status rank included), Databases 110->111, Sftp 88->89, Ftp 153->154,
-# Backups 214->215 (owner names), Host.IntegrationTests 415->659 (the row was stale; this run collected 659).
-# spa, measured per file with the json reporter at E2E_PORT=5199: 116 files, 775 passed / 0 failed /
-# 2 skipped. accounts/list 3->15, sites/list 5->15, dashboard +1 (unavailable count), NEW ui-kit/combobox 6,
-# ui-kit/filter-sheet 9, ui-kit/pagination 10; ui-kit/motion-and-tables 7+2 skipped -> 8+1 (the
-# filter-trigger case is no longer fixme now the accounts list renders the trigger).
-# RE-MEASURED 2026-10-30 (issue #223, account resource summary and ?account= list filters): edited by hand.
-# Modules.Accounts.Tests 454->468, Sites.Tests 232->236, Databases.Tests 106->110, Sftp.Tests 84->88,
-# Ftp.Tests 149->153, Backups.Tests 210->214, Cron.Tests 187->190, 0 failed;
-# ArchitectureTests 91, Sdk.Tests 224, Host.Tests 392 unchanged. SharedKernel.Tests measured 250 against a
-# 230 row; this change touches no SharedKernel code, so that row is left for its own re-measurement.
-# Host.IntegrationTests ran filtered to AccountResourceSummaryEndpointTests and the Sites, Databases, Sftp,
-# Ftp and Backups AuthorizationTests (117/0); its row is left to CI.
-# spa: NEW rows accounts/resources 8 and five */account-filter 3 each. Full suite at E2E_PORT=5199:
-# 726 passed / 0 failed / 3 skipped.
-# RE-MEASURED 2026-10-30 (issue #216, account plan and owner email edits; AccountSnapshot gained a required State):
-# edited by hand. Modules.Accounts.Tests 434->454 and Modules.Identity.Tests 306->312 and Sdk.Tests 222->224 (two new codes), 0 failed; ArchitectureTests 91
-# unchanged. Host.IntegrationTests ran filtered to AccountEditEndpointTests, AccountsAuthorizationTests,
-# PlansEndpointTests, InvitationLinkEndpointTests, AccountsEndpointTests and StartupPhpSiteReconcilerTests (66/0); its row is left to CI.
-# spa: NEW row accounts/edit.spec.ts 9; plans/plans.spec.ts stays 15. Full suite 703 passed / 0 failed / 3 skipped.
-# RE-MEASURED 2026-10-30 (issue #215, the FTPS card tells one story and every switch answers): edited by hand.
-# Modules.Ftp.Tests 133->149 (mapper's 12-row desired x observed table + 1, disable handler +3), 0 failed;
-# ArchitectureTests 91 and Sdk.Tests 222 unchanged. rust ftps_on_a_real_host 15->16 IGNORED (the stand-in's
-# dormant-unit default and `--` handling; polygon only, NOT executed here — the images were not rebuilt).
-# Host.IntegrationTests ran filtered to FullyQualifiedName~Ftp (59/0); its row is left to CI.
-# spa: NEW row file-transfer/ftps-server-state 11. Full suite at E2E_PORT=5199: 694 passed / 0 failed / 3 skipped.
-# RE-MEASURED 2026-10-30 (issue #214, own-certificate refusals name their field and keep the text): edited by hand.
-# Modules.Ssl.Tests 209->221, Sdk.Tests 214->222 (nine new codes, CertificateMaterialInvalid retired),
-# Agent.Client.Tests 371->375, Host.Tests 391->392 (pre-existing drift, not this change's), ArchitectureTests 91
-# unchanged, 0 failed. rust maran_agent lib 410->418 (install_outcome tests + new rows in the revision test).
-# Host.IntegrationTests ran filtered to CustomCertificateMaterialEndpointTests, CertificatesAuthorizationTests and
-# ReservedHostNameEndpointTests (69/0); its row is left to CI. spa: sites/ssl-tab.spec.ts 9->11.
-# Full suite at E2E_PORT=5199: 683 passed / 0 failed / 3 skipped.
-# RE-MEASURED 2026-11-01 (issue #134, backup alerts: failed, refused and missed scheduled runs mail the
-# administrator): edited by hand. Modules.Backups.Tests 237->247 (6 alert tests, 4 missed-occurrence tests);
-# maran test backend printed 20 targets: 5157 passed / 0 failed.
-# RE-MEASURED 2026-10-30 (issue #211, an empty schedule scope is a 200, not a 404): edited by hand. Modules.Backups.Tests
-# 209->210, Sdk.Tests 215->214 (the retired BackupScheduleNotFound census row), 0 failed; ArchitectureTests 91 unchanged.
-# Host.IntegrationTests ran filtered to BackupScheduleTests, BackupDestinationTests and BackupsAuthorizationTests (34/0);
-# its row is left to CI. spa: backups/schedule.spec.ts 8->9. Full suite at E2E_PORT=5199: 681 passed / 0 failed / 3 skipped.
-# RE-MEASURED 2026-10-30 (issue #224, a schedule's switch-on is not a run): edited by hand. Modules.Backups.Tests
-# 204->209 (0 failed); ArchitectureTests 91 and Sdk.Tests 215 unchanged. Host.IntegrationTests ran filtered to
-# BackupScheduleTests, BackupDestinationTests and BackupsAuthorizationTests (34/0); its row is left to CI.
-# spa: backups/schedule.spec.ts 7->8. Full suite at E2E_PORT=5199: 680 passed / 0 failed / 3 skipped.
-# RE-MEASURED 2026-10-30 (issue #210, a profile for every signed-in person): edited by hand. Modules.Identity.Tests 301->306
-# (--no-build, 0 failed); ArchitectureTests 91 and Sdk.Tests 215 unchanged. Host.IntegrationTests ran filtered to
-# ProfileEndpointTests, EndpointAuthorizationPolicyTests and ControllerRoutesTests (21/0); its row is left to CI.
-# spa: NEW row shell/profile 3. Full suite at E2E_PORT=5199: 679 passed / 0 failed / 3 skipped.
-# RE-MEASURED 2026-10-30 (issues #201, #202, customer area): edited by hand. Backend projects measured one by one
-# (--no-build, 0 failed): Modules.Identity.Tests 282->301, Modules.Tasks.Tests 58->76, Modules.Accounts.Tests 428->434, Sdk.Tests 212->215, Modules.Sites.Tests 222->232, Host.Tests 355->391.
-# Host.IntegrationTests ran filtered to the six #201/#202 classes plus TaskStreamTests (43/0); its row is left to CI.
-# spa: NEW rows customer/console-clean 1, customer/invitation 2, customer/navigation 3, customer/no-admin-links 4,
-# customer/own-account-create 5, customer/role-guard 18, customer/tasks 3; firewall/access 5->4 (the customer now
-# lands on the not-available screen). Full suite at E2E_PORT=5199: 674 passed / 3 failed (the old firewall/access
-# cases, since rewritten and passing) / 3 skipped; the rewritten specs re-run 88/0.
-# RE-MEASURED 2026-10-29 (issue #103, account processes ended before userdel): account_deletion_on_a_real_host
-# 5->6 ignored (new real-host test; all 6 passed on the polygon of PR #123). Unit rows left to CI.
-# RE-MEASURED 2026-10-28 (issue #90, every spawned root process bounded, rebased on dev ac9a5b5): rust 33 targets,
-# 2661 passed / 0 failed / 147 ignored. NEW targets: bound_errors, bound_is_mapped_in_every_status_file,
-# safe_write_bound_on_real_processes. Rows moved: maran_agent 372->410, backup_on_a_real_host 0->0, binary_paths_on_a_real_host 0->0, bound_is_mapped_in_every_status_file new->4, php_install_rpc 6->7, sites_on_a_real_host 0->0, maran_agent_core 424->486, maran_distro 42->57, maran_ops 1348->1624, bound_errors new->9, safe_write_bound_on_real_processes new->6, doc-tests 0->1, doc-tests 0->1.
-# RE-MEASURED 2026-10-28 (issue #89, administrator-only authorization fallback, rebased on dev b0444fe):
-# backend projects measured one by one with -m:1, 17 projects, 0 failed. Rows raised: ArchitectureTests 80->91, Host.Tests 346->355, Identity.Tests 275->282, Accounts.Tests 279->428, Backups.Tests 198->204, Cron.Tests 182->187, Databases.Tests 101->106, Firewall.Tests 249->255, Ftp.Tests 128->133, Licensing.Tests 47->51, Monitoring.Tests 66->70, Notifications.Tests 48->52, Sftp.Tests 80->84, Sites.Tests 219->222, Ssl.Tests 205->209, Tasks.Tests 54->58.
-# Accounts includes the reserved-name tests of #83, measured here for the first time. Sdk 212 unchanged.
-# Host.IntegrationTests ran per class for the measurement (12 classes, 100/0); its row is left to CI.
-# RE-MEASURED 2026-10-28 (issue #96, reserved and panel host names refused, on dev 7b9f603): rust 30 targets
-# 2248 passed / 0 failed / 141 ignored (maran_agent 351->372, handshake 8->9, maran_agent_core 404->424,
-# maran_ops 1347->1348). Backend projects measured one by one with -m:1: SharedKernel 187->230, Sdk 208->212,
-# Host.Tests 323->346, Sites 188->219, Ssl 159->205, Ftp 109->128, ArchitectureTests 80 unchanged.
-# Host.IntegrationTests ran filtered to ReservedHostName only (47/0); its row is left to CI.
-# RE-MEASURED 2026-10-27 (issue #86, published and weak keys refused outside Development and Testing, rebased on dev
-# with #85): backend projects measured one by one with -m:1 (the whole-solution run is OOM-killed here):
-# SharedKernel 168->187 and Host.Tests 281->323 (the key policy and the host's refusal); ArchitectureTests 80
-# unchanged. No rust change on this branch. Host.IntegrationTests not measured here; CI measures it.
-# RE-MEASURED 2026-10-27 (issue #85, duplicate host names and the create-site race, rebased on dev with #87 and #88):
-# rust 30 targets 2205 passed / 0 failed / 141 ignored. maran_agent 347->351, handshake 7->8, maran_ops 1322->1347,
-# sites_on_a_real_host ignored 26->34. Backend measured one by one with -m:1: Sites 176->188; Agent.Client 371,
-# Sdk 208 and ArchitectureTests 80 unchanged. Host.IntegrationTests not measured here; CI measures it.
-# RE-MEASURED 2026-10-27 (issues #87, #88, agent outage and contract revision, rebased on dev): rust 30 targets
-# 2175 passed / 0 failed / 133 ignored (maran_agent 347). Backend projects measured one by one with -m:1 because the
-# whole-solution run is OOM-killed on this workstation: Agent.Client 371, Backups 198, Cron 182, Sdk 208,
-# ArchitectureTests 80, Host.Tests 281 (Sftp 80 and Sites 176 unchanged). Host.IntegrationTests not measured here; CI measures it.
-# RE-MEASURED 2026-10-30 (UI pass: #208 #209 #210 #212 #213 #217 #218 #221 #222 #225): spa 641/0/3 locally. Edited by hand:
-# ten NEW rows (auth/client-checks, cron/description, plurals, shell/navigation-order-labels, shell/palette-focus,
-# shell/sidebar-state, shell/theme-switch, tasks/failure-sentence, ui-kit/motion-and-tables 6/0/3 fixme, ui-kit/select-empty);
-# accounts/form 7->8, monitoring/monitoring 10->11. NOTHING FELL.
-# RE-MEASURED 2026-10-30 (issues #200, #195, sidebar submenus): spa 600/0/1 locally. Edited by hand, not `--accept`:
-# NEW row shell/sidebar-submenu.spec.ts 7. NOTHING FELL; plans/plans.spec.ts stays at 15. Rust and backend unchanged.
-# RE-MEASURED 2026-10-27 (issue #83, reserved account names, rebased on dev with #84 and #93): rust 30 targets,
-# 2171 passed / 0 failed / 133 ignored. maran_agent 343, maran_agent_core 404, maran_ops 1322, handshake 7, NEW row
-# account_identity_on_a_real_host 0/0/6. Backend rows not re-measured here (the full backend run is OOM-killed on
-# this workstation); CI measures it.
-# RE-MEASURED 2026-10-27 after rebasing on #84: rust 29 targets, 2044 passed / 0 failed / 127 ignored, TEST VERDICT OK; maran_ops 1263.
-# RE-MEASURED 2026-10-26 (issue #93, PHP package install unit): rust 2008/0/117 (28 targets), `maran test rust` found
-# one finding, the new target php_install_rpc, and no failure. Rose, none fell: maran_agent 321->324,
-# php_install_rpc NEW at 6, maran_agent_core 353->356, maran_distro 40->42, maran_ops 1233->1252.
-# (The accept path rewrites this file from the run alone; the prose below was restored from the committed version.)
-# RE-MEASURED 2026-10-26 (issue #84, nginx symlink rule): rust rows now sum to 2019/0/127 over 28 targets (the run collected 2024 passed: five other rows already ran above their recorded count, and gaining is silent), from a `maran test rust`
-# run printing `28 targets: 2024 passed / 0 failed / 127 ignored`. Edited by hand, not `--accept`. Rows
-# that moved: maran_ops 1233->1252, maran_templates 0->13, golden_test 19->22, sites_on_a_real_host
-# ignored 16->26 (the polygon link tests); NEW row nginx_link_rule_test 9. NOTHING FELL. backend and spa unchanged.
-#
-# RE-MEASURED 2026-10-26 (issues #78, #79, #80): rust 1975/0/117, backend 3435/0/0, spa 593/0/1. Backend and spa
-# re-recorded (`maran test backend --accept`, `maran test spa --accept`); rust unchanged. Rows ROSE,
-# none fell: Accounts.Tests and Identity.Tests gained the plan create/update/delete and invitation-link
-# suites, Host.IntegrationTests gained InvitationLinkEndpointTests and PlansEndpointTests (real
-# PostgreSQL), and the spa gained accounts/invitation-link.spec.ts and plans/plans.spec.ts. The backend
-# rows recorded before this were older than the work since #29, so part of the backend rise is tests
-# that already existed and simply had not been re-measured.
-#
-# RE-MEASURED 2026-10-26 (UI redesign, issue #82): rust 1975/0/117, backend 3222/0/0, spa 561/0/1. Only the spa
-# stack was re-recorded (`maran test spa --accept`); rust and backend are unchanged by #82 and their
-# rows are the ones already here. Twelve spa rows are NEW, each a spec the redesign added to hold an
-# acceptance criterion or a defect found while building it (mobile drawer, no horizontal scroll at
-# 390 px in en/ru/hy, narrow tables, app bar fit, text zoom, focus return, palette combobox, document
-# titles, persisted theme on signed-out pages, long badges); dashboard.spec.ts was already in the
-# suite but missing from this file. No row fell.
-#
-# RE-MEASURED 2026-09-19 (quota enforceability, issue #29): rust 1960/0/116, backend 3142/0/0,
-# spa 370/0/1 — every stack sum verified against the run it came from. Three rows moved and none
-# fell: Monitoring 53->60 and Ssl 158->159 on the backend, monitoring.spec.ts 6->7 on the spa.
-#
-# One row was REMOVED rather than moved, which a sum alone would not explain: the owner asked for
-# frontend/e2e/monitoring/russian-locale.spec.ts to be deleted, so the spa stack is 71 rows and
-# 370 where it was 72 and 373. That is a deliberate removal, not a fall. What went with it was the
-# only guard for four defects a non-English screen reveals and key-parity cannot: machine constants
-# beside translated words, an English-only chart axis, an invented unit that read naturally in
-# english, and a Cyrillic byte unit beside an IEC one. `maran structure` checks that keys EXIST in
-# all three locales, never what a screen renders, so nothing here would catch their return.
-#
-# THE PROSE BELOW WAS ONCE LOST, AND THAT IS WORTH A WARNING RATHER THAN A QUIET REPAIR.
-# On 2026-09-19 a lane was killed mid-run and something in its path rewrote this file
-# mechanically: all 118 data rows survived and all 173 comment lines did not. The prose was
-# recovered from the committed version and the measured figures re-applied on top, row by row,
-# with each stack sum checked against the run it came from (rust 1941/0/116, backend 3134/0/0,
-# spa 373/0/1 — all three MATCH).
-#
-# Why this matters more than the inconvenience: a digit in this file means nothing without the
-# reasoning beside it, and a mechanically rewritten baseline looks perfectly healthy. Nothing
-# would have failed. The check that caught it was counting the comment lines, not running a
-# gate. If you regenerate this file with an --accept, read the diff for LOST PROSE and not
-# only for changed numbers.
-#
-# RECONCILED 2026-09-11 on a tree that was green on all three stacks — the first time this file
-# could be taken honestly since 2026-09-09. The digits below are not estimates: every one is a row
-# from a named run, and the reasoning per row is in
-# recorded beside each row below, which is what the owner should read. A digit
-# here means nothing without its explanation there.
-#
-#   rust     — RE-MEASURED 2026-09-19 (issue #29, quota enforceability), `27 targets:
-#              1960 passed / 0 failed / 116 ignored`, OK — `maran agent check` printed
-#              "AGENT-CHECK OK — fmt, clippy, test and doc all ran and all passed". All 27
-#              rows reconciled against that run; NOTHING FELL. Two rose: maran_agent
-#              318->321 (`to_wire_quota_state_tests.rs`, the wire-mapping proof for the new
-#              three-state QuotaState) and maran_ops 1202->1218 (`quota_state_tests.rs` +4,
-#              `quota_enforceability_tests.rs` +6, `get_quota_enforceability_tests.rs` +3,
-#              and `account_operations_tests.rs`'s net +3 from replacing its old two-case
-#              usage coverage with five new enforceability-aware cases — 4+6+3+3=16). Sum
-#              checked against the measured total: 318+3=321, 1202+16=1218,
-#              1941 (prior sum) + 3 + 16 = 1960, MATCHES. Ignored unchanged at 116 — this
-#              work added no new #[ignore]d case. Earlier: `27 targets: 1941 passed / 0
-#              failed / 116 ignored` (the sum this file's rows already carried before this
-#              entry, reconciled without its own dated comment — see the rows themselves).
-#   rust     — RE-MEASURED 2026-09-19, `27 targets: 1914 passed / 0 failed / 114 ignored`, OK.
-#              All 27 rows reconciled; NOTHING FELL. Two rose: maran_agent 312->315 and maran_ops
-#              1165->1180 — the grant repair reaching the agent (the census op, the pattern-narrowing
-#              repair, and their model/mod wiring) plus the tests added alongside it. Ignored stayed
-#              at 114 (unchanged). Earlier: `27 targets: 1896 passed / 0 failed / 113 ignored`.
-#   rust     — RE-MEASURED 2026-09-13, `27 targets: 1896 passed / 0 failed / 113 ignored`, OK.
-#              All 27 rows reconciled; NOTHING FELL. maran_agent 308->312 and maran_ops 1158->1165:
-#              the cron allowance refused inside the lock that already holds the count, and the
-#              GRANT pattern escape. The ignored row rose by one real-host case that reproduces a
-#              cross-tenant read against a live MariaDB. Earlier: `1885 / 0 / 112`.
-#              All 27 rows reconciled; NOTHING FELL. One rose: maran_ops 1154->1158, the
-#              session-cull count leaving ops as its own outcome type rather than riding on a
-#              type two non-culling paths also return. Earlier: `1881 / 0 / 112`.
-#              All 27 rows reconciled against that run; NOTHING FELL. Two rose and are recorded:
-#              maran_agent 293->308 (the suspension-cull operation and its guards) and maran_ops
-#              1126->1154 (the same, plus the account-busy mapping). The rows now sum to the
-#              measured total exactly. Earlier: 2026-09-11T09:45:55Z, `1837 / 0 / 108`,
-#              TEST VERDICT: OK. Four rows moved: maran_agent 283 -> 293, shutdown_signal 2 -> 3,
-#              maran_ops 1125 -> 1126, and sftp_on_a_real_host 11 -> 12 IGNORED.
-#   backend  — RE-MEASURED 2026-09-13 (third pass), `19 targets: 3108 passed / 0 failed`, OK.
-#              All 19 rows reconciled; NOTHING FELL. Five rose: Databases 70->101,
-#              Agent.Client 319->323, Host.IntegrationTests 348->357, Host.Tests 237->240 and
-#              Sdk 186->188 — the grant repair reaching the panel (an administrator-only census
-#              and a repair that refuses any figure the caller did not read from a report), plus
-#              its audit entry: one action constant, its three display names, and the two suites
-#              that assert the journalled subject by EXACT string, because a containment
-#              assertion would pass on an entry naming a stranger's database beside the counts.
-#              NOTE ON THE PRECEDING LINE, worth more than the digits: the verdict was OK while
-#              these five rows were stale by 49 tests. The comparison refuses a DROP and is
-#              deliberately silent on a gain, so a green verdict is not evidence this file is
-#              current — only evidence that nothing was lost. Reconciling is a separate act.
-#              Earlier: `19 targets: 3059 passed / 0 failed`.
-#              All 19 rows reconciled; NOTHING FELL. Agent.Client 315->319, Cron 177->181 and
-#              Sdk 184->186: the fifth and last plan-allowance race, closed in the agent because
-#              cron keeps no rows, so no panel transaction could have been the atomic act.
-#              Earlier: `19 targets: 3049 passed / 0 failed`.
-#              Two rows rose and none fell: Host.IntegrationTests 335->348 and Sdk.Tests
-#              181->184. Three more count-then-insert races on plan allowances were closed the
-#              way the FTPS one was — sites, databases and sftp logins — each with a
-#              concurrency test that can actually lose, and each loser's refusal carrying its
-#              own code. Earlier: `19 targets: 3033 passed / 0 failed`.
-#              All 19 rows reconciled; NOTHING FELL. Three rose: Accounts 176->186 (the
-#              attestation naming both daemons, and the cull's four readings), Agent.Client
-#              313->315 and Sftp 77->80 (the optional sessions_ended field carried from the
-#              wire to the operator). Earlier: `19 targets: 3014 passed / 0 failed`.
-#              All 19 rows reconciled against that run; NOTHING FELL. Six rose: Identity 191->203
-#              (the setup-token expiry), Backups 181->191 (the orphan-artifact reclaim pass),
-#              Host.IntegrationTests 331->335 and Ftp 105->109 (the login-limit advisory lock and
-#              its concurrency fixture), Sdk 178->181 and Host.Tests 236->237 (the ACCOUNT_BUSY
-#              code and its display name). The rows now sum to 3014 exactly.
-#              Earlier: `19 targets: 2980 passed / 0 failed`, TEST VERDICT: OK.
-#              The last +6 are ErrorMessageLocalizationTests, added after a LIVE browser pass
-#              found that no error message in any module was translated: the exception handler
-#              ran one line before the localisation middleware, so it resolved every text in a
-#              context where the request culture had never been set. Host.IntegrationTests
-#              325 -> 331.
-#              Three rows rose and none fell: Ftp.Tests 101->105 (the IPv6/canonical-spelling
-#              passive-address refusal and its inverse controls), ArchitectureTests 57->58 (the
-#              tenant census split in two), Host.IntegrationTests 324->325. Each was counted
-#              twice — statically in the source and from the run row — and made to agree.
-#              Earlier: measured 2026-09-11T10:03:08Z at `19 targets: 2965 passed / 0 failed`.
-#              Seven rows moved, +147 in total. The largest is Maran.Modules.Ftp.Tests.dll 38 -> 101:
-#              that row was recorded on 2026-09-09 from a project the FTP lane was still writing,
-#              and the earlier reconciliation flagged it as provisional at the time. It has run at
-#              101 ever since, which means 63 tests could have been deleted from that one project
-#              without this file noticing.
-#   spa      — RE-MEASURED 2026-09-19, `72 targets: 373 passed / 0 failed / 1 ignored`, OK.
-#              All 72 rows reconciled; NOTHING FELL. One rose: databases/grant-repair.spec.ts
-#              10->11, the plural half of the confirmation dialog's counted phrase. It is a
-#              separate case rather than a second assertion because a rule that always answered
-#              "first form" passes the singular, so two counts that must differ is the smallest
-#              pair that observes the choice. Row sum verified: 373 / 0 / 1.
-#              WHAT THAT ROW STILL CANNOT SEE: this suite runs the panel in english, which takes
-#              two plural forms and is served by vue-i18n's default rule. Russian's three-form
-#              rule and armenian's invariant one are exercised by no row here; they were checked
-#              in a live browser at 1, 2, 11 and 21 grants, 21 being the count that separates the
-#              rule from a `count === 1` test. Earlier: `71 rows, 357 passed / 1 ignored`.
-#
-# NOT ONE TARGET FELL, on any stack. A fall is the single failure this file exists to catch and it
-# must never be baselined away; had one appeared it would have been reported as a regression rather
-# than recorded here.
-#
-# The ignored column was checked against the suites themselves, not carried forward: the thirteen
-# `*_on_a_real_host.rs` files declare 109 tests between them and maran_ops holds the one remaining
-# `#[ignore]`, which is the 110 the run reports. Every one of the thirteen is named in
-# docker/README.md and in .github/workflows/agent.yml, which `maran structure` check 19 enforces in
-# both directions.
-#
-# RE-MEASURED 2026-09-11, ftps only; the reasoning is the per-lane note in scripts/lib/polygon.sh.
-# `ftps_on_a_real_host` 12 -> 14 IGNORED: two `#[ignore]`d cases landed in that suite for the
-# certificate-trust gap (a client that VERIFIES the chain, and the daemon serving the file the panel
-# installed). The number is a count taken twice and made to agree, not a transcription: 14
-# `#[test]` attributes and 14 `#[ignore]` attributes in the file, and a polygon run executing 14
-# `passed` for that suite on BOTH families. The other twelve suites were counted the same way in the
-# same pass and every one of them is unchanged — 5/12/1/6/6/10/5/3/15/4/12/16 — so the declared
-# polygon total moves 107 -> 109 and NOTHING FELL. Had any of them fallen it would have been
-# reported as a regression instead of recorded here, which is the one rule this file has.
-#
-# RE-MEASURED 2026-09-11, ftps and sftp only, reasoning in
-# docs/superpowers/notes/2026-09-11-setup-token-in-a-url-threat-note.md and the sftp suspension note.
-# `ftps_on_a_real_host` 14 -> 15 and `sftp_on_a_real_host` 12 -> 13 IGNORED: one `#[ignore]`d case
-# landed in each for the idle-bound asymmetry between the two protocols (the sshd configuration this
-# product writes puts NO idle bound on an SFTP session; the vsftpd configuration bounds an idle FTPS
-# session at ten minutes). Both numbers are counts taken twice and made to agree rather than
-# transcribed from the report that owed them: 15 `#[test]` and 15 `#[ignore]` attributes in
-# ftps_on_a_real_host.rs, 13 and 13 in sftp_on_a_real_host.rs, and a polygon run of both suites in a
-# `--no-cache` ubuntu24 image reporting `15 passed; 0 failed` and `13 passed; 0 failed` for them.
-# NOTHING FELL: no other suite was touched by that work, and the eleven others keep the counts the
-# reconciliation above recorded. The declared polygon total therefore moves 109 -> 111, and the rust
-# `ignored` total 110 -> 112; the one `#[ignore]` outside the thirteen polygon suites is still
-# maran_ops's.
-#
-# The setup-token lane that measured these two rows added no rust test of its own: its gate is a
-# BUILD-time assertion in docker/polygon/assert-installer-steps.sh
-# (`assert_the_panel_vhost_can_never_log_a_query_string`), which both family images run and which
-# this file does not count. Said here because a reader comparing the two reports would otherwise
-# look for a third row that does not exist.
-#
-# RE-MEASURED 2026-09-11, spa only, one row, reasoning in
-# the setup-token note under docs/superpowers/notes/. `auth/setup.spec.ts` 6 -> 8 PASSED. The setup screen
-# stopped prefilling its token field from `?token=`, which is the tail the setup-token lane could
-# not reach, so the test that asserted the prefill is gone and three took its place: the field stays
-# empty and a real sentence says why, the sentence appears ONLY for a visitor who arrived with a
-# token in the address (the control, without which an unconditional notice would pass), and the
-# sentence is asserted in ru and hy as well as en with `toContainText`, which is case-sensitive
-# where `getByText` is not. Net +2, and the row is a count taken twice and made to agree rather than
-# transcribed: 8 `test(` calls in the file and `auth/setup.spec.ts  8  0  0` in a full run reporting
-# `71 targets: 359 passed / 0 failed / 1 ignored`, TEST VERDICT: OK. NOTHING FELL — no other spa row
-# moved, the target count is still 71, and the total moves 357 -> 359 by addition only.
-#
-# The split of FirewallAuthorizationTests.cs into that file plus FirewallEndpointTests.cs landed
-# between the 10:03 measurement and this edit. It moved no test: Maran.Host.IntegrationTests.dll
-# reports 321 before it and 321 after, and both runs are quoted in the report above.
-#
-#
-# RE-MEASURED 2026-09-12, two rows, by the Task 16 Step 3 pass
-# (Task 16 Step 2's own status block in the ftps plan). `handshake [tests/handshake.rs]` 5 -> 6 and
-# `Maran.Host.IntegrationTests.dll` 321 -> 324: the panel-to-agent FTPS wire-shape work landed one
-# more handshake case (`the_enable_shape_the_panel_sends_passes_the_agents_input_boundary_and_a_wrong
-# _family_passive_address_does_not`) and a new integration file. Both numbers are counts taken twice
-# and made to agree rather than transcribed: 6 `#[tokio::test]` attributes in
-# agent/crates/agent/tests/handshake.rs against a run row of `handshake ... 6 0 0` inside
-# `27 targets: 1838 passed / 0 failed / 112 ignored`, TEST VERDICT: OK; and 3 `[Fact]` attributes in
-# backend/tests/Maran.Host.IntegrationTests/PanelToAgentFtpsWireShapeTests.cs against a run row of
-# `Maran.Host.IntegrationTests.dll 324 0 0` inside `19 targets: 2969 passed / 0 failed / 0 ignored`,
-# TEST VERDICT: OK.
-#
-# NOTHING FELL. Every other row on all three stacks reported exactly what it declares: 27 rust
-# targets, 19 backend targets, 71 spa targets, no target vanished, and the spa stack re-measured
-# `71 targets: 359 passed / 0 failed / 1 ignored` against the 71 rows below without a digit moving.
-# The rust `ignored` total is still 112 and was re-counted from the suites rather than carried
-# forward: the thirteen `*_on_a_real_host.rs` files hold 5/12/1/6/6/10/15/5/3/15/4/13/16 = 111
-# `#[test]` attributes and the same number of `#[ignore]`s, plus maran_ops's one, and all thirteen
-# are still named in docker/README.md and .github/workflows/agent.yml.
-#
-# SINCE RECORDED (2026-09-12): `Maran.ArchitectureTests.dll` is now 58 below. The note that stood
-# here withheld the digit on purpose, because that project was a live lane whose files were being
-# written while the run executed, and a baseline recorded off a half-written lane is the false alarm
-# that gets a real fall dismissed. The lane has landed (the tenant census split in two, so 57 -> 58),
-# the tree is quiet, and the row was re-measured twice — statically and from the run row. The
-# reasoning is kept rather than deleted: withholding a digit measured off a moving tree was right,
-# and a reader who sees only the new number should know that a baseline BELOW the tree costs nothing
-# here, because the failure this file exists to catch is a FALL.
-#
-#
-# UPDATED 2026-09-25 (customer area, issue #49): one spa row added,
-# frontend/e2e/customer-area.spec.ts 2/0/0, so the spa stack is 72 rows where it was 71.
-# The header above was regenerated away by 'maran test spa --accept' and is restored here by
-# hand: the accept path rewrites this file from the run alone and keeps no prose, so every
-# re-measurement note in it is one --accept away from being lost. Worth fixing in the script.
-#
-# RE-MEASURED 2026-10-31 (#196 phase 3, SharedKernel.Tests 343->349 for FilterValue: audit, tasks, sessions and firewall lists paged on the
-# server) — edited by hand, not by --accept. Source: a full `E2E_PORT=5199 maran test spa` run
-# printing `collected 151 targets: 1017 passed / 0 failed`. Four spa rows added
-# (audit/list 6, auth/sessions-list 5, firewall/bans-list 7, firewall/whitelist-list 5) and seven
-# raised to what that run collected (customer/role-guard 18->20, firewall/loading 3->9,
-# shell/palette-focus 6->7, shell/sidebar-submenu 7->9, tasks/badge 3->4, tasks/list 7->14,
-# ui-kit/no-horizontal-scroll-admin 69->75). Backend rows unchanged: `maran test backend` printed
-# `collected 20 targets: 5027 passed / 0 failed` against them.
-#
-# RE-MEASURED 2026-10-31 (#221, shell: live locale, stale messages, section rows, current row,
-# scrollbar lane) — edited by hand, not by --accept. Source: a full `E2E_PORT=5199 maran test spa`
-# run printing `collected 158 targets: 1057 passed / 2 failed`; both failures reproduce on
-# untouched dev (shell/licence-gating:13, an unscoped `Sites` link that also matches the dashboard
-# card, now scoped to the sidebar; sites/detail-loading:98, a timing check that passes at one
-# worker). A second full run after the licence-gating fix printed `collected 158 targets: 1058
-# passed / 1 failed`, the one failure being sites/detail-loading:98 again. Keyed by spec file: shell/content-scroll 1 added (the scroll check needs a browser that
-# draws scrollbars, so it has its own file), auth/client-checks 6->7, shell/sidebar-state 6->10.
-# Backend rows unchanged: no backend file changed.
-# RE-MEASURED 2026-10-31 (#217: phone tables as cards, one theme menu, dialog hints in view) —
-# edited by hand, not by --accept. Source: a full `E2E_PORT=5199 maran test spa` run printing
-# `158 targets: 1058 passed / 1 failed / 2 ignored`; the one failure,
-# accounts/detail-loading "resources: a fast summary shows no placeholder", is a 150 ms timing
-# check that failed under a host load average of 11 and passed 18 of 18 at one worker
-# (`--repeat-each=3 --workers=1`); #217 touches no file it renders, so its row stays 6. One spa
-# row added (ui-kit/table-cards 4) and one raised (shell/theme-switch 2->4). Backend rows unchanged.
-#
-# RE-MEASURED 2026-10-31 (#222: task failure sentences, create toasts, one task progress rule, one
-# Armenian grant repair term) — edited by hand, not by --accept. Source: a full
-# `E2E_PORT=5199 maran test spa` run printing `158 targets: 1066 passed / 0 failed / 2 ignored`.
-# Five spa rows raised: cron/description 3->4, databases/grant-repair 11->12, firewall/bans 6->8,
-# firewall/whitelist 7->8, tasks/failure-sentence 3->5. Backend rows unchanged.
-# RE-MEASURED 2026-10-31 (#77, merged with dev's #275: Host.IntegrationTests 831+2 = 833, maran_agent measured 428 in CI (the +4 was already in dev's 428);: disk used / reserved / available) — edited by hand, not by --accept.
-# Source: full runs printing `maran test backend` 20 targets 5125 passed / 0 failed,
-# `maran test rust` 35 targets 2856 passed / 0 failed, `E2E_PORT=5199 maran test spa` 164 targets
-# 1107 passed / 0 failed. Rows raised: Maran.Host.IntegrationTests 824->826,
-# Maran.Modules.Monitoring.Tests 83->87, maran_agent 420->424, maran_ops 1754->1761; spa row
-# disk-usage.spec.ts added at 3.
-#
-# RE-MEASURED 2026-10-31 (#80: form fields named after what is chosen, not its identifier) — edited
-# by hand, not by --accept. Source: a full `E2E_PORT=5199 maran test spa` run printing
-# `164 targets: 1110 passed / 0 failed / 2 ignored`. Two spa rows raised: accounts/form 9->11
-# (the plan control's name and message in en and hy), ui-kit/unfilled-select-prompt 3->4 (the
-# Armenian account pickers). Backend rows unchanged.
-#
-# RE-MEASURED 2026-11-01 (#135: SFTP public-key login, agent slice) — edited by hand, not by
-# --accept. Source: a `maran test rust` run printing `35 targets: 2972 passed / 0 failed /
-# 156 ignored`. maran_agent 446->451, maran_agent_core 535->555, maran_ops 1787->1802,
-# golden_test 22->23, and sftp_on_a_real_host 13->14 IGNORED (the key login case, polygon only).
-# Then, same day, the suite was split at the 800-line test-file trigger: sftp_on_a_real_host
-# 14 -> 9 IGNORED and the new sftp_suspension_on_a_real_host at 5 IGNORED — the same 14 tests,
-# names unchanged (`cargo test --test <suite>` listing 9 and 5).
-# RE-MEASURED 2026-11-02 (issue #323, bool/sentinel state refactors): edited by hand from the gate run (backend 21 targets 5748 passed; rust 36 targets 3021 passed / 156 ignored; spa 183 targets 1204 passed). Every changed row takes the measured value; Databases.Tests 129->128 is intended (the empty-string refusal reason test cannot exist once the reason is an enum); new spa rows: view-as, account-selector, sub-users, plan-features, favourites, navigation-badges, server-selector (#313-#320). CI re-measures every row.
-# RE-MEASURED 2026-11-03 (critical batch #299-#341): edited by hand from one full run (maran test rust 36 targets 3096 passed; backend 21 targets 6029 passed; spa 193 targets 1237 passed / 0 failed / 2 ignored). Rows changed where the run differs; new spa spec rows added. CI re-measures every row.
-rust	maran_agent [unittests src/lib.rs]	554	0	0
+rust	maran_agent [unittests src/lib.rs]	1071	0	0
 rust	maran_agent [unittests src/main.rs]	0	0	0
 rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	6
 rust	account_identity_on_a_real_host [tests/account_identity_on_a_real_host.rs]	0	0	6
 rust	account_leftovers_on_a_real_host [tests/account_leftovers_on_a_real_host.rs]	0	0	2
+rust	account_limits_on_a_real_host [tests/account_limits_on_a_real_host.rs]	0	0	5
 rust	audit_lines [tests/audit_lines.rs]	7	0	0
 rust	backup_on_a_real_host [tests/backup_on_a_real_host.rs]	0	0	14
 rust	binary_paths_on_a_real_host [tests/binary_paths_on_a_real_host.rs]	0	0	5
+rust	bound_is_mapped_in_every_status_file [tests/bound_is_mapped_in_every_status_file.rs]	4	0	0
 rust	cron_on_a_real_host [tests/cron_on_a_real_host.rs]	0	0	6
-rust	databases_on_a_real_host [tests/databases_on_a_real_host.rs]	0	0	8
+rust	databases_on_a_real_host [tests/databases_on_a_real_host.rs]	0	0	9
+rust	dns_zone_files_on_a_real_host [tests/dns_zone_files_on_a_real_host.rs]	0	0	4
+rust	files_archives_on_a_real_host [tests/files_archives_on_a_real_host.rs]	0	0	9
+rust	files_browse_bounds_on_a_real_host [tests/files_browse_bounds_on_a_real_host.rs]	0	0	12
+rust	files_browse_containment_on_a_real_host [tests/files_browse_containment_on_a_real_host.rs]	0	0	10
+rust	files_browse_on_a_real_host [tests/files_browse_on_a_real_host.rs]	0	0	9
 rust	firewall_on_a_real_host [tests/firewall_on_a_real_host.rs]	0	0	10
+rust	fleet_listener [tests/fleet_listener.rs]	11	0	0
 rust	ftps_on_a_real_host [tests/ftps_on_a_real_host.rs]	0	0	16
-rust	handshake [tests/handshake.rs]	9	0	0
-rust	monitor_on_a_real_host [tests/monitor_on_a_real_host.rs]	0	0	10
+rust	handshake [tests/handshake.rs]	10	0	0
+rust	monitor_on_a_real_host [tests/monitor_on_a_real_host.rs]	0	0	11
 rust	panel_certificate_on_a_real_host [tests/panel_certificate_on_a_real_host.rs]	0	0	6
+rust	php_extensions_on_a_real_host [tests/php_extensions_on_a_real_host.rs]	0	0	4
 rust	php_install_rpc [tests/php_install_rpc.rs]	7	0	0
+rust	php_pools_on_a_real_host [tests/php_pools_on_a_real_host.rs]	0	0	4
 rust	php_socket_migration_on_a_real_host [tests/php_socket_migration_on_a_real_host.rs]	0	0	3
-rust	php_pools_on_a_real_host [tests/php_pools_on_a_real_host.rs]	0	0	3
-rust	privileges_on_a_real_host [tests/privileges_on_a_real_host.rs]	0	0	15
+rust	privileges_on_a_real_host [tests/privileges_on_a_real_host.rs]	0	0	20
 rust	restore_recovery_on_a_real_host [tests/restore_recovery_on_a_real_host.rs]	0	0	4
-rust	sftp_on_a_real_host [tests/sftp_on_a_real_host.rs]	0	0	9
 rust	sftp_key_sessions_on_a_real_host [tests/sftp_key_sessions_on_a_real_host.rs]	0	0	1
+rust	sftp_on_a_real_host [tests/sftp_on_a_real_host.rs]	0	0	9
 rust	sftp_suspension_on_a_real_host [tests/sftp_suspension_on_a_real_host.rs]	0	0	5
 rust	shutdown_signal [tests/shutdown_signal.rs]	3	0	0
-rust	sites_on_a_real_host [tests/sites_on_a_real_host.rs]	0	0	37
-rust	maran_agent_core [unittests src/lib.rs]	557	0	0
-rust	maran_distro [unittests src/lib.rs]	128	0	0
-rust	maran_ops [unittests src/lib.rs]	1985	0	1
-rust	maran_templates [unittests src/lib.rs]	13	0	0
-rust	golden_test [tests/golden_test.rs]	23	0	0
+rust	site_traffic_on_a_real_host [tests/site_traffic_on_a_real_host.rs]	0	0	2
+rust	sites_on_a_real_host [tests/sites_on_a_real_host.rs]	0	0	38
+rust	maran_agent_core [unittests src/lib.rs]	972	0	0
+rust	maran_distro [unittests src/lib.rs]	202	0	0
+rust	maran_ops [unittests src/lib.rs]	3276	0	1
+rust	bound_errors [tests/bound_errors.rs]	9	0	0
+rust	safe_write_bound_on_real_processes [tests/safe_write_bound_on_real_processes.rs]	6	0	0
+rust	maran_templates [unittests src/lib.rs]	38	0	0
+rust	bind_golden_test [tests/bind_golden_test.rs]	4	0	0
+rust	golden_test [tests/golden_test.rs]	25	0	0
+rust	mail_golden_test [tests/mail_golden_test.rs]	12	0	0
 rust	nginx_link_rule_test [tests/nginx_link_rule_test.rs]	9	0	0
+rust	request_rate_golden_test [tests/request_rate_golden_test.rs]	12	0	0
+rust	site_options_golden_test [tests/site_options_golden_test.rs]	10	0	0
+rust	zone_golden_test [tests/zone_golden_test.rs]	6	0	0
 rust	doc-tests maran_agent	0	0	0
 rust	doc-tests maran_agent_core	0	0	0
 rust	doc-tests maran_distro	1	0	0
 rust	doc-tests maran_ops	1	0	0
 rust	doc-tests maran_templates	0	0	0
-rust	bound_is_mapped_in_every_status_file [tests/bound_is_mapped_in_every_status_file.rs]	4	0	0
-rust	bound_errors [tests/bound_errors.rs]	9	0	0
-rust	safe_write_bound_on_real_processes [tests/safe_write_bound_on_real_processes.rs]	6	0	0
-# RE-MEASURED 2026-11-01 (issue #194, new account form: username, www refusal, owner language): edited by hand.
-# Full `maran test backend`: 21 targets 5228 passed / 0 failed / 0 ignored, TEST VERDICT: OK. Rows raised:
-# Modules.Accounts.Tests 529->541, Modules.Identity.Tests 373->379, Sdk.Tests 271->273,
-# Host.IntegrationTests 814->817. Full `maran test spa` (load average ~55): 167 targets 1120 passed /
-# 3 failed / 2 ignored; two of the failures were a wrong locale key in the new form (fixed; form and
-# form-options then 16/16 at one worker) and auth/sessions-loading's slow-answer case, which passed
-# 3/3 alone at load 12. New spa row accounts/form-options.spec.ts 5.
-# RE-KEYED 2026-11-01 (issue #289, perf off the PR path): edited by hand. Maran.Host.IntegrationTests.dll 833 is now two
-# rows: 814 (main part) + 19 (`[PerformanceBudget]` part, ListPerformanceBudgetTests); `--list-tests` lists 833.
-backend	Maran.Agent.Client.Tests.dll	488	0	0
-backend	Maran.SharedKernel.Tests.dll	355	0	0
-backend	Maran.Modules.Identity.Tests.dll	856	0	0
-backend	Maran.Modules.Sftp.Tests.dll	111	0	0
-backend	Maran.Modules.Notifications.Tests.dll	63	0	0
-backend	Maran.Modules.Tasks.Tests.dll	113	0	0
-backend	Maran.Modules.Ftp.Tests.dll	178	0	0
-backend	Maran.Modules.Monitoring.Tests.dll	159	0	0
-backend	Maran.Modules.Backups.Tests.dll	340	0	0
-backend	Maran.Modules.Licensing.Tests.dll	51	0	0
-backend	Maran.Modules.Firewall.Tests.dll	293	0	0
-backend	Maran.Modules.Cron.Tests.dll	245	0	0
-backend	Maran.Modules.Accounts.Tests.dll	1056	0	0
-backend	Maran.Modules.Databases.Tests.dll	128	0	0
-backend	Maran.Modules.Ssl.Tests.dll	345	0	0
-backend	Maran.Sdk.Tests.dll	438	0	0
-backend	Maran.Modules.Sites.Tests.dll	290	0	0
-backend	Maran.ArchitectureTests.dll	117	0	0
-backend	Maran.Host.Tests.dll	575	0	0
-backend	Maran.Host.IntegrationTests.dll	1335	0	0
-backend	Maran.Host.IntegrationTests.dll [PerformanceBudget]	19	0	0
-backend	Maran.Modules.Idempotency.Tests.dll	29	0	0
-# RAISED 2026-11-01 (issue #149, accessibility): edited by hand. Three new spa rows from e2e/accessibility/:
-# axe-scan 11 (5 screens x 2 themes + the planted-violation control), document-language 2, reduced-motion 2.
-# Measured by `maran test spa` (169 targets: 1132 passed / 1 failed / 2 ignored; the one failure,
-# shell/command-palette-a11y:98, passed 3/3 re-run alone at one load and its row is unchanged).
-spa	accessibility/axe-scan.spec.ts	19	0	0
+backend	Maran.Host.Tests.dll	867	0	0
+backend	Maran.SharedKernel.Tests.dll	625	0	0
+backend	Maran.Agent.Client.Tests.dll	698	0	0
+backend	Maran.ArchitectureTests.dll	223	0	0
+backend	Maran.Host.IntegrationTests.dll	1681	0	0
+backend	Maran.Agent.Simulated.Tests.dll	340	0	0
+backend	Maran.Host.Demo.Tests.dll	177	0	0
+backend	Maran.Host.DemoIntegrationTests.dll	21	0	0
+backend	Maran.Modules.Accounts.Tests.dll	1502	0	0
+backend	Maran.Modules.Identity.Tests.dll	1447	0	0
+backend	Maran.Modules.Sites.Tests.dll	746	0	0
+backend	Maran.Modules.Ssl.Tests.dll	366	0	0
+backend	Maran.Modules.Databases.Tests.dll	247	0	0
+backend	Maran.Modules.Ftp.Tests.dll	186	0	0
+backend	Maran.Modules.Mail.Tests.dll	485	0	0
+backend	Maran.Modules.Dns.Tests.dll	155	0	0
+backend	Maran.Modules.Sftp.Tests.dll	285	0	0
+backend	Maran.Modules.Tasks.Tests.dll	130	0	0
+backend	Maran.Modules.Cron.Tests.dll	256	0	0
+backend	Maran.Modules.Files.Tests.dll	749	0	0
+backend	Maran.Modules.Idempotency.Tests.dll	58	0	0
+backend	Maran.Modules.Updates.Tests.dll	135	0	0
+backend	Maran.Modules.Firewall.Tests.dll	331	0	0
+backend	Maran.Modules.Monitoring.Tests.dll	292	0	0
+backend	Maran.Modules.Notifications.Tests.dll	139	0	0
+backend	Maran.Modules.Backups.Tests.dll	479	0	0
+backend	Maran.Sdk.Tests.dll	721	0	0
+backend	Maran.Packaging.Tests.dll	103	0	0
+backend	Maran.Modules.Licensing.Tests.dll	56	0	0
+backend	Maran.Modules.Fleet.Tests.dll	71	0	0
+backend	Maran.Host.IntegrationTests.dll [PerformanceBudget]	20	0	0
+spa	accessibility/axe-scan-detail-and-settings.spec.ts	68	0	0
+spa	accessibility/axe-scan-dns.spec.ts	8	0	0
+spa	accessibility/axe-scan.spec.ts	27	0	0
 spa	accessibility/document-language.spec.ts	2	0	0
+spa	accessibility/mail-axe-scan.spec.ts	6	0	0
 spa	accessibility/reduced-motion.spec.ts	2	0	0
+spa	accessibility/token-contrast.spec.ts	7	0	0
 spa	accounts/delete.spec.ts	6	0	0
 spa	accounts/detail-loading.spec.ts	6	0	0
 spa	accounts/detail.spec.ts	10	0	0
 spa	accounts/edit.spec.ts	9	0	0
-spa	accounts/form.spec.ts	11	0	0
+spa	accounts/form-initial-password.spec.ts	7	0	0
+spa	accounts/form-limits.spec.ts	8	0	0
 spa	accounts/form-options.spec.ts	7	0	0
+spa	accounts/form-owner-plans.spec.ts	3	0	0
+spa	accounts/form.spec.ts	11	0	0
 spa	accounts/invitation-link.spec.ts	8	0	0
 spa	accounts/list.spec.ts	15	0	0
 spa	accounts/loading.spec.ts	3	0	0
 spa	accounts/my-account-loading.spec.ts	3	0	0
 spa	accounts/personal-data-export.spec.ts	3	0	0
 spa	accounts/resources.spec.ts	9	0	0
+spa	accounts/status-choices.spec.ts	4	0	0
+spa	accounts/transfer.spec.ts	7	0	0
 spa	admin/audit.spec.ts	3	0	0
 spa	admin/panel-certificate.spec.ts	8	0	0
+spa	admin/panel-update.spec.ts	4	0	0
 spa	admin/smtp-settings.spec.ts	3	0	0
+spa	admin/view-as.spec.ts	3	0	0
 spa	audit/action-names.spec.ts	2	0	0
 spa	audit/actor-account-filters.spec.ts	4	0	0
 spa	audit/export.spec.ts	4	0	0
+spa	audit/impersonator.spec.ts	5	0	0
 spa	audit/integrity.spec.ts	4	0	0
-spa	audit/retention.spec.ts	6	0	0
 spa	audit/list.spec.ts	7	0	0
 spa	audit/loading.spec.ts	3	0	0
 spa	audit/occurred-at-time.spec.ts	1	0	0
+spa	audit/outcome-names.spec.ts	2	0	0
+spa	audit/reseller-journal.spec.ts	5	0	0
+spa	audit/retention.spec.ts	6	0	0
 spa	audit/sidebar-link.spec.ts	2	0	0
 spa	auth/client-checks.spec.ts	7	0	0
 spa	auth/forgot-password.spec.ts	3	0	0
@@ -621,13 +140,17 @@ spa	auth/two-factor-setup.spec.ts	5	0	0
 spa	auth/two-factor-wrong-code.spec.ts	3	0	0
 spa	auth/two-factor.spec.ts	5	0	0
 spa	backups/account-filter.spec.ts	3	0	0
-spa	backups/destinations.spec.ts	11	0	0
+spa	backups/destinations.spec.ts	13	0	0
 spa	backups/list.spec.ts	22	0	0
 spa	backups/loading.spec.ts	6	0	0
+spa	backups/my-schedule.spec.ts	9	0	0
+spa	backups/panel-names.spec.ts	1	0	0
 spa	backups/reachability.spec.ts	1	0	0
+spa	backups/restore-scope.spec.ts	8	0	0
 spa	backups/restore.spec.ts	12	0	0
 spa	backups/schedule-loading.spec.ts	3	0	0
 spa	backups/schedule.spec.ts	10	0	0
+spa	backups/verification.spec.ts	12	0	0
 spa	backups/weekday-names.spec.ts	1	0	0
 spa	cron/account-filter.spec.ts	3	0	0
 spa	cron/description.spec.ts	4	0	0
@@ -636,30 +159,48 @@ spa	cron/environment.spec.ts	5	0	0
 spa	cron/loading.spec.ts	3	0	0
 spa	cron/raw-refusal.spec.ts	4	0	0
 spa	cron/run-now.spec.ts	3	0	0
+spa	cron/run-outcome-names.spec.ts	2	0	0
 spa	cron/schedule.spec.ts	4	0	0
 spa	customer-area.spec.ts	2	0	0
+spa	customer/account-selector.spec.ts	5	0	0
 spa	customer/console-clean.spec.ts	1	0	0
 spa	customer/customer-navigation.spec.ts	6	0	0
 spa	customer/invitation.spec.ts	2	0	0
+spa	customer/membership-offers.spec.ts	8	0	0
 spa	customer/navigation.spec.ts	3	0	0
 spa	customer/no-admin-links.spec.ts	4	0	0
 spa	customer/own-account-create.spec.ts	5	0	0
 spa	customer/plan-limit.spec.ts	4	0	0
-spa	customer/role-guard.spec.ts	20	0	0
+spa	customer/role-guard.spec.ts	21	0	0
+spa	customer/sub-users.spec.ts	17	0	0
 spa	customer/tasks.spec.ts	3	0	0
+spa	dashboard-audit-outcome.spec.ts	1	0	0
+spa	dashboard-click-through.spec.ts	5	0	0
+spa	dashboard-customize.spec.ts	7	0	0
+spa	dashboard-first-run.spec.ts	10	0	0
+spa	dashboard-live.spec.ts	13	0	0
 spa	dashboard-loading.spec.ts	3	0	0
-spa	dashboard.spec.ts	12	0	0
+spa	dashboard-quick-actions.spec.ts	6	0	0
+spa	dashboard.spec.ts	14	0	0
 spa	databases/account-filter.spec.ts	3	0	0
 spa	databases/create.spec.ts	5	0	0
 spa	databases/credentials.spec.ts	15	0	0
 spa	databases/grant-repair.spec.ts	12	0	0
 spa	databases/list.spec.ts	15	0	0
 spa	databases/loading.spec.ts	6	0	0
+spa	databases/users.spec.ts	14	0	0
 spa	disk-usage.spec.ts	3	0	0
+spa	dns/nameservers.spec.ts	13	0	0
+spa	dns/navigation.spec.ts	4	0	0
+spa	dns/no-horizontal-scroll.spec.ts	15	0	0
+spa	dns/records.spec.ts	18	0	0
+spa	dns/zone-detail.spec.ts	6	0	0
+spa	dns/zone-form.spec.ts	7	0	0
+spa	dns/zones-list-stale-read.spec.ts	2	0	0
+spa	dns/zones-list.spec.ts	11	0	0
 spa	file-transfer/account-filter.spec.ts	8	0	0
 spa	file-transfer/credentials.spec.ts	18	0	0
 spa	file-transfer/ftps-create.spec.ts	7	0	0
-spa	file-transfer/sftp-keys.spec.ts	18	0	0
 spa	file-transfer/ftps-list.spec.ts	9	0	0
 spa	file-transfer/ftps-server-state.spec.ts	11	0	0
 spa	file-transfer/ftps-server.spec.ts	12	0	0
@@ -667,37 +208,59 @@ spa	file-transfer/loading.spec.ts	6	0	0
 spa	file-transfer/navigation.spec.ts	8	0	0
 spa	file-transfer/own-module.spec.ts	2	0	0
 spa	file-transfer/sftp-create.spec.ts	4	0	0
+spa	file-transfer/sftp-keys.spec.ts	18	0	0
 spa	file-transfer/sftp-list.spec.ts	9	0	0
+spa	files/browser.spec.ts	15	0	0
+spa	files/dialogs.spec.ts	12	0	0
+spa	files/editor.spec.ts	11	0	0
+spa	files/transfers.spec.ts	4	0	0
+spa	files/trash.spec.ts	6	0	0
 spa	firewall/access.spec.ts	4	0	0
 spa	firewall/bans-list.spec.ts	7	0	0
 spa	firewall/bans.spec.ts	8	0	0
 spa	firewall/consistency.spec.ts	5	0	0
 spa	firewall/loading.spec.ts	9	0	0
-spa	firewall/lockout.spec.ts	6	0	0
+spa	firewall/lockout.spec.ts	7	0	0
 spa	firewall/presets.spec.ts	7	0	0
+spa	firewall/protocol-choices.spec.ts	3	0	0
 spa	firewall/ranges.spec.ts	5	0	0
 spa	firewall/whitelist-list.spec.ts	5	0	0
 spa	firewall/whitelist.spec.ts	8	0	0
 spa	golden-path/account-to-ssl.spec.ts	0	0	1
-# ADDED 2026-11-01 (issue #150, clock synchronisation): edited by hand. New row monitoring/clock-sync.spec.ts 2;
-# dashboard.spec.ts 10->12 (a clock not synchronised, a clock unchecked). Full runs: spa 167 targets 1122 passed /
-# 0 failed; rust 35 targets 2945 passed; backend 21 targets 5236 passed / 0 failed. Backend rows only grew.
+spa	mail/mail-aliases.spec.ts	10	0	0
+spa	mail/mail-domains.spec.ts	11	0	0
+spa	mail/mail-layout.spec.ts	9	0	0
+spa	mail/mailboxes.spec.ts	14	0	0
 spa	monitoring/clock-sync.spec.ts	2	0	0
 spa	monitoring/log-level.spec.ts	3	0	0
 spa	monitoring/monitoring-loading.spec.ts	3	0	0
 spa	monitoring/monitoring.spec.ts	15	0	0
+spa	monitoring/pending-updates.spec.ts	35	0	0
 spa	plans/list.spec.ts	6	0	0
 spa	plans/loading.spec.ts	3	0	0
+spa	plans/plan-features.spec.ts	5	0	0
 spa	plans/plan-form-loading.spec.ts	3	0	0
+spa	plans/plan-php-limits.spec.ts	4	0	0
 spa	plans/plans.spec.ts	17	0	0
 spa	plurals.spec.ts	3	0	0
+spa	reseller/admin-reseller-api-keys.spec.ts	7	0	0
+spa	reseller/admin-resellers.spec.ts	19	0	0
+spa	reseller/reseller-api-keys.spec.ts	6	0	0
+spa	reseller/reseller-branding.spec.ts	6	0	0
+spa	reseller/reseller-invitation.spec.ts	5	0	0
+spa	reseller/reseller-plans-accounts.spec.ts	10	0	0
+spa	reseller/reseller-role-exact.spec.ts	45	0	0
+spa	reseller/view-as-reseller.spec.ts	8	0	0
+spa	settings/alert-settings.spec.ts	7	0	0
 spa	settings/api-keys.spec.ts	22	0	0
+spa	settings/php-eol.spec.ts	5	0	0
+spa	settings/php-extensions.spec.ts	7	0	0
 spa	settings/profile-loading.spec.ts	3	0	0
 spa	settings/security-policy-loading.spec.ts	3	0	0
 spa	settings/smtp-loading.spec.ts	3	0	0
 spa	settings/two-factor-loading.spec.ts	3	0	0
-spa	shell/admin-navigation.spec.ts	9	0	0
 spa	shell/account-menu.spec.ts	4	0	0
+spa	shell/admin-navigation.spec.ts	9	0	0
 spa	shell/app-bar-fits.spec.ts	16	0	0
 spa	shell/breadcrumb-trail.spec.ts	11	0	0
 spa	shell/change-password.spec.ts	6	0	0
@@ -705,6 +268,8 @@ spa	shell/command-palette-a11y.spec.ts	3	0	0
 spa	shell/command-palette.spec.ts	1	0	0
 spa	shell/content-scroll.spec.ts	1	0	0
 spa	shell/document-title.spec.ts	5	0	0
+spa	shell/favourites.spec.ts	7	0	0
+spa	shell/global-search.spec.ts	4	0	0
 spa	shell/health-server-error.spec.ts	1	0	0
 spa	shell/health-status.spec.ts	2	0	0
 spa	shell/health-unreachable.spec.ts	1	0	0
@@ -715,39 +280,56 @@ spa	shell/locale-persistence.spec.ts	3	0	0
 spa	shell/locale-refetch.spec.ts	2	0	0
 spa	shell/locale-switch.spec.ts	5	0	0
 spa	shell/locale.spec.ts	4	0	0
+spa	shell/member-navigation-account-switch.spec.ts	4	0	0
+spa	shell/member-navigation.spec.ts	5	0	0
 spa	shell/mobile-drawer.spec.ts	15	0	0
 spa	shell/module-landing-coverage.spec.ts	2	0	0
-spa	shell/navigation-destination-labels.spec.ts	10	0	0
+spa	shell/navigation-badges.spec.ts	10	0	0
+spa	shell/navigation-destination-labels.spec.ts	11	0	0
 spa	shell/navigation-order-labels.spec.ts	2	0	0
 spa	shell/not-found.spec.ts	1	0	0
+spa	shell/notifications-bell.spec.ts	17	0	0
 spa	shell/page-eyebrow.spec.ts	3	0	0
 spa	shell/palette-focus.spec.ts	7	0	0
 spa	shell/profile.spec.ts	3	0	0
 spa	shell/renders-title.spec.ts	1	0	0
+spa	shell/reseller-tab-bar.spec.ts	2	0	0
+spa	shell/server-selector.spec.ts	4	0	0
 spa	shell/sidebar-state.spec.ts	10	0	0
 spa	shell/sidebar-submenu.spec.ts	9	0	0
 spa	shell/submenu-current-child.spec.ts	5	0	0
 spa	shell/tasks-naming.spec.ts	1	0	0
 spa	shell/theme-switch.spec.ts	4	0	0
-spa	sites/ssl-renewal-failures.spec.ts	10	0	0
 spa	sites/account-filter.spec.ts	3	0	0
+spa	sites/alias-limit.spec.ts	3	0	0
+spa	sites/choices.spec.ts	2	0	0
 spa	sites/detail-loading.spec.ts	6	0	0
 spa	sites/detail.spec.ts	8	0	0
 spa	sites/form.spec.ts	5	0	0
 spa	sites/list.spec.ts	15	0	0
 spa	sites/loading.spec.ts	3	0	0
+spa	sites/log-retention.spec.ts	6	0	0
 spa	sites/log-stream.spec.ts	7	0	0
 spa	sites/logs-tab.spec.ts	9	0	0
+spa	sites/panel-names.spec.ts	4	0	0
+spa	sites/php-install-select.spec.ts	3	0	0
+spa	sites/php-settings-loading.spec.ts	2	0	0
+spa	sites/php-settings.spec.ts	10	0	0
 spa	sites/php-versions-loading.spec.ts	3	0	0
+spa	sites/request-rate.spec.ts	9	0	0
+spa	sites/site-options-loading.spec.ts	2	0	0
+spa	sites/site-options.spec.ts	13	0	0
+spa	sites/ssl-renewal-failures.spec.ts	10	0	0
 spa	sites/ssl-tab.spec.ts	11	0	0
-spa	sites/alias-limit.spec.ts	3	0	0
+spa	sites/traffic-tab.spec.ts	11	0	0
 spa	tasks/badge.spec.ts	4	0	0
-spa	tasks/running-stream.spec.ts	3	0	0
 spa	tasks/failure-sentence.spec.ts	5	0	0
 spa	tasks/list.spec.ts	15	0	0
 spa	tasks/loading.spec.ts	3	0	0
 spa	tasks/log-fidelity.spec.ts	2	0	0
+spa	tasks/panel-names.spec.ts	2	0	0
 spa	tasks/progress-unit.spec.ts	1	0	0
+spa	tasks/running-stream.spec.ts	3	0	0
 spa	ui-kit/actions-and-links.spec.ts	8	0	0
 spa	ui-kit/badge-narrow.spec.ts	2	0	0
 spa	ui-kit/chart.spec.ts	5	0	0
@@ -759,7 +341,10 @@ spa	ui-kit/modal-keyboard.spec.ts	2	0	0
 spa	ui-kit/motion-and-tables.spec.ts	8	0	1
 spa	ui-kit/no-horizontal-scroll-admin.spec.ts	75	0	0
 spa	ui-kit/no-horizontal-scroll-other.spec.ts	54	0	0
+spa	ui-kit/no-horizontal-scroll-settings-and-resellers.spec.ts	51	0	0
+spa	ui-kit/no-horizontal-scroll-tablet.spec.ts	79	0	0
 spa	ui-kit/pagination.spec.ts	10	0	0
+spa	ui-kit/route-coverage.spec.ts	8	0	0
 spa	ui-kit/select-empty.spec.ts	1	0	0
 spa	ui-kit/sentence-case.spec.ts	36	0	0
 spa	ui-kit/skeleton.spec.ts	10	0	0
@@ -769,57 +354,3 @@ spa	ui-kit/text-zoom.spec.ts	3	0	0
 spa	ui-kit/type-consistency.spec.ts	7	0	0
 spa	ui-kit/unfilled-select-prompt.spec.ts	4	0	0
 spa	upgrade/tier-name.spec.ts	3	0	0
-spa	admin/view-as.spec.ts	3	0	0
-spa	customer/account-selector.spec.ts	5	0	0
-spa	customer/sub-users.spec.ts	17	0	0
-spa	plans/plan-features.spec.ts	5	0	0
-spa	shell/favourites.spec.ts	7	0	0
-spa	shell/navigation-badges.spec.ts	9	0	0
-spa	shell/server-selector.spec.ts	4	0	0
-# RE-MEASURED 2026-11-02 (issue #131, install log rotation and runtime panel log level): edited by hand.
-# Maran.Host.Tests.dll 414->423 (+9); Maran.Host.IntegrationTests.dll +5 (817->822 after merging dev with #150);
-# Maran.Modules.Monitoring.Tests.dll 95->106; Maran.Sdk.Tests.dll +1 (273->274 after the merge, the LogLevelUnknown
-# census row); new spa row monitoring/log-level.spec.ts 3.
-# Source: `maran test backend` printing 21 targets 5230 passed / 1 failed (the controller census this commit
-# also fixes) and `maran test spa` printing 167 targets: 1121 passed / 0 failed / 2 ignored. NOTHING FELL.
-# RE-MEASURED 2026-11-02 (issue #311, task-grouped admin navigation): edited by hand. New spa row
-# shell/admin-navigation.spec.ts 8 (measured alone: 8 passed). No other row changed: the navigation
-# specs were rewritten in place with their counts kept. Source: `maran test spa` printing
-# 174 targets: 1153 passed / 2 failed / 2 ignored, the two failures sites/form.spec.ts:75 and :108,
-# a `getByLabel('Domain')` that also matched the new "Sites and domains" submenu label, fixed in the
-# same change (sites/ re-run: 73 passed). Backend untouched, not run.
-# RE-MEASURED 2026-11-02 (issue #312, customer navigation): edited by hand. New spa rows
-# customer/customer-navigation.spec.ts 6 and customer/plan-limit.spec.ts 4 (customer/ measured alone:
-# 48 passed). No other row changed: shell/admin-navigation.spec.ts keeps its 8 (its customer case was
-# narrowed to the server's items in place). Source: `maran test spa` printing 176 targets: 1162
-# passed / 3 failed / 2 ignored, the failures sites/form.spec.ts:75 and :108 (the Domain label clash
-# #311 fixed, merged here) and shell/sidebar-state.spec.ts:197, a viewport-ratio check that passed
-# twice in a row when re-run alone and is the timing-under-load case rules/testing.md discounts.
-# Backend untouched, not run.
-spa	accounts/status-choices.spec.ts	4	0	0
-spa	audit/outcome-names.spec.ts	2	0	0
-spa	backups/panel-names.spec.ts	1	0	0
-spa	cron/run-outcome-names.spec.ts	2	0	0
-spa	dashboard-audit-outcome.spec.ts	1	0	0
-spa	firewall/protocol-choices.spec.ts	3	0	0
-spa	sites/choices.spec.ts	2	0	0
-spa	sites/panel-names.spec.ts	4	0	0
-spa	sites/php-install-select.spec.ts	3	0	0
-spa	tasks/panel-names.spec.ts	2	0	0
-spa	shell/member-navigation-account-switch.spec.ts	4	0	0
-spa	shell/member-navigation.spec.ts	5	0	0
-spa	monitoring/pending-updates.spec.ts	15	0	0
-spa	customer/membership-offers.spec.ts	8	0	0
-spa	audit/impersonator.spec.ts	5	0	0
-# RE-MEASURED 2026-11-03 (issues #324 #327 #328), edited by hand from one gate pass: backend 21 targets 6187 passed / 0 failed (Agent.Client 460->466, Identity 625->698, Monitoring 136->159, Sdk 353->356, Host.Tests 495->498, Host.IntegrationTests 926->976); rust 36 targets 3164 passed / 0 failed; spa 197 targets 1284+ passed / 0 failed. New spa rows: shell/member-navigation 5, monitoring/pending-updates 15, customer/membership-offers 8, audit/impersonator 5; raised rows: axe-scan 11->13, sub-users 7->17, navigation-badges 6->9. CI re-measures every row.
-# 2026-11-03 (issue #324): monitor_on_a_real_host 8->9 (the pending-updates real-host test), measured by the polygon lane on Ubuntu 24.04 and AlmaLinux 9 (CI), edited by hand.
-# 2026-11-05 (issue #163): monitor_on_a_real_host 9->10 (the reboot-probe real-host test), reported by the polygon scorer on both lanes (CI), edited by hand.
-# NEW ROW 2026-11-07 (issue #132, the panel's own certificate in the polygon): panel_certificate_on_a_real_host 0 passed / 0 failed / 6 ignored is the count of #[ignore] test functions in the new file, edited by hand and NOT measured; the polygon lane on Ubuntu 24.04 and AlmaLinux 9 (CI) re-measures it.
-spa	shell/reseller-tab-bar.spec.ts	2	0	0
-spa	reseller/view-as-reseller.spec.ts	8	0	0
-spa	reseller/reseller-role-exact.spec.ts	40	0	0
-spa	reseller/reseller-plans-accounts.spec.ts	10	0	0
-spa	reseller/admin-resellers.spec.ts	16	0	0
-# RE-MEASURED 2026-11-04 (issue #179, reseller role), edited by hand from one gate pass: backend 21 targets 6996 passed / 0 failed (SharedKernel 353->355, Identity 698->856, Accounts 579->1056, Sdk 356->371, Architecture 100->104, Host.Tests 498->516, Host.IntegrationTests 976->1111); spa 202 targets 1368 passed / 0 failed. New spa rows: reseller/admin-resellers 16, reseller-plans-accounts 10, reseller-role-exact 40, view-as-reseller 8, shell/reseller-tab-bar 2; raised: axe-scan 13->19, admin-navigation 8->9. Rust untouched. CI re-measures every row.
-spa	backups/verification.spec.ts	12	0	0
-# RE-MEASURED 2026-11-04 (issue #134, backup verification), edited by hand from one gate pass: backend 21 targets 7110 passed / 0 failed (Agent.Client 466->470, Backups 261->340, Sdk 371->374, Host.Tests 516->521, Host.IntegrationTests 1111->1134); rust 36 targets 3211 passed / 0 failed (maran_agent lib 476->488, maran_distro 81->128, maran_ops 1897->1953 as measured, backup_on_a_real_host ignored 13->14); spa 203 targets 1380 passed / 0 failed, new row backups/verification 12. CI re-measures every row.

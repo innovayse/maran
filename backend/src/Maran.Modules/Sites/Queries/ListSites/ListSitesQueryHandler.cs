@@ -113,7 +113,8 @@ public sealed class ListSitesQueryHandler
                 site.PhpVersion,
                 site.Status,
                 _siteNames.Of(site.Status),
-                site.CreatedAt);
+                site.CreatedAt,
+                site.LogRetentionDays);
         }));
     }
 }

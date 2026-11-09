@@ -1,0 +1,38 @@
+//! Tests for `list_zone_files`.
+
+// A failing assertion IS the reporting mechanism for a test.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use super::super::fake_dns_host::distro;
+use super::super::fake_zone_host::{FakeZoneHost, zone_directory};
+use super::list_zone_files;
+
+#[test]
+fn zones_are_listed_sorted_with_what_the_daemon_serves() {
+    let host = FakeZoneHost::new()
+        .with_zone(&zone_directory(), "zeta.example", 1, "; x\n")
+        .with_unserved_file(&zone_directory(), "alpha.example");
+
+    let listed = list_zone_files(&host, distro(), &zone_directory()).unwrap();
+
+    let summary: Vec<(&str, bool)> = listed.iter().map(|l| (l.zone.as_str(), l.served)).collect();
+    assert_eq!(
+        summary,
+        vec![("alpha.example", false), ("zeta.example", true)]
+    );
+}
+
+#[test]
+fn an_entry_that_is_not_a_zone_file_is_skipped() {
+    let host = FakeZoneHost::new()
+        .with_zone(&zone_directory(), "example.com", 1, "; x\n")
+        .with_stray_entry("example.com.db.bak")
+        .with_stray_entry("Example.com.db")
+        .with_stray_entry(".maran-safe-write-abc123")
+        .with_stray_entry("notes.txt");
+
+    let listed = list_zone_files(&host, distro(), &zone_directory()).unwrap();
+
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].zone.as_str(), "example.com");
+}

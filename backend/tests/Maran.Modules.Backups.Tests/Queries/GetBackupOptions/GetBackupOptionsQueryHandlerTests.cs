@@ -73,6 +73,23 @@ public sealed class GetBackupOptionsQueryHandlerTests
         Assert.Equal(("365", "365"), (options.RetainCounts[^1].Value, options.RetainCounts[^1].Label));
     }
 
+    /// <summary>The customer's lists are the allow-listed cadences and the counts up to the customer ceiling.</summary>
+    /// <remarks>
+    /// A subset of the administrator's lists, in the same vocabulary, so a value read from either is
+    /// one a stored row and a validator speak.
+    /// </remarks>
+    [Fact]
+    public async Task The_customer_lists_are_the_allow_listed_cadences_and_the_counts_up_to_the_customer_ceiling()
+    {
+        var options = await OptionsInAsync("en");
+
+        Assert.Equal(FrequencyValues, options.CustomerFrequencies.Select(choice => { return choice.Value; }));
+        Assert.Equal(7, options.CustomerRetainCounts.Count);
+        Assert.Equal("1", options.CustomerRetainCounts[0].Value);
+        Assert.Equal("7", options.CustomerRetainCounts[^1].Value);
+        Assert.All(options.CustomerRetainCounts, choice => { Assert.Contains(choice, options.RetainCounts); });
+    }
+
     /// <summary>Weekdays are valued by the camelCase name a schedule stores, Monday first.</summary>
     [Fact]
     public async Task Weekdays_are_valued_by_the_stored_name_with_monday_first()

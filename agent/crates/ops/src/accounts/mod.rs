@@ -1,6 +1,7 @@
 //! Hosting accounts at the operating-system level: the system user that backs an
 //! account, its home directory, its suspension state, its disk quota and the
-//! CPU, memory and process ceilings of its systemd slice.
+//! CPU, memory and process ceilings of its systemd slice, its inode quota,
+//! its login shell and its open-files limit.
 //!
 //! Every operation is idempotent and re-validates its inputs (rules/rust.md
 //! "Validation first"): the API has already checked them, and the agent checks
@@ -11,17 +12,21 @@ mod account_lock;
 mod account_operations;
 mod end_account_processes;
 mod end_account_user_manager;
+mod login_shell_argument;
 pub mod model;
 mod parse_atq_listing;
 mod parse_sysv_ipc_table;
 mod process_system_host;
 mod quota_blocks;
 mod quota_enforceability;
+mod quota_inodes;
 mod read_managed_account;
 mod remove_account_at_jobs;
 mod remove_account_mail_spool;
+mod remove_account_open_files_limit;
 mod remove_account_shared_files;
 mod remove_account_sysv_ipc;
+mod set_account_open_files_limit;
 mod set_account_resource_limits;
 mod sweep_directory_by_owner;
 mod system_host;
@@ -36,6 +41,8 @@ pub use model::account_usage::AccountUsage;
 pub use model::created_account::CreatedAccount;
 pub use model::home_group_repair_refusal::HomeGroupRepairRefusal;
 pub use model::home_group_repair_report::HomeGroupRepairReport;
+pub use model::login_shell::LoginShell;
+pub use model::new_account_settings::NewAccountSettings;
 pub use model::quota_state::QuotaState;
 pub use model::quota_state_kind::QuotaStateKind;
 pub use model::quota_unenforceable_reason::QuotaUnenforceableReason;
@@ -46,5 +53,6 @@ pub use model::stored_password::StoredPassword;
 pub use process_system_host::ProcessSystemHost;
 pub(crate) use quota_enforceability::classify as classify_quota_enforceability;
 pub(crate) use read_managed_account::read_managed_account;
+pub use set_account_open_files_limit::set_account_open_files_limit;
 pub use set_account_resource_limits::set_account_resource_limits;
 pub use system_host::SystemHost;

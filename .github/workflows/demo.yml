@@ -1,0 +1,157 @@
+name: demo
+
+# Builds and signs the public demonstration's bundle. MANUAL DISPATCH ONLY: nothing about the demo runs
+# on a push, a pull request or a schedule, and nothing here reaches the demo server. The signed bundle
+# is an artifact an operator downloads and installs with demo/bin/maran-demo-deploy, so the repository
+# holds no credential that opens the server (threat note T11, docs/operations/demo.md).
+#
+# The bundle is signed with the demo's OWN key (secret MARAN_DEMO_SIGNING_KEY of the protected
+# environment `demo-release`), never with the product's release key, so the product installer and
+# `maran update` refuse it by signature. `scripts/maran demo selftest` proves that refusal before
+# anything is built.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version written into the demo manifest, e.g. 0.0.0-demo.1'
+        required: true
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.run_id }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    # NEVER RUN: no measured basis. One self-contained dotnet publish of the demo host plus the SPA
+    # build, and a selftest of a few openssl calls; the product release's build job is the nearest
+    # comparison (about 20 minutes estimated) and this publishes one component, so 30 is that with
+    # headroom and a hang guard. Re-measure from the first dispatch and replace this with the run it
+    # was sized from.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '9.0.317'
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+        working-directory: frontend
+
+      # Before anything is built: a demo bundle must be refused by the product's trust root. Gated on
+      # the printed verdict line and on the status together; either alone has produced false passes
+      # in this repository (rules/testing.md).
+      - name: The product key refuses a demo bundle
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/demo-selftest.log"
+          status=0
+          bash scripts/maran demo selftest >"$log" 2>&1 || status=$?
+          cat "$log"
+          if [ "$status" -ne 0 ] || ! grep -q '^DEMO VERDICT: OK' "$log"; then
+            echo "::error::the demo selftest did not print its OK verdict (status ${status})."
+            exit 1
+          fi
+
+      - name: Build the demo bundle
+        env:
+          DEMO_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          bash scripts/maran demo build --version "$DEMO_VERSION" --out "$PWD/demo-out/bundle"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: demo-unsigned
+          path: demo-out/bundle
+          if-no-files-found: error
+          retention-days: 7
+
+  sign:
+    needs: build
+    runs-on: ubuntu-24.04
+    # The protected environment: the owner configures required reviewers on it and the demo signing
+    # key is its secret. The wait for approval does not count against the timeout below.
+    environment: demo-release
+    # NEVER RUN: no measured basis. Downloads an artifact and signs and verifies one small manifest
+    # with openssl; an estimated few minutes, so 10 is a hang guard.
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: demo-unsigned
+          path: demo-out/bundle
+
+      # The key's life is the one release.yml gives the product key: written to $RUNNER_TEMP with
+      # umask 077 in a step that runs two builtins, used by the one step after, shredded by the step
+      # after that, and never uploaded.
+      - name: Write the signing key
+        env:
+          MARAN_DEMO_SIGNING_KEY: ${{ secrets.MARAN_DEMO_SIGNING_KEY }}
+        run: |
+          set +x
+          set -euo pipefail
+          if [ -z "$MARAN_DEMO_SIGNING_KEY" ]; then
+            echo "::error::the demo-release environment has no MARAN_DEMO_SIGNING_KEY secret."
+            exit 1
+          fi
+          umask 077
+          printf '%s\n' "$MARAN_DEMO_SIGNING_KEY" > "$RUNNER_TEMP/demo-signing.key"
+
+      - name: Sign the manifest
+        run: |
+          set +x
+          set -euo pipefail
+          bash scripts/maran demo sign --key "$RUNNER_TEMP/demo-signing.key" --bundle "$PWD/demo-out/bundle"
+
+      # Verified against the public half of the key that just signed, and then against the committed
+      # demo key when it holds one, so a signing key that does not match what the server trusts fails
+      # here and not at the server.
+      - name: Verify the signed bundle
+        run: |
+          set -euo pipefail
+          openssl ec -in "$RUNNER_TEMP/demo-signing.key" -pubout -out "$RUNNER_TEMP/demo-signing.pub"
+          bash scripts/maran demo verify --bundle "$PWD/demo-out/bundle" --pubkey "$RUNNER_TEMP/demo-signing.pub"
+          if openssl pkey -pubin -in demo/keys/demo-release-signing.pub -noout >/dev/null 2>&1; then
+            bash scripts/maran demo verify --bundle "$PWD/demo-out/bundle"
+          else
+            echo "::warning::demo/keys/demo-release-signing.pub is still the placeholder; the server cannot verify this bundle until the owner commits the public key."
+          fi
+
+      - name: Remove the signing key
+        if: always()
+        run: |
+          set +x
+          key="$RUNNER_TEMP/demo-signing.key"
+          shred -u "$key" 2>/dev/null || rm -f "$key"
+          if [ -e "$key" ]; then
+            echo "::error::the signing key file could not be removed."
+            exit 1
+          fi
+          echo "the signing key file is gone"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: demo-signed
+          path: demo-out/bundle
+          if-no-files-found: error
+          retention-days: 30

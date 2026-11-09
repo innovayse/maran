@@ -36,6 +36,9 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
     <PackageReference Include="WolverineFx" />
     <PackageReference Include="FluentValidation" />
+    <!-- BCrypt.Net-Next: hashes a site's basic-authentication passwords in the format the web
+         server's crypt(3) checks (Domain/Policies/BasicAuthPasswordHash). -->
+    <PackageReference Include="BCrypt.Net-Next" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,0 +1,21 @@
+{
+  "phpExtensions": {
+    "heading": "Extensions of PHP {version}",
+    "hostWide": "A change applies to every account on this server that uses PHP {version}, and reloads PHP.",
+    "state": {
+      "on": "On",
+      "off": "Off"
+    },
+    "reason": {
+      "notPackaged": "This server's package repository does not offer this extension.",
+      "disableNotSupported": "This system's PHP packages cannot switch this extension off.",
+      "unknown": "Whether this extension can be changed could not be established."
+    },
+    "applying": "Applying {extension} for PHP {version}. Installing a package can take minutes.",
+    "openTasks": "Open the tasks screen",
+    "empty": {
+      "title": "No extensions to show",
+      "description": "The server listed no extensions for this PHP version."
+    }
+  }
+}

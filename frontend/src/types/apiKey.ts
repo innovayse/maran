@@ -81,16 +81,31 @@ export interface ApiKeyChoice {
   name: string
 }
 
+/**
+ * Whose keys a screen manages. Each case is a different endpoint family with a different authority
+ * behind it, and the backend refuses by role regardless of which one the SPA names (rules/security.md
+ * item 6), so this only picks the endpoint to call.
+ *
+ * - `administrator`: the administrator's own keys.
+ * - `reseller`: the signed-in reseller's own keys.
+ * - `overseen`: one reseller's keys, seen by the administrator from that reseller's page. It lists and
+ *   revokes; it cannot create, so it is not an {@link IssuingApiKeyOwner}.
+ */
+export type ApiKeyOwner = IssuingApiKeyOwner | { kind: 'overseen'; resellerId: string }
+
+/** The owners who create their own keys: the administrator and a signed-in reseller. */
+export type IssuingApiKeyOwner = { kind: 'administrator' } | { kind: 'reseller' }
+
 /** The HTTP surface of the API keys, as {@link ApiKeysApi} exposes it to the store. */
 export interface ApiKeysApi {
-  /** Reads one page of keys. */
-  list: (request: ListRequest, signal?: AbortSignal) => Promise<Paged<ApiKey>>
-  /** Creates a key; the answer carries its plaintext. */
-  create: (request: CreateApiKeyRequest, signal?: AbortSignal) => Promise<ApiKeyCreated>
-  /** Revokes a key; the answer is an empty 204. */
-  revoke: (id: string, signal?: AbortSignal) => Promise<void>
-  /** Lists the scopes a key may be granted. */
-  scopes: (signal?: AbortSignal) => Promise<ApiKeyChoice[]>
+  /** Reads one page of an owner's keys. */
+  list: (owner: ApiKeyOwner, request: ListRequest, signal?: AbortSignal) => Promise<Paged<ApiKey>>
+  /** Creates a key for its issuing owner; the answer carries its plaintext. */
+  create: (owner: IssuingApiKeyOwner, request: CreateApiKeyRequest, signal?: AbortSignal) => Promise<ApiKeyCreated>
+  /** Revokes an owner's key; the answer is an empty 204. */
+  revoke: (owner: ApiKeyOwner, id: string, signal?: AbortSignal) => Promise<void>
+  /** Lists the scopes the issuing owner may grant a key. */
+  scopes: (owner: IssuingApiKeyOwner, signal?: AbortSignal) => Promise<ApiKeyChoice[]>
   /** Lists the states a key can be filtered by. */
-  statuses: (signal?: AbortSignal) => Promise<ApiKeyChoice[]>
+  statuses: (owner: ApiKeyOwner, signal?: AbortSignal) => Promise<ApiKeyChoice[]>
 }

@@ -46,21 +46,25 @@ public sealed class SaveSmtpSettingsCommandValidator : AbstractValidator<SaveSmt
             .NotEmpty()
             .MaximumLength(HostMaxLength)
             .Must(MailHeaderTextRule.IsHeaderSafe)
-            .WithErrorCode(nameof(ErrorMessages.SmtpHostInvalid));
+            .WithErrorCode(nameof(ErrorMessages.SmtpHostInvalid))
+            .WithMessage(nameof(ErrorMessages.SmtpHostInvalid));
 
         RuleFor(command => command.Port)
             .InclusiveBetween(MinimumPort, MaximumPort)
-            .WithErrorCode(nameof(ErrorMessages.SmtpPortInvalid));
+            .WithErrorCode(nameof(ErrorMessages.SmtpPortInvalid))
+            .WithMessage(nameof(ErrorMessages.SmtpPortInvalid));
 
         RuleFor(command => command.Security)
             .IsInEnum()
-            .WithErrorCode(nameof(ErrorMessages.SmtpSecurityInvalid));
+            .WithErrorCode(nameof(ErrorMessages.SmtpSecurityInvalid))
+            .WithMessage(nameof(ErrorMessages.SmtpSecurityInvalid));
 
         RuleFor(command => command.Username)
             .NotNull()
             .MaximumLength(EmailAddressRule.MaximumLength)
             .Must(MailHeaderTextRule.IsHeaderSafe)
-            .WithErrorCode(nameof(ErrorMessages.SmtpUsernameInvalid));
+            .WithErrorCode(nameof(ErrorMessages.SmtpUsernameInvalid))
+            .WithMessage(nameof(ErrorMessages.SmtpUsernameInvalid));
 
         RuleFor(command => command.Password)
             .MaximumLength(PasswordMaxLength)
@@ -68,20 +72,19 @@ public sealed class SaveSmtpSettingsCommandValidator : AbstractValidator<SaveSmt
             {
                 return command.Password is not null;
             })
-            .WithErrorCode(nameof(ErrorMessages.SmtpPasswordInvalid));
+            .WithErrorCode(nameof(ErrorMessages.SmtpPasswordInvalid))
+            .WithMessage(nameof(ErrorMessages.SmtpPasswordInvalid));
 
         RuleFor(command => command.FromAddress)
             .Must(EmailAddressRule.IsAddress)
-            .WithErrorCode(nameof(ErrorMessages.SmtpFromAddressInvalid));
+            .WithErrorCode(nameof(ErrorMessages.SmtpFromAddressInvalid))
+            .WithMessage(nameof(ErrorMessages.SmtpFromAddressInvalid));
 
         RuleFor(command => command.FromName)
             .NotNull()
             .MaximumLength(DisplayNameMaxLength)
             .Must(MailHeaderTextRule.IsHeaderSafe)
-            .WithErrorCode(nameof(ErrorMessages.SmtpFromNameInvalid));
-
-        RuleFor(command => command.AlertRecipient)
-            .Must(EmailAddressRule.IsAddress)
-            .WithErrorCode(nameof(ErrorMessages.SmtpAlertRecipientInvalid));
+            .WithErrorCode(nameof(ErrorMessages.SmtpFromNameInvalid))
+            .WithMessage(nameof(ErrorMessages.SmtpFromNameInvalid));
     }
 }

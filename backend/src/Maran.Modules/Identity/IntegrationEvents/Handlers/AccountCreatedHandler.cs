@@ -3,6 +3,7 @@ using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Events;
+using Maran.SharedKernel.Security;
 using Maran.SharedKernel.Utilities.Tokens;
 using Npgsql;
 using Wolverine;
@@ -10,7 +11,8 @@ using Wolverine;
 namespace Maran.Modules.Identity.IntegrationEvents.Handlers;
 
 /// <summary>
-/// Issues the panel login of a newly created hosting account and sends its owner an invitation.
+/// Issues the panel login of a newly created hosting account: by default with an invitation mailed to its
+/// owner, or — when the creator chose an initial password — with that password and no invitation at all.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -36,6 +38,23 @@ namespace Maran.Modules.Identity.IntegrationEvents.Handlers;
 /// local and non-durable on purpose: the body carries a live token, and a durable queue would rest
 /// it on disk and outlive its own lifetime. A process that dies between the publish and the send
 /// loses the mail, and the administrator resends.
+/// </para>
+/// <para>
+/// <b>The initial-password branch (<see cref="OwnerLoginMode.InitialPassword"/>).</b> The login is made
+/// with <see cref="User.CreateWithPassword"/>: usable at once, and marked so that its first token can do
+/// nothing but change the password (<c>PasswordChangeCompleteRequirement</c>). No invitation token is
+/// created and no mail is published — the creator hands the password over out of band, which is the
+/// whole of the use case. The password arrives as a <see cref="Maran.SharedKernel.Security.SensitiveString"/> and is revealed in ONE
+/// place, to be hashed with Argon2id before the first save; it is never journalled, logged or put in an
+/// exception message. Its strength is checked HERE, once, against the same policy every other path that
+/// sets a password applies (<see cref="InitialPasswordPolicy"/>, which the Accounts module also asks before it provisions anything): a password
+/// that fails is refused before any row is added, so no login exists to be guessed.
+/// </para>
+/// <para>
+/// <b>The mode and the password must agree, and a mismatch is refused, not repaired.</b> A password with
+/// <see cref="OwnerLoginMode.Invitation"/> is never silently ignored and a missing one with
+/// <see cref="OwnerLoginMode.InitialPassword"/> never falls through to a passwordless invitation: either
+/// would leave the creator believing in a login the panel did not make.
 /// </para>
 /// <para>
 /// <b>Thrown here reaches the API caller as a typed failure, not a generic one.</b>
@@ -78,6 +97,12 @@ public sealed class AccountCreatedHandler
     /// <summary>Tells whether the account already has an owner login.</summary>
     private readonly AccountOwnerFinder _owners;
 
+    /// <summary>Hashes the initial password with Argon2id.</summary>
+    private readonly IPasswordHasher _passwordHasher;
+
+    /// <summary>The panel's one verdict on an initial password.</summary>
+    private readonly InitialPasswordPolicy _passwordPolicy;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Identity module's database context.</param>
     /// <param name="owners">Tells whether the account already has an owner login.</param>
@@ -85,13 +110,17 @@ public sealed class AccountCreatedHandler
     /// <param name="journal">Records the invitation.</param>
     /// <param name="composer">Renders the invitation mail.</param>
     /// <param name="clock">The panel's clock.</param>
+    /// <param name="passwordHasher">Hashes the initial password.</param>
+    /// <param name="passwordPolicy">The panel's one verdict on an initial password.</param>
     public AccountCreatedHandler(
         IdentityDbContext dbContext,
         AccountOwnerFinder owners,
         IMessageBus bus,
         IdentityAuditJournal journal,
         InvitationMailComposer composer,
-        IClock clock)
+        IClock clock,
+        IPasswordHasher passwordHasher,
+        InitialPasswordPolicy passwordPolicy)
     {
         _dbContext = dbContext;
         _owners = owners;
@@ -99,14 +128,26 @@ public sealed class AccountCreatedHandler
         _journal = journal;
         _composer = composer;
         _clock = clock;
+        _passwordHasher = passwordHasher;
+        _passwordPolicy = passwordPolicy;
     }
 
-    /// <summary>Issues the account owner's login and publishes their invitation, unless one already exists.</summary>
+    /// <summary>
+    /// Issues the account owner's login — with an invitation, or with the initial password — unless one
+    /// already exists.
+    /// </summary>
     /// <param name="message">The account that was just created.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
-    /// <returns>Resolves once the login is stored and the mail is queued for sending.</returns>
+    /// <returns>Resolves once the login is stored and, for an invitation, the mail is queued for sending.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// The mode and the password disagree, or the initial password does not meet the panel's password
+    /// policy. Nothing is stored; the account exists without a login and the invitation resend is the
+    /// recovery (see the type's remarks). The message names the rule that failed and never the password.
+    /// </exception>
     public async Task HandleAsync(AccountCreated message, CancellationToken cancellationToken)
     {
+        var initialPassword = RequireCoherentPassword(message);
+
         if (await _owners.ExistsAsync(message.AccountId, cancellationToken))
         {
             // A repeat: a retried command, or this event announced twice. Two live invitations to
@@ -117,19 +158,44 @@ public sealed class AccountCreatedHandler
             return;
         }
 
-        var now = _clock.UtcNow;
-        var user = User.Invite(Guid.NewGuid(), message.Username, message.OwnerEmail, now);
-        var token = InvitationTokenHasher.Generate();
+        if (initialPassword is not null)
+        {
+            await RequireAcceptablePasswordAsync(message.InitialPassword!, message.Username, cancellationToken);
+        }
 
-        var invitationToken = new InvitationToken(
-            Guid.NewGuid(), user.Id, InvitationTokenHasher.Hash(token), now);
+        var now = _clock.UtcNow;
+
+        // Exactly one of the two ways in. An invitation leaves a login with no password and one live
+        // token; an initial password leaves a usable login with no token at all.
+        User user;
+        InvitationToken? invitationToken = null;
+        string? token = null;
+        if (initialPassword is null)
+        {
+            user = User.Invite(Guid.NewGuid(), message.Username, message.OwnerEmail, now);
+            token = InvitationTokenHasher.Generate();
+            invitationToken = new InvitationToken(Guid.NewGuid(), user.Id, InvitationTokenHasher.Hash(token), now);
+        }
+        else
+        {
+            user = User.CreateWithPassword(
+                Guid.NewGuid(),
+                message.Username,
+                message.OwnerEmail,
+                _passwordHasher.Hash(initialPassword),
+                now);
+        }
+
         // The owner's membership is written in the same save as the login: memberships are the
         // truth about which accounts a login may act for, so a login without one could sign in and
         // find no account to speak for.
         var membership = AccountMembership.Own(Guid.NewGuid(), user.Id, message.AccountId, now);
         _dbContext.Users.Add(user);
         _dbContext.AccountMemberships.Add(membership);
-        _dbContext.InvitationTokens.Add(invitationToken);
+        if (invitationToken is not null)
+        {
+            _dbContext.InvitationTokens.Add(invitationToken);
+        }
 
         try
         {
@@ -143,25 +209,83 @@ public sealed class AccountCreatedHandler
             // is what actually stopped the second row, not the check. Nothing this call added exists
             // (SaveChanges rolled the whole batch back), there is no orphaned token to clean up, and
             // there is no second mail to send: the winner's invitation is the only one, so this
-            // returns quietly exactly as the pre-check path does. Both entries are detached rather
+            // returns quietly exactly as the pre-check path does. Every entry is detached rather
             // than left tracked as still-pending adds on a context that may be reused.
             _dbContext.Entry(user).State = EntityState.Detached;
-            _dbContext.Entry(invitationToken).State = EntityState.Detached;
             _dbContext.Entry(membership).State = EntityState.Detached;
+            if (invitationToken is not null)
+            {
+                _dbContext.Entry(invitationToken).State = EntityState.Detached;
+            }
+
             return;
         }
 
         await _journal.RecordIdentifiedAsync(
             user.Id,
-            IdentityAuditActions.CustomerInvited,
+            token is null ? IdentityAuditActions.CustomerCreatedWithPassword : IdentityAuditActions.CustomerInvited,
             user.Username,
             ipAddress: string.Empty,
             userAgent: string.Empty,
             succeeded: true,
             cancellationToken);
 
+        if (token is null)
+        {
+            // The initial-password branch sends nothing: the creator hands the password over.
+            return;
+        }
+
         // Published, not invoked. The send happens in the Notifications module, on its own — see the
         // type's remarks.
         await _bus.PublishAsync(_composer.Compose(user.Email, token, message.OwnerLanguage));
+    }
+
+    /// <summary>
+    /// Reads the initial password out of the event, after checking that the mode and the password agree.
+    /// </summary>
+    /// <param name="message">The event.</param>
+    /// <returns>The password when the mode is the initial-password one; null for an invitation.</returns>
+    /// <exception cref="InvalidOperationException">The password is missing or blank for the initial-password mode, or present for the invitation mode.</exception>
+    private static string? RequireCoherentPassword(AccountCreated message)
+    {
+        var revealed = message.InitialPassword?.Reveal();
+
+        if (message.LoginMode == OwnerLoginMode.Invitation)
+        {
+            if (message.InitialPassword is not null)
+            {
+                throw new InvalidOperationException(
+                    "An initial password was supplied for an account whose owner is to be invited; no login was issued.");
+            }
+
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(revealed))
+        {
+            throw new InvalidOperationException(
+                "The initial-password mode was chosen without a password; no login was issued.");
+        }
+
+        return revealed;
+    }
+
+    /// <summary>Applies the panel's password policy to an initial password, before any row is added.</summary>
+    /// <param name="password">The initial password.</param>
+    /// <param name="username">The login name, which a password may not equal.</param>
+    /// <param name="cancellationToken">Cancels the policy read.</param>
+    /// <returns>Resolves when the password is acceptable.</returns>
+    /// <exception cref="InvalidOperationException">The password is too long, shorter than the operator's minimum, or equal to the username. The message never contains the password.</exception>
+    private async Task RequireAcceptablePasswordAsync(
+        SensitiveString password,
+        string username,
+        CancellationToken cancellationToken)
+    {
+        if (!await _passwordPolicy.AcceptsAsync(password, username, cancellationToken))
+        {
+            throw new InvalidOperationException(
+                "The initial password does not meet the panel's password policy; no login was issued.");
+        }
     }
 }

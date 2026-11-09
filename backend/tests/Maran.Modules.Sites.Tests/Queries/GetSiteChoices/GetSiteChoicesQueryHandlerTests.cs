@@ -85,6 +85,48 @@ public sealed class GetSiteChoicesQueryHandlerTests
         Assert.Equal("Обратный прокси", proxy.Label);
     }
 
+    /// <summary>The traffic windows are the ones the validator accepts, the default first.</summary>
+    [Fact]
+    public async Task The_traffic_windows_are_the_ones_the_validator_accepts_the_default_first()
+    {
+        var result = await HandleAsync();
+
+        Assert.Equal(["7", "30", "90"], result.TrafficWindows.Select(choice => { return choice.Value; }));
+    }
+
+    /// <summary>The log retentions run from one day to the installer's ceiling, fewest first.</summary>
+    [Fact]
+    public async Task The_log_retentions_run_from_one_day_to_the_installers_ceiling()
+    {
+        var result = await HandleAsync();
+
+        Assert.Equal(
+            Enumerable.Range(1, 14).Select(day => { return day.ToString(System.Globalization.CultureInfo.InvariantCulture); }),
+            result.LogRetentions.Select(choice => { return choice.Value; }));
+    }
+
+    /// <summary>Every window and retention label is written in the caller's language and declines the number where the language does.</summary>
+    /// <param name="culture">The caller's culture.</param>
+    /// <param name="one">The label of one day.</param>
+    /// <param name="few">The label of three days.</param>
+    /// <param name="many">The label of fourteen days.</param>
+    [Theory]
+    [InlineData("en", "1 day", "3 days", "14 days")]
+    [InlineData("ru", "1 день", "3 дня", "14 дней")]
+    [InlineData("hy", "1 օր", "3 օր", "14 օր")]
+    public async Task Retention_labels_are_declined_for_the_number_in_the_callers_language(
+        string culture, string one, string few, string many)
+    {
+        using var scope = new CultureScope(culture);
+
+        var result = await HandleAsync();
+
+        Assert.Equal(one, result.LogRetentions.Single(choice => { return choice.Value == "1"; }).Label);
+        Assert.Equal(few, result.LogRetentions.Single(choice => { return choice.Value == "3"; }).Label);
+        Assert.Equal(many, result.LogRetentions.Single(choice => { return choice.Value == "14"; }).Label);
+        Assert.All(result.TrafficWindows, window => { Assert.DoesNotContain("SiteTrafficWindow", window.Label); });
+    }
+
     /// <summary>Runs the handler with the module's real resource table.</summary>
     /// <returns>The choices it answered.</returns>
     private static async Task<Common.SiteChoicesDto> HandleAsync()

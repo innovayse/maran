@@ -160,4 +160,16 @@ impl SystemHost for BlockingSystemHost {
     fn available_bytes(&self, _directory: &std::path::Path) -> Result<u64, std::io::Error> {
         Ok(u64::MAX)
     }
+
+    fn write_limits_file(
+        &self,
+        _file: &maran_ops::safe_write::model::ConfigFile<'_>,
+        _validator: &maran_ops::safe_write::model::Validator<'_>,
+    ) -> Result<(), AccountError> {
+        Ok(())
+    }
+
+    fn remove_limits_file(&self, _path: &std::path::Path) -> Result<(), AccountError> {
+        Ok(())
+    }
 }

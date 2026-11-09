@@ -4,6 +4,8 @@ using System.Text.Json.Serialization;
 using Maran.Modules.Backups.Commands.CreateBackup;
 using Maran.Modules.Backups.Commands.RestoreBackup;
 using Maran.Modules.Backups.Commands.SaveBackupSchedule;
+using Maran.Modules.Backups.Commands.SaveMyBackupSchedule;
+using Maran.Modules.Backups.Commands.SetBackupDestinationEncryption;
 using Maran.Modules.Backups.Commands.VerifyBackup;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 
@@ -42,6 +44,15 @@ public sealed class BackupsCommandBindingGuardTests
     /// </summary>
     private static readonly JsonSerializerOptions BodyOptions = new() { PropertyNameCaseInsensitive = true };
 
+    /// <summary>
+    /// <see cref="BodyOptions"/> plus the camel-case enum reading a schedule body needs. One instance for
+    /// the same reason: a new one per call is a per-request reflection cache (CA1869).
+    /// </summary>
+    private static readonly JsonSerializerOptions EnumBodyOptions = new(BodyOptions)
+    {
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
+    };
+
     /// <summary>The members no request body may fill, per command.</summary>
     public static TheoryData<Type, string> GuardedMembers
     {
@@ -56,6 +67,12 @@ public sealed class BackupsCommandBindingGuardTests
                 { typeof(RestoreBackupCommand), nameof(RestoreBackupCommand.UserAgent) },
                 { typeof(SaveBackupScheduleCommand), nameof(SaveBackupScheduleCommand.IpAddress) },
                 { typeof(SaveBackupScheduleCommand), nameof(SaveBackupScheduleCommand.UserAgent) },
+                { typeof(SaveMyBackupScheduleCommand), nameof(SaveMyBackupScheduleCommand.AccountId) },
+                { typeof(SaveMyBackupScheduleCommand), nameof(SaveMyBackupScheduleCommand.IpAddress) },
+                { typeof(SaveMyBackupScheduleCommand), nameof(SaveMyBackupScheduleCommand.UserAgent) },
+                { typeof(SetBackupDestinationEncryptionCommand), nameof(SetBackupDestinationEncryptionCommand.DestinationId) },
+                { typeof(SetBackupDestinationEncryptionCommand), nameof(SetBackupDestinationEncryptionCommand.IpAddress) },
+                { typeof(SetBackupDestinationEncryptionCommand), nameof(SetBackupDestinationEncryptionCommand.UserAgent) },
                 { typeof(VerifyBackupCommand), nameof(VerifyBackupCommand.BackupId) },
                 { typeof(VerifyBackupCommand), nameof(VerifyBackupCommand.IpAddress) },
                 { typeof(VerifyBackupCommand), nameof(VerifyBackupCommand.UserAgent) },
@@ -101,6 +118,30 @@ public sealed class BackupsCommandBindingGuardTests
         Assert.Equal(string.Empty, command.IpAddress);
         Assert.Equal(string.Empty, command.UserAgent);
         Assert.Equal("cust01", command.ConfirmAccountUsername);
+    }
+
+    /// <summary>A body naming another account and the audit fields fills none of them on the customer's own schedule.</summary>
+    /// <remarks>
+    /// The account id is the tenant boundary: a body that could fill it would let a customer write
+    /// another account's schedule. The effect is asserted, not the attribute, and the schedule fields
+    /// the caller does own survive, so the test cannot pass by discarding the whole body.
+    /// </remarks>
+    [Fact]
+    public void A_body_cannot_fill_the_account_or_the_audit_fields_of_a_customers_own_schedule()
+    {
+        const string Body = """
+            {"frequency":"daily","hourUtc":3,"dayOfWeekUtc":null,"retainCount":5,"enabled":true,
+             "accountId":"99999999-9999-9999-9999-999999999999","ipAddress":"6.6.6.6","userAgent":"ATTACKER"}
+            """;
+
+        var command = JsonSerializer.Deserialize<SaveMyBackupScheduleCommand>(Body, EnumBodyOptions);
+
+        Assert.NotNull(command);
+        Assert.Equal(Guid.Empty, command!.AccountId);
+        Assert.Equal(string.Empty, command.IpAddress);
+        Assert.Equal(string.Empty, command.UserAgent);
+        Assert.Equal(5, command.RetainCount);
+        Assert.Equal(3, command.HourUtc);
     }
 
     /// <summary>A body naming the guarded members of a create fills neither of them.</summary>

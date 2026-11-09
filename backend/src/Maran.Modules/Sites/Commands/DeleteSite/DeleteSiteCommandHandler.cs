@@ -54,7 +54,11 @@ public sealed class DeleteSiteCommandHandler
         _journal = journal;
     }
 
-    /// <summary>Removes the site. Idempotent: the agent reports a missing vhost as success.</summary>
+    /// <summary>
+    /// Removes the site. Not idempotent: a second attempt finds no row and answers <c>SiteNotFound</c>. A vhost
+    /// already gone from the host is the agent's <c>NotFound</c>, which is read as a converged retry: the row is
+    /// removed and the deletion journalled as a success.
+    /// </summary>
     /// <param name="command">Which site to remove.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>Success, or <c>SiteNotFound</c>, <c>AccountNotFound</c>, or the agent's own typed failure.</returns>
@@ -89,7 +93,11 @@ public sealed class DeleteSiteCommandHandler
             site.Domain,
             await RetiredPhpVersionAsync(site, cancellationToken),
             cancellationToken);
-        if (!removed.IsSuccess)
+
+        // The agent answers NotFound when the vhost is already gone, and its contract says to read
+        // that as a converged retry. Failing on it would leave a row whose vhost was removed from the
+        // host undeletable from the panel for good; every other failure keeps the row.
+        if (!removed.IsSuccess && removed.Error!.Type != ErrorType.NotFound)
         {
             return await FailAsync(command, site.Domain, removed.Error!, cancellationToken);
         }

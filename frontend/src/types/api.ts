@@ -45,6 +45,11 @@ export interface RequestOptions {
   retryOnUnauthorized?: boolean
   /** The `Accept` header to send; JSON when omitted. A file download asks for any type. */
   accept?: string
+  /**
+   * A raw body sent as it is (an upload), instead of {@link body} serialized as JSON. The request
+   * then goes out as `application/octet-stream`. At most one of the two is set.
+   */
+  rawBody?: Blob
 }
 
 /** Public surface of the low-level API client returned by {@link useApi}. */
@@ -112,6 +117,19 @@ export interface ApiClient {
    * @throws {ApiError} When the response status is not in the 2xx range.
    */
   download: (path: string, signal?: AbortSignal) => Promise<ApiDownload>
+
+  /**
+   * Performs a POST request whose body is a file's raw bytes, for an upload, and returns the parsed
+   * JSON response body of type `T`. Goes through the same pipeline as every other call (bearer
+   * token, CSRF header, one-shot token renewal, RFC 7807 decoding). `fetch` reports no upload
+   * progress, so there is none to deliver; a caller shows a per-file state and cancels by aborting.
+   * @param path Request path, relative to the app origin (proxied in dev).
+   * @param body The file's bytes, sent unchanged as `application/octet-stream`.
+   * @param signal Optional abort signal to cancel the upload.
+   * @returns The parsed JSON response body.
+   * @throws {ApiError} When the response status is not in the 2xx range.
+   */
+  upload: <T>(path: string, body: Blob, signal?: AbortSignal) => Promise<T>
 
   /**
    * Opens a Server-Sent Events stream and delivers each decoded frame to `onEvent`.

@@ -8,6 +8,7 @@ import type {
   ResellerChoice,
   ResellerDetail,
   ResellersApi,
+  UpdateResellerRequest,
 } from '../../types/reseller'
 
 /** The endpoint resellers are listed, created and managed through (administrator-only). */
@@ -89,6 +90,17 @@ export const useResellersApi = (): ResellersApi => {
   }
 
   /**
+   * Renames a reseller and replaces its contact address and language.
+   * @param id The reseller's identity.
+   * @param request The reseller's new name, contact address and language.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The reseller as it now stands.
+   */
+  const update = (id: string, request: UpdateResellerRequest, signal?: AbortSignal): Promise<ResellerDetail> => {
+    return api.put<ResellerDetail>(`${RESELLERS_PATH}/${id}`, request, signal)
+  }
+
+  /**
    * Replaces a reseller's envelope.
    * @param id The reseller's identity.
    * @param request The new envelope.
@@ -133,5 +145,5 @@ export const useResellersApi = (): ResellersApi => {
     return api.delete<void>(`${RESELLERS_PATH}/${id}`, signal)
   }
 
-  return { list, choices, get, getMine, create, changeEnvelope, suspend, reactivate, remove }
+  return { list, choices, get, getMine, create, update, changeEnvelope, suspend, reactivate, remove }
 }

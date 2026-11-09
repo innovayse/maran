@@ -51,7 +51,7 @@ const openScreen = async (page: Page): Promise<() => readonly URL[]> => {
   })
   await stubSignedIn(page)
   await stubHealthy(page)
-  await stubModules(page, [{ name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' }])
+  await stubModules(page, [{ name: 'databases', displayName: 'Databases', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
   await stubAccounts(page, ACCOUNTS)
   await stubDatabases(page, [])
   await page.goto('/databases')

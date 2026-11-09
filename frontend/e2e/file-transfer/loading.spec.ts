@@ -21,8 +21,8 @@ import type { SftpUser } from '../../src/types/sftpUser'
 // column schema, the page's own list read being the one held.
 
 const LICENSED: PanelModule[] = [
-  { name: 'sftp', displayName: 'File transfer', tier: 'included', state: 'enabled' },
-  { name: 'ftp', displayName: 'FTPS', tier: 'included', state: 'enabled' },
+  { name: 'sftp', displayName: 'File transfer', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'ftp', displayName: 'FTPS', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 const ALICE: Account = {

@@ -22,6 +22,11 @@ namespace Maran.Sdk.Contracts;
 /// Whether a TLS certificate is currently installed. Carried so a re-render keeps the site's TLS
 /// block; a renderer that guesses drops a live site back to plain HTTP on the next unrelated edit.
 /// </param>
+/// <param name="Options">
+/// The site's per-site options (redirects, basic authentication, IP rules, upload size, cache headers).
+/// Carried for the same reason as <paramref name="HasCertificate"/>: a vhost re-rendered without them
+/// silently loses them. <see cref="SiteOptionsSnapshot.None"/> for a site that has none.
+/// </param>
 public sealed record SiteSnapshot(
     Guid Id,
     Guid AccountId,
@@ -30,4 +35,5 @@ public sealed record SiteSnapshot(
     SiteBackend Backend,
     string PhpVersion,
     string ProxyUpstream,
-    bool HasCertificate);
+    bool HasCertificate,
+    SiteOptionsSnapshot Options);

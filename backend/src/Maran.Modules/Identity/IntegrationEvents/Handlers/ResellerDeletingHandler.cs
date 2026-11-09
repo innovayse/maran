@@ -8,7 +8,7 @@ namespace Maran.Modules.Identity.IntegrationEvents.Handlers;
 
 /// <summary>
 /// Removes the login of a reseller that is about to be deleted, and every credential that login
-/// carries (<see cref="ResellerDeleting"/>).
+/// carries, and the API keys the reseller owns (<see cref="ResellerDeleting"/>).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -47,8 +47,10 @@ namespace Maran.Modules.Identity.IntegrationEvents.Handlers;
 /// </para>
 /// <para>
 /// <b>It writes no audit entry for the deletion itself</b> (the Accounts module journals that), and
-/// bypasses no query filter: no entity of this module carries a reseller id the tenant census would
-/// follow, and the module has no filter to ignore.
+/// bypasses no query filter: the module defines none, so there is nothing to ignore. Two entities do
+/// carry the reseller id, the login (<c>User.ResellerId</c>) and the API key (<c>ApiKey.ResellerId</c>);
+/// both are read by that id directly and both are removed here, the keys whether or not the login
+/// still exists.
 /// </para>
 /// </remarks>
 public sealed class ResellerDeletingHandler
@@ -87,8 +89,21 @@ public sealed class ResellerDeletingHandler
     {
         var login = await _dbContext.Users
             .SingleOrDefaultAsync(candidate => candidate.ResellerId == message.ResellerId, cancellationToken);
+
+        // A key a reseller owns is a way in that does not depend on the login, so it is removed whether or
+        // not the login still exists. It is not a foreign key to the reseller, so nothing cascades.
+        var keys = await _dbContext.ApiKeys
+            .Where(key => key.ResellerId == message.ResellerId)
+            .ToListAsync(cancellationToken);
+
         if (login is null)
         {
+            if (keys.Count > 0)
+            {
+                _dbContext.ApiKeys.RemoveRange(keys);
+                await _dbContext.SaveChangesAsync(cancellationToken);
+            }
+
             return;
         }
 
@@ -119,6 +134,8 @@ public sealed class ResellerDeletingHandler
             .Where(code => code.UserId == login.Id)
             .ToListAsync(cancellationToken);
         _dbContext.RecoveryCodes.RemoveRange(recoveryCodes);
+
+        _dbContext.ApiKeys.RemoveRange(keys);
 
         // The login last, after everything that points at it.
         _dbContext.Users.Remove(login);

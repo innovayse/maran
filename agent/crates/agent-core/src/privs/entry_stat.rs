@@ -20,4 +20,14 @@ pub struct EntryStat {
     pub kind: EntryKind,
     /// Hard link count (`st_nlink`).
     pub links: u64,
+    /// Size in bytes (`st_size`); for a symlink the length of the link's own text,
+    /// never of its target. A negative reading, which no supported filesystem
+    /// produces, is reported as zero.
+    pub size: u64,
+    /// The full `st_mode`: the file-type bits as well as the permission bits and
+    /// the set-id and sticky bits. A caller that wants the permissions masks it.
+    pub mode: u32,
+    /// Last modification time (`st_mtime`) in whole seconds since the Unix epoch;
+    /// negative for a time before it.
+    pub modified_unix: i64,
 }

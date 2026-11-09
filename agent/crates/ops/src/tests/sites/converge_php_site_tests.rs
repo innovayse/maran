@@ -15,7 +15,9 @@ use crate::php::fake_php_host::FakePhpHost;
 use crate::php::model::pool_input::PoolInput;
 use crate::php::write_pool;
 use crate::sites::converge_php_site::converge_php_site;
-use crate::sites::fake_site_host::{FakeSiteHost, create_test_site, distro, php_input};
+use crate::sites::fake_site_host::{
+    FakeSiteHost, create_test_site, distro, php_input, php_input_with_options,
+};
 use crate::sites::model::create_site_input::CreateSiteInput;
 use crate::sites::model::php_switch::PhpSwitch;
 use crate::sites::model::site_paths::SitePaths;
@@ -256,4 +258,64 @@ fn a_pool_that_php_fpm_refuses_is_rolled_back_and_the_vhost_is_not_touched() {
         old_vhost
     );
     assert_eq!(fixture.site_host.writes(), vhost_writes);
+}
+
+#[test]
+fn converging_a_site_whose_options_changed_writes_the_credential_file_before_the_vhost() {
+    let fixture = Fixture::current();
+    let changed = php_input_with_options();
+    let credential = AgentPaths::site_auth_file(&changed.domain);
+    let before = fixture.site_host.write_order().len();
+
+    converge_php_site(
+        &fixture.site_host,
+        &fixture.php_host,
+        distro(),
+        &changed,
+        &PhpSwitch {
+            version: &PhpVersion::parse("8.3").unwrap(),
+            max_children: WORKERS,
+            overrides: &[],
+            remove_previous_pool: false,
+        },
+    )
+    .unwrap();
+
+    let order = fixture.site_host.write_order();
+    assert_eq!(order[before..], [credential, fixture.vhost_path.clone()]);
+    let vhost = fixture.site_host.config(&fixture.vhost_path).unwrap();
+    assert!(vhost.contains("auth_basic_user_file"), "{vhost}");
+}
+
+#[test]
+fn converging_a_suspended_site_leaves_the_stub_and_writes_no_credential_file() {
+    let fixture = Fixture::current();
+    disable_site(&fixture.site_host, distro(), &fixture.site).unwrap();
+    let stub = fixture.site_host.config(&fixture.vhost_path).unwrap();
+    let with_options = CreateSiteInput {
+        options: php_input_with_options().options,
+        ..fixture.site.clone()
+    };
+
+    converge_php_site(
+        &fixture.site_host,
+        &fixture.php_host,
+        distro(),
+        &with_options,
+        &PhpSwitch {
+            version: &PhpVersion::parse("8.3").unwrap(),
+            max_children: WORKERS,
+            overrides: &[],
+            remove_previous_pool: false,
+        },
+    )
+    .unwrap();
+
+    assert_eq!(fixture.site_host.config(&fixture.vhost_path), Some(stub));
+    assert!(
+        fixture
+            .site_host
+            .auth_file(&AgentPaths::site_auth_file(&with_options.domain))
+            .is_none()
+    );
 }

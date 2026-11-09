@@ -13,7 +13,7 @@ namespace Maran.Modules.Notifications.Commands.SaveSmtpSettings;
 /// </para>
 /// <para>
 /// The command is bound directly by <c>SmtpSettingsController.SaveAsync</c>; there is no separate
-/// request type. Everything from <paramref name="Host"/> to <paramref name="AlertRecipient"/> is the
+/// request type. Everything from <paramref name="Host"/> to <paramref name="FromName"/> is the
 /// administrator's to state; the last two fields are not, and carry the guard that says so.
 /// </para>
 /// </remarks>
@@ -32,7 +32,6 @@ namespace Maran.Modules.Notifications.Commands.SaveSmtpSettings;
 /// </param>
 /// <param name="FromAddress">The address the panel's mail is sent from.</param>
 /// <param name="FromName">The display name beside the sender address; may be empty.</param>
-/// <param name="AlertRecipient">Where alert mail goes — the operator's own address.</param>
 /// <param name="IpAddress">
 /// The caller's address, for the audit journal. Read from the connection by the controller and never
 /// bound from the request: <c>JsonIgnore</c> keeps it out of the JSON body — a <c>[FromBody]</c>
@@ -54,6 +53,5 @@ public sealed record SaveSmtpSettingsCommand(
     string? Password,
     string FromAddress,
     string FromName,
-    string AlertRecipient,
     [property: JsonIgnore][property: BindNever][BindNever] string IpAddress = "",
     [property: JsonIgnore][property: BindNever][BindNever] string UserAgent = "");

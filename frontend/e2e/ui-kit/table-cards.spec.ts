@@ -25,7 +25,7 @@ const ACCOUNT: Account = {
   resellerName: null,
 }
 
-const MODULES: PanelModule[] = [{ name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' }]
+const MODULES: PanelModule[] = [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }]
 
 /**
  * Stubs the shell and the accounts list.

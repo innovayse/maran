@@ -59,6 +59,7 @@ import { useDatabasesStore } from '../../stores/databases'
 import type { CreateDatabaseRequest, Database, DatabaseAction, PendingDatabaseAction } from '../../types/database'
 import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
 import { usePlanLimit } from '../../composables/usePlanLimit'
+import { useQueryAction } from '../../composables/useQueryAction'
 
 const { t } = useI18n()
 const store = useDatabasesStore()
@@ -83,6 +84,9 @@ const table = useServerTable<Database>({
 
 /** The create form, so an accepted create can empty the fields it owns. */
 const form = useTemplateRef<{ reset: () => void }>('form')
+
+/** A dashboard shortcut (`?action=create`) brings this form into view and focuses its first field. */
+useQueryAction(form)
 
 /** The success toast's text after a create, or `null` while none is showing. */
 const notice: Ref<string | null> = ref(null)

@@ -102,3 +102,36 @@ fn a_name_that_would_leave_the_directory_is_refused_before_the_syscall() {
         assert_eq!(error.kind(), io::ErrorKind::InvalidInput, "{name:?}");
     }
 }
+
+#[test]
+fn size_mode_and_modification_time_describe_the_entry() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("f"), b"hello").unwrap();
+    fs::set_permissions(
+        dir.path().join("f"),
+        std::os::unix::fs::PermissionsExt::from_mode(0o640),
+    )
+    .unwrap();
+    let meta = fs::metadata(dir.path().join("f")).unwrap();
+
+    let stat = stat_in_directory(&pin(dir.path()), OsStr::new("f")).unwrap();
+
+    assert_eq!(stat.size, 5);
+    assert_eq!(stat.mode & 0o7777, 0o640);
+    assert_eq!(stat.mode & libc::S_IFMT, libc::S_IFREG);
+    assert_eq!(stat.modified_unix, meta.mtime());
+}
+
+#[test]
+fn a_symlinks_size_is_the_length_of_its_own_text_and_not_its_targets() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("target"), vec![0u8; 4096]).unwrap();
+    symlink("target", dir.path().join("link")).unwrap();
+
+    let link = stat_in_directory(&pin(dir.path()), OsStr::new("link")).unwrap();
+    let target = stat_in_directory(&pin(dir.path()), OsStr::new("target")).unwrap();
+
+    assert_eq!(link.size, "target".len() as u64);
+    assert_eq!(target.size, 4096);
+    assert_eq!(link.mode & libc::S_IFMT, libc::S_IFLNK);
+}

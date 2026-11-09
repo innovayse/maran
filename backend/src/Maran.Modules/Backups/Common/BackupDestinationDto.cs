@@ -6,6 +6,8 @@ namespace Maran.Modules.Backups.Common;
 /// <remarks>
 /// It carries no credential and no secret hint, because no destination on this build holds one — the
 /// remote arm is describable and refused, so there is nothing stored that a response could leak.
+/// <see cref="EncryptArchives"/> is a setting and not a secret: it says whether new backups are
+/// sealed, and the key that opens them is on no outward shape at all.
 /// <para>
 /// <see cref="Path"/> is nullable for a reason a reader should not have to guess: the panel does not
 /// own a local destination's directory and cannot always learn it, and "unknown" and "the default"
@@ -35,6 +37,11 @@ namespace Maran.Modules.Backups.Common;
 /// </param>
 /// <param name="IsDefault">Whether backups naming no destination are written here.</param>
 /// <param name="CreatedAt">When the panel first recorded it.</param>
+/// <param name="EncryptArchives">
+/// Whether backups written to this destination from now on are sealed (encrypted). Says nothing about
+/// backups already written, which were sealed or not according to what was true the day they were
+/// taken.
+/// </param>
 public sealed record BackupDestinationDto(
     Guid Id,
     string Name,
@@ -42,4 +49,5 @@ public sealed record BackupDestinationDto(
     BackupDestinationKind Kind,
     string? Path,
     bool IsDefault,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    bool EncryptArchives);

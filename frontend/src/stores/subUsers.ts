@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useSubUsersApi } from '../composables/apis/useSubUsersApi'
+import { useLatestRead } from '../composables/useLatestRead'
 import { ApiError } from '../composables/useApi'
 import type { ListLoad, ListRequest } from '../types/list'
 import type {
@@ -22,6 +23,7 @@ import type {
  */
 export const useSubUsersStore = defineStore('subUsers', () => {
   const api = useSubUsersApi()
+  const latestRead = useLatestRead()
 
   /** The rows of the list page last answered by the panel; empty before the first answer. */
   const subUsers: Ref<SubUser[]> = ref([])
@@ -57,9 +59,13 @@ export const useSubUsersStore = defineStore('subUsers', () => {
    * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
   const list = async (request: ListRequest): Promise<ListLoad<SubUser>> => {
+    const isLatest = latestRead.begin()
     try {
       const page = await api.list(request)
-      subUsers.value = page.items
+      // A slower, older read must not replace the rows of a newer one.
+      if (isLatest()) {
+        subUsers.value = page.items
+      }
       return { kind: 'loaded', page }
     } catch (error) {
       return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }

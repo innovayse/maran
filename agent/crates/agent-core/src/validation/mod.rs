@@ -14,8 +14,11 @@
 //! Grouped by the domain the value ends up in, so a reader finds a validator by
 //! asking "where is this written?": `system/` becomes OS objects, `db/` reaches
 //! MySQL/MariaDB, `web/` is written into web-server configuration or matched on
-//! by the firewall, `fs/` names and modes filesystem entries, `secrets/` holds
-//! the one validated kind, `password`.
+//! by the firewall, `fleet/` is what fleet mode carries between machines (a listen address, a
+//! node address, a certificate fingerprint), `fs/` names and modes filesystem entries, `secrets/` holds
+//! the one validated kind, `password`, and `mail/` is written into the mail stack's
+//! configuration and data (a hosted domain, an address, a mailbox's limits, DKIM
+//! material, a password hash, an out-of-office reply).
 //! Every type keeps its own `*_error.rs` beside it, as everywhere else.
 //!
 //! `prefixed_name` and `prefix_problem` are the exception to the grouping: they
@@ -24,7 +27,10 @@
 //! — are built from, so they sit at this level and stay crate-internal.
 
 pub mod db;
+pub mod dns;
+pub mod fleet;
 pub mod fs;
+pub mod mail;
 pub(crate) mod prefix_problem;
 pub(crate) mod prefixed_name;
 pub mod secrets;

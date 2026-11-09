@@ -1,9 +1,15 @@
 <script setup lang="ts">
 /**
- * The API keys screen (administrators only): one server page of the panel's keys, searched, sorted
- * and filtered by state by the panel, with a create dialog and a revoke confirmation. Renders a
- * `<section>`, not a `<main>`; rows come from the API keys store, and the page never touches the
- * API layer (rules/vue.md).
+ * The API keys screen: one server page of an owner's keys, searched, sorted and filtered by state by
+ * the panel, with a create dialog and a revoke confirmation. Renders a `<section>`, not a `<main>`;
+ * rows come from the API keys store, and the page never touches the API layer (rules/vue.md).
+ *
+ * **One page, three owners** (`ApiKeyOwner`), told apart by who is signed in and by the route, and
+ * never by a second copy of the screen: an administrator sees the administrator's own keys; a
+ * reseller sees its own (Settings, API keys, issue #435); and an administrator who arrives from a
+ * reseller's page (`id` is set) sees THAT reseller's keys and may revoke them but not create
+ * one, so no create button is drawn. The role is advice about which endpoint to call: the panel
+ * answers by role on every request, whatever this page asks.
  *
  * **The URL is the list's state** (`useServerTable`): page, page size, search, sort and `?status=`.
  * The state filter opens as a modal from `sm` up and a bottom sheet below it (`UiFilterSheet`).
@@ -33,17 +39,70 @@ import ApiKeyCreatedDialog from '../../components/api-keys/ApiKeyCreatedDialog.v
 import ApiKeyRevokeConfirm from '../../components/api-keys/ApiKeyRevokeConfirm.vue'
 import ApiKeysFilterSheet from '../../components/api-keys/ApiKeysFilterSheet.vue'
 import ApiKeysTable from '../../components/api-keys/ApiKeysTable.vue'
+import UiLink from '../../components/ui/UiLink.vue'
+import { useCallerRole } from '../../composables/useCallerRole'
 import { useListLabels } from '../../composables/useListLabels'
 import { useIntegrationKeyActions } from '../../composables/useIntegrationKeyActions'
 import { useReloadOnLocale } from '../../composables/useReloadOnLocale'
 import { useServerTable } from '../../composables/useServerTable'
 import { useApiKeysStore } from '../../stores/apiKeys'
-import type { ApiKey } from '../../types/apiKey'
+import type { ApiKey, ApiKeyOwner } from '../../types/apiKey'
 import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
+
+/** Props accepted by {@link ApiKeysPage}, bound from the route. */
+const props = defineProps<{
+  /** The reseller whose keys an administrator oversees, from `/resellers/:id/api-keys`; absent on the owner's own screen. */
+  id?: string
+}>()
+
+/** The words of one owner: the heading, the subtitle and the empty-state description, as translation keys. */
+interface OwnerWords {
+  heading: string
+  subtitle: string
+  emptyDescription: string
+}
+
+/** The words for each kind of owner, so a new kind of owner cannot be added without its words. */
+const WORDS_BY_OWNER: Record<ApiKeyOwner['kind'], OwnerWords> = {
+  overseen: {
+    heading: 'apiKeys.overseen.heading',
+    subtitle: 'apiKeys.overseen.subtitle',
+    emptyDescription: 'apiKeys.overseen.emptyDescription',
+  },
+  reseller: {
+    heading: 'apiKeys.heading',
+    subtitle: 'apiKeys.reseller.subtitle',
+    emptyDescription: 'apiKeys.reseller.emptyDescription',
+  },
+  administrator: {
+    heading: 'apiKeys.heading',
+    subtitle: 'apiKeys.subtitle',
+    emptyDescription: 'apiKeys.emptyDescription',
+  },
+}
 
 const { t } = useI18n()
 const store = useApiKeysStore()
 const labels = useListLabels()
+const { isReseller } = useCallerRole()
+
+/** Whose keys this page manages: the reseller named in the route, else the signed-in reseller's own, else the administrator's own. */
+const owner: ComputedRef<ApiKeyOwner> = computed(() => {
+  if (props.id !== undefined) {
+    return { kind: 'overseen', resellerId: props.id }
+  }
+  return isReseller.value ? { kind: 'reseller' } : { kind: 'administrator' }
+})
+
+/** Whether the owner creates keys here, which is every case but an administrator overseeing a reseller. */
+const canCreate: ComputedRef<boolean> = computed(() => {
+  return owner.value.kind !== 'overseen'
+})
+
+/** The translation keys for the words that differ by owner: the heading, the subtitle and the empty state. */
+const words: ComputedRef<OwnerWords> = computed(() => {
+  return WORDS_BY_OWNER[owner.value.kind]
+})
 
 const table = useServerTable<ApiKey>({
   filters: { status: { accepts: store.acceptsStatus } },
@@ -53,12 +112,14 @@ const table = useServerTable<ApiKey>({
    * @returns How the read ended.
    */
   load: (request: ListRequest): Promise<ListLoad<ApiKey>> => {
-    return store.list(request)
+    return store.list(owner.value, request)
   },
 })
 
 const { createOpen, pending, notice, openCreate, closeCreate, create, askRevoke, cancelRevoke, confirmRevoke, dismissNotice } =
-  useIntegrationKeyActions(table.reload)
+  useIntegrationKeyActions(() => {
+    return owner.value
+  }, table.reload)
 
 /** Whether the filter sheet is open. */
 const filtersOpen: Ref<boolean> = ref(false)
@@ -107,7 +168,9 @@ const closeFilters = (): void => {
 // The names of scopes and states are the panel's, in the language the request carried, so they are
 // read again whenever the interface language changes.
 useReloadOnLocale(async (): Promise<void> => {
-  await Promise.all([store.loadScopes(), store.loadStatuses()])
+  const current = owner.value
+  // The scopes are for the create dialog, which an overseeing administrator does not have.
+  await Promise.all([current.kind === 'overseen' ? Promise.resolve() : store.loadScopes(current), store.loadStatuses(current)])
 })
 
 // The secret must not survive a navigation; the store outlives this page.
@@ -118,9 +181,12 @@ onBeforeUnmount((): void => {
 
 <template>
   <section class="flex w-full min-w-0 flex-col gap-4">
-    <UiPageHeading :title="t('apiKeys.heading')" :subtitle="t('apiKeys.subtitle')">
+    <UiPageHeading :title="t(words.heading)" :subtitle="t(words.subtitle)">
       <template #actions>
-        <UiButton @click="openCreate">
+        <UiLink v-if="props.id !== undefined" :to="{ name: 'reseller-detail', params: { id: props.id } }" icon="chevronLeft">
+          {{ t('apiKeys.overseen.back') }}
+        </UiLink>
+        <UiButton v-if="canCreate" @click="openCreate">
           <UiIcon name="plus" size="sm" />
           {{ t('apiKeys.create') }}
         </UiButton>
@@ -132,7 +198,7 @@ onBeforeUnmount((): void => {
     <UiEmptyState
       v-if="answeredNothing && !isNarrowed"
       :title="t('apiKeys.emptyTitle')"
-      :description="t('apiKeys.emptyDescription')"
+      :description="t(words.emptyDescription)"
     >
       <template #icon><UiIcon name="keyRound" size="lg" /></template>
     </UiEmptyState>
@@ -214,7 +280,7 @@ onBeforeUnmount((): void => {
     />
 
     <ApiKeyCreateDialog
-      v-if="createOpen"
+      v-if="createOpen && canCreate"
       :scopes="store.scopes"
       :submitting="store.creating"
       :error-message="store.createErrorMessage"

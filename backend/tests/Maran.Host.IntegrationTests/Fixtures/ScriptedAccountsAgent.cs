@@ -145,11 +145,13 @@ public sealed class ScriptedAccountsAgent : IAgentAccountsClient
     /// <summary>Records the creation, waits when held, and answers success or the scripted failure.</summary>
     /// <param name="username">The account's system user name.</param>
     /// <param name="quotaBytes">Ignored.</param>
+    /// <param name="provisioning">Ignored.</param>
     /// <param name="cancellationToken">Cancels the wait of a held creation.</param>
     /// <returns>The created user, or a server failure when one was scripted.</returns>
     public async Task<Result<CreatedAccountDto>> CreateAsync(
         string username,
         ulong quotaBytes,
+        AccountProvisioningDto provisioning,
         CancellationToken cancellationToken)
     {
         _created.Enqueue(username);
@@ -184,9 +186,10 @@ public sealed class ScriptedAccountsAgent : IAgentAccountsClient
 
     /// <summary>Records the reactivation and unlocks the login the host reports.</summary>
     /// <param name="username">The account's system user name.</param>
+    /// <param name="shell">Ignored.</param>
     /// <param name="cancellationToken">Unused.</param>
     /// <returns>Success.</returns>
-    public Task<Result> UnsuspendAsync(string username, CancellationToken cancellationToken)
+    public Task<Result> UnsuspendAsync(string username, AccountLoginShell shell, CancellationToken cancellationToken)
     {
         _unsuspended.Enqueue(username);
         _loginState = AccountLoginPasswordState.Usable;
@@ -233,9 +236,14 @@ public sealed class ScriptedAccountsAgent : IAgentAccountsClient
     /// <summary>Records the quota change.</summary>
     /// <param name="username">The account's system user name.</param>
     /// <param name="quotaBytes">The quota asked for.</param>
+    /// <param name="inodeLimit">Unused.</param>
     /// <param name="cancellationToken">Unused.</param>
     /// <returns>Success.</returns>
-    public Task<Result> SetQuotaAsync(string username, ulong quotaBytes, CancellationToken cancellationToken)
+    public Task<Result> SetQuotaAsync(
+        string username,
+        ulong quotaBytes,
+        ulong? inodeLimit,
+        CancellationToken cancellationToken)
     {
         _quotas.Enqueue($"{username}:{quotaBytes}");
 
@@ -258,6 +266,16 @@ public sealed class ScriptedAccountsAgent : IAgentAccountsClient
     public Task<Result<HomeGroupRepairReportDto>> RepairHomeGroupsAsync(
         bool reportOnly,
         CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException();
+    }
+
+    /// <summary>Not exercised by these tests.</summary>
+    /// <param name="username">Unused.</param>
+    /// <param name="openFiles">Unused.</param>
+    /// <param name="cancellationToken">Unused.</param>
+    /// <returns>Never returns.</returns>
+    public Task<Result> SetOpenFilesLimitAsync(string username, ulong? openFiles, CancellationToken cancellationToken)
     {
         throw new NotSupportedException();
     }

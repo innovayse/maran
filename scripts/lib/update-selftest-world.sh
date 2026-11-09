@@ -178,7 +178,7 @@ echo "-- libraries: the copies under test and the proof their constants were rew
 # ---------------------------------------------------------------------------------------------
 libdir="${work}/lib"
 install -d "$libdir"
-copied_libs="common.sh release-version.sh release-verify.sh release-unpack.sh release-layout.sh update-dumps.sh"
+copied_libs="common.sh release-version.sh release-verify.sh release-unpack.sh release-layout.sh update-dumps.sh update-unattended.sh update.sh"
 constants='(^|[^A-Za-z0-9_./-])(/usr/local/maran|/etc/maran|/var/backups/maran-update|/var/lib/maran-cli-staging)'
 for lib in $copied_libs; do
   [ -f "${CLI_LIB_DIR}/${lib}" ] || selftest_failed "installer/cli/lib/${lib} does not exist - the library the design names is missing, so nothing can be checked."
@@ -218,14 +218,14 @@ expect_equal "the baked key constant is assigned once, and no ':-' form of it ex
   "$(( assignments + $(scan_code "${CLI_LIB_DIR}/release-verify.sh" 'MARAN_RELEASE_PUBLIC_KEY:[-=+?]' | wc -l) ))"
 
 shell_pattern='\beval\b|bash -c|[^a-z]sh -c'
-for lib in release-version release-verify release-unpack release-layout update-dumps panel-dump update-health update rollback; do
+for lib in release-version release-verify release-unpack release-layout update-dumps panel-dump update-health update-unattended update update-schedule rollback; do
   if scan_code "${CLI_LIB_DIR}/${lib}.sh" "$shell_pattern"; then
     selftest_failed "${lib}.sh builds a shell string (lines above): eval, bash -c or sh -c."
   fi
 done
 scan_code "${root}/scripts/lib/release-bundle.sh" "$shell_pattern" >/dev/null \
   || selftest_failed "the shell-string scan found nothing in scripts/lib/release-bundle.sh, which has an sh -c - the scan cannot hit."
-selftest_pass "no eval, bash -c or sh -c in the nine release and update libraries (the scan hits release-bundle.sh, so it can)"
+selftest_pass "no eval, bash -c or sh -c in the eleven release and update libraries (the scan hits release-bundle.sh, so it can)"
 
 # shellcheck disable=SC1090
 . "${libdir}/common.sh"
@@ -247,7 +247,8 @@ for fn in cli_version_is_semver cli_version_is_legacy cli_version_is_release_nam
           cli_layout_previous_version cli_layout_prune cli_layout_state_read cli_layout_state_write \
           cli_layout_check_consistent cli_layout_remove_partials \
           cli_dumps_dir cli_dumps_path cli_dumps_name cli_dumps_name_fits cli_dumps_list cli_dumps_newest_to \
-          cli_dumps_prune cli_dumps_require_private; do
+          cli_dumps_prune cli_dumps_require_private \
+          cli_release_notes_url_valid cli_release_date_valid cli_release_describe_notes; do
   declare -F "$fn" >/dev/null || selftest_failed "the library function ${fn} this selftest drives is not defined."
 done
 selftest_pass "every library function this selftest drives is defined by the copies"
@@ -277,7 +278,7 @@ resign() {
 
 # make_bundle: <dir> <version> <channel or - for none> <signing key> [evil kind]. Writes both
 # architectures' archives (the other one marked, so picking it is visible), a manifest in the
-# release builder's shape with the signed channel field, and its signature. Every component carries
+# release builder's shape with the signed channel, notes_url and released fields, and its signature. Every component carries
 # a 0666 file, a 6755 file and a 1777 directory, which a clean install must make safe. The evil kinds
 # damage the api archive only: traversal, absolute, symlink-up, symlink-abs, symlink-benign, hardlink,
 # fifo, no-entry (no api/Maran.Host) and not-executable. Each fixture proves it carries what it is
@@ -361,6 +362,8 @@ make_bundle() {
     echo "{"
     echo "  \"version\": \"${version}\","
     [ "$channel" = "-" ] || echo "  \"channel\": \"${channel}\","
+    echo "  \"notes_url\": \"https://github.com/innovayse/maran/releases/tag/v${version}\","
+    echo "  \"released\": \"2026-11-07\","
     echo "  \"artifacts\": {"
     for arch in "$target_arch" "$other_arch"; do
       for component in api agent frontend; do

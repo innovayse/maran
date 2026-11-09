@@ -88,7 +88,7 @@ const MODULES: PanelModule[] = [
   'monitoring',
   'tasks',
 ].map((name) => {
-  return { name, displayName: name, tier: 'included', state: 'enabled' }
+  return { name, displayName: name, kindDisplayName: 'Core', tier: 'included', state: 'enabled' }
 })
 
 /** A long name with no break opportunity the layout can rely on, and the domain a customer would type. */

@@ -78,6 +78,9 @@
   <data name="PlanFeatureUnknown">
     <value>A plan feature must be one of the features the panel lists.</value>
   </data>
+  <data name="PlanMailLimitsInvalid">
+    <value>The default mailbox quota of a plan must not be larger than the pool its mailbox quotas are drawn from.</value>
+  </data>
   <data name="ResellerNotFound">
     <value>This reseller could not be found.</value>
   </data>
@@ -116,5 +119,44 @@
   </data>
   <data name="ResellerEnvelopeInvalid">
     <value>The reseller's limits are not valid. Every figure must be zero or more and within the allowed maximum, and every resource ceiling must be positive.</value>
+  </data>
+  <data name="BrandingDisplayNameInvalid">
+    <value>The name must be at most 40 characters and contain no control characters.</value>
+  </data>
+  <data name="BrandingAccentColorInvalid">
+    <value>The colour must be written as # followed by six hexadecimal digits, for example #2468dc.</value>
+  </data>
+  <data name="BrandingAccentColorLowContrast">
+    <value>This colour is too light: white text on it would be hard to read. Choose a darker colour.</value>
+  </data>
+  <data name="BrandingLogoInvalid">
+    <value>The logo must be a PNG, JPEG or WebP image.</value>
+  </data>
+  <data name="BrandingLogoTooLarge">
+    <value>The logo is too large. Use an image of at most 100 KB.</value>
+  </data>
+  <data name="BrandingChangedConcurrently">
+    <value>The branding was saved by another request at the same moment. Reload the page and save again.</value>
+  </data>
+  <data name="AccountOwnerUnchanged">
+    <value>The account already belongs to this owner. To put it on another plan of the same owner, change its plan instead.</value>
+  </data>
+  <data name="ResellerAllocationChanged">
+    <value>The reseller's allocation changed while the account was being moved. Try again.</value>
+  </data>
+  <data name="AccountInitialPasswordInvalid">
+    <value>Choose how the owner signs in: either send an invitation, or set an initial password and enter it.</value>
+  </data>
+  <data name="AccountProcessLimitInvalid">
+    <value>The process limit must be a whole number from 1 to 4194304. Leave it empty to follow the plan.</value>
+  </data>
+  <data name="AccountInodeLimitInvalid">
+    <value>The inode limit must be a whole number from 0 to 4294967295, where 0 means no limit. Leave it empty to follow the plan.</value>
+  </data>
+  <data name="AccountOpenFilesLimitInvalid">
+    <value>The open files limit must be a whole number from 0 to 1048576, where 0 means no limit. Leave it empty to follow the plan.</value>
+  </data>
+  <data name="AccountLimitAbovePlan">
+    <value>This limit is higher than the plan allows. A reseller can only lower the limits of a plan.</value>
   </data>
 </root>

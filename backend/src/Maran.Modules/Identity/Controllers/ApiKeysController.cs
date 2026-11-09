@@ -20,7 +20,9 @@ namespace Maran.Modules.Identity.Controllers;
 /// <remarks>
 /// Administrators only, through a signed-in session. No policy that admits an API key guards any
 /// action here, so a key can never mint a successor or revoke another key, and a view-as token is
-/// refused on every action: a key is a standing credential that outlives the look.
+/// refused on every action: a key is a standing credential that outlives the look. The keys listed,
+/// created and revoked here are the ADMINISTRATOR's own; the keys a reseller owns are managed by that
+/// reseller at <see cref="ResellerApiKeysController"/> and are not seen here (a revoke of one answers 404).
 /// </remarks>
 [Route("api/v1/api-keys")]
 [Tags("API Keys")]

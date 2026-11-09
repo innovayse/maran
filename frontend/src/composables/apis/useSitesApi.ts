@@ -2,6 +2,7 @@ import { ApiError, useApi } from '../useApi'
 import { listQuery } from '../../utils/listQuery'
 import type { ListRequest, Paged } from '../../types/list'
 import type {
+  ChangeSiteLogRetentionRequest,
   ChangeSitePhpVersionRequest,
   CreateSiteRequest,
   Site,
@@ -10,7 +11,13 @@ import type {
   SiteLimits,
   SitesApi,
 } from '../../types/site'
-import type { InstallablePhpVersion, PhpVersion } from '../../types/phpVersion'
+import type {
+  InstallablePhpVersion,
+  PhpExtension,
+  PhpVersion,
+  SetPhpExtensionRequest,
+} from '../../types/phpVersion'
+import type { SiteTraffic } from '../../types/siteTraffic'
 import type {
   SiteLogEndReason,
   SiteLogStreamHandlers,
@@ -191,6 +198,46 @@ export const useSitesApi = (): SitesApi => {
   }
 
   /**
+   * Lists the extensions of one installed PHP version.
+   *
+   * The labels and, for an administrator, what can be done to each come from the server: the SPA
+   * holds no catalogue of extensions of its own (rules/vue.md, "the frontend never invents domain
+   * data").
+   * @param version The installed version, e.g. `8.3`.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The version's extensions.
+   */
+  const listPhpExtensions = (version: string, signal?: AbortSignal): Promise<PhpExtension[]> => {
+    return api.get<PhpExtension[]>(`${SITES_PATH}/php-versions/${encodeURIComponent(version)}/extensions`, signal)
+  }
+
+  /**
+   * Switches one extension of a PHP version on or off for the whole host.
+   *
+   * Administrator-only on the server, which refuses anyone else; this call does not pretend
+   * otherwise (rules/security.md, a check in the browser is advice). The request does not resolve
+   * until the change is applied, and its progress is on the tasks screen.
+   * @param version The installed version, e.g. `8.3`.
+   * @param name The extension's catalogue name, as listed.
+   * @param enabled The state to leave it in.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The version's extensions as the server reads them back after the change.
+   */
+  const setPhpExtension = (
+    version: string,
+    name: string,
+    enabled: boolean,
+    signal?: AbortSignal,
+  ): Promise<PhpExtension[]> => {
+    const body: SetPhpExtensionRequest = { enabled }
+    return api.put<PhpExtension[]>(
+      `${SITES_PATH}/php-versions/${encodeURIComponent(version)}/extensions/${encodeURIComponent(name)}`,
+      body,
+      signal,
+    )
+  }
+
+  /**
    * Reads the ending named in an `end` frame, refusing to invent a benign one.
    * @param named The `reason` the frame carried, or `undefined` when it carried none.
    * @returns The ending the panel named, or `failed` when it named none this SPA knows.
@@ -242,8 +289,8 @@ export const useSitesApi = (): SitesApi => {
           }
 
           if (event.name === 'end') {
-            const payload = JSON.parse(event.data) as { reason?: string; message?: string }
-            ending = { reason: readEndReason(payload.reason), message: payload.message ?? null }
+            const payload = JSON.parse(event.data) as { reason?: string; message: string | null }
+            ending = { reason: readEndReason(payload.reason), message: payload.message }
           }
         },
         signal,
@@ -270,6 +317,31 @@ export const useSitesApi = (): SitesApi => {
     handlers.onEnd('truncated', null)
   }
 
+  /**
+   * Reads a site's traffic summary over a window. A site belonging to somebody else answers 404,
+   * never 403; a site with nothing recorded yet answers 200 with `hasData: false`.
+   * @param id The site's identity.
+   * @param days The window in days, one of the windows the choices offer.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The summary the panel built.
+   */
+  const getTraffic = (id: string, days: number, signal?: AbortSignal): Promise<SiteTraffic> => {
+    return api.get<SiteTraffic>(`${SITES_PATH}/${id}/traffic?days=${days}`, signal)
+  }
+
+  /**
+   * Changes how many days of rotated logs a site keeps. The panel saves the choice and removes the
+   * archives past it later; the answer never waits for that.
+   * @param id The site's identity.
+   * @param days The retention in days, one of the values the choices offer.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The site in its new state.
+   */
+  const changeLogRetention = (id: string, days: number, signal?: AbortSignal): Promise<Site> => {
+    const body: ChangeSiteLogRetentionRequest = { days }
+    return api.put<Site>(`${SITES_PATH}/${id}/log-retention`, body, signal)
+  }
+
   return {
     list,
     get,
@@ -283,6 +355,10 @@ export const useSitesApi = (): SitesApi => {
     getLimits,
     getChoices,
     installPhpVersion,
+    listPhpExtensions,
+    setPhpExtension,
     tailLog,
+    getTraffic,
+    changeLogRetention,
   }
 }

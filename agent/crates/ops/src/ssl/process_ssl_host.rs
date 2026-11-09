@@ -16,6 +16,7 @@ use maran_distro::AdapterBinary;
 use crate::safe_write::model::{ConfigFile, Reload, Validator};
 use crate::safe_write::{ConfigHost, SafeWriteError, remove_config, write_config_set};
 use crate::sites::log_sink::LogSink;
+use crate::sites::model::auth_file_placement::AuthFilePlacement;
 use crate::sites::model::log_tail_request::LogTailRequest;
 use crate::sites::model::tail_end::TailEnd;
 use crate::sites::{ProcessSiteHost, SiteCertificate, SiteHost, SiteMaintenanceHost, SitesOpError};
@@ -175,6 +176,31 @@ impl SiteHost for ProcessSslHost {
         reload: &Reload<'_>,
     ) -> Result<(), SitesOpError> {
         self.sites.remove_config(target, validator, reload)
+    }
+
+    /// Delegates to the site area's host.
+    ///
+    /// Present because [`SiteHost`] requires it, and reached by nothing in the
+    /// certificate area: a credential file belongs to the site's own writes.
+    fn write_auth_file(
+        &self,
+        target: &Path,
+        contents: &str,
+        placement: &AuthFilePlacement<'_>,
+        validator: &Validator<'_>,
+    ) -> Result<(), SitesOpError> {
+        self.sites
+            .write_auth_file(target, contents, placement, validator)
+    }
+
+    /// Delegates to the site area's host.
+    fn remove_auth_file(&self, target: &Path) -> Result<(), SitesOpError> {
+        self.sites.remove_auth_file(target)
+    }
+
+    /// Delegates to the site area's host.
+    fn list_auth_files(&self) -> Result<Vec<PathBuf>, SitesOpError> {
+        self.sites.list_auth_files()
     }
 
     /// Delegates to the site area's host.

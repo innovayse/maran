@@ -1,0 +1,61 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- The second composition root: the same modules as Maran.Host, a simulated agent in place of the
+       real one, and the guard that makes a published sign-in safe. Maran.Host does not reference this
+       project, and no release bundle of the product contains it. -->
+
+  <ItemGroup>
+    <!-- BouncyCastle: the demo licence key signs and verifies with Ed25519 (Adapters/DemoLicenceKey).
+         The version is the repository's central pin in Directory.Packages.props, not a second choice. -->
+    <PackageReference Include="BouncyCastle.Cryptography" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Maran.Host\Maran.Host.csproj" />
+    <ProjectReference Include="..\Maran.Sdk\Maran.Sdk.csproj" />
+    <ProjectReference Include="..\Maran.SharedKernel\Maran.SharedKernel.csproj" />
+    <ProjectReference Include="..\Maran.Agent.Client\Maran.Agent.Client.csproj" />
+    <ProjectReference Include="..\Maran.Agent.Simulated\Maran.Agent.Simulated.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Accounts\Maran.Modules.Accounts.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Identity\Maran.Modules.Identity.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Licensing\Maran.Modules.Licensing.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Sites\Maran.Modules.Sites.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Ssl\Maran.Modules.Ssl.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Databases\Maran.Modules.Databases.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Sftp\Maran.Modules.Sftp.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Dns\Maran.Modules.Dns.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Ftp\Maran.Modules.Ftp.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Idempotency\Maran.Modules.Idempotency.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Cron\Maran.Modules.Cron.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Firewall\Maran.Modules.Firewall.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Tasks\Maran.Modules.Tasks.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Monitoring\Maran.Modules.Monitoring.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Notifications\Maran.Modules.Notifications.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Backups\Maran.Modules.Backups.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Resx-backed text (rules/csharp.md): ErrorMessages carries the guard's two failure codes and
+         DemoMessages the sentence shown beside each control the demonstration turns off. Both are reached
+         by key through the localizer or the shared error-text pool, so no designer accessor is generated. -->
+    <EmbeddedResource Update="Resources\ErrorMessages.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\ErrorMessages.ru.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\ErrorMessages.hy.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\DemoMessages.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\DemoMessages.ru.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\DemoMessages.hy.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+  </ItemGroup>
+
+</Project>

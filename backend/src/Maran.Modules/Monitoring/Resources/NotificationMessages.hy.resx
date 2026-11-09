@@ -102,4 +102,46 @@
   <data name="AlertClockUnsynchronizedResolvedBody">
     <value>Սերվերի ժամացույցը կրկին համաժամեցված է ժամանակի աղբյուրի հետ։</value>
   </data>
+  <data name="AlertCpuUsageRaisedSubject">
+    <value>Սերվերի պրոցեսորը գերբեռնված է</value>
+  </data>
+  <data name="AlertCpuUsageRaisedBody">
+    <value>Այս սերվերի պրոցեսորը տասը հաջորդական ստուգումների ընթացքում բեռնված է կարգավորված շեմից ավելի (այժմ՝ {1}%)։ Գտեք այն բեռնող գործընթացը կամ, եթե այս բեռնվածությունը նորմալ է, բարձրացրեք շեմը ահազանգերի կարգավորումներում։</value>
+  </data>
+  <data name="AlertCpuUsageResolvedSubject">
+    <value>Սերվերի պրոցեսորի բեռնվածությունը նվազել է</value>
+  </data>
+  <data name="AlertCpuUsageResolvedBody">
+    <value>Այս սերվերի պրոցեսորի բեռնվածությունը կրկին կարգավորված շեմից ցածր է՝ {1}%։</value>
+  </data>
+  <data name="AlertMemoryUsageRaisedSubject">
+    <value>Սերվերի հիշողությունը սպառվում է</value>
+  </data>
+  <data name="AlertMemoryUsageRaisedBody">
+    <value>Այս սերվերում տասը հաջորդական ստուգումների ընթացքում օգտագործվում է կարգավորված շեմից ավելի հիշողություն (այժմ՝ {1}%)։ Գտեք, թե ինչն է այն զբաղեցնում, ավելացրեք հիշողություն կամ, եթե դա նորմալ է, բարձրացրեք շեմը ահազանգերի կարգավորումներում։</value>
+  </data>
+  <data name="AlertMemoryUsageResolvedSubject">
+    <value>Սերվերի հիշողության օգտագործումը նվազել է</value>
+  </data>
+  <data name="AlertMemoryUsageResolvedBody">
+    <value>Այս սերվերի հիշողության օգտագործումը կրկին կարգավորված շեմից ցածր է՝ {1}%։</value>
+  </data>
+  <data name="AlertPanelUpdateRolledBackSubject">
+    <value>Վահանակի անվտանգության ավտոմատ թարմացումը ձախողվեց և չեղարկվեց</value>
+  </data>
+  <data name="AlertPanelUpdateRolledBackBody">
+    <value>Վահանակը փորձեց թարմացվել {0}-ից մինչև {1}, բայց թարմացումը ձախողվեց անցումից հետո։ Նախորդ տարբերակը կրկին աշխատում է։ Տվյալների բազան չի վերականգնվել։ Սերվերի վրա կատարեք «maran update»՝ կրկին փորձելու համար, կամ տեսեք աուդիտի մատյանը։</value>
+  </data>
+  <data name="AlertPanelUpdateRollbackFailedSubject">
+    <value>Վահանակի անվտանգության ավտոմատ թարմացումը ձախողվեց, վահանակը կարող է անհասանելի լինել</value>
+  </data>
+  <data name="AlertPanelUpdateRollbackFailedBody">
+    <value>Վահանակը փորձեց թարմացվել {0}-ից մինչև {1}։ Թարմացումը ձախողվեց, և նախորդ տարբերակը նույնպես չդարձավ աշխատունակ։ Մտեք սերվեր և կատարեք «maran status», ապա «maran rollback»։ Տվյալների բազան չի վերականգնվել։</value>
+  </data>
+  <data name="AlertPanelUpdateInterruptedSubject">
+    <value>Վահանակի անվտանգության ավտոմատ թարմացումը ընդհատվեց</value>
+  </data>
+  <data name="AlertPanelUpdateInterruptedBody">
+    <value>Վահանակի ավտոմատ թարմացումը {0}-ից մինչև {1} ընդհատվեց նոր տարբերակին անցնելուց հետո։ Մտեք սերվեր և կատարեք «maran rollback»՝ {0}-ին վերադառնալու համար, կամ «maran update»՝ ավարտելու համար։</value>
+  </data>
 </root>

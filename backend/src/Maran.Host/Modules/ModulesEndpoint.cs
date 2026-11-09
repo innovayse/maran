@@ -1,7 +1,3 @@
-using System.Diagnostics;
-using Maran.Sdk.Contracts;
-using Maran.SharedKernel.Callers;
-
 namespace Maran.Host.Modules;
 
 /// <summary>
@@ -19,8 +15,15 @@ public static class ModulesEndpoint
     {
         endpoints.MapGet(
             "/api/v1/modules",
-            (IErrorTextProvider errorTextProvider, LicenceTierDisplayNames tierDisplayNames, ICurrentUser currentUser) =>
-                Results.Ok(DescribeModules(errorTextProvider, tierDisplayNames, currentUser)))
+            async (
+                IErrorTextProvider errorTextProvider,
+                LicenceTierDisplayNames tierDisplayNames,
+                ModuleKindDisplayNames kindDisplayNames,
+                ICurrentUser currentUser,
+                RuntimeModuleRegistry registry,
+                CancellationToken cancellationToken) =>
+                Results.Ok(await DescribeModulesAsync(
+                    errorTextProvider, tierDisplayNames, kindDisplayNames, currentUser, registry, cancellationToken)))
             // Anonymous: the SPA reads the catalogue to build its navigation before anyone has
             // signed in, and to know whether a login screen is even the right thing to show. The
             // list names the modules installed on this server and nothing about its data. An
@@ -31,65 +34,68 @@ public static class ModulesEndpoint
     }
 
     /// <summary>
-    /// Describes every composed module the caller is allowed to be offered. Tier and display name
-    /// come from each module's own <c>Manifest</c>; the state comes from
-    /// <see cref="ModuleStateResolver"/>, the one place that decides it, so wiring real licence data
-    /// later changes that resolver and not the contract.
+    /// Describes every composed module the caller is allowed to be offered - the modules that ship with
+    /// the panel and the packaged ones composed at this start. Tier and display name come from each
+    /// module's own <c>Manifest</c>; the state comes from <see cref="ModuleStateResolver"/>, the one
+    /// place that decides it, from the tier and from the lifecycle state the runtime registry reports,
+    /// so wiring real licence data later changes that resolver and not the contract. A package that is
+    /// installed but not yet composed, or that was refused, is not offered: there is nothing to
+    /// navigate to, and the install screen reads the loader's own list.
     /// </summary>
     /// <remarks>
-    /// The audience filter below (<see cref="IsOffered"/>) is presentation, not
+    /// The audience filter below (<see cref="ModuleAudienceRule"/>) is presentation, not
     /// enforcement: it decides what the SPA's navigation offers, nothing more. Every endpoint keeps
     /// its own authorization policy regardless of what this list contains, so a module left out
     /// here is still exactly as protected — or not — as its own handlers make it.
     /// </remarks>
     /// <param name="errorTextProvider">Resolves each module's <c>Manifest.DisplayNameKey</c> in the current request culture.</param>
     /// <param name="tierDisplayNames">Resolves each module's licence tier into the words an operator reads.</param>
+    /// <param name="kindDisplayNames">Resolves each module's kind into the words an operator reads.</param>
     /// <param name="currentUser">The caller, whose <see cref="ICurrentUser.Caller"/> case decides which module audiences are offered.</param>
-    /// <returns>One descriptor per compiled-in module addressed to this caller, in registration order.</returns>
-    private static List<ModuleDto> DescribeModules(
+    /// <param name="registry">The composed modules and the state the loader reports for the packaged ones.</param>
+    /// <param name="cancellationToken">Cancellation token for the loader's list.</param>
+    /// <returns>One descriptor per composed module addressed to this caller, in registration order.</returns>
+    private static async Task<List<ModuleDto>> DescribeModulesAsync(
         IErrorTextProvider errorTextProvider,
         LicenceTierDisplayNames tierDisplayNames,
-        ICurrentUser currentUser)
+        ModuleKindDisplayNames kindDisplayNames,
+        ICurrentUser currentUser,
+        RuntimeModuleRegistry registry,
+        CancellationToken cancellationToken)
     {
-        return ModuleRegistry.All
+        var caller = currentUser.Caller;
+
+        // First entry per id: composed modules are listed before refused ones, and a refused package may
+        // carry the id of a module that is composed (that is one of the ways it is refused), so the
+        // composed module's own state must be the one that wins.
+        var lifecycle = (await registry.ListAsync(cancellationToken))
+            .GroupBy(registered => { return registered.Id; }, StringComparer.Ordinal)
+            .ToDictionary(
+                group => { return group.Key; },
+                group => { return group.First().State; },
+                StringComparer.Ordinal);
+
+        return registry.Modules
             .Where(module =>
             {
-                return IsOffered(currentUser.Caller, module.Manifest.Audience);
+                return ModuleAudienceRule.IsOffered(caller, module.Manifest.Audience);
             })
             .Select(module =>
             {
                 return new ModuleDto(
-                                module.Name,
-                                module.Manifest.Tier,
-                                tierDisplayNames.Of(module.Manifest.Tier),
-                                errorTextProvider.Resolve(module.Manifest.DisplayNameKey),
-                                ModuleStateResolver.Of(module.Manifest.Tier),
-                                module.Manifest.AgentCapabilities);
+                    module.Name,
+                    module.Manifest.Tier,
+                    tierDisplayNames.Of(module.Manifest.Tier),
+                    errorTextProvider.Resolve(module.Manifest.DisplayNameKey),
+                    ModuleStateResolver.Of(module.Manifest.Tier, lifecycle[module.Manifest.Id]),
+                    module.Manifest.AgentCapabilities,
+                    module.Manifest.MinPanelVersion,
+                    module.Manifest.Kind,
+                    kindDisplayNames.Of(module.Manifest.Kind),
+                    module.Manifest.Permissions,
+                    ModuleMenuLocalizer.MenuOf(module.Manifest, caller, errorTextProvider),
+                    ModuleMenuLocalizer.RoutesOf(module.Manifest, errorTextProvider));
             })
             .ToList();
-    }
-
-    /// <summary>Whether a module addressed to an audience is offered to a caller.</summary>
-    /// <remarks>
-    /// Every case of <see cref="Caller"/> is named, with no discard arm that would offer or hide a
-    /// module to a case added later: an administrator is offered everything, a reseller what is
-    /// addressed to everyone or to administrators and resellers, an API key nothing (it is not a login
-    /// and has no navigation), and everyone else only what is addressed to everyone. Presentation only; the endpoints behind each module refuse regardless.
-    /// </remarks>
-    /// <param name="caller">The caller the catalogue is built for.</param>
-    /// <param name="audience">The audience the module declares.</param>
-    /// <returns><c>true</c> when the module belongs in the caller's navigation.</returns>
-    private static bool IsOffered(Caller caller, ModuleAudience audience)
-    {
-        return caller switch
-        {
-            AdministratorCaller => true,
-            ResellerCaller => audience is ModuleAudience.Everyone or ModuleAudience.AdminOrReseller,
-            CustomerCaller => audience == ModuleAudience.Everyone,
-            AccountlessCustomerCaller => audience == ModuleAudience.Everyone,
-            ApiKeyCaller => false,
-            AnonymousCaller => audience == ModuleAudience.Everyone,
-            _ => throw new UnreachableException("Caller is sealed to SharedKernel: six cases exist."),
-        };
     }
 }

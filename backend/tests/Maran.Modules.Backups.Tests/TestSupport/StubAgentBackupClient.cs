@@ -99,6 +99,14 @@ public sealed class StubAgentBackupClient : IAgentBackupClient
         await Task.CompletedTask;
     }
 
+    /// <summary>The scope every restore was asked for, in order — what each one set out to replace.</summary>
+    /// <remarks>
+    /// Recorded beside <see cref="Restores"/> because the scope is a thing the panel DECIDES, from its
+    /// own rows, and it is invisible in the outcome: a database restore and a whole restore both end in
+    /// a success.
+    /// </remarks>
+    public List<AgentRestoreScope> Scopes { get; } = [];
+
     /// <summary>Run at the moment a restore is asked for, before any event is replayed.</summary>
     /// <remarks>
     /// The restore's counterpart to <see cref="OnCreate"/>, and it exists for the same reason: the
@@ -120,9 +128,11 @@ public sealed class StubAgentBackupClient : IAgentBackupClient
         AgentBackupDestination destination,
         string expectedSha256,
         IReadOnlyList<string> allowedDatabases,
+        AgentRestoreScope scope,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         Restores.Add((accountUsername, backupId, expectedSha256, allowedDatabases));
+        Scopes.Add(scope);
         Destinations.Add(destination);
         OnRestore?.Invoke();
 

@@ -275,6 +275,14 @@ COPY installer/lib/67-panel-backup.sh /tmp/maran-installer/lib/67-panel-backup.s
 COPY installer/systemd/maran-panel-backup.service /tmp/maran-installer/systemd/maran-panel-backup.service
 COPY installer/systemd/maran-panel-backup.timer /tmp/maran-installer/systemd/maran-panel-backup.timer
 COPY installer/panel-backup.conf.example /tmp/maran-installer/panel-backup.conf.example
+# The panel's update-request units and the step that installs them (issue #382). The assertions in
+# docker/polygon/asserts/parts/update-request-units.sh read these files' text and render the step's
+# tmpfiles snippet; absent, the part aborts by name. maran-api.service is copied above.
+COPY installer/lib/69-update-request.sh /tmp/maran-installer/lib/69-update-request.sh
+COPY installer/lib/69-update-schedule.sh /tmp/maran-installer/lib/69-update-schedule.sh
+COPY installer/systemd/maran-update-request.service /tmp/maran-installer/systemd/maran-update-request.service
+COPY installer/systemd/maran-update-request.path /tmp/maran-installer/systemd/maran-update-request.path
+COPY installer/systemd/maran-update-request.tmpfiles.conf /tmp/maran-installer/systemd/maran-update-request.tmpfiles.conf
 
 # Step 68, the opt-in unattended OS security updates (issue #163). The step is RUN twice by
 # docker/polygon/asserts/parts/os-security-updates.sh, flag off and flag on, and it installs the
@@ -296,6 +304,9 @@ COPY installer/lib/68-os-updates.sh /tmp/maran-installer/lib/68-os-updates.sh
 # The unit and the logrotate policy are the step's PAYLOAD: it resolves them against
 # $SCRIPT_DIR, which the assert script sets to /tmp/maran-installer.
 COPY installer/lib/89-ftps.sh /tmp/maran-installer/lib/89-ftps.sh
+COPY installer/lib/89-dns.sh /tmp/maran-installer/lib/89-dns.sh
+COPY installer/lib/89-mail.sh /tmp/maran-installer/lib/89-mail.sh
+COPY installer/systemd/maran-dns.service /tmp/maran-installer/systemd/maran-dns.service
 COPY installer/lib/20-dependencies.sh /tmp/maran-installer/lib/20-dependencies.sh
 COPY installer/systemd/maran-ftps.service /tmp/maran-installer/systemd/maran-ftps.service
 COPY installer/logrotate/maran-ftps /tmp/maran-installer/logrotate/maran-ftps
@@ -315,6 +326,13 @@ COPY installer/logrotate/maran-ftps /tmp/maran-installer/logrotate/maran-ftps
 # drift back into a check that cannot fail for the reason it names.
 COPY docker/polygon/stand-ins/systemctl-stand-in.sh /usr/bin/systemctl
 RUN chmod 755 /usr/bin/systemctl
+
+# The same reason for the clock: a container boots no systemd, so the real
+# `timedatectl` refuses with "System has not been booted with systemd" and the
+# agent's clock reading (and the dev stack's system status page) could never be
+# healthy (issue #392). The stand-in is what the adapter's path resolves to.
+COPY docker/polygon/stand-ins/timedatectl-stand-in.sh /usr/bin/timedatectl
+RUN chmod 755 /usr/bin/timedatectl
 
 # The PAM development headers, and the agent's own copies of the three FTPS names. Both are for
 # assertions in docker/polygon/asserts/assert-installer-steps.sh, and both exist because a green gate over
@@ -482,6 +500,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends quota \
 # state the parse must handle anyway.
 COPY docker/polygon/stand-ins/setquota-stand-in.sh /usr/sbin/setquota
 RUN chmod 755 /usr/sbin/setquota
+
+# BIND, from the installer's own package list (`dns_packages_for_family`, public on purpose).
+# `dns_zone_files_on_a_real_host.rs` hands every shape of rendered zone to the platform's real
+# `named-checkzone`, the program `put_zone` runs as its validator, and until this block existed
+# neither image carried it: the four tests failed on "named-checkzone could not be started" and
+# the checker the adapter names was present on no host the suite ran on. Installing from the
+# installer's list means a renamed package stops this build instead of a customer's install.
+# The daemon is installed and never started: a container boots no systemd, and the suite asks
+# only the checker. The final `test -x` is the adapter's own path, `dns_checkzone_binary`.
+RUN bash -c 'set -euo pipefail; \
+      export MARAN_OS_FAMILY=debian; \
+      . /tmp/maran-installer/lib/89-dns.sh; \
+      apt-get update; DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $(dns_packages_for_family); rm -rf /var/lib/apt/lists/*; \
+      test -x /usr/bin/named-checkzone'
 
 # 88-cron.sh's own gate, run against this image — and then run against a cron
 # that is DOWN, so the green half is not the only half anybody has seen.

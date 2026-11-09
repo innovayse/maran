@@ -9,6 +9,8 @@ pub mod created_account;
 pub mod home_group_repair_refusal;
 pub mod home_group_repair_report;
 pub mod home_metadata;
+pub mod login_shell;
+pub mod new_account_settings;
 pub mod quota_state;
 pub mod quota_state_kind;
 pub mod quota_unenforceable_reason;

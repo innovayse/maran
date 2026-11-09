@@ -3,6 +3,7 @@ import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import type { PanelModule } from '../../src/types/module'
+import { stubCreateRefused, recordCreateRequests, submitCreate } from '../fixtures/stub-account-create'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubPlans, THE_PLAN } from '../fixtures/stub-plans-route'
 import { setPersistedLocale } from '../fixtures/set-locale'
@@ -12,7 +13,7 @@ import { setPersistedLocale } from '../fixtures/set-locale'
 
 /** Catalogue every spec here starts from: the accounts module licensed, so the form is reachable. */
 const LICENSED_ACCOUNTS: PanelModule[] = [
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
+  { name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 /**
@@ -44,12 +45,7 @@ test('the username follows the domain until the operator types one of their own'
 
 test('a domain typed with www is refused on the form, and nothing is sent', async ({ page }) => {
   await openForm(page)
-  const createRequests: string[] = []
-  page.on('request', (request) => {
-    if (request.method() === 'POST' && request.url().includes('/api/v1/accounts')) {
-      createRequests.push(request.url())
-    }
-  })
+  const createRequests = recordCreateRequests(page)
 
   await page.getByLabel('Primary domain').fill('www.alpha.example.com')
   await page.getByRole('combobox', { name: 'Plan', exact: true }).click()
@@ -64,17 +60,7 @@ test('a domain typed with www is refused on the form, and nothing is sent', asyn
 
 test('the chosen owner language is posted with the account', async ({ page }) => {
   await openForm(page)
-  await page.route('**/api/v1/accounts', async (route) => {
-    if (route.request().method() !== 'POST') {
-      await route.fallback()
-      return
-    }
-    await route.fulfill({
-      status: 400,
-      contentType: 'application/problem+json',
-      body: JSON.stringify({ title: 'Stop here.' }),
-    })
-  })
+  await stubCreateRefused(page)
 
   await page.getByLabel('Primary domain').fill('alpha.example.com')
   await page.getByRole('combobox', { name: 'Plan', exact: true }).click()
@@ -85,12 +71,7 @@ test('the chosen owner language is posted with the account', async ({ page }) =>
   await language.click()
   await page.getByRole('option', { name: 'Հայերեն' }).click()
 
-  const [request] = await Promise.all([
-    page.waitForRequest((candidate) => {
-      return candidate.method() === 'POST' && candidate.url().includes('/api/v1/accounts')
-    }),
-    page.getByRole('button', { name: 'Create account' }).click(),
-  ])
+  const request = await submitCreate(page)
 
   expect(request.postDataJSON()).toEqual({
     name: 'alpha',

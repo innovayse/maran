@@ -52,6 +52,7 @@ import { useCallerRole } from '../../composables/useCallerRole'
 import { useListLabels } from '../../composables/useListLabels'
 import { useReloadOnLocale } from '../../composables/useReloadOnLocale'
 import { useServerTable } from '../../composables/useServerTable'
+import { useQueryAction } from '../../composables/useQueryAction'
 import { useBackupOptionsStore } from '../../stores/backupOptions'
 import { useBackupsStore } from '../../stores/backups'
 import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
@@ -94,6 +95,9 @@ const {
 
 /** The create form, so an accepted backup can empty the picker it owns. */
 const createForm = useTemplateRef<{ reset: () => void }>('createForm')
+
+/** A dashboard shortcut (`?action=create`) brings this form into view and focuses its first field. */
+useQueryAction(createForm)
 
 /** Whether the filter sheet is open. */
 const filtersOpen: Ref<boolean> = ref(false)

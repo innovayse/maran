@@ -1,5 +1,5 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
+using Maran.Sdk.Serialization;
 
 namespace Maran.Sdk.Streaming;
 
@@ -13,23 +13,18 @@ namespace Maran.Sdk.Streaming;
 /// content and caller-chosen names, so a value containing a newline would otherwise close the frame
 /// early and let that content forge events of its own. JSON escaping keeps every value inside its
 /// own frame, and the trailing blank line is what makes a browser dispatch the event at all.
+/// The payload is written with <see cref="PanelJsonOptions.Wire"/>, the same rules the API
+/// surfaces use, so a null member arrives as <c>null</c> here exactly as it does in a response.
 /// </remarks>
 public static class EventStreamFrame
 {
-    /// <summary>How the JSON payload of each event is written: camel case, with enums as their names.</summary>
-    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
-    {
-        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-    };
-
     /// <summary>Renders one event carrying a JSON payload.</summary>
     /// <param name="eventName">The event's name, as the SPA's stream reader dispatches on it.</param>
     /// <param name="payload">The value serialized as the event's data.</param>
     /// <returns>The event's wire text, terminated by the blank line that ends an event.</returns>
     public static string Render(string eventName, object payload)
     {
-        var data = JsonSerializer.Serialize(payload, SerializerOptions);
+        var data = JsonSerializer.Serialize(payload, PanelJsonOptions.Wire);
         return $"event: {eventName}\ndata: {data}\n\n";
     }
 }

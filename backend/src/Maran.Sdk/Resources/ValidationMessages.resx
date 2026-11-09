@@ -24,6 +24,9 @@
   <data name="ListSearchInvalid">
     <value>The search text contains characters that are not allowed.</value>
   </data>
+  <data name="SearchTermTooShort">
+    <value>The search text must be at least 2 characters long.</value>
+  </data>
   <data name="ListSortUnknown">
     <value>This list cannot be sorted that way.</value>
   </data>

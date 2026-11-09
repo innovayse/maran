@@ -129,7 +129,7 @@ public sealed class LoginCommandHandler
         // moment a hash raised to stronger parameters can be recomputed without asking the user.
         if (_passwordHasher.NeedsRehash(user.PasswordHash))
         {
-            user.ChangePassword(_passwordHasher.Hash(command.Password));
+            user.Rehash(_passwordHasher.Hash(command.Password));
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
 

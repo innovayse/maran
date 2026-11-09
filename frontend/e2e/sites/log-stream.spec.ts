@@ -121,7 +121,7 @@ test('site log tail delivers every streamed line, in order, split across chunk b
   const frames = line('first', true) + line('second')
   stream.send(frames.slice(0, 30))
   stream.send(frames.slice(30))
-  stream.send('event: end\ndata: {"reason":"completed"}\n\n')
+  stream.send('event: end\ndata: {"reason":"completed","message":null}\n\n')
   stream.close()
 
   await within(tail, 'the log stream to end')
@@ -138,7 +138,7 @@ test('site log tail keeps the panel’s own ending rather than reporting a gener
   const tail = store.startLogTail(SITE_ID, 'error')
   await within(stream.opened, 'the log stream to open')
 
-  stream.send('event: end\ndata: {"reason":"dropped"}\n\n')
+  stream.send('event: end\ndata: {"reason":"dropped","message":null}\n\n')
   stream.close()
   await within(tail, 'the log stream to end')
 
@@ -167,7 +167,7 @@ test('site log tail reports an ending this panel does not recognise as failed, n
   const tail = store.startLogTail(SITE_ID, 'access')
   await within(stream.opened, 'the log stream to open')
 
-  stream.send('event: end\ndata: {"reason":"somethingNewTheAgentInvented"}\n\n')
+  stream.send('event: end\ndata: {"reason":"somethingNewTheAgentInvented","message":null}\n\n')
   stream.close()
   await within(tail, 'the log stream to end')
 
@@ -222,7 +222,7 @@ test('starting a second log tail abandons the first, so two logs never interleav
     return store.logLines.length === 1
   }, 'the second stream’s line to arrive')
 
-  second.send('event: end\ndata: {"reason":"completed"}\n\n')
+  second.send('event: end\ndata: {"reason":"completed","message":null}\n\n')
   second.close()
   await within(secondTail, 'the second stream to end')
   await within(firstTail, 'the first stream to settle')
@@ -247,7 +247,7 @@ test('a line already in flight when a second tail starts is dropped, not appende
   const secondTail = store.startLogTail(SITE_ID, 'error')
   await within(second.opened, 'the second log stream to open')
 
-  second.send('event: end\ndata: {"reason":"completed"}\n\n')
+  second.send('event: end\ndata: {"reason":"completed","message":null}\n\n')
   second.close()
   await within(secondTail, 'the second stream to end')
   await within(firstTail, 'the first stream to settle')

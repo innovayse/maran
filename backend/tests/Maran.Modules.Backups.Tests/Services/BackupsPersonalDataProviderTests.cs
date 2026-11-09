@@ -116,4 +116,26 @@ public sealed class BackupsPersonalDataProviderTests
 
         return backup;
     }
+
+    /// <summary>The export names the exclusion of an opted-out account, and only for that account.</summary>
+    [Fact]
+    public async Task The_export_names_the_exclusion_of_an_opted_out_account_and_only_that_one()
+    {
+        var mine = Guid.NewGuid();
+        await using var context = BackupsTestContext.Create(FakeCurrentUser.Admin());
+        context.AccountBackupOptOuts.Add(new AccountBackupOptOut(mine, BackupsTestContext.SeedInstant));
+        context.AccountBackupOptOuts.Add(new AccountBackupOptOut(Guid.NewGuid(), BackupsTestContext.SeedInstant));
+        await context.SaveChangesAsync();
+
+        var provider = new BackupsPersonalDataProvider(context);
+        var optedOut = await provider.ExportAsync(
+            new PersonalDataSubject(PersonalDataSubjectKind.Account, mine), CancellationToken.None);
+        var ordinary = await provider.ExportAsync(
+            new PersonalDataSubject(PersonalDataSubjectKind.Account, Guid.NewGuid()), CancellationToken.None);
+
+        var section = Assert.Single(optedOut, candidate => { return candidate.Name == "scheduleOptOut"; });
+        var record = Assert.Single(section.Records);
+        Assert.Equal(["optedOutAt"], record.Fields.Keys);
+        Assert.Empty(Assert.Single(ordinary, candidate => { return candidate.Name == "scheduleOptOut"; }).Records);
+    }
 }

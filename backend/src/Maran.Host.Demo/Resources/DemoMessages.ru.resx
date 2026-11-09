@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="securityPolicy">
+    <value>Политика безопасности доступна только для чтения в демо: входы общие для всех посетителей.</value>
+  </data>
+  <data name="smtp">
+    <value>Настройки почты доступны только для чтения в демо: оно никогда не отправляет почту.</value>
+  </data>
+  <data name="panelCertificate">
+    <value>Сертификат панели доступен только для чтения в демо: у него нет настоящего адреса.</value>
+  </data>
+  <data name="panelUpdate">
+    <value>Обновления панели отключены в демо: оно пересобирается из релиза.</value>
+  </data>
+  <data name="twoFactor">
+    <value>Двухфакторная аутентификация отключена в демо: входы общие для всех посетителей.</value>
+  </data>
+  <data name="apiKeys">
+    <value>API-ключи нельзя создавать в демо: ключ пережил бы сброс.</value>
+  </data>
+  <data name="licence">
+    <value>Лицензия доступна только для чтения в демо: в нём фиксированная демонстрационная лицензия.</value>
+  </data>
+  <data name="credentials">
+    <value>Пароли и сеансы общие для всех посетителей демо-версии, поэтому их нельзя менять.</value>
+  </data>
+  <data name="accessPaths">
+    <value>Приглашения и члены команды добавили бы в демо-версию новые способы входа, поэтому они недоступны.</value>
+  </data>
+  <data name="externalServices">
+    <value>Демо-версия не подключается к внешним сервисам.</value>
+  </data>
+  <data name="protectedResource">
+    <value>Эта учётная запись, реселлер или тариф связаны с демо-входом, поэтому их нельзя приостановить, удалить или изменить. Создайте собственные, чтобы попробовать.</value>
+  </data>
+  <data name="unclassified">
+    <value>Это действие недоступно в демо-версии.</value>
+  </data>
+</root>

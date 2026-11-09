@@ -17,8 +17,13 @@ public static class PlanLimitsMapper
 {
     /// <summary>Restates a plan definition's figures.</summary>
     /// <param name="definition">A command that passed <see cref="Validators.PlanDefinitionValidator{TCommand}"/>.</param>
+    /// <param name="mailLimits">
+    /// The mail figures the plan would hold after the write: the definition's own when it states them,
+    /// otherwise the default on creation or the plan's current ones on an edit. The handler resolves
+    /// that, because "not stated" means a different thing in each, and this mapper only restates.
+    /// </param>
     /// <returns>The figures of the plan the definition would sell.</returns>
-    public static PlanLimits ToLimits(IPlanDefinition definition)
+    public static PlanLimits ToLimits(IPlanDefinition definition, MailLimits mailLimits)
     {
         return new PlanLimits(
             definition.DiskQuotaMb,
@@ -29,6 +34,8 @@ public static class PlanLimitsMapper
             definition.MaxCronEntries,
             definition.MaxPhpWorkersPerPool,
             definition.Features.ToSet(),
-            RuntimeLimitsMapper.ToDomain(definition));
+            RuntimeLimitsMapper.ToDomain(definition),
+            mailLimits.MaxMailboxes,
+            mailLimits.MailboxQuotaPoolMib);
     }
 }

@@ -62,10 +62,15 @@ public sealed class BackupSweepWorld
     /// <param name="accountId">The account the directory knows and the schedule may name.</param>
     /// <param name="secondAccountId">A second account the directory knows, or <c>null</c>.</param>
     /// <param name="events">The create stream the agent replays.</param>
-    private BackupSweepWorld(Guid accountId, Guid? secondAccountId, IReadOnlyList<BackupCreateEvent> events)
+    /// <param name="caller">The principal the contexts are bound to, or <c>null</c> for an administrator.</param>
+    private BackupSweepWorld(
+        Guid accountId,
+        Guid? secondAccountId,
+        IReadOnlyList<BackupCreateEvent> events,
+        FakeCurrentUser? caller)
     {
         _database = Guid.NewGuid().ToString();
-        _currentUser = FakeCurrentUser.Admin();
+        _currentUser = caller ?? FakeCurrentUser.Admin();
         Agent = new StubAgentBackupClient(events);
 
         var snapshots = new List<AccountSnapshot>
@@ -90,6 +95,10 @@ public sealed class BackupSweepWorld
     /// <param name="enabled">Whether the schedule is switched on.</param>
     /// <param name="secondAccountId">A second account the directory knows, or <c>null</c>.</param>
     /// <param name="destinationId">The destination the schedule names, or <c>null</c> for the default.</param>
+    /// <param name="caller">
+    /// The principal the sweep runs as; <c>null</c> for an administrator, who sees every row. A test of
+    /// the unattended sweep passes a principal the tenant filter shows nothing.
+    /// </param>
     /// <returns>The assembled world.</returns>
     public static async Task<BackupSweepWorld> WithScheduleAsync(
         Guid accountId,
@@ -98,9 +107,10 @@ public sealed class BackupSweepWorld
         IReadOnlyList<BackupCreateEvent> events,
         bool enabled = true,
         Guid? secondAccountId = null,
-        Guid? destinationId = null)
+        Guid? destinationId = null,
+        FakeCurrentUser? caller = null)
     {
-        var world = new BackupSweepWorld(accountId, secondAccountId, events);
+        var world = new BackupSweepWorld(accountId, secondAccountId, events, caller);
 
         var schedule = new BackupSchedule(
             Guid.NewGuid(), scheduleAccountId, destinationId, new DailyBackupCadence(3), RetainCount);
@@ -135,7 +145,7 @@ public sealed class BackupSweepWorld
             new StubCorrelationIdAccessor("corr-sweep"),
             Bus,
             new BackupAlertMailer(
-                new OperatorAlertMailer(Recipients, Bus),
+                new OperatorAlertDispatcher(Recipients, Bus, new FakeClock(now)),
                 new BackupAuditJournal(Audit, _currentUser),
                 BackupsTestContext.AlertText(),
                 BackupsTestContext.FailureNames()),

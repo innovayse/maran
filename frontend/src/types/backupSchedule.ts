@@ -183,3 +183,50 @@ export interface BackupSchedulesApi {
    */
   save: (request: SaveBackupScheduleRequest, signal?: AbortSignal) => Promise<BackupSchedule>
 }
+
+/**
+ * Request body for `PUT /api/v1/me/backup-schedule`, binding the backend's `SaveMyBackupScheduleCommand`.
+ *
+ * It is {@link SaveBackupScheduleRequest} without the two members a customer does not own: there is
+ * no `accountId` (the schedule is the signed-in customer's own, established by the server from their
+ * login, and a body that named one would be discarded) and no `destinationId` (where an archive is
+ * written is the operator's decision). The server bounds the cadence to the customer's list and
+ * `retainCount` to the customer's ceiling; both lists come from `GET /api/v1/backup-options`.
+ */
+export interface SaveMyBackupScheduleRequest {
+  /** How often the backup is taken: one of the customer cadences the panel listed. */
+  frequency: BackupFrequencyWire
+  /** The hour of the day, in UTC. The server bounds it to 0..23. */
+  hourUtc: number
+  /** The weekday for a weekly schedule; must be `null` for a daily one. */
+  dayOfWeekUtc: BackupScheduleDay | null
+  /** How many successful backups to keep, up to the customer ceiling the panel listed. */
+  retainCount: number
+  /** Whether the schedule runs at all. */
+  enabled: boolean
+}
+
+/**
+ * Typed access to the signed-in customer's own backup schedule.
+ *
+ * Two calls, matching the two routes `MyBackupScheduleController` publishes, and neither names an
+ * account: the schedule it serves is the caller's. Called from Pinia stores only — never from a
+ * component (rules/vue.md).
+ */
+export interface MyBackupScheduleApi {
+  /**
+   * Reads the caller's own schedule. An account that has never saved one answers `200` with
+   * `schedule: null` — the ordinary first state, not a fault.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The scope, holding the schedule or none.
+   */
+  get: (signal?: AbortSignal) => Promise<BackupScheduleScopeView>
+
+  /**
+   * Creates or replaces the caller's own schedule and answers with what was stored.
+   * @param request The schedule to store.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The stored schedule.
+   */
+  save: (request: SaveMyBackupScheduleRequest, signal?: AbortSignal) => Promise<BackupSchedule>
+}

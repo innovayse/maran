@@ -85,4 +85,47 @@ public sealed class ScriptedAgentPhpClient : IAgentPhpClient
             await Task.Yield();
         }
     }
+
+    /// <summary>Answers an empty extension listing: this script drives the install endpoint only.</summary>
+    /// <param name="version">Ignored.</param>
+    /// <param name="cancellationToken">Ignored.</param>
+    /// <returns>No extensions.</returns>
+    public Task<Result<IReadOnlyList<PhpExtensionDto>>> ListExtensionsAsync(
+        string version,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult(Result<IReadOnlyList<PhpExtensionDto>>.Ok([]));
+    }
+
+    /// <summary>Never answers: this script drives the install endpoint only.</summary>
+    /// <param name="version">Ignored.</param>
+    /// <param name="extension">Ignored.</param>
+    /// <param name="enabled">Ignored.</param>
+    /// <param name="cancellationToken">Ignored.</param>
+    /// <returns>Never returns.</returns>
+    public IAsyncEnumerable<PhpExtensionEvent> SetExtensionAsync(
+        string version,
+        string extension,
+        bool enabled,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This script drives the install endpoint only.");
+    }
+
+    /// <summary>Never answers: this script drives the install endpoint only.</summary>
+    /// <param name="accountUsername">Ignored.</param>
+    /// <param name="version">Ignored.</param>
+    /// <param name="maxChildren">Ignored.</param>
+    /// <param name="settingOverrides">Ignored.</param>
+    /// <param name="cancellationToken">Ignored.</param>
+    /// <returns>Never returns.</returns>
+    public Task<Result> ApplyPoolSettingsAsync(
+        string accountUsername,
+        string version,
+        uint maxChildren,
+        IReadOnlyList<PhpSettingDto> settingOverrides,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This script drives the install endpoint only.");
+    }
 }

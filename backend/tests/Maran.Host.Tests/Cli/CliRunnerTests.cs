@@ -2,10 +2,8 @@ using Maran.Host.Cli;
 using Maran.Host.Cli.Enums;
 using Maran.Host.Cli.Models;
 using Maran.Host.Cli.Services;
-using Maran.Host.Configuration;
 using Maran.Host.Tests.Cli.Fixtures;
-using Maran.Modules.Identity.Options;
-using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Configuration;
 
 namespace Maran.Host.Tests.Cli;
 
@@ -20,10 +18,9 @@ public sealed class CliRunnerTests
     private static CliSecretLiterals Secrets()
     {
         return new CliSecretLiterals(
-            new OptionsWrapper<DatabaseOptions>(new DatabaseOptions { Password = DatabasePassword }),
-            new OptionsWrapper<SecurityOptions>(new SecurityOptions()),
-            new OptionsWrapper<JwtOptions>(new JwtOptions()),
-            new OptionsWrapper<SetupOptions>(new SetupOptions()));
+            new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?> { ["Database:Password"] = DatabasePassword })
+                .Build());
     }
 
     /// <summary>Builds an invocation with the given process facts.</summary>

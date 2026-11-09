@@ -1,6 +1,7 @@
 using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Callers;
 
 namespace Maran.Modules.Accounts.Tests.Services;
 
@@ -56,6 +57,43 @@ public sealed class AccountAuditJournalTests
             Assert.Null(entry.AccountId);
         });
         Assert.Equal(2, _writer.Entries.Count);
+    }
+
+    /// <summary>A key's entry names the key as the actor, with no user id, and never the secret.</summary>
+    [Fact]
+    public async Task A_keys_entry_names_the_key_as_the_actor_with_no_user_id()
+    {
+        var keyId = Guid.NewGuid();
+        var caller = new ApiKeyCaller(keyId, [ApiKeyScopes.AccountsRead], Guid.NewGuid());
+        var journal = new AccountAuditJournal(_writer, new FakeCurrentUser(caller));
+
+        await journal.RecordSuccessAsync(
+            AccountAuditActions.AccountSuspended, "acme", "203.0.113.7", "agent", CancellationToken.None);
+        await journal.RecordFailureAsync(
+            AccountAuditActions.AccountSuspended, "acme", "203.0.113.7", "agent", CancellationToken.None);
+
+        Assert.Equal(2, _writer.Entries.Count);
+        Assert.All(_writer.Entries, entry =>
+        {
+            Assert.Equal(Guid.Empty, entry.ActorUserId);
+            Assert.Equal("api-key:" + keyId.ToString("N"), entry.ActorUsername);
+            Assert.DoesNotContain("Bearer", entry.ActorUsername, StringComparison.Ordinal);
+        });
+    }
+
+    /// <summary>The inverse control: a reseller's login is recorded under its user id and login name.</summary>
+    [Fact]
+    public async Task A_resellers_login_is_recorded_under_its_user_id_and_name()
+    {
+        var caller = new ResellerCaller(Guid.NewGuid(), "reseller-login", Guid.NewGuid());
+        var journal = new AccountAuditJournal(_writer, new FakeCurrentUser(caller));
+
+        await journal.RecordSuccessAsync(
+            AccountAuditActions.AccountSuspended, "acme", "203.0.113.7", "agent", CancellationToken.None);
+
+        var entry = Assert.Single(_writer.Entries);
+        Assert.Equal(caller.UserId, entry.ActorUserId);
+        Assert.Equal("reseller-login", entry.ActorUsername);
     }
 
     /// <summary>Creates the journal under test over the recording double.</summary>

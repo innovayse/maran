@@ -14,7 +14,7 @@ import type { PanelModule } from '../../src/types/module'
 
 /** Catalogue every spec here starts from: the accounts module licensed, which is what owns plans. */
 const LICENSED_ACCOUNTS: PanelModule[] = [
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
+  { name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 /** Starter has three accounts on it, so it is the plan whose edits and deletion reach customers. */
@@ -43,7 +43,7 @@ const open = async (
 }
 
 /**
- * Fills the plan form's seven limits and name with a valid plan.
+ * Fills the plan form's name, seven limits, three ceilings and four PHP bounds with a valid plan.
  * @param page The Playwright page under test.
  * @param name The plan's name.
  * @returns Resolves once every field is filled.
@@ -61,6 +61,10 @@ const fillValidPlan = async (page: Page, name: string): Promise<void> => {
   // Memory is left uncapped on purpose: "No limit" is a case of its own, never a zero.
   await page.getByRole('checkbox', { name: 'No limit' }).nth(1).check({ force: true })
   await page.getByLabel('Processes', { exact: true }).fill('64')
+  await page.getByLabel('PHP memory limit, at most (MB)').fill('256')
+  await page.getByLabel('PHP upload size, at most (MB)').fill('64')
+  await page.getByLabel('PHP execution time, at most (seconds)').fill('120')
+  await page.getByLabel('PHP input variables, at most').fill('3000')
 }
 
 test('the list shows every plan with its limits as numbers, and "None" where a plan sells none', async ({
@@ -134,8 +138,8 @@ test('submitting the empty form shows the panel own field messages and sends not
   await page.getByRole('button', { name: 'Create plan' }).click()
 
   await expect(page.getByText('Name is required.')).toBeVisible()
-  // Seven limits and three runtime ceilings, ten messages.
-  await expect(page.getByText('Enter a whole number.')).toHaveCount(10)
+  // Seven limits, three runtime ceilings and four PHP bounds, fourteen messages.
+  await expect(page.getByText('Enter a whole number.')).toHaveCount(14)
   await expect(page.getByLabel('Plan name')).toHaveAttribute('aria-invalid', 'true')
   expect(requests.created).toEqual([])
 })
@@ -180,6 +184,7 @@ test('a valid plan is posted as typed and shows up in the list', async ({ page }
       cpuQuotaPercent: { kind: 'limited', maximum: 150 },
       memoryMaxMb: { kind: 'unlimited' },
       maxProcesses: { kind: 'limited', maximum: 64 },
+      phpLimits: { memoryLimitMaxMb: 256, uploadMaxMb: 64, maxExecutionSeconds: 120, maxInputVars: 3000 },
       // A new plan starts with every feature the panel lists ticked, in the panel's order.
       features: ['mail', 'dns', 'databases', 'cron', 'fileTransfer', 'backups', 'sites', 'ssl', 'tasks', 'php'],
     },
@@ -229,6 +234,7 @@ test('editing a plan starts from its figures and puts the whole plan', async ({ 
     cpuQuotaPercent: { kind: 'unlimited' },
     memoryMaxMb: { kind: 'unlimited' },
     maxProcesses: { kind: 'unlimited' },
+    phpLimits: { memoryLimitMaxMb: 256, uploadMaxMb: 64, maxExecutionSeconds: 120, maxInputVars: 3000 },
     features: ['mail', 'dns', 'databases', 'cron', 'fileTransfer', 'backups', 'sites', 'ssl', 'tasks', 'php'],
   })
   await expect(

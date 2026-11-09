@@ -1,4 +1,5 @@
 using Maran.Agent.Client.Services.PhpService;
+using Maran.Modules.Sites.Common;
 using Maran.Modules.Sites.Domain.Enums;
 using AgentPhpVersionDto = Maran.Agent.Client.Services.PhpService.PhpVersionDto;
 using PhpVersionDto = Maran.Modules.Sites.Common.PhpVersionDto;
@@ -19,17 +20,14 @@ namespace Maran.Modules.Sites.Mappers;
 /// </remarks>
 public static class PhpVersionMapper
 {
-    /// <summary>Restates the agent's installed versions as the panel's outward view.</summary>
-    /// <param name="versions">The agent client's versions.</param>
-    /// <returns>The same versions, without the FPM socket directory.</returns>
-    public static IReadOnlyList<PhpVersionDto> From(IEnumerable<AgentPhpVersionDto> versions)
+    /// <summary>Restates one of the agent's installed versions as the panel's outward view.</summary>
+    /// <param name="version">The agent client's version.</param>
+    /// <param name="lifecycle">Where the version stands in its support life, already read from the table.</param>
+    /// <param name="sitesUsing">How many sites use the version, or <see langword="null"/> when the caller may not know.</param>
+    /// <returns>The same version, without the FPM socket directory.</returns>
+    public static PhpVersionDto From(AgentPhpVersionDto version, PhpLifecycleDto lifecycle, int? sitesUsing)
     {
-        return versions
-            .Select(version =>
-            {
-                return new PhpVersionDto(version.Version, ToDefaultStatus(version.DefaultStatus));
-            })
-            .ToList();
+        return new PhpVersionDto(version.Version, ToDefaultStatus(version.DefaultStatus), lifecycle, sitesUsing);
     }
 
     /// <summary>Restates the agent client's default status as the panel's, one answer for one answer.</summary>

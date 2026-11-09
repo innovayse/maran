@@ -29,14 +29,15 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  ci:
+  lint:
     runs-on: ubuntu-latest
-    # Measured basis: successful dev runs 41293966857, 41279955166, 41242417734 took 12.6, 12.3 and
-    # 10.7 min. On PR #400 the Playwright browser install alone took 9-10 minutes on a slow runner
-    # and the job hit its old 25-minute limit with no spec verdict (issue #409). 40 = the slowest
-    # measured run (about 13 min) plus that install at its slowest, with margin; the install has a
-    # limit of its own below, so a hung download still fails early under its own name.
-    timeout-minutes: 40
+    # Measured basis: the gates only since issue #289 moved the Playwright suite to `shard`. Before
+    # that the one job took 10.7-12.6 min on successful dev runs 41293966857, 41279955166 and
+    # 41242417734, of which the suite was about 8 min and the rest (install, lint, typecheck, build)
+    # about 4-5 min. 15 is those gates with generous headroom; it has NO measurement of its own yet
+    # and is to be re-sized from the first runs of this layout (rules/testing.md: a limit names the
+    # runs it was sized from).
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
 
@@ -106,6 +107,51 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
 
+      # The sharded lane's own selftest: the combine step planted with every way a shard set can
+      # lie (a shard that vanished, a spec file in two shards or in none, a file without a row, a
+      # dropped total, a baselined file gone), plus the real enumeration and a partition with no
+      # empty shard. It sits here because it needs the installed `@playwright/test` to list the real
+      # spec files and nothing else: no browser, no server.
+      - name: Shard combine selftest
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -o pipefail
+          bash scripts/maran test spa --shards-selftest 2>&1 | tee "$RUNNER_TEMP/shards-selftest.log"
+          grep -q '^SPA SHARDS SELFTEST: OK' "$RUNNER_TEMP/shards-selftest.log" || {
+            echo "::error::the SPA shard selftest did not print 'SPA SHARDS SELFTEST: OK'."
+            exit 1
+          }
+
+  # THE PLAYWRIGHT SUITE IN THREE SHARDS (issue #289). The one job used to run every spec file
+  # after the gates, `workers: 1`, and the suite step alone was 12.8 of 16.4 minutes. Each shard
+  # installs its own browser (about a minute, uncached on purpose, see below) and runs a third of the
+  # spec files: `maran test spa --shard i/3` (scripts/lib/spa-shards.sh) packs them
+  # deterministically by the test counts of the committed baseline. Three shards put the per-shard
+  # tests near four minutes, which is where one more shard would cost its own install again. A shard
+  # prints no verdict: only `verdict` below, which proves the partition and scores the sum against
+  # the baseline, does.
+  shard:
+    runs-on: ubuntu-latest
+    # No measurement of this layout yet: the basis is the old job (suite step 12.8 min for the whole
+    # suite, install 1-10 min, issue #409), so a third of the suite plus the slowest measured
+    # install plus build is under 25. To be re-sized from the first runs (rules/testing.md).
+    timeout-minutes: 25
+    strategy:
+      # Every shard reports, always: a verdict missing a shard is a verdict over part of the suite.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+
       # Playwright needs a real browser, and the harness's toolchain check REFUSES to measure
       # without one (it probes `$PLAYWRIGHT_BROWSERS_PATH` or `~/.cache/ms-playwright` for a
       # `chromium-*` directory). Kept exactly as it was found: `--with-deps` also installs the
@@ -126,7 +172,7 @@ jobs:
         timeout-minutes: 20
         run: npx playwright install --with-deps chromium
 
-      # THE VERDICT, and it is not `npm run test:e2e`. It used to be, and that is the gap
+      # WHY THE SUITE IS NOT `npm run test:e2e`. It used to be, and that is the gap
       # rules/testing.md named by file: "`.github/workflows/frontend.yml` still runs bare
       # `npm run test:e2e`, so in CI the SPA floor is compared against nothing, exactly as the
       # backend and agent lanes were."
@@ -138,15 +184,17 @@ jobs:
       #   - a collected total that fell while the file list held steady — a `describe` block deleted,
       #     a test commented out.
       #   - a total that held steady because another file grew by as much as this one shrank. This
-      #     is why the baseline is keyed ONE ROW PER SPEC FILE (64 rows) rather than on the grand
+      #     is why the baseline is keyed ONE ROW PER SPEC FILE rather than on the grand
       #     total: a per-file floor names the file that moved, a total floor cannot.
       #   - a FLAKY test. `playwright.config.ts` sets `retries: 1` under CI, so a test that fails and
       #     then passes leaves the process green. rules/testing.md: "a flaky test is a P1 bug: fix or
       #     delete-and-file, never retry-loop it." The harness scores `flaky` as a FAILURE and names
       #     it as such.
       #
-      # `maran test spa` runs the WHOLE suite (there is no scope parameter — narrowing it means
-      # editing `suite_run` in front of a reviewer), scores it from Playwright's JSON reporter rather
+      # `maran test spa` itself still runs the WHOLE suite and refuses every narrowing flag. A shard
+      # narrows the run only through `--shard`, and the `verdict` job refuses to score anything the
+      # partition proof has not shown to be the whole suite, each spec file exactly once. Each shard
+      # scores from Playwright's JSON reporter rather
       # than the `list` reporter (the list reporter prints one line per ATTEMPT, so under `retries: 1`
       # a text parser would report a total no run produced), parses one row per spec file, names
       # every failing test, reconciles the named list against the totals, and compares both against
@@ -181,57 +229,103 @@ jobs:
       # The pass condition is the harness's printed VERDICT LINE, not its exit status. A non-zero
       # status fails the step, and so does a status of 0 with no `TEST VERDICT: OK` printed — which
       # is the shape every measured false pass in this repository has had. `set -o pipefail` because
-      # `... | tee` otherwise reports TEE's status, which is 0 whatever the command did.
-      - name: Test verdict — per-spec-file totals against the committed baseline
+      # `... | tee` otherwise reports TEE's status, which is 0 whatever the command did. In a shard
+      # the line is `SHARD i/3: ran`; the `TEST VERDICT: OK` line is the `verdict` job's.
+      - name: Shard ${{ matrix.shard }} of 3 — a third of the spec files
         working-directory: ${{ github.workspace }}
-        id: verdict
+        id: shard
         env:
           CI: 'true'
         run: |
           set -o pipefail
-          mkdir -p "$RUNNER_TEMP/verdict"
+          mkdir -p "$RUNNER_TEMP/shards"
           status=0
-          bash scripts/maran test spa 2>&1 |
-            tee "$RUNNER_TEMP/verdict/spa.log" || status=$?
-          echo "harness exit status: $status (recorded; the verdict is the line below, not this)"
-          if ! grep -q '^TEST VERDICT: OK' "$RUNNER_TEMP/verdict/spa.log"; then
-            echo "::error::the SPA suite did not print 'TEST VERDICT: OK'. This lane passes on"
-            echo "the harness's verdict, never on an exit code, and no verdict was printed."
-            echo "--- what the run reported ---"
-            # The fallback is not decoration, and it was added because a demonstration exposed the
-            # gap: when the harness dies BEFORE printing any of the lines below — killed, a shell
-            # error, a stub that prints only its per-target rows — this grep matches nothing, `|| true`
-            # swallows it, and the engineer reads an EMPTY "what the run reported" section under an
-            # error that says the verdict is missing. The whole log is in the artifact either way, but
-            # the step's own output should never be blank at the exact moment it is reporting a
-            # failure it cannot characterise.
-            if ! grep -aE '^(TEST VERDICT|collected |ABORTED|REFUSED|CONTAMINATED|UNRECONCILED|SELF-TEST| +spa: )' \
-              "$RUNNER_TEMP/verdict/spa.log"; then
-              echo "(no verdict, finding or abort line in the log at all — its last 40 lines:)"
-              tail -40 "$RUNNER_TEMP/verdict/spa.log" || true
+          bash scripts/maran test spa --shard ${{ matrix.shard }}/3 --out "$RUNNER_TEMP/shards" 2>&1 |
+            tee "$RUNNER_TEMP/shard.log" || status=$?
+          echo "harness exit status: $status (recorded; the line below is the evidence, not this)"
+          if ! grep -q '^SHARD ${{ matrix.shard }}/3: ran' "$RUNNER_TEMP/shard.log"; then
+            echo "::error::shard ${{ matrix.shard }}/3 did not print 'SHARD ${{ matrix.shard }}/3: ran'. It passes on"
+            echo "that line, never on an exit code; no such line was printed."
+            echo "--- what the shard reported ---"
+            if ! grep -aE '^(SHARD|ABORTED|REFUSED|CONTAMINATED|UNRECONCILED|SELF-TEST|TEST VERDICT)' \
+              "$RUNNER_TEMP/shard.log"; then
+              echo "(no verdict-shaped line in the log; its last 40 lines follow)"
+              tail -40 "$RUNNER_TEMP/shard.log" || true
             fi
             exit 1
           fi
           if [ "$status" -ne 0 ]; then
-            echo "::error::the SPA suite printed 'TEST VERDICT: OK' and then exited $status."
+            echo "::error::shard ${{ matrix.shard }}/3 printed 'ran' and then exited $status."
             echo "Those two disagree, so neither is evidence: score nothing from this run."
             exit 1
           fi
 
-      # The log, always — including on a red run, which is the run somebody actually needs it for.
-      # It carries the per-spec-file rows and the named failures; the step above prints only the
-      # lines that decide the verdict.
-      # No `working-directory` here: GitHub accepts that key on `run` steps only, and the job's
-      # default (`frontend`) does not reach an action either way. The path below is absolute.
-      # Conditioned on the verdict step having RUN, not merely on the job not being cancelled: with
-      # `!cancelled()` alone this step also fires when a gate ABOVE the verdict failed — a red
-      # `npm run lint`, a browser install that could not reach the CDN — and then errors on a log
-      # that was never written, a second and misleading red on a job whose real failure is somewhere
-      # else entirely.
+      # The shard's result files, always — including on a red run. The `verdict` job reads these,
+      # and a shard that never uploads is named MISSING there instead of silently absent. Conditioned
+      # on the shard step having RUN, so a gate above it that failed does not add a second red.
+      - name: Keep the shard's result
+        if: ${{ !cancelled() && steps.shard.conclusion != 'skipped' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-shard-${{ matrix.shard }}
+          path: ${{ runner.temp }}/shards/
+          if-no-files-found: error
+
+  # The verdict over the merged shard results: every shard present and ran, one enumeration, file
+  # lists disjoint and covering it, a row for every file; then the summed rows against the
+  # per-spec-file baseline in scripts/test-baseline.txt, so a vanished spec file, a dropped total or
+  # a flaky test fails exactly as it does in an unsharded run. `always()` so that a red or missing
+  # shard still gets named here; needs no node, no browser and no build.
+  verdict:
+    if: ${{ always() }}
+    needs: shard
+    runs-on: ubuntu-latest
+    # No measurement yet: reading a few result files and comparing rows takes seconds; 10 is a hang
+    # guard to be re-sized from the first runs.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: frontend-shard-*
+          path: ${{ runner.temp }}/artifacts
+
+      # `working-directory` is overridden to the repository root for the same reason as in the shard
+      # step: the workflow default is `frontend`, and `scripts/maran` lives at the root.
+      - name: Test verdict — the shards combined against the committed baseline
+        working-directory: ${{ github.workspace }}
+        env:
+          CI: 'true'
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/shards"
+          find "$RUNNER_TEMP/artifacts" -name 'shard-*' -type f -exec cp {} "$RUNNER_TEMP/shards/" \;
+          status=0
+          bash scripts/maran test spa --combine "$RUNNER_TEMP/shards" 2>&1 |
+            tee "$RUNNER_TEMP/verdict.log" || status=$?
+          echo "harness exit status: $status (recorded; the verdict is the line above, not this)"
+          if ! grep -q '^TEST VERDICT: OK' "$RUNNER_TEMP/verdict.log"; then
+            echo "::error::the combined SPA suite did not print 'TEST VERDICT: OK'. This lane passes on"
+            echo "the harness's verdict, never on an exit code, and no verdict was printed."
+            echo "--- what the run reported ---"
+            if ! grep -aE '^(TEST VERDICT|collected |ABORTED|REFUSED|SELF-TEST|PARTITION|partition| +spa: )' \
+              "$RUNNER_TEMP/verdict.log"; then
+              echo "(no verdict, finding or abort line in the log at all — its last 40 lines:)"
+              tail -40 "$RUNNER_TEMP/verdict.log" || true
+            fi
+            exit 1
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo "::error::the combine printed 'TEST VERDICT: OK' and then exited $status."
+            echo "Those two disagree, so neither is evidence: score nothing from this run."
+            exit 1
+          fi
+
       - name: Keep the verdict log
-        if: ${{ !cancelled() && steps.verdict.conclusion != 'skipped' }}
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
           name: frontend-test-verdict
-          path: ${{ runner.temp }}/verdict/spa.log
+          path: ${{ runner.temp }}/verdict.log
           if-no-files-found: error

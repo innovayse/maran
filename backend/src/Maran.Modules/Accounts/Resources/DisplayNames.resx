@@ -117,4 +117,61 @@
   <data name="ResellerStatusSuspended">
     <value>Suspended</value>
   </data>
+  <data name="AccountFeatureFiles">
+    <value>Files</value>
+  </data>
+  <data name="AccountsMenuAccountsList">
+    <value>Account list</value>
+  </data>
+  <data name="AccountsMenuAccountsNew">
+    <value>New account</value>
+  </data>
+  <data name="AccountsMenuPlans">
+    <value>Plans</value>
+  </data>
+  <data name="AccountsMenuResellers">
+    <value>Resellers</value>
+  </data>
+  <data name="AccountsMenuResellerOverview">
+    <value>Overview</value>
+  </data>
+  <data name="AccountsRouteAccounts">
+    <value>Accounts</value>
+  </data>
+  <data name="AccountsRouteAccountsNew">
+    <value>New account</value>
+  </data>
+  <data name="AccountsRouteAccountDetail">
+    <value>Account</value>
+  </data>
+  <data name="AccountsRoutePlans">
+    <value>Plans</value>
+  </data>
+  <data name="AccountsRoutePlansNew">
+    <value>New plan</value>
+  </data>
+  <data name="AccountsRoutePlansEdit">
+    <value>Edit plan</value>
+  </data>
+  <data name="AccountsRouteResellers">
+    <value>Resellers</value>
+  </data>
+  <data name="AccountsRouteResellersNew">
+    <value>New reseller</value>
+  </data>
+  <data name="AccountsRouteResellerDetail">
+    <value>Reseller</value>
+  </data>
+  <data name="AccountsRouteResellerProfileEdit">
+    <value>Edit the reseller</value>
+  </data>
+  <data name="AccountsRouteResellerEdit">
+    <value>Change the envelope</value>
+  </data>
+  <data name="AccountsRouteResellerApiKeysOversight">
+    <value>API keys of the reseller</value>
+  </data>
+  <data name="AccountsRouteResellerOverview">
+    <value>Your reseller account</value>
+  </data>
 </root>

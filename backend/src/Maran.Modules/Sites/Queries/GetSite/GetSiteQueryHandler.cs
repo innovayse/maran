@@ -57,6 +57,7 @@ public sealed class GetSiteQueryHandler
             site.HasCertificate,
             site.Status,
             _siteNames.Of(site.Status),
-            site.CreatedAt));
+            site.CreatedAt,
+            site.LogRetentionDays));
     }
 }

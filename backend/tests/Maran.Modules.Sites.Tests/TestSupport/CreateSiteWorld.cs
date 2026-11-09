@@ -48,6 +48,12 @@ public sealed class CreateSiteWorld
     /// <summary>The principal the context and the handler share.</summary>
     public FakeCurrentUser CurrentUser { get; }
 
+    /// <summary>The bus the handler announces a created site on.</summary>
+    public RecordingMessageBus Bus { get; }
+
+    /// <summary>Where the announcer reports a subscriber that could not finish.</summary>
+    public RecordingLogger<SiteCreationAnnouncer> AnnouncerLog { get; } = new();
+
     /// <summary>Assembles the world.</summary>
     /// <param name="accountId">The account the caller owns.</param>
     /// <param name="maxSites">The plan's site allowance.</param>
@@ -57,6 +63,7 @@ public sealed class CreateSiteWorld
     /// <param name="createFailure">When set, the agent refuses only the creation.</param>
     /// <param name="deleteFailure">When set, the agent refuses only the delete.</param>
     /// <param name="asAdministrator">When true the caller is an administrator, whom no tenant filter narrows.</param>
+    /// <param name="bus">The bus the creation is announced on; one that records and accepts when omitted.</param>
     public CreateSiteWorld(
         Guid accountId,
         int maxSites = 5,
@@ -65,8 +72,10 @@ public sealed class CreateSiteWorld
         Error? phpFailure = null,
         Error? createFailure = null,
         Error? deleteFailure = null,
-        bool asAdministrator = false)
+        bool asAdministrator = false,
+        RecordingMessageBus? bus = null)
     {
+        Bus = bus ?? new RecordingMessageBus();
         Database = Guid.NewGuid().ToString();
         CurrentUser = asAdministrator ? FakeCurrentUser.Admin() : FakeCurrentUser.Customer(accountId);
         DbContext = SitesTestContext.Create(CurrentUser, Database);
@@ -163,7 +172,9 @@ public sealed class CreateSiteWorld
             new SiteRecorder(SlotGate, new SiteVhostCompensator(claims, Agent, Logger)),
             new SiteAuditJournal(Audit, CurrentUser),
             new FakeClock(Now),
-            SitesTestContext.SiteNames());
+            SitesTestContext.SiteNames(),
+            new PhpAccountPoolSettings(DbContext),
+            new SiteCreationAnnouncer(Bus, AnnouncerLog));
     }
 
     /// <summary>Commits a site of ANOTHER account holding the given names, as a concurrent creation would.</summary>

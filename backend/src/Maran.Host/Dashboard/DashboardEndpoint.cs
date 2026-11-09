@@ -1,12 +1,9 @@
 using Maran.Host.Authorization;
-using Maran.Modules.Accounts.Queries.CountAccounts;
-using Maran.Modules.Databases.Queries.CountDatabases;
 using Maran.Modules.Identity.Common;
 using Maran.Modules.Identity.Queries.ListRecentAuditEvents;
 using Maran.Modules.Monitoring.Common;
 using Maran.Modules.Monitoring.Queries.GetHostMetrics;
 using Maran.Modules.Monitoring.Queries.ListServiceStatuses;
-using Maran.Modules.Sites.Queries.CountSites;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Callers;
 using Wolverine;
@@ -27,7 +24,7 @@ namespace Maran.Host.Dashboard;
 /// <para>
 /// <b>Authorization is this file's one dangerous responsibility, so it is stated rather than
 /// implied.</b> Every module's CONTROLLER carries its own policy; its query HANDLER carries none.
-/// Dispatching <see cref="CountAccountsQuery"/> from here therefore runs a query whose HTTP surface
+/// Dispatching <c>CountAccountsQuery</c> from here therefore runs a query whose HTTP surface
 /// is administrators-only with no policy in the way, so this endpoint supplies the decision itself:
 /// the route requires a signed-in caller, and every server-wide section is read only after
 /// <see cref="ICurrentUser.Caller"/> is confirmed to be an <see cref="AdministratorCaller"/>. The check comes BEFORE any dispatch, not
@@ -61,7 +58,7 @@ public static class DashboardEndpoint
     /// Few enough to read without scrolling on the screen they share with everything else; the
     /// journal itself is one click away and is where a reader who wants more should end up.
     /// </remarks>
-    private const int RecentAuditEntries = 5;
+    public const int RecentAuditEntries = 5;
 
     /// <summary>Maps <c>GET /api/v1/dashboard</c>.</summary>
     /// <param name="endpoints">The endpoint route builder to map onto.</param>
@@ -121,12 +118,7 @@ public static class DashboardEndpoint
             bus, logger, new GetHostMetricsQuery(), cancellationToken);
         var services = DashboardSectionReader.ReadAsync<IReadOnlyList<ServiceStatusDto>>(
             bus, logger, new ListServiceStatusesQuery(), cancellationToken);
-        var accounts = DashboardSectionReader.ReadAsync<int>(
-            bus, logger, new CountAccountsQuery(), cancellationToken);
-        var sites = DashboardSectionReader.ReadAsync<int>(
-            bus, logger, new CountSitesQuery(), cancellationToken);
-        var databases = DashboardSectionReader.ReadAsync<int>(
-            bus, logger, new CountDatabasesQuery(), cancellationToken);
+        var counts = DashboardCountsReader.ReadAsync(bus, logger, cancellationToken);
         var attention = AttentionReader.ReadAsync(bus, logger, clock, cancellationToken);
         var audit = DashboardSectionReader.ReadAsync<IReadOnlyList<AuditEventDto>>(
             bus, logger, new ListRecentAuditEventsQuery(RecentAuditEntries), cancellationToken);
@@ -134,9 +126,7 @@ public static class DashboardEndpoint
         await Task.WhenAll(
             resources,
             services,
-            accounts,
-            sites,
-            databases,
+            counts,
             attention,
             audit);
 
@@ -144,13 +134,9 @@ public static class DashboardEndpoint
             Resources: await resources,
             Services: await services,
 
-            // Each count comes from the module's own count query, never from its list: a paged
-            // listing holds one page, not the total. A module that did not answer is Unavailable,
-            // never zero.
-            Counts: new DashboardCountsDto(
-                Accounts: await accounts,
-                Sites: await sites,
-                Databases: await databases),
+            // Each count comes from the module's own count query, never from its list, and a module
+            // that did not answer is Unavailable, never zero (DashboardCountsReader).
+            Counts: await counts,
 
             Attention: await attention,
 

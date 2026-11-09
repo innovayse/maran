@@ -23,6 +23,19 @@ namespace Maran.Modules.Backups.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Maran.Modules.Backups.Domain.Entities.AccountBackupOptOut", b =>
+                {
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("OptedOutAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("AccountId");
+
+                    b.ToTable("AccountBackupOptOuts", "backups");
+                });
+
             modelBuilder.Entity("Maran.Modules.Backups.Domain.Entities.Backup", b =>
                 {
                     b.Property<Guid>("Id")
@@ -122,8 +135,17 @@ namespace Maran.Modules.Backups.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ArchiveKey")
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("EncryptArchives")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
 
                     b.Property<bool>("IsDefault")
                         .HasColumnType("boolean");

@@ -7,7 +7,7 @@ import type { PanelModule } from '../../src/types/module'
 import type { SiteDetail } from '../../src/types/site'
 
 const LICENSED_SITES: PanelModule[] = [
-  { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
+  { name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 const SITE: SiteDetail = {
@@ -24,6 +24,7 @@ const SITE: SiteDetail = {
   status: 'enabled',
   statusName: 'Enabled',
   createdAt: '2026-08-01T10:00:00Z',
+  logRetentionDays: 14,
 }
 
 /**

@@ -3,9 +3,9 @@ using Maran.Agent.V1;
 
 namespace Maran.Agent.Client.Tests.Services.AccountsService;
 
-/// <summary>Stub of <c>IAccountsServiceInvoker</c> answering the three rpcs these tests read.</summary>
+/// <summary>Stub of <c>IAccountsServiceInvoker</c> answering the rpcs these tests read.</summary>
 /// <remarks>
-/// Only the suspension state, the runtime ceilings and the usage reading are answered; every other member throws, because a stub that shrugged at
+/// Only the creation, the unsuspension, the suspension state, the quota, the runtime ceilings, the open-files ceiling and the usage reading are answered; every other member throws, because a stub that shrugged at
 /// an unexpected call would let a client reaching for the wrong rpc pass. What is under test here is
 /// the mapping of that one answer onto this project's own DTOs, which is where four numbers and two
 /// lists sit side by side and a swap compiles.
@@ -24,6 +24,30 @@ internal sealed class StubAccountsService : IAccountsServiceInvoker
     /// <summary>The last runtime-ceiling request the stub received.</summary>
     public SetAccountResourceLimitsRequest? LastResourceLimitsRequest { get; private set; }
 
+    /// <summary>Response returned from <see cref="CreateAccountAsync"/>.</summary>
+    public CreateAccountResponse CreateResponse { get; set; } = new();
+
+    /// <summary>The last creation request the stub received.</summary>
+    public CreateAccountRequest? LastCreateRequest { get; private set; }
+
+    /// <summary>Response returned from <see cref="UnsuspendAccountAsync"/>.</summary>
+    public UnsuspendAccountResponse UnsuspendResponse { get; set; } = new();
+
+    /// <summary>The last unsuspension request the stub received.</summary>
+    public UnsuspendAccountRequest? LastUnsuspendRequest { get; private set; }
+
+    /// <summary>Response returned from <see cref="SetAccountQuotaAsync"/>.</summary>
+    public SetAccountQuotaResponse QuotaResponse { get; set; } = new();
+
+    /// <summary>The last quota request the stub received.</summary>
+    public SetAccountQuotaRequest? LastQuotaRequest { get; private set; }
+
+    /// <summary>Response returned from <see cref="SetAccountOpenFilesLimitAsync"/>.</summary>
+    public SetAccountOpenFilesLimitResponse OpenFilesLimitResponse { get; set; } = new();
+
+    /// <summary>The last open-files request the stub received.</summary>
+    public SetAccountOpenFilesLimitRequest? LastOpenFilesLimitRequest { get; private set; }
+
     /// <summary>Response returned from <see cref="GetAccountUsageAsync"/>.</summary>
     public GetAccountUsageResponse UsageResponse { get; set; } = new();
 
@@ -41,7 +65,8 @@ internal sealed class StubAccountsService : IAccountsServiceInvoker
         CreateAccountRequest request,
         CancellationToken cancellationToken)
     {
-        throw new NotSupportedException("no test in this file creates an account");
+        LastCreateRequest = request;
+        return Task.FromResult(CreateResponse);
     }
 
     /// <inheritdoc/>
@@ -57,7 +82,8 @@ internal sealed class StubAccountsService : IAccountsServiceInvoker
         UnsuspendAccountRequest request,
         CancellationToken cancellationToken)
     {
-        throw new NotSupportedException("no test in this file unsuspends an account");
+        LastUnsuspendRequest = request;
+        return Task.FromResult(UnsuspendResponse);
     }
 
     /// <inheritdoc/>
@@ -73,7 +99,8 @@ internal sealed class StubAccountsService : IAccountsServiceInvoker
         SetAccountQuotaRequest request,
         CancellationToken cancellationToken)
     {
-        throw new NotSupportedException("no test in this file sets a quota");
+        LastQuotaRequest = request;
+        return Task.FromResult(QuotaResponse);
     }
 
     /// <inheritdoc/>
@@ -83,6 +110,15 @@ internal sealed class StubAccountsService : IAccountsServiceInvoker
     {
         LastResourceLimitsRequest = request;
         return Task.FromResult(ResourceLimitsResponse);
+    }
+
+    /// <inheritdoc/>
+    public Task<SetAccountOpenFilesLimitResponse> SetAccountOpenFilesLimitAsync(
+        SetAccountOpenFilesLimitRequest request,
+        CancellationToken cancellationToken)
+    {
+        LastOpenFilesLimitRequest = request;
+        return Task.FromResult(OpenFilesLimitResponse);
     }
 
     /// <inheritdoc/>

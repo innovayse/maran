@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="IpmArchiveMalformed">
+    <value>Пакет не является читаемым архивом.</value>
+  </data>
+  <data name="IpmDependencyUnsatisfied">
+    <value>Модуль, от которого зависит пакет, не установлен в допустимой версии.</value>
+  </data>
+  <data name="IpmDowngradeRefused">
+    <value>Пакет старше установленного модуля, а причина понижения версии не указана.</value>
+  </data>
+  <data name="IpmDuplicateEntry">
+    <value>В пакете есть две записи с одинаковым именем.</value>
+  </data>
+  <data name="IpmEmptyInput">
+    <value>Пакет пуст.</value>
+  </data>
+  <data name="IpmEntryNameInvalid">
+    <value>В пакете есть запись с недопустимым именем.</value>
+  </data>
+  <data name="IpmEntryNotRegular">
+    <value>В пакете есть запись, которая не является обычным файлом.</value>
+  </data>
+  <data name="IpmEntrySizeMismatch">
+    <value>Размер записи в пакете не совпадает с заявленным.</value>
+  </data>
+  <data name="IpmEntryTooLarge">
+    <value>В пакете есть запись больше допустимого размера.</value>
+  </data>
+  <data name="IpmEntryTraversal">
+    <value>В пакете есть запись, имя которой выходит за пределы каталога пакета.</value>
+  </data>
+  <data name="IpmFormatVersionUnknown">
+    <value>Пакет использует версию формата, которую эта панель не знает.</value>
+  </data>
+  <data name="IpmHashMismatch">
+    <value>Файл пакета не соответствует хешу, закреплённому в его манифесте.</value>
+  </data>
+  <data name="IpmManifestInvalid">
+    <value>Манифест пакета нарушает правила модулей.</value>
+  </data>
+  <data name="IpmManifestMalformed">
+    <value>Манифест пакета не удаётся прочитать.</value>
+  </data>
+  <data name="IpmManifestMissing">
+    <value>В пакете нет манифеста.</value>
+  </data>
+  <data name="IpmMissingEntry">
+    <value>В пакете нет файла, указанного в его манифесте.</value>
+  </data>
+  <data name="IpmNotYetValid">
+    <value>Пакет ещё не действителен.</value>
+  </data>
+  <data name="IpmPackageTooLarge">
+    <value>Распакованный пакет больше допустимого размера.</value>
+  </data>
+  <data name="IpmPanelTooNew">
+    <value>Эта панель новее, чем поддерживает пакет.</value>
+  </data>
+  <data name="IpmPanelTooOld">
+    <value>Эта панель старше, чем требует пакет.</value>
+  </data>
+  <data name="IpmPublicKeyInvalid">
+    <value>Ключ для подписей пакетов не является пригодным ключом P-384.</value>
+  </data>
+  <data name="IpmRatioExceeded">
+    <value>Пакет сжимает запись сильнее, чем допускает панель.</value>
+  </data>
+  <data name="IpmSignatureInvalid">
+    <value>Подпись пакета не соответствует его манифесту.</value>
+  </data>
+  <data name="IpmSignatureMissing">
+    <value>Пакет не подписан.</value>
+  </data>
+  <data name="IpmTooManyEntries">
+    <value>В пакете больше записей, чем принимает панель.</value>
+  </data>
+  <data name="IpmUnlistedEntry">
+    <value>В пакете есть файл, которого нет в его манифесте.</value>
+  </data>
+</root>

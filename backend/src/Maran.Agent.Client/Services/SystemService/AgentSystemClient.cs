@@ -1,5 +1,6 @@
 using Grpc.Core;
 using Grpc.Net.Client;
+using Maran.Agent.Client.Channels;
 using Maran.Agent.Client.Errors;
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Resources;
@@ -84,11 +85,19 @@ public sealed class AgentSystemClient : IAgentSystemClient
         _logger = logger;
     }
 
-    /// <summary>Creates a client that calls the agent over <paramref name="channel"/>.</summary>
+    /// <summary>Creates a client whose every call goes to the server the current agent target selects.</summary>
+    /// <param name="channels">Hands out the channel of the server each call is aimed at.</param>
+    /// <param name="logger">Sink for the agent's diagnostic text.</param>
+    public AgentSystemClient(IAgentChannels channels, ILogger<AgentSystemClient> logger)
+        : this(new GrpcSystemServiceInvoker(channels), logger)
+    {
+    }
+
+    /// <summary>Creates a client over one fixed <paramref name="channel"/>, whatever the target.</summary>
     /// <param name="channel">A channel to the agent, e.g. from <see cref="Channels.AgentChannel.CreateUnixSocket"/>.</param>
     /// <param name="logger">Sink for the agent's diagnostic text.</param>
     public AgentSystemClient(GrpcChannel channel, ILogger<AgentSystemClient> logger)
-        : this(new GrpcSystemServiceInvoker(new Maran.Agent.V1.SystemService.SystemServiceClient(channel)), logger)
+        : this(new FixedAgentChannels(channel), logger)
     {
     }
 
@@ -112,6 +121,10 @@ public sealed class AgentSystemClient : IAgentSystemClient
         {
             LogTransportFailure(_logger, exception.StatusCode, exception);
             return Result<AgentInfoDto>.Fail(AgentTransportFailure.ToError(exception));
+        }
+        catch (AgentEndpointRefusedException exception)
+        {
+            return Result<AgentInfoDto>.Fail(exception.Error);
         }
 
         return response.ResultCase switch

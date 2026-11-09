@@ -1,11 +1,14 @@
 import { expect, test, type Page } from '@playwright/test'
 import { expectNoSeriousViolations, seriousViolations } from '../fixtures/expect-no-serious-violations'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
+import { stubAlertSettings } from '../fixtures/stub-alert-routes'
 import { stubSignedIn, stubSignedOut } from '../fixtures/stub-auth-routes'
-import { loaded, stubDashboard, SYNCHRONIZED_CLOCK } from '../fixtures/stub-dashboard-route'
+import { ALERT_DELIVERY_OK, loaded, stubDashboard, SYNCHRONIZED_CLOCK } from '../fixtures/stub-dashboard-route'
 import { stubDatabases } from '../fixtures/stub-databases-routes'
+import { stubDatabaseUsers } from '../fixtures/stub-database-users-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubEmptyModules, stubModules } from '../fixtures/stub-modules-route'
+import { feedEntry, feedState, stubFirstRun, stubNotificationFeed } from '../fixtures/stub-notification-routes'
 import { stubPendingUpdates } from '../fixtures/stub-monitoring-routes'
 import { stubPlans } from '../fixtures/stub-plans-route'
 import { RESELLER_USER, stubMyReseller, stubResellerSession, stubViewAsChain } from '../fixtures/stub-reseller-session'
@@ -14,6 +17,7 @@ import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubPhpVersions, stubSites } from '../fixtures/stub-sites-routes'
 import type { Account } from '../../src/types/account'
 import type { Dashboard } from '../../src/types/dashboard'
+import type { FirstRunChecklist } from '../../src/types/firstRun'
 import type { Database } from '../../src/types/database'
 import type { PanelModule } from '../../src/types/module'
 import type { Site } from '../../src/types/site'
@@ -24,10 +28,10 @@ import type { ViewingAs } from '../../src/types/viewAs'
 // because a contrast failure lives in one theme's tokens and an empty list draws no table at all.
 
 const LICENSED: PanelModule[] = [
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
-  { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
-  { name: 'databases', displayName: 'Databases', tier: 'included', state: 'enabled' },
-  { name: 'monitoring', displayName: 'Monitoring', tier: 'included', state: 'enabled' },
+  { name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'databases', displayName: 'Databases', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'monitoring', displayName: 'Monitoring', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 const ALICE: Account = {
@@ -62,6 +66,7 @@ const ALPHA: Site = {
   status: 'enabled',
   statusName: 'Enabled',
   createdAt: '2026-08-01T10:00:00Z',
+  logRetentionDays: 14,
 }
 
 const SHOP: Database = {
@@ -98,6 +103,8 @@ const DASHBOARD: Dashboard = {
   attention: {
     certificatesExpiringSoon: loaded(2),
     failedBackups: loaded(1),
+    sitesOnEndOfLifePhp: loaded(0),
+    alertDelivery: ALERT_DELIVERY_OK,
     bannedAddresses: loaded(3),
     failedTasks: loaded(1),
     clock: SYNCHRONIZED_CLOCK,
@@ -130,6 +137,18 @@ const DASHBOARD: Dashboard = {
   ]),
 }
 
+/** An unfinished first-run checklist, so the dashboard draws its card and axe has it to scan. */
+const FIRST_RUN: FirstRunChecklist = {
+  complete: false,
+  steps: [
+    { key: 'plan', done: loaded(true), routeName: 'plans' },
+    { key: 'account', done: loaded(false), routeName: 'accounts' },
+    { key: 'site', done: loaded(false), routeName: 'sites' },
+    { key: 'backupDestination', done: loaded(false), routeName: 'backupDestinations' },
+    { key: 'certificate', done: { state: 'unavailable' }, routeName: 'certificates' },
+  ],
+}
+
 /** What the panel reports while an administrator views as the reseller. */
 const VIEWING_RESELLER: ViewingAs = {
   kind: 'reseller',
@@ -157,6 +176,18 @@ const signInWithData = async (page: Page): Promise<void> => {
   await stubSites(page, [ALPHA])
   await stubPhpVersions(page, [])
   await stubDatabases(page, [SHOP])
+  await stubDatabaseUsers(page, [
+    {
+      id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      accountId: ALICE.id,
+      ownerName: ALICE.name,
+      nameSuffix: 'reports',
+      fullName: 'alice_reports',
+      isDedicated: false,
+      grants: [],
+      createdAt: '2026-08-02T10:00:00Z',
+    },
+  ])
   await stubPendingUpdates(page, [
     { packageName: 'openssl', availableVersion: '3.0.13-0ubuntu3.5', installedVersion: '3.0.13-0ubuntu3.4', source: 'noble-security', classification: 'security' },
     { packageName: 'bash', availableVersion: '5.2.21-2ubuntu4', installedVersion: null, source: '', classification: 'unmeasured' },
@@ -187,6 +218,44 @@ for (const theme of ['dark', 'light'] as const) {
       await expectNoSeriousViolations(page)
     })
 
+    test('the dashboard with its first-run checklist has no serious accessibility violation', async ({ page }) => {
+      await signInWithData(page)
+      await stubFirstRun(page, FIRST_RUN)
+
+      await page.goto('/')
+      await expect(page.getByTestId('first-run-checklist')).toBeVisible()
+
+      await expectNoSeriousViolations(page)
+    })
+
+    test('the open notification feed has no serious accessibility violation', async ({ page }) => {
+      await signInWithData(page)
+      await stubNotificationFeed(
+        page,
+        feedState([
+          feedEntry({ id: '00000000-0000-0000-0000-000000000001', title: 'The scheduled backup of alice failed', detail: 'The destination refused the upload.', deepLink: 'backups' }),
+          feedEntry({ id: '00000000-0000-0000-0000-000000000002', severity: 'warning', source: 'alert', title: 'Disk usage is above 90%', detail: '93% of 98 GB is in use.' }),
+          feedEntry({ id: '00000000-0000-0000-0000-000000000003', severity: 'info', source: 'alert', title: 'Disk usage is back below 90%' }),
+        ]),
+      )
+
+      await page.goto('/')
+      await page.getByRole('banner').getByRole('button', { name: /^Notifications/ }).click()
+      await expect(page.getByRole('dialog', { name: 'Notifications' }).getByTestId('notification-row')).toHaveCount(3)
+
+      await expectNoSeriousViolations(page)
+    })
+
+    test('the alert settings have no serious accessibility violation', async ({ page }) => {
+      await signInWithData(page)
+      await stubAlertSettings(page)
+
+      await page.goto('/settings/alerts')
+      await expect(page.getByRole('heading', { level: 1, name: 'Alert settings' })).toBeVisible()
+
+      await expectNoSeriousViolations(page)
+    })
+
     test('the accounts list has no serious accessibility violation', async ({ page }) => {
       await signInWithData(page)
 
@@ -210,6 +279,15 @@ for (const theme of ['dark', 'light'] as const) {
 
       await page.goto('/databases')
       await expect(page.getByRole('cell', { name: 'alice_shop', exact: true })).toBeVisible()
+
+      await expectNoSeriousViolations(page)
+    })
+
+    test('the database users list has no serious accessibility violation', async ({ page }) => {
+      await signInWithData(page)
+
+      await page.goto('/databases/users')
+      await expect(page.getByRole('cell', { name: 'alice_reports', exact: true })).toBeVisible()
 
       await expectNoSeriousViolations(page)
     })

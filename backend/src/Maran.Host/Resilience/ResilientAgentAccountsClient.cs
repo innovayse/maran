@@ -47,11 +47,12 @@ public sealed class ResilientAgentAccountsClient : IAgentAccountsClient
     public Task<Result<CreatedAccountDto>> CreateAsync(
         string username,
         ulong quotaBytes,
+        AccountProvisioningDto provisioning,
         CancellationToken cancellationToken)
     {
         return ExecuteAsync(token =>
         {
-            return _inner.CreateAsync(username, quotaBytes, token);
+            return _inner.CreateAsync(username, quotaBytes, provisioning, token);
         }, cancellationToken);
     }
 
@@ -65,11 +66,11 @@ public sealed class ResilientAgentAccountsClient : IAgentAccountsClient
     }
 
     /// <inheritdoc/>
-    public Task<Result> UnsuspendAsync(string username, CancellationToken cancellationToken)
+    public Task<Result> UnsuspendAsync(string username, AccountLoginShell shell, CancellationToken cancellationToken)
     {
         return ExecuteAsync(token =>
         {
-            return _inner.UnsuspendAsync(username, token);
+            return _inner.UnsuspendAsync(username, shell, token);
         }, cancellationToken);
     }
 
@@ -94,11 +95,15 @@ public sealed class ResilientAgentAccountsClient : IAgentAccountsClient
     }
 
     /// <inheritdoc/>
-    public Task<Result> SetQuotaAsync(string username, ulong quotaBytes, CancellationToken cancellationToken)
+    public Task<Result> SetQuotaAsync(
+        string username,
+        ulong quotaBytes,
+        ulong? inodeLimit,
+        CancellationToken cancellationToken)
     {
         return ExecuteAsync(token =>
         {
-            return _inner.SetQuotaAsync(username, quotaBytes, token);
+            return _inner.SetQuotaAsync(username, quotaBytes, inodeLimit, token);
         }, cancellationToken);
     }
 
@@ -111,6 +116,15 @@ public sealed class ResilientAgentAccountsClient : IAgentAccountsClient
         return ExecuteAsync(token =>
         {
             return _inner.SetResourceLimitsAsync(username, limits, token);
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public Task<Result> SetOpenFilesLimitAsync(string username, ulong? openFiles, CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(token =>
+        {
+            return _inner.SetOpenFilesLimitAsync(username, openFiles, token);
         }, cancellationToken);
     }
 

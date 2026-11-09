@@ -14,7 +14,7 @@ import type { Site } from '../../src/types/site'
 // for that account's rows only, says so with a removable chip, and offers the way back; a
 // customer's list is already their own, so the parameter changes nothing for them.
 
-const LICENSED: PanelModule[] = [{ name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' }]
+const LICENSED: PanelModule[] = [{ name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }]
 
 const ALICE: Account = {
   id: '22222222-2222-2222-2222-222222222222',
@@ -66,6 +66,7 @@ const ALPHA: Site = {
   status: 'enabled',
   statusName: 'Enabled',
   createdAt: '2026-08-01T10:00:00Z',
+  logRetentionDays: 14,
 }
 
 const BETA: Site = {

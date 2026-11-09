@@ -55,6 +55,7 @@ public sealed class IdentityPersonalDataProvider : IPersonalDataProvider
                     await OffersAsync(offer => offer.UserId == subject.Id, ct),
                     await SessionsAsync(subject.Id, ct),
                     await PinsAsync(subject.Id, ct),
+                    await DashboardLayoutAsync(subject.Id, ct),
                 ];
             case PersonalDataSubjectKind.Account:
                 return
@@ -214,6 +215,30 @@ public sealed class IdentityPersonalDataProvider : IPersonalDataProvider
                 ("itemKey", row.ItemKey),
                 ("position", row.Position.ToString(CultureInfo.InvariantCulture)),
                 ("pinnedAt", Text(row.PinnedAt)));
+        }));
+    }
+
+    /// <summary>Reads the dashboard layout the user arranged: which widgets and shortcuts, in what order, hidden or not.</summary>
+    /// <param name="userId">The user.</param>
+    /// <param name="ct">Cancels the read.</param>
+    private async Task<PersonalDataSection> DashboardLayoutAsync(Guid userId, CancellationToken ct)
+    {
+        var rows = await _dbContext.DashboardPreferences
+            .AsNoTracking()
+            .Where(preference => preference.UserId == userId)
+            .OrderBy(preference => preference.Kind)
+            .ThenBy(preference => preference.Position)
+            .ThenBy(preference => preference.Key)
+            .Select(preference => new { preference.Kind, preference.Key, preference.Position, preference.Hidden })
+            .ToListAsync(ct);
+
+        return Section("dashboardLayout", rows.Select(row =>
+        {
+            return Record(
+                ("kind", row.Kind.ToString()),
+                ("key", row.Key),
+                ("position", row.Position.ToString(CultureInfo.InvariantCulture)),
+                ("hidden", row.Hidden ? "true" : "false"));
         }));
     }
 

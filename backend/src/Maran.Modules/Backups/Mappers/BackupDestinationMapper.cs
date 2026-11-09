@@ -36,9 +36,14 @@ namespace Maran.Modules.Backups.Mappers;
 /// </remarks>
 public static class BackupDestinationMapper
 {
-    /// <summary>Builds the agent-facing destination for one recorded row.</summary>
+    /// <summary>Builds the agent-facing destination for one recorded row, for READING.</summary>
     /// <param name="destination">The destination the panel recorded.</param>
-    /// <returns>The wire shape naming the same storage.</returns>
+    /// <returns>
+    /// The wire shape naming the same storage. A local destination that has an archive key carries
+    /// it whether or not encryption is currently on, because a restore, a verification or a safety
+    /// copy of a backup sealed earlier needs it; the agent reads it only to open an archive that is
+    /// sealed and ignores it for one that is not.
+    /// </returns>
     public static AgentBackupDestination ForAgent(BackupDestination destination)
     {
         ArgumentNullException.ThrowIfNull(destination);
@@ -55,6 +60,34 @@ public static class BackupDestinationMapper
                 PathStyle: false);
         }
 
-        return new AgentLocalBackupDestination();
+        return new AgentLocalBackupDestination(KeyOf(destination.ArchiveKey));
+    }
+
+    /// <summary>Builds the agent-facing destination for one recorded row, for WRITING a new backup.</summary>
+    /// <param name="destination">The destination the panel recorded.</param>
+    /// <returns>
+    /// The same destination as <see cref="ForAgent"/>, except that a local one carries the archive key
+    /// only while <see cref="BackupDestination.EncryptArchives"/> is on: on a creation the key's
+    /// presence IS the instruction to seal the archive, so a destination whose encryption was switched
+    /// off must not hand the agent a key it kept for reading.
+    /// </returns>
+    public static AgentBackupDestination ForNewBackup(BackupDestination destination)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+
+        if (destination.Kind == BackupDestinationKind.Local && !destination.EncryptArchives)
+        {
+            return new AgentLocalBackupDestination();
+        }
+
+        return ForAgent(destination);
+    }
+
+    /// <summary>Wraps a stored key so that formatting the destination never prints it.</summary>
+    /// <param name="archiveKey">The key as the entity holds it, or <c>null</c> for none.</param>
+    /// <returns>The key in a <see cref="SensitiveString"/>, or <c>null</c>.</returns>
+    private static SensitiveString? KeyOf(string? archiveKey)
+    {
+        return archiveKey is null ? null : new SensitiveString(archiveKey);
     }
 }

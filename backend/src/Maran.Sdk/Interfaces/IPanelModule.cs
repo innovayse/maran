@@ -8,12 +8,16 @@ namespace Maran.Sdk.Interfaces;
 /// </summary>
 public interface IPanelModule
 {
-    /// <summary>Stable machine name; equals the PostgreSQL schema name.</summary>
+    /// <summary>
+    /// Stable machine name; equals <see cref="Contracts.Manifest.Id"/> and, for a module that owns
+    /// tables, the PostgreSQL schema name.
+    /// </summary>
     string Name { get; }
 
     /// <summary>
-    /// This module's published identity: id, display-name resource key, version, licence tier, and
-    /// dependencies. The Host's modules catalogue (<c>GET /api/v1/modules</c>) reads this directly
+    /// This module's published identity: id, display-name resource key, version, licence tier, kind,
+    /// minimum panel version, schema, dependencies, agent capabilities, permissions, menu and routes.
+    /// The Host's modules catalogue (<c>GET /api/v1/modules</c>) reads this directly
     /// rather than each module publishing ad hoc — a module is discovered at runtime, so this is
     /// the only place the SPA and the licence system can learn what it is.
     /// </summary>

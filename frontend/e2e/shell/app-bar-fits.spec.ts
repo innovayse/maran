@@ -23,7 +23,7 @@ import type { PanelTask } from '../../src/types/panelTask'
  */
 
 const LICENSED: PanelModule[] = [
-  { name: 'tasks', displayName: 'Background tasks', tier: 'included', state: 'enabled' },
+  { name: 'tasks', displayName: 'Background tasks', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 /** A task still running, so the tasks badge is drawn: the widest the app bar ever is. */

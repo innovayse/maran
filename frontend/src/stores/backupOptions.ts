@@ -27,6 +27,8 @@ export const useBackupOptionsStore = defineStore('backupOptions', () => {
     weekdays: [],
     hours: [],
     retainCounts: [],
+    customerFrequencies: [],
+    customerRetainCounts: [],
   })
 
   /** The backend-localized reason the last read failed, or `null` while it has not. */

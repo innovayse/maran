@@ -2,18 +2,23 @@ import { expect, test, type Page } from '@playwright/test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
-import { stubInstallablePhpVersions, stubPhpVersions } from '../fixtures/stub-sites-routes'
+import {
+  completePhpVersion,
+  stubInstallablePhpVersions,
+  stubPhpVersions,
+  type PhpVersionStub,
+} from '../fixtures/stub-sites-routes'
 import type { PanelModule } from '../../src/types/module'
-import type { InstallablePhpVersion, PhpVersion } from '../../src/types/phpVersion'
+import type { InstallablePhpVersion } from '../../src/types/phpVersion'
 
 // Installing a PHP version is a choice from the versions the agent reports as installable (#330):
 // the operator never types one. The spec reaches the screen by clicking through the sidebar, as an
 // operator does, and chooses the version by clicking the option the backend offered.
 
-const MODULES: PanelModule[] = [{ name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' }]
+const MODULES: PanelModule[] = [{ name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }]
 
 /** What the stubbed server has installed to begin with. */
-const INSTALLED: PhpVersion[] = [{ version: '8.3', defaultStatus: 'unknown' }]
+const INSTALLED: PhpVersionStub[] = [{ version: '8.3', defaultStatus: 'unknown' }]
 
 /** The versions the stubbed agent reports as installable, with 8.3 already installed. */
 const INSTALLABLE: InstallablePhpVersion[] = [
@@ -29,7 +34,7 @@ const INSTALLABLE: InstallablePhpVersion[] = [
  * @returns The bodies the install endpoint received, appended to as the operator installs.
  */
 const openPhpVersions = async (page: Page): Promise<unknown[]> => {
-  const installed: PhpVersion[] = [...INSTALLED]
+  const installed: PhpVersionStub[] = [...INSTALLED]
   const installable: InstallablePhpVersion[] = INSTALLABLE.map((entry) => {
     return { ...entry }
   })
@@ -50,7 +55,7 @@ const openPhpVersions = async (page: Page): Promise<unknown[]> => {
     if (entry) {
       entry.installed = true
     }
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(installed) })
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(installed.map(completePhpVersion)) })
   })
 
   await page.goto('/')

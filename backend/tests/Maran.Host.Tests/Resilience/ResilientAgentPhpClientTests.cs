@@ -81,6 +81,58 @@ public sealed class ResilientAgentPhpClientTests
         Assert.Equal("8.4", inner.LastVersion);
     }
 
+    /// <summary>The extension listing retries a transport failure through the pipeline and forwards the version.</summary>
+    [Fact]
+    public async Task The_extension_listing_retries_a_transport_failure_through_the_pipeline()
+    {
+        var inner = new RecordingAgentPhpClient { FailuresBeforeSuccess = 1 };
+        var client = NewClient(inner);
+
+        var result = await client.ListExtensionsAsync("8.3", default).WaitAsync(TestTimeout);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, inner.Calls);
+        Assert.Equal("8.3", inner.LastExtensionsVersion);
+    }
+
+    /// <summary>A transport outage on the extension listing is answered as an unavailable agent, not thrown.</summary>
+    [Fact]
+    public async Task A_transport_outage_on_the_extension_listing_answers_agent_unavailable()
+    {
+        var inner = new RecordingAgentPhpClient { FailuresBeforeSuccess = int.MaxValue };
+
+        var result = await NewClient(inner).ListExtensionsAsync("8.3", default).WaitAsync(TestTimeout);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentUnavailable", result.Error!.Code);
+        Assert.Equal(ErrorType.Unavailable, result.Error.Type);
+    }
+
+    /// <summary>The extension switch forwards what it was asked for and is not wrapped in the pipeline.</summary>
+    /// <remarks>
+    /// Like the install, the switch stream is passed through: it may install a package, so the operation
+    /// timeout would abandon it half-done and a retry would restart work the agent is still performing.
+    /// </remarks>
+    [Fact]
+    public async Task The_extension_switch_forwards_what_it_was_asked_for()
+    {
+        var inner = new RecordingAgentPhpClient();
+        var client = NewClient(inner);
+
+        async Task DrainAsync()
+        {
+            await using var drained = client.SetExtensionAsync("8.3", "gd", true, default).GetAsyncEnumerator();
+            while (await drained.MoveNextAsync())
+            {
+                // The events themselves are the client's contract, not the decorator's.
+            }
+        }
+
+        await DrainAsync().WaitAsync(TestTimeout);
+
+        Assert.Equal("gd", inner.LastSwitchedExtension);
+    }
+
     /// <summary>Builds the decorator over a pipeline whose timeout is long enough not to interfere.</summary>
     /// <param name="inner">The recording client to wrap.</param>
     /// <returns>The decorator under test.</returns>

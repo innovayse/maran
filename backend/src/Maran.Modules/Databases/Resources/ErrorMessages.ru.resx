@@ -51,4 +51,22 @@
   <data name="DatabaseGrantRepairCountInvalid">
     <value>Число исправляемых прав не может быть отрицательным. Прочитайте отчёт снова и подтвердите указанное в нём число.</value>
   </data>
+  <data name="DatabaseUserNotFound">
+    <value>Этот пользователь базы данных не найден.</value>
+  </data>
+  <data name="DatabaseUserLimitReached">
+    <value>Достигнуто число дополнительных пользователей баз данных, разрешённое для вашей учётной записи.</value>
+  </data>
+  <data name="DatabaseUserIsDedicated">
+    <value>Этот пользователь создан вместе с базой данных и удаляется вместе с ней. Чтобы удалить пользователя, удалите базу данных.</value>
+  </data>
+  <data name="DatabasePrivilegesInvalid">
+    <value>Выбирайте каждую привилегию не более одного раза из предложенного списка.</value>
+  </data>
+  <data name="DatabaseUserProvisioningFailed">
+    <value>Не удалось создать пользователя базы данных. Ничего не осталось на сервере, попробуйте ещё раз.</value>
+  </data>
+  <data name="DatabasePrivilegesNotChanged">
+    <value>Не удалось изменить привилегии. Ничего не изменено, попробуйте ещё раз.</value>
+  </data>
 </root>

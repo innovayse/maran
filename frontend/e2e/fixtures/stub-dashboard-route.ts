@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import type { Dashboard, DashboardSection } from '../../src/types/dashboard'
+import type { AlertDeliveryStatus, Dashboard, DashboardSection } from '../../src/types/dashboard'
 import type { ClockSync } from '../../src/types/monitoring'
 
 /**
@@ -21,6 +21,12 @@ export const UNAVAILABLE: DashboardSection<never> = { state: 'unavailable' }
 export const SYNCHRONIZED_CLOCK: DashboardSection<ClockSync> = loaded<ClockSync>({
   state: 'synchronized',
   description: 'The clock is synchronised with a time source.',
+})
+
+/** Alert delivery the panel read with both channels untroubled: the payload every spec sends unless it is about delivery (issue #142). */
+export const ALERT_DELIVERY_OK: DashboardSection<AlertDeliveryStatus> = loaded<AlertDeliveryStatus>({
+  mail: { state: 'ok', lastFailureAt: null, failureMessage: null },
+  webhook: { state: 'unknown', lastFailureAt: null, failureMessage: null },
 })
 
 /**

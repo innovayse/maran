@@ -186,6 +186,32 @@ public sealed class SessionService : ISessionService
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    /// <inheritdoc />
+    public async Task RevokeResellerViewAsForAccountAsync(
+        Guid accountId,
+        SessionRevocationReason reason,
+        CancellationToken cancellationToken)
+    {
+        // The operator is named by the session's own origin, so "opened by a reseller" is read from the
+        // operator's login row and not from anything the session or its token claims about itself.
+        var resellerLogins = _dbContext.Users
+            .Where(u => u.Role == UserRole.Reseller)
+            .Select(u => u.Id);
+        var sessions = await _dbContext.Sessions
+            .Where(s => s.ActiveAccountId == accountId
+                && s.Revocation == null
+                && s.ViewAs != null
+                && resellerLogins.Contains(s.ViewAs.ActorUserId))
+            .ToListAsync(cancellationToken);
+
+        foreach (var session in sessions)
+        {
+            session.Revoke(_clock.UtcNow, reason);
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     /// <summary>Creates and stores one session, returning its plaintext token to the caller.</summary>
     /// <param name="userId">The user the session signs in.</param>
     /// <param name="familyId">The rotation family; a new one at login, the inherited one on rotation.</param>

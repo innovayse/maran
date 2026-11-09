@@ -1,8 +1,10 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Databases.Common;
 using Maran.Modules.Databases.Domain.Entities;
+using Maran.Modules.Databases.Domain.Policies;
 using Maran.Modules.Databases.Interfaces;
 using Maran.Modules.Databases.Mappers;
+using Maran.Modules.Databases.Models;
 using Maran.Modules.Databases.Persistence;
 using Maran.Modules.Databases.Resources;
 using Maran.Modules.Databases.Services;
@@ -253,12 +255,13 @@ public sealed class CreateDatabaseCommandHandler
 
         // A MySQL user is one login. Two of the account's databases sharing one would mean a reset
         // for either silently re-credentials both, and a drop of either takes the other's login with
-        // it, so the pairing is one-to-one and this is where a customer is told so.
-        var userNameTaken = await _dbContext.Databases
+        // it, so the pairing is one-to-one and this is where a customer is told so. Asked of the user
+        // rows, which hold a database's dedicated user and every additional one alike, so a name the
+        // customer already gave an additional user is taken here too.
+        var userNameTaken = await _dbContext.DatabaseUsers
             .AsNoTracking()
             .AnyAsync(
-                database => database.AccountId == command.AccountId
-                    && database.DbUserNameSuffix == command.DbUserName,
+                user => user.AccountId == command.AccountId && user.NameSuffix == command.DbUserName,
                 cancellationToken);
         if (userNameTaken)
         {
@@ -282,6 +285,7 @@ public sealed class CreateDatabaseCommandHandler
         // and the account name. Rebuilding would make this row's truth depend on the panel and the
         // agent agreeing about a separator forever, and the day they disagreed a drop would address
         // the wrong database or none.
+        var now = _clock.UtcNow;
         var database = new Database(
             Guid.NewGuid(),
             command.AccountId,
@@ -289,10 +293,21 @@ public sealed class CreateDatabaseCommandHandler
             provisioned.Value.DatabaseName,
             provisioned.Value.DbUsername,
             command.DbUserName,
-            _clock.UtcNow);
+            now);
+
+        // The dedicated user is a user like any other from here on, so it gets its row, holding the
+        // full-access grant the server gave it. Written in the same save as the database: a database
+        // whose user row is missing cannot be shown a password reset on the users screen.
+        var dedicatedUser = new DatabaseUser(
+            Guid.NewGuid(), command.AccountId, command.DbUserName, provisioned.Value.DbUsername, now);
+        dedicatedUser.ReplacePrivileges(database.Id, DatabasePrivilegeSets.Full, Guid.NewGuid(), now);
 
         var recorded = await RecordAsync(
-            database, account.Username, account.MaxDatabases, command, cancellationToken);
+            new ProvisionedDatabaseRecords(database, dedicatedUser),
+            account.Username,
+            account.MaxDatabases,
+            command,
+            cancellationToken);
         if (!recorded.IsSuccess)
         {
             return Result<CreatedDatabaseDto>.Fail(recorded.Error!);
@@ -327,14 +342,14 @@ public sealed class CreateDatabaseCommandHandler
     }
 
     /// <summary>Writes the row for a database the agent has already made, compensating if it cannot.</summary>
-    /// <param name="database">The row to write.</param>
+    /// <param name="records">The database row and its dedicated user to write together.</param>
     /// <param name="accountUsername">The owning account's system user name, which addresses the compensating drop.</param>
     /// <param name="allowance">How many databases the account's plan allows, re-checked inside the gate.</param>
     /// <param name="command">The creation being recorded, for the journal's subject.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>Success, or the typed failure the customer is answered with.</returns>
     private async Task<Result> RecordAsync(
-        Database database,
+        ProvisionedDatabaseRecords records,
         string accountUsername,
         int allowance,
         CreateDatabaseCommand command,
@@ -342,7 +357,7 @@ public sealed class CreateDatabaseCommandHandler
     {
         try
         {
-            if (await _slotGate.TryTakeAsync(database, allowance, cancellationToken))
+            if (await _slotGate.TryTakeAsync(records, allowance, cancellationToken))
             {
                 return Result.Ok();
             }
@@ -362,7 +377,8 @@ public sealed class CreateDatabaseCommandHandler
         }
         catch (DbUpdateException exception)
         {
-            _dbContext.Databases.Remove(database);
+            _dbContext.Databases.Remove(records.Database);
+            _dbContext.DatabaseUsers.Remove(records.DedicatedUser);
 
             // The ONE narrowing, and everything below turns on it. SqlState 23505 and nothing else
             // means a duplicate; every other database failure — a dropped connection, a timeout, a

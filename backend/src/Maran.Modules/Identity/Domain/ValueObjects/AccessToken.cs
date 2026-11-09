@@ -16,4 +16,14 @@ namespace Maran.Modules.Identity.Domain.ValueObjects;
 /// a body saying "you are free" over a token the authorization handler refuses everywhere would be
 /// an unexplainable 403 on every screen.
 /// </param>
-public sealed record AccessToken(string Value, DateTimeOffset ExpiresAt, bool RequiresTwoFactorSetup);
+/// <param name="RequiresPasswordChange">
+/// Whether this token's holder signed in with a first password somebody else chose and may reach nothing
+/// but the password change until they replace it. It travels beside the token for the same reason
+/// <paramref name="RequiresTwoFactorSetup"/> does: the flag in the response body and the claim inside the
+/// token are one decision, so a body saying "you are free" over a token every handler refuses cannot exist.
+/// </param>
+public sealed record AccessToken(
+    string Value,
+    DateTimeOffset ExpiresAt,
+    bool RequiresTwoFactorSetup,
+    bool RequiresPasswordChange);

@@ -29,7 +29,7 @@ public sealed class ApiKeyEndpointTests : IAsyncLifetime
     private static readonly string[] BothScopes = [ApiKeyScopes.SelfRead, ApiKeyScopes.ServerRead];
 
     /// <summary>A scope list naming a scope the panel does not define.</summary>
-    private static readonly string[] UnknownScopes = ["accounts.write"];
+    private static readonly string[] UnknownScopes = ["backups.write"];
 
     /// <summary>The status filter values in the order the panel lists them.</summary>
     private static readonly string[] StatusOrder = ["active", "revoked", "expired"];
@@ -378,7 +378,7 @@ public sealed class ApiKeyEndpointTests : IAsyncLifetime
             choice => { return choice.GetProperty("name").GetString()!; });
         Assert.Equal(selfRead, names[ApiKeyScopes.SelfRead]);
         Assert.Equal(serverRead, names[ApiKeyScopes.ServerRead]);
-        Assert.Equal(ApiKeyScopes.All.Count, names.Count);
+        Assert.Equal(ApiKeyScopes.AdministratorGrantable.Count, names.Count);
     }
 
     /// <summary>Builds a request with an empty JSON body, which the actions that read none ignore.</summary>

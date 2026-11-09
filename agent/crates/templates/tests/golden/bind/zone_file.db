@@ -1,0 +1,22 @@
+; Maran DNS zone. Rendered by maran-agent from the panel's records and replaced
+; whole on every change; an edit made here does not survive.
+$ORIGIN example.com.
+$TTL 3600
+@ IN SOA ns1.example.com. hostmaster.example.com. (
+        2026110701 ; serial
+        3600 ; refresh
+        600 ; retry
+        1209600 ; expire
+        300 ) ; negative caching ttl
+@ IN NS ns1.example.com.
+@ IN NS ns2.example.com.
+@ 3600 IN A 192.0.2.10
+@ 3600 IN AAAA 2001:db8::10
+www 300 IN CNAME example.com.
+@ 3600 IN MX 10 mail.example.com.
+@ 3600 IN TXT "v=spf1 mx ~all"
+_dmarc 3600 IN TXT "v=DMARC1; p=none; rua=mailto:d@example.com"
+_sip._tcp 3600 IN SRV 10 20 5060 sip.example.com.
+@ 3600 IN CAA 0 issue "letsencrypt.org"
+sub 3600 IN NS ns.sub.example.net.
+* 300 IN A 192.0.2.11

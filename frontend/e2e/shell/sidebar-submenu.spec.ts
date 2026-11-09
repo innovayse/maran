@@ -15,11 +15,11 @@ import type { PanelModule } from '../../src/types/module'
  * so that section is a plain link under its own label.
  */
 const MODULES: PanelModule[] = [
-  { name: 'sites', displayName: 'Sites', tier: 'included', state: 'enabled' },
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
-  { name: 'firewall', displayName: 'Firewall', tier: 'included', state: 'enabled' },
-  { name: 'monitoring', displayName: 'Monitoring', tier: 'included', state: 'enabled' },
-  { name: 'cron', displayName: 'Scheduled tasks', tier: 'included', state: 'enabled' },
+  { name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'firewall', displayName: 'Firewall', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'monitoring', displayName: 'Monitoring', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'cron', displayName: 'Scheduled tasks', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 /**

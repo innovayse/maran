@@ -11,12 +11,12 @@ import type { PanelModule } from '../../src/types/module'
 
 /** A catalogue in an order deliberately unlike the sidebar's groups. */
 const MODULES: PanelModule[] = [
-  { name: 'identity', displayName: 'Users and access', tier: 'included', state: 'enabled' },
-  { name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' },
-  { name: 'notifications', displayName: 'Notifications', tier: 'included', state: 'enabled' },
-  { name: 'firewall', displayName: 'Firewall', tier: 'included', state: 'enabled' },
-  { name: 'tasks', displayName: 'Tasks', tier: 'included', state: 'enabled' },
-  { name: 'monitoring', displayName: 'Monitoring', tier: 'included', state: 'enabled' },
+  { name: 'identity', displayName: 'Users and access', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'notifications', displayName: 'Notifications', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'firewall', displayName: 'Firewall', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'tasks', displayName: 'Tasks', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+  { name: 'monitoring', displayName: 'Monitoring', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 /**

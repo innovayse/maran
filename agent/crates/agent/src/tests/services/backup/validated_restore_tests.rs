@@ -39,9 +39,11 @@ fn request() -> RestoreBackupRequest {
             s3_access_key_id: String::new(),
             s3_secret_access_key: String::new(),
             s3_path_style: false,
+            archive_key: String::new(),
         }),
         expected_sha256: DIGEST.to_owned(),
         allowed_databases: vec!["alice_shop".to_owned()],
+        scope: None,
     }
 }
 
@@ -57,6 +59,11 @@ fn a_well_formed_restore_request_is_accepted_with_every_field_carried_through() 
     assert_eq!(input.expected_sha256, DIGEST);
     assert_eq!(input.allowed_databases.len(), 1);
     assert_eq!(input.allowed_databases[0].as_str(), "alice_shop");
+    assert_eq!(
+        input.scope,
+        maran_ops::backup::RestoreScope::Whole,
+        "a request with no scope is the whole-account restore every older panel sends"
+    );
 }
 
 #[test]

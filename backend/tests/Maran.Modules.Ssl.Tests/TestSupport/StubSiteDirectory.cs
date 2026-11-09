@@ -45,6 +45,12 @@ public sealed class StubSiteDirectory : ISiteDirectory
     }
 
     /// <inheritdoc />
+    public Task<IReadOnlyList<string>> ListDomainsAsync(Guid accountId, CancellationToken cancellationToken)
+    {
+        return Task.FromResult<IReadOnlyList<string>>([]);
+    }
+
+    /// <inheritdoc />
     public Task<SiteSnapshot?> FindByIdUnscopedAsync(Guid siteId, CancellationToken cancellationToken)
     {
         return Task.FromResult(_byDomain.Values.FirstOrDefault(site =>

@@ -1,4 +1,5 @@
 using Maran.Modules.Backups.Commands.SaveBackupDestination;
+using Maran.Modules.Backups.Commands.SetBackupDestinationEncryption;
 using Maran.Modules.Backups.Common;
 using Maran.Modules.Backups.Queries.ListBackupDestinations;
 using Maran.Sdk.Contracts;
@@ -99,5 +100,31 @@ public sealed class BackupDestinationsController : BaseApiController
         command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
 
         return ToActionResult(await _bus.InvokeAsync<Result<BackupDestinationDto>>(command, cancellationToken));
+    }
+
+    /// <summary>
+    /// Switches encryption of NEW backups on or off for one destination (issue #160). The first time it
+    /// is switched on the panel makes the destination's key; the key is never returned, and switching
+    /// encryption off keeps it so backups already sealed stay restorable.
+    /// </summary>
+    /// <param name="id">The destination.</param>
+    /// <param name="command">Whether new backups are sealed.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpPut("{id:guid}/encryption")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SetEncryptionAsync(
+        Guid id,
+        [FromBody] SetBackupDestinationEncryptionCommand command,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+
+        command = command with { DestinationId = id, IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
+
+        return ToActionResult(await _bus.InvokeAsync<Result>(command, cancellationToken));
     }
 }

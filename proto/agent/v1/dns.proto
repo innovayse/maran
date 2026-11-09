@@ -1,0 +1,294 @@
+// This panel's own authoritative DNS server: the daemon that answers for the
+// zones customers edit, and the zones it serves. Admin-only surface: the backend
+// enforces the permission check, the agent enforces every rule on every value
+// and renders its own daemon configuration and zone files. No rpc here takes a
+// configuration fragment, a record in text form or a path (issue #178).
+//
+// The daemon arrives switched off: the installer puts the package on the host,
+// masks the distribution's own unit and installs `maran-dns.service` disabled
+// and stopped. Port 53 is bound only after `EnableDns`.
+syntax = "proto3";
+
+package maran.agent.v1;
+
+option csharp_namespace = "Maran.Agent.V1";
+
+import "agent/v1/common.proto";
+
+service DnsService {
+  // Renders the daemon's configuration, validates it with the daemon's own
+  // checker, swaps it in and starts the daemon, then reports what it observed.
+  // Idempotent: an unchanged configuration on a running, answering daemon
+  // writes nothing and restarts nothing. A configuration the checker refuses,
+  // or a daemon that does not answer after the start, restores the previous
+  // configuration and answers with an error.
+  //
+  // The firewall is NOT touched: opening port 53 is a separate administrator
+  // action, exactly as it is for FTPS.
+  rpc EnableDns(EnableDnsRequest) returns (EnableDnsResponse);
+
+  // Stops the daemon and takes it out of the boot sequence. Zones and their
+  // files are NOT removed: disabling a service is not deleting what it served.
+  // Idempotent.
+  rpc DisableDns(DisableDnsRequest) returns (DisableDnsResponse);
+
+  // Reports what the daemon is doing, observed on the host: whether the unit is
+  // active, whether the daemon answers its control channel, whether port 53
+  // accepts a connection, and whether the live configuration still refuses
+  // recursion and still rate-limits responses. Read-only.
+  rpc GetDnsStatus(GetDnsStatusRequest) returns (GetDnsStatusResponse);
+
+  // Replaces the whole content of one zone: the agent renders the zone file from
+  // the complete record set, validates it with the daemon's zone checker, swaps
+  // it in and makes the daemon load it (adding the zone when the daemon does not
+  // know it yet, reloading just that zone otherwise). Idempotent and
+  // replace-whole: the request carries every record the zone has, and a record
+  // absent from it is removed. A zone the checker refuses is never loaded and
+  // the previous file is kept.
+  rpc PutZone(PutZoneRequest) returns (PutZoneResponse);
+
+  // Removes one zone from the daemon and deletes its file. Idempotent: a zone
+  // that is not there is a success that says it was not there.
+  rpc DeleteZone(DeleteZoneRequest) returns (DeleteZoneResponse);
+
+  // Reports what the daemon serves for one zone, read from the daemon and the
+  // zone file and never from what the panel last sent. Read-only.
+  rpc GetZone(GetZoneRequest) returns (GetZoneResponse);
+
+  // Lists the apex names of the zones the daemon currently serves. Read-only.
+  rpc ListZones(ListZonesRequest) returns (ListZonesResponse);
+}
+
+// Whether a property of the live daemon configuration holds, as a THREE-valued
+// answer: a configuration that cannot be read must not be certified as
+// compliant, and must not be reported as a violation either.
+enum DnsPolicyObservation {
+  // The live configuration could not be read or does not state the property.
+  // Never certifies anything.
+  DNS_POLICY_OBSERVATION_NOT_OBSERVED = 0;
+  // The live configuration states the property the panel promises.
+  DNS_POLICY_OBSERVATION_IN_FORCE = 1;
+  // The live configuration states the opposite. A security finding.
+  DNS_POLICY_OBSERVATION_NOT_IN_FORCE = 2;
+}
+
+// What the host is actually doing about DNS. Every rpc that changes the daemon
+// answers with this same observation, so a panel that has just enabled or
+// disabled needs no second call to learn what it did.
+message DnsDaemonStatus {
+  // True when the service manager reports the DNS unit active.
+  bool running = 1;
+  // True when the daemon answered a status request on its control channel,
+  // which is stronger than the unit being active: a unit can be active over a
+  // daemon that failed to load its configuration.
+  bool control_channel_answered = 2;
+  // True when a TCP connection to port 53 on the loopback address was accepted.
+  bool port_53_answering = 3;
+  // Whether the live configuration refuses recursion. Read from the file the
+  // daemon is started against, resolving the LAST occurrence of the key.
+  DnsPolicyObservation recursion_refused = 4;
+  // Whether the live configuration rate-limits responses.
+  DnsPolicyObservation response_rate_limiting = 5;
+  // True when the service manager reports the DNS unit enabled, that is,
+  // started at boot. A daemon that is running but not enabled disappears at the
+  // next reboot, so the two are reported apart.
+  bool enabled_at_boot = 6;
+}
+
+message EnableDnsRequest {}
+
+message EnableDnsResponse {
+  oneof result {
+    EnableDnsOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message EnableDnsOk {
+  // The daemon as observed after the start.
+  DnsDaemonStatus status = 1;
+}
+
+message DisableDnsRequest {}
+
+message DisableDnsResponse {
+  oneof result {
+    DisableDnsOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message DisableDnsOk {
+  // The daemon as observed after the stop.
+  DnsDaemonStatus status = 1;
+}
+
+message GetDnsStatusRequest {}
+
+message GetDnsStatusResponse {
+  oneof result {
+    GetDnsStatusOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message GetDnsStatusOk {
+  // The daemon as observed now.
+  DnsDaemonStatus status = 1;
+}
+
+// The closed set of record types a zone may carry. There is no raw-record type.
+enum DnsRecordType {
+  // Never valid: a record without a type is refused as INVALID_INPUT.
+  DNS_RECORD_TYPE_UNSPECIFIED = 0;
+  // IPv4 address; reads `address`.
+  DNS_RECORD_TYPE_A = 1;
+  // IPv6 address; reads `address`.
+  DNS_RECORD_TYPE_AAAA = 2;
+  // Alias; reads `target`.
+  DNS_RECORD_TYPE_CNAME = 3;
+  // Mail exchanger; reads `priority` and `target`.
+  DNS_RECORD_TYPE_MX = 4;
+  // Free text; reads `text`.
+  DNS_RECORD_TYPE_TXT = 5;
+  // Service locator; reads `priority`, `weight`, `port` and `target`.
+  DNS_RECORD_TYPE_SRV = 6;
+  // Certification authority authorization; reads `caa_flags`, `caa_tag` and
+  // `caa_value`.
+  DNS_RECORD_TYPE_CAA = 7;
+  // Delegation of a name BELOW the apex; reads `target`. The apex NS set is
+  // never a record: it is `PutZoneRequest.nameservers`.
+  DNS_RECORD_TYPE_NS = 8;
+}
+
+// One record of a zone. Which fields are read depends on `type` (see the
+// enum); a field the type does not read must be left at its default, and a
+// non-default value there is refused as INVALID_INPUT. Every value is
+// re-validated by the agent whatever the panel already checked.
+message DnsRecord {
+  // Owner name RELATIVE to the zone apex: "@" for the apex itself, a label
+  // sequence such as "www" or "_dmarc" otherwise, optionally with a leftmost
+  // "*" label. An absolute name is refused.
+  string name = 1;
+  // What kind of record this is.
+  DnsRecordType type = 2;
+  // Time to live in seconds, 60 to 604800.
+  uint32 ttl = 3;
+  // A or AAAA: the IP address in its textual form.
+  string address = 4;
+  // CNAME, MX, SRV or NS: the target host name, ABSOLUTE with at least two
+  // labels; the trailing dot is optional. A name relative to the zone is not
+  // accepted, because "mail" and "mail.example.com" cannot be told apart from an
+  // absolute name by looking at them.
+  string target = 5;
+  // MX preference or SRV priority, 0 to 65535.
+  uint32 priority = 6;
+  // SRV weight, 0 to 65535.
+  uint32 weight = 7;
+  // SRV port, 1 to 65535.
+  uint32 port = 8;
+  // CAA flags, 0 or 128.
+  uint32 caa_flags = 9;
+  // CAA property tag: issue, issuewild or iodef.
+  string caa_tag = 10;
+  // CAA property value, printable ASCII without quote or backslash.
+  string caa_value = 11;
+  // TXT body: printable ASCII 0x20 to 0x7E without quote or backslash. The
+  // agent splits it into 255-byte strings when it renders.
+  string text = 12;
+}
+
+// The start-of-authority data of a zone. The SERIAL is chosen by the panel and
+// the agent never derives one: the panel owns the monotonic counter.
+message DnsZoneSoa {
+  // Host name of the primary name server.
+  string primary_nameserver = 1;
+  // Hostmaster mailbox in SOA form (the first dot separates the local part).
+  string hostmaster = 2;
+  // Zone serial; must increase on every change that should be visible.
+  uint32 serial = 3;
+  // Secondary refresh interval, seconds.
+  uint32 refresh = 4;
+  // Secondary retry interval, seconds.
+  uint32 retry = 5;
+  // Secondary expiry, seconds.
+  uint32 expire = 6;
+  // Negative-caching TTL, seconds.
+  uint32 negative_ttl = 7;
+}
+
+message PutZoneRequest {
+  // The zone apex, a fully qualified name without the trailing dot.
+  string zone_name = 1;
+  // The zone's start-of-authority data.
+  DnsZoneSoa soa = 2;
+  // The apex NS set, host names. At least one.
+  repeated string nameservers = 3;
+  // Every other record of the zone; a record absent from here is removed.
+  repeated DnsRecord records = 4;
+}
+
+message PutZoneResponse {
+  oneof result {
+    PutZoneOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message PutZoneOk {
+  // True when the daemon did not know the zone before this call.
+  bool created = 1;
+  // The serial the daemon now serves, read back from the daemon.
+  uint32 serial = 2;
+}
+
+message DeleteZoneRequest {
+  // The zone apex to remove.
+  string zone_name = 1;
+}
+
+message DeleteZoneResponse {
+  oneof result {
+    DeleteZoneOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message DeleteZoneOk {
+  // True when the zone was served or had a file before this call; false when
+  // there was nothing to remove (the repeat of a delete).
+  bool was_present = 1;
+}
+
+message GetZoneRequest {
+  // The zone apex to describe.
+  string zone_name = 1;
+}
+
+message GetZoneResponse {
+  oneof result {
+    GetZoneOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message GetZoneOk {
+  // True when the daemon currently serves the zone.
+  bool served = 1;
+  // The serial the daemon serves; zero when it does not serve the zone.
+  uint32 serial = 2;
+}
+
+message ListZonesRequest {}
+
+message ListZonesResponse {
+  oneof result {
+    ListZonesOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message ListZonesOk {
+  // Apex names of the zones the daemon serves, without the trailing dot.
+  repeated string zone_names = 1;
+}

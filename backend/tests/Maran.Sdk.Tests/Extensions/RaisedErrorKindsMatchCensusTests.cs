@@ -72,6 +72,16 @@ public sealed class RaisedErrorKindsMatchCensusTests
                 new BackupRestoreEvent(BackupRestoreEventKind.Failed, 0, string.Empty, null, agentFailure)));
         }
 
+        // The one failure only a restore narrowed to a database or a site can raise (issue #160).
+        raised.Add(RestoreAgentErrorTranslator.ToFailure(
+            new BackupRestoreEvent(
+                BackupRestoreEventKind.Failed,
+                0,
+                string.Empty,
+                null,
+                Error.Of("AgentNotFound", ErrorType.NotFound)),
+            new AgentDatabaseRestoreScope("alice_shop")));
+
         return raised;
     }
 

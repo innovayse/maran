@@ -18,11 +18,17 @@ use crate::services::wire::invalid_input::invalid_input;
 /// Returns the wire error for a setting that is not on the whitelist, or a
 /// value that is malformed, out of range, or carries a control character.
 pub fn validated_overrides(settings: &[PhpSetting]) -> Result<Vec<PhpOverride>, AgentError> {
-    settings
+    let overrides = settings
         .iter()
         .map(|setting| {
             PhpOverride::parse(&setting.name, &setting.value)
                 .map_err(|error| invalid_input(error.to_string()))
         })
-        .collect()
+        .collect::<Result<Vec<_>, _>>()?;
+    PhpOverride::ensure_consistent(&overrides).map_err(|error| invalid_input(error.to_string()))?;
+    Ok(overrides)
 }
+
+#[cfg(test)]
+#[path = "../../tests/services/sites/validated_overrides_tests.rs"]
+mod tests;

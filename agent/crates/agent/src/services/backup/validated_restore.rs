@@ -1,12 +1,16 @@
 //! Everything a restore rpc carries, once the agent has checked it.
 
 use maran_agent_core::validation::db::database_name::DatabaseName;
+use maran_agent_core::validation::secrets::archive_key::ArchiveKey;
 use maran_agent_core::validation::system::backup_id::BackupId;
 use maran_agent_core::validation::system::local_backup_root::LocalBackupRoot;
 use maran_agent_core::validation::system::name::AccountName;
+use maran_ops::backup::RestoreScope;
 
 use crate::proto::{AgentError, RestoreBackupRequest};
+use crate::services::backup::validated_archive_key::validated_archive_key;
 use crate::services::backup::validated_destination::validated_destination;
+use crate::services::backup::validated_scope::validated_scope;
 use crate::services::wire::invalid_input::invalid_input;
 
 /// The number of characters a hex-encoded SHA-256 digest has.
@@ -37,6 +41,14 @@ pub struct ValidatedRestore {
 
     /// The databases the panel still knows this account owns.
     pub allowed_databases: Vec<DatabaseName>,
+
+    /// What the restore replaces: the whole account unless the request named one
+    /// database or one site.
+    pub scope: RestoreScope,
+
+    /// The archive key the destination carried, or `None` for a call that sent
+    /// none. Whether the artifact needs one is decided later, by the artifact.
+    pub key: Option<ArchiveKey>,
 }
 
 impl ValidatedRestore {
@@ -57,8 +69,9 @@ impl ValidatedRestore {
     ///
     /// The wire error for a destination the agent will not accept (including a
     /// remote one), an id that is not a backup id, a digest that is not 64
-    /// lowercase hex characters, or a database name that does not decode to
-    /// `account`.
+    /// lowercase hex characters, an archive key that is not 64 lowercase hex
+    /// characters, a database name that does not decode to `account`, or a scope
+    /// naming a database or a domain the agent would not accept.
     pub fn from_request(
         request: &RestoreBackupRequest,
         account: &AccountName,
@@ -67,6 +80,7 @@ impl ValidatedRestore {
         let backup_id = BackupId::parse(&request.backup_id)
             .map_err(|error| invalid_input(error.to_string()))?;
         let expected_sha256 = validated_digest(&request.expected_sha256)?;
+        let key = validated_archive_key(request.destination.as_ref())?;
 
         let mut allowed_databases = Vec::with_capacity(request.allowed_databases.len());
         for name in &request.allowed_databases {
@@ -77,12 +91,15 @@ impl ValidatedRestore {
             })?;
             allowed_databases.push(database);
         }
+        let scope = validated_scope(request.scope.as_ref(), account)?;
 
         Ok(Self {
             root,
             backup_id,
             expected_sha256,
             allowed_databases,
+            scope,
+            key,
         })
     }
 }

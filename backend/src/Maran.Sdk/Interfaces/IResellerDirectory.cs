@@ -25,4 +25,20 @@ public interface IResellerDirectory
     /// confirm the existence of a tenant it may not see (rules/security.md — 404, never 403).
     /// </returns>
     Task<ResellerSnapshot?> FindAsync(Guid resellerId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Reads the ids of the hosting accounts the signed-in reseller owns, for a module that stores rows
+    /// stamped with an account id and must show a reseller only those of its own accounts (the audit
+    /// journal, issue #370).
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <returns>
+    /// The id of EVERY account the caller's reseller owns, in no guaranteed order, suspended ones
+    /// included. Empty for every other caller — an administrator, a customer, an anonymous caller — and
+    /// for a reseller that owns none: "none" is an answer, and this member has no way to say "you may
+    /// not ask". The reseller is the one the caller's own token names, never a parameter, so a reseller
+    /// cannot ask for another's accounts. The answer is not capped, because a cap would make the
+    /// caller's list silently miss the rows of every account past it.
+    /// </returns>
+    Task<IReadOnlyList<Guid>> ListOwnedAccountIdsAsync(CancellationToken cancellationToken);
 }

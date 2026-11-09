@@ -36,6 +36,20 @@ namespace Maran.Modules.Accounts.Commands.UpdatePlan;
 /// current one. An empty list removes every feature; a request that leaves it out is refused rather
 /// than read as "unchanged".
 /// </param>
+/// <param name="PhpLimits">
+/// The largest PHP settings a customer on the plan may choose (issue #138). Optional: left out, the
+/// plan keeps its current bounds, so a client that predates the bounds cannot reset them by
+/// omission. Stated, they replace the plan's bounds and reach every account on it.
+/// </param>
+/// <param name="MailLimits">
+/// What an account on the plan may do with mail (issue #177). Optional: left out, the plan keeps its
+/// current figures, so a client that predates mail cannot reset them by omission. Stated, they replace
+/// the plan's figures and reach every account on it.
+/// </param>
+/// <param name="MaxDnsZones">
+/// The most DNS zones an account on the plan may own (issue #178). Optional: left out, the plan keeps its
+/// current allowance. Ignored on a plan a reseller owns, which always holds the default.
+/// </param>
 /// <param name="PlanId">
 /// The plan being edited, established by the server from the route and stamped by the action. Never
 /// bound from the request body — a body id could disagree with the path id, and one request would
@@ -56,6 +70,9 @@ public sealed record UpdatePlanCommand(
     ResourceCeilingDto MemoryMaxMb,
     ResourceCeilingDto MaxProcesses,
     IReadOnlyList<AccountFeature> Features,
+    PhpLimitsDto? PhpLimits = null,
+    MailLimitsDto? MailLimits = null,
+    int? MaxDnsZones = null,
     [property: JsonIgnore][property: BindNever][BindNever] Guid PlanId = default,
     [property: JsonIgnore][property: BindNever][BindNever] string IpAddress = "",
     [property: JsonIgnore][property: BindNever][BindNever] string UserAgent = "") : IPlanDefinition;

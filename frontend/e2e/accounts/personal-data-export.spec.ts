@@ -51,7 +51,7 @@ const stubAccount = async (page: Page): Promise<void> => {
 const openAsAdministrator = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
-  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'included', state: 'enabled' }])
+  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
   await stubInvitation(page, ACCOUNT.id, 'pending')
   await stubAccount(page)
 }

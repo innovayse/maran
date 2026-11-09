@@ -29,6 +29,14 @@ public sealed class ResellerMessagesTests
         "PlanOwnerMismatch",
         "ResellerLoginIssuanceFailed",
         "ResellerEnvelopeInvalid",
+        "BrandingDisplayNameInvalid",
+        "BrandingAccentColorInvalid",
+        "BrandingAccentColorLowContrast",
+        "BrandingLogoInvalid",
+        "BrandingLogoTooLarge",
+        "AccountOwnerUnchanged",
+        "ResellerAllocationChanged",
+        "BrandingChangedConcurrently",
     ];
 
     /// <summary>The display names the reseller role added: one per lifecycle state.</summary>
@@ -96,6 +104,8 @@ public sealed class ResellerMessagesTests
     [InlineData("PlanOwnerMismatch")]
     [InlineData("ResellerLoginIssuanceFailed")]
     [InlineData("ResellerEnvelopeInvalid")]
+    [InlineData("AccountOwnerUnchanged")]
+    [InlineData("ResellerAllocationChanged")]
     public void A_reseller_error_code_is_worded_differently_in_each_language(string key)
     {
         var sentences = Suffixes

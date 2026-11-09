@@ -50,6 +50,10 @@ public static class ControllerAuthorizationCensus
     {
         ApiKeyPolicyNames.SelfRead,
         ApiKeyPolicyNames.ServerRead,
+        ApiKeyPolicyNames.PlansRead,
+        ApiKeyPolicyNames.AccountsRead,
+        ApiKeyPolicyNames.AccountsWrite,
+        ApiKeyPolicyNames.AccountsDelete,
     };
 
     /// <summary>

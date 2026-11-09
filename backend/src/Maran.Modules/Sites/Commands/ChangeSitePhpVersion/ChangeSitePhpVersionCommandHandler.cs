@@ -1,5 +1,4 @@
 using Maran.Agent.Client.Interfaces;
-using Maran.Agent.Client.Services.PhpService;
 using Maran.Modules.Sites.Common;
 using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
@@ -24,14 +23,6 @@ namespace Maran.Modules.Sites.Commands.ChangeSitePhpVersion;
 /// </remarks>
 public sealed class ChangeSitePhpVersionCommandHandler
 {
-    /// <summary>Customer php.ini overrides, of which the panel stores none in this pass.</summary>
-    /// <remarks>
-    /// NOT a fabricated value standing in for something the panel knows: there is no override
-    /// storage in this module, so "none" is the true and complete set. When overrides gain a home,
-    /// this constant is the single place that has to start reading it.
-    /// </remarks>
-    private static readonly IReadOnlyList<PhpSettingDto> NoSettingOverrides = [];
-
     /// <summary>The Sites module's database context.</summary>
     private readonly SitesDbContext _dbContext;
 
@@ -50,6 +41,12 @@ public sealed class ChangeSitePhpVersionCommandHandler
     /// <summary>Names the site's backend and serving state in the request's culture.</summary>
     private readonly SiteDisplayNames _siteNames;
 
+    /// <summary>
+    /// The settings the account's pools carry. The new version's pool is written with them, so the
+    /// customer's choices follow the site to the version it moves to.
+    /// </summary>
+    private readonly PhpAccountPoolSettings _poolSettings;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Sites module's database context.</param>
     /// <param name="accounts">The owning account's system user name and per-pool worker budget.</param>
@@ -57,16 +54,19 @@ public sealed class ChangeSitePhpVersionCommandHandler
     /// <param name="php">The agent client listing the host's installed PHP runtimes.</param>
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="siteNames">Names the site's backend and serving state for the request's culture.</param>
+    /// <param name="poolSettings">The settings the account's pools carry, sent with every pool write.</param>
     public ChangeSitePhpVersionCommandHandler(
         SitesDbContext dbContext,
         IAccountDirectory accounts,
         IAgentSitesClient agent,
         IAgentPhpClient php,
         SiteAuditJournal journal,
-        SiteDisplayNames siteNames)
+        SiteDisplayNames siteNames,
+        PhpAccountPoolSettings poolSettings)
     {
         _dbContext = dbContext;
         _siteNames = siteNames;
+        _poolSettings = poolSettings;
         _accounts = accounts;
         _agent = agent;
         _php = php;
@@ -133,7 +133,7 @@ public sealed class ChangeSitePhpVersionCommandHandler
             command.PhpVersion,
             SiteDescriptorMapper.From(site),
             (uint)account.MaxPhpWorkersPerPool,
-            NoSettingOverrides,
+            await _poolSettings.EffectiveAsync(site.AccountId, account.PhpLimits, cancellationToken),
             // Whether the version being LEFT may lose its pool, answered from the panel's own rows:
             // a pool belongs to an account and a version, so removing it because this one site
             // moved would take the account's other sites on the old version off the air. False
@@ -161,7 +161,8 @@ public sealed class ChangeSitePhpVersionCommandHandler
             site.PhpVersion,
             site.Status,
             _siteNames.Of(site.Status),
-            site.CreatedAt));
+            site.CreatedAt,
+            site.LogRetentionDays));
     }
 
     /// <summary>Whether this site is the account's last one on the version it is leaving.</summary>

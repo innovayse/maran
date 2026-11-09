@@ -22,6 +22,8 @@ namespace Maran.Modules.Accounts.Common;
 /// <param name="MaxFtpUsers">The highest FTPS login count one of the reseller's plans may state.</param>
 /// <param name="MaxCronEntries">The highest cron entry count one of the reseller's plans may state.</param>
 /// <param name="MaxPhpWorkersPerPool">The highest php-fpm worker count per pool one of the reseller's plans may state.</param>
+/// <param name="MaxMailboxes">The highest mailbox count one of the reseller's plans may state (issue #177).</param>
+/// <param name="MailboxQuotaPoolMib">The highest mailbox quota pool, in mebibytes, one of the reseller's plans may state.</param>
 /// <param name="Features">The features the reseller may sell, as the names of the set's members; empty sells none.</param>
 /// <param name="CpuQuotaPercent">The CPU ceiling the reseller's plans may not exceed, in percent of one CPU, or no ceiling.</param>
 /// <param name="MemoryMaxMb">The memory ceiling the reseller's plans may not exceed, in megabytes, or no ceiling.</param>
@@ -37,6 +39,8 @@ public sealed record ResellerEnvelopeDto(
     int MaxFtpUsers,
     int MaxCronEntries,
     int MaxPhpWorkersPerPool,
+    int MaxMailboxes,
+    int MailboxQuotaPoolMib,
     IReadOnlyList<AccountFeature> Features,
     ResourceCeilingDto CpuQuotaPercent,
     ResourceCeilingDto MemoryMaxMb,

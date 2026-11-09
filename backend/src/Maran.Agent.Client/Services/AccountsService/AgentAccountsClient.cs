@@ -1,4 +1,5 @@
 using Grpc.Net.Client;
+using Maran.Agent.Client.Channels;
 using Maran.Agent.Client.Errors;
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Resources;
@@ -33,11 +34,19 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
         _logger = logger;
     }
 
-    /// <summary>Creates a client that calls the agent over <paramref name="channel"/>.</summary>
+    /// <summary>Creates a client whose every call goes to the server the current agent target selects.</summary>
+    /// <param name="channels">Hands out the channel of the server each call is aimed at.</param>
+    /// <param name="logger">Sink for the agent's diagnostic text.</param>
+    public AgentAccountsClient(IAgentChannels channels, ILogger<AgentAccountsClient> logger)
+        : this(new GrpcAccountsServiceInvoker(channels), logger)
+    {
+    }
+
+    /// <summary>Creates a client over one fixed <paramref name="channel"/>, whatever the target.</summary>
     /// <param name="channel">A channel to the agent, e.g. from <see cref="Channels.AgentChannel.CreateUnixSocket"/>.</param>
     /// <param name="logger">Sink for the agent's diagnostic text.</param>
     public AgentAccountsClient(GrpcChannel channel, ILogger<AgentAccountsClient> logger)
-        : this(new GrpcAccountsServiceInvoker(new V1.AccountsService.AccountsServiceClient(channel)), logger)
+        : this(new FixedAgentChannels(channel), logger)
     {
     }
 
@@ -45,9 +54,22 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
     public async Task<Result<CreatedAccountDto>> CreateAsync(
         string username,
         ulong quotaBytes,
+        AccountProvisioningDto provisioning,
         CancellationToken cancellationToken)
     {
-        var request = new CreateAccountRequest { Username = username, QuotaBytes = quotaBytes };
+        var request = new CreateAccountRequest
+        {
+            Username = username,
+            QuotaBytes = quotaBytes,
+            LoginShell = AccountWireMapper.ToWire(provisioning.Shell),
+        };
+
+        // An absent inode_limit is the wire's "unlimited", so a null figure leaves the field unset.
+        if (provisioning.InodeLimit is { } inodeLimit)
+        {
+            request.InodeLimit = AccountWireMapper.ToWireCeiling(inodeLimit, nameof(provisioning));
+        }
+
         var response = await _invoker.CreateAccountAsync(request, cancellationToken);
 
         return response.ResultCase switch
@@ -77,10 +99,13 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result> UnsuspendAsync(string username, CancellationToken cancellationToken)
+    public async Task<Result> UnsuspendAsync(
+        string username,
+        AccountLoginShell shell,
+        CancellationToken cancellationToken)
     {
         var response = await _invoker.UnsuspendAccountAsync(
-            new UnsuspendAccountRequest { Username = username },
+            new UnsuspendAccountRequest { Username = username, LoginShell = AccountWireMapper.ToWire(shell) },
             cancellationToken);
 
         return response.ResultCase switch
@@ -273,9 +298,17 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
     public async Task<Result> SetQuotaAsync(
         string username,
         ulong quotaBytes,
+        ulong? inodeLimit,
         CancellationToken cancellationToken)
     {
         var request = new SetAccountQuotaRequest { Username = username, QuotaBytes = quotaBytes };
+
+        // An absent inode_limit is the wire's "unlimited", so a null figure leaves the field unset.
+        if (inodeLimit is { } figure)
+        {
+            request.InodeLimit = AccountWireMapper.ToWireCeiling(figure, nameof(inodeLimit));
+        }
+
         var response = await _invoker.SetAccountQuotaAsync(request, cancellationToken);
 
         return response.ResultCase switch
@@ -296,9 +329,9 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
         var request = new SetAccountResourceLimitsRequest
         {
             Username = username,
-            CpuQuotaPercent = ToWire(limits.CpuQuotaPercent),
-            MemoryMaxMib = ToWire(limits.MemoryMaxMib),
-            TasksMax = ToWire(limits.TasksMax),
+            CpuQuotaPercent = AccountWireMapper.ToWire(limits.CpuQuotaPercent),
+            MemoryMaxMib = AccountWireMapper.ToWire(limits.MemoryMaxMib),
+            TasksMax = AccountWireMapper.ToWire(limits.TasksMax),
         };
         var response = await _invoker.SetAccountResourceLimitsAsync(request, cancellationToken);
 
@@ -307,6 +340,30 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
             SetAccountResourceLimitsResponse.ResultOneofCase.Ok => Result.Ok(),
             SetAccountResourceLimitsResponse.ResultOneofCase.Error => Result.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(SetResourceLimitsAsync))),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result> SetOpenFilesLimitAsync(
+        string username,
+        ulong? openFiles,
+        CancellationToken cancellationToken)
+    {
+        var request = new SetAccountOpenFilesLimitRequest
+        {
+            Username = username,
+            OpenFiles = openFiles is { } limit
+                ? AccountWireMapper.ToWireCeiling(limit, nameof(openFiles))
+                : new ResourceCeiling { Unlimited = new ResourceCeilingUnlimited() },
+        };
+        var response = await _invoker.SetAccountOpenFilesLimitAsync(request, cancellationToken);
+
+        return response.ResultCase switch
+        {
+            SetAccountOpenFilesLimitResponse.ResultOneofCase.Ok => Result.Ok(),
+            SetAccountOpenFilesLimitResponse.ResultOneofCase.Error => Result.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(SetOpenFilesLimitAsync))),
             _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
@@ -444,18 +501,5 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
     private static RefusedHomeDto ToRefused(RefusedHome home)
     {
         return new RefusedHomeDto(home.AccountUsername, home.Home, home.Reason.ToString());
-    }
-
-    /// <summary>States one slice ceiling in the wire's two-case shape.</summary>
-    /// <param name="ceiling">The ceiling to send.</param>
-    /// <returns>The wire ceiling, with exactly one of its cases set.</returns>
-    private static ResourceCeiling ToWire(SliceCeiling ceiling)
-    {
-        return ceiling.Kind switch
-        {
-            SliceCeilingKind.Limited => new ResourceCeiling { Maximum = ceiling.Maximum },
-            SliceCeilingKind.Unlimited => new ResourceCeiling { Unlimited = new ResourceCeilingUnlimited() },
-            _ => throw new ArgumentOutOfRangeException(nameof(ceiling), ceiling.Kind, "Unknown slice ceiling kind."),
-        };
     }
 }

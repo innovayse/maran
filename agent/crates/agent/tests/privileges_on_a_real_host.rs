@@ -32,10 +32,15 @@ use std::time::Duration;
 
 use maran_agent_core::privs::account_ids::AccountIds;
 use maran_agent_core::privs::fork_as_account::fork_as_account;
+use maran_agent_core::privs::fork_as_account_for_bytes::fork_as_account_for_bytes;
+use maran_agent_core::privs::fork_as_account_for_descriptor::fork_as_account_for_descriptor;
 use maran_agent_core::privs::priv_error::PrivError;
 use maran_agent_core::validation::fs::file_mode::FileMode;
+use maran_agent_core::validation::fs::mutable_path::MutablePath;
 use maran_agent_core::validation::fs::relative_path::RelativePath;
+use maran_agent_core::validation::fs::upload_limit::UploadLimit;
 use maran_agent_core::validation::web::domain::Domain;
+use maran_ops::files::model::buffered_upload::BufferedUpload;
 use maran_ops::files::{DeleteEntryInput, FilesOpError, ProcessFilesHost, WriteFileInput};
 use maran_ops::sites::{
     LogSink, ProcessSiteHost, SiteHost, SiteLogKind, SitePaths, SitesOpError, TailEnd,
@@ -517,7 +522,9 @@ fn an_acme_challenge_is_written_into_a_real_home_as_the_account_and_removed_agai
 
     let path = RelativePath::parse("sites/files.example.test/.well-known/acme-challenge/token123")
         .expect("the challenge path must be valid");
-    let written_path = path.clone();
+    let written_path =
+        MutablePath::parse("sites/files.example.test/.well-known/acme-challenge/token123")
+            .expect("the challenge path must be valid");
     let removed_path = path.clone();
     let removing = name.clone();
 
@@ -530,9 +537,11 @@ fn an_acme_challenge_is_written_into_a_real_home_as_the_account_and_removed_agai
             &WriteFileInput {
                 account: name,
                 path: written_path,
-                contents: b"token123.key-authorization".to_vec(),
                 mode: FileMode::parse(0o644).expect("a plain permission mode"),
+                fail_if_exists: false,
+                limit: UploadLimit::parse(0).expect("the default cap"),
             },
+            &mut BufferedUpload::new(b"token123.key-authorization".to_vec()),
             &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
                 .expect("a one-mebibyte floor"),
         )
@@ -619,7 +628,7 @@ fn a_challenge_directory_owned_by_another_real_account_is_refused() {
         .expect("root may widen a directory it is planting");
 
     let name = owner.name().clone();
-    let path = RelativePath::parse("sites/files.example.test/.well-known/acme-challenge/token123")
+    let path = MutablePath::parse("sites/files.example.test/.well-known/acme-challenge/token123")
         .expect("the challenge path must be valid");
 
     let refused = within("the write into a stranger's directory", move || {
@@ -628,9 +637,11 @@ fn a_challenge_directory_owned_by_another_real_account_is_refused() {
             &WriteFileInput {
                 account: name,
                 path,
-                contents: b"token".to_vec(),
                 mode: FileMode::parse(0o644).expect("a plain permission mode"),
+                fail_if_exists: false,
+                limit: UploadLimit::parse(0).expect("the default cap"),
             },
+            &mut BufferedUpload::new(b"token".to_vec()),
             &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
                 .expect("a one-mebibyte floor"),
         )
@@ -772,4 +783,193 @@ fn primary_group_id(username: &str) -> u32 {
         .trim()
         .parse::<u32>()
         .expect("id -g prints a number")
+}
+
+// ---------------------------------------------------------------------------------------------
+// The two channels that bring data back from the dropped child
+// (docs/superpowers/notes/2026-11-07-file-manager-browse-threat-note.md). They share the fork and
+// the drop with `fork_as_account`, so each property the tests above establish for it is
+// established here again for the new door, observed from the PARENT through what the child
+// reports, because a channel is only as trustworthy as the process on its other end.
+// ---------------------------------------------------------------------------------------------
+
+/// What a byte-channel child reports about itself: its ids, its group list, and whether the
+/// kernel refused to give it root back.
+fn credentials_report() -> Result<String, PrivError> {
+    let groups = rustix::process::getgroups().map_err(|_| PrivError::WorkFailed)?;
+    let root_refused = rustix::thread::set_thread_uid(rustix::process::Uid::ROOT).is_err();
+    Ok(format!(
+        "{} {} {:?} {root_refused}",
+        rustix::process::getuid().as_raw(),
+        rustix::process::getgid().as_raw(),
+        groups
+            .iter()
+            .map(|group| group.as_raw())
+            .collect::<Vec<_>>(),
+    ))
+}
+
+#[test]
+#[ignore = "creates a real system account and drops privileges: polygon only"]
+fn a_byte_channel_child_has_exactly_the_accounts_ids_and_cannot_get_root_back() {
+    PolygonAccount::require_polygon();
+    let account = PolygonAccount::create("polyprivsbytes");
+    let ids = account.ids();
+
+    let bytes = within(
+        "the byte-channel child reporting its credentials",
+        move || {
+            fork_as_account_for_bytes(&ids, 4096, |sink| {
+                use std::io::Write as _;
+                let report = credentials_report()?;
+                sink.write_all(report.as_bytes())
+                    .map_err(|_| PrivError::WorkFailed)
+            })
+        },
+    )
+    .expect("a dropped child must be able to report");
+
+    // Exactly the uid, the gid, ONLY the primary group, and root refused: the same four facts the
+    // `fork_as_account` tests establish, read from what the child says about itself AFTER the
+    // drop. The expected text is built here from the password database's ids, not from the child.
+    let expected = format!("{} {} {:?} true", ids.uid(), ids.gid(), vec![ids.gid()]);
+    assert_eq!(String::from_utf8(bytes).unwrap(), expected);
+}
+
+#[test]
+#[ignore = "creates a real system account and drops privileges: polygon only"]
+fn a_byte_channel_child_does_not_inherit_the_daemons_open_descriptors() {
+    PolygonAccount::require_polygon();
+    let account = PolygonAccount::create("polyprivsbyted");
+    let ids = account.ids();
+
+    // As in the `fork_as_account` descriptor test: a descriptor the parent holds across the fork,
+    // gone in the child after the sweep. The child is allowed exactly two non-stdio descriptors
+    // here — its end of the channel, and the directory handle it reads `/proc/self/fd` with.
+    let inherited = std::fs::File::open("/etc/hostname").expect("the polygon has a hostname file");
+    let raw = std::os::fd::AsRawFd::as_raw_fd(&inherited);
+    let probe = PathBuf::from(format!("/proc/self/fd/{raw}"));
+
+    let bytes = within(
+        "the byte-channel child inspecting its descriptors",
+        move || {
+            fork_as_account_for_bytes(&ids, 16, move |sink| {
+                use std::io::Write as _;
+                let held = std::fs::read_dir("/proc/self/fd")
+                    .map_err(|_| PrivError::WorkFailed)?
+                    .filter_map(|entry| entry.ok()?.file_name().to_str()?.parse::<i32>().ok())
+                    .filter(|&number| number >= 3)
+                    .count();
+                let inherited_survived = probe.exists();
+                sink.write_all(format!("{held} {inherited_survived}").as_bytes())
+                    .map_err(|_| PrivError::WorkFailed)
+            })
+        },
+    )
+    .expect("a dropped child must be able to report");
+
+    assert!(
+        PathBuf::from(format!("/proc/self/fd/{raw}")).exists(),
+        "the parent must still hold the descriptor it opened, or the child's answer says nothing"
+    );
+    drop(inherited);
+    assert_eq!(String::from_utf8(bytes).unwrap(), "2 false");
+}
+
+#[test]
+#[ignore = "creates a real system account and drops privileges: polygon only"]
+fn a_byte_channel_result_over_the_cap_is_refused_after_a_real_drop() {
+    PolygonAccount::require_polygon();
+    let account = PolygonAccount::create("polyprivsbytec");
+    let ids = account.ids();
+
+    // The control and the refusal side by side, against the same child: the cap is the PARENT's
+    // decision, and one byte is the whole difference between the two outcomes.
+    let accepted = within("the child writing exactly the cap", move || {
+        fork_as_account_for_bytes(&ids, 100_000, |sink| {
+            use std::io::Write as _;
+            sink.write_all(&[7_u8; 100_000])
+                .map_err(|_| PrivError::WorkFailed)
+        })
+    });
+    assert_eq!(accepted.map(|bytes| bytes.len()), Ok(100_000));
+
+    let ids = account.ids();
+    let refused = within("the child writing one byte over the cap", move || {
+        fork_as_account_for_bytes(&ids, 100_000, |sink| {
+            use std::io::Write as _;
+            sink.write_all(&[7_u8; 100_001])
+                .map_err(|_| PrivError::WorkFailed)
+        })
+    });
+    assert_eq!(refused, Err(PrivError::ResultTooLarge));
+}
+
+#[test]
+#[ignore = "creates a real system account and drops privileges: polygon only"]
+fn a_descriptor_for_a_file_of_the_account_arrives_readable_and_owned_by_the_account() {
+    PolygonAccount::require_polygon();
+    let account = PolygonAccount::create("polyprivsdesc");
+    let ids = account.ids();
+    let path = account.home().join("handed-over.txt");
+    std::fs::write(&path, b"contents the child opened").expect("root may plant a file");
+    chown_to(&path, &account);
+    let opened = path.clone();
+
+    let received = within("the descriptor-handing child", move || {
+        fork_as_account_for_descriptor(&ids, || {
+            std::fs::File::open(&opened).map_err(|_| PrivError::WorkFailed)
+        })
+    })
+    .expect("the account may open its own file");
+
+    // The evidence is the descriptor's own inode and mode, read by the parent: owned by the
+    // account, and not writable through this descriptor even though the parent is root.
+    let metadata = received
+        .metadata()
+        .expect("a received descriptor can be statted");
+    assert_eq!(metadata.uid(), ids.uid());
+    let mut contents = String::new();
+    std::io::Read::read_to_string(&mut &received, &mut contents).unwrap();
+    assert_eq!(contents, "contents the child opened");
+    assert!(
+        std::io::Write::write(&mut &received, b"x").is_err(),
+        "the hand-off must be read-only"
+    );
+}
+
+#[test]
+#[ignore = "creates a real system account and drops privileges: polygon only"]
+fn a_file_the_account_cannot_open_is_never_handed_to_root() {
+    PolygonAccount::require_polygon();
+    let account = PolygonAccount::create("polyprivsdesd");
+    let ids = account.ids();
+
+    // Planted by root and left root's, mode 0600: root could read it, the account cannot. If the
+    // open happened in the parent, or the drop did not apply, it would be handed over — which is
+    // the whole disclosure this design exists to prevent.
+    let secret = account.home().join("root-only.txt");
+    std::fs::write(&secret, b"for root only").expect("root may plant a file");
+    std::fs::set_permissions(&secret, std::fs::Permissions::from_mode(0o600)).unwrap();
+    let readable = account.home().join("mine.txt");
+    std::fs::write(&readable, b"mine").unwrap();
+    chown_to(&readable, &account);
+    let (forbidden, allowed) = (secret.clone(), readable.clone());
+
+    let refused = within("the child opening a root-only file", move || {
+        fork_as_account_for_descriptor(&ids, || {
+            std::fs::File::open(&forbidden).map_err(|_| PrivError::WorkFailed)
+        })
+    });
+    assert_eq!(refused.unwrap_err(), PrivError::WorkFailed);
+
+    // The control: the same child shape on the account's own file succeeds, so the refusal above
+    // is the file's permissions and not a hand-off that fails for every file.
+    let ids = account.ids();
+    let granted = within("the child opening the account's own file", move || {
+        fork_as_account_for_descriptor(&ids, || {
+            std::fs::File::open(&allowed).map_err(|_| PrivError::WorkFailed)
+        })
+    });
+    assert!(granted.is_ok());
 }

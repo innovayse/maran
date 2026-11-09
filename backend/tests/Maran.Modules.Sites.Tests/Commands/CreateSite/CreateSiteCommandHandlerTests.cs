@@ -1,4 +1,5 @@
 using Maran.Modules.Sites.Commands.CreateSite;
+using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Sites.Tests.TestSupport;
@@ -41,6 +42,28 @@ public sealed class CreateSiteCommandHandlerTests
         var stored = await world.DbContext.Sites.SingleAsync();
         Assert.Equal("/home/acme/sites/example.com", stored.DocumentRoot);
         Assert.False(stored.HasCertificate);
+    }
+
+    /// <summary>The pool a creation writes carries the settings the account's customer chose.</summary>
+    [Fact]
+    public async Task The_pool_a_creation_writes_carries_the_settings_the_account_chose()
+    {
+        // The agent's pool write replaces what is on disk, so a creation that sent no settings would
+        // drop what the customer chose for the account's other sites.
+        var account = Guid.NewGuid();
+        var world = new CreateSiteWorld(account);
+        await using (var seed = SitesTestContext.Create(FakeCurrentUser.Admin(), world.Database))
+        {
+            seed.PhpSettings.Add(new PhpSetting(Guid.NewGuid(), account, "memory_limit", "128M"));
+            await seed.SaveChangesAsync();
+        }
+
+        var result = await world.Handler().HandleAsync(CreateSiteWorld.Command(account), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var sent = Assert.Single(Assert.Single(world.Agent.SettingOverrides));
+        Assert.Equal("memory_limit", sent.Name);
+        Assert.Equal("128M", sent.Value);
     }
 
     /// <summary>Creating a site journals the domain as the subject.</summary>

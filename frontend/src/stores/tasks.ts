@@ -1,25 +1,11 @@
 import { defineStore } from 'pinia'
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useTasksApi } from '../composables/apis/useTasksApi'
+import { useLatestRead } from '../composables/useLatestRead'
 import { ApiError } from '../composables/useApi'
+import { useStreamLifecycle } from '../composables/useStreamLifecycle'
 import type { ListLoad, ListRequest } from '../types/list'
 import type { PanelTask, TaskFailureCount, TaskKindChoice, TaskStatusChoice } from '../types/panelTask'
-
-/** How long the running-tasks stream waits before its first reconnect after the connection ended. */
-const RECONNECT_FIRST_DELAY_MS = 1000
-
-/**
- * The longest wait between two reconnects. The wait doubles after each attempt that delivered nothing,
- * so a panel that is down is asked twice a minute rather than hammered, and a restarted one is found
- * within half a minute.
- */
-const RECONNECT_MAX_DELAY_MS = 30000
-
-/**
- * HTTP statuses that mean the panel refused the stream rather than lost it: signed out, not allowed,
- * or the module absent. Retrying cannot change any of them, so the tray stops instead.
- */
-const REFUSAL_STATUSES: readonly number[] = [401, 403, 404]
 
 /**
  * Owns the panel's background tasks: one server page of them for the tasks screen, the running
@@ -39,6 +25,34 @@ const REFUSAL_STATUSES: readonly number[] = [401, 403, 404]
  */
 export const useTasksStore = defineStore('tasks', () => {
   const api = useTasksApi()
+  const latestRead = useLatestRead()
+
+  /**
+   * The tray's connection: the ONE running-tasks stream, kept alive by the shared stream lifecycle.
+   * A stream that ends or breaks is reopened after a wait that doubles; a refusal (401, 403, 404)
+   * closes the tray instead and leaves nothing to count — the badge is silent rather than an error
+   * on every screen. The tray stays open in a hidden tab (`pauseWhenHidden: false`): the badge
+   * must be right the moment the tab is looked at again.
+   */
+  const trayStream = useStreamLifecycle({
+    pauseWhenHidden: false,
+    connect: (connection) => {
+      return api.watchRunning(
+        {
+          onTask: admit,
+          onRunning: (ids) => {
+            settleRunning(ids)
+            // A running set proves the connection works, so the reconnect wait starts over.
+            connection.delivered()
+          },
+        },
+        connection.signal,
+      )
+    },
+    onRefused: () => {
+      running.value = []
+    },
+  })
 
   /** The rows of the page last answered by the panel, updated in place by stream frames. */
   const rows: Ref<PanelTask[]> = ref([])
@@ -66,15 +80,6 @@ export const useTasksStore = defineStore('tasks', () => {
    * identity to call `abort()` on, not a value to watch.
    */
   const watches = new Map<string, AbortController>()
-
-  /** The abort controller of the open running-tasks stream, or `null` when the tray is closed. */
-  let tray: AbortController | null = null
-
-  /** The reconnect waiting to happen, or `null` when none is scheduled. */
-  let reconnect: ReturnType<typeof setTimeout> | null = null
-
-  /** How long the next reconnect waits; back to the first delay whenever a running set arrives. */
-  let reconnectDelay = RECONNECT_FIRST_DELAY_MS
 
   /**
    * Counts the times {@link reset} ran. A read that began under one identity compares it on
@@ -163,8 +168,7 @@ export const useTasksStore = defineStore('tasks', () => {
 
   /**
    * Keeps only the running tasks the tray names, which drops one the caller may no longer see and
-   * reconciles what was held across a reconnect. A set arriving also proves the connection works,
-   * so the reconnect wait starts over.
+   * reconciles what was held across a reconnect.
    * @param ids Every running task the caller may see now.
    * @returns Nothing.
    */
@@ -173,7 +177,6 @@ export const useTasksStore = defineStore('tasks', () => {
     running.value = running.value.filter((task) => {
       return named.has(task.id)
     })
-    reconnectDelay = RECONNECT_FIRST_DELAY_MS
   }
 
   /**
@@ -225,51 +228,11 @@ export const useTasksStore = defineStore('tasks', () => {
 
   /**
    * Opens the tray: the ONE running-tasks stream, held for as long as the shell is signed in.
-   * Idempotent. A stream that ends or breaks is reopened after a wait that doubles up to
-   * {@link RECONNECT_MAX_DELAY_MS}; a refusal ({@link REFUSAL_STATUSES}) closes the tray instead,
-   * and leaves nothing to count — the badge is silent rather than an error on every screen.
+   * Idempotent.
    * @returns Nothing; frames arrive as they are decoded.
    */
   const openTray = (): void => {
-    if (tray !== null) {
-      return
-    }
-
-    const controller = new AbortController()
-    tray = controller
-
-    /**
-     * Decides what follows the end of this connection.
-     * @param cause Why it ended: `null` for a clean end, otherwise what was thrown.
-     * @returns Nothing.
-     */
-    const ended = (cause: unknown): void => {
-      // Closed or replaced on purpose: whoever did it owns what happens next.
-      if (tray !== controller) {
-        return
-      }
-
-      tray = null
-      if (cause instanceof ApiError && REFUSAL_STATUSES.includes(cause.status)) {
-        running.value = []
-        return
-      }
-
-      reconnect = setTimeout(() => {
-        reconnect = null
-        openTray()
-      }, reconnectDelay)
-      reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_MAX_DELAY_MS)
-    }
-
-    api.watchRunning({ onTask: admit, onRunning: settleRunning }, controller.signal).then(
-      () => {
-        ended(null)
-      },
-      (cause: unknown) => {
-        ended(cause)
-      },
-    )
+    trayStream.start()
   }
 
   /**
@@ -278,14 +241,7 @@ export const useTasksStore = defineStore('tasks', () => {
    * @returns Nothing.
    */
   const closeTray = (): void => {
-    if (reconnect !== null) {
-      clearTimeout(reconnect)
-      reconnect = null
-    }
-    const controller = tray
-    tray = null
-    controller?.abort()
-    reconnectDelay = RECONNECT_FIRST_DELAY_MS
+    trayStream.stop()
   }
 
   /**
@@ -294,8 +250,7 @@ export const useTasksStore = defineStore('tasks', () => {
    * @returns Nothing.
    */
   const reopenTray = (): void => {
-    closeTray()
-    openTray()
+    trayStream.restart()
   }
 
   /**
@@ -305,9 +260,13 @@ export const useTasksStore = defineStore('tasks', () => {
    * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
   const list = async (request: ListRequest): Promise<ListLoad<PanelTask>> => {
+    const isLatest = latestRead.begin()
     try {
       const page = await api.list(request)
-      rows.value = page.items
+      // A slower, older read must not replace the rows of a newer one.
+      if (isLatest()) {
+        rows.value = page.items
+      }
       return { kind: 'loaded', page }
     } catch (error) {
       return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }

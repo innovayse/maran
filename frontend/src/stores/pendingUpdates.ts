@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useMonitoringApi } from '../composables/apis/useMonitoringApi'
+import { useLatestRead } from '../composables/useLatestRead'
 import { ApiError } from '../composables/useApi'
 import type { ListLoad, ListRequest } from '../types/list'
 import type { PendingUpdate, UpdateClassificationChoice } from '../types/monitoring'
@@ -16,6 +17,7 @@ import type { PendingUpdate, UpdateClassificationChoice } from '../types/monitor
  */
 export const usePendingUpdatesStore = defineStore('pendingUpdates', () => {
   const api = useMonitoringApi()
+  const latestRead = useLatestRead()
 
   /** The rows of the page last answered by the panel; empty before the first answer. */
   const items: Ref<PendingUpdate[]> = ref([])
@@ -41,13 +43,19 @@ export const usePendingUpdatesStore = defineStore('pendingUpdates', () => {
    * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
   const listPendingUpdates = async (request: ListRequest): Promise<ListLoad<PendingUpdate>> => {
+    const isLatest = latestRead.begin()
     try {
       const page = await api.pendingUpdates(request)
-      items.value = page.items
+      // A slower, older read must not replace the rows of a newer one.
+      if (isLatest()) {
+        items.value = page.items
+      }
       return { kind: 'loaded', page }
     } catch (error) {
       // Rows from an earlier page must not stay on screen beside a failure message.
-      items.value = []
+      if (isLatest()) {
+        items.value = []
+      }
       return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }
     }
   }

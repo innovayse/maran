@@ -40,7 +40,8 @@
       "AccountResumption": "Возобновление аккаунта",
       "BackupCreate": "Создание резервной копии",
       "BackupRestore": "Восстановление из копии",
-      "PhpVersionInstall": "Установка версии PHP"
+      "PhpVersionInstall": "Установка версии PHP",
+      "PhpExtensionChange": "Изменение расширения PHP"
     },
     "pane": {
       "correlationId": "Идентификатор запроса",

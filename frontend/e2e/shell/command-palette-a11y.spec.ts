@@ -50,7 +50,7 @@ const MODULES: PanelModule[] = [
   'redis',
   'memcached',
 ].map((name) => {
-  return { name, displayName: `Module ${name}`, tier: 'included', state: 'enabled' }
+  return { name, displayName: `Module ${name}`, kindDisplayName: 'Core', tier: 'included', state: 'enabled' }
 })
 
 /**
@@ -134,12 +134,16 @@ test('the active option is scrolled into view inside the list as ArrowDown walks
   await expect(active).toHaveAttribute('aria-selected', 'true')
   await expect(field).toHaveAttribute('aria-activedescendant', (await active.getAttribute('id')) ?? '')
 
-  const box = await listbox.boundingBox()
-  const optionBox = await active.boundingBox()
-  expect(box).not.toBeNull()
-  expect(optionBox).not.toBeNull()
-  expect(optionBox?.y ?? 0).toBeGreaterThanOrEqual((box?.y ?? 0) - 1)
-  expect((optionBox?.y ?? 0) + (optionBox?.height ?? 0)).toBeLessThanOrEqual(
-    (box?.y ?? 0) + (box?.height ?? 0) + 1,
-  )
+  // Polled: the list scrolls the active row in a frame after the key press, and on a loaded machine
+  // that frame can come after this read. The row ending inside the list is the assertion.
+  await expect
+    .poll(async (): Promise<boolean> => {
+      const box = await listbox.boundingBox()
+      const optionBox = await active.boundingBox()
+      if (box === null || optionBox === null) {
+        return false
+      }
+      return optionBox.y >= box.y - 1 && optionBox.y + optionBox.height <= box.y + box.height + 1
+    })
+    .toBe(true)
 })

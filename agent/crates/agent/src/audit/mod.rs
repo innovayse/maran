@@ -14,6 +14,7 @@ pub mod audit_rpc_class;
 pub mod audit_service;
 pub mod audit_slot;
 pub mod audited_body;
+pub mod disclosing_rpcs;
 pub mod mutating_rpcs;
 pub mod read_only_rpcs;
 

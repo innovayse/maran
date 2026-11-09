@@ -35,6 +35,17 @@ namespace Maran.Modules.Backups.Commands.RestoreBackup;
 /// answer, read from its own rows, not the caller's — a caller-supplied list would let somebody
 /// name a database the panel does not own and have the agent asked about it.
 /// </para>
+/// <para>
+/// <b>It can be narrowed to one database or one site (issue #160), and never to a path.</b>
+/// <see cref="DatabaseName"/> replaces that one database alone, <see cref="SiteDomain"/> replaces
+/// that one site's directory alone, and neither replaces the whole account — the files and every
+/// database. Setting both is refused. Each is a NAME the panel checks against its own rows before
+/// the agent is asked: the database must be one the panel knows this account owns, and the site one
+/// the panel knows this account hosts. The directory a site occupies is derived by the agent from
+/// the domain, so the request cannot name a location. Everything else is exactly the whole restore
+/// — the typed confirmation, the pre-restore backup, the task, the audit entry — because the smaller
+/// scope is still a replacement of what is there and is just as unrecoverable without the net.
+/// </para>
 /// </remarks>
 /// <param name="BackupId">
 /// The backup to restore from. Another customer's answers not-found. It comes from the ROUTE and is
@@ -55,8 +66,18 @@ namespace Maran.Modules.Backups.Commands.RestoreBackup;
 /// The caller's user agent, recorded in the audit journal. Established by the server and stamped by
 /// the action; never bound from the request.
 /// </param>
+/// <param name="DatabaseName">
+/// The full, account-prefixed name of the one database to restore, or <c>null</c> for no database
+/// scope. Refused unless it is among the databases the panel knows this account owns.
+/// </param>
+/// <param name="SiteDomain">
+/// The primary domain of the one site to restore, or <c>null</c> for no site scope. Refused unless
+/// the panel knows the site and it belongs to the backup's account.
+/// </param>
 public sealed record RestoreBackupCommand(
     [property: JsonIgnore][property: BindNever][BindNever] Guid BackupId,
     string ConfirmAccountUsername = "",
     [property: JsonIgnore][property: BindNever][BindNever] string IpAddress = "",
-    [property: JsonIgnore][property: BindNever][BindNever] string UserAgent = "");
+    [property: JsonIgnore][property: BindNever][BindNever] string UserAgent = "",
+    string? DatabaseName = null,
+    string? SiteDomain = null);

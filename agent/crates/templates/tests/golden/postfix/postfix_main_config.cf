@@ -1,0 +1,71 @@
+# Rendered by the Maran agent. Hand edits are overwritten on the next apply.
+#
+# This file is written WHOLE, every time, through the safe-write protocol, and
+# never appended to: Postfix takes the LAST occurrence of a parameter, so an
+# appended line does not sit inert below the rendered one, it replaces it.
+#
+# Virtual hosting only. Nothing is delivered to a system account (mydestination
+# is empty and local delivery is an error); every mailbox is a virtual one
+# served by Dovecot over the LMTP socket below, under its account's own uid.
+compatibility_level = 2
+myhostname = mail.example.test
+myorigin = $myhostname
+mydestination =
+mynetworks = 127.0.0.0/8 [::1]/128
+inet_interfaces = all
+inet_protocols = all
+relayhost =
+alias_maps =
+alias_database =
+local_recipient_maps =
+local_transport = error:local delivery is disabled
+recipient_delimiter = +
+biff = no
+smtpd_banner = $myhostname ESMTP
+disable_vrfy_command = yes
+
+# Ceilings. The message size is a bound on one message, in bytes.
+message_size_limit = 52428800
+mailbox_size_limit = 0
+smtpd_recipient_limit = 100
+smtpd_client_connection_count_limit = 20
+smtpd_client_connection_rate_limit = 60
+
+# The lookup tables. Rendered by the agent from the panel's database; the type
+# is a fact of the host because the Berkeley DB backend is not on
+# every supported release.
+virtual_mailbox_domains = lmdb:/etc/maran/mail/virtual_domains
+virtual_mailbox_maps = lmdb:/etc/maran/mail/virtual_mailboxes
+virtual_alias_maps = lmdb:/etc/maran/mail/virtual_aliases
+smtpd_sender_login_maps = lmdb:/etc/maran/mail/sender_login_maps
+virtual_transport = lmtp:unix:/run/dovecot/maran-lmtp
+
+# TLS. The key is listed before the chain, as smtpd_tls_chain_files requires.
+# Protocols are an exclusion list because that spelling is understood by every
+# Postfix release the product supports; the newer ">=TLSv1.2" form is not.
+smtpd_tls_chain_files = /etc/maran/certificates/mail.example.test/privkey.pem, /etc/maran/certificates/mail.example.test/fullchain.pem
+smtpd_tls_security_level = may
+smtpd_tls_auth_only = yes
+smtpd_tls_protocols = !SSLv2, !SSLv3, !TLSv1, !TLSv1.1
+smtpd_tls_mandatory_protocols = !SSLv2, !SSLv3, !TLSv1, !TLSv1.1
+smtp_tls_security_level = may
+smtp_tls_protocols = !SSLv2, !SSLv3, !TLSv1, !TLSv1.1
+
+# Authentication is switched on per service in master.cf, never globally.
+smtpd_sasl_type = dovecot
+smtpd_sasl_path = /run/dovecot/maran-auth
+smtpd_sasl_auth_enable = no
+
+# Relaying. An unauthenticated peer may deliver only to a domain served here;
+# everything else needs a login, and only the submission services take one.
+smtpd_helo_required = yes
+smtpd_relay_restrictions = permit_mynetworks, permit_sasl_authenticated, reject_unauth_destination
+smtpd_recipient_restrictions = reject_non_fqdn_recipient, permit_mynetworks, permit_sasl_authenticated, reject_unauth_destination
+
+# Spam filtering and DKIM signing. An unreachable filter defers the mail rather
+# than letting it through unsigned and unchecked.
+smtpd_milters = unix:/run/rspamd/maran-milter.sock
+non_smtpd_milters = $smtpd_milters
+milter_protocol = 6
+milter_default_action = tempfail
+milter_mail_macros = i {mail_addr} {client_addr} {client_name} {auth_authen}

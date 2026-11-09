@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AccountNotFound">
+    <value>This account could not be found.</value>
+  </data>
+  <data name="MailNotEnabled">
+    <value>Mail is not turned on for this server. Ask the server administrator to enable it.</value>
+  </data>
+  <data name="MailServerHostnameInvalidFormat">
+    <value>This is not a valid host name. Enter a name such as mail.example.com.</value>
+  </data>
+  <data name="MailServerHostnameTooLong">
+    <value>This host name is too long. A host name may be at most 253 characters.</value>
+  </data>
+  <data name="MailServerHostnameReserved">
+    <value>This name cannot be used for a mail server because it is reserved and never names a public host.</value>
+  </data>
+  <data name="MailMessageSizeOutOfRange">
+    <value>The largest message size must be between 1 and 512 MiB.</value>
+  </data>
+  <data name="MailSpamScoresInvalid">
+    <value>The spam scores must be whole numbers from 0 to 100 and rise in order: greylist, then mark as spam, then reject.</value>
+  </data>
+  <data name="MailQueueIdInvalid">
+    <value>This is not a valid mail queue identifier.</value>
+  </data>
+  <data name="MailQueueEntryNotFound">
+    <value>This message is no longer in the mail queue.</value>
+  </data>
+  <data name="MailDomainNotFound">
+    <value>This mail domain could not be found.</value>
+  </data>
+  <data name="MailDomainTaken">
+    <value>This domain is already used for mail on this server.</value>
+  </data>
+  <data name="MailDomainNotOwnedSite">
+    <value>Mail can only be set up for the main domain of one of your own sites. Add the site first.</value>
+  </data>
+  <data name="MailDomainInvalid">
+    <value>This is not a valid domain. Enter a name such as example.com.</value>
+  </data>
+  <data name="MailDomainTooLong">
+    <value>This domain name is too long for a mail domain.</value>
+  </data>
+  <data name="MailDomainProvisioningFailed">
+    <value>The mail domain could not be set up on the server. Nothing was saved; try again.</value>
+  </data>
+  <data name="MailboxNotFound">
+    <value>This mailbox could not be found.</value>
+  </data>
+  <data name="MailboxTaken">
+    <value>This address is already used by a mailbox or an alias.</value>
+  </data>
+  <data name="MailboxLocalPartInvalid">
+    <value>The part before the @ may contain lower-case letters, digits, dots, hyphens and underscores, up to 64 characters, and must start and end with a letter or digit.</value>
+  </data>
+  <data name="MailboxQuotaOutOfRange">
+    <value>The mailbox size is outside the allowed range.</value>
+  </data>
+  <data name="MailboxSendLimitOutOfRange">
+    <value>The hourly send limit is outside the allowed range.</value>
+  </data>
+  <data name="MailboxSendLimitAbovePlan">
+    <value>The hourly send limit is higher than your plan allows.</value>
+  </data>
+  <data name="MailboxLimitReached">
+    <value>Your plan does not allow more mailboxes. Remove one or choose a larger plan.</value>
+  </data>
+  <data name="MailboxLimitReachedConcurrently">
+    <value>Your plan filled up while this mailbox was being created, so it was not kept. Remove a mailbox you no longer need and try again.</value>
+  </data>
+  <data name="MailQuotaPoolExhausted">
+    <value>The mailbox sizes would add up to more than your plan allows in total.</value>
+  </data>
+  <data name="MailboxProvisioningFailed">
+    <value>The mailbox could not be created on the server. Nothing was saved; try again.</value>
+  </data>
+  <data name="MailPasswordTooWeak">
+    <value>The password must be 12 to 128 characters long and contain no control characters.</value>
+  </data>
+  <data name="MailPasswordSchemeUnsupported">
+    <value>The mail server cannot verify the kind of password protection this panel produces yet. Ask the server administrator.</value>
+  </data>
+  <data name="MailAliasNotFound">
+    <value>This alias could not be found.</value>
+  </data>
+  <data name="MailAliasTaken">
+    <value>This address is already used by an alias or a mailbox.</value>
+  </data>
+  <data name="MailAliasTargetInvalid">
+    <value>Enter at least one valid destination address. Each destination must be a plain address such as name@example.com.</value>
+  </data>
+  <data name="MailAliasTargetLimit">
+    <value>An alias may have at most 20 destinations.</value>
+  </data>
+  <data name="MailAliasKindMismatch">
+    <value>The kind does not match the destinations: an alias delivers only to your own domains, a forwarder needs at least one outside address.</value>
+  </data>
+  <data name="MailAliasExternalTargetNotAllowed">
+    <value>The server administrator has not allowed forwarding to addresses outside your domains.</value>
+  </data>
+  <data name="MailCatchAllConflict">
+    <value>This domain already has a catch-all address.</value>
+  </data>
+  <data name="MailAliasProvisioningFailed">
+    <value>The alias could not be set up on the server. Nothing was saved; try again.</value>
+  </data>
+  <data name="MailAutoresponderInvalid">
+    <value>The reply is not valid: the subject must be one line of at most 200 characters, and the text at most 4096 bytes with no line starting with a dot.</value>
+  </data>
+  <data name="MailAutoresponderNotFound">
+    <value>This mailbox has no automatic reply.</value>
+  </data>
+</root>

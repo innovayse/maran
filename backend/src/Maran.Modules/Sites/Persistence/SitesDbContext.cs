@@ -58,6 +58,54 @@ public sealed class SitesDbContext : DbContext
         }
     }
 
+    /// <summary>The per-site options of this account's sites, scoped through the site they belong to.</summary>
+    public DbSet<SiteOptions> SiteOptions
+    {
+        get
+        {
+            return Set<SiteOptions>();
+        }
+    }
+
+    /// <summary>The per-day traffic figures of this account's sites.</summary>
+    /// <remarks>
+    /// Tenant-scoped through the owning site, like <see cref="SiteHostnames"/>. The unattended hourly pass
+    /// has no principal and reads and writes them with the filter lifted, saying so where it does.
+    /// </remarks>
+    public DbSet<SiteTrafficDay> SiteTrafficDays
+    {
+        get
+        {
+            return Set<SiteTrafficDay>();
+        }
+    }
+
+    /// <summary>Where the last read of each of this account's sites' access logs stopped.</summary>
+    /// <remarks>Tenant-scoped through the owning site, exactly as <see cref="SiteTrafficDays"/> is.</remarks>
+    public DbSet<SiteTrafficCursor> SiteTrafficCursors
+    {
+        get
+        {
+            return Set<SiteTrafficCursor>();
+        }
+    }
+
+    /// <summary>
+    /// The PHP settings customers chose for their accounts (issue #138), one row per setting per account.
+    /// </summary>
+    /// <remarks>
+    /// Tenant-scoped like <see cref="Sites"/>. The pool writers that run for somebody else — an
+    /// administrator creating a site, the start-up pass, a plan edit — read them through
+    /// <c>PhpAccountPoolSettings</c>, which says <c>IgnoreQueryFilters</c> out loud where it does.
+    /// </remarks>
+    public DbSet<PhpSetting> PhpSettings
+    {
+        get
+        {
+            return Set<PhpSetting>();
+        }
+    }
+
     /// <summary>
     /// True when the caller is an administrator, who sees every account's rows. Read per context
     /// instance by the tenant filter, which an expression tree cannot express as a type switch.
@@ -108,6 +156,13 @@ public sealed class SitesDbContext : DbContext
         modelBuilder.HasDefaultSchema(SchemaName);
         modelBuilder.ApplyConfiguration(new SiteConfiguration());
         modelBuilder.ApplyConfiguration(new SiteHostnameConfiguration());
+        modelBuilder.ApplyConfiguration(new PhpSettingConfiguration());
+        modelBuilder.ApplyConfiguration(new SiteTrafficDayConfiguration());
+        modelBuilder.ApplyConfiguration(new SiteTrafficCursorConfiguration());
+        modelBuilder.ApplyConfiguration(new SiteOptionsConfiguration());
+        modelBuilder.ApplyConfiguration(new SiteRedirectConfiguration());
+        modelBuilder.ApplyConfiguration(new SiteBasicAuthUserConfiguration());
+        modelBuilder.ApplyConfiguration(new SiteIpRuleConfiguration());
 
         // Spec §8: a tenant row is not returned to another tenant PHYSICALLY, not by a handler
         // remembering to filter. An administrator sees everything; a customer's context carries
@@ -120,8 +175,32 @@ public sealed class SitesDbContext : DbContext
         // A claim belongs to whoever owns the site making it, so its scope is read through the
         // required relationship rather than from a second copy of the account id that could
         // disagree with the site's own (rules/security.md item 6: every tenant entity is filtered).
+        // A customer's PHP settings carry their own account id, so the filter reads it directly.
+        modelBuilder.Entity<PhpSetting>().HasQueryFilter(setting =>
+            SeesEveryAccount || setting.AccountId == OwnAccountId);
+
         modelBuilder.Entity<SiteHostname>().HasQueryFilter(hostname =>
             SeesEveryAccount || hostname.Site.AccountId == OwnAccountId);
+
+        // The options and their rows are scoped through the site, then through the options, for the
+        // same reason: none carries an account id of its own that could disagree with the site's. A
+        // child without its own filter would be a row a customer could read by id.
+        modelBuilder.Entity<SiteOptions>().HasQueryFilter(options =>
+            SeesEveryAccount || options.Site.AccountId == OwnAccountId);
+        modelBuilder.Entity<SiteRedirect>().HasQueryFilter(redirect =>
+            SeesEveryAccount || redirect.Options.Site.AccountId == OwnAccountId);
+        modelBuilder.Entity<SiteBasicAuthUser>().HasQueryFilter(user =>
+            SeesEveryAccount || user.Options.Site.AccountId == OwnAccountId);
+        modelBuilder.Entity<SiteIpRule>().HasQueryFilter(rule =>
+            SeesEveryAccount || rule.Options.Site.AccountId == OwnAccountId);
+
+        // Traffic figures and the read position belong to whoever owns the site, and are scoped the same
+        // way: through the required relationship, never by a second copy of the account id.
+        modelBuilder.Entity<SiteTrafficDay>().HasQueryFilter(day =>
+            SeesEveryAccount || day.Site.AccountId == OwnAccountId);
+
+        modelBuilder.Entity<SiteTrafficCursor>().HasQueryFilter(cursor =>
+            SeesEveryAccount || cursor.Site.AccountId == OwnAccountId);
 
         base.OnModelCreating(modelBuilder);
     }

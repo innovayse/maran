@@ -24,12 +24,10 @@ namespace Maran.Modules.Notifications.Models;
 /// </param>
 /// <param name="FromAddress">The address the panel's mail is sent from.</param>
 /// <param name="FromName">The display name beside the sender address; may be empty.</param>
-/// <param name="AlertRecipient">Where alert mail goes, or <c>null</c> when no operator address is set.</param>
 public sealed record SmtpProfile(
     string Host,
     int Port,
     SmtpSecurity Security,
     SmtpCredentials Credentials,
     string FromAddress,
-    string FromName,
-    string? AlertRecipient);
+    string FromName);

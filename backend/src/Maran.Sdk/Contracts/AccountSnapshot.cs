@@ -106,6 +106,20 @@ namespace Maran.Sdk.Contracts;
 /// <paramref name="OwnerEmail"/> is; both production construction sites, in <c>AccountDirectory</c>,
 /// pass the stored value.
 /// </param>
+/// <remarks>
+/// <b><see cref="PhpLimits"/></b> is the plan's bounds for the customer's PHP settings (issue #138).
+/// It is an initialised property and not a positional member for the reason
+/// <paramref name="MaxFtpUsers"/> is defaulted: this record is constructed at dozens of test sites, and
+/// a required parameter would stop them building. It reads as <see cref="PhpLimitsSnapshot.Default"/>
+/// when nobody states it; both production construction sites, in <c>AccountDirectory</c>, set it from
+/// the plan.
+/// <para>
+/// <b><see cref="MailLimits"/></b> is the plan's allowance for the account's mail. An initialised
+/// property for the same reason as <see cref="PhpLimits"/>; it reads as <see cref="MailLimitsSnapshot.Default"/>
+/// when nobody states it, and the two production construction sites in <c>AccountDirectory</c> set it
+/// from the plan.
+/// </para>
+/// </remarks>
 public sealed record AccountSnapshot(
     Guid Id,
     string Username,
@@ -118,4 +132,14 @@ public sealed record AccountSnapshot(
     AccountState State,
     int MaxFtpUsers = 0,
     string? OwnerEmail = null,
-    string OwnerLanguage = PanelLanguages.English);
+    string OwnerLanguage = PanelLanguages.English)
+{
+    /// <summary>The plan's bounds for the customer's PHP settings.</summary>
+    public PhpLimitsSnapshot PhpLimits { get; init; } = PhpLimitsSnapshot.Default;
+
+    /// <summary>The plan's allowance for the account's mail: mailboxes, quotas and the send limit.</summary>
+    public MailLimitsSnapshot MailLimits { get; init; } = MailLimitsSnapshot.Default;
+
+    /// <summary>The most DNS zones the account may own; zero means the plan sells none (issue #178).</summary>
+    public int MaxDnsZones { get; init; }
+}

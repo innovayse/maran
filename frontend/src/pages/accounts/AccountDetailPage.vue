@@ -29,6 +29,10 @@
  * which is also the only place the final backup taken before the cascade is
  * described.
  *
+ * **The owner is handed over in {@link AccountOwnerDialog}** (#369), offered to an administrator
+ * only: the move of an account to a reseller, or back to the administrator, with a plan of the new
+ * owner. The endpoint is administrator-only, so the action is advice for the screen.
+ *
  * **The plan and the owner's address are edited in place** ({@link AccountPlanDialog},
  * {@link AccountOwnerEmailDialog}, #216). Both are refused by the panel when they cannot be applied
  * — a plan the account's disk usage does not fit, an address another login holds — and the dialog
@@ -64,6 +68,7 @@ import AccountActionsCard from '../../components/accounts/AccountActionsCard.vue
 import AccountDeleteDialog from '../../components/accounts/AccountDeleteDialog.vue'
 import AccountDetailsCard from '../../components/accounts/AccountDetailsCard.vue'
 import AccountInvitationCard from '../../components/accounts/AccountInvitationCard.vue'
+import AccountOwnerDialog from '../../components/accounts/AccountOwnerDialog.vue'
 import AccountOwnerEmailDialog from '../../components/accounts/AccountOwnerEmailDialog.vue'
 import AccountPersonalDataExport from '../../components/accounts/AccountPersonalDataExport.vue'
 import AccountPlanDialog from '../../components/accounts/AccountPlanDialog.vue'
@@ -82,10 +87,10 @@ const props = defineProps<{
 }>()
 
 /**
- * The one dialog that is open over the page, or `null` when none is. The five are mutually
+ * The one dialog that is open over the page, or `null` when none is. The six are mutually
  * exclusive, so they share one value: two questions can never be asked at once.
  */
-type AccountDialog = 'suspend' | 'reactivate' | 'delete' | 'plan' | 'ownerEmail' | null
+type AccountDialog = 'suspend' | 'reactivate' | 'delete' | 'plan' | 'owner' | 'ownerEmail' | null
 
 const { t } = useI18n()
 const router = useRouter()
@@ -95,7 +100,7 @@ const authStore = useAuthStore()
 const viewAsStore = useViewAsStore()
 const { isAdmin } = useCallerRole()
 
-/** Which dialog the operator has opened: a confirmation, the deletion, or one of the two edits. */
+/** Which dialog the operator has opened: a confirmation, the deletion, or one of the three edits. */
 const dialog: Ref<AccountDialog> = ref(null)
 
 /** The success toast's text, or `null` while none is showing. */
@@ -199,11 +204,11 @@ const remove = async (): Promise<void> => {
 }
 
 /**
- * Opens one of the two edit dialogs, replacing any dialog still on screen.
+ * Opens one of the three edit dialogs, replacing any dialog still on screen.
  * @param field Which edit to open.
  * @returns Nothing.
  */
-const openEdit = (field: 'plan' | 'ownerEmail'): void => {
+const openEdit = (field: 'plan' | 'owner' | 'ownerEmail'): void => {
   dialog.value = field
 }
 
@@ -212,7 +217,14 @@ const openEdit = (field: 'plan' | 'ownerEmail'): void => {
  * @returns Nothing.
  */
 const editSaved = (): void => {
-  notice.value = dialog.value === 'plan' ? t('accounts.edit.planSaved') : t('accounts.edit.ownerEmailSaved')
+  const saved = dialog.value
+  if (saved === 'plan') {
+    notice.value = t('accounts.edit.planSaved')
+  } else if (saved === 'owner') {
+    notice.value = t('accounts.edit.ownerSaved')
+  } else {
+    notice.value = t('accounts.edit.ownerEmailSaved')
+  }
   dialog.value = null
 }
 
@@ -304,9 +316,11 @@ onMounted(async () => {
           />
           <AccountActionsCard
             :status="accountsStore.selected?.status ?? null"
+            :can-change-owner="isAdmin"
             @suspend="ask('suspend')"
             @reactivate="ask('reactivate')"
             @edit-plan="openEdit('plan')"
+            @edit-owner="openEdit('owner')"
             @edit-owner-email="openEdit('ownerEmail')"
             @delete="askDelete"
           />
@@ -345,6 +359,13 @@ onMounted(async () => {
            required and `accountsStore.selected` is nullable. -->
       <AccountPlanDialog
         v-if="dialog === 'plan'"
+        :open="true"
+        :account="accountsStore.selected"
+        @close="cancel"
+        @saved="editSaved"
+      />
+      <AccountOwnerDialog
+        v-if="dialog === 'owner'"
         :open="true"
         :account="accountsStore.selected"
         @close="cancel"

@@ -544,4 +544,29 @@ public sealed class LoginCommandHandlerTests : IDisposable
         Assert.Null(result.Value.Authenticated);
         Assert.Empty(await _context.Sessions.ToListAsync());
     }
+
+    /// <summary>A sign-in that upgrades the stored hash of an unreplaced initial password keeps the obligation.</summary>
+    /// <remarks>
+    /// The sign-in rehash is the one place the plaintext initial password is in hand. Routed through the
+    /// obligation-clearing change it would end the forced change on the first sign-in; the token the same
+    /// sign-in issues must still say the change is owed.
+    /// </remarks>
+    [Fact]
+    public async Task A_rehash_at_sign_in_does_not_clear_the_obligation_to_change_the_initial_password()
+    {
+        var stored = _hasher.Hash(Password);
+        var owner = User.CreateWithPassword(Guid.NewGuid(), "owner-one", "owner@example.com", stored, Now);
+        _context.Users.Add(owner);
+        _context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), owner.Id, Guid.NewGuid(), Now));
+        await _context.SaveChangesAsync();
+        var handler = NewHandler(new StaleHashPasswordHasher(stored));
+
+        var result = await handler.HandleAsync(Attempt(username: "owner-one"), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var reloaded = await _context.Users.SingleAsync();
+        Assert.NotEqual(stored, reloaded.PasswordHash);
+        Assert.True(reloaded.PasswordChangeRequired);
+        Assert.True(result.Value.Authenticated!.AccessToken.RequiresPasswordChange);
+    }
 }

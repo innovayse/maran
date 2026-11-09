@@ -29,7 +29,8 @@ namespace Maran.Modules.Accounts.Commands.ReactivateReseller;
 /// <c>SuspendResellerCommandHandler</c> gives.
 /// </para>
 /// <para>
-/// <b>Idempotent.</b> Reactivating an active reseller changes no row, and the login is asked again.
+/// <b>Idempotent.</b> Reactivating an active reseller changes no reseller row (the repeat still journals
+/// its own audit entry), and the login is asked again.
 /// </para>
 /// </remarks>
 public sealed class ReactivateResellerCommandHandler

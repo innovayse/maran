@@ -6,6 +6,7 @@
 //! control (a consistent one it must accept).
 
 use super::AuditRpcClass;
+use crate::audit::disclosing_rpcs::DISCLOSING_RPCS;
 use crate::audit::mutating_rpcs::MUTATING_RPCS;
 use crate::audit::read_only_rpcs::READ_ONLY_RPCS;
 
@@ -45,23 +46,34 @@ fn list_problems(name: &str, list: &[&str]) -> Vec<String> {
     problems
 }
 
-/// Compares the two lists with a baseline text and names every disagreement:
-/// a contract rpc in neither list or in both, a listed path the contract lacks,
-/// and a list that is unsorted or holds a duplicate. Empty means consistent.
-fn census_problems(baseline: &str, mutating: &[&str], read_only: &[&str]) -> Vec<String> {
+/// Compares the three lists with a baseline text and names every disagreement:
+/// a contract rpc in none of them or in more than one, a listed path the contract
+/// lacks, and a list that is unsorted or holds a duplicate. Empty means consistent.
+fn census_problems(
+    baseline: &str,
+    mutating: &[&str],
+    read_only: &[&str],
+    disclosing: &[&str],
+) -> Vec<String> {
     let contract = contract_paths(baseline);
     let mut problems = Vec::new();
     for path in &contract {
-        let in_mutating = mutating.contains(&path.as_str());
-        let in_read_only = read_only.contains(&path.as_str());
-        if !in_mutating && !in_read_only {
+        let classes = [mutating, read_only, disclosing]
+            .iter()
+            .filter(|list| list.contains(&path.as_str()))
+            .count();
+        if classes == 0 {
             problems.push(format!("unclassified: {path}"));
         }
-        if in_mutating && in_read_only {
+        if classes > 1 {
             problems.push(format!("classified twice: {path}"));
         }
     }
-    for (name, list) in [("mutating", mutating), ("read-only", read_only)] {
+    for (name, list) in [
+        ("mutating", mutating),
+        ("read-only", read_only),
+        ("disclosing", disclosing),
+    ] {
         for path in list {
             if !contract.iter().any(|known| known.as_str() == *path) {
                 problems.push(format!("stale {name} path: {path}"));
@@ -81,7 +93,12 @@ rpc maran.agent.v1.FakeService ReadThing in=.x out=.y client_streaming=false ser
 
 #[test]
 fn every_rpc_of_the_contract_is_classified_in_exactly_one_list() {
-    let problems = census_problems(CONTRACT_BASELINE, MUTATING_RPCS, READ_ONLY_RPCS);
+    let problems = census_problems(
+        CONTRACT_BASELINE,
+        MUTATING_RPCS,
+        READ_ONLY_RPCS,
+        DISCLOSING_RPCS,
+    );
 
     assert!(
         problems.is_empty(),
@@ -98,7 +115,10 @@ fn the_census_reads_the_whole_contract_and_not_an_empty_part_of_it() {
     let contract = contract_paths(CONTRACT_BASELINE);
 
     assert!(contract.len() > 50, "only {} rpcs parsed", contract.len());
-    assert_eq!(contract.len(), MUTATING_RPCS.len() + READ_ONLY_RPCS.len());
+    assert_eq!(
+        contract.len(),
+        MUTATING_RPCS.len() + READ_ONLY_RPCS.len() + DISCLOSING_RPCS.len()
+    );
     assert!(contract.contains(&"/maran.agent.v1.SitesService/CreateSite".to_owned()));
 }
 
@@ -108,6 +128,7 @@ fn a_consistent_fake_contract_is_accepted() {
         FAKE_BASELINE,
         &["/maran.agent.v1.FakeService/ChangeThing"],
         &["/maran.agent.v1.FakeService/ReadThing"],
+        &[],
     );
 
     assert!(problems.is_empty(), "inverse control refused: {problems:?}");
@@ -118,6 +139,7 @@ fn a_planted_unclassified_rpc_is_reported() {
     let problems = census_problems(
         FAKE_BASELINE,
         &["/maran.agent.v1.FakeService/ChangeThing"],
+        &[],
         &[],
     );
 
@@ -136,6 +158,7 @@ fn a_planted_rpc_in_both_lists_is_reported() {
             "/maran.agent.v1.FakeService/ChangeThing",
             "/maran.agent.v1.FakeService/ReadThing",
         ],
+        &[],
     );
 
     assert_eq!(
@@ -153,6 +176,7 @@ fn a_planted_stale_listed_path_is_reported() {
             "/maran.agent.v1.FakeService/RemovedThing",
         ],
         &["/maran.agent.v1.FakeService/ReadThing"],
+        &[],
     );
 
     assert_eq!(
@@ -170,6 +194,7 @@ fn a_planted_unsorted_or_duplicated_list_is_reported() {
             "/maran.agent.v1.FakeService/ReadThing",
             "/maran.agent.v1.FakeService/ChangeThing",
         ],
+        &[],
     );
     let duplicated = list_problems("mutating", &["/maran.agent.v1.A/B", "/maran.agent.v1.A/B"]);
 
@@ -186,6 +211,43 @@ fn a_mutating_path_is_classified_as_mutating() {
     assert_eq!(
         AuditRpcClass::of("/maran.agent.v1.SitesService/CreateSite"),
         Some(AuditRpcClass::Mutating)
+    );
+}
+
+#[test]
+fn a_file_content_read_is_classified_as_disclosing() {
+    assert_eq!(
+        AuditRpcClass::of("/maran.agent.v1.FilesService/ReadFile"),
+        Some(AuditRpcClass::Disclosing)
+    );
+}
+
+#[test]
+fn a_listing_and_a_search_stay_read_only() {
+    for path in [
+        "/maran.agent.v1.FilesService/ListDirectory",
+        "/maran.agent.v1.FilesService/SearchEntries",
+    ] {
+        assert_eq!(
+            AuditRpcClass::of(path),
+            Some(AuditRpcClass::ReadOnly),
+            "{path}"
+        );
+    }
+}
+
+#[test]
+fn a_planted_rpc_in_the_disclosing_and_another_list_is_reported() {
+    let problems = census_problems(
+        FAKE_BASELINE,
+        &["/maran.agent.v1.FakeService/ChangeThing"],
+        &["/maran.agent.v1.FakeService/ReadThing"],
+        &["/maran.agent.v1.FakeService/ReadThing"],
+    );
+
+    assert_eq!(
+        problems,
+        ["classified twice: /maran.agent.v1.FakeService/ReadThing"]
     );
 }
 
@@ -210,6 +272,13 @@ fn every_listed_path_is_classified_as_its_own_list() {
         assert_eq!(
             AuditRpcClass::of(path),
             Some(AuditRpcClass::ReadOnly),
+            "{path}"
+        );
+    }
+    for path in DISCLOSING_RPCS {
+        assert_eq!(
+            AuditRpcClass::of(path),
+            Some(AuditRpcClass::Disclosing),
             "{path}"
         );
     }

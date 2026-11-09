@@ -30,6 +30,8 @@ readonly MARAN_CLI_SERVICE_USER="maran"
 readonly MARAN_CLI_API_UNIT="maran-api.service"
 readonly MARAN_CLI_AGENT_UNIT="maran-agent.service"
 readonly MARAN_CLI_BACKUP_TIMER_UNIT="maran-panel-backup.timer"
+# The timer of the unattended security-patch update (installer/systemd/maran-update-security.timer).
+readonly MARAN_CLI_UPDATE_TIMER_UNIT="maran-update-security.timer"
 # Where every verb that builds something on disk stages it: root-owned 0700, outside every account's
 # home and outside the service account's own /var/lib/maran.
 readonly MARAN_CLI_STAGING_BASE="/var/lib/maran-cli-staging"

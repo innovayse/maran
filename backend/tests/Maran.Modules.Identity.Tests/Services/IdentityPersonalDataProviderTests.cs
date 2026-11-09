@@ -52,6 +52,10 @@ public sealed class IdentityPersonalDataProviderTests : IDisposable
         _context.Sessions.Add(new Session(
             Guid.NewGuid(), UserId, Guid.NewGuid(), PlantedTokenHash, Now, Now.AddDays(7), "203.0.113.9", "Firefox"));
         _context.PinnedPages.Add(new PinnedPage(Guid.NewGuid(), UserId, "sites", 0, Now));
+        _context.DashboardPreferences.Add(new DashboardPreference(
+            Guid.NewGuid(), UserId, DashboardPreferenceKind.Widget, "network", 0, hidden: true));
+        _context.DashboardPreferences.Add(new DashboardPreference(
+            Guid.NewGuid(), Guid.NewGuid(), DashboardPreferenceKind.Widget, "strangerWidget", 0, hidden: false));
         _context.AccountMembershipOffers.Add(AccountMembershipOffer.Offer(
             Guid.NewGuid(), UserId, AccountId, "acme", "olive@example.com", AccountFeature.None, Now));
         await _context.SaveChangesAsync();
@@ -84,16 +88,16 @@ public sealed class IdentityPersonalDataProviderTests : IDisposable
             .ExportAsync(new PersonalDataSubject(kind, id), CancellationToken.None);
     }
 
-    /// <summary>A user's export holds the login, the seats, the offers, the sessions and the pins, and only theirs.</summary>
+    /// <summary>A user's export holds the login, the seats, the offers, the sessions, the pins and the dashboard layout, and only theirs.</summary>
     [Fact]
-    public async Task A_user_export_holds_the_login_seats_offers_sessions_and_pins_of_that_user_only()
+    public async Task A_user_export_holds_the_login_seats_offers_sessions_pins_and_layout_of_that_user_only()
     {
         await SeedAsync();
 
         var sections = await AskAsync(PersonalDataSubjectKind.User, UserId);
 
         Assert.Equal(
-            ["user", "memberships", "membershipOffers", "sessions", "pins"],
+            ["user", "memberships", "membershipOffers", "sessions", "pins", "dashboardLayout"],
             sections.Select(section =>
             {
                 return section.Name;
@@ -108,6 +112,9 @@ public sealed class IdentityPersonalDataProviderTests : IDisposable
         Assert.Contains("sessions.ipAddress=203.0.113.9", flat, StringComparison.Ordinal);
         Assert.Contains("sessions.userAgent=Firefox", flat, StringComparison.Ordinal);
         Assert.Contains("pins.itemKey=sites", flat, StringComparison.Ordinal);
+        Assert.Contains("dashboardLayout.key=network", flat, StringComparison.Ordinal);
+        Assert.Contains("dashboardLayout.hidden=true", flat, StringComparison.Ordinal);
+        Assert.DoesNotContain("strangerWidget", flat, StringComparison.Ordinal);
         Assert.DoesNotContain("stranger", flat, StringComparison.Ordinal);
     }
 

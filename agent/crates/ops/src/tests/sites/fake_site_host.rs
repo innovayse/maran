@@ -21,17 +21,32 @@ use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::utils::bound_exceeded::BoundExceeded;
 use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::system::name::AccountName;
+use maran_agent_core::validation::web::basic_auth_user_name::BasicAuthUserName;
+use maran_agent_core::validation::web::bcrypt_hash::BcryptHash;
+use maran_agent_core::validation::web::client_body_size::ClientBodySize;
 use maran_agent_core::validation::web::domain::Domain;
 use maran_agent_core::validation::web::php_version::PhpVersion;
+use maran_agent_core::validation::web::redirect_path::RedirectPath;
+use maran_agent_core::validation::web::redirect_target::RedirectTarget;
+use maran_agent_core::validation::web::source_cidr::SourceCidr;
+use maran_agent_core::validation::web::static_cache_days::StaticCacheDays;
 use maran_distro::{DistroAdapter, DistroFamily, adapter_for};
 
 use crate::php::fake_php_host::FakePhpHost;
 use crate::safe_write::model::{Reload, Validator};
 use crate::sites::log_sink::LogSink;
+use crate::sites::model::auth_file_placement::AuthFilePlacement;
+use crate::sites::model::basic_auth_user::BasicAuthUser;
 use crate::sites::model::create_site_input::CreateSiteInput;
+use crate::sites::model::ip_access::IpAccess;
+use crate::sites::model::ip_access_mode::IpAccessMode;
 use crate::sites::model::log_tail_request::LogTailRequest;
+use crate::sites::model::redirect_match::RedirectMatch;
+use crate::sites::model::redirect_rule::RedirectRule;
+use crate::sites::model::redirect_status::RedirectStatus;
 use crate::sites::model::site_identity::SiteIdentity;
 use crate::sites::model::site_kind::SiteKind;
+use crate::sites::model::site_options::SiteOptions;
 use crate::sites::model::tail_end::TailEnd;
 use crate::sites::{SiteHost, SiteMaintenanceHost, SitesOpError};
 
@@ -91,6 +106,15 @@ pub(crate) struct FakeSiteHost {
     /// Whether the validator outlives its deadline and is killed, so the host
     /// answers with a bound instead of a verdict.
     validation_times_out: Mutex<bool>,
+    /// The credential files: path to content. Kept apart from `files` so the
+    /// vhost directory listing never shows one, as the real host's `.conf`
+    /// filter never does.
+    auth_files: Mutex<BTreeMap<PathBuf, String>>,
+    /// Every target written, vhost or credential file, in call order — the
+    /// list a test reads to pin that a file lands BEFORE the vhost naming it.
+    write_order: Mutex<Vec<PathBuf>>,
+    /// The group each credential write was handed, in call order.
+    auth_groups: Mutex<Vec<String>>,
 }
 
 /// One use of the config-write protocol, as the operation shaped it.
@@ -124,7 +148,39 @@ impl FakeSiteHost {
             appears_after_read: Mutex::new(None),
             protocol: Mutex::new(Vec::new()),
             validation_times_out: Mutex::new(false),
+            auth_files: Mutex::new(BTreeMap::new()),
+            write_order: Mutex::new(Vec::new()),
+            auth_groups: Mutex::new(Vec::new()),
         }
+    }
+
+    /// The content of a credential file, if the host holds one.
+    pub(crate) fn auth_file(&self, path: &Path) -> Option<String> {
+        self.auth_files.lock().unwrap().get(path).cloned()
+    }
+
+    /// Puts `contents` at `path` as if a credential file were already on disk.
+    pub(crate) fn place_auth_file(&self, path: &Path, contents: &str) {
+        self.auth_files
+            .lock()
+            .unwrap()
+            .insert(path.to_path_buf(), contents.to_owned());
+    }
+
+    /// Takes a credential file away as a crash or an operator would, outside any
+    /// operation under test.
+    pub(crate) fn remove_auth_file_for_test(&self, path: &Path) {
+        self.auth_files.lock().unwrap().remove(path);
+    }
+
+    /// Every target written, vhost or credential file, in call order.
+    pub(crate) fn write_order(&self) -> Vec<PathBuf> {
+        self.write_order.lock().unwrap().clone()
+    }
+
+    /// The web server group each credential write was handed, in call order.
+    pub(crate) fn auth_groups(&self) -> Vec<String> {
+        self.auth_groups.lock().unwrap().clone()
     }
 
     /// Makes the validator outlive its deadline: every write, creation, removal
@@ -236,6 +292,7 @@ impl FakeSiteHost {
     /// `contents` — the one body both halves of the protocol share.
     fn accept(&self, target: &Path, contents: &str) -> Result<(), SitesOpError> {
         *self.writes.lock().unwrap() += 1;
+        self.write_order.lock().unwrap().push(target.to_path_buf());
 
         let (status, stderr) = self.validation.lock().unwrap().clone();
         if status != 0 {
@@ -275,7 +332,7 @@ impl SiteHost for FakeSiteHost {
     }
 
     fn read_config(&self, path: &Path) -> Result<Option<String>, SitesOpError> {
-        let answer = self.config(path);
+        let answer = self.config(path).or_else(|| self.auth_file(path));
 
         let appeared = self
             .appears_after_read
@@ -287,6 +344,34 @@ impl SiteHost for FakeSiteHost {
         }
 
         Ok(answer)
+    }
+
+    fn write_auth_file(
+        &self,
+        target: &Path,
+        contents: &str,
+        placement: &AuthFilePlacement<'_>,
+        _validator: &Validator<'_>,
+    ) -> Result<(), SitesOpError> {
+        self.write_order.lock().unwrap().push(target.to_path_buf());
+        self.auth_groups
+            .lock()
+            .unwrap()
+            .push(placement.group.to_owned());
+        self.auth_files
+            .lock()
+            .unwrap()
+            .insert(target.to_path_buf(), contents.to_owned());
+        Ok(())
+    }
+
+    fn remove_auth_file(&self, target: &Path) -> Result<(), SitesOpError> {
+        self.auth_files.lock().unwrap().remove(target);
+        Ok(())
+    }
+
+    fn list_auth_files(&self) -> Result<Vec<PathBuf>, SitesOpError> {
+        Ok(self.auth_files.lock().unwrap().keys().cloned().collect())
     }
 
     fn write_config(
@@ -498,6 +583,51 @@ pub(crate) fn php_input() -> CreateSiteInput {
             version: PhpVersion::parse("8.3").unwrap(),
         },
         certificate: None,
+        options: SiteOptions::default(),
+    }
+}
+
+/// A syntactically valid bcrypt hash that belongs to no password.
+pub(crate) const TEST_BCRYPT_HASH: &str =
+    "$2y$12$abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXY./";
+
+/// The site of [`php_input`] with one of every kind of option: an upload size,
+/// a cache rule, a redirect, a basic-authentication user and an allow-list.
+///
+/// The one input the "an operation that re-renders the vhost keeps the
+/// options" tests share, so the options a re-render must not drop are named in
+/// one place.
+pub(crate) fn php_input_with_options() -> CreateSiteInput {
+    let options = SiteOptions::new(
+        None,
+        Some(ClientBodySize::parse(100).unwrap()),
+        Some(StaticCacheDays::parse(30).unwrap()),
+        vec![
+            RedirectRule::new(
+                RedirectPath::parse("/old").unwrap(),
+                RedirectMatch::Exact,
+                RedirectTarget::parse("/new").unwrap(),
+                RedirectStatus::Permanent,
+            )
+            .unwrap(),
+        ],
+        vec![BasicAuthUser::new(
+            BasicAuthUserName::parse("alice").unwrap(),
+            BcryptHash::parse(TEST_BCRYPT_HASH).unwrap(),
+        )],
+        Some(
+            IpAccess::new(
+                IpAccessMode::AllowList,
+                vec![SourceCidr::parse("203.0.113.0/24").unwrap()],
+            )
+            .unwrap(),
+        ),
+    )
+    .unwrap();
+
+    CreateSiteInput {
+        options,
+        ..php_input()
     }
 }
 

@@ -19,6 +19,12 @@ public static class LocalizationExtensions
     /// <summary>The embedded resource base name of the Sdk's <c>Resources/ValidationMessages*.resx</c>.</summary>
     private const string SdkValidationMessagesResourceBaseName = "Maran.Sdk.Resources.ValidationMessages";
 
+    /// <summary>The embedded resource base name of the Sdk's <c>Resources/ErrorMessages*.resx</c>.</summary>
+    private const string SdkErrorMessagesResourceBaseName = "Maran.Sdk.Resources.ErrorMessages";
+
+    /// <summary>The embedded resource base name of the packaging library's <c>Resources/ErrorMessages*.resx</c>.</summary>
+    private const string PackagingErrorMessagesResourceBaseName = "Maran.Packaging.Resources.ErrorMessages";
+
     /// <summary>Adds the localization services every module's typed resource lookup depends on.</summary>
     /// <param name="services">The application service collection.</param>
     /// <returns>The same collection, for chaining.</returns>
@@ -28,7 +34,7 @@ public static class LocalizationExtensions
 
         // The Host produces failures of its own that belong to no module — HostUnexpectedError
         // from ExceptionMiddleware, HostRateLimited from the rate limiter's rejection handler, and
-        // HostForbidden / HostTwoFactorSetupRequired / HostViewAsNotAllowed from
+        // HostForbidden / HostPasswordChangeRequired / HostTwoFactorSetupRequired / HostViewAsNotAllowed from
         // ProblemDetailsAuthorizationResultWriter.
         // Their resource manager joins the same shared pool the panel-wide
         // ResxErrorTextProvider resolves against, so all of them are localized exactly like a module's
@@ -46,6 +52,23 @@ public static class LocalizationExtensions
             new ResourceManager(
                 SdkValidationMessagesResourceBaseName,
                 typeof(Maran.Sdk.Validators.PagedQueryValidator<,>).Assembly));
+
+        // The Sdk's module-loading seam answers with codes of its own (MarketplaceNotAvailable),
+        // defined in its ErrorMessages table; that table joins the same pool so the code renders
+        // as a sentence in the caller's language and not as the bare code.
+        services.AddSingleton(
+            new ResourceManager(
+                SdkErrorMessagesResourceBaseName,
+                typeof(Maran.Sdk.Validators.PagedQueryValidator<,>).Assembly));
+
+        // The packaging library refuses a module package with typed codes of its own (IpmSignatureInvalid,
+        // IpmDowngradeRefused, ...) that an install will carry into a task failure and an API answer.
+        // The library has no module to register its table, so the composition root joins it to the
+        // shared pool here; without it every refusal of a package would render the bare code.
+        services.AddSingleton(
+            new ResourceManager(
+                PackagingErrorMessagesResourceBaseName,
+                typeof(Maran.Packaging.Services.IpmReader).Assembly));
 
         return services;
     }

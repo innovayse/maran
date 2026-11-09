@@ -1,0 +1,53 @@
+{
+  "liveDashboard": {
+    "chart": {
+      "legend": "Ցուցադրվող գծեր",
+      "tableCaption": "{label}. վերջին ցուցանիշները ({count})",
+      "openAt": "Բացել {time}-ը մոնիտորինգում"
+    },
+    "cpu": {
+      "title": "Պրոցեսոր",
+      "load": "Բեռնվածություն {one} · {five} · {fifteen}"
+    },
+    "memory": {
+      "title": "Հիշողություն"
+    },
+    "disk": {
+      "title": "Սկավառակ",
+      "sizeOnly": "Չափը՝ {total}"
+    },
+    "network": {
+      "title": "Ցանց",
+      "received": "Ստացված",
+      "sent": "Ուղարկված",
+      "figure": "Ստացված՝ {received} · ուղարկված՝ {sent}"
+    },
+    "status": {
+      "live": "Կենդանի",
+      "connecting": "Միանում է",
+      "reconnecting": "Կրկին է միանում",
+      "paused": "Դադարեցված է",
+      "stopped": "Կենդանի չէ"
+    },
+    "customize": {
+      "open": "Կարգավորել",
+      "title": "Վահանակի կարգավորում",
+      "widgets": "Վիջեթներ",
+      "actions": "Արագ գործողություններ",
+      "moveUp": "Տեղափոխել «{name}»-ը վերև",
+      "moveDown": "Տեղափոխել «{name}»-ը ներքև",
+      "save": "Պահպանել"
+    },
+    "widgets": {
+      "attention": "Պահանջում է ուշադրություն",
+      "firstRun": "Սերվերի պատրաստում",
+      "cpu": "Պրոցեսոր",
+      "memory": "Հիշողություն",
+      "disk": "Սկավառակ",
+      "network": "Ցանց",
+      "services": "Ծառայություններ",
+      "totals": "Այս սերվերում",
+      "activity": "Վերջին գործողությունները"
+    }
+  }
+}

@@ -4,7 +4,8 @@ use std::sync::Arc;
 
 use maran_agent_core::validation::system::name::AccountName;
 use maran_ops::accounts::{
-    AccountError, AccountOperations, SystemHost, set_account_resource_limits,
+    AccountError, AccountOperations, SystemHost, set_account_open_files_limit,
+    set_account_resource_limits,
 };
 use maran_ops::cron::CronHost;
 use maran_ops::db::DbHost;
@@ -21,18 +22,24 @@ use crate::proto::{
     AgentError, CreateAccountOk, CreateAccountRequest, CreateAccountResponse, DeleteAccountOk,
     DeleteAccountRequest, DeleteAccountResponse, ErrorCode, GetAccountSuspensionStateRequest,
     GetAccountSuspensionStateResponse, GetAccountUsageRequest, GetAccountUsageResponse,
-    RepairAccountHomeGroupsRequest, RepairAccountHomeGroupsResponse, SetAccountQuotaOk,
+    RepairAccountHomeGroupsRequest, RepairAccountHomeGroupsResponse, SetAccountOpenFilesLimitOk,
+    SetAccountOpenFilesLimitRequest, SetAccountOpenFilesLimitResponse, SetAccountQuotaOk,
     SetAccountQuotaRequest, SetAccountQuotaResponse, SetAccountResourceLimitsOk,
     SetAccountResourceLimitsRequest, SetAccountResourceLimitsResponse, SuspendAccountOk,
     SuspendAccountRequest, SuspendAccountResponse, UnsuspendAccountOk, UnsuspendAccountRequest,
     UnsuspendAccountResponse, create_account_response, delete_account_response,
     get_account_suspension_state_response, get_account_usage_response,
-    repair_account_home_groups_response, set_account_quota_response,
-    set_account_resource_limits_response, suspend_account_response, unsuspend_account_response,
+    repair_account_home_groups_response, set_account_open_files_limit_response,
+    set_account_quota_response, set_account_resource_limits_response, suspend_account_response,
+    unsuspend_account_response,
 };
 use crate::services::accounts::account_status::to_agent_error;
 use crate::services::accounts::to_wire_account_usage::to_wire_account_usage;
 use crate::services::accounts::to_wire_suspension_state::to_wire_suspension_state;
+use crate::services::accounts::validated_inode_limit::validated_inode_limit;
+use crate::services::accounts::validated_login_shell::validated_login_shell;
+use crate::services::accounts::validated_new_account::validated_new_account;
+use crate::services::accounts::validated_open_files_limit::validated_open_files_limit;
 use crate::services::accounts::validated_resource_limits::validated_resource_limits;
 use crate::services::accounts::wire_home_group_repair_report::wire_home_group_repair_report;
 use crate::services::wire::run_blocking::run_blocking;
@@ -300,21 +307,25 @@ impl<
     L: LoginsHost + 'static,
 > AccountsService for AccountsServiceImpl<H, P, D, S, F, W, C, L>
 {
-    /// Creates the system user, its home directory and its initial quota. A
-    /// reserved name is refused before anything runs.
+    /// Creates the system user, its home directory, its initial disk and inode
+    /// quotas and its login shell. A reserved name is refused before anything
+    /// runs.
     async fn create_account(
         &self,
         request: Request<CreateAccountRequest>,
     ) -> Result<Response<CreateAccountResponse>, Status> {
         let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
-        let result = self
-            .with_audited_account(&audit, &request.username, {
-                let operations = Arc::clone(&self.operations);
-                let quota_bytes = request.quota_bytes;
-                move |name| operations.create(&name, quota_bytes)
-            })
-            .await;
+        let result = match validated_new_account(&request) {
+            Ok(settings) => {
+                self.with_audited_account(&audit, &request.username, {
+                    let operations = Arc::clone(&self.operations);
+                    move |name| operations.create(&name, &settings)
+                })
+                .await
+            }
+            Err(error) => Err(error),
+        };
         audit.settle(&result);
         let result = match result {
             Ok(created) => create_account_response::Result::Ok(CreateAccountOk {
@@ -353,19 +364,23 @@ impl<
         }))
     }
 
-    /// Reverses a suspension.
+    /// Reverses a suspension, giving the account back the shell the panel states.
     async fn unsuspend_account(
         &self,
         request: Request<UnsuspendAccountRequest>,
     ) -> Result<Response<UnsuspendAccountResponse>, Status> {
         let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
-        let result = self
-            .with_audited_account(&audit, &request.username, {
-                let operations = Arc::clone(&self.operations);
-                move |name| operations.unsuspend(&name)
-            })
-            .await;
+        let result = match validated_login_shell(request.login_shell) {
+            Ok(shell) => {
+                self.with_audited_account(&audit, &request.username, {
+                    let operations = Arc::clone(&self.operations);
+                    move |name| operations.unsuspend(&name, shell)
+                })
+                .await
+            }
+            Err(error) => Err(error),
+        };
         audit.settle(&result);
         let result = match result {
             Ok(()) => unsuspend_account_response::Result::Ok(UnsuspendAccountOk {}),
@@ -458,20 +473,24 @@ impl<
         }))
     }
 
-    /// Replaces the account's disk quota.
+    /// Replaces the account's disk quota and its inode quota.
     async fn set_account_quota(
         &self,
         request: Request<SetAccountQuotaRequest>,
     ) -> Result<Response<SetAccountQuotaResponse>, Status> {
         let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
-        let result = self
-            .with_audited_account(&audit, &request.username, {
-                let operations = Arc::clone(&self.operations);
-                let quota_bytes = request.quota_bytes;
-                move |name| operations.set_quota(&name, quota_bytes)
-            })
-            .await;
+        let result = match validated_inode_limit(request.inode_limit.as_ref()) {
+            Ok(inode_limit) => {
+                self.with_audited_account(&audit, &request.username, {
+                    let operations = Arc::clone(&self.operations);
+                    let quota_bytes = request.quota_bytes;
+                    move |name| operations.set_quota(&name, quota_bytes, inode_limit)
+                })
+                .await
+            }
+            Err(error) => Err(error),
+        };
         audit.settle(&result);
         let result = match result {
             Ok(()) => set_account_quota_response::Result::Ok(SetAccountQuotaOk {}),
@@ -510,6 +529,42 @@ impl<
         };
 
         Ok(Response::new(SetAccountResourceLimitsResponse {
+            result: Some(result),
+        }))
+    }
+
+    /// Holds the account's sessions to its open-files limit, or removes the
+    /// limit.
+    ///
+    /// Cancellation class: run to completion. The work is one file written or
+    /// removed inside `spawn_blocking`, which a dropped client cannot stop, and
+    /// the protocol either swaps the whole file in or restores the previous one,
+    /// so there is no midpoint to abandon and nothing to reclaim.
+    async fn set_account_open_files_limit(
+        &self,
+        request: Request<SetAccountOpenFilesLimitRequest>,
+    ) -> Result<Response<SetAccountOpenFilesLimitResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
+        let request = request.into_inner();
+        let result = match validated_open_files_limit(&request) {
+            Ok(limit) => {
+                self.with_audited_account(&audit, &request.username, {
+                    let operations = Arc::clone(&self.operations);
+                    move |name| set_account_open_files_limit(&operations, &name, limit)
+                })
+                .await
+            }
+            Err(error) => Err(error),
+        };
+        audit.settle(&result);
+        let result = match result {
+            Ok(()) => {
+                set_account_open_files_limit_response::Result::Ok(SetAccountOpenFilesLimitOk {})
+            }
+            Err(error) => set_account_open_files_limit_response::Result::Error(error),
+        };
+
+        Ok(Response::new(SetAccountOpenFilesLimitResponse {
             result: Some(result),
         }))
     }

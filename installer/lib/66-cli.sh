@@ -5,6 +5,8 @@
 # /usr/local/maran/cli/lib and the release-signing public key that `maran update` verifies against
 # to /usr/local/maran/cli/keys/release-signing.pub (all root-owned, not writable by anyone else;
 # the key is 0644 in a 0755 directory, and the CLI has no knob that points the check at another key).
+# The catalogue of verbs and flags that `maran help --json` prints goes beside them, 0644 in the same
+# 0755 directory; the wrapper never reads it to decide anything.
 # /usr/local/sbin is on the root PATH of both families and on current RHEL-family secure_path, but
 # secure_path is configurable, so the operator is also given the absolute path. Root only on purpose:
 # the command mints a credential for an administrator account.
@@ -22,11 +24,15 @@ readonly MARAN_CLI_LIB_INSTALL_DIR="/usr/local/maran/cli/lib"
 readonly MARAN_CLI_KEY_INSTALL_DIR="/usr/local/maran/cli/keys"
 # The same package file 50-artifacts.sh verifies the first install against.
 readonly MARAN_CLI_KEY_SOURCE="${SCRIPT_DIR}/keys/release-signing.pub"
+# The catalogue `maran help --json` prints (issue #155): data only, installed beside the libraries.
+readonly MARAN_CLI_CATALOGUE_SOURCE="${MARAN_CLI_SOURCE_DIR}/commands.json"
+readonly MARAN_CLI_CATALOGUE_INSTALL_PATH="/usr/local/maran/cli/commands.json"
 # Every library installer/cli/maran sources, in the order it sources them after the wrapper's own.
-readonly CLI_LIB_NAMES=(common.sh status.sh reset.sh diagnostics.sh panel-archive.sh
+readonly CLI_LIB_NAMES=(common.sh status.sh reset.sh panel-certificate.sh diagnostics.sh panel-archive.sh
   panel-backup-config.sh panel-backup-retention.sh panel-backup-upload.sh panel-backup.sh
   panel-backup-schedule.sh panel-restore.sh release-version.sh release-verify.sh release-unpack.sh
-  release-layout.sh panel-dump.sh update-dumps.sh update-health.sh update.sh rollback.sh)
+  release-layout.sh panel-dump.sh update-dumps.sh update-health.sh update-unattended.sh update.sh
+  update-schedule.sh rollback.sh)
 
 # step_cli: copies the wrapper, its libraries and the release-signing public key into place with
 # exact modes; refuses before writing anything if the package lacks the wrapper, a library or the key.
@@ -40,6 +46,8 @@ step_cli() {
     || { echo "66-cli.sh: ${MARAN_CLI_KEY_SOURCE} is missing from the installer package;" \
            "maran update could not verify a release." >&2
          exit 1; }
+  [ -f "$MARAN_CLI_CATALOGUE_SOURCE" ] \
+    || { echo "66-cli.sh: ${MARAN_CLI_CATALOGUE_SOURCE} is missing from the installer package." >&2; exit 1; }
   [ -f "${MARAN_CLI_SOURCE_DIR}/maran" ] \
     || { echo "66-cli.sh: ${MARAN_CLI_SOURCE_DIR}/maran is missing from the installer package." >&2; exit 1; }
 
@@ -62,6 +70,7 @@ step_cli() {
     install -m 0644 -o root -g root "${MARAN_CLI_SOURCE_DIR}/lib/${lib}" "${MARAN_CLI_LIB_INSTALL_DIR}/${lib}"
   done
   install -m 0644 -o root -g root "$MARAN_CLI_KEY_SOURCE" "${MARAN_CLI_KEY_INSTALL_DIR}/release-signing.pub"
+  install -m 0644 -o root -g root "$MARAN_CLI_CATALOGUE_SOURCE" "$MARAN_CLI_CATALOGUE_INSTALL_PATH"
   install -m 0700 -o root -g root "${MARAN_CLI_SOURCE_DIR}/maran" "$MARAN_CLI_WRAPPER_PATH"
   echo "Installed ${MARAN_CLI_WRAPPER_PATH} (root only)."
 }

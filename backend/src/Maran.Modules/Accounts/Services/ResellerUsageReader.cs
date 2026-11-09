@@ -76,13 +76,9 @@ public sealed class ResellerUsageReader
                 _dbContext.Plans.AsNoTracking(),
                 account => account.PlanId,
                 plan => plan.Id,
-                (account, plan) => new { ResellerId = account.ResellerId!.Value, plan.DiskQuotaMb })
-            .GroupBy(row => row.ResellerId)
-            // An expression tree: EF translates this lambda into SQL, and a block body cannot become
-            // one (CS0834), so the braced-lambda style rule cannot apply to this line.
-#pragma warning disable IDE0053
-            .Select(group => new { ResellerId = group.Key, DiskMb = group.Sum(row => (long)row.DiskQuotaMb) })
-#pragma warning restore IDE0053
+                (account, plan) => new { ResellerId = account.ResellerId!.Value, DiskMb = (long)plan.DiskQuotaMb })
+            .GroupBy(row => row.ResellerId, row => row.DiskMb)
+            .Select(group => new { ResellerId = group.Key, DiskMb = group.Sum() })
             .ToListAsync(cancellationToken);
 
         // The selectors below are delegates run after the reads, not translated, so they are braced.

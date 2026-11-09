@@ -3,6 +3,7 @@
     "audit": {
       "heading": "Audit journal",
       "subtitle": "Every sign-in and every change, as the panel recorded it.",
+      "resellerSubtitle": "The entries about your accounts and your own sign-ins, as the panel recorded them.",
       "emptyTitle": "Nothing recorded yet",
       "emptyDescription": "Actions appear here as they happen.",
       "tableCaption": "Recent audit entries",

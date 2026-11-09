@@ -36,6 +36,9 @@ internal sealed class RecordingAgentDbClient : IAgentDbClient
     public string? LastDbUsername { get; private set; }
 
     /// <summary>The password of the last call.</summary>
+    /// <summary>The privilege set of the last <c>SetPrivilegesAsync</c> call.</summary>
+    public IReadOnlyCollection<DatabasePrivilegeKind>? LastPrivileges { get; private set; }
+
     public SensitiveString? LastPassword { get; private set; }
 
     /// <inheritdoc/>
@@ -89,6 +92,53 @@ internal sealed class RecordingAgentDbClient : IAgentDbClient
     }
 
     /// <inheritdoc/>
+    public async Task<Result<string>> CreateUserAsync(
+        string accountUsername,
+        string dbUsername,
+        SensitiveString password,
+        CancellationToken cancellationToken)
+    {
+        LastAccountUsername = accountUsername;
+        LastDbUsername = dbUsername;
+        LastPassword = password;
+
+        await EnterAsync(cancellationToken);
+
+        return Result<string>.Ok($"{accountUsername}_{dbUsername}");
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result> DropUserAsync(
+        string accountUsername,
+        string dbUsername,
+        CancellationToken cancellationToken)
+    {
+        LastAccountUsername = accountUsername;
+        LastDbUsername = dbUsername;
+
+        await EnterAsync(cancellationToken);
+
+        return Result.Ok();
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result> SetPrivilegesAsync(
+        string accountUsername,
+        string dbUsername,
+        string databaseName,
+        IReadOnlyCollection<DatabasePrivilegeKind> privileges,
+        CancellationToken cancellationToken)
+    {
+        LastAccountUsername = accountUsername;
+        LastDbUsername = dbUsername;
+        LastDatabaseName = databaseName;
+        LastPrivileges = privileges;
+
+        await EnterAsync(cancellationToken);
+
+        return Result.Ok();
+    }
+
     public async Task<Result<IReadOnlyList<DatabaseSummaryDto>>> ListAsync(
         string accountUsername,
         CancellationToken cancellationToken)

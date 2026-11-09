@@ -31,13 +31,13 @@ public sealed class SiteLogStreamWriterTests
             written);
     }
 
-    /// <summary>An end frame is written with its reason and no message when there is none.</summary>
+    /// <summary>An end frame is written with its reason and a null message when there is none.</summary>
     [Fact]
-    public async Task An_end_frame_is_written_with_its_reason_and_no_message_when_there_is_none()
+    public async Task An_end_frame_is_written_with_its_reason_and_a_null_message_when_there_is_none()
     {
         var written = await WriteAsync(new SiteLogEndFrame(SiteLogEndReason.Dropped, null));
 
-        Assert.Equal(": open\n\nevent: end\ndata: {\"reason\":\"dropped\"}\n\n", written);
+        Assert.Equal(": open\n\nevent: end\ndata: {\"reason\":\"dropped\",\"message\":null}\n\n", written);
     }
 
     /// <summary>An end frame carries its localized sentence when there is one.</summary>

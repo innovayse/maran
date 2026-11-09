@@ -118,6 +118,6 @@ public sealed class UpdatePlanFeaturesTests : IDisposable
         return new UpdatePlanCommand(
             "Agency", 10_240, 10, 5, 4, 2, 3, 8,
             ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited, ResourceCeilingTestValues.Unlimited,
-            features, _plan.Id, "203.0.113.7", "unit-tests");
+            features, PlanId: _plan.Id, IpAddress: "203.0.113.7", UserAgent: "unit-tests");
     }
 }

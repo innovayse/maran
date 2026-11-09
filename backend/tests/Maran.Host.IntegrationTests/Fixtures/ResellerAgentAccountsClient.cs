@@ -7,8 +7,11 @@ namespace Maran.Host.IntegrationTests.Fixtures;
 
 /// <summary>
 /// The host's account agent as the reseller tests need it: it creates, suspends, resumes, deletes and
-/// re-sizes accounts successfully, records each call, and can hold every creation at the door until a
-/// chosen number of requests have arrived, so a test can make two creations contend for one slot.
+/// re-sizes accounts successfully, records each call, can hold every creation at the door until a
+/// chosen number of requests have arrived, so a test can make two creations contend for one slot, and
+/// answers the two reads a suspension and a plan change make of the host: whether an account's login is
+/// locked (it is, from the suspension to the resumption) and how much disk it uses
+/// (<see cref="UsedBytes"/>, which a test sets to put an account over a smaller plan's quota).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -32,6 +35,12 @@ public sealed class ResellerAgentAccountsClient : IAgentAccountsClient
     /// <summary>The bytes a deletion reports freeing.</summary>
     private const ulong BytesFreed = 4096;
 
+    /// <summary>The quota the host reports on every account: 100 GiB, far above any plan the tests sell.</summary>
+    private const ulong ReportedQuotaBytes = 100UL * 1024 * 1024 * 1024;
+
+    /// <summary>The disk every account is reported to use until a test says otherwise: 50 MiB.</summary>
+    private const long DefaultUsedBytes = 50L * 1024 * 1024;
+
     /// <summary>How long a held creation waits for the others before it fails the test instead of hanging it.</summary>
     private static readonly TimeSpan BarrierWait = TimeSpan.FromSeconds(30);
 
@@ -53,6 +62,12 @@ public sealed class ResellerAgentAccountsClient : IAgentAccountsClient
     /// <summary>How many creations have arrived at the door.</summary>
     private int _arrived;
 
+    /// <summary>The disk every account is reported to use, in bytes; read and written across threads.</summary>
+    private long _usedBytes = DefaultUsedBytes;
+
+    /// <summary>Whether the accounts' logins are locked, which a suspension sets and a resumption clears.</summary>
+    private volatile AccountLoginPasswordState _loginState = AccountLoginPasswordState.Usable;
+
     /// <summary>Every account name the panel asked this agent to create.</summary>
     public IReadOnlyList<string> Created
     {
@@ -71,6 +86,16 @@ public sealed class ResellerAgentAccountsClient : IAgentAccountsClient
         get { return [.. _quotas]; }
     }
 
+    /// <summary>
+    /// The disk, in bytes, the host reports every account as using. A test raises it above a plan's quota to
+    /// make a move to that plan refuse, and puts it back to <c>50 MiB</c> afterwards.
+    /// </summary>
+    public ulong UsedBytes
+    {
+        get { return (ulong)Interlocked.Read(ref _usedBytes); }
+        set { Interlocked.Exchange(ref _usedBytes, (long)value); }
+    }
+
     /// <summary>Creates the agent.</summary>
     /// <param name="expectedCreations">
     /// How many creations must have arrived before any of them is answered; <c>1</c>, the default, holds
@@ -85,6 +110,7 @@ public sealed class ResellerAgentAccountsClient : IAgentAccountsClient
     public async Task<Result<CreatedAccountDto>> CreateAsync(
         string username,
         ulong quotaBytes,
+        AccountProvisioningDto provisioning,
         CancellationToken cancellationToken)
     {
         _created.Enqueue(username);
@@ -102,12 +128,16 @@ public sealed class ResellerAgentAccountsClient : IAgentAccountsClient
     /// <inheritdoc />
     public Task<Result> SuspendAsync(string username, CancellationToken cancellationToken)
     {
+        _loginState = AccountLoginPasswordState.Locked;
+
         return Task.FromResult(Result.Ok());
     }
 
     /// <inheritdoc />
-    public Task<Result> UnsuspendAsync(string username, CancellationToken cancellationToken)
+    public Task<Result> UnsuspendAsync(string username, AccountLoginShell shell, CancellationToken cancellationToken)
     {
+        _loginState = AccountLoginPasswordState.Usable;
+
         return Task.FromResult(Result.Ok());
     }
 
@@ -116,7 +146,8 @@ public sealed class ResellerAgentAccountsClient : IAgentAccountsClient
         string username,
         CancellationToken cancellationToken)
     {
-        throw new NotSupportedException("This double answers creation, deletion and sizing only.");
+        return Task.FromResult(Result<AccountSuspensionStateDto>.Ok(new AccountSuspensionStateDto(
+            _loginState, true, [], 0, 0, 0, [], new MeasuredUnmanagedLogins(0))));
     }
 
     /// <inheritdoc />
@@ -128,7 +159,11 @@ public sealed class ResellerAgentAccountsClient : IAgentAccountsClient
     }
 
     /// <inheritdoc />
-    public Task<Result> SetQuotaAsync(string username, ulong quotaBytes, CancellationToken cancellationToken)
+    public Task<Result> SetQuotaAsync(
+        string username,
+        ulong quotaBytes,
+        ulong? inodeLimit,
+        CancellationToken cancellationToken)
     {
         _quotas.Enqueue((username, quotaBytes));
 
@@ -147,7 +182,9 @@ public sealed class ResellerAgentAccountsClient : IAgentAccountsClient
     /// <inheritdoc />
     public Task<Result<AccountUsageDto>> GetUsageAsync(string username, CancellationToken cancellationToken)
     {
-        throw new NotSupportedException("This double answers creation, deletion and sizing only.");
+        var usage = new AccountUsageDto(UsedBytes, new AccountQuota.Enforced(ReportedQuotaBytes));
+
+        return Task.FromResult(Result<AccountUsageDto>.Ok(usage));
     }
 
     /// <inheritdoc />
@@ -155,6 +192,16 @@ public sealed class ResellerAgentAccountsClient : IAgentAccountsClient
         bool reportOnly,
         CancellationToken cancellationToken)
     {
-        throw new NotSupportedException("This double answers creation, deletion and sizing only.");
+        throw new NotSupportedException("This double does not repair home groups.");
+    }
+
+    /// <summary>Not exercised by these tests.</summary>
+    /// <param name="username">Unused.</param>
+    /// <param name="openFiles">Unused.</param>
+    /// <param name="cancellationToken">Unused.</param>
+    /// <returns>Never returns.</returns>
+    public Task<Result> SetOpenFilesLimitAsync(string username, ulong? openFiles, CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException();
     }
 }

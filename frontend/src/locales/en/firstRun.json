@@ -1,0 +1,40 @@
+{
+  "firstRun": {
+    "title": "Get this server ready",
+    "subtitle": "The steps a new server needs before it is doing its job.",
+    "progress": "{done} of {total} steps done",
+    "listLabel": "First-run steps",
+    "stage": {
+      "done": "Done",
+      "todo": "To do",
+      "unavailable": "Could not be checked"
+    },
+    "steps": {
+      "plan": {
+        "title": "Create a hosting plan",
+        "description": "The standard plans are ready-made. Add your own to set the limits you sell.",
+        "action": "Open plans"
+      },
+      "account": {
+        "title": "Create a hosting account",
+        "description": "An account is a customer's space on this server, with its own login and limits.",
+        "action": "Open accounts"
+      },
+      "site": {
+        "title": "Add a site",
+        "description": "A site connects a domain to an account's files.",
+        "action": "Open sites"
+      },
+      "backupDestination": {
+        "title": "Choose where backups go",
+        "description": "Add a destination other than this server's own disk, or save a backup schedule.",
+        "action": "Open backup destinations"
+      },
+      "certificate": {
+        "title": "Issue a site certificate",
+        "description": "A certificate puts a site on HTTPS.",
+        "action": "Open certificates"
+      }
+    }
+  }
+}

@@ -8,7 +8,9 @@ namespace Maran.Modules.Identity.Domain.Entities;
 /// A long-lived credential an administrator hands to an integration, which then calls the endpoints
 /// that opt into key authentication without signing in. Only the SHA-256 digest of the key is stored:
 /// the plaintext exists once, in the response that created it. A key is panel-level administrator data,
-/// not an account's row, so it carries no account id and no tenant filter applies to it.
+/// not an account's row, so it carries no account id and no tenant filter applies to it. A reseller may
+/// own keys too (<see cref="ResellerId"/>); those are the reseller's credentials and reach only what the
+/// reseller owns.
 /// </summary>
 /// <remarks>
 /// The creator is recorded as a plain id and is deliberately not a foreign key: deleting a login must
@@ -34,7 +36,7 @@ public sealed class ApiKey
     public string TokenHash { get; private set; }
 
     /// <summary>
-    /// The scopes the key grants, each a member of <see cref="ApiKeyScopes.All"/>, without duplicates.
+    /// The scopes the key grants, each one its owner may be granted (<see cref="ApiKeyScopes.GrantableTo"/>), without duplicates.
     /// Never mutated after creation: callers must treat the array as read-only.
     /// </summary>
     public string[] Scopes { get; private set; }
@@ -45,7 +47,14 @@ public sealed class ApiKey
     /// </summary>
     public string[]? AllowedCidrs { get; private set; }
 
-    /// <summary>The administrator who issued the key.</summary>
+    /// <summary>
+    /// The reseller that owns the key, or <c>null</c> for a key the administrator owns. Fixed at
+    /// creation and set only from the signed-in reseller's own token. Not a foreign key: this module
+    /// cannot reference the Accounts schema, and deleting a reseller removes its keys through an event.
+    /// </summary>
+    public Guid? ResellerId { get; private set; }
+
+    /// <summary>The login that issued the key: the administrator, or the reseller's own login for a reseller's key.</summary>
     public Guid CreatedByUserId { get; private set; }
 
     /// <summary>The instant the key was issued.</summary>
@@ -77,14 +86,15 @@ public sealed class ApiKey
     /// <param name="name">The label; trimmed, then 1 to <see cref="ApiKeyLimits.MaxNameLength"/> characters.</param>
     /// <param name="prefix">The public prefix: exactly <see cref="ApiKeyLimits.PrefixLength"/> lower-case hexadecimal characters.</param>
     /// <param name="tokenHash">The digest of the key; non-empty and at most <see cref="ApiKeyLimits.MaxDigestLength"/> characters.</param>
-    /// <param name="scopes">The scopes to grant: members of <see cref="ApiKeyScopes.All"/>, without duplicates. May be empty.</param>
+    /// <param name="scopes">The scopes to grant: members of <see cref="ApiKeyScopes.GrantableTo"/> for the owner, without duplicates. May be empty.</param>
     /// <param name="allowedCidrs">
     /// The already-normalised address ranges the key is bound to: <c>null</c> for none, otherwise 1 to
     /// <see cref="ApiKeyLimits.MaxCidrs"/> distinct non-blank entries. Their syntax is the caller's to have checked.
     /// </param>
-    /// <param name="createdByUserId">The administrator issuing the key.</param>
+    /// <param name="createdByUserId">The login issuing the key.</param>
     /// <param name="createdAt">The instant of issue, taken from <see cref="IClock"/>.</param>
     /// <param name="expiresAt">The expiry instant, which must be after <paramref name="createdAt"/>, or <c>null</c> for none.</param>
+    /// <param name="resellerId">The reseller that owns the key, or <c>null</c> for the administrator's.</param>
     /// <returns>The new, active key.</returns>
     /// <exception cref="ArgumentException">An input breaks a limit or names a scope outside the vocabulary.</exception>
     public static ApiKey Issue(
@@ -96,7 +106,8 @@ public sealed class ApiKey
         IReadOnlyCollection<string>? allowedCidrs,
         Guid createdByUserId,
         DateTimeOffset createdAt,
-        DateTimeOffset? expiresAt)
+        DateTimeOffset? expiresAt,
+        Guid? resellerId = null)
     {
         var trimmedName = name?.Trim() ?? string.Empty;
         if (trimmedName.Length == 0 || trimmedName.Length > ApiKeyLimits.MaxNameLength)
@@ -117,11 +128,11 @@ public sealed class ApiKey
         if (scopes is null
             || scopes.Any(scope =>
             {
-                return !ApiKeyScopes.All.Contains(scope);
+                return !ApiKeyScopes.GrantableTo(resellerId).Contains(scope);
             })
             || scopes.Distinct(StringComparer.Ordinal).Count() != scopes.Count)
         {
-            throw new ArgumentException("Scopes must be distinct members of the scope vocabulary.", nameof(scopes));
+            throw new ArgumentException("Scopes must be distinct members of the set the key's owner may grant.", nameof(scopes));
         }
 
         if (allowedCidrs is not null
@@ -150,6 +161,7 @@ public sealed class ApiKey
             Scopes = scopes.ToArray(),
             AllowedCidrs = allowedCidrs?.ToArray(),
             CreatedByUserId = createdByUserId,
+            ResellerId = resellerId,
             CreatedAt = createdAt,
             ExpiresAt = expiresAt,
         };

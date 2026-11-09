@@ -62,6 +62,20 @@ public sealed class SitesAuthorizationTests : IAsyncLifetime
         };
     }
 
+    /// <summary>Every route of <c>SiteOptionsController</c>, which names one site; <c>{id}</c> is substituted per test.</summary>
+    /// <remarks>
+    /// The options controller is a class of its own (<c>api/v1/sites/{id}/options</c>), so the completeness test
+    /// over <see cref="SitesController"/> does not reach it: its two routes are listed here by hand.
+    /// </remarks>
+    public static TheoryData<string, string> SiteOptionsEndpoints()
+    {
+        return new TheoryData<string, string>
+        {
+            { "GET", "/api/v1/sites/{id}/options" },
+            { "PUT", "/api/v1/sites/{id}/options" },
+        };
+    }
+
     /// <summary>Every route under <c>/api/v1/sites</c>, including the collection ones.</summary>
     public static TheoryData<string, string> AllSiteEndpoints()
     {
@@ -74,6 +88,8 @@ public sealed class SitesAuthorizationTests : IAsyncLifetime
             { "GET", "/api/v1/sites/php-versions" },
             { "GET", "/api/v1/sites/php-versions/installable" },
             { "POST", "/api/v1/sites/php-versions/install" },
+            { "GET", "/api/v1/sites/php-versions/{version}/extensions" },
+            { "PUT", "/api/v1/sites/php-versions/{version}/extensions/{name}" },
             { "GET", "/api/v1/sites/{id}" },
             { "GET", "/api/v1/sites/{id}/logs" },
             { "POST", "/api/v1/sites/{id}/php-version" },
@@ -182,6 +198,59 @@ public sealed class SitesAuthorizationTests : IAsyncLifetime
         using var client = await SignInAsync(factory, "customer");
 
         var response = await client.PostAsJsonAsync($"/api/v1/sites/{world.OwnSiteId}/enable", new { });
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("AgentUnavailable", body.RootElement.GetProperty("code").GetString());
+    }
+
+    /// <summary>A customer reaching for another tenants site options is answered not found and never forbidden.</summary>
+    /// <param name="method">The HTTP method under test.</param>
+    /// <param name="path">The route template under test.</param>
+    [Theory]
+    [MemberData(nameof(SiteOptionsEndpoints))]
+    public async Task A_customer_reaching_for_another_tenants_site_options_is_answered_not_found_and_never_forbidden(
+        string method,
+        string path)
+    {
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        var world = await SeedAsync(factory);
+        using var client = await SignInAsync(factory, "customer");
+
+        var response = await SendOptionsAsync(client, method, Substitute(path, world.StrangerSiteId));
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.NotEqual(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    /// <summary>A customer reading their own site options is answered with them.</summary>
+    [Fact]
+    public async Task A_customer_reading_their_own_site_options_is_answered_with_them()
+    {
+        // The inverse control of the options theory above: a route answering 404 to everybody passes it.
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        var world = await SeedAsync(factory);
+        using var client = await SignInAsync(factory, "customer");
+
+        var response = await client.GetAsync($"/api/v1/sites/{world.OwnSiteId}/options");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    /// <summary>A customer replacing their own site options while the agent is down is answered unavailable.</summary>
+    [Fact]
+    public async Task A_customer_replacing_their_own_site_options_while_the_agent_is_down_is_answered_unavailable()
+    {
+        // The inverse control of the PUT row: the owner's request passes validation and the tenant filter
+        // and reaches the agent, so the stranger's 404 was the filter and not a body the route refused.
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        var world = await SeedAsync(factory);
+        using var client = await SignInAsync(factory, "customer");
+
+        var response = await SendOptionsAsync(client, "PUT", $"/api/v1/sites/{world.OwnSiteId}/options");
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
@@ -297,6 +366,13 @@ public sealed class SitesAuthorizationTests : IAsyncLifetime
             })
             .Where(route =>
             {
+                // The PHP version routes are host-level reference data: a version is no tenant's row,
+                // so there is no other account's resource to hide and the 404-never-403 question does
+                // not apply. They are proven by PhpExtensionEndpointTests instead.
+                return !route.Contains("/php-versions/{version}/", StringComparison.Ordinal);
+            })
+            .Where(route =>
+            {
                 return !scopedInFixture.Contains(route);
             })
             .ToList();
@@ -328,7 +404,10 @@ public sealed class SitesAuthorizationTests : IAsyncLifetime
     /// <param name="siteId">The identifier to place in it.</param>
     private static string Substitute(string path, Guid siteId)
     {
-        return path.Replace("{id}", siteId.ToString(), StringComparison.Ordinal);
+        return path
+            .Replace("{id}", siteId.ToString(), StringComparison.Ordinal)
+            .Replace("{version}", "8.3", StringComparison.Ordinal)
+            .Replace("{name}", "gd", StringComparison.Ordinal);
     }
 
     /// <summary>Boots the host against this class's PostgreSQL.</summary>
@@ -455,6 +534,27 @@ public sealed class SitesAuthorizationTests : IAsyncLifetime
         if (method == "POST")
         {
             request.Content = BodyFor(path);
+        }
+
+        return await client.SendAsync(request);
+    }
+
+    /// <summary>Issues one request to the options routes, giving the PUT a complete, valid body.</summary>
+    /// <param name="client">The client to send with.</param>
+    /// <param name="method">The HTTP method.</param>
+    /// <param name="path">The absolute path.</param>
+    private static async Task<HttpResponseMessage> SendOptionsAsync(HttpClient client, string method, string path)
+    {
+        using var request = new HttpRequestMessage(new HttpMethod(method), path);
+        if (method == "PUT")
+        {
+            request.Content = JsonContent.Create(new
+            {
+                canonicalHost = "none",
+                redirects = Array.Empty<object>(),
+                basicAuthUsers = Array.Empty<object>(),
+                ipRules = Array.Empty<string>(),
+            });
         }
 
         return await client.SendAsync(request);

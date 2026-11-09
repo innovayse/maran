@@ -65,6 +65,11 @@ pub fn to_agent_error(error: &AccountError) -> AgentError {
         AccountError::IpcRemain { .. } => ErrorCode::SystemFailure,
         AccountError::SharedFilesRemain { .. } => ErrorCode::SystemFailure,
         AccountError::MailSpoolRemains { .. } => ErrorCode::SystemFailure,
+        // An account's open-files drop-in (issue #194) that could not be written,
+        // validated or removed. A refused write restored the previous file; a
+        // refused removal stopped a deletion before `userdel`. Either way the
+        // host holds the account in a state the same request can retry.
+        AccountError::LimitsFileFailed => ErrorCode::SystemFailure,
         // The name is well formed but the user behind it is not a hosting account
         // (reserved, a system identity, a home elsewhere). INVALID_INPUT: not
         // NOT_FOUND, because the user may exist, and not SYSTEM_FAILURE, because

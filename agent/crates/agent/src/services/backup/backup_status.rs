@@ -26,10 +26,31 @@ pub fn to_agent_error(error: &BackupError) -> AgentError {
         // creation and a repeated delete are successes it must not retry.
         BackupError::AlreadyExists => ErrorCode::AlreadyExists,
         BackupError::NotFound | BackupError::ObjectNotFound => ErrorCode::NotFound,
+        // A single-database or single-directory restore (issue #160) asked for a
+        // part the archive does not hold: the database was created, or the site
+        // was made, after the backup was taken. Nothing was changed. NOT_FOUND
+        // like the artifact itself being absent, which the panel's restore path
+        // renders as one sentence covering both.
+        BackupError::DatabaseNotInBackup | BackupError::DirectoryNotInBackup => {
+            ErrorCode::NotFound
+        }
         // The caller asked for something the agent will not act on: a database
         // the panel does not know, an endpoint that is not HTTPS.
         BackupError::UnknownDatabase { .. } | BackupError::DestinationInsecure => {
             ErrorCode::InvalidInput
+        }
+        // A sealed artifact that cannot be opened with what the call carried
+        // (issue #445): no key at all, or a key it does not open under. One
+        // code for both, and named for what is known: the archive cannot be
+        // opened with THIS destination's key. A wrong key and a damaged sealed
+        // file fail identically under the cipher, so the agent does not say
+        // "wrong key"; the digest was checked before the file was opened, which
+        // is why the key is the likelier cause and why the panel can say so. The
+        // account is untouched either way. It used to ride on INVALID_INPUT (no
+        // key) and VALIDATION_FAILED (key does not open), and the panel could not
+        // tell either from a bad request or a damaged copy.
+        BackupError::EncryptionKeyRequired | BackupError::ArtifactDecryptionFailed => {
+            ErrorCode::ArchiveUnopenable
         }
         // The checks that stand in front of the destructive half of a restore,
         // every one of which leaves the account exactly as it was — which is
@@ -62,7 +83,26 @@ pub fn to_agent_error(error: &BackupError) -> AgentError {
         | BackupError::DumpTooLarge { .. }
         | BackupError::ArchiveTooLarge { .. }
         | BackupError::UnmintedArtifactName { .. }
-        | BackupError::BackupRootUnsafe { .. } => ErrorCode::ValidationFailed,
+        | BackupError::BackupRootUnsafe { .. }
+        // A dump someone else wrote that the restricted loader's pre-scan refused:
+        // a finding about the dump, nothing was loaded.
+        | BackupError::RestrictedLoadRefused { .. }
+        // The refusals of a moved backup (issue #127), each of which leaves the
+        // host exactly as it was; the panel tells them apart by the import
+        // response's refusal reason, which this code cannot carry.
+        | BackupError::PackageSignatureInvalid
+        | BackupError::PackageFingerprintMismatch
+        | BackupError::PackageManifestMalformed
+        | BackupError::ImportAccountExists
+        | BackupError::ImportBackupIdTaken
+        | BackupError::ImportLengthMismatch
+        | BackupError::ImportDigestMismatch
+        | BackupError::SealedArtifactNotTransferable => ErrorCode::ValidationFailed,
+        // The export's signing key is part of the request and is not one: a
+        // refusal about the request, raised before any file was opened.
+        BackupError::PackageSigningKeyRejected => ErrorCode::InvalidInput,
+        // The package declares more than this agent will stage.
+        BackupError::ImportTooLarge { .. } => ErrorCode::TooLarge,
         // A second operation is running for this account. Not a fault of
         // either: the panel retries, and a stream held open for the length of
         // the first backup is what the refusal exists to avoid.

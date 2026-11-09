@@ -50,4 +50,11 @@ public enum SessionRevocationReason
     /// renews a token for an account they no longer belong to.
     /// </summary>
     MembershipRemoved,
+
+    /// <summary>
+    /// The hosting account the session was viewing was handed to another owner. A reseller's view-as
+    /// session exists because that reseller owned the account, so it ends with the ownership; the
+    /// customer's own sessions are not ended by a move.
+    /// </summary>
+    AccountTransferred,
 }

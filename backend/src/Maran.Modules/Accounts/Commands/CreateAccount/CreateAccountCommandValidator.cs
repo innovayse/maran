@@ -1,6 +1,7 @@
 using FluentValidation;
 using Maran.Modules.Accounts.Domain.Policies;
 using Maran.Modules.Accounts.Resources;
+using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Constants;
 using Maran.SharedKernel.Utilities.Mail;
 using Maran.SharedKernel.Utilities.Network;
@@ -69,6 +70,37 @@ public sealed class CreateAccountCommandValidator : AbstractValidator<CreateAcco
     /// <summary>The machine code for an owner language the panel ships no text in.</summary>
     private const string OwnerLanguageUnsupportedMessage = nameof(ErrorMessages.AccountOwnerLanguageUnsupported);
 
+    /// <summary>The machine code for a login mode and an initial password that do not belong together.</summary>
+    private const string InitialPasswordInvalidMessage = nameof(ErrorMessages.AccountInitialPasswordInvalid);
+
+    /// <summary>The machine code for a process limit outside <c>1</c> to <see cref="MaxProcessLimit"/>.</summary>
+    private const string ProcessLimitInvalidMessage = nameof(ErrorMessages.AccountProcessLimitInvalid);
+
+    /// <summary>The machine code for an inode limit outside <c>0</c> to <see cref="MaxInodeLimit"/>.</summary>
+    private const string InodeLimitInvalidMessage = nameof(ErrorMessages.AccountInodeLimitInvalid);
+
+    /// <summary>The machine code for an open-files limit outside <c>0</c> to <see cref="MaxOpenFilesLimit"/>.</summary>
+    private const string OpenFilesLimitInvalidMessage = nameof(ErrorMessages.AccountOpenFilesLimitInvalid);
+
+    /// <summary>
+    /// The largest process limit the agent accepts: the kernel's <c>PID_MAX_LIMIT</c> on 64-bit hosts.
+    /// The agent's own bound (<c>tasks_max::MAXIMUM</c>); the two must stay equal.
+    /// </summary>
+    private const int MaxProcessLimit = 4_194_304;
+
+    /// <summary>
+    /// The largest inode limit the agent accepts: the quota tool takes 32-bit figures, so
+    /// <c>u32::MAX</c> (<c>InodeLimit</c> in <c>agent-core</c>). The command carries a 64-bit integer
+    /// precisely so this whole range is reachable; the two must stay equal.
+    /// </summary>
+    private const long MaxInodeLimit = uint.MaxValue;
+
+    /// <summary>
+    /// The largest open-files limit the agent accepts (<c>open_files_limit::MAXIMUM</c>, the kernel's
+    /// default <c>nr_open</c>); the two must stay equal.
+    /// </summary>
+    private const int MaxOpenFilesLimit = 1_048_576;
+
     /// <summary>
     /// A storage bound, not a definition of validity — <c>AccountConfiguration</c> maps
     /// <c>Account.OwnerEmail</c> as <c>varchar(256)</c>, narrower than
@@ -131,5 +163,45 @@ public sealed class CreateAccountCommandValidator : AbstractValidator<CreateAcco
             .NotEmpty()
             .MaximumLength(MaxOwnerEmailLength)
             .Must(EmailAddressRule.IsAddress);
+
+        // The mode and the password travel together or not at all. Only the coupling and non-blank are
+        // asked here: whether the password is strong enough is the security policy's, which Identity
+        // owns, so there is one definition of "strong enough". The handler asks it through
+        // IInitialPasswordPolicy before it provisions anything.
+        RuleFor(command => command)
+            .Must(HasPasswordExactlyWhenModeNeedsOne)
+            .OverridePropertyName(nameof(CreateAccountCommand.InitialPassword))
+            .WithMessage(InitialPasswordInvalidMessage);
+
+        // Zero is refused for processes: it is not a smaller allowance but an account that cannot run.
+        // For inodes and open files it is the way to say "no limit", the agent's own reading. A limit
+        // left out binds to null, which these rules let through: it means "follow the plan".
+        RuleFor(command => command.ProcessLimit)
+            .InclusiveBetween(1, MaxProcessLimit)
+            .WithMessage(ProcessLimitInvalidMessage);
+
+        RuleFor(command => command.InodeLimit)
+            .InclusiveBetween(0L, MaxInodeLimit)
+            .WithMessage(InodeLimitInvalidMessage);
+
+        RuleFor(command => command.OpenFilesLimit)
+            .InclusiveBetween(0, MaxOpenFilesLimit)
+            .WithMessage(OpenFilesLimitInvalidMessage);
+    }
+
+    /// <summary>Whether the command states a password exactly when its login mode is the one that needs it.</summary>
+    /// <param name="command">The command being validated.</param>
+    /// <returns>
+    /// <c>true</c> for an invitation with no password, or for an initial password mode with a
+    /// non-blank one; <c>false</c> for any other pairing, including a mode that is no member of the enum.
+    /// </returns>
+    private static bool HasPasswordExactlyWhenModeNeedsOne(CreateAccountCommand command)
+    {
+        return command.LoginMode switch
+        {
+            OwnerLoginMode.Invitation => command.InitialPassword is null,
+            OwnerLoginMode.InitialPassword => !string.IsNullOrWhiteSpace(command.InitialPassword?.Reveal()),
+            _ => false,
+        };
     }
 }

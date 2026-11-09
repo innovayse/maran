@@ -11,9 +11,9 @@ namespace Maran.Host.Resilience;
 /// <see cref="ResilientAgentAccountsClient"/> gives.
 /// </summary>
 /// <remarks>
-/// Installing a version is passed straight through. It is a stream that legitimately runs for
-/// minutes while a package manager works, so the operation timeout would abandon it half-done, and
-/// the retry would restart an install the agent is still performing. The stream states its own
+/// Installing a version, and switching an extension, are passed straight through. Each is a stream
+/// that legitimately runs for minutes while a package manager works, so the operation timeout would
+/// abandon it half-done, and the retry would restart work the agent is still performing. The stream states its own
 /// ending — including the case where it stopped without one — so nothing is left hanging silently.
 /// A failure of the transport itself is not one of those endings: with no pipeline here, it leaves
 /// the stream as the exception the transport raised.
@@ -68,5 +68,48 @@ public sealed class ResilientAgentPhpClient : IAgentPhpClient
         CancellationToken cancellationToken)
     {
         return _inner.InstallVersionAsync(version, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result<IReadOnlyList<PhpExtensionDto>>> ListExtensionsAsync(
+        string version,
+        CancellationToken cancellationToken)
+    {
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
+            async (state, token) =>
+            {
+                return await state.ListExtensionsAsync(version, token);
+            },
+            _inner,
+            cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public IAsyncEnumerable<PhpExtensionEvent> SetExtensionAsync(
+        string version,
+        string extension,
+        bool enabled,
+        CancellationToken cancellationToken)
+    {
+        return _inner.SetExtensionAsync(version, extension, enabled, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result> ApplyPoolSettingsAsync(
+        string accountUsername,
+        string version,
+        uint maxChildren,
+        IReadOnlyList<PhpSettingDto> settingOverrides,
+        CancellationToken cancellationToken)
+    {
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
+            async (state, token) =>
+            {
+                return await state.ApplyPoolSettingsAsync(accountUsername, version, maxChildren, settingOverrides, token);
+            },
+            _inner,
+            cancellationToken);
     }
 }

@@ -7,13 +7,34 @@
 //
 // Implementation status, stated here because a contract that does not say
 // which of its rpcs exist is one a caller discovers by getting UNIMPLEMENTED
-// in production. The agent implements WriteFile and DeleteEntry — the two an
-// ACME HTTP-01 challenge needs, and no more: the agent's command set is
-// closed, and an rpc nobody calls is a surface nobody reviews. The remaining
-// seven answer UNIMPLEMENTED and land with the task that has a caller for
-// them. Their messages stay declared either way: removing them would be a
-// breaking change under the additive-only rule, and both sides already
-// generate types from them.
+// in production. The agent implements ListDirectory, ReadFile and
+// SearchEntries (issue #166, the read side of the file manager), WriteFile and
+// DeleteEntry, and, since issue #167, the mutating side of the file manager:
+// CreateDirectory, MoveEntry, ChangePermissions, CopyEntry, ForceDeleteEntry,
+// TrashEntry, ListTrash, RestoreTrashEntry, EmptyTrash and PurgeExpiredTrash.
+// Since issue #168 the two archive rpcs are implemented too (CreateArchive,
+// ExtractArchive), so every rpc below is served. The archive format is parsed
+// by a child process running as the account, never by the root agent, and the
+// threat note is
+// docs/superpowers/notes/2026-11-07-file-manager-archives-threat-note.md.
+//
+// Every mutating rpc reaches its target through a descriptor walk inside a
+// child process running as the account, never follows a symlink at any level
+// or at the final entry, and never crosses onto another filesystem. The agent
+// journals each one with the account and the outcome and without any path: the
+// path-level trail of the file manager is the panel's. The threat note is
+// docs/superpowers/notes/2026-11-07-file-manager-mutations-threat-note.md.
+//
+// The trash is a directory of the account's own, ".maran-trash", directly in
+// its home. The name is reserved: no path of a mutating rpc below may name it or
+// sit inside it (INVALID_INPUT); the trash rpcs are the only way to reach it.
+//
+// The three read rpcs never follow a symlink, at any level of the path or at
+// the final entry, and never open an entry that is not a directory unless it
+// is the one regular file ReadFile was asked for. Containment is a descriptor
+// walk inside a child process running as the account, not a string check on
+// the path; the threat note is
+// docs/superpowers/notes/2026-11-07-file-manager-browse-threat-note.md.
 syntax = "proto3";
 
 package maran.agent.v1;
@@ -23,13 +44,58 @@ option csharp_namespace = "Maran.Agent.V1";
 import "agent/v1/common.proto";
 
 service FilesService {
-  // Lists the immediate contents of a directory (non-recursive).
+  // Lists the immediate contents of a directory (non-recursive), one page at a
+  // time. Hidden filtering, ordering and paging are done by the agent so the
+  // caller never has to receive a whole directory to show one screen of it.
+  //
+  // A symlink is listed as a symlink (is_symlink), with the link's own size
+  // and mode, never the target's. A FIFO, device or socket is listed and never
+  // opened. A name that cannot be represented (not UTF-8, or holding a control
+  // character) is left out and counted in skipped_entries.
+  //
+  // Refused with INVALID_INPUT for a path or paging value that fails
+  // validation; with VALIDATION_FAILED when a level of the path is a symlink,
+  // is not a directory the account owns, or is missing (the agent can only
+  // tell after looking); with ERROR_CODE_TOO_LARGE when the directory holds
+  // more than 100000 names; and with ERROR_CODE_AGENT_SATURATED when the
+  // agent's bound on simultaneous browse operations is reached (retry later).
   rpc ListDirectory(ListDirectoryRequest) returns (ListDirectoryResponse);
 
-  // Streams a file's content in chunks. Refuses to start streaming a file
-  // larger than max_bytes and returns VALIDATION_FAILED instead — the cap
-  // protects both the transport and the caller's memory.
+  // Streams a file's content in chunks of at most 64 KiB. Refuses to start
+  // streaming a file larger than max_bytes — the cap protects both the
+  // transport and the caller's memory — and answers ERROR_CODE_TOO_LARGE
+  // before the first byte. A file that grows past max_bytes while it is being
+  // read ends the stream with the same error; the caller MUST discard the
+  // partial body.
+  //
+  // The entry must be a regular file the account owns with a single link: a
+  // symlink, FIFO, device, socket or hardlink at that name is refused with
+  // VALIDATION_FAILED, never read. A file that is not there (the last
+  // component of the path) is NOT_FOUND; a missing or unusable directory on the
+  // way to it is VALIDATION_FAILED. max_bytes of 0 or above the agent's ceiling
+  // (512 MiB) is INVALID_INPUT. ERROR_CODE_AGENT_SATURATED when the agent's
+  // bound on simultaneous browse operations is reached (retry later).
+  //
+  // Every read is journaled by the agent with the account and the outcome and
+  // without the path.
   rpc ReadFile(ReadFileRequest) returns (stream ReadFileResponse);
+
+  // Searches an account's tree for entries whose NAME contains a substring,
+  // case-insensitively. Names only: no glob, no pattern, no file content.
+  // Added 2026-11-07 (issue #166).
+  //
+  // Idempotent and read-only. The search never follows a symlink, never
+  // descends into a symlinked directory or into a directory on another
+  // filesystem than the one it started in, and never opens an entry that is
+  // not a directory. It is bounded by depth, by result count and by a budget of
+  // directory entries examined (200000): when a bound stops it, the response is
+  // still OK with truncated set, never an error.
+  //
+  // Refused with INVALID_INPUT for a path or query that fails validation; with
+  // VALIDATION_FAILED when a level of the starting path is a symlink or not a
+  // directory the account owns; with ERROR_CODE_AGENT_SATURATED when the
+  // agent's bound on simultaneous browse operations is reached (retry later).
+  rpc SearchEntries(SearchEntriesRequest) returns (SearchEntriesResponse);
 
   // Streams a file's content from the caller in chunks and writes it
   // atomically (temp file + rename) so a failed or cancelled upload never
@@ -49,10 +115,16 @@ service FilesService {
   // INVALID_INPUT rather than being allowed to redirect a write already under
   // way.
   //
-  // The agent buffers the whole body before writing it, so the stream is
-  // capped: a body over 1 MiB is refused with INVALID_INPUT rather than
-  // truncated. `mode` is plain permission bits only; setuid, setgid and the
-  // sticky bit are refused with INVALID_INPUT, never masked away.
+  // The body is written as it arrives, into a temporary file beside the
+  // destination, and renamed into place only after the stream ended cleanly
+  // (issue #167). A body over the cap (header.max_bytes, or 1 MiB when it is
+  // 0) is refused with INVALID_INPUT rather than truncated and leaves the old
+  // file untouched. `mode` is plain permission bits only; setuid, setgid and
+  // the sticky bit are refused with INVALID_INPUT, never masked away.
+  //
+  // Cancellation class: stop. The upload itself drives the work, so a sender
+  // that disappears ends the write, removes the temporary file and leaves the
+  // destination as it was.
   //
   // INVALID_INPUT and not VALIDATION_FAILED for both, because neither looks at
   // the filesystem: they are refusals of the request as sent, which is the
@@ -75,41 +147,224 @@ service FilesService {
   // built for and it will be written by the task that needs it. The entry
   // must be a regular file the account owns with a single link; a symlink, a
   // FIFO, a device or a hardlink at that name is refused rather than removed.
+  // The file manager deletes with ForceDeleteEntry instead; this rpc keeps its
+  // narrow rule on purpose, so the ACME challenge cleanup that calls it cannot
+  // be aimed at a hardlinked file, a link or a tree.
   rpc DeleteEntry(DeleteEntryRequest) returns (DeleteEntryResponse);
 
-  // Moves or renames a file or directory within the same account home.
-  // Idempotent: if destination already holds byte-identical content at
-  // the same path as a prior successful move, returns AlreadyExists.
+  // Moves or renames a file or directory within the same account home, by a
+  // single rename that never replaces anything (issue #167). Added semantics,
+  // stated because the first draft of this comment promised an idempotence the
+  // agent cannot give for a move: the destination parent is created when it is
+  // missing; a destination that already exists, or the same path as the source,
+  // is ALREADY_EXISTS and both entries are left as they were; a missing source
+  // is NOT_FOUND, which is also what a retry of a move that already happened
+  // sees. A directory moved into its own subtree, a destination on another
+  // filesystem, a symlink at either path, and a source that is not owned by the
+  // account are VALIDATION_FAILED; there is no copy-and-delete fallback, so a
+  // move can never end half done. Neither path may be the home or the trash.
+  //
+  // Cancellation class: run to completion (a single rename has no midpoint).
   rpc MoveEntry(MoveEntryRequest) returns (MoveEntryResponse);
 
-  // Creates a directory, including missing parent directories. Idempotent:
-  // creating an already-existing directory returns AlreadyExists.
+  // Creates a directory, including missing parent directories, as the account.
+  // Idempotent: creating an already-existing directory returns AlreadyExists,
+  // and so does a path whose final name is held by anything else, a file or a
+  // link included. A level of the path that is a symlink or not a directory the
+  // account owns is VALIDATION_FAILED. `mode` is plain permission bits (no
+  // setuid, setgid or sticky bit: INVALID_INPUT) and applies to the final
+  // directory only; parents the call creates get 0755 and parents that exist
+  // are left as they are.
+  //
+  // Cancellation class: run to completion.
   rpc CreateDirectory(CreateDirectoryRequest) returns (CreateDirectoryResponse);
 
   // Changes the permission bits of a file or directory. Idempotent:
   // setting the same mode twice is a no-op success.
+  //
+  // `mode` is plain permission bits only; setuid, setgid and the sticky bit are
+  // refused with INVALID_INPUT, never masked away. The change is made on a
+  // descriptor opened without following links, so a symlink as the path is
+  // VALIDATION_FAILED and its target is never changed. With recursive set the
+  // tree is walked the same way: a symlink inside it is skipped and counted,
+  // an entry the account does not own is skipped and counted, no directory on
+  // another filesystem is entered, and a tree deeper than the agent's ceiling
+  // (128 levels) is refused as a whole. The response says how many entries were
+  // changed and how many were skipped.
+  //
+  // Cancellation class: run to completion (idempotent, so a re-run finishes
+  // what a stopped one left).
   rpc ChangePermissions(ChangePermissionsRequest) returns (ChangePermissionsResponse);
 
   // Creates an archive of one or more paths. The archive format is a
-  // closed enum, never a caller-supplied command line. Idempotent:
-  // creating with the same destination and byte-identical inputs leaves
-  // the same end state.
+  // closed enum, never a caller-supplied command line.
+  //
+  // Not replacing: a destination that already exists, of any kind, is
+  // ERROR_CODE_ALREADY_EXISTS and is left as it was, so running the same request
+  // twice reports the first run's archive instead of overwriting it. The
+  // archive is written to a temporary file beside the destination and published
+  // with a rename that cannot replace, so it is complete or absent.
+  //
+  // The whole request is refused, before anything is written, when a source
+  // holds a symbolic link, FIFO, socket or device (ERROR_CODE_VALIDATION_FAILED),
+  // or a name an archive cannot hold; a destination inside a source, the home as
+  // a source or destination, and overlapping sources are ERROR_CODE_INVALID_INPUT.
+  // Reaching max_entries or max_source_bytes is ERROR_CODE_LIMIT_REACHED. Member
+  // names are the paths below the sources' common parent. Modes, owners and times
+  // are not recorded: files are 0644 (0755 when any execute bit is set) and
+  // directories 0755.
+  //
+  // Cancellation class: run to completion. The archive is complete at its
+  // destination or absent; a caller that stops listening changes nothing.
   rpc CreateArchive(CreateArchiveRequest) returns (CreateArchiveResponse);
 
-  // Extracts an archive into a destination directory. The agent rejects
-  // any archive entry whose path would resolve outside the destination
-  // (zip-slip protection) before writing anything. Idempotent: extracting
-  // the same archive to the same destination twice leaves the same end
-  // state.
+  // Extracts an archive into a destination directory, created when absent.
+  //
+  // The archive is parsed by a child process running as the account and judged
+  // as a whole before the first byte is written. It is refused with
+  // ERROR_CODE_ARCHIVE_UNSAFE when any member is a symbolic or hard link, a
+  // device, FIFO, socket or sparse file; has an absolute name or a name with a
+  // "..", ".", empty, backslash or control-character component, or one that is
+  // not valid UTF-8; is encrypted; uses a zip compression method other than
+  // stored or deflate; collides with another member; or when the archive expands
+  // past max_ratio. Reaching max_entries or max_expanded_bytes is
+  // ERROR_CODE_LIMIT_REACHED. A file that is not the stated format is
+  // ERROR_CODE_VALIDATION_FAILED.
+  //
+  // Nothing is overwritten: a member whose name is already held by any entry is
+  // ERROR_CODE_ALREADY_EXISTS and the run removes everything it had created;
+  // an existing directory is merged into. Modes are not taken from the archive:
+  // files become 0644 (0755 when any execute bit is set) and directories 0755,
+  // and no owner or time is kept. Not idempotent in the sense of repeating to
+  // the same state by succeeding: the second run is refused with
+  // ERROR_CODE_ALREADY_EXISTS and changes nothing.
+  //
+  // Cancellation class: run to completion. The extraction is one child that
+  // finishes or removes what it made, so a caller that stops listening changes
+  // nothing and nothing is left to reclaim.
   rpc ExtractArchive(ExtractArchiveRequest) returns (ExtractArchiveResponse);
+
+  // Copies a file or a directory tree to a new place in the same home, as the
+  // account (issue #167). Added 2026-11-07.
+  //
+  // All or nothing at the destination: the copy is staged inside the trash
+  // directory's staging area and renamed into place without replacing, so a
+  // copy that fails or is stopped midway leaves nothing at the destination.
+  // The tree is measured first and refused as a whole, before anything is
+  // written, when it holds more than max_entries entries or more than max_bytes
+  // bytes (ERROR_CODE_LIMIT_REACHED), when it is deeper than 128 levels
+  // (VALIDATION_FAILED), or when it holds anything but regular files and
+  // directories: a symlink, FIFO, socket or device anywhere in it refuses the
+  // whole copy (VALIDATION_FAILED). A destination that exists is
+  // ALREADY_EXISTS; a missing source is NOT_FOUND; a destination inside the
+  // source is VALIDATION_FAILED. Permission bits are kept (masked to 0777);
+  // owner and times are not. ERROR_CODE_BELOW_FREE_SPACE_FLOOR is returned
+  // before the first byte when the filesystem is below the agent's floor, and
+  // ERROR_CODE_QUOTA_EXCEEDED when the account's quota ends the copy (nothing
+  // is left behind). ERROR_CODE_AGENT_SATURATED when the agent's bound on
+  // simultaneous bulk operations is reached (retry later).
+  //
+  // Cancellation class: run to completion, staged so nothing partial is ever
+  // visible at the destination.
+  rpc CopyEntry(CopyEntryRequest) returns (CopyEntryResponse);
+
+  // Removes a file, a link or a whole directory tree, as the account (issue
+  // #167). Added 2026-11-07. This is the file manager's delete; DeleteEntry is
+  // not, and stays narrow for the ACME cleanup that calls it.
+  //
+  // A symlink is unlinked and never followed, at any depth. A hardlinked file
+  // is unlinked by name and the other names keep the data. A directory is
+  // emptied depth first through descriptors, never across onto another
+  // filesystem. A tree deeper than 128 levels is refused rather than half
+  // deleted. The path must not be the home or the trash. Idempotent in the
+  // sense the agent can offer: a path that is gone is NOT_FOUND, and a run that
+  // was stopped is finished by running it again. ERROR_CODE_AGENT_SATURATED
+  // when the agent's bound on simultaneous bulk operations is reached.
+  //
+  // Cancellation class: run to completion (idempotent, so a re-run finishes
+  // what a stopped one left).
+  rpc ForceDeleteEntry(ForceDeleteEntryRequest) returns (ForceDeleteEntryResponse);
+
+  // Moves a file, a link or a directory into the account's trash, a rename
+  // inside the same filesystem, so it is instant whatever the size and keeps
+  // counting toward the account's quota (issue #167). Added 2026-11-07.
+  //
+  // Answers the id the entry now has in the trash. Refusals are those of
+  // MoveEntry: a missing source is NOT_FOUND, a symlink as the path is
+  // VALIDATION_FAILED, and the path must not be the home or the trash.
+  //
+  // Cancellation class: run to completion.
+  rpc TrashEntry(TrashEntryRequest) returns (TrashEntryResponse);
+
+  // Lists what is in the account's trash, newest first (issue #167). Added
+  // 2026-11-07. Read-only. Anything in the trash directory that does not have
+  // the shape this agent writes is left out, not reported, and is never
+  // trusted: the customer can edit their own trash.
+  //
+  // Cancellation class: stop (read-only).
+  rpc ListTrash(ListTrashRequest) returns (ListTrashResponse);
+
+  // Moves one trash entry back into the home without replacing anything (issue
+  // #167). Added 2026-11-07. destination_path empty means the path the entry
+  // had when it was trashed, re-validated as any other path; a destination that
+  // exists is ALREADY_EXISTS and the entry stays in the trash; an unknown
+  // trash_id is NOT_FOUND; a malformed one is INVALID_INPUT. The missing parent
+  // directories of the destination are created.
+  //
+  // Cancellation class: run to completion.
+  rpc RestoreTrashEntry(RestoreTrashEntryRequest) returns (RestoreTrashEntryResponse);
+
+  // Permanently removes everything in the account's trash (issue #167). Added
+  // 2026-11-07. An empty trash is success with zero entries removed.
+  // ERROR_CODE_AGENT_SATURATED when the agent's bound on simultaneous bulk
+  // operations is reached.
+  //
+  // Cancellation class: run to completion (idempotent, a re-run finishes).
+  rpc EmptyTrash(EmptyTrashRequest) returns (EmptyTrashResponse);
+
+  // Permanently removes the trash entries older than older_than_days days, and
+  // sweeps the copy staging area of leftovers older than one day (issue #167).
+  // Added 2026-11-07. The agent keeps no schedule: the panel calls this once a
+  // day per account. older_than_days of 0 is INVALID_INPUT, because the only
+  // sensible reading of "older than zero days" is "everything", which is
+  // EmptyTrash and must be asked for by name.
+  //
+  // Cancellation class: run to completion (idempotent, a re-run finishes).
+  rpc PurgeExpiredTrash(PurgeExpiredTrashRequest) returns (PurgeExpiredTrashResponse);
 }
 
 message ListDirectoryRequest {
   // System username of the owning account.
   string account_username = 1;
   // Directory path, relative to the account home. Empty string means the
-  // home directory itself.
+  // home directory itself. At most 64 components, each at most 255 bytes, the
+  // whole at most 4096 bytes; no "..", ".", leading "/", empty component or
+  // control character.
   string path = 2;
+  // Added 2026-11-07 (issue #166). Number of entries to skip, in the chosen
+  // order, after the hidden filter. 0 = from the first entry.
+  uint32 offset = 3;
+  // Maximum entries in this page. 0 = the agent's default (200); above 1000 is
+  // refused with INVALID_INPUT.
+  uint32 limit = 4;
+  // False (the default, and what an old caller sends) hides every entry whose
+  // name starts with ".".
+  bool include_hidden = 5;
+  // Order of the listing. Directories are always listed before other entries;
+  // this orders within each group.
+  DirectorySort sort = 6;
+  // True reverses the order chosen by sort within each group.
+  bool descending = 7;
+}
+
+// Order of a directory listing.
+enum DirectorySort {
+  // By name, byte-wise ascending. The default.
+  DIRECTORY_SORT_NAME = 0;
+  // By size in bytes.
+  DIRECTORY_SORT_SIZE = 1;
+  // By modification time.
+  DIRECTORY_SORT_MODIFIED = 2;
 }
 
 message ListDirectoryResponse {
@@ -120,14 +375,23 @@ message ListDirectoryResponse {
 }
 
 message ListDirectoryOk {
+  // The requested page of entries.
   repeated DirectoryEntry entries = 1;
+  // Entries in the directory after the hidden filter and before paging, so the
+  // caller can draw a pager. Entries counted in skipped_entries are not in it.
+  uint32 total_entries = 2;
+  // Names left out because they cannot be represented (not UTF-8, or holding a
+  // control character). A non-zero value tells the caller the directory holds
+  // entries it cannot address.
+  uint32 skipped_entries = 3;
 }
 
 // One entry returned by ListDirectory.
 message DirectoryEntry {
   // Entry name only (no path components).
   string name = 1;
-  // True if the entry is a directory.
+  // True if the entry is a real directory. A symlink to a directory is NOT a
+  // directory here: it has is_symlink set and this false.
   bool is_directory = 2;
   // Size in bytes; 0 for directories.
   uint64 size_bytes = 3;
@@ -135,6 +399,17 @@ message DirectoryEntry {
   uint32 mode = 4;
   // Last modification time as Unix seconds (UTC).
   int64 modified_at_unix = 5;
+  // Added 2026-11-07 (issue #166). True if the entry is a symbolic link. The
+  // size, mode and time above are the link's own, never its target's. False
+  // for an old agent, which never reported links.
+  bool is_symlink = 6;
+  // Owning user id of the entry (the entry's own, for a link).
+  uint32 uid = 7;
+  // Owning group id of the entry.
+  uint32 gid = 8;
+  // Number of hard links to the entry. A file with more than one is refused by
+  // ReadFile.
+  uint64 link_count = 9;
 }
 
 message ReadFileRequest {
@@ -143,7 +418,8 @@ message ReadFileRequest {
   // File path, relative to the account home.
   string path = 2;
   // Maximum total bytes the agent will stream for this call; a file
-  // larger than this is refused rather than truncated.
+  // larger than this is refused rather than truncated. Required: 0 is
+  // INVALID_INPUT, and so is a value above the agent's ceiling of 512 MiB.
   uint64 max_bytes = 3;
 }
 
@@ -157,6 +433,55 @@ message ReadFileResponse {
 message ReadFileChunk {
   // Raw file bytes for this chunk, in stream order.
   bytes data = 1;
+}
+
+// Request of SearchEntries (issue #166).
+message SearchEntriesRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Directory to search from, relative to the account home, validated like
+  // ListDirectoryRequest.path. Empty string means the home directory itself.
+  string path = 2;
+  // Substring of an entry NAME to look for, matched case-insensitively. 1 to
+  // 255 bytes, no "/" and no control character. Not a pattern.
+  string query = 3;
+  // Deepest level searched below the starting directory. 0 = the agent's
+  // default (8); above 16 is clamped to 16.
+  uint32 max_depth = 4;
+  // Maximum matches returned. 0 = the agent's default (100); above 500 is
+  // clamped to 500.
+  uint32 max_results = 5;
+  // False (the default) skips every entry whose name starts with "." and does
+  // not descend into hidden directories.
+  bool include_hidden = 6;
+}
+
+message SearchEntriesResponse {
+  oneof result {
+    SearchEntriesOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message SearchEntriesOk {
+  // Matching entries, in the order the search met them.
+  repeated SearchMatch matches = 1;
+  // True when a bound (depth, result count or entries examined) stopped the
+  // search, so there may be more matches than were returned.
+  bool truncated = 2;
+  // Names left out because they cannot be represented (not UTF-8, or holding a
+  // control character).
+  uint32 skipped_entries = 3;
+}
+
+// One entry found by SearchEntries.
+message SearchMatch {
+  // Path of the entry relative to the account home, "/"-separated, without a
+  // leading "/".
+  string path = 1;
+  // The entry itself, described as ListDirectory describes one. Its name is the
+  // last component of path.
+  DirectoryEntry entry = 2;
 }
 
 message WriteFileRequest {
@@ -175,6 +500,17 @@ message WriteFileHeader {
   string path = 2;
   // Permission bits to apply to the created/overwritten file, e.g. 0644.
   uint32 mode = 3;
+  // Added 2026-11-07 (issue #167). True refuses to replace: a destination that
+  // already exists, whatever it is, answers ALREADY_EXISTS and is left as it
+  // was. False (the default, and what an old caller sends) replaces an existing
+  // regular file.
+  bool fail_if_exists = 4;
+  // Added 2026-11-07 (issue #167). The most body bytes the caller allows this
+  // upload, counted by the agent as they arrive. 0 (the default, and what an
+  // old caller sends) means the original cap of 1 MiB. Above the agent's
+  // ceiling (256 MiB) is INVALID_INPUT. A body larger than the cap is refused
+  // with INVALID_INPUT and nothing is written at the destination.
+  uint64 max_bytes = 5;
 }
 
 message WriteFileResponse {
@@ -254,6 +590,12 @@ message ChangePermissionsRequest {
   uint32 mode = 3;
   // If true and path is a directory, applies mode recursively.
   bool recursive = 4;
+  // Added 2026-11-07 (issue #167). Permission bits for the directories of a
+  // recursive change, so one call can make files 0644 and directories 0755. 0
+  // (the default, and what an old caller sends) means the directories get
+  // `mode` too. Has no effect when recursive is false. Plain permission bits
+  // only, validated like `mode`.
+  uint32 directory_mode = 5;
 }
 
 message ChangePermissionsResponse {
@@ -263,7 +605,14 @@ message ChangePermissionsResponse {
   }
 }
 
-message ChangePermissionsOk {}
+message ChangePermissionsOk {
+  // Added 2026-11-07 (issue #167). Entries whose mode was set (or already was).
+  uint64 changed = 1;
+  // Entries left alone: a symlink inside a recursive walk, or an entry the
+  // account does not own. A non-zero value tells the caller the change did not
+  // reach everything it asked for.
+  uint64 skipped = 2;
+}
 
 // Supported archive container formats.
 enum ArchiveFormat {
@@ -281,6 +630,14 @@ message CreateArchiveRequest {
   string destination_path = 3;
   // Container format to write.
   ArchiveFormat format = 4;
+  // Added 2026-11-07 (issue #167, for #168). The most entries the sources may
+  // hold together. Required: 0 is INVALID_INPUT, and so is a value above the
+  // agent's ceiling. Reaching it is ERROR_CODE_LIMIT_REACHED.
+  uint64 max_entries = 5;
+  // Added 2026-11-07 (issue #167, for #168). The most source bytes the archive
+  // may be made from. Required: 0 is INVALID_INPUT, and so is a value above the
+  // agent's ceiling. Reaching it is ERROR_CODE_LIMIT_REACHED.
+  uint64 max_source_bytes = 6;
 }
 
 message CreateArchiveResponse {
@@ -305,6 +662,20 @@ message ExtractArchiveRequest {
   string destination_path = 3;
   // Container format of the archive; must match the file's actual format.
   ArchiveFormat format = 4;
+  // Added 2026-11-07 (issue #167, for #168). The most members the archive may
+  // hold. Required: 0 is INVALID_INPUT, and so is a value above the agent's
+  // ceiling. Reaching it is ERROR_CODE_LIMIT_REACHED.
+  uint64 max_entries = 5;
+  // Added 2026-11-07 (issue #167, for #168). The most bytes the extraction may
+  // write, counted as they are written and not taken from the archive's own
+  // headers. Required: 0 is INVALID_INPUT, and so is a value above the agent's
+  // ceiling. Reaching it is ERROR_CODE_LIMIT_REACHED.
+  uint64 max_expanded_bytes = 6;
+  // Added 2026-11-07 (issue #167, for #168). The largest accepted ratio of
+  // expanded bytes to the archive's own size, as a whole number ("100" is
+  // 100:1). Required: 0 is INVALID_INPUT. Reaching it is
+  // ERROR_CODE_LIMIT_REACHED.
+  uint32 max_ratio = 7;
 }
 
 message ExtractArchiveResponse {
@@ -317,4 +688,177 @@ message ExtractArchiveResponse {
 message ExtractArchiveOk {
   // Number of entries extracted.
   uint32 entry_count = 1;
+}
+
+// Request of CopyEntry (issue #167).
+message CopyEntryRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Entry to copy, relative to the account home: a file or a directory tree.
+  string source_path = 2;
+  // Where the copy goes, relative to the same account home. Must not exist.
+  string destination_path = 3;
+  // The most entries (files and directories, the source included) the copy may
+  // hold. Required: 0 is INVALID_INPUT, and so is a value above the agent's
+  // ceiling. Reaching it is ERROR_CODE_LIMIT_REACHED.
+  uint64 max_entries = 4;
+  // The most bytes of file content the copy may hold. Required: 0 is
+  // INVALID_INPUT, and so is a value above the agent's ceiling. Reaching it is
+  // ERROR_CODE_LIMIT_REACHED.
+  uint64 max_bytes = 5;
+}
+
+message CopyEntryResponse {
+  oneof result {
+    CopyEntryOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message CopyEntryOk {
+  // Entries created at the destination, the destination itself included.
+  uint64 entries = 1;
+  // Bytes of file content copied.
+  uint64 bytes = 2;
+}
+
+// Request of ForceDeleteEntry (issue #167).
+message ForceDeleteEntryRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Entry to remove, relative to the account home: a file, a link or a
+  // directory tree.
+  string path = 2;
+}
+
+message ForceDeleteEntryResponse {
+  oneof result {
+    ForceDeleteEntryOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message ForceDeleteEntryOk {
+  // Entries removed, the path itself included.
+  uint64 entries_removed = 1;
+}
+
+// Request of TrashEntry (issue #167).
+message TrashEntryRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Entry to move into the trash, relative to the account home.
+  string path = 2;
+}
+
+message TrashEntryResponse {
+  oneof result {
+    TrashEntryOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message TrashEntryOk {
+  // The entry's identifier in the trash: unix seconds, a dash and 16 lower-case
+  // hexadecimal digits. The only handle RestoreTrashEntry accepts.
+  string trash_id = 1;
+}
+
+// Request of ListTrash (issue #167).
+message ListTrashRequest {
+  // System username of the owning account.
+  string account_username = 1;
+}
+
+message ListTrashResponse {
+  oneof result {
+    ListTrashOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message ListTrashOk {
+  // Trash entries, newest first. Bounded by the agent at 10000; a trash that
+  // holds more reports the newest 10000.
+  repeated TrashedEntry entries = 1;
+}
+
+// One entry of the trash, as ListTrash reports it (issue #167).
+message TrashedEntry {
+  // Identifier of the entry, as TrashEntryOk.trash_id.
+  string trash_id = 1;
+  // Where the entry lived when it was trashed, relative to the account home,
+  // "/"-separated, without a leading "/". Read from a file the customer can
+  // edit, so a caller shows it and never trusts it: RestoreTrashEntry
+  // re-validates it.
+  string original_path = 2;
+  // When the entry was trashed, as Unix seconds (UTC), read from its id.
+  int64 trashed_at_unix = 3;
+  // True when the trashed entry is a real directory.
+  bool is_directory = 4;
+  // Size of a trashed file in bytes; 0 for a directory (the agent does not
+  // total a tree to answer a listing).
+  uint64 size_bytes = 5;
+}
+
+// Request of RestoreTrashEntry (issue #167).
+message RestoreTrashEntryRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Identifier of the entry to restore, as ListTrash reports it.
+  string trash_id = 2;
+  // Where to put it, relative to the account home. Empty means the path the
+  // entry had when it was trashed.
+  string destination_path = 3;
+}
+
+message RestoreTrashEntryResponse {
+  oneof result {
+    RestoreTrashEntryOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message RestoreTrashEntryOk {
+  // The path the entry now has, relative to the account home.
+  string restored_path = 1;
+}
+
+// Request of EmptyTrash (issue #167).
+message EmptyTrashRequest {
+  // System username of the owning account.
+  string account_username = 1;
+}
+
+message EmptyTrashResponse {
+  oneof result {
+    EmptyTrashOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message EmptyTrashOk {
+  // Trash entries removed.
+  uint64 entries_removed = 1;
+}
+
+// Request of PurgeExpiredTrash (issue #167).
+message PurgeExpiredTrashRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Entries trashed more than this many days ago are removed. Required: 0 is
+  // INVALID_INPUT.
+  uint32 older_than_days = 2;
+}
+
+message PurgeExpiredTrashResponse {
+  oneof result {
+    PurgeExpiredTrashOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message PurgeExpiredTrashOk {
+  // Trash entries removed.
+  uint64 entries_removed = 1;
 }

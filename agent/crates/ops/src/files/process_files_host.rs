@@ -3,19 +3,37 @@
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::privs::account_ids::AccountIds;
+use maran_agent_core::privs::child_input_writer::ChildInputWriter;
 use maran_agent_core::privs::fork_as_account::fork_as_account;
 use maran_agent_core::privs::priv_error::PrivError;
 use maran_agent_core::utils::available_bytes::available_bytes;
-use maran_agent_core::validation::fs::file_mode::FileMode;
 use maran_agent_core::validation::fs::path::resolve_in_home;
 use maran_agent_core::validation::fs::relative_path::RelativePath;
+use maran_agent_core::validation::fs::trash_entry_id::TrashEntryId;
 use maran_agent_core::validation::system::name::AccountName;
 
 use crate::files::FilesOpError;
-use crate::files::model::missing_parents::MissingParents;
-use crate::files::open_parent_directory::open_parent_directory;
+use crate::files::account_home::account_home;
+use crate::files::child_upload::ChildUpload;
+use crate::files::feed_stop::FeedStop;
+use crate::files::feed_upload::feed_upload;
+use crate::files::fork_upload_work::fork_upload_work;
+use crate::files::model::change_permissions_input::ChangePermissionsInput;
+use crate::files::model::copy_entry_input::CopyEntryInput;
+use crate::files::model::copy_report::CopyReport;
+use crate::files::model::create_directory_input::CreateDirectoryInput;
+use crate::files::model::force_delete_entry_input::ForceDeleteEntryInput;
+use crate::files::model::limit_kind::LimitKind;
+use crate::files::model::move_entry_input::MoveEntryInput;
+use crate::files::model::permission_report::PermissionReport;
+use crate::files::model::purge_expired_trash_input::PurgeExpiredTrashInput;
+use crate::files::model::restore_trash_entry_input::RestoreTrashEntryInput;
+use crate::files::model::trash_entry_input::TrashEntryInput;
+use crate::files::model::trashed_entry::TrashedEntry;
+use crate::files::model::upload_source::UploadSource;
+use crate::files::model::write_file_input::WriteFileInput;
+use crate::files::process_mutations::ProcessMutations;
 use crate::files::remove_in_home::remove_in_home;
 use crate::files::write_in_home::write_in_home;
 
@@ -35,21 +53,18 @@ const TEMPORARY_PREFIX: &str = ".maran-write";
 /// naming a temporary file, and forking. Everything that a reviewer of a
 /// privileged write should read is in `write_in_home`, `remove_in_home` and
 /// `open_parent_directory`.
-pub struct ProcessFilesHost;
+pub struct ProcessFilesHost {
+    /// The file manager's mutations, which this host hands to the forked child.
+    mutations: ProcessMutations,
+}
 
 impl ProcessFilesHost {
     /// Creates the host.
     #[must_use]
     pub fn new() -> Self {
-        Self
-    }
-
-    /// The absolute home directory of `account`.
-    ///
-    /// From [`AgentPaths`], so this area and the site area agree on where an
-    /// account lives without either writing the literal.
-    fn home(account: &AccountName) -> PathBuf {
-        PathBuf::from(AgentPaths::ACCOUNT_HOME_ROOT).join(account.as_str())
+        Self {
+            mutations: ProcessMutations::new(),
+        }
     }
 
     /// A name for the temporary file the write renames into place.
@@ -81,58 +96,51 @@ impl Default for ProcessFilesHost {
 }
 
 impl super::FilesHost for ProcessFilesHost {
-    /// Creates the directory chain in a forked child that has dropped to the
-    /// account.
+    /// Streams the upload into a file in a forked child that has dropped to the account.
     ///
-    /// The ids are resolved here, at the moment of use, and never cached: an
-    /// account deleted and recreated between two operations gets a different
-    /// uid, and a cached one would write into whoever now holds it.
-    fn create_parents_as_account(
-        &self,
-        account: &AccountName,
-        relative: &RelativePath,
-    ) -> Result<(), FilesOpError> {
-        let ids = AccountIds::resolve(account)?;
-        let home = Self::home(account);
-        let uid = ids.uid();
-
-        // The child's outcome crosses back as an exit status and nothing else
-        // (`fork_as_account`'s contract), so the typed reason a level was
-        // refused cannot come with it. That is why the failure below is
-        // `DirectoryUnusable` rather than whatever the walk decided: it is the
-        // honest resolution of what the parent can actually know.
-        fork_as_account(&ids, || {
-            open_parent_directory(&home, relative, uid, MissingParents::Create)
-                .map(|_| ())
-                .map_err(|_| PrivError::WorkFailed)
-        })
-        .map_err(|error| match error {
-            PrivError::WorkFailed => FilesOpError::DirectoryUnusable,
-            other => FilesOpError::Privilege(other),
-        })
-    }
-
-    /// Writes the file in a forked child that has dropped to the account.
+    /// The ids are resolved here, at the moment of use, and never cached: an account deleted
+    /// and recreated between two operations gets a different uid, and a cached one would
+    /// write into whoever now holds it. The parent feeds the child framed chunks and the child
+    /// answers the bytes written, or the refusal that stopped it.
     fn write_as_account(
         &self,
-        account: &AccountName,
-        relative: &RelativePath,
-        contents: &[u8],
-        mode: FileMode,
-    ) -> Result<(), FilesOpError> {
-        let ids = AccountIds::resolve(account)?;
-        let home = Self::home(account);
+        input: &WriteFileInput,
+        source: &mut dyn UploadSource,
+    ) -> Result<u64, FilesOpError> {
+        let ids = AccountIds::resolve(&input.account)?;
+        let home = account_home(&input.account);
         let uid = ids.uid();
         let temporary = Self::temporary_name();
+        let limit = input.limit.bytes();
 
-        fork_as_account(&ids, || {
-            write_in_home(&home, relative, &temporary, contents, mode, uid)
-                .map_err(|_| PrivError::WorkFailed)
-        })
-        .map_err(|error| match error {
-            PrivError::WorkFailed => FilesOpError::WriteFailed,
-            other => FilesOpError::Privilege(other),
-        })
+        let mut over_limit = false;
+        let mut feed = |writer: &mut ChildInputWriter<'_>| {
+            let fed = feed_upload(source, limit, &mut |chunk: &[u8]| writer.send(chunk));
+            match fed {
+                Ok(()) => writer.complete(),
+                Err(stop) => {
+                    over_limit = matches!(stop, FeedStop::OverLimit);
+                    Err(stop.into_io_error())
+                }
+            }
+        };
+
+        let written = fork_upload_work(&ids, &mut feed, |context| {
+            write_in_home(
+                &home,
+                input,
+                &temporary,
+                uid,
+                &mut ChildUpload::new(context),
+            )
+        });
+
+        // The parent's own count refused the upload and aborted the child; the child's answer
+        // to an abort is a plain failure, which would hide the reason the caller can act on.
+        if over_limit {
+            return Err(FilesOpError::LimitReached(LimitKind::Bytes));
+        }
+        written
     }
 
     /// Removes the file in a forked child that has dropped to the account.
@@ -142,7 +150,7 @@ impl super::FilesHost for ProcessFilesHost {
         relative: &RelativePath,
     ) -> Result<(), FilesOpError> {
         let ids = AccountIds::resolve(account)?;
-        let home = Self::home(account);
+        let home = account_home(account);
         let uid = ids.uid();
 
         fork_as_account(&ids, || {
@@ -183,5 +191,67 @@ impl super::FilesHost for ProcessFilesHost {
     /// As [`available_bytes`].
     fn available_bytes(&self, directory: &Path) -> Result<u64, std::io::Error> {
         available_bytes(directory)
+    }
+
+    /// Delegates to the mutations, which fork to the account.
+    fn create_directory_as_account(
+        &self,
+        input: &CreateDirectoryInput,
+    ) -> Result<(), FilesOpError> {
+        self.mutations.create_directory_as_account(input)
+    }
+
+    /// Delegates to the mutations, which fork to the account.
+    fn move_as_account(&self, input: &MoveEntryInput) -> Result<(), FilesOpError> {
+        self.mutations.move_as_account(input)
+    }
+
+    /// Delegates to the mutations, which fork to the account and bound a tree walk.
+    fn change_permissions_as_account(
+        &self,
+        input: &ChangePermissionsInput,
+    ) -> Result<PermissionReport, FilesOpError> {
+        self.mutations.change_permissions_as_account(input)
+    }
+
+    /// Delegates to the mutations, which fork to the account and bound the work.
+    fn copy_as_account(&self, input: &CopyEntryInput) -> Result<CopyReport, FilesOpError> {
+        self.mutations.copy_as_account(input)
+    }
+
+    /// Delegates to the mutations, which fork to the account and bound the work.
+    fn force_delete_as_account(&self, input: &ForceDeleteEntryInput) -> Result<u64, FilesOpError> {
+        self.mutations.force_delete_as_account(input)
+    }
+
+    /// Delegates to the mutations, which fork to the account.
+    fn trash_as_account(&self, input: &TrashEntryInput) -> Result<TrashEntryId, FilesOpError> {
+        self.mutations.trash_as_account(input)
+    }
+
+    /// Delegates to the mutations, which read the trash in a forked child.
+    fn list_trash_as_account(
+        &self,
+        account: &AccountName,
+    ) -> Result<Vec<TrashedEntry>, FilesOpError> {
+        self.mutations.list_trash_as_account(account)
+    }
+
+    /// Delegates to the mutations, which fork to the account.
+    fn restore_as_account(&self, input: &RestoreTrashEntryInput) -> Result<String, FilesOpError> {
+        self.mutations.restore_as_account(input)
+    }
+
+    /// Delegates to the mutations, which fork to the account and bound the work.
+    fn empty_trash_as_account(&self, account: &AccountName) -> Result<u64, FilesOpError> {
+        self.mutations.empty_trash_as_account(account)
+    }
+
+    /// Delegates to the mutations, which fork to the account and bound the work.
+    fn purge_expired_trash_as_account(
+        &self,
+        input: &PurgeExpiredTrashInput,
+    ) -> Result<u64, FilesOpError> {
+        self.mutations.purge_expired_trash_as_account(input)
     }
 }

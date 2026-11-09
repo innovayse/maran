@@ -32,6 +32,8 @@ public sealed class IdentityEndpointPolicyDeclarationTests
         Assert.Contains("AuthController.LogoutEverywhereAsync", names);
         Assert.Contains("SetupController.GetStateAsync", names);
         Assert.Contains("ApiKeySelfController.GetAsync", names);
+        Assert.Contains("ResellerApiKeysController.CreateAsync", names);
+        Assert.Contains("ResellerApiKeyOversightController.RevokeAsync", names);
         Assert.True(names.Count > 15, $"Only {names.Count} actions were found.");
     }
 
@@ -100,6 +102,7 @@ public sealed class IdentityEndpointPolicyDeclarationTests
     [Theory]
     [InlineData(ApiKeyPolicyNames.SelfRead, ApiKeyDefaults.Scheme, true)]
     [InlineData(ApiKeyPolicyNames.ServerRead, ApiKeyDefaults.Scheme, true)]
+    [InlineData(AuthorizationPolicies.ResellerOnly, null, true)]
     [InlineData(ApiKeyPolicyNames.SelfRead, null, false)]
     [InlineData(ApiKeyPolicyNames.SelfRead, "Bearer", false)]
     [InlineData("ApiKeyInvented", ApiKeyDefaults.Scheme, false)]
@@ -212,7 +215,7 @@ public sealed class IdentityEndpointPolicyDeclarationTests
     /// <param name="policy">The declared policy, or <c>null</c> for a bare declaration.</param>
     /// <param name="schemes">The declared authentication schemes, or <c>null</c> for the default.</param>
     /// <returns>
-    /// <c>true</c> for one of the three JWT policies, or for a policy that is a member of
+    /// <c>true</c> for one of the four JWT policies, or for a policy that is a member of
     /// <see cref="ApiKeyPolicyNames"/> declared with exactly the <c>ApiKey</c> scheme.
     /// </returns>
     private static bool IsKnownDeclaration(string? policy, string? schemes)
@@ -222,6 +225,7 @@ public sealed class IdentityEndpointPolicyDeclarationTests
             AuthorizationPolicies.AdminOnly,
             AuthorizationPolicies.AdminOrReseller,
             AuthorizationPolicies.AnyAuthenticated,
+            AuthorizationPolicies.ResellerOnly,
         ];
         if (policy is null)
         {

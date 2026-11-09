@@ -88,6 +88,18 @@ public static class RateLimitPolicies
     public const string SiteLogs = "site-logs";
 
     /// <summary>
+    /// The live dashboard stream limit: a CONCURRENCY limit on how many streams one signed-in user may
+    /// hold open at once (issue #199).
+    /// </summary>
+    /// <remarks>
+    /// The same reasoning as <see cref="SiteLogs"/>: a stream is a connection held for as long as a
+    /// dashboard is open, so the budget is how many are open and a fixed window could not express it.
+    /// A separate policy rather than <see cref="SiteLogs"/> because the numbers and the owners differ
+    /// and sharing a bucket would let log panes starve the dashboard.
+    /// </remarks>
+    public const string DashboardStream = "dashboard-stream";
+
+    /// <summary>
     /// The restore limit: its own bucket, keyed by the caller's hosting account.
     /// </summary>
     /// <remarks>
@@ -111,6 +123,16 @@ public static class RateLimitPolicies
     public const string BackupVerify = "backup-verify";
 
     /// <summary>
+    /// The file-manager limit: its own bucket, keyed by the caller's hosting account.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="Api"/> because a file manager sends a request per folder opened, per
+    /// search pause and per transfer, so the general budget sized for reading screens would throttle
+    /// ordinary browsing, while the transfers themselves are bounded by their own concurrency slots.
+    /// </remarks>
+    public const string Files = "files";
+
+    /// <summary>
     /// The journal-export limit: its own bucket, keyed by the signed-in administrator, shared by the
     /// audit export and the personal-data export.
     /// </summary>
@@ -121,4 +143,38 @@ public static class RateLimitPolicies
     /// taking personal data out of the panel and a caller should not get a second allowance by switching.
     /// </remarks>
     public const string AuditExport = "audit-export";
+
+    /// <summary>
+    /// The global-search limit: its own bucket, keyed by the signed-in user.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="Api"/> because a search box sends a request per pause in typing and each
+    /// request reads several modules' tables: sharing the general budget would let a held key starve every
+    /// other screen, and the other way round a busy screen would make the palette answer 429. Keyed by user
+    /// and not by account, because the budget that means something is one person's typing.
+    /// </remarks>
+    public const string Search = "search";
+
+    /// <summary>
+    /// The provisioning limit: its own bucket for the writes an API key makes, keyed by the key.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="Api"/> because a write by a long-lived bearer secret creates, suspends,
+    /// changes or deletes a hosting account: the general budget is sized for reading screens, and sharing
+    /// it would let a reading integration spend the allowance of the one that provisions, or the other way
+    /// round. Keyed by the key (<c>RateLimitPartitionKey</c> names a key first), not by the address, so two
+    /// integrations behind one NAT do not share it.
+    /// </remarks>
+    public const string Provisioning = "provisioning";
+
+    /// <summary>
+    /// The DNS limit: its own bucket, keyed by the caller's hosting account.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="Api"/> because every accepted edit re-renders a whole zone on the root agent
+    /// and reloads it in a name server that answers the internet: the general budget is sized for reading
+    /// screens, and a script editing records in a loop would keep the daemon reloading for as long as it
+    /// allowed.
+    /// </remarks>
+    public const string Dns = "dns";
 }

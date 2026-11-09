@@ -47,19 +47,22 @@
 //!   `openat` — a descriptor names an inode, and no rename can move it.
 
 use std::ffi::OsStr;
-use std::fs::{File, Metadata, OpenOptions};
+use std::fs::{File, Metadata};
 use std::io::{self, Read, Seek, SeekFrom};
-use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
-use std::path::Path;
 use std::time::{Duration, Instant};
-
-use maran_agent_core::privs::open_in_directory::open_in_directory;
 
 use crate::sites::MAXIMUM_HISTORY_LINES;
 use crate::sites::SitesOpError;
 use crate::sites::log_sink::LogSink;
 use crate::sites::model::log_tail_request::LogTailRequest;
 use crate::sites::model::tail_end::TailEnd;
+// Shared with the traffic summary: the tail and the summary open a site's log
+// through ONE function each for the directory and the file, so a refusal added
+// to either is a refusal of both (rules/rust.md, the rule of two).
+use crate::sites::open_site_log::open_site_log as open_log;
+use crate::sites::open_site_log_directory::{
+    LOG_OWNER_UID, open_site_log_directory as open_directory,
+};
 
 /// How long the follow sleeps between two reads of the log.
 ///
@@ -109,30 +112,6 @@ const FOLLOW_CEILING: u64 = 256 * 1024;
 /// there is a hole in it, and a gap nobody is told about is worse than no
 /// output at all.
 const SKIPPED_MARKER: &str = "[maran] skipped";
-
-/// Flags every open of the log itself carries.
-///
-/// `O_NOFOLLOW` refuses a symlink in the final component, `O_NONBLOCK` makes a
-/// FIFO return instead of blocking a root thread in the kernel, and
-/// `O_CLOEXEC` keeps the descriptor out of anything the agent spawns later.
-const LOG_FLAGS: libc::c_int =
-    libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC;
-
-/// The uid that must own the log directory and every log file in it.
-///
-/// Root, and **not the account's** any more. The uid the directory and the
-/// files are checked against used to be resolved from the password database,
-/// because the account owned them; the whole point of moving the logs to
-/// `/var/log/maran/sites/<account>` is that root owns them now, so root is what
-/// the inode must say. A check left pointing at the account would not merely be
-/// stale — it would refuse every log on a correctly fixed host, which is the
-/// direction that gets noticed, but it would also have accepted a file the
-/// account had somehow come to own, which is the direction that does not.
-///
-/// Named rather than written as a bare `0` at the two call sites, so that
-/// "which uid does the tail trust?" has one answer to change and one answer to
-/// grep for.
-const LOG_OWNER_UID: u32 = 0;
 
 /// Sends the historical tail of `request`'s log to `sink`, then follows it.
 ///
@@ -353,90 +332,6 @@ fn window(
     }
 }
 
-/// The one failure this module reports, named after the log it was reading.
-fn unreadable(file_name: &OsStr) -> SitesOpError {
-    SitesOpError::LogUnreadable {
-        path: Path::new(file_name).display().to_string(),
-    }
-}
-
-/// Opens the log directory, once, and proves `uid` owns it.
-///
-/// `uid` is `LOG_OWNER_UID` — ROOT, not the account's — at every production
-/// call site; it is a parameter only so the tests can name their own uid. An
-/// earlier version of this line said the check proved the ACCOUNT owned the
-/// directory, which stopped being true when the logs moved to
-/// `/var/log/maran/sites/<account>`: the sentence outlived the ownership it
-/// described, and a doc that says the weaker claim is the one being made is
-/// what stops the next reader checking which uid is actually trusted.
-///
-/// The descriptor returned is what every later open goes through, so this is
-/// the only moment the directory is named by a path — and therefore the only
-/// moment the path could be swapped.
-fn open_directory(directory: &Path, uid: u32) -> Result<File, SitesOpError> {
-    let opened = OpenOptions::new()
-        .read(true)
-        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
-        .open(directory)
-        .map_err(|_| SitesOpError::LogUnreadable {
-            path: directory.display().to_string(),
-        })?;
-
-    let metadata = opened.metadata().map_err(|_| SitesOpError::LogUnreadable {
-        path: directory.display().to_string(),
-    })?;
-
-    // Root's own directory. Ownership is checked on the DESCRIPTOR that every
-    // later open goes through, so this is a claim about the inode the tail will
-    // actually read from and not about a name that could be re-pointed
-    // afterwards. It used to assert the ACCOUNT owned it, which was the best
-    // available claim while the directory sat inside a home the account could
-    // rename things in; root owning it is a stronger one, and the tree above it
-    // is unreachable to every uid but root.
-    if !metadata.is_dir() || metadata.uid() != uid {
-        return Err(SitesOpError::LogUnreadable {
-            path: directory.display().to_string(),
-        });
-    }
-
-    Ok(opened)
-}
-
-/// Opens the log through `directory` and proves it is a file worth reading.
-///
-/// Returns `None` when there is no log yet, which is the ordinary state of a
-/// site that has served no request. Every other refusal is an error: a symlink
-/// stopped by `O_NOFOLLOW`, a FIFO, a device, a directory, a file root does not
-/// own, or one with a second link — reported rather than quietly treated as
-/// "nothing here", because each of those is somebody trying something, and at
-/// this location somebody with root already.
-fn open_log(
-    directory: &File,
-    file_name: &OsStr,
-    uid: u32,
-) -> Result<Option<(File, Metadata)>, SitesOpError> {
-    let file = match open_in_directory(directory, file_name, LOG_FLAGS) {
-        Ok(file) => file,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
-        Err(_) => return Err(unreadable(file_name)),
-    };
-
-    let metadata = file.metadata().map_err(|_| unreadable(file_name))?;
-
-    // `is_file` is the FIFO check and the device check and the directory check,
-    // all three: `O_NONBLOCK` is what stopped the open of a FIFO from hanging,
-    // and this is what stops us reading one. `nlink == 1` is the hardlink
-    // check — `ln /etc/shadow access.log` is not a symlink and lives at exactly
-    // the path this module names, so only the inode gives it away. It stays
-    // true under the shipped rotation, which signals the nginx master to reopen
-    // rather than copying the live file aside.
-    if !metadata.is_file() || metadata.uid() != uid || metadata.nlink() != 1 {
-        return Err(unreadable(file_name));
-    }
-
-    Ok(Some((file, metadata)))
-}
-
 /// Sends the last `history_lines` lines, reading backwards within a budget.
 ///
 /// Returns `Some` when the sink ended the tail during the batch, so the caller
@@ -632,12 +527,12 @@ fn read_exact_at(
     file_name: &OsStr,
 ) -> Result<bool, SitesOpError> {
     file.seek(SeekFrom::Start(position))
-        .map_err(|_| unreadable(file_name))?;
+        .map_err(|_| SitesOpError::unreadable_log(file_name))?;
 
     match file.read_exact(buffer) {
         Ok(()) => Ok(true),
         Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => Ok(false),
-        Err(_) => Err(unreadable(file_name)),
+        Err(_) => Err(SitesOpError::unreadable_log(file_name)),
     }
 }
 

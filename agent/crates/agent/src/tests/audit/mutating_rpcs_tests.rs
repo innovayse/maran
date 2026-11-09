@@ -20,6 +20,7 @@ fn the_calls_that_look_harmless_but_change_the_host_are_mutating() {
         "EndSftpSessions",
         "ReloadWebServer",
         "ReloadFtpsTls",
+        "ApplyPhpPoolSettings",
         "RepairAccountHomeGroups",
         "RepairDatabaseGrants",
         "SetAccountLoginsLocked",
@@ -57,8 +58,41 @@ fn the_streaming_mutating_rpcs_are_listed() {
         "/maran.agent.v1.BackupService/CreateBackup",
         "/maran.agent.v1.BackupService/RestoreBackup",
         "/maran.agent.v1.PhpService/InstallPhpVersion",
+        "/maran.agent.v1.PhpService/SetPhpExtension",
         "/maran.agent.v1.FilesService/WriteFile",
     ] {
         assert!(MUTATING_RPCS.contains(&path), "{path}");
+    }
+}
+
+#[test]
+fn every_file_manager_mutation_including_the_trash_ones_is_listed() {
+    for method in [
+        "CreateDirectory",
+        "MoveEntry",
+        "ChangePermissions",
+        "CopyEntry",
+        "ForceDeleteEntry",
+        "TrashEntry",
+        "RestoreTrashEntry",
+        "EmptyTrash",
+        "PurgeExpiredTrash",
+    ] {
+        let path = format!("/maran.agent.v1.FilesService/{method}");
+        assert!(
+            MUTATING_RPCS.contains(&path.as_str()),
+            "{method} is missing from the mutating list"
+        );
+    }
+}
+
+#[test]
+fn both_moves_of_a_backup_between_servers_are_mutating_although_one_changes_nothing() {
+    for method in ["ExportBackup", "ImportBackup"] {
+        let path = format!("/maran.agent.v1.TransferService/{method}");
+        assert!(
+            MUTATING_RPCS.contains(&path.as_str()),
+            "{method} is missing from the mutating list"
+        );
     }
 }

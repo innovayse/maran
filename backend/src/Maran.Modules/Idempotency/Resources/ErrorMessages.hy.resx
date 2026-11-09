@@ -15,6 +15,9 @@
   <data name="IdempotencyKeyInvalid">
     <value>Idempotency-Key վերնագիրը վավեր չէ։ Օգտագործեք 1-ից 255 տառ, թվանշան, կետ, երկու կետ, գծիկ կամ ընդգծում։</value>
   </data>
+  <data name="IdempotencyKeyRequired">
+    <value>Այս հարցման համար Idempotency-Key վերնագիրը պարտադիր է։ Ուղարկեք եզակի բանալի, որպեսզի կրկնությունը աշխատանքը երկու անգամ չկատարի։</value>
+  </data>
   <data name="IdempotencyKeyReused">
     <value>Այս Idempotency-Key-ն արդեն օգտագործվել է այլ հարցման համար։ Նոր հարցման համար օգտագործեք նոր բանալի։</value>
   </data>

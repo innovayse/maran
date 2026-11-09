@@ -38,6 +38,13 @@ use maran_distro::AdapterBinary;
 /// appear unremarked. Closing it needs a pure validator per tree, which does not
 /// exist behind today's `DistroAdapter`.
 ///
+/// A fifth action exists, and it is chosen by data rather than by a literal: the mail
+/// stack's write path (`mail/converge_mail_stage.rs`) takes each daemon's checker and
+/// class from its `MailStage`, and the Redis-protocol server's stage has no check mode, so
+/// its validator is the service manager's restart in `CallClass::Reload`. It is not among
+/// the four literals above because no `service_manager` expression names it; the census in
+/// `validator_tests.rs` lists it as a row of its own (issue #177).
+///
 /// The ruling on those three, so a reader does not have to re-derive it: they are
 /// NOT re-validated at a start, and the reason is that they have no observation
 /// available rather than that nobody wrote one. Running the only command there is

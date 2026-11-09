@@ -28,6 +28,9 @@ namespace Maran.Modules.Accounts.Common;
 /// </param>
 /// <param name="ResellerId">The reseller that owns the plan, or <c>null</c> for the administrator's own.</param>
 /// <param name="ResellerName">The owning reseller's name, or <c>null</c> for the administrator's own.</param>
+/// <param name="PhpLimits">The largest PHP settings a customer on the plan may choose (issue #138).</param>
+/// <param name="MailLimits">What an account on the plan may do with mail: mailboxes, quotas and send limit (issue #177).</param>
+/// <param name="MaxDnsZones">The most DNS zones an account on the plan may own; zero sells none (issue #178).</param>
 public sealed record PlanDto(
     Guid Id,
     string DisplayName,
@@ -44,4 +47,7 @@ public sealed record PlanDto(
     IReadOnlyList<AccountFeature> Features,
     int AccountCount,
     Guid? ResellerId,
-    string? ResellerName);
+    string? ResellerName,
+    PhpLimitsDto PhpLimits,
+    MailLimitsDto MailLimits,
+    int MaxDnsZones = 0);

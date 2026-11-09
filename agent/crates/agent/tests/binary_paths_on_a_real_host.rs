@@ -101,10 +101,11 @@ fn polygon_distro() -> &'static dyn DistroAdapter {
 /// service manager, the version-built php-fpm validator and `quotaon` included:
 /// these are the values an `AdapterBinary` carries, and the type is what every
 /// process seam in `ops` accepts, so a path wrong here is a program the agent
-/// cannot start. Two accessors answer plain text and are listed all the same,
+/// cannot start. Three accessors answer plain text and are listed all the same,
 /// because the agent writes or hands on the path they name: `sh_binary` (the
-/// shell a crontab line names) and `package_manager` (the program the php
-/// install unit runs).
+/// shell a crontab line names), `bash_shell` (the login shell an account is
+/// given, issue #194) and `package_manager` (the program the php install unit
+/// runs).
 ///
 /// # Panics
 ///
@@ -147,6 +148,7 @@ fn declared_binaries(distro: &'static dyn DistroAdapter) -> Vec<(&'static str, S
         ("getent_binary", distro.getent_binary().to_string()),
         ("crontab_binary", distro.crontab_binary().to_string()),
         ("sh_binary", distro.sh_binary().to_owned()),
+        ("bash_shell", distro.bash_shell().to_owned()),
         ("package_manager", distro.package_manager().to_owned()),
         (
             "package_query_binary",
@@ -198,6 +200,12 @@ fn every_declared_binary_path_names_an_executable_file() {
 
 /// The declared paths of the programs whose package is OPTIONAL on a host.
 ///
+/// The three DNS programs belong here too (their package is installed by the installer's DNS step
+/// and its file list is UNVERIFIED until a polygon image with BIND runs this test), and so do the
+/// eight mail-stack programs: their packages are installed only when an
+/// administrator enables mail, and every one of their paths is UNVERIFIED until a polygon image
+/// with the packages installed runs this test (the mail stack inventory, section 10).
+///
 /// `atq` and `atrm` come from the `at` package, which neither family installs
 /// by default and which this agent does not require: a host without it has no
 /// `at` jobs, and account deletion treats the absent binary as "nothing to
@@ -210,6 +218,26 @@ fn optional_binaries(distro: &'static dyn DistroAdapter) -> Vec<(&'static str, S
     vec![
         ("atq_binary", distro.atq_binary().to_string()),
         ("atrm_binary", distro.atrm_binary().to_string()),
+        ("postfix_binary", distro.postfix_binary().to_string()),
+        ("postconf_binary", distro.postconf_binary().to_string()),
+        ("postmap_binary", distro.postmap_binary().to_string()),
+        ("postqueue_binary", distro.postqueue_binary().to_string()),
+        ("postsuper_binary", distro.postsuper_binary().to_string()),
+        ("doveadm_binary", distro.doveadm_binary().to_string()),
+        ("doveconf_binary", distro.doveconf_binary().to_string()),
+        ("rspamadm_binary", distro.rspamadm_binary().to_string()),
+        (
+            "dns_checkconf_binary",
+            distro.dns_checkconf_binary().to_string(),
+        ),
+        (
+            "dns_checkzone_binary",
+            distro.dns_checkzone_binary().to_string(),
+        ),
+        (
+            "dns_control_binary",
+            distro.dns_control_binary().to_string(),
+        ),
     ]
 }
 

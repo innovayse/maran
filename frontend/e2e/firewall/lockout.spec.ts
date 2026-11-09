@@ -7,7 +7,7 @@ import type { FirewallRule } from '../../src/types/firewall'
 import type { PanelModule } from '../../src/types/module'
 
 const LICENSED: PanelModule[] = [
-  { name: 'firewall', displayName: 'Firewall', tier: 'included', state: 'enabled' },
+  { name: 'firewall', displayName: 'Firewall', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
 ]
 
 // A rule scoped to one office range on a high port. It is exactly the shape an SSH restriction
@@ -164,4 +164,36 @@ test('adding a rule open to every source is sent without a confirmation', async 
   expect(changes.filter((change) => {
     return change.startsWith('POST ')
   })).toHaveLength(1)
+})
+
+// The backend, not this screen, refuses an allow that would lock the operator out. The refusal
+// arrives as a 409 problem whose text is the server's, already localized; the page shows it as-is
+// and keeps the form filled so the operator can widen the range and send it again.
+test('a rule the panel refuses as a lock-out shows the server text and keeps the form filled', async ({
+  page,
+}) => {
+  const refusal = 'Refused by the server: this rule would cut you off from SSH.'
+  const changes = await openScreen(page, [])
+  await page.route('**/api/v1/firewall/rules', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.fallback()
+      return
+    }
+    await route.fulfill({
+      status: 409,
+      contentType: 'application/problem+json',
+      body: JSON.stringify({ code: 'FirewallRuleLocksOutCaller', title: refusal, status: 409 }),
+    })
+  })
+
+  await page.getByRole('textbox', { name: 'Port', exact: true }).fill('2222')
+  await page.getByRole('textbox', { name: 'Source range', exact: true }).fill('203.0.113.0/24')
+  await page.getByRole('button', { name: 'Open the port' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Install the rule' }).click()
+
+  await expect(page.getByText(refusal)).toBeVisible()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(page.getByRole('textbox', { name: 'Port', exact: true })).toHaveValue('2222')
+  await expect(page.getByRole('textbox', { name: 'Source range', exact: true })).toHaveValue('203.0.113.0/24')
+  expect(changes).toHaveLength(1)
 })

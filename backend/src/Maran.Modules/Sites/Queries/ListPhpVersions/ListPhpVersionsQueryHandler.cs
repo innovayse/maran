@@ -1,6 +1,6 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Sites.Common;
-using Maran.Modules.Sites.Mappers;
+using Maran.Modules.Sites.Services;
 
 namespace Maran.Modules.Sites.Queries.ListPhpVersions;
 
@@ -8,19 +8,26 @@ namespace Maran.Modules.Sites.Queries.ListPhpVersions;
 /// <remarks>
 /// Host-level reference data, not tenant data: multi-PHP is installed once per server and then
 /// bound to any number of sites, so there is nothing here to scope to an account. The agent's
-/// answer is reshaped by <see cref="PhpVersionMapper"/> into the module's own <see cref="PhpVersionDto"/>, which drops the FPM socket
-/// directory — a filesystem path has no business on a customer's screen (rules/security.md).
+/// answer is reshaped by <see cref="PhpVersionListing"/> into the module's own <see cref="PhpVersionDto"/>
+/// (through <c>PhpVersionMapper</c>), which drops the FPM socket directory — a filesystem path
+/// has no business on a customer's screen (rules/security.md) — and adds where each version stands in
+/// its support life and, for an administrator, how many sites use it.
 /// </remarks>
 public sealed class ListPhpVersionsQueryHandler
 {
     /// <summary>The agent client listing the host's installed PHP runtimes.</summary>
     private readonly IAgentPhpClient _php;
 
+    /// <summary>Describes the agent's versions in the panel's outward shape.</summary>
+    private readonly PhpVersionListing _listing;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="php">The agent client listing the host's installed PHP runtimes.</param>
-    public ListPhpVersionsQueryHandler(IAgentPhpClient php)
+    /// <param name="listing">Describes the agent's versions in the panel's outward shape.</param>
+    public ListPhpVersionsQueryHandler(IAgentPhpClient php, PhpVersionListing listing)
     {
         _php = php;
+        _listing = listing;
     }
 
     /// <summary>Returns the installed versions, or the agent's own typed failure.</summary>
@@ -37,7 +44,7 @@ public sealed class ListPhpVersionsQueryHandler
             return Result<IReadOnlyList<PhpVersionDto>>.Fail(versions.Error!);
         }
 
-        var installed = PhpVersionMapper.From(versions.Value);
+        var installed = await _listing.DescribeAsync(versions.Value, cancellationToken);
 
         return Result<IReadOnlyList<PhpVersionDto>>.Ok(installed);
     }

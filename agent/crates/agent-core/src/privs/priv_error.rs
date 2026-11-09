@@ -96,10 +96,23 @@ pub enum PrivError {
     VerificationFailed,
     /// The work closure ran as the account and returned an error. Which error is
     /// deliberately not carried across: the child cannot hand a Rust value back
-    /// through an exit status, and inventing a channel to do so would widen this
-    /// module's surface for no security gain.
+    /// through an exit status, and a channel for it would widen this module's
+    /// surface for no security gain. The two entry points that DO have a channel
+    /// (`fork_as_account_for_bytes`, `fork_as_account_for_descriptor`) carry data
+    /// in it, never an error: a child that fails is still reported by its exit
+    /// status, as this variant.
     #[error("work failed while running as the account")]
     WorkFailed,
+    /// The work closure ran as the account and found the one entry it was asked to open absent
+    /// (`ENOENT` on the final `openat`). Issue #455.
+    ///
+    /// The only refusal of the work that crosses the exit status with a meaning of its own, and
+    /// it carries nothing: not the name, not the errno. A closure asks for it by returning this
+    /// variant; the child turns it into its own closed exit status, and every other error a
+    /// closure returns is still [`PrivError::WorkFailed`]. A directory, a symlink, a hard link
+    /// or another owner's file therefore stay indistinguishable refusals, exactly as before.
+    #[error("the entry the work asked for does not exist")]
+    NoSuchEntry,
     /// The child was killed by a signal — an OOM kill, an operator `kill`, a
     /// crash — so the work may have been applied in part.
     #[error("child terminated by signal {signal}")]
@@ -154,4 +167,63 @@ pub enum PrivError {
         /// a raw wait status; see [`PrivError::ChildDidNotExit`].
         status: i32,
     },
+    /// The child refused the work with a number from the caller's own closed list.
+    ///
+    /// Only [`fork_reporting_as_account`](super::fork_reporting_as_account::fork_reporting_as_account)
+    /// produces it: the child's exit status said "the work failed" and its report named why, as
+    /// a value in `1..=63`. This module does not interpret the number; the caller that chose the
+    /// list turns it back into its own typed error, and reads one outside its list as a plain
+    /// failure.
+    #[error("the child refused the work: reason {reason}")]
+    WorkRefused {
+        /// The caller-chosen refusal number, `1..=63`.
+        reason: u8,
+    },
+    /// The child finished but its report was not the fixed shape: too short, or a refusal
+    /// number outside `1..=63`, or a success that carried a refusal. Never trusted.
+    #[error("the child's report was malformed")]
+    ReportMalformed,
+    /// The child wrote more bytes than the caller allowed it to bring back, so it was
+    /// killed and reaped and nothing it wrote is returned.
+    ///
+    /// Its own variant, not [`PrivError::WorkFailed`]: the child did not fail, the PARENT
+    /// refused its result. The difference is what an operator does next — a child that fails
+    /// is a bug or a hostile tree, a result that is too large is a directory or a search that
+    /// outgrew its bound, and the caller maps the two to different answers for the customer.
+    #[error("the child's result exceeded the allowed size")]
+    ResultTooLarge,
+    /// The channel between parent and child could not be made or read: `pipe`, `socketpair`,
+    /// `poll`, `read`, `recvmsg` or `fcntl` failed in the parent.
+    ///
+    /// Separate from [`PrivError::WaitFailed`] because the child's outcome may be perfectly
+    /// known; it is what the child brought, or whether it could, that is not.
+    #[error("channel to the child failed: errno {errno}")]
+    ChannelFailed {
+        /// The `errno` the failing call reported.
+        errno: i32,
+    },
+    /// The child exited successfully without handing over exactly one descriptor: none, more
+    /// than one, or a message the kernel had to truncate. Everything that did arrive was
+    /// closed.
+    #[error("the child did not hand over exactly one descriptor")]
+    DescriptorNotReceived,
+    /// The child handed over a descriptor that could write. The hand-off exists so the root
+    /// parent can read a customer's file; a descriptor that can also modify it is refused and
+    /// closed, whatever the child meant by it.
+    #[error("the descriptor handed over is not read-only")]
+    DescriptorNotReadOnly,
+}
+
+impl PrivError {
+    /// The channel failure for an I/O error raised on the parent's side of a channel to the child.
+    ///
+    /// One constructor for the three places that need it (the byte channel's pipe and read, the
+    /// descriptor channel's socket pair and poll, the receive) so that "which errno does a failed
+    /// channel report" has one answer. An error with no OS code reports 0, as the other `errno`
+    /// fields of this enum do when the standard library had none to give.
+    pub(super) fn channel_failed(error: &std::io::Error) -> Self {
+        Self::ChannelFailed {
+            errno: error.raw_os_error().unwrap_or(0),
+        }
+    }
 }

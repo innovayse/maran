@@ -11,7 +11,7 @@ use std::process::Command;
 use maran_agent_core::privs::account_ids::AccountIds;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_distro::{DistroAdapter, adapter_for, detect};
-use maran_ops::accounts::{AccountOperations, ProcessSystemHost};
+use maran_ops::accounts::{AccountOperations, NewAccountSettings, ProcessSystemHost};
 use maran_ops::php::{ProcessPhpHost, remove_account_pools};
 
 /// The environment variable each polygon image sets, naming itself.
@@ -95,7 +95,7 @@ impl PolygonAccount {
         remove_account(distro, &name);
 
         let created = operations
-            .create(&name, 0)
+            .create(&name, &NewAccountSettings::with_quota(0))
             .unwrap_or_else(|error| panic!("useradd must succeed in the polygon: {error}"));
         let ids = AccountIds::resolve(&name)
             .unwrap_or_else(|error| panic!("a just-created account must resolve: {error}"));
@@ -148,12 +148,24 @@ impl PolygonAccount {
 /// Panics when `userdel` cannot be run at all, or refuses for any reason other
 /// than the account not being there.
 fn remove_account(distro: &'static dyn DistroAdapter, name: &AccountName) {
-    if let Err(error) = remove_account_pools(&ProcessPhpHost::new(), distro, name) {
-        eprintln!(
-            "the polygon account {}'s pools could not be removed: {error}",
-            name.as_str()
-        );
-    }
+    // On a thread of its own, because the pool removal takes the config-tree lock with
+    // `blocking_lock`, which tokio refuses on a runtime worker (`config_tree_lock`'s "The
+    // requirement this places on every caller"). This function is reached from `create` and
+    // from `Drop`, and the suites that browse and archive call both from inside a
+    // `#[tokio::test]`; the agent itself reaches the same operation through
+    // `run_blocking`, so only the fixture was ever on a worker. A scoped thread rather than
+    // `block_in_place`, which would panic on a current-thread runtime.
+    std::thread::scope(|scope| {
+        let removal = scope.spawn(|| remove_account_pools(&ProcessPhpHost::new(), distro, name));
+        match removal.join() {
+            Ok(Ok(())) => {}
+            Ok(Err(error)) => eprintln!(
+                "the polygon account {}'s pools could not be removed: {error}",
+                name.as_str()
+            ),
+            Err(panic) => std::panic::resume_unwind(panic),
+        }
+    });
 
     let outcome = Command::new(distro.userdel_binary())
         .args(["--remove", name.as_str()])

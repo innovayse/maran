@@ -204,6 +204,25 @@ way the request ends.
   (for example a later "read this file" rpc) is also not logged, by design: this trail covers what
   the agent changed, not what it disclosed. That is a limit, stated.
 
+### Amendment, 2026-11-07 (issue #166): a third class, disclosing
+
+The limit stated above ("this trail covers what the agent changed, not what it disclosed") is
+lifted for exactly one rpc. `FilesService/ReadFile` streams the contents of a hosting customer's
+file out of the only root process, and a compromised `maran-api` could ask for any account's file
+with no record outside the panel's own database. It therefore has a list of its own,
+`DISCLOSING_RPCS` (`agent/crates/agent/src/audit/disclosing_rpcs.rs`), and an `AuditRpcClass`
+variant `Disclosing`. The layer installs a slot for a path in either `MUTATING_RPCS` or
+`DISCLOSING_RPCS` and writes the same line, so nothing in sections 2, 3, 4 and 5 changes: the
+line is built from the validated account and a closed outcome, **never from the path** (the line
+says that a read happened and whether it was served, not which file). `ListDirectory` and
+`SearchEntries` stay read-only: they disclose names, and a file manager polls them. The census now
+requires every rpc of the contract to be in exactly one of the three lists.
+
+For a streaming read the handler settles the slot where the outcome is known: a refusal before the
+first byte settles with its code, and the pump settles at the end of the stream (ok, or the code of
+the error that ended it) before it drops its sender, so the line is written once, at the end of the
+stream, with the outcome the client was given.
+
 ## 7. Placement relative to the PeerGuard
 
 `Server::builder().layer(...)` wraps the whole router, so the layer runs before the per-service

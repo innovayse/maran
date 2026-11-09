@@ -163,4 +163,68 @@ public sealed class ResellerTests
 
         Assert.Equal(0, reseller.AllocationRevision);
     }
+
+    /// <summary>Renaming replaces the name and nothing else.</summary>
+    [Fact]
+    public void Renaming_replaces_the_name_and_nothing_else()
+    {
+        var reseller = ResellerTestData.Reseller("acme");
+
+        reseller.Rename("globex");
+
+        Assert.Equal("globex", reseller.Name);
+        Assert.Equal("acme@example.com", reseller.ContactEmail);
+        Assert.Equal("en", reseller.Language);
+    }
+
+    /// <summary>A blank new name is refused and the old one is kept.</summary>
+    /// <param name="name">The blank name.</param>
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void A_blank_new_name_is_refused_and_the_old_one_is_kept(string name)
+    {
+        var reseller = ResellerTestData.Reseller("acme");
+
+        Assert.Throws<ArgumentException>(() =>
+        {
+            reseller.Rename(name);
+        });
+
+        Assert.Equal("acme", reseller.Name);
+    }
+
+    /// <summary>Updating the contact replaces the address and the language and leaves the name.</summary>
+    [Fact]
+    public void Updating_the_contact_replaces_the_address_and_the_language_and_leaves_the_name()
+    {
+        var reseller = ResellerTestData.Reseller("acme");
+
+        reseller.UpdateContact("new@example.com", "hy");
+
+        Assert.Equal("new@example.com", reseller.ContactEmail);
+        Assert.Equal("hy", reseller.Language);
+        Assert.Equal("acme", reseller.Name);
+    }
+
+    /// <summary>A blank contact address or language is refused and the old values are kept.</summary>
+    /// <param name="email">The address.</param>
+    /// <param name="language">The language.</param>
+    [Theory]
+    [InlineData("", "ru")]
+    [InlineData("   ", "ru")]
+    [InlineData("new@example.com", "")]
+    [InlineData("new@example.com", " ")]
+    public void A_blank_contact_value_is_refused_and_the_old_values_are_kept(string email, string language)
+    {
+        var reseller = ResellerTestData.Reseller("acme");
+
+        Assert.Throws<ArgumentException>(() =>
+        {
+            reseller.UpdateContact(email, language);
+        });
+
+        Assert.Equal("acme@example.com", reseller.ContactEmail);
+        Assert.Equal("en", reseller.Language);
+    }
 }

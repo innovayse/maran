@@ -62,15 +62,45 @@ public static class NetworkRateCalculator
     /// </remarks>
     private static NetworkRate? Between(MetricBucketRow previous, MetricBucketRow current)
     {
-        var elapsed = (current.LastCapturedAt - previous.LastCapturedAt).TotalSeconds;
+        return RateBetween(
+            previous.LastCapturedAt,
+            previous.NetworkRxBytes,
+            previous.NetworkTxBytes,
+            current.LastCapturedAt,
+            current.NetworkRxBytes,
+            current.NetworkTxBytes);
+    }
+
+    /// <summary>Derives the rate between two counter readings and the seconds that separate them.</summary>
+    /// <param name="previousAt">When the earlier reading was taken.</param>
+    /// <param name="previousRx">The earlier received-bytes counter.</param>
+    /// <param name="previousTx">The earlier sent-bytes counter.</param>
+    /// <param name="at">When the later reading was taken.</param>
+    /// <param name="rx">The later received-bytes counter.</param>
+    /// <param name="tx">The later sent-bytes counter.</param>
+    /// <returns>The rate, or <c>null</c> when no time separates the two readings.</returns>
+    /// <remarks>
+    /// The one place the arithmetic lives: the chart's buckets and the live feed's consecutive readings
+    /// both divide by measured seconds and clamp a counter that went backwards to zero, and a second
+    /// copy of either rule is how the two would come to disagree about the same traffic.
+    /// </remarks>
+    public static NetworkRate? RateBetween(
+        DateTimeOffset previousAt,
+        long previousRx,
+        long previousTx,
+        DateTimeOffset at,
+        long rx,
+        long tx)
+    {
+        var elapsed = (at - previousAt).TotalSeconds;
 
         if (elapsed <= 0)
         {
             return null;
         }
 
-        var received = Math.Max(current.NetworkRxBytes - previous.NetworkRxBytes, 0L);
-        var sent = Math.Max(current.NetworkTxBytes - previous.NetworkTxBytes, 0L);
+        var received = Math.Max(rx - previousRx, 0L);
+        var sent = Math.Max(tx - previousTx, 0L);
 
         return new NetworkRate(received / elapsed, sent / elapsed);
     }

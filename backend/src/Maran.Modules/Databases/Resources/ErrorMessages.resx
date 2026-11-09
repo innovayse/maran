@@ -51,4 +51,22 @@
   <data name="DatabaseGrantRepairCountInvalid">
     <value>The number of grants to repair cannot be negative. Read the report again and confirm the figure it gives.</value>
   </data>
+  <data name="DatabaseUserNotFound">
+    <value>This database user could not be found.</value>
+  </data>
+  <data name="DatabaseUserLimitReached">
+    <value>You have reached the number of additional database users your account may hold.</value>
+  </data>
+  <data name="DatabaseUserIsDedicated">
+    <value>This user was created with a database and is dropped together with it. Drop the database to remove the user.</value>
+  </data>
+  <data name="DatabasePrivilegesInvalid">
+    <value>Choose each privilege at most once, from the list offered.</value>
+  </data>
+  <data name="DatabaseUserProvisioningFailed">
+    <value>This database user could not be created. Nothing was left behind; please try again.</value>
+  </data>
+  <data name="DatabasePrivilegesNotChanged">
+    <value>The privileges could not be changed. Nothing was changed; please try again.</value>
+  </data>
 </root>

@@ -54,6 +54,11 @@ const TLS_PORT: u16 = 8443;
 /// upstream while parsing, and no test here asks for `/api/`.
 const API_SOCKET: &str = "/run/maran/polygon-api.sock";
 
+/// The file-transfer body limit 80-nginx.sh renders on a panel whose panel.env
+/// sets no `Files__MaxUploadBytes`: its default upload size (100 MiB) plus the
+/// multipart allowance (1 MiB), in bytes.
+const FILES_BODY_LIMIT: &str = "105906176";
+
 /// The directory the panel's nginx logs are written under, which `nginx -t`
 /// opens files in but does not create.
 const LOG_DIRECTORY: &str = "/var/log/maran";
@@ -338,9 +343,15 @@ impl PolygonPanelHost {
         Some((identity, report))
     }
 
-    /// The production template with the four installer substitutions made.
+    /// The production template with the five installer substitutions made.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the template carries a placeholder this fixture does not
+    /// substitute: the installer gained a substitution the fixture lacks, and
+    /// nginx would otherwise refuse the tree with a less direct message.
     fn rendered_vhost(&self) -> String {
-        PANEL_VHOST_TEMPLATE
+        let rendered = PANEL_VHOST_TEMPLATE
             .replace("__MARAN_SERVER_NAME__", &self.name)
             .replace(
                 "__MARAN_CERT_PATH__",
@@ -351,6 +362,13 @@ impl PolygonPanelHost {
                 &Self::key_path().display().to_string(),
             )
             .replace("__MARAN_API_SOCKET__", API_SOCKET)
+            .replace("__MARAN_FILES_BODY_LIMIT__", FILES_BODY_LIMIT);
+        assert!(
+            !rendered.contains("__MARAN_"),
+            "the panel vhost template carries a placeholder this fixture does not substitute; \
+             mirror the new substitution from installer/lib/80-nginx.sh render_vhost"
+        );
+        rendered
     }
 
     /// Makes `directory` if it is not there, remembering that it did so.

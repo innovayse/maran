@@ -442,6 +442,158 @@ public sealed class AgentDbClientTests
             CancellationToken.None);
     }
 
+    /// <summary>User creation sends the three fields and maps the ok payload to the full login name.</summary>
+    [Fact]
+    public async Task User_creation_sends_the_three_fields_and_maps_the_ok_payload_to_the_full_login_name()
+    {
+        var stub = new StubDbService
+        {
+            CreateUserResponse = new CreateDatabaseUserResponse { Ok = new CreateDatabaseUserOk { DbUsername = "alice_reader" } },
+        };
+
+        var result = await new AgentDbClient(stub, NullLogger<AgentDbClient>.Instance)
+            .CreateUserAsync("alice", "reader", new SensitiveString(GeneratedPassword), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("alice_reader", result.Value);
+        var request = Assert.IsType<CreateDatabaseUserRequest>(stub.LastCreateUserRequest);
+        Assert.Equal("alice", request.AccountUsername);
+        Assert.Equal("reader", request.DbUsername);
+        Assert.Equal(GeneratedPassword, request.Password);
+    }
+
+    /// <summary>User creation error maps to the agent code and the password is stripped from the logged text.</summary>
+    [Fact]
+    public async Task User_creation_error_maps_to_the_agent_code_and_the_password_is_stripped_from_the_logged_text()
+    {
+        var logger = new RecordingLogger<AgentDbClient>();
+        var stub = new StubDbService
+        {
+            CreateUserResponse = new CreateDatabaseUserResponse
+            {
+                Error = new AgentError
+                {
+                    Code = ErrorCode.AlreadyExists,
+                    Message = $"CREATE USER failed IDENTIFIED BY '{GeneratedPassword}'",
+                },
+            },
+        };
+
+        var result = await new AgentDbClient(stub, logger)
+            .CreateUserAsync("alice", "reader", new SensitiveString(GeneratedPassword), CancellationToken.None);
+
+        Assert.Equal("AgentAlreadyExists", result.Error!.Code);
+        Assert.DoesNotContain(GeneratedPassword, Assert.Single(logger.Messages), StringComparison.Ordinal);
+    }
+
+    /// <summary>A user creation response with neither branch set is refused rather than read as success.</summary>
+    [Fact]
+    public async Task A_user_creation_response_with_neither_branch_set_is_refused_rather_than_read_as_success()
+    {
+        var result = await new AgentDbClient(new StubDbService(), NullLogger<AgentDbClient>.Instance)
+            .CreateUserAsync("alice", "reader", new SensitiveString(GeneratedPassword), CancellationToken.None);
+
+        Assert.Equal("AgentInvalidResponse", result.Error!.Code);
+    }
+
+    /// <summary>User removal sends the account and the suffix and maps ok and error.</summary>
+    [Fact]
+    public async Task User_removal_sends_the_account_and_the_suffix_and_maps_ok_and_error()
+    {
+        var ok = new StubDbService { DropUserResponse = new DropDatabaseUserResponse { Ok = new DropDatabaseUserOk() } };
+        var missing = new StubDbService
+        {
+            DropUserResponse = new DropDatabaseUserResponse
+            {
+                Error = new AgentError { Code = ErrorCode.NotFound, Message = "no such user" },
+            },
+        };
+
+        var succeeded = await new AgentDbClient(ok, NullLogger<AgentDbClient>.Instance)
+            .DropUserAsync("alice", "reader", CancellationToken.None);
+        var failed = await new AgentDbClient(missing, NullLogger<AgentDbClient>.Instance)
+            .DropUserAsync("alice", "reader", CancellationToken.None);
+
+        Assert.True(succeeded.IsSuccess);
+        Assert.Equal("reader", ok.LastDropUserRequest!.DbUsername);
+        Assert.Equal("alice", ok.LastDropUserRequest.AccountUsername);
+        Assert.Equal("AgentNotFound", failed.Error!.Code);
+    }
+
+    /// <summary>A privilege change sends every privilege once, as the wire value, in the order given.</summary>
+    [Fact]
+    public async Task A_privilege_change_sends_every_privilege_once_as_the_wire_value_in_the_order_given()
+    {
+        var stub = new StubDbService
+        {
+            SetPrivilegesResponse = new SetDatabaseUserPrivilegesResponse { Ok = new SetDatabaseUserPrivilegesOk() },
+        };
+
+        var result = await new AgentDbClient(stub, NullLogger<AgentDbClient>.Instance).SetPrivilegesAsync(
+            "alice",
+            "reader",
+            "shop",
+            [DatabasePrivilegeKind.CreateTemporaryTables, DatabasePrivilegeKind.Select],
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var request = Assert.IsType<SetDatabaseUserPrivilegesRequest>(stub.LastSetPrivilegesRequest);
+        Assert.Equal("alice", request.AccountUsername);
+        Assert.Equal("reader", request.DbUsername);
+        Assert.Equal("shop", request.DatabaseName);
+        Assert.Equal([DatabasePrivilege.CreateTemporaryTables, DatabasePrivilege.Select], request.Privileges);
+    }
+
+    /// <summary>An empty privilege set is sent as an empty list, which the agent reads as revoke everything.</summary>
+    [Fact]
+    public async Task An_empty_privilege_set_is_sent_as_an_empty_list()
+    {
+        var stub = new StubDbService
+        {
+            SetPrivilegesResponse = new SetDatabaseUserPrivilegesResponse { Ok = new SetDatabaseUserPrivilegesOk() },
+        };
+
+        await new AgentDbClient(stub, NullLogger<AgentDbClient>.Instance)
+            .SetPrivilegesAsync("alice", "reader", "shop", [], CancellationToken.None);
+
+        Assert.Empty(stub.LastSetPrivilegesRequest!.Privileges);
+    }
+
+    /// <summary>Every privilege kind maps to a distinct, defined, non-zero wire value.</summary>
+    [Fact]
+    public async Task Every_privilege_kind_maps_to_a_distinct_defined_non_zero_wire_value()
+    {
+        var stub = new StubDbService
+        {
+            SetPrivilegesResponse = new SetDatabaseUserPrivilegesResponse { Ok = new SetDatabaseUserPrivilegesOk() },
+        };
+        var kinds = Enum.GetValues<DatabasePrivilegeKind>();
+
+        await new AgentDbClient(stub, NullLogger<AgentDbClient>.Instance)
+            .SetPrivilegesAsync("alice", "reader", "shop", kinds, CancellationToken.None);
+
+        var sent = stub.LastSetPrivilegesRequest!.Privileges;
+        Assert.Equal(kinds.Length, sent.Distinct().Count());
+        Assert.All(sent, value =>
+        {
+            Assert.NotEqual(DatabasePrivilege.Unspecified, value);
+            Assert.True(Enum.IsDefined(value));
+        });
+        Assert.Equal(kinds.Select(kind => { return kind.ToString(); }), sent.Select(value => { return value.ToString(); }));
+    }
+
+    /// <summary>A privilege kind the client does not know is refused instead of sent as something else.</summary>
+    [Fact]
+    public async Task A_privilege_kind_the_client_does_not_know_is_refused_instead_of_sent_as_something_else()
+    {
+        var client = new AgentDbClient(new StubDbService(), NullLogger<AgentDbClient>.Instance);
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
+        {
+            await client.SetPrivilegesAsync("alice", "reader", "shop", [(DatabasePrivilegeKind)99], CancellationToken.None);
+        });
+    }
+
     /// <summary>Inspecting and repairing send opposite report-only flags and nothing else.</summary>
     /// <remarks>
     /// The flag is the whole of the request, and it is the difference between reading the host's grant

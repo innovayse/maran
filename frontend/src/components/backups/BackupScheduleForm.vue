@@ -24,20 +24,31 @@ import {
   type BackupFrequencyWire,
   type BackupScheduleDay,
 } from '../../types/backupSchedule'
+import type { BackupChoice } from '../../types/backupOptions'
 
 /** Props accepted by {@link BackupScheduleForm}. */
-defineProps<{
-  /** Whether the scope's schedule is being read; the form keeps its labels over placeholder controls. */
-  loading: boolean
-  /** Whether a save is in flight; the submit button is disabled and says so. */
-  saving: boolean
-  /** The server's message about the weekday, or `null` when the last failure was not about it. */
-  dayError: string | null
-  /** The server's message about the hour, or `null` when the last failure was not about it. */
-  hourError: string | null
-  /** The server's message about the retention count, or `null` when the last failure was not about it. */
-  retainError: string | null
-}>()
+const props = withDefaults(
+  defineProps<{
+    /**
+     * Whose schedule this is. An operator chooses from every cadence and every retention count the
+     * panel lists; a customer only from the shorter lists the panel publishes for them
+     * (`customerFrequencies`, `customerRetainCounts`). The lists are the server's either way, and its
+     * validator still decides.
+     */
+    audience?: 'operator' | 'customer'
+    /** Whether the scope's schedule is being read; the form keeps its labels over placeholder controls. */
+    loading: boolean
+    /** Whether a save is in flight; the submit button is disabled and says so. */
+    saving: boolean
+    /** The server's message about the weekday, or `null` when the last failure was not about it. */
+    dayError: string | null
+    /** The server's message about the hour, or `null` when the last failure was not about it. */
+    hourError: string | null
+    /** The server's message about the retention count, or `null` when the last failure was not about it. */
+    retainError: string | null
+  }>(),
+  { audience: 'operator' },
+)
 
 /** Emits accepted from {@link BackupScheduleForm}. */
 const emit = defineEmits<{
@@ -63,21 +74,6 @@ const enabled = defineModel<boolean>('enabled', { required: true })
 const { t } = useI18n()
 const optionsStore = useBackupOptionsStore()
 
-/** The cadence as its select binds it: the wire value, or the empty string while none is chosen. */
-const frequencyOption: WritableComputedRef<string> = computed({
-  get: (): string => {
-    return frequency.value ?? ''
-  },
-  set: (value: string): void => {
-    // Only a cadence the panel listed is accepted; the backend's validator still has the last word.
-    const listed = optionsStore.options.frequencies.find((candidate) => {
-      return candidate.value === value
-    })?.value
-    // The request contract names the two cadences the backend enum has (types/backupSchedule.ts).
-    frequency.value = listed === 'daily' || listed === 'weekly' ? listed : null
-  },
-})
-
 /** The weekday as its select binds it: the wire value, or the empty string while none is chosen. */
 const dayOption: WritableComputedRef<string> = computed({
   get: (): string => {
@@ -90,9 +86,26 @@ const dayOption: WritableComputedRef<string> = computed({
   },
 })
 
-/** The cadences, named by the panel in the interface language. */
-const frequencyOptions: ComputedRef<readonly SelectOption[]> = computed(() => {
-  return optionsStore.options.frequencies
+/** The cadences this audience may choose, named by the panel in the interface language. */
+const frequencyOptions: ComputedRef<readonly BackupChoice[]> = computed(() => {
+  return props.audience === 'customer'
+    ? optionsStore.options.customerFrequencies
+    : optionsStore.options.frequencies
+})
+
+/** The cadence as its select binds it: the wire value, or the empty string while none is chosen. */
+const frequencyOption: WritableComputedRef<string> = computed({
+  get: (): string => {
+    return frequency.value ?? ''
+  },
+  set: (value: string): void => {
+    // Only a cadence the panel listed is accepted; the backend's validator still has the last word.
+    const listed = frequencyOptions.value.find((candidate) => {
+      return candidate.value === value
+    })?.value
+    // The request contract names the two cadences the backend enum has (types/backupSchedule.ts).
+    frequency.value = listed === 'daily' || listed === 'weekly' ? listed : null
+  },
 })
 
 /** The weekdays, named by the panel in the interface language. */
@@ -105,9 +118,11 @@ const hourOptions: ComputedRef<readonly SelectOption[]> = computed(() => {
   return optionsStore.options.hours
 })
 
-/** How many copies the panel lets a schedule keep. */
+/** How many copies the panel lets this audience's schedule keep. */
 const retainOptions: ComputedRef<readonly SelectOption[]> = computed(() => {
-  return optionsStore.options.retainCounts
+  return props.audience === 'customer'
+    ? optionsStore.options.customerRetainCounts
+    : optionsStore.options.retainCounts
 })
 
 /** Whether the day picker applies at all — a daily schedule has no weekday and must send none. */

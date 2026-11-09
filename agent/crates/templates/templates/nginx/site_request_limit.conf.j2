@@ -1,0 +1,3 @@
+    limit_req zone={{ rate.zone }}{% if rate.burst > 0 %} burst={{ rate.burst }} nodelay{% endif %};
+    limit_req_status 429;
+    limit_req_log_level warn;

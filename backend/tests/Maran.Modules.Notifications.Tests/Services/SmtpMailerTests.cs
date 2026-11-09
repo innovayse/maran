@@ -276,7 +276,6 @@ public sealed class SmtpMailerTests
             string.Empty,
             "panel@example.com",
             "Panel",
-            "ops@example.com",
             Saved));
 
         await dbContext.SaveChangesAsync(CancellationToken.None);

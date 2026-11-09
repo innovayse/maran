@@ -232,7 +232,7 @@ public sealed class SslAlertMailerTests
         Assert.Empty(world.Mails());
         Assert.Single(world.Audit.Entries, entry => { return entry.Action == MonitoringAuditActions.AlertRaised; });
         var skipped = Assert.Single(
-            world.Audit.Entries, entry => { return entry.Action == MailAuditActions.MailSkippedNoSmtp; });
+            world.Audit.Entries, entry => { return entry.Action == OutgoingMailAuditActions.MailSkippedNoSmtp; });
         Assert.Equal($"CertificateExpiry:{Domain}", skipped.Subject);
         Assert.True(skipped.Succeeded);
         Assert.Equal(Now, certificate.ExpiryAlertedAt);
@@ -247,7 +247,7 @@ public sealed class SslAlertMailerTests
 
         await world.Mailer.NotifyIfDueAsync(Expiring(Now.AddDays(7)), Now, CancellationToken.None);
 
-        Assert.DoesNotContain(world.Audit.Entries, entry => { return entry.Action == MailAuditActions.MailSkippedNoSmtp; });
+        Assert.DoesNotContain(world.Audit.Entries, entry => { return entry.Action == OutgoingMailAuditActions.MailSkippedNoSmtp; });
     }
 
     /// <summary>Builds an Acme certificate for <see cref="Domain"/> expiring at <paramref name="notAfter"/>.</summary>
@@ -286,7 +286,8 @@ public sealed class SslAlertMailerTests
                 Bus = bus,
                 Audit = audit,
                 Mailer = new SslAlertMailer(
-                    new OperatorAlertMailer(new StubAlertRecipientDirectory(recipient), bus),
+                    new OperatorAlertDispatcher(
+                        new StubAlertRecipientDirectory(recipient), bus, new FakeClock(DateTimeOffset.UnixEpoch)),
                     new CertificateAuditJournal(audit, FakeCurrentUser.Admin()),
                     new StringLocalizer<NotificationMessages>(factory),
                     new CertificateRenewalFailureMessages(new StubErrorTextProvider())),

@@ -20,6 +20,15 @@ public sealed class User
     /// <summary>The Argon2id hash of the user's password. Never the password itself.</summary>
     public string PasswordHash { get; private set; }
 
+    /// <summary>
+    /// Whether the password this login holds was chosen by somebody else and must be replaced before the
+    /// login can do anything else. Set when an administrator creates the account with an initial
+    /// password (<see cref="CreateWithPassword"/>) and cleared only by <see cref="ChangePassword"/> — a
+    /// completed change or a completed reset. While it is true the access token carries
+    /// <c>PanelClaimTypes.PasswordChangeRequired</c> and every endpoint but the password change refuses it.
+    /// </summary>
+    public bool PasswordChangeRequired { get; private set; }
+
     /// <summary>What this user is allowed to reach.</summary>
     public UserRole Role { get; private set; }
 
@@ -226,6 +235,38 @@ public sealed class User
     }
 
     /// <summary>
+    /// Creates the login of a customer whose first password was chosen by whoever created the account,
+    /// and which the customer must replace at their first sign-in. It owns and reaches no account by
+    /// itself: what it may act for is stated by its <see cref="AccountMembership"/> rows, which the
+    /// caller creates beside it.
+    /// </summary>
+    /// <param name="id">The login's identity.</param>
+    /// <param name="username">The login name: the account's system user name.</param>
+    /// <param name="email">The owner's contact address.</param>
+    /// <param name="passwordHash">The Argon2id hash of the initial password, produced by <see cref="IPasswordHasher"/>.</param>
+    /// <param name="createdAt">The instant of creation, taken from <see cref="IClock"/>.</param>
+    /// <returns>
+    /// A login in <see cref="UserLifecycle.Active"/> with <see cref="PasswordChangeRequired"/> set: it can
+    /// sign in, and can then do nothing but change its password.
+    /// </returns>
+    public static User CreateWithPassword(
+        Guid id,
+        string username,
+        string email,
+        string passwordHash,
+        DateTimeOffset createdAt)
+    {
+        var user = new User(id, username, email, passwordHash, UserRole.Customer, createdAt)
+        {
+            Lifecycle = UserLifecycle.Active,
+            PasswordChangeRequired = true,
+        };
+
+        user.RestateLegacyColumns();
+        return user;
+    }
+
+    /// <summary>
     /// Creates the login of a reseller, before its contact has set a password. It is the only login
     /// the reseller has and it owns no hosting account: what the reseller may do is stated by its
     /// role and by the reseller row in the Accounts module.
@@ -303,9 +344,35 @@ public sealed class User
         Email = email;
     }
 
-    /// <summary>Replaces the stored password hash.</summary>
+    /// <summary>
+    /// Replaces the login name. Only the one login a reseller has is ever renamed, when the reseller
+    /// is: the reseller's name is its login name.
+    /// </summary>
+    /// <param name="username">The new, validated login name.</param>
+    public void Rename(string username)
+    {
+        Username = username;
+    }
+
+    /// <summary>
+    /// Replaces the password with one its owner just chose, and ends the obligation to do so
+    /// (<see cref="PasswordChangeRequired"/>). Used by the signed-in change and by the reset by mail: in
+    /// both the person holding the login picked the new password, which is what the obligation asks for.
+    /// </summary>
     /// <param name="passwordHash">The new Argon2id hash.</param>
     public void ChangePassword(string passwordHash)
+    {
+        PasswordHash = passwordHash;
+        PasswordChangeRequired = false;
+    }
+
+    /// <summary>
+    /// Re-derives the stored hash of the SAME password with stronger parameters. It changes how the
+    /// password is stored, not the password, so it leaves <see cref="PasswordChangeRequired"/> alone: a
+    /// sign-in with a still-unreplaced initial password must not clear the obligation by being rehashed.
+    /// </summary>
+    /// <param name="passwordHash">The new Argon2id hash of the unchanged password.</param>
+    public void Rehash(string passwordHash)
     {
         PasswordHash = passwordHash;
     }

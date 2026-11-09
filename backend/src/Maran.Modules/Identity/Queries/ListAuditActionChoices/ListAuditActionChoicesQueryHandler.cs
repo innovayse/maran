@@ -1,5 +1,4 @@
 using Maran.Modules.Identity.Common;
-using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Services;
 
 namespace Maran.Modules.Identity.Queries.ListAuditActionChoices;
@@ -16,31 +15,49 @@ namespace Maran.Modules.Identity.Queries.ListAuditActionChoices;
 /// </remarks>
 public sealed class ListAuditActionChoicesQueryHandler
 {
-    /// <summary>The module's database context.</summary>
-    private readonly IdentityDbContext _dbContext;
+    /// <summary>Narrows the journal to what the caller may read.</summary>
+    private readonly AuditEventQuery _events;
+
+    /// <summary>Decides which entries the caller may read.</summary>
+    private readonly AuditEventScopeReader _scopeReader;
 
     /// <summary>Names each action as an operator reads it, in the request's culture.</summary>
     private readonly AuditActionDisplayNames _actionNames;
 
     /// <summary>Creates the handler.</summary>
-    /// <param name="dbContext">The module's database context.</param>
+    /// <param name="events">Narrows the journal to what the caller may read.</param>
+    /// <param name="scopeReader">Decides which entries the caller may read.</param>
     /// <param name="actionNames">Names an audit action for the request's culture.</param>
-    public ListAuditActionChoicesQueryHandler(IdentityDbContext dbContext, AuditActionDisplayNames actionNames)
+    public ListAuditActionChoicesQueryHandler(
+        AuditEventQuery events,
+        AuditEventScopeReader scopeReader,
+        AuditActionDisplayNames actionNames)
     {
-        _dbContext = dbContext;
+        _events = events;
+        _scopeReader = scopeReader;
         _actionNames = actionNames;
     }
 
-    /// <summary>Returns every action the journal holds, named and ordered by name.</summary>
+    /// <summary>
+    /// Returns every action the caller's part of the journal holds, named and ordered by name: all of
+    /// them for an administrator, those of its own accounts and login for a reseller.
+    /// </summary>
     /// <param name="query">The (parameterless) request.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
-    /// <returns>A successful result carrying the choices; reading the journal never fails.</returns>
+    /// <returns>
+    /// The choices; <c>AuditJournalNotReadable</c> for a caller that is neither an administrator nor a reseller.
+    /// </returns>
     public async Task<Result<IReadOnlyList<AuditActionChoiceDto>>> HandleAsync(
         ListAuditActionChoicesQuery query,
         CancellationToken cancellationToken)
     {
-        var actions = await _dbContext.AuditEvents
-            .AsNoTracking()
+        var scope = await _scopeReader.ReadAsync(cancellationToken);
+        if (!scope.IsSuccess)
+        {
+            return Result<IReadOnlyList<AuditActionChoiceDto>>.Fail(scope.Error!);
+        }
+
+        var actions = await _events.Visible(scope.Value)
             .Select(auditEvent => auditEvent.Action)
             .Distinct()
             .ToListAsync(cancellationToken);

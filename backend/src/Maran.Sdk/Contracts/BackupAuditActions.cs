@@ -92,4 +92,18 @@ public static class BackupAuditActions
     /// is the account's name.
     /// </summary>
     public const string BackupVerificationNotPerformed = "BackupVerificationNotPerformed";
+
+    /// <summary>
+    /// An account was created with the instruction to leave it out of scheduled backups, and the panel
+    /// recorded that choice. Written once, by the system, when the account is created: the subject is the
+    /// account's name. It records an exclusion from the unattended schedule only; a backup the owner or an
+    /// administrator asks for by hand is unaffected and journals as <see cref="BackupCreated"/>.
+    /// </summary>
+    public const string BackupOptedOut = "BackupOptedOut";
+
+    /// <summary>
+    /// An administrator switched the encryption of a destination's new backups on or off (issue #160).
+    /// The entry names the destination and never the key, nor whether one exists.
+    /// </summary>
+    public const string BackupDestinationEncryptionChanged = "BackupDestinationEncryptionChanged";
 }

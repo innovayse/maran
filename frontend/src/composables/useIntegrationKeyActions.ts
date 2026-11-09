@@ -1,7 +1,7 @@
 import { ref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useApiKeysStore } from '../stores/apiKeys'
-import type { ApiKey, CreateApiKeyRequest } from '../types/apiKey'
+import type { ApiKey, ApiKeyOwner, CreateApiKeyRequest } from '../types/apiKey'
 
 /** What {@link useIntegrationKeyActions} hands the API keys page. */
 export interface ApiKeyActions {
@@ -32,10 +32,11 @@ export interface ApiKeyActions {
  * confirmation, and the notice a finished revoke leaves. Requests go through the store; after each
  * one that changed the list the page's own reload runs, because where a row falls is the server's
  * sort to say.
+ * @param owner Whose keys the page manages, read at each action because the page's role can settle after setup.
  * @param reload Reads the current list page again.
  * @returns The workflow state and its actions.
  */
-export const useIntegrationKeyActions = (reload: () => Promise<void>): ApiKeyActions => {
+export const useIntegrationKeyActions = (owner: () => ApiKeyOwner, reload: () => Promise<void>): ApiKeyActions => {
   const { t } = useI18n()
   const store = useApiKeysStore()
 
@@ -72,7 +73,13 @@ export const useIntegrationKeyActions = (reload: () => Promise<void>): ApiKeyAct
    * @returns Resolves once the create and the re-read have settled.
    */
   const create = async (request: CreateApiKeyRequest): Promise<void> => {
-    if (await store.create(request)) {
+    const issuing = owner()
+    if (issuing.kind === 'overseen') {
+      // An administrator overseeing a reseller lists and revokes; the page draws no create button,
+      // and the panel has no endpoint that would mint a key for a reseller.
+      return
+    }
+    if (await store.create(issuing, request)) {
       createOpen.value = false
       await reload()
     }
@@ -104,7 +111,7 @@ export const useIntegrationKeyActions = (reload: () => Promise<void>): ApiKeyAct
     if (key === null) {
       return
     }
-    if (await store.revoke(key.id)) {
+    if (await store.revoke(owner(), key.id)) {
       notice.value = t('apiKeys.revoked', { name: key.name })
       await reload()
     }

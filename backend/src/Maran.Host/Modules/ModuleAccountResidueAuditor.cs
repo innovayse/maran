@@ -93,17 +93,23 @@ public sealed class ModuleAccountResidueAuditor : IAccountResidueAuditor
     /// <summary>The scope the module contexts are resolved from — the caller's own.</summary>
     private readonly IServiceProvider _services;
 
+    /// <summary>What this start composed: the contexts of a packaged module hold customer rows as well.</summary>
+    private readonly PackagedModuleComposition _composition;
+
     /// <summary>Where a module that could not be audited is recorded.</summary>
     private readonly ILogger<ModuleAccountResidueAuditor> _logger;
 
     /// <summary>Creates the auditor.</summary>
     /// <param name="services">The scope the module contexts are resolved from.</param>
+    /// <param name="composition">What this start composed; its contexts, packaged modules' included, are audited.</param>
     /// <param name="logger">Where a module that could not be audited is recorded.</param>
     public ModuleAccountResidueAuditor(
         IServiceProvider services,
+        PackagedModuleComposition composition,
         ILogger<ModuleAccountResidueAuditor> logger)
     {
         _services = services;
+        _composition = composition;
         _logger = logger;
     }
 
@@ -154,9 +160,9 @@ public sealed class ModuleAccountResidueAuditor : IAccountResidueAuditor
 
     /// <summary>Every <c>DbContext</c> type the composed modules declare.</summary>
     /// <returns>The context types, in a stable order.</returns>
-    private static IEnumerable<Type> ContextTypes()
+    private IEnumerable<Type> ContextTypes()
     {
-        return ModuleRegistry.All
+        return _composition.Composed
             .Select(module => { return module.GetType().Assembly; })
             .Distinct()
             .SelectMany(assembly => { return assembly.GetTypes(); })
@@ -170,7 +176,13 @@ public sealed class ModuleAccountResidueAuditor : IAccountResidueAuditor
     private static IEnumerable<IEntityType> TenantEntities(DbContext context)
     {
         return context.Model.GetEntityTypes()
-            .Where(entity => { return entity.FindProperty(TenantProperty) is not null; });
+            .Where(entity =>
+            {
+                // An owned type shares its owner's row and goes with it; EF may name its shadow key
+                // AccountId (AccountLimitOverrides on Account), which is the owner's identity and not a
+                // second tenant row, so counting it would report the Accounts module as residue.
+                return !entity.IsOwned() && entity.FindProperty(TenantProperty) is not null;
+            });
     }
 
     /// <summary>Counts one entity's surviving rows for the account.</summary>

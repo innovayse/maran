@@ -57,9 +57,11 @@ use maran_agent::proto::{
     SiteBackendType, SiteSpec, UpdateSitePhpVersionRequest, update_site_php_version_response,
 };
 use maran_agent_core::validation::fs::file_mode::FileMode;
-use maran_agent_core::validation::fs::relative_path::RelativePath;
+use maran_agent_core::validation::fs::mutable_path::MutablePath;
+use maran_agent_core::validation::fs::upload_limit::UploadLimit;
 use maran_agent_core::validation::web::domain::Domain;
 use maran_distro::{DistroAdapter, adapter_for, detect};
+use maran_ops::files::model::buffered_upload::BufferedUpload;
 use maran_ops::files::{ProcessFilesHost, WriteFileInput};
 use maran_ops::php::{PoolInput, PoolPaths, ProcessPhpHost, write_pool};
 use maran_ops::sites::{
@@ -229,6 +231,7 @@ impl ServedSite {
                     version: PolygonPhp::version(),
                 },
                 certificate: None,
+                options: Default::default(),
             },
             POLYGON_WORKERS,
             &[],
@@ -239,11 +242,13 @@ impl ServedSite {
             &ProcessFilesHost::new(),
             &WriteFileInput {
                 account: account.name().clone(),
-                path: RelativePath::parse(&format!("sites/{}/index.php", domain.as_str()))
+                path: MutablePath::parse(&format!("sites/{}/index.php", domain.as_str()))
                     .expect("the page path must be valid"),
-                contents: format!("<?php echo '{SERVED_BODY}';\n").into_bytes(),
                 mode: FileMode::parse(0o644).expect("a plain permission mode"),
+                fail_if_exists: false,
+                limit: UploadLimit::parse(0).expect("the default cap"),
             },
+            &mut BufferedUpload::new(format!("<?php echo '{SERVED_BODY}';\n").into_bytes()),
             &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
                 .expect("a one-mebibyte floor"),
         );

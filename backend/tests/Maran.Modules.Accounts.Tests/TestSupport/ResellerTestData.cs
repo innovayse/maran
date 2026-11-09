@@ -24,6 +24,8 @@ public static class ResellerTestData
     /// <param name="maxFtpUsers">The highest FTPS login count one plan may state.</param>
     /// <param name="maxCronEntries">The highest cron entry count one plan may state.</param>
     /// <param name="maxPhpWorkersPerPool">The highest php-fpm worker count per pool one plan may state.</param>
+    /// <param name="maxMailboxes">The highest mailbox count one plan may state.</param>
+    /// <param name="mailboxQuotaPoolMib">The highest mailbox quota pool, in mebibytes, one plan may state.</param>
     /// <param name="features">The features the reseller may sell.</param>
     /// <param name="runtimeLimits">The runtime ceilings; none (unlimited) when not stated.</param>
     /// <returns>The envelope.</returns>
@@ -38,6 +40,8 @@ public static class ResellerTestData
         int maxFtpUsers = 100,
         int maxCronEntries = 100,
         int maxPhpWorkersPerPool = 50,
+        int maxMailboxes = 100,
+        int mailboxQuotaPoolMib = 100_000,
         AccountFeature features = AccountFeature.All,
         RuntimeLimits? runtimeLimits = null)
     {
@@ -52,6 +56,8 @@ public static class ResellerTestData
             maxFtpUsers,
             maxCronEntries,
             maxPhpWorkersPerPool,
+            maxMailboxes,
+            mailboxQuotaPoolMib,
             features,
             runtimeLimits ?? RuntimeLimits.Unlimited());
     }
@@ -66,6 +72,8 @@ public static class ResellerTestData
     /// <param name="maxPhpWorkersPerPool">The php-fpm worker count per pool.</param>
     /// <param name="features">The features the plan sells.</param>
     /// <param name="runtimeLimits">The runtime ceilings; none (unlimited) when not stated.</param>
+    /// <param name="maxMailboxes">The mailbox count.</param>
+    /// <param name="mailboxQuotaPoolMib">The mailbox quota pool, in mebibytes.</param>
     /// <returns>The figures.</returns>
     public static PlanLimits Limits(
         int diskQuotaMb = 1_000,
@@ -76,7 +84,9 @@ public static class ResellerTestData
         int maxCronEntries = 5,
         int maxPhpWorkersPerPool = 5,
         AccountFeature features = AccountFeature.None,
-        RuntimeLimits? runtimeLimits = null)
+        RuntimeLimits? runtimeLimits = null,
+        int maxMailboxes = 5,
+        int mailboxQuotaPoolMib = 5)
     {
         return new PlanLimits(
             diskQuotaMb,
@@ -87,7 +97,9 @@ public static class ResellerTestData
             maxCronEntries,
             maxPhpWorkersPerPool,
             features,
-            runtimeLimits ?? RuntimeLimits.Unlimited());
+            runtimeLimits ?? RuntimeLimits.Unlimited(),
+            maxMailboxes,
+            mailboxQuotaPoolMib);
     }
 
     /// <summary>Builds an active reseller.</summary>

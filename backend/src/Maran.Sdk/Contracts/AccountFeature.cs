@@ -63,6 +63,9 @@ public enum AccountFeature : long
     /// <summary>The choice of a site's PHP version, served by the Sites module: switching a site to another installed version.</summary>
     Php = 1L << 9,
 
+    /// <summary>The account's file manager, served by the Files module: browsing, editing, uploading, downloading, archiving and the trash.</summary>
+    Files = 1L << 10,
+
     /// <summary>The full set: every feature above. What a plan that predates the set, and every shipped plan, includes.</summary>
-    All = Mail | Dns | Databases | Cron | FileTransfer | Backups | Sites | Ssl | Tasks | Php,
+    All = Mail | Dns | Databases | Cron | FileTransfer | Backups | Sites | Ssl | Tasks | Php | Files,
 }

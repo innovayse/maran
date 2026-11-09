@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useSitesApi } from '../composables/apis/useSitesApi'
+import { useLatestRead } from '../composables/useLatestRead'
 import { ApiError } from '../composables/useApi'
 import type { ListLoad, ListRequest } from '../types/list'
 import type {
@@ -28,6 +29,7 @@ const COUNT_PAGE_SIZE = 10
  */
 export const useSitesStore = defineStore('sites', () => {
   const api = useSitesApi()
+  const latestRead = useLatestRead()
 
   /** The rows of the list page last answered by the panel; empty before the first answer. */
   const sites: Ref<Site[]> = ref([])
@@ -79,9 +81,13 @@ export const useSitesStore = defineStore('sites', () => {
    * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
   const list = async (request: ListRequest): Promise<ListLoad<Site>> => {
+    const isLatest = latestRead.begin()
     try {
       const page = await api.list(request)
-      sites.value = page.items
+      // A slower, older read must not replace the rows of a newer one.
+      if (isLatest()) {
+        sites.value = page.items
+      }
       return { kind: 'loaded', page }
     } catch (error) {
       return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }

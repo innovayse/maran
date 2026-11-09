@@ -1,6 +1,7 @@
 import type { ListRequest, Paged } from './list'
-import type { InstallablePhpVersion, PhpVersion } from './phpVersion'
+import type { InstallablePhpVersion, PhpExtension, PhpVersion } from './phpVersion'
 import type { SiteLogStreamHandlers, TailSiteLogOptions } from './siteLog'
+import type { SiteTraffic } from './siteTraffic'
 
 /**
  * What serves a site's content, mirroring the backend's
@@ -49,6 +50,8 @@ export interface Site {
   statusName: string
   /** The instant the site was created, as an ISO-8601 string. */
   createdAt: string
+  /** How many days of rotated access and error logs the site keeps. */
+  logRetentionDays: number
 }
 
 /**
@@ -83,6 +86,8 @@ export interface SiteDetail {
   statusName: string
   /** The instant the site was created, as an ISO-8601 string. */
   createdAt: string
+  /** How many days of rotated access and error logs the site keeps. */
+  logRetentionDays: number
 }
 
 /**
@@ -112,6 +117,15 @@ export interface CreateSiteRequest {
 export interface ChangeSitePhpVersionRequest {
   /** The installed version to switch to. */
   phpVersion: string
+}
+
+/**
+ * Request body for `PUT /api/v1/sites/{id}/log-retention`, binding the backend's
+ * `ChangeSiteLogRetentionCommand`.
+ */
+export interface ChangeSiteLogRetentionRequest {
+  /** How many days of rotated logs to keep; the panel states the allowed values in its choices. */
+  days: number
 }
 
 /**
@@ -223,6 +237,34 @@ export interface SitesApi {
   installPhpVersion: (version: string, signal?: AbortSignal) => Promise<PhpVersion[]>
 
   /**
+   * Lists the extensions of one installed PHP version. An administrator receives what can be done
+   * to each; a customer receives the same list with `availability` left `null`.
+   * @param version The installed version, e.g. `8.3`.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The version's extensions, labelled by the server.
+   */
+  listPhpExtensions: (version: string, signal?: AbortSignal) => Promise<PhpExtension[]>
+
+  /**
+   * Switches one extension of a PHP version on or off, for every account on the host.
+   *
+   * Administrator-only on the server. The promise does not settle until the change has been applied
+   * and PHP reloaded, which when the extension's package must be installed first is the package
+   * manager's time; the panel records a task for it.
+   * @param version The installed version, e.g. `8.3`.
+   * @param name The extension's catalogue name, as listed.
+   * @param enabled The state to leave it in.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The version's extensions as the server reads them back after the change.
+   */
+  setPhpExtension: (
+    version: string,
+    name: string,
+    enabled: boolean,
+    signal?: AbortSignal,
+  ) => Promise<PhpExtension[]>
+
+  /**
    * Tails one of a site's logs: recent lines first, then new ones as they are written.
    *
    * Resolves only once the stream has ended and `onEnd` has been called, so a caller can await
@@ -237,6 +279,24 @@ export interface SitesApi {
     handlers: SiteLogStreamHandlers,
     signal: AbortSignal,
   ) => Promise<void>
+
+  /**
+   * Reads a site's traffic summary over a window.
+   * @param id The site's identity.
+   * @param days The window in days; one of the windows the panel offers in its choices.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The summary; `hasData: false` when nothing has been recorded yet.
+   */
+  getTraffic: (id: string, days: number, signal?: AbortSignal) => Promise<SiteTraffic>
+
+  /**
+   * Changes how many days of rotated logs a site keeps.
+   * @param id The site's identity.
+   * @param days The retention in days; one of the values the panel offers in its choices.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The site in its new state.
+   */
+  changeLogRetention: (id: string, days: number, signal?: AbortSignal) => Promise<Site>
 }
 
 /**
@@ -314,4 +374,8 @@ export interface SiteChoices {
   backendTypes: SiteChoice[]
   /** Whether a site serves its own content, in the order the filter offers them. */
   statuses: SiteChoice[]
+  /** The traffic windows the traffic tab offers, in days, in the order they read. */
+  trafficWindows: SiteChoice[]
+  /** The log retentions a site may keep, in days, in the order they read. */
+  logRetentions: SiteChoice[]
 }

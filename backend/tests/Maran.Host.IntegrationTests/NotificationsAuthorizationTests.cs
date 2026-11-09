@@ -64,6 +64,9 @@ public sealed class NotificationsAuthorizationTests : IAsyncLifetime
             { "GET", "/api/v1/notifications/smtp/security-modes" },
             { "PUT", "/api/v1/notifications/smtp" },
             { "POST", "/api/v1/notifications/smtp/test" },
+            { "GET", "/api/v1/notifications/alert-recipients" },
+            { "PUT", "/api/v1/notifications/alert-recipients" },
+            { "GET", "/api/v1/notifications/alert-delivery" },
         };
     }
 
@@ -160,7 +163,6 @@ public sealed class NotificationsAuthorizationTests : IAsyncLifetime
             password = "hunter2",
             fromAddress = "panel@example.com",
             fromName = "Maran Panel",
-            alertRecipient = "ops@example.com",
         });
         Assert.Equal(HttpStatusCode.NoContent, saved.StatusCode);
 
@@ -215,7 +217,6 @@ public sealed class NotificationsAuthorizationTests : IAsyncLifetime
                 password = "hunter2",
                 fromAddress = "panel@example.com",
                 fromName = "Maran Panel",
-                alertRecipient = "ops@example.com",
             });
             Assert.Equal(HttpStatusCode.NoContent, saved.StatusCode);
         }
@@ -243,7 +244,6 @@ public sealed class NotificationsAuthorizationTests : IAsyncLifetime
             password = "hunter2",
             fromAddress = "panel@example.com",
             fromName = "Panel\r\nBcc: attacker@example.net",
-            alertRecipient = "ops@example.com",
         });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -267,7 +267,6 @@ public sealed class NotificationsAuthorizationTests : IAsyncLifetime
             password = "hunter2",
             fromAddress = "panel@example.com",
             fromName = "Maran Panel",
-            alertRecipient = "ops@example.com",
         });
 
         var response = await client.GetAsync("/api/v1/audit?pageSize=100");
@@ -302,6 +301,74 @@ public sealed class NotificationsAuthorizationTests : IAsyncLifetime
         Assert.Equal("SmtpNotConfigured", body.RootElement.GetProperty("code").GetString());
     }
 
+    /// <summary>Saved alert recipients are read back in order, and the first is mirrored into the mail settings.</summary>
+    [Fact]
+    public async Task Saved_alert_recipients_are_read_back_in_order_and_journalled_by_count()
+    {
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        await SeedUsersAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+
+        var saved = await client.PutAsJsonAsync(
+            "/api/v1/notifications/alert-recipients",
+            new { addresses = new List<string> { "Second@example.com", "first@example.com" } });
+        Assert.Equal(HttpStatusCode.NoContent, saved.StatusCode);
+
+        var response = await client.GetAsync("/api/v1/notifications/alert-recipients");
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var addresses = body.RootElement.GetProperty("addresses").EnumerateArray()
+            .Select(address =>
+            {
+                return address.GetString();
+            })
+            .ToList();
+        Assert.Equal(["second@example.com", "first@example.com"], addresses);
+
+        var audit = await (await client.GetAsync("/api/v1/audit?pageSize=100")).Content.ReadAsStringAsync();
+        Assert.Contains("AlertRecipientsSaved", audit, StringComparison.Ordinal);
+        Assert.DoesNotContain("second@example.com", audit, StringComparison.Ordinal);
+    }
+
+    /// <summary>A list with a bad address, a duplicate or more than ten entries is refused with 400.</summary>
+    [Fact]
+    public async Task An_invalid_alert_recipient_list_is_refused()
+    {
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        await SeedUsersAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+
+        var bad = await client.PutAsJsonAsync(
+            "/api/v1/notifications/alert-recipients", new { addresses = new List<string> { "not-an-address" } });
+        var duplicate = await client.PutAsJsonAsync(
+            "/api/v1/notifications/alert-recipients", new { addresses = new List<string> { "a@example.com", "A@example.com" } });
+        var tooMany = await client.PutAsJsonAsync(
+            "/api/v1/notifications/alert-recipients",
+            new { addresses = ElevenAddresses() });
+
+        Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, duplicate.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, tooMany.StatusCode);
+    }
+
+    /// <summary>A fresh panel reports every alert channel as unknown.</summary>
+    [Fact]
+    public async Task A_fresh_panel_reports_the_alert_channels_as_unknown()
+    {
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        await SeedUsersAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+
+        var response = await client.GetAsync("/api/v1/notifications/alert-delivery");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("unknown", body.RootElement.GetProperty("mail").GetProperty("state").GetString());
+        Assert.Equal("unknown", body.RootElement.GetProperty("webhook").GetProperty("state").GetString());
+    }
+
     /// <summary>Every mail route is covered by the gating fixture.</summary>
     [Fact]
     public void Every_mail_route_is_covered_by_the_gating_fixture()
@@ -309,7 +376,10 @@ public sealed class NotificationsAuthorizationTests : IAsyncLifetime
         // A hand-written list of routes goes stale the first time somebody adds one. These are read
         // off the controller itself, so a new endpoint fails HERE — naming itself — rather than
         // quietly enjoying no proof that it is closed to a customer.
-        var declared = ControllerRoutes.Declared<SmtpSettingsController>().ToList();
+        var declared = ControllerRoutes.Declared<SmtpSettingsController>()
+            .Concat(ControllerRoutes.Declared<AlertRecipientsController>())
+            .Concat(ControllerRoutes.Declared<AlertDeliveryController>())
+            .ToList();
         Assert.NotEmpty(declared);
 
         var inFixture = MailEndpoints()
@@ -360,6 +430,11 @@ public sealed class NotificationsAuthorizationTests : IAsyncLifetime
             return JsonContent.Create(new { recipient = "ops@example.com" });
         }
 
+        if (path.EndsWith("/alert-recipients", StringComparison.Ordinal))
+        {
+            return JsonContent.Create(new { addresses = new List<string> { "ops@example.com" } });
+        }
+
         return JsonContent.Create(new
         {
             host = "smtp.example.com",
@@ -369,7 +444,6 @@ public sealed class NotificationsAuthorizationTests : IAsyncLifetime
             password = "hunter2",
             fromAddress = "panel@example.com",
             fromName = "Maran Panel",
-            alertRecipient = "ops@example.com",
         });
     }
 
@@ -437,5 +511,18 @@ public sealed class NotificationsAuthorizationTests : IAsyncLifetime
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
         return client;
+    }
+
+    /// <summary>Builds eleven distinct valid addresses, one more than the list allows.</summary>
+    /// <returns>The addresses.</returns>
+    private static string[] ElevenAddresses()
+    {
+        var addresses = new string[11];
+        for (var index = 0; index < addresses.Length; index++)
+        {
+            addresses[index] = $"u{index}@example.com";
+        }
+
+        return addresses;
     }
 }

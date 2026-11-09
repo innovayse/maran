@@ -11,6 +11,13 @@ namespace Maran.Modules.Backups.Common;
 /// <param name="Weekdays">The weekdays a weekly schedule can fire on, in the order a week is read.</param>
 /// <param name="Hours">The hours of the day (UTC) a schedule can name, <c>0</c> to <c>23</c>.</param>
 /// <param name="RetainCounts">How many copies a schedule can keep, from the minimum to the ceiling.</param>
+/// <param name="CustomerFrequencies">
+/// The cadences a customer may choose for their own schedule: a subset of <see cref="Frequencies"/>.
+/// </param>
+/// <param name="CustomerRetainCounts">
+/// How many copies a customer may keep on their own schedule, from the minimum to the customer
+/// ceiling: a subset of <see cref="RetainCounts"/>.
+/// </param>
 public sealed record BackupOptionsDto(
     IReadOnlyList<BackupChoiceDto> Statuses,
     IReadOnlyList<BackupChoiceDto> Kinds,
@@ -18,4 +25,6 @@ public sealed record BackupOptionsDto(
     IReadOnlyList<BackupChoiceDto> Frequencies,
     IReadOnlyList<BackupChoiceDto> Weekdays,
     IReadOnlyList<BackupChoiceDto> Hours,
-    IReadOnlyList<BackupChoiceDto> RetainCounts);
+    IReadOnlyList<BackupChoiceDto> RetainCounts,
+    IReadOnlyList<BackupChoiceDto> CustomerFrequencies,
+    IReadOnlyList<BackupChoiceDto> CustomerRetainCounts);

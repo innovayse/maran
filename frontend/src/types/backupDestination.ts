@@ -60,12 +60,28 @@ export interface BackupDestination {
   isDefault: boolean
   /** When the panel first recorded it, as an ISO-8601 string. */
   createdAt: string
+  /**
+   * Whether NEW backups written here are sealed (issue #160). It is a setting and not a secret: the
+   * key that seals them is held by the panel and is never sent, so this boolean is all the screen
+   * can know about it. Backups already written keep the form they were taken in.
+   */
+  encryptArchives: boolean
+}
+
+/**
+ * The body of `PUT /api/v1/backup-destinations/{id}/encryption`, mirroring the backend's
+ * `SetBackupDestinationEncryptionCommand`. The destination comes from the route and the caller's
+ * address from the request, so neither is a member here.
+ */
+export interface SetBackupDestinationEncryptionRequest {
+  /** Whether new backups written to the destination are sealed. */
+  enabled: boolean
 }
 
 /**
  * Typed access to the backup-destinations endpoints.
  *
- * One call, and not two. `POST /api/v1/backup-destinations` exists and is not reached from this
+ * Two calls, and not three. `POST /api/v1/backup-destinations` exists and is not reached from this
  * panel: its handler has no success arm, so every request it can be given is answered with a
  * refusal, and a screen control whose only outcome is a refusal is a promise the product cannot
  * keep. The endpoint stays valuable to an API caller — it answers with a machine-stable code and a
@@ -88,4 +104,36 @@ export interface BackupDestinationsApi {
    * @returns The page the panel answered.
    */
   list: (request: ListRequest, signal?: AbortSignal) => Promise<Paged<BackupDestination>>
+
+  /**
+   * Switches encryption of NEW backups on or off for one destination (administrators only; the
+   * panel answers 204). The first switch-on makes the destination's key inside the panel; no key
+   * travels in either direction.
+   * @param id The destination.
+   * @param enabled Whether new backups written there are sealed.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns Resolves once the panel recorded the change.
+   */
+  setEncryption: (id: string, enabled: boolean, signal?: AbortSignal) => Promise<void>
 }
+
+/**
+ * How a change of a destination's encryption setting ended, for the destinations page. The same
+ * three-way split every other write in the SPA makes, so the store holds no copy of the
+ * "unreachable" text and the page translates that kind itself.
+ */
+export type BackupDestinationEncryptionOutcome =
+  | {
+      /** The panel recorded the change. */
+      kind: 'saved'
+    }
+  | {
+      /** The panel answered and refused it. */
+      kind: 'refused'
+      /** The panel's reason, already localized. */
+      message: string
+    }
+  | {
+      /** No answer arrived; the page shows its own "unreachable" text. */
+      kind: 'unreachable'
+    }

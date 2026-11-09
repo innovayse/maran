@@ -8,19 +8,26 @@ use tonic::{Request, Response, Status};
 use crate::audit::audit_slot::AuditSlot;
 use crate::proto::db_service_server::DbService;
 use crate::proto::{
-    CreateDatabaseOk, CreateDatabaseRequest, CreateDatabaseResponse, DatabaseInfo, DropDatabaseOk,
-    DropDatabaseRequest, DropDatabaseResponse, GetDatabaseSizeOk, GetDatabaseSizeRequest,
-    GetDatabaseSizeResponse, ListDatabasesOk, ListDatabasesRequest, ListDatabasesResponse,
-    RepairDatabaseGrantsRequest, RepairDatabaseGrantsResponse, SetDatabasePasswordOk,
-    SetDatabasePasswordRequest, SetDatabasePasswordResponse, create_database_response,
-    drop_database_response, get_database_size_response, list_databases_response,
-    repair_database_grants_response, set_database_password_response,
+    CreateDatabaseOk, CreateDatabaseRequest, CreateDatabaseResponse, CreateDatabaseUserOk,
+    CreateDatabaseUserRequest, CreateDatabaseUserResponse, DatabaseInfo, DropDatabaseOk,
+    DropDatabaseRequest, DropDatabaseResponse, DropDatabaseUserOk, DropDatabaseUserRequest,
+    DropDatabaseUserResponse, GetDatabaseSizeOk, GetDatabaseSizeRequest, GetDatabaseSizeResponse,
+    ListDatabasesOk, ListDatabasesRequest, ListDatabasesResponse, RepairDatabaseGrantsRequest,
+    RepairDatabaseGrantsResponse, SetDatabasePasswordOk, SetDatabasePasswordRequest,
+    SetDatabasePasswordResponse, SetDatabaseUserPrivilegesOk, SetDatabaseUserPrivilegesRequest,
+    SetDatabaseUserPrivilegesResponse, create_database_response, create_database_user_response,
+    drop_database_response, drop_database_user_response, get_database_size_response,
+    list_databases_response, repair_database_grants_response, set_database_password_response,
+    set_database_user_privileges_response,
 };
 use crate::services::db::db_status::to_agent_error;
 use crate::services::db::validated_creation::validated_creation;
 use crate::services::db::validated_database::validated_database;
 use crate::services::db::validated_password_change::validated_password_change;
+use crate::services::db::validated_privilege_change::validated_privilege_change;
 use crate::services::db::validated_removal::validated_removal;
+use crate::services::db::validated_user_creation::validated_user_creation;
+use crate::services::db::validated_user_removal::validated_user_removal;
 use crate::services::db::wire_grant_repair_report::wire_grant_repair_report;
 use crate::services::wire::run_blocking::run_blocking;
 use crate::services::wire::validated_account::validated_account;
@@ -192,6 +199,131 @@ impl<H: DbHost + 'static> DbService for DbServiceImpl<H> {
         };
 
         Ok(Response::new(SetDatabasePasswordResponse {
+            result: Some(result),
+        }))
+    }
+
+    /// Creates a further login for the account, granted nothing.
+    async fn create_database_user(
+        &self,
+        request: Request<CreateDatabaseUserRequest>,
+    ) -> Result<Response<CreateDatabaseUserResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
+        let request = request.into_inner();
+
+        let account = validated_account(&request.account_username);
+        if let Ok(account) = &account {
+            audit.account(account);
+        }
+
+        let result = match account.and_then(|account| {
+            validated_user_creation(&account, &request.db_username, &request.password)
+        }) {
+            Ok(input) => {
+                let host = Arc::clone(&self.host);
+                // Read off the validated input before it is moved, so the
+                // response reports the name that was built, prefix included.
+                let created = input.user.as_str().to_owned();
+
+                run_blocking("database operation", to_agent_error, move || {
+                    db::create_database_user(host.as_ref(), &input)
+                })
+                .await
+                .map(|()| created)
+            }
+            Err(error) => Err(error),
+        };
+        audit.settle(&result);
+
+        let result = match result {
+            Ok(db_username) => {
+                create_database_user_response::Result::Ok(CreateDatabaseUserOk { db_username })
+            }
+            Err(error) => create_database_user_response::Result::Error(error),
+        };
+
+        Ok(Response::new(CreateDatabaseUserResponse {
+            result: Some(result),
+        }))
+    }
+
+    /// Drops a login and every privilege it holds.
+    async fn drop_database_user(
+        &self,
+        request: Request<DropDatabaseUserRequest>,
+    ) -> Result<Response<DropDatabaseUserResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
+        let request = request.into_inner();
+
+        let account = validated_account(&request.account_username);
+        if let Ok(account) = &account {
+            audit.account(account);
+        }
+
+        let result = match account
+            .and_then(|account| validated_user_removal(&account, &request.db_username))
+        {
+            Ok(user) => {
+                let host = Arc::clone(&self.host);
+                run_blocking("database operation", to_agent_error, move || {
+                    db::drop_database_user(host.as_ref(), &user)
+                })
+                .await
+            }
+            Err(error) => Err(error),
+        };
+        audit.settle(&result);
+
+        let result = match result {
+            Ok(()) => drop_database_user_response::Result::Ok(DropDatabaseUserOk {}),
+            Err(error) => drop_database_user_response::Result::Error(error),
+        };
+
+        Ok(Response::new(DropDatabaseUserResponse {
+            result: Some(result),
+        }))
+    }
+
+    /// Makes a login's privileges on one database exactly the set given.
+    async fn set_database_user_privileges(
+        &self,
+        request: Request<SetDatabaseUserPrivilegesRequest>,
+    ) -> Result<Response<SetDatabaseUserPrivilegesResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
+        let request = request.into_inner();
+
+        let account = validated_account(&request.account_username);
+        if let Ok(account) = &account {
+            audit.account(account);
+        }
+
+        let result = match account.and_then(|account| {
+            validated_privilege_change(
+                &account,
+                &request.db_username,
+                &request.database_name,
+                &request.privileges,
+            )
+        }) {
+            Ok(change) => {
+                let host = Arc::clone(&self.host);
+                run_blocking("database operation", to_agent_error, move || {
+                    db::set_database_user_privileges(host.as_ref(), &change)
+                })
+                .await
+            }
+            Err(error) => Err(error),
+        };
+        audit.settle(&result);
+
+        let result = match result {
+            Ok(()) => {
+                set_database_user_privileges_response::Result::Ok(SetDatabaseUserPrivilegesOk {})
+            }
+            Err(error) => set_database_user_privileges_response::Result::Error(error),
+        };
+
+        Ok(Response::new(SetDatabaseUserPrivilegesResponse {
             result: Some(result),
         }))
     }

@@ -211,21 +211,28 @@ public sealed class PanelTask
     /// <summary>Closes the task as not having finished its work, under the code it answered with.</summary>
     /// <param name="errorCode">The machine-stable code the operation returned to its caller.</param>
     /// <param name="at">The finishing instant, taken from <see cref="IClock"/>.</param>
+    /// <returns>
+    /// <c>true</c> when this call is the one that failed the task, <c>false</c> when it was ignored
+    /// because the task had already finished. The caller that announces a failure needs the
+    /// difference: a refused second report must not be announced as a second failure.
+    /// </returns>
     /// <remarks>
     /// Ignored once the task has already finished, which is the rule this method exists to state:
     /// a failure reported after a completion is refused, and the completed task stays completed.
     /// </remarks>
-    public void Fail(string errorCode, DateTimeOffset at)
+    public bool Fail(string errorCode, DateTimeOffset at)
     {
         if (Status != PanelTaskStatus.Running)
         {
-            return;
+            return false;
         }
 
         Status = PanelTaskStatus.Failed;
         ErrorCode = errorCode;
         FinishedAt = at;
         Revision += 1;
+
+        return true;
     }
 
     /// <summary>Detaches the task from the account it was done for, because that account is being deleted.</summary>

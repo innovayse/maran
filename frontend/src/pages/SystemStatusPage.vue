@@ -32,18 +32,31 @@
  * licence catalogue and the signed-in identity. Nothing about the server as a whole is drawn for
  * them, and an empty panel is never drawn at all.
  *
+ * **For an administrator the screen is live.** One stream (`stores/liveDashboard`) is opened while
+ * the page is on screen and closed when it is left; the processor, memory, disk and network widgets
+ * draw its readings as charts, and the totals, services and activity widgets follow its
+ * pushes. The one-shot read above still happens first: it decides the audience, paints the page
+ * before the stream's first frame, and is what stays on screen when the stream is refused or not yet
+ * delivering (the resource card stands in for the four live widgets then, so a screen never goes
+ * blank for want of a stream).
+ *
+ * **Which widgets, and in what order, is the person's layout** (`stores/dashboardLayout`, resolved
+ * by `useDashboardWidgets`). While it is on its way, or if it cannot be read, every widget the
+ * bundle can draw is shown in its own order: a failed preference read never blanks the dashboard.
+ * A widget a person hid is not drawn; the customise sheet in the heading turns it back on.
+ *
  * State comes from the stores only; this page never touches the API layer (rules/vue.md: API
  * composables are called from stores only).
  */
-import { computed, onMounted, type ComputedRef } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import DashboardAttentionList from '../components/dashboard/DashboardAttentionList.vue'
-import DashboardCountGrid from '../components/dashboard/DashboardCountGrid.vue'
+import DashboardCustomizeSheet from '../components/dashboard/DashboardCustomizeSheet.vue'
+import DashboardLiveStatus from '../components/dashboard/DashboardLiveStatus.vue'
 import DashboardQuickActions from '../components/dashboard/DashboardQuickActions.vue'
-import DashboardRecentAudit from '../components/dashboard/DashboardRecentAudit.vue'
+import DashboardQuickActionsBar from '../components/dashboard/DashboardQuickActionsBar.vue'
 import DashboardResourceCard from '../components/dashboard/DashboardResourceCard.vue'
-import DashboardServicesCard from '../components/dashboard/DashboardServicesCard.vue'
-import DashboardUnavailableCard from '../components/dashboard/DashboardUnavailableCard.vue'
+import DashboardWidgetGrid from '../components/dashboard/DashboardWidgetGrid.vue'
+import DashboardTotalsGrid from '../components/dashboard/DashboardTotalsGrid.vue'
 import UiAlert from '../components/ui/UiAlert.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiIcon from '../components/ui/UiIcon.vue'
@@ -51,13 +64,18 @@ import UiLoadingRegion from '../components/ui/UiLoadingRegion.vue'
 import UiPageHeading from '../components/ui/UiPageHeading.vue'
 import UiSkeleton from '../components/ui/UiSkeleton.vue'
 import { useCallerRole } from '../composables/useCallerRole'
+import { useDashboardWidgets } from '../composables/useDashboardWidgets'
 import { useAuthStore } from '../stores/auth'
 import { useDashboardStore } from '../stores/dashboard'
+import { useDashboardLayoutStore } from '../stores/dashboardLayout'
+import { useLiveDashboardStore } from '../stores/liveDashboard'
 import { useModulesStore } from '../stores/modules'
 import { useSystemStore } from '../stores/system'
 import type { AdministratorDashboard } from '../types/dashboard'
+import type { DashboardLayout } from '../types/dashboardLayout'
 import type { QuickAction } from '../types/quickAction'
 import type { LoadingState } from '../types/loading'
+import { attentionIsClear } from '../utils/attentionIsClear'
 
 /** Which audience the dashboard is drawn for; see {@link view}. */
 type DashboardView = 'pending' | 'pendingServer' | 'server' | 'customer' | 'failed'
@@ -67,16 +85,22 @@ const auth = useAuthStore()
 const system = useSystemStore()
 const dashboard = useDashboardStore()
 const modules = useModulesStore()
+const live = useLiveDashboardStore()
+const layoutStore = useDashboardLayoutStore()
+const { widgets, actions: shortcuts, knownWidgetKeys } = useDashboardWidgets()
 const { isAdmin } = useCallerRole()
 
+/** Whether the customise sheet is open. */
+const customizing: Ref<boolean> = ref(false)
+
 /**
- * The heading region's state. The verdict is part of the heading rather than in place of it, so a
- * failed check does not replace the region (the title stays, the failure is an alert under it):
- * for the region the check is either on its way or settled, and which way it settled is
- * {@link system}'s `healthState`, read where the alert is drawn.
+ * What identifies the session the screen belongs to: the person, their role and the account they
+ * act for ("View as this account" is another identity, like any sign-in). The stream and the
+ * figures it delivered belong to one identity and must not outlive it.
  */
-const headingState: ComputedRef<LoadingState> = computed(() => {
-  return system.healthState === 'loading' ? 'loading' : 'loaded'
+const identity: ComputedRef<string> = computed(() => {
+  const user = auth.user
+  return user === null ? '' : `${user.id}:${user.role}:${user.accountId ?? ''}`
 })
 
 /** The administrator's sections once the read has arrived, or `null` for a customer's answer or a read still on its way. */
@@ -99,6 +123,39 @@ const view: ComputedRef<DashboardView> = computed(() => {
   return viewOf(dashboard.loadState)
 })
 
+/**
+ * The heading's verdict sentence, or `undefined` when there is none to say.
+ *
+ * "All systems are operational" is a claim about every check, so it is said only when the health
+ * check passed AND, for an administrator, nothing in the attention notice asks to be looked at: the
+ * notice below carries the bad news, and a sentence above it saying the opposite contradicts it. For
+ * somebody who is not shown the server there is no attention to weigh, and the health check alone decides.
+ */
+const verdict: ComputedRef<string | undefined> = computed(() => {
+  if (system.healthState === 'error') {
+    return undefined
+  }
+  return server.value !== null && !attentionIsClear(server.value.attention) ? undefined : t('app.status.ok')
+})
+
+/** Whether the verdict is still being worked out: the health check, or an administrator's attention read, is in flight. */
+const verdictLoading: ComputedRef<boolean> = computed(() => {
+  return system.healthState === 'loading' || view.value === 'pendingServer'
+})
+
+/**
+ * The heading region's state. The verdict is part of the heading rather than in place of it, so a
+ * failed check does not replace the region (the title stays, the failure is an alert under it):
+ * for the region the verdict is either on its way (the health check, or an administrator's attention
+ * read, see {@link verdictLoading}) or settled, and which way a settled check went is {@link system}'s
+ * `healthState`, read where the alert is drawn. The region must wait for the whole verdict, not only
+ * the health check: its subtitle placeholder stays invisible while the region is not waiting, so a
+ * region that reported "loaded" during the attention read would hold a placeholder nobody can see.
+ */
+const headingState: ComputedRef<LoadingState> = computed(() => {
+  return verdictLoading.value ? 'loading' : 'loaded'
+})
+
 /** Whether the header's pill is offered: only to somebody shown the server, and only if Accounts is licensed. */
 const offersNewAccount: ComputedRef<boolean> = computed(() => {
   return view.value === 'server' && modules.isEnabled('accounts')
@@ -107,20 +164,6 @@ const offersNewAccount: ComputedRef<boolean> = computed(() => {
 /** Whether the services card links on to the monitoring screen. */
 const linksToMonitoring: ComputedRef<boolean> = computed(() => {
   return modules.isEnabled('monitoring')
-})
-
-/**
- * The shortcuts an operator reaches for on a new server, in the order they build one up: an account,
- * then its site, then its database. Each leads to the screen that owns the work — the dashboard does
- * none of it itself.
- */
-const quickActions: ComputedRef<QuickAction[]> = computed(() => {
-  return permitted([
-    { key: 'createAccount', to: '/accounts/new', icon: 'users', module: 'accounts', label: t('app.status.quickActions.createAccount') },
-    { key: 'addSite', to: '/sites/new', icon: 'earth', module: 'sites', label: t('app.status.quickActions.addSite') },
-    { key: 'createDatabase', to: '/databases', icon: 'database', module: 'databases', label: t('app.status.quickActions.createDatabase') },
-    { key: 'backups', to: '/backups', icon: 'archive', module: 'backups', label: t('app.status.quickActions.backups') },
-  ])
 })
 
 /**
@@ -182,7 +225,54 @@ const refresh = async (): Promise<void> => {
   await Promise.all([system.checkHealth(), dashboard.load()])
 }
 
-onMounted(refresh)
+/**
+ * Stores the layout the customise sheet produced and closes the sheet when the panel accepted it.
+ * A refusal keeps the sheet open with the panel's reason, so nothing the person arranged is lost.
+ * @param layout The whole layout.
+ * @returns Resolves once the save settled.
+ */
+const saveLayout = async (layout: DashboardLayout): Promise<void> => {
+  if (await layoutStore.save(layout)) {
+    customizing.value = false
+  }
+}
+
+onMounted(async () => {
+  // The layout is the person's own preference and an administrator's alone; it does not wait for,
+  // or hold up, the dashboard read.
+  if (isAdmin.value) {
+    void layoutStore.load()
+  }
+  await refresh()
+})
+
+// The stream is opened once the panel has confirmed this screen is the server's (not before: a
+// customer must not open a stream the panel would refuse) and closed when the page is left, so no
+// connection and no held figure outlives the screen that shows them.
+watch(
+  view,
+  (audience: DashboardView) => {
+    if (audience === 'server') {
+      live.open()
+    }
+  },
+  { immediate: true },
+)
+
+// A new identity (a sign-in as someone else, "View as this account" starting or ending) must not
+// keep the previous one's stream or figures on screen: close the stream, read the screen again
+// for the new caller, and the audience watch above opens a stream only if that caller is the server's.
+watch(identity, () => {
+  live.close()
+  if (isAdmin.value) {
+    void layoutStore.load()
+  }
+  void refresh()
+})
+
+onBeforeUnmount(() => {
+  live.close()
+})
 </script>
 
 <template>
@@ -196,14 +286,27 @@ onMounted(refresh)
       <div class="flex flex-col gap-6">
         <UiPageHeading
           :title="t('app.status.heading')"
-          :subtitle="system.healthState === 'error' ? undefined : t('app.status.ok')"
-          :subtitle-loading="system.healthState === 'loading'"
+          :subtitle="verdict"
+          :subtitle-loading="verdictLoading"
         >
-          <template v-if="offersNewAccount" #actions>
-            <UiButton to="/accounts/new" class="whitespace-nowrap">
-              <UiIcon name="plus" />
-              {{ t('app.status.actions.newAccount') }}
-            </UiButton>
+          <template v-if="view === 'server'" #actions>
+            <div class="flex flex-wrap items-center gap-2">
+              <DashboardLiveStatus :status="live.status" />
+              <UiButton
+                v-if="layoutStore.layout !== null"
+                variant="secondary"
+                class="whitespace-nowrap"
+                data-testid="customize-open"
+                @click="customizing = true"
+              >
+                <UiIcon name="settings" />
+                {{ t('liveDashboard.customize.open') }}
+              </UiButton>
+              <UiButton v-if="offersNewAccount" to="/accounts/new" class="whitespace-nowrap">
+                <UiIcon name="plus" />
+                {{ t('app.status.actions.newAccount') }}
+              </UiButton>
+            </div>
           </template>
         </UiPageHeading>
 
@@ -228,6 +331,9 @@ onMounted(refresh)
         <!-- While the read is in flight, the figure cards are drawn with their real labels and a
              placeholder for every figure, so the answer lands without moving anything. -->
         <template v-if="view === 'pendingServer'">
+          <!-- The shortcuts need nothing from the answer, so they are drawn at once and the figures'
+               placeholders below them are not pushed down when the answer lands. -->
+          <DashboardQuickActionsBar v-if="shortcuts.length > 0" :actions="shortcuts" />
           <!-- The notice is the first thing the answer draws (one line when nothing needs attention),
                so its slot is held by a notice of the same box with a placeholder line for its text, in a row
                as tall as one line of that text (`text-sm` at `leading-normal`).
@@ -236,47 +342,27 @@ onMounted(refresh)
           <UiAlert variant="info">
             <div class="flex h-5.25 items-center"><UiSkeleton /></div>
           </UiAlert>
-          <DashboardCountGrid :counts="null" />
+          <DashboardTotalsGrid :counts="null" />
           <DashboardResourceCard :resources="null" />
         </template>
 
         <!-- Below the verdict, and only for a caller the panel filled the sections for. -->
         <template v-else-if="server !== null">
-          <!-- Each section says whether the panel could read it. One the agent or a module could not
-               answer is drawn as "could not be read" in its own place, never as an empty list or a
-               zero (issue #248), and the panel isolates it on its own side — so the rest of the screen
-               stays up instead of going dark together. The attention notice is first: the one thing
-               that needs looking at goes above everything else. -->
-          <DashboardAttentionList :attention="server.attention" />
+          <!-- The shortcuts lead the screen: the things an operator does most, one click each. -->
+          <DashboardQuickActionsBar v-if="shortcuts.length > 0" :actions="shortcuts" />
 
-          <DashboardCountGrid :counts="server.counts" />
+          <DashboardWidgetGrid :server="server" :widgets="widgets" :links-to-monitoring="linksToMonitoring" />
 
-          <DashboardResourceCard v-if="server.resources.state === 'loaded'" :resources="server.resources.data" />
-          <DashboardUnavailableCard
-            v-else
-            :title="t('app.status.resources.title')"
-            :message="t('app.status.resources.unavailable')"
+          <DashboardCustomizeSheet
+            v-if="layoutStore.layout !== null"
+            :open="customizing"
+            :layout="layoutStore.layout"
+            :widget-keys="knownWidgetKeys"
+            :saving="layoutStore.saving"
+            :error-message="layoutStore.submitMessage"
+            @close="customizing = false"
+            @save="saveLayout"
           />
-
-          <DashboardServicesCard :services="server.services" :links-to-monitoring="linksToMonitoring" />
-
-          <!-- Two columns only when the CONTENT PANEL is wide enough for two readable cards (`@3xl`,
-               48rem of container width), not when the viewport is: under a large system font the
-               rem-sized sidebar takes most of a wide viewport and each "half" was left a sliver. -->
-          <div class="@container">
-            <div class="grid gap-4 @3xl:grid-cols-2">
-              <DashboardQuickActions
-                v-if="quickActions.length > 0"
-                :title="t('app.status.quickActions.title')"
-                :actions="quickActions"
-              />
-
-              <DashboardRecentAudit
-                :entries="server.recentAudit"
-                :class="{ '@3xl:col-span-2': quickActions.length === 0 }"
-              />
-            </div>
-          </div>
         </template>
 
         <!-- A customer is shown their own shortcuts and nothing of the server. The card is drawn only if

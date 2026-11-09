@@ -36,4 +36,31 @@ internal interface IPhpServiceInvoker
     IAsyncEnumerable<InstallPhpVersionResponse> InstallPhpVersionAsync(
         InstallPhpVersionRequest request,
         CancellationToken cancellationToken);
+
+    /// <summary>Invokes <c>ListPhpExtensions</c>.</summary>
+    /// <param name="request">The wire request.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The raw wire response, carrying either branch of its oneof.</returns>
+    Task<ListPhpExtensionsResponse> ListPhpExtensionsAsync(
+        ListPhpExtensionsRequest request,
+        CancellationToken cancellationToken);
+
+    /// <summary>Invokes the server-streaming <c>SetPhpExtension</c>.</summary>
+    /// <param name="request">The wire request.</param>
+    /// <param name="cancellationToken">Cancellation for the stream.</param>
+    /// <returns>
+    /// The raw wire responses in order: progress messages followed by exactly one terminal message.
+    /// A sequence that ends without one is a change whose outcome is unknown.
+    /// </returns>
+    IAsyncEnumerable<SetPhpExtensionResponse> SetPhpExtensionAsync(
+        SetPhpExtensionRequest request,
+        CancellationToken cancellationToken);
+
+    /// <summary>Invokes <c>ApplyPhpPoolSettings</c>.</summary>
+    /// <param name="request">The wire request.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The raw wire response, carrying either branch of its oneof.</returns>
+    Task<ApplyPhpPoolSettingsResponse> ApplyPhpPoolSettingsAsync(
+        ApplyPhpPoolSettingsRequest request,
+        CancellationToken cancellationToken);
 }

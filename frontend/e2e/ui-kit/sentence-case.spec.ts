@@ -3,7 +3,7 @@ import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
-import { loaded, stubDashboard, SYNCHRONIZED_CLOCK } from '../fixtures/stub-dashboard-route'
+import { ALERT_DELIVERY_OK, loaded, stubDashboard, SYNCHRONIZED_CLOCK } from '../fixtures/stub-dashboard-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubInvitation } from '../fixtures/stub-invitation-routes'
 import { stubModules } from '../fixtures/stub-modules-route'
@@ -44,7 +44,7 @@ const VIEWPORTS = [
 ] as const
 
 const MODULES: PanelModule[] = ['accounts', 'tasks'].map((name) => {
-  return { name, displayName: name, tier: 'included', state: 'enabled' }
+  return { name, displayName: name, kindDisplayName: 'Core', tier: 'included', state: 'enabled' }
 })
 
 const ACCOUNT: Account = {
@@ -103,7 +103,7 @@ const DASHBOARD: Dashboard = {
     sites: loaded(2),
     databases: loaded(3),
   },
-  attention: { certificatesExpiringSoon: loaded(0), failedBackups: loaded(0), bannedAddresses: loaded(0), failedTasks: loaded(0), clock: SYNCHRONIZED_CLOCK },
+  attention: { certificatesExpiringSoon: loaded(0), failedBackups: loaded(0), sitesOnEndOfLifePhp: loaded(0), alertDelivery: ALERT_DELIVERY_OK, bannedAddresses: loaded(0), failedTasks: loaded(0), clock: SYNCHRONIZED_CLOCK },
   recentAudit: loaded([]),
 }
 

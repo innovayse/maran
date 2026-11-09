@@ -25,6 +25,30 @@ internal sealed class StubPhpService : IPhpServiceInvoker
     /// <summary>The last request <see cref="InstallPhpVersionAsync"/> received.</summary>
     public InstallPhpVersionRequest? LastInstallRequest { get; private set; }
 
+    /// <summary>Response returned from <see cref="ListPhpExtensionsAsync"/>.</summary>
+    public ListPhpExtensionsResponse ExtensionsResponse { get; set; } = new();
+
+    /// <summary>The messages the extension-change stream yields before it ends.</summary>
+    public List<SetPhpExtensionResponse> ExtensionResponses { get; } = [];
+
+    /// <summary>When set, the extension-change stream throws it before yielding anything, as a dead transport does.</summary>
+    public Exception? ExtensionStreamFailure { get; set; }
+
+    /// <summary>How many extension-change messages were actually pulled out of the stub.</summary>
+    public int ExtensionYieldedCount { get; private set; }
+
+    /// <summary>The last request <see cref="ListPhpExtensionsAsync"/> received.</summary>
+    public ListPhpExtensionsRequest? LastListExtensionsRequest { get; private set; }
+
+    /// <summary>The last request <see cref="SetPhpExtensionAsync"/> received.</summary>
+    public SetPhpExtensionRequest? LastSetExtensionRequest { get; private set; }
+
+    /// <summary>Response returned from <see cref="ApplyPhpPoolSettingsAsync"/>.</summary>
+    public ApplyPhpPoolSettingsResponse PoolSettingsResponse { get; set; } = new();
+
+    /// <summary>The last request <see cref="ApplyPhpPoolSettingsAsync"/> received.</summary>
+    public ApplyPhpPoolSettingsRequest? LastPoolSettingsRequest { get; private set; }
+
     /// <inheritdoc/>
     public Task<ListPhpVersionsResponse> ListPhpVersionsAsync(
         ListPhpVersionsRequest request,
@@ -55,5 +79,45 @@ internal sealed class StubPhpService : IPhpServiceInvoker
             yield return response;
             OnInstallYielded?.Invoke();
         }
+    }
+
+    /// <inheritdoc/>
+    public Task<ListPhpExtensionsResponse> ListPhpExtensionsAsync(
+        ListPhpExtensionsRequest request,
+        CancellationToken cancellationToken)
+    {
+        LastListExtensionsRequest = request;
+
+        return Task.FromResult(ExtensionsResponse);
+    }
+
+    /// <inheritdoc/>
+    public async IAsyncEnumerable<SetPhpExtensionResponse> SetPhpExtensionAsync(
+        SetPhpExtensionRequest request,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        LastSetExtensionRequest = request;
+
+        if (ExtensionStreamFailure is not null)
+        {
+            throw ExtensionStreamFailure;
+        }
+
+        foreach (var response in ExtensionResponses)
+        {
+            await Task.Yield();
+            ExtensionYieldedCount++;
+            yield return response;
+        }
+    }
+
+    /// <inheritdoc/>
+    public Task<ApplyPhpPoolSettingsResponse> ApplyPhpPoolSettingsAsync(
+        ApplyPhpPoolSettingsRequest request,
+        CancellationToken cancellationToken)
+    {
+        LastPoolSettingsRequest = request;
+
+        return Task.FromResult(PoolSettingsResponse);
     }
 }

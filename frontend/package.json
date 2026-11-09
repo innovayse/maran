@@ -8,12 +8,16 @@
     "dev": "vite",
     "build": "vue-tsc --build && vite build",
     "preview": "vite preview",
+    "build:demo": "vue-tsc --build && VITE_MARAN_DEMO=1 vite build --outDir dist-demo --emptyOutDir",
+    "preview:demo": "vite preview --outDir dist-demo",
     "typecheck": "vue-tsc --build",
     "lint": "node scripts/lint.mjs",
     "lint:fix": "oxlint . --fix && eslint . --fix",
     "lint:locales": "node scripts/check-locale-keys.mjs",
     "lint:routes": "node scripts/check-page-routes.mjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:demo": "playwright test -c playwright.demo.config.ts",
+    "screens": "playwright test -c playwright.screens.config.ts"
   },
   "dependencies": {
     "date-fns": "^4.4.0",

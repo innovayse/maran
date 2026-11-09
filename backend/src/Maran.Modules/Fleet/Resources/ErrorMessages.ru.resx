@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="ServerStateTransitionInvalid">
+    <value>Сервер находится в состоянии, в котором это изменение невозможно.</value>
+  </data>
+  <data name="ServerNotEnrolled">
+    <value>Ни один хост ещё не зарегистрировался для этого сервера, поэтому подтверждать нечего.</value>
+  </data>
+  <data name="ServerFingerprintMismatch">
+    <value>Введённый отпечаток не совпадает с тем, который предъявил сервер. Сверьте его с отпечатком, выведенным на сервере, и повторите.</value>
+  </data>
+  <data name="ServerLocalImmutable">
+    <value>Сервер, на котором работает эта панель, нельзя отключить.</value>
+  </data>
+</root>

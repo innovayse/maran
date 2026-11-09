@@ -50,6 +50,12 @@ public sealed class StubMessageBus : IMessageBus
     public List<object> Invoked { get; } = [];
 
     /// <summary>
+    /// Whether any module subscribes to what is published; <c>false</c> models a panel composed without
+    /// the module that would answer.
+    /// </summary>
+    public bool HasSubscribers { get; init; } = true;
+
+    /// <summary>
     /// The answer a request invoked with a reply (<c>InvokeAsync&lt;T&gt;</c>) receives, computed from
     /// the message; null when nothing in the test sends one.
     /// </summary>
@@ -178,10 +184,12 @@ public sealed class StubMessageBus : IMessageBus
         throw new NotSupportedException();
     }
 
-    /// <inheritdoc />
+    /// <summary>Who would receive <paramref name="message"/>: one route, or none when <see cref="HasSubscribers"/> is false.</summary>
+    /// <param name="message">The message to preview.</param>
+    /// <returns>One envelope when this bus has subscribers; otherwise none.</returns>
     public IReadOnlyList<Envelope> PreviewSubscriptions(object message)
     {
-        throw new NotSupportedException();
+        return HasSubscribers ? [new Envelope(message)] : [];
     }
 
     /// <inheritdoc />

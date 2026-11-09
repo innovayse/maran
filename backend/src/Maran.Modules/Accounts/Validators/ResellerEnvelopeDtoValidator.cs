@@ -50,6 +50,10 @@ public sealed class ResellerEnvelopeDtoValidator : AbstractValidator<ResellerEnv
         RuleFor(envelope => envelope.MaxPhpWorkersPerPool)
             .InclusiveBetween(0, MaxFigure)
             .WithMessage(EnvelopeInvalidMessage);
+        RuleFor(envelope => envelope.MaxMailboxes).InclusiveBetween(0, MaxFigure).WithMessage(EnvelopeInvalidMessage);
+        RuleFor(envelope => envelope.MailboxQuotaPoolMib)
+            .InclusiveBetween(0, MaxFigure)
+            .WithMessage(EnvelopeInvalidMessage);
 
         // The list is required: a request that leaves it out binds to null and is refused here, since
         // no reading of "not stated" exists. An empty list is stated and sells no feature. Each member

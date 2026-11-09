@@ -135,6 +135,130 @@ public sealed class AllowPortCommandHandlerTests
         Assert.Equal("AgentFirewallPortsMisconfigured", result.Error!.Code);
     }
 
+    /// <summary>An allow that would close an SSH port to the caller is refused and sends nothing.</summary>
+    [Fact]
+    public async Task An_allow_that_would_cut_the_caller_off_an_ssh_port_is_refused_and_sends_nothing()
+    {
+        var world = new World(sshPorts: "22,2222");
+
+        var result = await world.AllowAsync(2222, sourceCidr: "203.0.113.0/24");
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("FirewallRuleLocksOutCaller", result.Error!.Code);
+        Assert.Equal(ErrorType.Conflict, result.Error.Type);
+        Assert.Empty(world.Agent.Allows);
+    }
+
+    /// <summary>The refusal is journalled as a failed allow carrying the rule that was stopped.</summary>
+    [Fact]
+    public async Task A_refused_allow_is_journalled_as_a_failure_naming_the_rule()
+    {
+        var world = new World(sshPorts: "22,2222");
+
+        await world.AllowAsync(2222, sourceCidr: "203.0.113.0/24");
+
+        var entry = Assert.Single(world.Audit.Entries);
+        Assert.Equal(FirewallAuditActions.FirewallRuleAllowed, entry.Action);
+        Assert.Equal("tcp/2222 from 203.0.113.0/24", entry.Subject);
+        Assert.False(entry.Succeeded);
+    }
+
+    /// <summary>The operator log names the SSH port the refused allow would have closed.</summary>
+    [Fact]
+    public async Task A_refused_allow_logs_the_ssh_port_it_would_have_closed()
+    {
+        var world = new World(sshPorts: "22,2222");
+
+        await world.AllowAsync(2222, sourceCidr: "203.0.113.0/24");
+
+        var line = Assert.Single(world.Log.Messages);
+        Assert.Contains("2222", line);
+        Assert.Contains("198.51.100.1", line);
+    }
+
+    /// <summary>The same allow, scoped to a range that includes the caller, is installed.</summary>
+    [Fact]
+    public async Task The_same_allow_with_a_range_that_includes_the_caller_is_installed()
+    {
+        // The inverse control: a guard that refused every SSH-port allow would pass the test above.
+        var world = new World(sshPorts: "22,2222");
+
+        var result = await world.AllowAsync(2222, sourceCidr: "198.51.100.0/24");
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("198.51.100.0/24", Assert.Single(world.Agent.Allows).SourceCidr);
+    }
+
+    /// <summary>The guard reads the SSH ports from the host facts and not from the request.</summary>
+    [Fact]
+    public async Task The_guard_uses_the_ssh_ports_the_host_was_configured_with()
+    {
+        // Port 2222 is only an SSH port when the host says so; on a host whose sshd listens on 22
+        // alone, a narrowed rule for 2222 is an ordinary one.
+        var world = new World(sshPorts: "22");
+
+        var result = await world.AllowAsync(2222, sourceCidr: "203.0.113.0/24");
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(world.Agent.Allows);
+    }
+
+    /// <summary>The guard reads the rules the host runs, sending it the same host facts a listing needs.</summary>
+    [Fact]
+    public async Task The_guard_reads_the_rules_the_host_is_running_with_the_host_facts()
+    {
+        var world = new World(sshPorts: "22,2222", panelPort: 8443);
+
+        await world.AllowAsync(8080);
+
+        var listing = Assert.Single(world.Agent.RuleListings);
+        Assert.Equal([22, 2222], listing.SshPorts);
+        Assert.Equal(8443, listing.PanelPort);
+    }
+
+    /// <summary>A rule that already exists for the SSH port makes a further narrowed allow harmless.</summary>
+    [Fact]
+    public async Task A_narrowed_allow_next_to_an_existing_rule_for_the_ssh_port_is_installed()
+    {
+        var world = new World(sshPorts: "22,2222");
+        world.Agent.RulesResult = Result<IReadOnlyList<AgentFirewallRule>>.Ok(
+            [new AgentFirewallRule(2222, null, AgentFirewallProtocol.Tcp, "198.51.100.0/24")]);
+
+        var result = await world.AllowAsync(2222, sourceCidr: "203.0.113.0/24");
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(world.Agent.Allows);
+    }
+
+    /// <summary>A caller the panel cannot attribute is refused a restricted SSH rule.</summary>
+    [Fact]
+    public async Task A_caller_without_an_address_is_refused_a_restricted_ssh_rule()
+    {
+        var world = new World(sshPorts: "22,2222");
+
+        var result = await world.AllowAsync(22, sourceCidr: "203.0.113.0/24", caller: "unknown");
+
+        Assert.Equal("FirewallRuleLocksOutCaller", result.Error!.Code);
+        Assert.Empty(world.Agent.Allows);
+    }
+
+    /// <summary>When the host's rules cannot be read the allow is not sent, and the failure is journalled.</summary>
+    [Fact]
+    public async Task An_allow_is_not_sent_when_the_hosts_rules_cannot_be_read()
+    {
+        // Without the listing the handler cannot tell whether the rule locks anyone out, and it
+        // does not guess: the listing's own failure is the answer.
+        var world = new World();
+        world.Agent.RulesResult = Result<IReadOnlyList<AgentFirewallRule>>.Fail(
+            Error.Of("AgentUnavailable", ErrorType.Unavailable));
+
+        var result = await world.AllowAsync(8080);
+
+        Assert.Equal("AgentUnavailable", result.Error!.Code);
+        Assert.Empty(world.Agent.Allows);
+        Assert.False(Assert.Single(world.Audit.Entries).Succeeded);
+    }
+
     /// <summary>The agent double, the journal and the handler under test.</summary>
     private sealed class World
     {
@@ -147,6 +271,9 @@ public sealed class AllowPortCommandHandlerTests
         /// <summary>The journal double.</summary>
         public RecordingAuditWriter Audit { get; } = new();
 
+        /// <summary>The operator log double.</summary>
+        public RecordingLogger<AllowPortCommandHandler> Log { get; } = new();
+
         /// <summary>Builds a handler over the host facts a panel was configured with.</summary>
         /// <param name="sshPorts">The raw value of <c>Firewall__SshPorts</c>.</param>
         /// <param name="panelPort">The panel's public port.</param>
@@ -155,7 +282,8 @@ public sealed class AllowPortCommandHandlerTests
             _handler = new AllowPortCommandHandler(
                 Agent,
                 FirewallTestContext.Options(sshPorts, panelPort),
-                new FirewallAuditJournal(Audit, new FakeCurrentUser()));
+                new FirewallAuditJournal(Audit, new FakeCurrentUser()),
+                Log);
         }
 
         /// <summary>Runs the handler once.</summary>
@@ -163,14 +291,16 @@ public sealed class AllowPortCommandHandlerTests
         /// <param name="protocol">The protocol the rule applies to.</param>
         /// <param name="sourceCidr">The source range to allow from.</param>
         /// <param name="portTo">The range's upper bound, or null for a single port.</param>
+        /// <param name="caller">The address the request arrived from.</param>
         public async Task<Result> AllowAsync(
             int port,
             AgentFirewallProtocol protocol = AgentFirewallProtocol.Tcp,
             string sourceCidr = "0.0.0.0/0",
-            int? portTo = null)
+            int? portTo = null,
+            string caller = "198.51.100.1")
         {
             return await _handler.HandleAsync(
-                new AllowPortCommand(port, protocol, sourceCidr, portTo, "198.51.100.1", "curl"),
+                new AllowPortCommand(port, protocol, sourceCidr, portTo, caller, "curl"),
                 CancellationToken.None);
         }
     }

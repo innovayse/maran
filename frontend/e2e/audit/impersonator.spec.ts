@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { stubAudit, viewedAs } from '../fixtures/stub-audit-routes'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
-import { loaded, stubDashboard, SYNCHRONIZED_CLOCK, UNAVAILABLE } from '../fixtures/stub-dashboard-route'
+import { ALERT_DELIVERY_OK, loaded, stubDashboard, SYNCHRONIZED_CLOCK, UNAVAILABLE } from '../fixtures/stub-dashboard-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { setPersistedLocale } from '../fixtures/set-locale'
@@ -103,6 +103,8 @@ test('the dashboard card names the operator on an entry written while viewing as
     attention: {
       certificatesExpiringSoon: loaded(0),
       failedBackups: loaded(0),
+      sitesOnEndOfLifePhp: loaded(0),
+      alertDelivery: ALERT_DELIVERY_OK,
       bannedAddresses: loaded(0),
       failedTasks: loaded(0),
       clock: SYNCHRONIZED_CLOCK,

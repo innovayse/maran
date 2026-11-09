@@ -52,7 +52,7 @@ use super::web_tree_reconciliation::WebTreeReconciliation;
 /// mutating validators are constructed and counted; what this file does about
 /// them is decline to re-run an action and say so. The blind spot is
 /// named in this function's own log output rather than only here, and
-/// `the_only_startup_reconciliations_are_restores_web_php_pools_and_sftp_keys`
+/// `the_only_startup_reconciliations_are_the_ones_serve_names`
 /// goes red the day one of the three gains a pass.
 ///
 /// A second blind spot sits inside the tree it does read: a site creation

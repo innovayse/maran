@@ -1,3 +1,5 @@
+using Maran.Modules.Sites.Domain.Entities;
+using Maran.Modules.Sites.Domain.ValueObjects;
 using Maran.Modules.Sites.Tests.TestSupport;
 using Microsoft.EntityFrameworkCore;
 
@@ -95,6 +97,53 @@ public sealed class SitesDbContextTenantFilterTests
         var found = await context.Sites.IgnoreQueryFilters().SingleOrDefaultAsync(site => site.Id == theirSiteId);
 
         Assert.NotNull(found);
+    }
+
+    /// <summary>A customer sees their own site's traffic and cursor and never another tenant's.</summary>
+    [Fact]
+    public async Task A_customer_sees_their_own_traffic_and_cursor_and_never_another_tenants()
+    {
+        var database = Guid.NewGuid().ToString();
+        var mine = Guid.NewGuid();
+        var theirs = Guid.NewGuid();
+        await using (var seed = SitesTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            foreach (var (account, domain) in new[] { (mine, "mine.example.com"), (theirs, "theirs.example.com") })
+            {
+                var site = SitesTestContext.PhpSite(account, domain);
+                seed.Sites.Add(site);
+                var day = new SiteTrafficDay(site, new DateOnly(2026, 11, 6));
+                day.Absorb(new TrafficDelta(5, 50, [new TrafficStatusCount(200, 5)], [new TrafficPathCount("/", 5)], 0));
+                seed.SiteTrafficDays.Add(day);
+                seed.SiteTrafficCursors.Add(new SiteTrafficCursor(site, "1:2:abc", 10, new DateTimeOffset(2026, 11, 7, 0, 0, 0, TimeSpan.Zero)));
+            }
+
+            await seed.SaveChangesAsync();
+        }
+
+        await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(mine), database);
+
+        Assert.Single(await context.SiteTrafficDays.ToListAsync());
+        Assert.Single(await context.SiteTrafficCursors.ToListAsync());
+        Assert.Equal(2, await context.SiteTrafficDays.IgnoreQueryFilters().CountAsync());
+    }
+
+    /// <summary>An unattended caller with no principal sees no traffic row through the filter.</summary>
+    [Fact]
+    public async Task An_unattended_caller_sees_no_traffic_row_through_the_filter()
+    {
+        var database = Guid.NewGuid().ToString();
+        await using (var seed = SitesTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            var site = SitesTestContext.PhpSite(Guid.NewGuid(), "mine.example.com");
+            seed.Sites.Add(site);
+            seed.SiteTrafficDays.Add(new SiteTrafficDay(site, new DateOnly(2026, 11, 6)));
+            await seed.SaveChangesAsync();
+        }
+
+        await using var context = SitesTestContext.Create(FakeCurrentUser.Anonymous(), database);
+
+        Assert.Empty(await context.SiteTrafficDays.ToListAsync());
     }
 
     /// <summary>Writes one site for each of two accounts into one database, as an administrator.</summary>

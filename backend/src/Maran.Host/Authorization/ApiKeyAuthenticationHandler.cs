@@ -130,13 +130,21 @@ public sealed class ApiKeyAuthenticationHandler : AuthenticationHandler<Authenti
     /// <summary>
     /// Builds the ticket for a valid key: the key id claim, and one scope claim per granted scope the
     /// vocabulary still knows, plus the implicit <see cref="ApiKeyScopes.SelfRead"/>. The principal
-    /// carries no subject, role, account or reseller claim, so no role policy can ever admit it.
+    /// carries no subject, role or account claim, and a reseller claim only when a reseller owns the key (the
+    /// key owner claim, not the login claim a role policy reads), so no role policy can ever admit it.
     /// </summary>
     /// <param name="authenticated">The authenticator's answer for the valid key.</param>
     /// <returns>The authentication ticket for the request.</returns>
     private AuthenticationTicket BuildTicket(ApiKeyAuthenticated authenticated)
     {
         var claims = new List<Claim> { new(PanelClaimTypes.ApiKeyId, authenticated.KeyId.ToString()) };
+
+        // Written only for a key a reseller owns; the administrator's keys carry no owner claim, and the
+        // policies read its presence and its absence (ApiKeyPolicies).
+        if (authenticated.ResellerId is { } resellerId)
+        {
+            claims.Add(new Claim(PanelClaimTypes.ApiKeyReseller, resellerId.ToString()));
+        }
 
         // Intersected with the closed vocabulary: a scope this build does not know grants nothing,
         // whatever the stored row says. Self-read is implicit for every valid key.

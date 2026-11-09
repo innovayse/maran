@@ -1,7 +1,11 @@
 //! Entry point: tracing setup, flag parsing, server start.
 #![forbid(unsafe_code)]
 
+use std::time::SystemTime;
+
 use maran_agent::config::invocation::{Invocation, USAGE};
+use maran_agent::fleet::build_fleet_listener::build_fleet_listener;
+use maran_agent::fleet::generate_node_identity::generate_node_identity;
 use maran_agent::peercred::PeerPolicy;
 use maran_agent::server;
 use maran_agent_core::utils::current_uid::current_uid;
@@ -89,16 +93,46 @@ async fn main() {
             }
             return;
         }
+        // Fleet mode (issue #180): make this host's identity, print the certificate's
+        // fingerprint and stop. Printed for the reason the render subcommands print: the
+        // installer captures standard output, and the operator compares this line with the
+        // one the panel shows before approving the node. Nothing else is written to it, and
+        // the private key is never printed.
+        Ok(Invocation::GenerateNodeIdentity(request)) => {
+            match generate_node_identity(&request, default_uid, SystemTime::now()) {
+                Ok(fingerprint) => println!("{}", fingerprint.as_str()),
+                Err(error) => {
+                    tracing::error!(%error, "the node identity could not be generated");
+                    std::process::exit(FAILURE_EXIT_CODE);
+                }
+            }
+            return;
+        }
         Err(error) => {
             tracing::error!(%error, "invalid command line");
             std::process::exit(FAILURE_EXIT_CODE);
         }
     };
 
+    // Fleet mode (issue #180): the TCP listener exists only when both fleet flags were given.
+    // A node that was asked to join a fleet and cannot read its identity stops here, with the
+    // reason, and does not start as an agent that looks reachable and is not.
+    let fleet = match options.fleet.as_ref() {
+        Some(fleet_options) => match build_fleet_listener(fleet_options, default_uid) {
+            Ok(listener) => Some(listener),
+            Err(error) => {
+                tracing::error!(%error, "the fleet listener cannot be set up");
+                std::process::exit(FAILURE_EXIT_CODE);
+            }
+        },
+        None => None,
+    };
+
     if let Err(error) = server::serve(
         options.socket_path(),
         PeerPolicy::new(options.allow_uid),
         options.free_space_floor,
+        fleet,
     )
     .await
     {

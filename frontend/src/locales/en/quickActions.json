@@ -1,0 +1,9 @@
+{
+  "quickActions": {
+    "items": {
+      "runBackup": "Create a backup",
+      "banAddress": "Ban an address",
+      "addCronJob": "Add a scheduled task"
+    }
+  }
+}

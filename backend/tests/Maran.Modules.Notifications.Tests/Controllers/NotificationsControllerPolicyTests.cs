@@ -18,6 +18,9 @@ public sealed class NotificationsControllerPolicyTests
     /// <param name="policy">The policy the controller must name.</param>
     [Theory]
     [InlineData(typeof(SmtpSettingsController), AuthorizationPolicies.AdminOnly)]
+    [InlineData(typeof(AlertRecipientsController), AuthorizationPolicies.AdminOnly)]
+    [InlineData(typeof(AlertDeliveryController), AuthorizationPolicies.AdminOnly)]
+    [InlineData(typeof(NotificationFeedController), AuthorizationPolicies.AdminOnly)]
     public void A_controller_names_its_policy_on_the_class(Type controller, string policy)
     {
         var policies = controller
@@ -84,6 +87,9 @@ public sealed class NotificationsControllerPolicyTests
         var expected = new[]
         {
             nameof(SmtpSettingsController),
+            nameof(AlertRecipientsController),
+            nameof(AlertDeliveryController),
+            nameof(NotificationFeedController),
         };
         Assert.Equal(expected.Order(StringComparer.Ordinal), names);
     }

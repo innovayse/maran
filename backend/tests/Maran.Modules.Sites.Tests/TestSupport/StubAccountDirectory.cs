@@ -110,10 +110,15 @@ public sealed class StubAccountDirectory : IAccountDirectory
         return Task.FromResult(ids);
     }
 
-    /// <inheritdoc />
+    /// <summary>Answers an account's system user name without any tenant scope, exactly as the contract says the real one does.</summary>
+    /// <param name="accountId">The account to read.</param>
+    /// <param name="cancellationToken">Unused.</param>
+    /// <returns>The account's id and system user name, or null when this double was not given the account.</returns>
     public Task<AccountSystemUser?> FindSystemUserAsync(Guid accountId, CancellationToken cancellationToken)
     {
-        // Refused rather than answered: only unattended certificate renewal asks this question.
-        throw new NotSupportedException("These tests read no account's system user unscoped.");
+        var snapshot = _snapshots.GetValueOrDefault(accountId);
+
+        return Task.FromResult<AccountSystemUser?>(
+            snapshot is null ? null : new AccountSystemUser(snapshot.Id, snapshot.Username));
     }
 }

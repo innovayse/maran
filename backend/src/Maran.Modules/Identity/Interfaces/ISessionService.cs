@@ -101,4 +101,22 @@ public interface ISessionService
         Guid accountId,
         SessionRevocationReason reason,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Revokes every live view-as session, on one hosting account, that a RESELLER opened.
+    /// </summary>
+    /// <remarks>
+    /// A reseller may view as its own accounts only, so these sessions exist because it owns the account
+    /// and must end when it stops. Sessions an administrator opened on the account are left alone — an
+    /// administrator still sees the account — and so are the customer's own sessions, whose tokens name
+    /// the account and no reseller.
+    /// </remarks>
+    /// <param name="accountId">The account whose reseller view-as sessions end.</param>
+    /// <param name="reason">Why the sessions are ending.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <returns>Resolves once every revocation is stored.</returns>
+    Task RevokeResellerViewAsForAccountAsync(
+        Guid accountId,
+        SessionRevocationReason reason,
+        CancellationToken cancellationToken);
 }

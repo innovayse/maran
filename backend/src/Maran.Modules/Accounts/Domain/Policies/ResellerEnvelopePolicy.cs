@@ -39,6 +39,12 @@ public static class ResellerEnvelopePolicy
             nameof(PlanLimits.MaxPhpWorkersPerPool),
             limits.MaxPhpWorkersPerPool,
             envelope.MaxPhpWorkersPerPool);
+        AddIfOver(violations, nameof(PlanLimits.MaxMailboxes), limits.MaxMailboxes, envelope.MaxMailboxes);
+        AddIfOver(
+            violations,
+            nameof(PlanLimits.MailboxQuotaPoolMib),
+            limits.MailboxQuotaPoolMib,
+            envelope.MailboxQuotaPoolMib);
 
         if ((limits.Features & ~envelope.Features) != AccountFeature.None)
         {

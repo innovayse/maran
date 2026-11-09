@@ -33,6 +33,10 @@ service BackupService {
   // Refused with ERROR_CODE_BELOW_FREE_SPACE_FLOOR, before anything is
   // written, when the filesystem holding the account homes has less than the agent's free-space floor available
   // (issue #148).
+  // With RestoreBackupRequest.scope set, replaces ONE database or ONE site's
+  // directory and nothing else of the account (issue #160); the account's
+  // other files and databases are not touched. The same stages are streamed,
+  // minus the ones the scope does not reach.
   rpc RestoreBackup(RestoreBackupRequest) returns (stream RestoreBackupResponse);
 
   // Lists backups known to the agent for an account.
@@ -76,8 +80,12 @@ service BackupService {
   // the read (a bound reached, a scratch that could not be used, the free-space
   // floor, an archiver that could not run) is ERROR_CODE_SYSTEM_FAILURE or
   // ERROR_CODE_BELOW_FREE_SPACE_FLOOR and says nothing about the artifact. A
-  // missing artifact is ERROR_CODE_NOT_FOUND. A caller treats only the first
-  // kind as damage, and an ok is never produced for something that was not read.
+  // missing artifact is ERROR_CODE_NOT_FOUND. A sealed artifact that does not
+  // open under the key the call carried, or that was sent no key, is
+  // ERROR_CODE_ARCHIVE_UNOPENABLE (issue #445): it is a finding about the pair
+  // of artifact and key, not about the artifact alone. A caller treats only the
+  // first kind as damage, and an ok is never produced for something that was
+  // not read.
   //
   // The account's backup lock is taken first and never waited for: when a
   // backup, a restore, a delete or another verification of the account holds
@@ -166,6 +174,35 @@ message BackupDestination {
   // (https://bucket.host/key). Off by default because AWS deprecated the
   // path form; several self-hosted providers serve only it.
   bool s3_path_style = 8;
+  // Added 2026-11-07, additively (issue #160). LOCAL only (an S3 destination is
+  // refused whole, so the field has no S3 meaning yet).
+  //
+  // The 256-bit key a backup archive is sealed (encrypted) with, written as 64
+  // lowercase hexadecimal characters, or empty for "plain".
+  //
+  // Read by CreateBackup (a non-empty key seals the finished archive with
+  // XChaCha20-Poly1305 before it is hashed and published, and the response says
+  // so in CreateBackupOk.encrypted), by RestoreBackup and by VerifyBackup (a
+  // sealed archive is opened with it; a plain archive is read as before and the
+  // key is not looked at, so every backup taken before this field existed stays
+  // readable). DeleteBackup, ListBackups and ProbeDestination do not use it and
+  // the panel does not send it to them: deleting and listing never open an
+  // archive, and a field the agent would ignore is a field a caller believes in.
+  //
+  // A sealed archive and an empty key, and a key that does not open it, are both
+  // ERROR_CODE_ARCHIVE_UNOPENABLE (issue #445; an agent older than that answered
+  // ERROR_CODE_INVALID_INPUT and ERROR_CODE_VALIDATION_FAILED respectively): in
+  // both the account is untouched. The code says the archive cannot be opened
+  // with this key, not that the key is wrong, because a damaged sealed file
+  // fails the same way and the agent cannot tell the two apart. A key that is
+  // not 64 lowercase hexadecimal characters is ERROR_CODE_INVALID_INPUT, and the
+  // message names neither the key nor any part of it.
+  //
+  // A SECRET, under exactly the rules s3_secret_access_key carries: never
+  // logged, never persisted by the agent, never echoed in an error message, and
+  // discarded with the call. It is held by the PANEL, encrypted at rest; this
+  // agent keeps no key and cannot open an archive without being handed one.
+  string archive_key = 9;
 }
 
 message CreateBackupRequest {
@@ -197,6 +234,14 @@ message CreateBackupOk {
   // How many databases the archive holds a dump of. Zero is an ordinary
   // answer: most static sites have none.
   uint64 database_count = 3;
+  // Added 2026-11-07, additively (issue #160). Whether the stored artifact is a
+  // sealed (encrypted) archive. True exactly when the request's destination
+  // carried an archive_key and the agent sealed the archive with it; false when
+  // it carried none. A caller that sent a key and reads false (an agent from
+  // before this field) has a plain archive on disk and MUST treat the creation
+  // as failed. size_bytes and sha256 above describe the sealed bytes when this
+  // is true.
+  bool encrypted = 4;
 }
 
 message RestoreBackupRequest {
@@ -222,6 +267,31 @@ message RestoreBackupRequest {
   // the correct answer for an account that has none and a visible one for a
   // caller that forgot to fill it in.
   repeated string allowed_databases = 5;
+  // What this restore replaces. Absent is the whole account, which is the only
+  // meaning a caller older than this field can have, so an old panel keeps
+  // restoring exactly what it always did (issue #160).
+  RestoreScope scope = 6;
+}
+
+// Which part of the archive a restore replaces. At most one member is set;
+// none set means the whole account. A scope never carries a path: the agent
+// derives every location from a validated name, so the caller cannot aim a
+// restore at a directory of its choosing.
+message RestoreScope {
+  oneof target {
+    // One database, by its full account-prefixed name. It must also be in
+    // RestoreBackupRequest.allowed_databases (the panel still knows it) and in
+    // the archive's manifest; the agent drops and reloads that database alone
+    // and touches no file. A name the panel has forgotten is refused, never
+    // created.
+    string database_name = 1;
+    // One site, by its primary domain. The agent derives the site's directory
+    // inside the account's home itself (the same place site creation put it) and
+    // replaces that directory alone, from the archive's copy of it. Nothing
+    // else in the home and no database is touched. A domain is validated as a
+    // domain; it can name no other path.
+    string site_domain = 2;
+  }
 }
 
 message RestoreBackupResponse {
@@ -239,13 +309,16 @@ message RestoreBackupResponse {
 // one field — an account-deletion cascade reported COMPLETED at 100% over
 // rows it never touched — and this shape is the answer to it.
 message RestoreBackupOk {
-  // Whether the account's home is now the archive's home. True only after
-  // both renames of the swap succeeded.
+  // Whether the files the restore's scope covers were replaced: the whole home
+  // for a whole restore (true only after both renames of the swap succeeded),
+  // one site's directory for a site restore, and always false for a database
+  // restore, which covers no file.
   bool files_restored = 1;
   // How many databases were dropped, re-created and loaded from the archive.
   uint32 databases_restored = 2;
   // How many databases the restore set out to replace — every database the
-  // manifest names, after allowed_databases has been applied. Equal to
+  // manifest names, after allowed_databases has been applied; exactly one for a
+  // database restore and zero for a site restore. Equal to
   // databases_restored on a whole restore and larger on every other.
   uint32 databases_total = 3;
   // Databases left holding neither their old contents nor the archive's.
@@ -335,6 +408,14 @@ message ReadableBackup {
   uint64 artifact_bytes = 2;
   // SHA-256 of the published .tar.gz, hex, lowercase.
   string artifact_sha256 = 3;
+  // Added 2026-11-07, additively (issue #160). Whether the sidecar labels the
+  // artifact as sealed (encrypted). A LABEL: what the agent does with an
+  // artifact is decided by the file's own first bytes, and VerifyBackup refuses
+  // an artifact whose label and file disagree. False for every sidecar written
+  // before this field existed, which is also what those archives are. The
+  // sidecar, and so this listing, stays readable without the key: it names the
+  // account, the databases and their sizes, and never a file in the home.
+  bool encrypted = 4;
 }
 
 // What the archive says it holds. Nothing here is a path: an archive carrying

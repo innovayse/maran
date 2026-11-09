@@ -1,7 +1,11 @@
 //! Package and binary names on the RHEL family, how its package manager
 //! reports a failed install, and how it reports the updates it knows of.
 
+use maran_agent_core::validation::mail::mail_password_scheme::MailPasswordScheme;
+
+use crate::dovecot_major::DovecotMajor;
 use crate::is_printable_token::is_printable_token;
+use crate::key_value_server::KeyValueServer;
 use crate::package_failure::PackageFailure;
 use crate::pending_update::PendingUpdate;
 use crate::pending_updates_failure::PendingUpdatesFailure;
@@ -312,6 +316,85 @@ pub fn read_reboot_probe_run(status: i32) -> Result<RebootRequirement, RebootPro
         NEEDS_RESTARTING_REQUIRED_STATUS => Ok(RebootRequirement::Required),
         status => Err(RebootProbeFailure::Unsuccessful { status }),
     }
+}
+
+/// The packages that install the mail stack on the RHEL family.
+///
+/// See [`MailFacts::mail_packages`](crate::MailFacts::mail_packages) for what the value is for and how far it is verified.
+#[must_use]
+pub fn mail_packages() -> &'static [&'static str] {
+    &[
+        "postfix",
+        "postfix-lmdb",
+        "dovecot",
+        "dovecot-pigeonhole",
+        "rspamd",
+    ]
+}
+
+/// The packages that install ClamAV on the RHEL family.
+///
+/// See [`MailFacts::antivirus_packages`](crate::MailFacts::antivirus_packages) for what the value is for and how far it is verified.
+#[must_use]
+pub fn antivirus_packages() -> &'static [&'static str] {
+    &["clamav", "clamd", "clamav-update"]
+}
+
+/// The Postfix lookup-table type on the RHEL family.
+///
+/// See [`MailFacts::postfix_map_type`](crate::MailFacts::postfix_map_type) for what the value is for and how far it is verified.
+#[must_use]
+pub fn postfix_map_type() -> &'static str {
+    "lmdb"
+}
+
+/// The mailbox password scheme on the RHEL family.
+///
+/// See [`MailFacts::mail_password_scheme`](crate::MailFacts::mail_password_scheme) for what the value is for and how far it is verified.
+#[must_use]
+pub fn mail_password_scheme() -> MailPasswordScheme {
+    MailPasswordScheme::BlowfishCrypt
+}
+
+/// The Dovecot generation of a release of the RHEL family.
+///
+/// See [`MailFacts::dovecot_major`](crate::MailFacts::dovecot_major) for what the value is for and how far it is verified.
+#[must_use]
+pub fn dovecot_major(version_id: &str) -> Option<DovecotMajor> {
+    match release_major(version_id) {
+        "9" | "10" => Some(DovecotMajor::V23),
+        _ => None,
+    }
+}
+
+/// The Redis-protocol server of a release of the RHEL family.
+///
+/// See [`MailFacts::key_value_server`](crate::MailFacts::key_value_server) for what the value is for and how far it is verified.
+#[must_use]
+pub fn key_value_server(version_id: &str) -> Option<KeyValueServer> {
+    match release_major(version_id) {
+        "9" => Some(KeyValueServer {
+            package: "redis",
+            service: "redis",
+            user: "redis",
+            config_file: "/etc/redis/redis.conf",
+        }),
+        "10" => Some(KeyValueServer {
+            package: "valkey",
+            service: "valkey",
+            user: "valkey",
+            config_file: "/etc/valkey/valkey.conf",
+        }),
+        _ => None,
+    }
+}
+
+/// The part of an os-release `VERSION_ID` before the first dot (`9.4` is `9`, `10` is `10`).
+///
+/// The RHEL family's `VERSION_ID` carries the minor (`9.4`), and the mail facts depend on the
+/// major alone.
+fn release_major(version_id: &str) -> &str {
+    version_id.split('.').next().unwrap_or(version_id)
 }
 
 #[cfg(test)]

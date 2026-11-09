@@ -22,7 +22,10 @@ namespace Maran.Sdk.Filters;
 /// the reservation to each other through <see cref="HttpContext.Items"/>.
 /// </para>
 /// <para>
-/// <b>Answers.</b> No header: the action runs as before. A header that is empty, repeated, longer than
+/// <b>Answers.</b> No header: the action runs as before, unless it is marked
+/// <see cref="IdempotentAttribute.Required"/>, when the request is refused 400 <c>IdempotencyKeyRequired</c>
+/// whether or not a store is composed (the requirement is a promise about the contract, not about the
+/// store). A header that is empty, repeated, longer than
 /// <see cref="IdempotencyLimits.MaxKeyLength"/> or outside <c>[A-Za-z0-9_:.-]</c>, or a body larger than
 /// <see cref="IdempotencyLimits.MaxRequestBodyBytes"/>: 400 <c>IdempotencyKeyInvalid</c> (a body that
 /// cannot be fingerprinted is refused rather than run unprotected, because the caller asked for a
@@ -124,6 +127,12 @@ public sealed class IdempotencyFilter : IAsyncResourceFilter, IAsyncResultFilter
 
         if (!http.Request.Headers.TryGetValue(IdempotencyHeaders.Key, out var header))
         {
+            if (IsKeyRequired(context.ActionDescriptor))
+            {
+                context.Result = IdempotencyRefusal.Of(http, IdempotencyErrorCodes.KeyRequired, StatusCodes.Status400BadRequest);
+                return;
+            }
+
             await next();
             return;
         }
@@ -305,6 +314,18 @@ public sealed class IdempotencyFilter : IAsyncResourceFilter, IAsyncResultFilter
             Content = replay.Body,
             ContentType = replay.ContentType ?? "application/json",
         };
+    }
+
+    /// <summary>Whether the action carries <see cref="IdempotentAttribute"/> with <see cref="IdempotentAttribute.Required"/> set.</summary>
+    /// <param name="action">The action the request was routed to.</param>
+    /// <returns>True when a request without the header must be refused.</returns>
+    private static bool IsKeyRequired(ActionDescriptor action)
+    {
+        return action.EndpointMetadata is not null
+            && action.EndpointMetadata.OfType<IdempotentAttribute>().Any(attribute =>
+            {
+                return attribute.Required;
+            });
     }
 
     /// <summary>Whether the action carries <see cref="IdempotencyNoStoreAttribute"/>.</summary>

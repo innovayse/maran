@@ -28,7 +28,10 @@ mod polygon_php;
 use std::path::{Path, PathBuf};
 
 use maran_distro::{DistroAdapter, adapter_for, detect};
-use maran_ops::php::{PhpOpError, PoolInput, PoolPaths, ProcessPhpHost, write_pool};
+use maran_ops::php::{
+    PhpOpError, PhpOverride, PoolInput, PoolPaths, ProcessPhpHost, apply_php_pool_settings,
+    write_pool,
+};
 
 use polygon_account::PolygonAccount;
 use polygon_config_file::PolygonConfigFile;
@@ -181,6 +184,51 @@ fn a_pool_the_real_php_fpm_rejects_is_refused_by_write_pool_and_leaves_the_previ
     PolygonPhp::assert_tree_valid(
         polygon_distro(),
         "the tree after a rejected pool write was rolled back",
+    );
+}
+
+#[test]
+#[ignore = "writes a real php-fpm pool and runs the real php-fpm -t: polygon only"]
+fn new_settings_are_applied_to_an_existing_pool_and_a_missing_pool_is_never_created() {
+    PolygonAccount::require_polygon();
+    let account = PolygonAccount::create("polypoolsthree");
+    let host = ProcessPhpHost::new();
+    let paths = PoolPaths::for_pool(polygon_distro(), account.name(), &PolygonPhp::version());
+    let _pool = PolygonConfigFile::at(&paths.config_path);
+
+    // No pool yet: the rpc answers that there is none and writes nothing, so
+    // it cannot be used to make a pool for an account that has no site.
+    let mut wanted = pool_for(&account);
+    wanted.overrides = vec![PhpOverride::parse("memory_limit", "192M").unwrap()];
+    let refusal = apply_php_pool_settings(&host, polygon_distro(), &wanted);
+    assert!(
+        matches!(refusal, Err(PhpOpError::PoolMissing { .. })),
+        "a missing pool must be reported, got {refusal:?}"
+    );
+    assert!(
+        !paths.config_path.exists(),
+        "applying settings must never create the pool file"
+    );
+
+    // With the pool in place the new settings land in the file the real
+    // php-fpm reads, and the tree is still one it accepts.
+    write_pool(&host, polygon_distro(), &pool_for(&account))
+        .unwrap_or_else(|error| panic!("the pool must be written first: {error}"));
+    apply_php_pool_settings(&host, polygon_distro(), &wanted)
+        .unwrap_or_else(|error| panic!("applying settings must succeed: {error}"));
+    let applied = std::fs::read_to_string(&paths.config_path).expect("the pool must be readable");
+    assert!(
+        applied.contains("php_value[memory_limit] = 192M"),
+        "the new setting must be in the pool: {applied}"
+    );
+    PolygonPhp::assert_tree_valid(polygon_distro(), "the pool after its settings were applied");
+
+    // The same request again changes nothing on disk.
+    apply_php_pool_settings(&host, polygon_distro(), &wanted).unwrap();
+    assert_eq!(
+        std::fs::read_to_string(&paths.config_path).unwrap(),
+        applied,
+        "a repeated request must leave the pool as it was"
     );
 }
 

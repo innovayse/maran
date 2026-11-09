@@ -1,0 +1,62 @@
+{
+  "filesBrowser": {
+    "heading": "File manager",
+    "subtitle": "Browse, search and organise the files in an account's home folder.",
+    "accountLabel": "Account",
+    "accountPlaceholder": "Choose an account",
+    "trashLink": "Trash",
+    "newFile": "New file",
+    "newFolder": "New folder",
+    "chooseAccountTitle": "Choose an account",
+    "chooseAccountDescription": "Pick the account whose files you want to browse.",
+    "pathLabel": "Folder path",
+    "home": "Home",
+    "emptyTitle": "This folder is empty",
+    "emptyDescription": "Files and folders you add here will be listed.",
+    "noResultsTitle": "No files match",
+    "noResultsDescription": "Change the search, or clear it to see everything in this folder.",
+    "tableCaption": "Files and folders",
+    "selectRow": "Select {name}",
+    "columns": {
+      "name": "Name",
+      "kind": "Kind",
+      "size": "Size",
+      "modified": "Modified",
+      "mode": "Permissions"
+    },
+    "kinds": {
+      "file": "File",
+      "directory": "Folder",
+      "other": "Other",
+      "link": "Link"
+    },
+    "menu": {
+      "label": "Actions for {name}",
+      "edit": "Edit",
+      "download": "Download",
+      "rename": "Rename",
+      "move": "Move",
+      "copy": "Copy",
+      "permissions": "Permissions",
+      "archive": "Compress",
+      "extract": "Extract",
+      "trash": "Move to trash",
+      "delete": "Delete permanently"
+    },
+    "selection": {
+      "count": "{count} selected",
+      "actions": "Actions for the selected items",
+      "clear": "Clear selection",
+      "tooMany": "A single action can name at most {max} items. Select fewer."
+    },
+    "toolbar": {
+      "up": "Up",
+      "searchLabel": "Search this folder",
+      "searchPlaceholder": "Search by name…",
+      "searchClear": "Clear the search",
+      "showHidden": "Show hidden files",
+      "selectAll": "Select all",
+      "refresh": "Refresh"
+    }
+  }
+}

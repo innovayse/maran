@@ -2,7 +2,8 @@
 # Scaffolds the canonical anatomy for one backend module (rules/csharp.md
 # "Canonical backend layout", rules/architecture.md "Skeleton policy"). Keeps every
 # module identical in shape. It creates directories only; a directory stays untracked
-# until its first real file lands in it.
+# until its first real file lands in it. A folder kept in git before then holds a zero-byte
+# .gitkeep (rules/architecture.md "Skeleton policy"), which `maran structure` accepts in Common/ too.
 #
 # Usage: scripts/maran module <Name>        (e.g. scripts/maran module Accounts)
 # Creates backend/src/Maran.Modules/<Name>/ (short folder name;

@@ -1,4 +1,6 @@
+using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.Domain.Policies;
 using Maran.Modules.Identity.IntegrationEvents.Handlers;
 using Maran.Modules.Identity.Options;
 using Maran.Modules.Identity.Persistence;
@@ -6,6 +8,7 @@ using Maran.Modules.Identity.Services;
 using Maran.Modules.Identity.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Events;
+using Maran.SharedKernel.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -17,6 +20,8 @@ namespace Maran.Modules.Identity.Tests.IntegrationEvents.Handlers;
 /// </summary>
 public sealed class AccountCreatedHandlerTests : IDisposable
 {
+    private const string InitialPassword = "first horse battery staple";
+
     private static readonly Guid AccountId = Guid.Parse("aaaaaaaa-0000-4000-8000-000000000001");
 
     private static readonly DateTimeOffset Now = new(2026, 9, 25, 12, 0, 0, TimeSpan.Zero);
@@ -37,6 +42,17 @@ public sealed class AccountCreatedHandlerTests : IDisposable
         return new AccountCreated(AccountId, "owner-one", "owner@example.com", "en");
     }
 
+    private static AccountCreated CreatedWithPassword(string? password = InitialPassword, string username = "owner-one")
+    {
+        return new AccountCreated(
+            AccountId,
+            username,
+            "owner@example.com",
+            "en",
+            OwnerLoginMode.InitialPassword,
+            password is null ? null : new SensitiveString(password));
+    }
+
     private AccountCreatedHandler NewHandler(string panelUrl = "")
     {
         return new AccountCreatedHandler(
@@ -46,7 +62,9 @@ public sealed class AccountCreatedHandlerTests : IDisposable
             new IdentityAuditJournal(_audit, new StubCurrentUser()),
             new InvitationMailComposer(
                 new StubEmailTemplates(), new OptionsWrapper<PanelOptions>(new PanelOptions { PublicUrl = panelUrl })),
-            _clock);
+            _clock,
+            new Argon2idPasswordHasher(),
+            new InitialPasswordPolicy(TestSecurityPolicyCache.Over(_context)));
     }
 
     /// <summary>A created account yields exactly one invited login, one live token, and one published mail.</summary>
@@ -134,6 +152,181 @@ public sealed class AccountCreatedHandlerTests : IDisposable
         Assert.DoesNotContain(embedded, entry.ActorUsername, StringComparison.Ordinal);
         Assert.DoesNotContain(token.TokenHash, entry.Subject, StringComparison.Ordinal);
         Assert.DoesNotContain(token.TokenHash, entry.ActorUsername, StringComparison.Ordinal);
+    }
+
+    /// <summary>An initial password makes a usable login that must change it, with no token and no mail.</summary>
+    [Fact]
+    public async Task An_initial_password_makes_a_usable_login_that_must_change_it_with_no_token_and_no_mail()
+    {
+        await NewHandler().HandleAsync(CreatedWithPassword(), CancellationToken.None);
+
+        var user = await _context.Users.SingleAsync();
+        Assert.Equal(UserLifecycle.Active, user.Lifecycle);
+        Assert.True(user.PasswordChangeRequired);
+        Assert.True(new Argon2idPasswordHasher().Verify(InitialPassword, user.PasswordHash));
+        Assert.Equal(AccountId, Assert.Single(await _context.AccountMemberships.ToListAsync()).AccountId);
+        Assert.Empty(await _context.InvitationTokens.ToListAsync());
+        Assert.Empty(_bus.Published);
+    }
+
+    /// <summary>An invitation leaves a login that owes no password change: the accepting control for the branch.</summary>
+    [Fact]
+    public async Task An_invitation_leaves_a_login_that_owes_no_password_change()
+    {
+        await NewHandler().HandleAsync(Created(), CancellationToken.None);
+
+        Assert.False((await _context.Users.SingleAsync()).PasswordChangeRequired);
+    }
+
+    /// <summary>The entry journals the mode and never the password or its hash.</summary>
+    [Fact]
+    public async Task The_entry_names_the_mode_and_never_carries_the_password_or_its_hash()
+    {
+        await NewHandler().HandleAsync(CreatedWithPassword(), CancellationToken.None);
+
+        var user = await _context.Users.SingleAsync();
+        var entry = Assert.Single(_audit.Written);
+        Assert.Equal(IdentityAuditActions.CustomerCreatedWithPassword, entry.Action);
+        Assert.Equal("owner-one", entry.Subject);
+        Assert.DoesNotContain(InitialPassword, entry.Subject, StringComparison.Ordinal);
+        Assert.DoesNotContain(InitialPassword, entry.ActorUsername, StringComparison.Ordinal);
+        Assert.DoesNotContain(user.PasswordHash, entry.Subject, StringComparison.Ordinal);
+        Assert.DoesNotContain(user.PasswordHash, entry.ActorUsername, StringComparison.Ordinal);
+    }
+
+    /// <summary>The plaintext password is stored nowhere in the Identity tables.</summary>
+    /// <remarks>
+    /// A planted-password probe over every string the handler leaves behind, with its positive control:
+    /// the same probe finds the username the handler stored, so a probe that looked at nothing would fail.
+    /// </remarks>
+    [Fact]
+    public async Task The_plaintext_password_is_stored_nowhere()
+    {
+        await NewHandler().HandleAsync(CreatedWithPassword(), CancellationToken.None);
+
+        var user = await _context.Users.SingleAsync();
+        var stored = new List<string>
+        {
+            user.Username,
+            user.Email,
+            user.PasswordHash,
+            user.TotpSecret ?? string.Empty,
+        };
+
+        Assert.Contains(stored, value => { return value.Contains("owner-one", StringComparison.Ordinal); });
+        Assert.DoesNotContain(stored, value => { return value.Contains(InitialPassword, StringComparison.Ordinal); });
+    }
+
+    /// <summary>The event prints the password as a mask, so logging it leaks nothing.</summary>
+    [Fact]
+    public void The_event_prints_the_password_as_a_mask()
+    {
+        var text = CreatedWithPassword().ToString();
+
+        Assert.DoesNotContain(InitialPassword, text, StringComparison.Ordinal);
+        Assert.Contains("[redacted]", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>Invoked twice with a password, the handler leaves one login.</summary>
+    [Fact]
+    public async Task Invoked_twice_with_a_password_the_handler_leaves_one_login()
+    {
+        var handler = NewHandler();
+        await handler.HandleAsync(CreatedWithPassword(), CancellationToken.None);
+
+        await handler.HandleAsync(CreatedWithPassword(), CancellationToken.None);
+
+        Assert.Equal(1, await _context.Users.CountAsync());
+        Assert.Single(_audit.Written);
+    }
+
+    /// <summary>A password shorter than the operator's minimum creates no login.</summary>
+    [Fact]
+    public async Task A_password_shorter_than_the_minimum_creates_no_login()
+    {
+        var tooShort = new string('x', SecurityPolicy.DefaultMinimumPasswordLength - 1);
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            await NewHandler().HandleAsync(CreatedWithPassword(tooShort), CancellationToken.None);
+        });
+
+        Assert.DoesNotContain(tooShort, thrown.Message, StringComparison.Ordinal);
+        Assert.Empty(await _context.Users.ToListAsync());
+        Assert.Empty(await _context.AccountMemberships.ToListAsync());
+        Assert.Empty(_audit.Written);
+    }
+
+    /// <summary>A password exactly as long as the minimum is accepted: the boundary, from the other side.</summary>
+    [Fact]
+    public async Task A_password_exactly_as_long_as_the_minimum_is_accepted()
+    {
+        var exact = new string('x', SecurityPolicy.DefaultMinimumPasswordLength);
+
+        await NewHandler().HandleAsync(CreatedWithPassword(exact), CancellationToken.None);
+
+        Assert.Single(await _context.Users.ToListAsync());
+    }
+
+    /// <summary>A password equal to the login name creates no login.</summary>
+    [Fact]
+    public async Task A_password_equal_to_the_username_creates_no_login()
+    {
+        var username = new string('u', SecurityPolicy.DefaultMinimumPasswordLength);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            await NewHandler().HandleAsync(CreatedWithPassword(username, username), CancellationToken.None);
+        });
+
+        Assert.Empty(await _context.Users.ToListAsync());
+    }
+
+    /// <summary>A password over the ceiling creates no login.</summary>
+    [Fact]
+    public async Task A_password_over_the_ceiling_creates_no_login()
+    {
+        var tooLong = new string('x', PasswordPolicy.MaxLength + 1);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            await NewHandler().HandleAsync(CreatedWithPassword(tooLong), CancellationToken.None);
+        });
+
+        Assert.Empty(await _context.Users.ToListAsync());
+    }
+
+    /// <summary>The initial-password mode without a password creates nothing and never falls through to an invitation.</summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task The_initial_password_mode_without_a_password_creates_nothing(string? password)
+    {
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            await NewHandler().HandleAsync(CreatedWithPassword(password), CancellationToken.None);
+        });
+
+        Assert.Empty(await _context.Users.ToListAsync());
+        Assert.Empty(await _context.InvitationTokens.ToListAsync());
+        Assert.Empty(_bus.Published);
+    }
+
+    /// <summary>A password supplied for the invitation mode is refused, not silently ignored.</summary>
+    [Fact]
+    public async Task A_password_supplied_for_the_invitation_mode_is_refused()
+    {
+        var contradictory = new AccountCreated(
+            AccountId, "owner-one", "owner@example.com", "en", OwnerLoginMode.Invitation, new SensitiveString(InitialPassword));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            await NewHandler().HandleAsync(contradictory, CancellationToken.None);
+        });
+
+        Assert.Empty(await _context.Users.ToListAsync());
+        Assert.Empty(_bus.Published);
     }
 
     /// <summary>Pulls the token query string value out of the composed invitation link.</summary>

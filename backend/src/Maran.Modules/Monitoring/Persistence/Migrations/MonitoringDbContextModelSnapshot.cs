@@ -65,6 +65,35 @@ namespace Maran.Modules.Monitoring.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Maran.Modules.Monitoring.Domain.Entities.AlertThresholds", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("CpuPercent")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("DiskPercent")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("MemoryPercent")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("AlertThresholds", "monitoring", t =>
+                        {
+                            t.HasCheckConstraint("CK_AlertThresholds_CpuPercent", "\"CpuPercent\" IS NULL OR \"CpuPercent\" BETWEEN 50 AND 99");
+
+                            t.HasCheckConstraint("CK_AlertThresholds_DiskPercent", "\"DiskPercent\" BETWEEN 50 AND 99");
+
+                            t.HasCheckConstraint("CK_AlertThresholds_MemoryPercent", "\"MemoryPercent\" IS NULL OR \"MemoryPercent\" BETWEEN 50 AND 99");
+                        });
+                });
+
             modelBuilder.Entity("Maran.Modules.Monitoring.Domain.Entities.LogLevelSetting", b =>
                 {
                     b.Property<Guid>("Id")

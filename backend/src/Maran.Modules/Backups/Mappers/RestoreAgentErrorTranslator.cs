@@ -51,6 +51,10 @@ namespace Maran.Modules.Backups.Mappers;
 /// So an agent refusal of the <see cref="ErrorType.Validation"/> KIND on a restore stream is the
 /// agent refusing the ARTIFACT, and it is given this module's <c>RestoreArtifactRejected</c>,
 /// which states the refusal and does not prescribe a remedy the panel cannot know applies.
+/// The one exception is a sealed archive that did not open under the destination's key
+/// (<c>AgentArchiveUnopenable</c>, issue #445): it has a remedy the panel does know, and gets
+/// <c>RestoreArchiveKeyRejected</c>, worded as "could not be opened with the key" and never as "the
+/// key is wrong", because a damaged sealed copy fails the same way.
 /// Measured in a browser against a deliberately corrupted archive, the restore dialog showed
 /// "correct them and try again" immediately above "retyping the confirmation will not change this
 /// answer" — two adjacent sentences contradicting each other, in the middle of a recovery. The KIND
@@ -92,6 +96,21 @@ public static class RestoreAgentErrorTranslator
     /// </remarks>
     private const string AgentAlreadyExistsCode = "AgentAlreadyExists";
 
+    /// <summary>
+    /// The agent client's code for the wire's <c>NOT_FOUND</c>, which on a restore narrowed to one
+    /// database or one site means the archive does not hold that part (or, rarely, the archive
+    /// itself is gone).
+    /// </summary>
+    /// <remarks>A literal for the reason <see cref="AgentAlreadyExistsCode"/> is.</remarks>
+    private const string AgentNotFoundCode = "AgentNotFound";
+
+    /// <summary>
+    /// The agent client's code for a sealed archive that did not open under the key the restore
+    /// carried, or that was sent none (issue #445).
+    /// </summary>
+    /// <remarks>A literal for the reason <see cref="AgentAlreadyExistsCode"/> is.</remarks>
+    private const string AgentArchiveUnopenableCode = "AgentArchiveUnopenable";
+
     /// <summary>Names the failure a non-successful restore event represents, and its kind.</summary>
     /// <param name="terminal">The event that ended the stream.</param>
     /// <returns>
@@ -108,7 +127,49 @@ public static class RestoreAgentErrorTranslator
     /// </returns>
     public static Error ToFailure(BackupRestoreEvent terminal)
     {
+        return ToFailure(terminal, new AgentWholeRestoreScope());
+    }
+
+    /// <summary>
+    /// Names the failure a non-successful restore event represents, knowing what the restore was
+    /// narrowed to (issue #160).
+    /// </summary>
+    /// <param name="terminal">The event that ended the stream.</param>
+    /// <param name="scope">What the restore set out to replace.</param>
+    /// <returns>
+    /// As <see cref="ToFailure(BackupRestoreEvent)"/>, except that a not-found from the agent on a
+    /// restore narrowed to one database or one site is this module's <c>RestoreScopeNotInBackup</c>.
+    /// </returns>
+    /// <remarks>
+    /// <b>On a narrowed restore, not-found means the backup does not hold the part, and the sentence
+    /// says both things it can mean.</b> The agent answers NOT_FOUND for a database the manifest does
+    /// not name, a directory the archive has no copy of, and — much less often — an artifact that is no
+    /// longer on the disk. The first two are what a customer who restores a database created after the
+    /// backup will meet, and the shared "not found" table would tell them nothing; the third is a
+    /// finding verification exists to surface, and the sentence mentions it so it is not hidden. The
+    /// kind is kept: still not-found, still HTTP 404, and nothing was changed in either case. A WHOLE
+    /// restore is untouched by this: its not-found keeps the shared sentence.
+    /// </remarks>
+    public static Error ToFailure(BackupRestoreEvent terminal, AgentRestoreScope scope)
+    {
         ArgumentNullException.ThrowIfNull(terminal);
+        ArgumentNullException.ThrowIfNull(scope);
+
+        if (scope is not AgentWholeRestoreScope
+            && terminal.Kind == BackupRestoreEventKind.Failed
+            && string.Equals(terminal.Failure?.Code, AgentNotFoundCode, StringComparison.Ordinal))
+        {
+            return Error.Of(nameof(ErrorMessages.RestoreScopeNotInBackup), ErrorType.NotFound);
+        }
+
+        // Before the general artifact refusal below, which it would otherwise be swallowed by: both are
+        // the validation KIND, and only this one has a remedy the panel can name (the destination's
+        // archive key), where the other says the copy is not what was recorded.
+        if (terminal.Kind == BackupRestoreEventKind.Failed
+            && string.Equals(terminal.Failure?.Code, AgentArchiveUnopenableCode, StringComparison.Ordinal))
+        {
+            return Error.Of(nameof(ErrorMessages.RestoreArchiveKeyRejected), ErrorType.Validation);
+        }
 
         if (terminal.Kind == BackupRestoreEventKind.Failed && terminal.Failure?.Type == ErrorType.Validation)
         {

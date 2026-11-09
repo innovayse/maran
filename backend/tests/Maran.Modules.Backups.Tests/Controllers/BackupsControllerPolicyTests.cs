@@ -21,6 +21,7 @@ public sealed class BackupsControllerPolicyTests
     [InlineData(typeof(BackupSchedulesController), AuthorizationPolicies.AdminOnly)]
     [InlineData(typeof(BackupsController), AuthorizationPolicies.AnyAuthenticated)]
     [InlineData(typeof(BackupOptionsController), AuthorizationPolicies.AnyAuthenticated)]
+    [InlineData(typeof(MyBackupScheduleController), AuthorizationPolicies.AnyAuthenticated)]
     public void A_controller_names_its_policy_on_the_class(Type controller, string policy)
     {
         var policies = controller
@@ -90,6 +91,7 @@ public sealed class BackupsControllerPolicyTests
             nameof(BackupOptionsController),
             nameof(BackupSchedulesController),
             nameof(BackupsController),
+            nameof(MyBackupScheduleController),
         };
         Assert.Equal(expected.Order(StringComparer.Ordinal), names);
     }
