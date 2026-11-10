@@ -306,20 +306,19 @@ jobs:
       # `CAP_SYS_ADMIN` cannot mount anything — so the suite now belongs to the
       # capability class this step does not have.
       #
-      # `restore_recovery_on_a_real_host` belongs HERE and not with
-      # `backup_on_a_real_host`, even though it is the other half of the same
-      # module: it mounts nothing. It needs a real account, the image's own
-      # MariaDB and a real `/home` — everything this step already has — plus a
-      # process it can KILL, which is a thing any container can do to its own
-      # children. It is the proof for privileges audit F-2: each case re-enters
-      # this test binary as a child, has the child run a real `restore_backup`,
-      # and kills that child with `SIGKILL` from inside the restore's own
-      # progress sink — once between the two renames that swap the account's
-      # home, and once after a rollback dump has been written — then runs the
-      # reconciliation the daemon performs before it binds its socket and
-      # asserts the customer's home came back. Nothing else in this repository
-      # observes a restore that stops existing halfway; a kill in that window
-      # used to leave an account with NO home directory, permanently.
+      # `restore_recovery_on_a_real_host` is NOT in this step, though it is the
+      # other half of the same module as `backup_on_a_real_host`: since issue
+      # #487 one of its cases (`after_a_whole_restore_the_sftp_jail_shows_the_restored_home_and_uploads_land_in_it`)
+      # creates a real SFTP login and so makes a real bind mount of the home,
+      # which a container without `CAP_SYS_ADMIN` cannot do (`JailFailed`, read
+      # as a code defect). It therefore runs in the mounting step below. Its
+      # other cases need only a real account, the image's own MariaDB and a real
+      # `/home`, plus a process they can KILL: each re-enters this test binary as
+      # a child, has the child run a real `restore_backup`, and kills that child
+      # with `SIGKILL` from inside the restore's own progress sink, then runs the
+      # reconciliation the daemon performs before it binds its socket and asserts
+      # the customer's home came back (privileges audit F-2: a kill in that
+      # window used to leave an account with NO home directory, permanently).
       #
       # Until this line existed the suite was in no `--test` list at all, and
       # that was not merely "the suite does not run": `maran polygon verify`
@@ -338,7 +337,7 @@ jobs:
       # a planted break in the privilege drop puts one named test plus 25 further
       # host tests red on each family, and only a run carrying this flag reports
       # more than the first of them.
-      - name: Sites, PHP pools, privileges, databases, monitoring, restore recovery and the panel certificate on a real host
+      - name: Sites, PHP pools, privileges, databases, monitoring and the panel certificate on a real host
         run: |
           # pipefail and an explicitly captured status: `docker run ... | tee` reports TEE's
           # exit status, which is 0 whatever the container did. Piping without this would add a
@@ -367,7 +366,6 @@ jobs:
             cargo test --test sites_on_a_real_host --test php_pools_on_a_real_host \
               --test privileges_on_a_real_host --test databases_on_a_real_host \
               --test monitor_on_a_real_host --test binary_paths_on_a_real_host \
-              --test restore_recovery_on_a_real_host \
               --test php_socket_migration_on_a_real_host \
               --test panel_certificate_on_a_real_host \
               --test account_limits_on_a_real_host \
@@ -470,6 +468,7 @@ jobs:
               --test account_identity_on_a_real_host \
               --test account_leftovers_on_a_real_host \
               --test backup_on_a_real_host \
+              --test restore_recovery_on_a_real_host \
               --test transfer_on_a_real_host \
               --test files_browse_on_a_real_host \
               --test files_browse_containment_on_a_real_host \

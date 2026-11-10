@@ -38,7 +38,7 @@ rust	sites_on_a_real_host [tests/sites_on_a_real_host.rs]	0	0	39
 rust	transfer_on_a_real_host [tests/transfer_on_a_real_host.rs]	0	0	4
 rust	maran_agent_core [unittests src/lib.rs]	1127	0	0
 rust	maran_distro [unittests src/lib.rs]	351	0	0
-rust	maran_ops [unittests src/lib.rs]	3858	0	1
+rust	maran_ops [unittests src/lib.rs]	3859	0	1
 rust	bound_errors [tests/bound_errors.rs]	9	0	0
 rust	safe_write_bound_on_real_processes [tests/safe_write_bound_on_real_processes.rs]	6	0	0
 rust	maran_templates [unittests src/lib.rs]	38	0	0

@@ -414,7 +414,7 @@ fn apex_only_zone() -> String {
 
 /// Renders the two key files of `key` with the agent's templates, as `put_zone`
 /// writes them, into `directory`, under the names the agent derives.
-fn write_agent_key_files(directory: &Path, key: &DnssecKeyMaterial) -> String {
+fn write_agent_key_files(directory: &Path, key: &DnssecKeyMaterial) {
     let zone = ZoneName::parse(ZONE).unwrap();
     let name = DnssecKeyFileName::of(&zone, key).unwrap();
     let private = DnssecPrivateKey {
@@ -437,7 +437,6 @@ fn write_agent_key_files(directory: &Path, key: &DnssecKeyMaterial) -> String {
 
     std::fs::write(directory.join(name.private_file()), private).unwrap();
     std::fs::write(directory.join(name.public_file()), public).unwrap();
-    name.as_str().to_owned()
 }
 
 #[test]
@@ -449,16 +448,22 @@ fn the_key_files_the_agent_renders_are_read_by_the_real_signer_and_carry_the_sam
     let key = agent_key(&generated);
 
     let keys = tempfile::tempdir().unwrap();
-    let base = write_agent_key_files(keys.path(), &key);
+    write_agent_key_files(keys.path(), &key);
     let work = tempfile::tempdir().unwrap();
     std::fs::write(work.path().join("zone.db"), apex_only_zone()).unwrap();
 
+    // Smart signing (`-S`): the signer FINDS the zone's keys in the key directory by
+    // the names the agent gave the files and reads their timing metadata, which is
+    // how the daemon's tools meet a key. Naming the key on the command line instead
+    // would need its DNSKEY already in the zone file, and would not look at the
+    // file names at all.
     let key_directory = keys.path().to_str().unwrap();
     let (status, printed) = run_in(
         work.path(),
         &tool("dnssec-signzone"),
         &[
             "-q",
+            "-S",
             "-z",
             "-K",
             key_directory,
@@ -467,7 +472,6 @@ fn the_key_files_the_agent_renders_are_read_by_the_real_signer_and_carry_the_sam
             "-f",
             "out.signed",
             "zone.db",
-            &base,
         ],
     );
     assert_eq!(
@@ -506,10 +510,6 @@ fn the_key_files_the_agent_renders_are_read_by_the_real_signer_and_carry_the_sam
 #[ignore = "needs dnssec-signzone; runs in the polygon container"]
 fn the_signer_refuses_to_sign_without_the_key_files_so_the_case_above_means_something() {
     // The inverse control: the same signer, the same zone, an empty key directory.
-    let generated_in = tempfile::tempdir().unwrap();
-    let generated = generate_key(generated_in.path());
-    let key = agent_key(&generated);
-    let name = DnssecKeyFileName::of(&ZoneName::parse(ZONE).unwrap(), &key).unwrap();
     let empty = tempfile::tempdir().unwrap();
     let work = tempfile::tempdir().unwrap();
     std::fs::write(work.path().join("zone.db"), apex_only_zone()).unwrap();
@@ -519,6 +519,7 @@ fn the_signer_refuses_to_sign_without_the_key_files_so_the_case_above_means_some
         &tool("dnssec-signzone"),
         &[
             "-q",
+            "-S",
             "-z",
             "-K",
             empty.path().to_str().unwrap(),
@@ -527,7 +528,6 @@ fn the_signer_refuses_to_sign_without_the_key_files_so_the_case_above_means_some
             "-f",
             "out.signed",
             "zone.db",
-            name.as_str(),
         ],
     );
 

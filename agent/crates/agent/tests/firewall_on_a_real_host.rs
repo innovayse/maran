@@ -56,7 +56,8 @@ use maran_agent_core::validation::web::source_cidr::SourceCidr;
 use maran_distro::{DistroAdapter, DistroFamily, adapter_for, detect};
 use maran_ops::firewall::{
     FirewallError, FirewallRule, NftablesProtocol, PortSpan, ProcessFirewallHost, RulesetPorts,
-    RulesetState, allow_port, ban_address, deny_port, list_bans, list_rules, unban_address,
+    RulesetState, allow_port, ban_address, deny_port, ensure_bans_table, list_bans, list_rules,
+    unban_address,
 };
 
 use polygon_firewall::{BANS_TABLE, PolygonFirewall, RULES_TABLE};
@@ -523,6 +524,11 @@ fn removing_one_of_two_ssh_rules_leaves_the_port_open_to_the_other_source_only()
     // The ban table sits ahead of the rules table, so a ban on the operator's
     // own address would drop SSH whatever the accepts say; this is why the
     // panel refuses it (the ordering itself is asserted by the ban test).
+    // Allowing and denying never load the bans table (the installer seeds it,
+    // and the first ban ensures it), so this test loads it the way a ban does
+    // before it reads the table back.
+    ensure_bans_table(&ProcessFirewallHost::new(), polygon_distro())
+        .expect("loading the bans table must succeed");
     let bans = firewall.listing(BANS_TABLE);
     assert!(
         bans.contains("priority filter - 5") || bans.contains("priority -5"),

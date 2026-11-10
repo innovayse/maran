@@ -337,7 +337,6 @@ docker run --rm -v "$PWD:/maran" -w /maran/agent -e CARGO_TARGET_DIR=/tmp/target
   cargo test --test sites_on_a_real_host --test php_pools_on_a_real_host \
     --test privileges_on_a_real_host --test databases_on_a_real_host \
     --test monitor_on_a_real_host --test binary_paths_on_a_real_host \
-    --test restore_recovery_on_a_real_host \
     --test php_socket_migration_on_a_real_host \
     --test panel_certificate_on_a_real_host \
     --test account_limits_on_a_real_host \
@@ -350,10 +349,11 @@ docker run --rm -v "$PWD:/maran" -w /maran/agent -e CARGO_TARGET_DIR=/tmp/target
     -- --ignored --test-threads=1
 ```
 
-`restore_recovery_on_a_real_host.rs` is here rather than in the privileged
-command because it mounts nothing: it needs a real account, the image's own
-MariaDB and a real `/home`, all of which the command above already has. What it
-does need is a process it can KILL. Each of its cases re-enters this same test
+`restore_recovery_on_a_real_host.rs` is in the privileged command below, not this
+one: since issue #487 one of its cases creates a real SFTP login and so makes a
+real bind mount of the home, which needs `--privileged`. Its other cases need a
+real account, the image's own MariaDB and a real `/home`, plus a process they can
+KILL. Each of its cases re-enters this same test
 binary as a child, has the child run a real `restore_backup`, and kills that
 child with `SIGKILL` from inside the restore's own progress sink — once between
 the two renames that swap the account's home, and once after a rollback dump has
@@ -402,7 +402,7 @@ docker run --rm --privileged -v "$PWD:/maran" -w /maran/agent -e CARGO_TARGET_DI
     --test ftps_on_a_real_host \
     --test account_deletion_on_a_real_host --test account_identity_on_a_real_host \
     --test account_leftovers_on_a_real_host \
-    --test backup_on_a_real_host \
+    --test backup_on_a_real_host --test restore_recovery_on_a_real_host \
     --test files_browse_on_a_real_host --test files_browse_containment_on_a_real_host \
     --test files_browse_bounds_on_a_real_host \
     --test firewall_on_a_real_host --test cron_on_a_real_host \

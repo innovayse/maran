@@ -27,6 +27,7 @@ use std::process::Command;
 use std::sync::Arc;
 
 use maran_agent::services::backup::db_host_catalog::DbHostCatalog;
+use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
 use maran_agent_core::validation::system::backup_id::BackupId;
 use maran_agent_core::validation::system::local_backup_root::LocalBackupRoot;
@@ -337,7 +338,19 @@ fn an_import_is_refused_for_an_account_whose_system_user_exists_and_nothing_is_p
     let account = PolygonAccount::create("polyxferthr");
     let (signed, bytes) = backup_and_export(&account);
 
-    // The same package, into a fresh id: the user exists in the real password database, so it is refused (D1).
+    // The export's own backup is still published under this id, and a package whose id is published with the
+    // same digest is a converged retry, answered before the user is looked up. Free the id first, so the
+    // package is new to this host while its account's system user exists in the real password database (D1).
+    for suffix in [
+        AgentPaths::BACKUP_ARTIFACT_SUFFIX,
+        AgentPaths::BACKUP_SIDECAR_SUFFIX,
+    ] {
+        let published = root()
+            .as_path()
+            .join(account.name().as_str())
+            .join(format!("{FIXTURE_BACKUP_ID}{suffix}"));
+        std::fs::remove_file(&published).expect("the exported backup's file is removed");
+    }
     let before = std::fs::read_dir(root().as_path().join(account.name().as_str()))
         .expect("backup directory")
         .count();
