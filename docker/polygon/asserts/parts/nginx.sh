@@ -1167,7 +1167,7 @@ $(cat "$rendered")"
   found="${work}/nginx.conf.found"
   cp -p "$conf" "$found"
   found_previous="${work}/nginx.conf.found-previous"
-  [ -f "${conf}.maran-previous" ] && cp -p "${conf}.maran-previous" "$found_previous"
+  if [ -f "${conf}.maran-previous" ]; then cp -p "${conf}.maran-previous" "$found_previous"; fi
   awk -v prefix="$prefix" 'index($0, prefix) == 1 { print substr($0, length(prefix) + 1); next } { print }' "$conf" > "$pristine"
   cat "$pristine" > "$conf"
   active_before="$(active_port80 "$conf")"
@@ -1194,7 +1194,7 @@ $(nginx -T 2>/dev/null | sed 's/#.*//' | grep -E 'listen')"
 
   cp -p "$found" "$conf"
   rm -f "${conf}.maran-previous"
-  [ -f "$found_previous" ] && cp -p "$found_previous" "${conf}.maran-previous"
+  if [ -f "$found_previous" ]; then cp -p "$found_previous" "${conf}.maran-previous"; fi
   nginx -t >/dev/null 2>&1 || fail "this assertion did not put ${conf} back the way it found it:
 $(nginx -t 2>&1)"
   rm -rf "$work"
