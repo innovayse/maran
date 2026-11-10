@@ -42,6 +42,7 @@ rust	maran_ops [unittests src/lib.rs]	3859	0	1
 rust	bound_errors [tests/bound_errors.rs]	9	0	0
 rust	safe_write_bound_on_real_processes [tests/safe_write_bound_on_real_processes.rs]	6	0	0
 rust	maran_templates [unittests src/lib.rs]	38	0	0
+rust	apache_golden_test [tests/apache_golden_test.rs]	9	0	0
 rust	bind_golden_test [tests/bind_golden_test.rs]	9	0	0
 rust	dnssec_golden_test [tests/dnssec_golden_test.rs]	7	0	0
 rust	golden_test [tests/golden_test.rs]	25	0	0

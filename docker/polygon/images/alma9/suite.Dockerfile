@@ -57,6 +57,9 @@ ENV RUSTUP_HOME=/usr/local/rustup \
 # in one.
 ENV MARAN_POLYGON=alma9
 
+# `diffutils` is named because the installer asserts compare files with `cmp`, and the
+# minimal image only had it as a dependency of the php-fpm that is no longer preinstalled.
+#
 # The panel's web server first, from the family's own repositories: nginx from
 # AlmaLinux, and Remi as the PHP package SOURCE only (no PHP package is installed: a PHP
 # version is an app). Remi requires EPEL, so both release rpms are
@@ -77,6 +80,7 @@ RUN dnf install -y --nodocs ca-certificates \
     && rm /tmp/epel-release.rpm /tmp/remi-release.rpm \
     && dnf install -y --nodocs \
         nginx \
+        diffutils \
     && dnf clean all
 
 # The Rust toolchain and what cargo needs to link a test binary: `cc` for the
