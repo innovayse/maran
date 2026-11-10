@@ -147,10 +147,14 @@ impl PolygonPanelHost {
         // tree before this file existed.
         crate::polygon_web::PolygonWeb::reload(distro);
 
-        let served = host.presented_certificate_until(|presented| !presented.is_empty());
-        assert!(
-            !served.is_empty(),
-            "the panel's TLS block must answer a handshake on port {TLS_PORT} in the polygon"
+        // A reload is asynchronous: workers of the previous tree keep answering, with the previous
+        // test's certificate, until the new ones take over. Waiting for *any* answer would hand the
+        // test a stale pair, so wait for the pair this fixture just installed.
+        let expected = Self::identity_of(distro, certificate_pem);
+        let served = host.presented_certificate_until(|presented| presented == expected);
+        assert_eq!(
+            served, expected,
+            "the panel's TLS block must present the pair the fixture installed on port {TLS_PORT} in the polygon"
         );
 
         host
