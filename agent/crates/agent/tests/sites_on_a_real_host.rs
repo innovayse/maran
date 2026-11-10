@@ -23,6 +23,9 @@ mod in_process_agent;
 mod polygon_account;
 #[path = "fixtures/polygon_config_file.rs"]
 mod polygon_config_file;
+#[allow(dead_code)]
+#[path = "fixtures/polygon_php.rs"]
+mod polygon_php;
 
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::Path;
@@ -55,6 +58,7 @@ use maran_ops::ssl::{ProcessSslHost, delete_site_with_certificate, generate_self
 use in_process_agent::InProcessAgent;
 use polygon_account::PolygonAccount;
 use polygon_config_file::PolygonConfigFile;
+use polygon_php::PolygonPhp;
 
 /// The PHP version the Debian and RHEL polygon images install: 8.3 on Sury, 83 on Remi.
 ///
@@ -81,11 +85,14 @@ const VALIDATE_ARGUMENT: &str = "-t";
 /// Panics when the host is outside the support matrix, which a polygon image
 /// never is.
 fn polygon_distro() -> &'static dyn DistroAdapter {
-    adapter_for(
+    let distro = adapter_for(
         detect()
             .expect("a polygon image is a supported host")
             .family,
-    )
+    );
+    // PHP sites need PHP, which is an app since issue #517: installed once, the way production does.
+    PolygonPhp::ensure_installed(distro);
+    distro
 }
 
 #[test]

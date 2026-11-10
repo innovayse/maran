@@ -71,6 +71,18 @@ impl PolygonPhp {
             if std::path::Path::new(&pool_directory).is_dir() {
                 return;
             }
+            // The image's layers drop the Debian family's package lists to stay small; a real host
+            // keeps them. They are refreshed first so the install sees the sources it would see there.
+            if std::path::Path::new("/usr/bin/apt-get").exists() {
+                let refreshed = std::process::Command::new("apt-get")
+                    .args(["update", "-qq"])
+                    .status()
+                    .unwrap_or_else(|error| panic!("could not run apt-get update: {error}"));
+                assert!(
+                    refreshed.success(),
+                    "apt-get update must refresh the package lists: {refreshed}"
+                );
+            }
             let unit = format!(
                 "{INSTALL_UNIT_PREFIX}{}.service",
                 distro.php_package(Self::VERSION)
