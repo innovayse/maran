@@ -1160,6 +1160,14 @@ $(cat "$rendered")"
     || fail "a second render of the disabled file changed it; the step is not idempotent."
 
   [ -f "$conf" ] || fail "${conf} does not exist on this image."
+  # An earlier step 80 in this image's build may already have disabled the packaged server, so
+  # the file is first put back to the distro's own text by stripping the prefix (the uninstaller's
+  # restore); the real-file check then starts from the stock file, not from an already-done state.
+  pristine="${work}/nginx.conf.pristine"
+  found="${work}/nginx.conf.found"
+  cp -p "$conf" "$found"
+  awk -v prefix="$prefix" 'index($0, prefix) == 1 { print substr($0, length(prefix) + 1); next } { print }' "$conf" > "$pristine"
+  cat "$pristine" > "$conf"
   active_before="$(active_port80 "$conf")"
   if [ "${MARAN_OS_FAMILY:-}" = rhel ] && [ -z "$active_before" ]; then
     fail "the RHEL family's stock ${conf} has no active port-80 server on this image, so part 2 would prove nothing; the assumption behind issue #517's port-80 split is wrong."
@@ -1182,7 +1190,7 @@ $(nginx -T 2>/dev/null | sed 's/#.*//' | grep -E 'listen')"
       || { cp -p "$copy" "$conf"; fail "the pristine copy ${conf}.maran-previous is not the original nginx.conf."; }
   fi
 
-  cp -p "$copy" "$conf"
+  cp -p "$found" "$conf"
   rm -f "${conf}.maran-previous"
   nginx -t >/dev/null 2>&1 || fail "this assertion did not put ${conf} back the way it found it:
 $(nginx -t 2>&1)"
