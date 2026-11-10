@@ -136,6 +136,7 @@ readonly UNINSTALL_CENSUS_DROP_IN_DIRECTORIES="/etc/logrotate.d /etc/pam.d /etc/
 # not also be removed — a path that is registered as kept and deleted anyway means one of the two
 # statements is a lie and a reader cannot tell which.
 readonly UNINSTALL_CENSUS_KEPT_REGISTER="/etc/pam.d/vsftpd|the distribution's own PAM stack for the packaged vsftpd service. installer/lib/89-ftps.sh names it only to say it never edits it — this panel's daemon authenticates against /etc/pam.d/maran-ftps, a service of our own — so removing it would break a stock vsftpd this product never configured and may not have installed.
+/etc/logrotate.d/nginx|the distribution's own rotation policy for its packaged nginx. Step 80 only rewrites its postrotate from a USR1 signal to \`nginx -s reload\` (issue #490) and never creates the file; removing it would leave a stock nginx with no log rotation, and the rewritten reload is still correct for nginx without this panel.
 /etc/systemd/system/multi-user.target.wants|systemd's own enablement directory, which this installer reads and never creates. Step 89 looks in it to prove maran-ftps.service has no entry there; an rm at this path would un-enable every unit on the host."
 
 # expand_installer_literals: one installer file's text with its own literal shell constants

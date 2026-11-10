@@ -163,16 +163,29 @@ remove_os_security_updates() {
 # Harmless on a host without them. $1 = the marker.
 remove_suse_os_security_updates() {
   local marker="$1" file removed=0
-  for file in /etc/systemd/system/maran-os-security-updates.service \
-              /etc/systemd/system/maran-os-security-updates.timer \
-              /etc/zypp/maran-unattended-zypp.conf \
-              /etc/zypp/maran-unattended.locks; do
+  # The two units are named by their literal paths, one `rm` each, so the uninstall census can see
+  # that every file the installer places is removed; each still goes only when it carries the marker.
+  if [ -f /etc/systemd/system/maran-os-security-updates.timer ]; then
+    if grep -qF -- "$marker" /etc/systemd/system/maran-os-security-updates.timer; then
+      systemctl disable --now maran-os-security-updates.timer 2>/dev/null || true
+      rm -f -- /etc/systemd/system/maran-os-security-updates.timer
+      removed=1
+    else
+      echo "NOTE: /etc/systemd/system/maran-os-security-updates.timer was not written by Maran and is left in place."
+    fi
+  fi
+  if [ -f /etc/systemd/system/maran-os-security-updates.service ]; then
+    if grep -qF -- "$marker" /etc/systemd/system/maran-os-security-updates.service; then
+      systemctl stop maran-os-security-updates.service 2>/dev/null || true
+      rm -f -- /etc/systemd/system/maran-os-security-updates.service
+      removed=1
+    else
+      echo "NOTE: /etc/systemd/system/maran-os-security-updates.service was not written by Maran and is left in place."
+    fi
+  fi
+  for file in /etc/zypp/maran-unattended-zypp.conf /etc/zypp/maran-unattended.locks; do
     [ -f "$file" ] || continue
     if grep -qF -- "$marker" "$file"; then
-      case "$file" in
-        *.timer) systemctl disable --now maran-os-security-updates.timer 2>/dev/null || true ;;
-        *.service) systemctl stop maran-os-security-updates.service 2>/dev/null || true ;;
-      esac
       rm -f -- "$file"
       removed=1
     else
