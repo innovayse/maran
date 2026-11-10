@@ -153,13 +153,22 @@ test('a module installed while the page is open appears after the focus re-read,
   // Installed but not yet composed (restart pending): nothing of it is drawn.
   await expect(packagedMenuLink(page)).toHaveCount(0)
 
+  // A focus while the first read is still in flight is skipped by design, so the re-read is only
+  // asked for once that read has been answered.
+  await expect.poll(() => {
+    return catalogue.reads()
+  }).toBeGreaterThanOrEqual(1)
   catalogue.replace((locale) => {
     return [COMPILED_IN_MODULE, packagedModule(locale)]
   })
-  await page.evaluate(() => {
-    window.dispatchEvent(new Event('focus'))
-  })
-  await expect(packagedMenuLink(page)).toBeVisible()
+  // Each focus is one re-read; repeating it covers a focus that landed while the answered first
+  // read was still being drawn, and never passes without the re-read's answer on screen.
+  await expect(async () => {
+    await page.evaluate(() => {
+      window.dispatchEvent(new Event('focus'))
+    })
+    await expect(packagedMenuLink(page)).toBeVisible({ timeout: 1000 })
+  }).toPass()
   await packagedMenuLink(page).click()
   await expect(page.getByRole('heading', { level: 1, name: PACKAGED_TEXT.en.title })).toBeVisible()
 })
