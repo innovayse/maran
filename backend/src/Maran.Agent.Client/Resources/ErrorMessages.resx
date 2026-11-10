@@ -99,4 +99,13 @@
   <data name="AgentServerDisabled">
     <value>This server is switched off in the panel, so nothing was done. Switch it on again, then try again.</value>
   </data>
+  <data name="AgentAppNotInstalled">
+    <value>The app is not installed on this server, so nothing was changed. Install it from the app store first.</value>
+  </data>
+  <data name="AgentAppInUse">
+    <value>The app is still used by a site on this server, so it was not removed. Move or delete those sites, then try again.</value>
+  </data>
+  <data name="AgentWebServerAlreadyInstalled">
+    <value>A web server for sites is already installed on this server, so nothing was installed. Remove the installed one first; only one can run sites at a time.</value>
+  </data>
 </root>

@@ -5,7 +5,7 @@ Every service unit the installer ships (`installer/systemd/*.service`) has one l
 `systemd-analyze security` exposure score it may have. The first line records the systemd version
 the ceilings were measured with. CI (`agent.yml`, job `units`) runs `maran units` and fails when a
 unit scores above its ceiling, has no ceiling, or when the systemd on the runner is another major
-than the recorded one. A template unit is keyed by its template name, `maran-php-install@.service`.
+than the recorded one. A template unit is keyed by its template name, `maran-app-install@.service` (and `maran-app-remove@.service`).
 
 A lower score is better. The ceiling is a ratchet: it records how exposed the unit was when a
 reviewer last accepted it, so hardening can only be lost on purpose.

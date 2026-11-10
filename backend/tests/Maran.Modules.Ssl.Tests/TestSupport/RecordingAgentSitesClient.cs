@@ -22,6 +22,9 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     /// <summary>How many times the batch reload was asked for.</summary>
     public int ReloadCallCount { get; private set; }
 
+    /// <summary>The web server each reload named, in call order.</summary>
+    public List<SiteWebServer> ReloadWebServers { get; } = [];
+
     /// <summary>Creates a client whose reload succeeds, or one whose reload refuses.</summary>
     /// <param name="reloadFailure">The refusal the reload answers with, or null to succeed.</param>
     public RecordingAgentSitesClient(Error? reloadFailure = null)
@@ -50,9 +53,10 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     }
 
     /// <inheritdoc />
-    public Task<Result> ReloadWebServerAsync(CancellationToken cancellationToken)
+    public Task<Result> ReloadWebServerAsync(SiteWebServer webServer, CancellationToken cancellationToken)
     {
         ReloadCallCount++;
+        ReloadWebServers.Add(webServer);
 
         return Task.FromResult(_reloadFailure is null
             ? Result.Ok()
@@ -67,6 +71,8 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
         SiteBackendKind kind,
         string phpVersion,
         string proxyUpstream,
+        SiteWebServer webServer,
+        SiteNodeApp node,
         uint maxChildren,
         IReadOnlyList<PhpSettingDto> settingOverrides,
         CancellationToken cancellationToken)
@@ -113,6 +119,7 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
         string accountUsername,
         string domain,
         string retiredPhpVersion,
+        SiteWebServer webServer,
         CancellationToken cancellationToken)
     {
         throw new NotSupportedException("The Ssl module never deletes a site.");

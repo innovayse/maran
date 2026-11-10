@@ -7,7 +7,7 @@
 //! The polygon image carries the installer's panel vhost only for the length of
 //! a build-time assertion, so nothing is serving it when a suite starts. This
 //! fixture therefore renders **the production template itself**
-//! (`installer/nginx/maran.conf`, embedded at compile time) with the same four
+//! (`installer/nginx/maran.conf` and the port-80 block `installer/nginx/maran-port80.conf`, embedded at compile time) with the same four
 //! substitutions `installer/lib/80-nginx.sh` makes, and puts the result in the
 //! agent's own include directory, which the real nginx reads. The TLS server
 //! block, the port-80 challenge block, the certificate and key paths and the
@@ -40,6 +40,15 @@ use maran_distro::DistroAdapter;
 const PANEL_VHOST_TEMPLATE: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../../installer/nginx/maran.conf"
+));
+
+/// The panel's port-80 challenge block, byte for byte as it is shipped: a file of its own beside
+/// the vhost (the agent takes it out of nginx's tree while Apache owns port 80). It declares its own
+/// `log_format`, so it must be loaded exactly once: the fixture installs it at the path the
+/// installer uses, replacing whatever a build-time installer run left there, never beside a copy.
+const PANEL_PORT80_TEMPLATE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../installer/nginx/maran-port80.conf"
 ));
 
 /// The file name the rendered vhost is given inside the agent's include
@@ -92,6 +101,8 @@ pub struct PolygonPanelHost {
     previous_certificate: Option<Vec<u8>>,
     /// What the key file held before this fixture, if anything.
     previous_key: Option<Vec<u8>>,
+    /// What the port-80 block file held before this fixture, if anything.
+    previous_port80: Option<Vec<u8>>,
     /// Directories this fixture created, in creation order.
     created_directories: Vec<PathBuf>,
 }
@@ -117,6 +128,7 @@ impl PolygonPanelHost {
             vhost: Path::new(AgentPaths::NGINX_INCLUDE_DIRECTORY).join(VHOST_FILE_NAME),
             previous_certificate: std::fs::read(Self::certificate_path()).ok(),
             previous_key: std::fs::read(Self::key_path()).ok(),
+            previous_port80: std::fs::read(Self::port80_path()).ok(),
             created_directories: Vec::new(),
         };
 
@@ -127,6 +139,7 @@ impl PolygonPanelHost {
         write_file(&Self::key_path(), private_key_pem, 0o600);
         write_file(&Self::certificate_path(), certificate_pem, 0o644);
         write_file(&host.vhost, &host.rendered_vhost(), 0o644);
+        write_file(&Self::port80_path(), &host.rendered_port80(), 0o644);
 
         Self::assert_tree_valid(distro, "the panel vhost the fixture just rendered");
         crate::polygon_web::PolygonWeb::ensure_running(distro);
@@ -134,10 +147,14 @@ impl PolygonPanelHost {
         // tree before this file existed.
         crate::polygon_web::PolygonWeb::reload(distro);
 
-        let served = host.presented_certificate_until(|presented| !presented.is_empty());
-        assert!(
-            !served.is_empty(),
-            "the panel's TLS block must answer a handshake on port {TLS_PORT} in the polygon"
+        // A reload is asynchronous: workers of the previous tree keep answering, with the previous
+        // test's certificate, until the new ones take over. Waiting for *any* answer would hand the
+        // test a stale pair, so wait for the pair this fixture just installed.
+        let expected = Self::identity_of(distro, certificate_pem);
+        let served = host.presented_certificate_until(|presented| presented == expected);
+        assert_eq!(
+            served, expected,
+            "the panel's TLS block must present the pair the fixture installed on port {TLS_PORT} in the polygon"
         );
 
         host
@@ -151,6 +168,11 @@ impl PolygonPanelHost {
     /// Where the rendered vhost sits, as `nginx -T` names it.
     pub fn vhost_path(&self) -> &Path {
         &self.vhost
+    }
+
+    /// Where the installer puts the panel's port-80 block, and the agent takes it out of nginx's tree.
+    fn port80_path() -> PathBuf {
+        PathBuf::from(AgentPaths::NGINX_PORT80_CONFIG)
     }
 
     /// Where the panel's certificate is read from.
@@ -371,6 +393,18 @@ impl PolygonPanelHost {
         rendered
     }
 
+    /// The port-80 challenge block for this host's name, rendered as 80-nginx.sh `install_port80_block`
+    /// does: the server name is its only placeholder.
+    fn rendered_port80(&self) -> String {
+        let rendered = PANEL_PORT80_TEMPLATE.replace("__MARAN_SERVER_NAME__", &self.name);
+        assert!(
+            !rendered.contains("__MARAN_"),
+            "the port-80 template carries a placeholder this fixture does not substitute; \
+             mirror the new substitution from installer/lib/80-nginx.sh install_port80_block"
+        );
+        rendered
+    }
+
     /// Makes `directory` if it is not there, remembering that it did so.
     fn make_directory(&mut self, directory: &Path, mode: u32) {
         if directory.exists() {
@@ -402,6 +436,7 @@ impl Drop for PolygonPanelHost {
             self.previous_certificate.as_deref(),
         );
         restore(&Self::key_path(), self.previous_key.as_deref());
+        restore(&Self::port80_path(), self.previous_port80.as_deref());
 
         match Command::new(self.distro.nginx_binary())
             .args(["-s", "reload"])

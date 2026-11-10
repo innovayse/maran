@@ -7,8 +7,8 @@ use maran_templates::nginx::site_auth_file::SiteAuthFile;
 
 use crate::sites::model::auth_file_placement::AuthFilePlacement;
 use crate::sites::model::create_site_input::CreateSiteInput;
-use crate::sites::nginx_validator::nginx_validator;
 use crate::sites::render_vhost::render_failed;
+use crate::sites::web_server_validator::web_server_validator;
 use crate::sites::{SiteHost, SitesOpError};
 
 /// Makes the credential file of `input`'s site equal what its basic-auth users
@@ -62,13 +62,18 @@ pub(crate) fn sync_site_auth_file(
         return Ok(());
     }
 
-    let nginx = distro.nginx_binary();
+    let binary = distro.site_web_server_binary(input.web_server);
     let getent = distro.getent_binary();
     let placement = AuthFilePlacement {
-        group: distro.web_server_group(),
+        group: distro.site_web_server_group(input.web_server),
         getent: &getent,
     };
-    host.write_auth_file(&target, &contents, &placement, &nginx_validator(&nginx))
+    host.write_auth_file(
+        &target,
+        &contents,
+        &placement,
+        &web_server_validator(&binary),
+    )
 }
 
 #[cfg(test)]

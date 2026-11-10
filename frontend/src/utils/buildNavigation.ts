@@ -56,7 +56,20 @@ const stateOf = (page: NavigationPageSpec, context: NavigationContext): Navigati
   // A page whose endpoints refuse a view-as session is not offered while viewing: the visit would
   // only be a column of refused requests (issue #513).
   const viewAsOffered = !page.viewAsRefused || !context.viewingAs
-  if (!page.roles.includes(context.role) || !featureOffered || !granted || !ownerOffered || !viewAsOffered) {
+  // A page about a runtime the host does not have would only answer `apps.notInstalled`; until the
+  // panel has said which runtimes exist it is offered, like every other piece of advice.
+  const runtimeOffered =
+    page.runtime === null ||
+    context.runtimes.state === 'unreported' ||
+    context.runtimes.installed.has(page.runtime)
+  if (
+    !page.roles.includes(context.role) ||
+    !featureOffered ||
+    !granted ||
+    !ownerOffered ||
+    !viewAsOffered ||
+    !runtimeOffered
+  ) {
     return null
   }
   if (page.availability.state === 'planned') {

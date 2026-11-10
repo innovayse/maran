@@ -4,6 +4,7 @@
 
 use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::web::domain::Domain;
+use maran_distro::SiteWebServer;
 
 use crate::sites::fake_site_host::{
     create_test_site, distro, legacy_suspended_text, php_input, php_input_with_options,
@@ -46,7 +47,9 @@ fn a_matching_pair_is_installed_and_the_certificates_own_expiry_returned() {
     );
 
     let vhost = host
-        .config(&SitePaths::for_site(&input.account, &input.domain).config_path)
+        .config(
+            &SitePaths::for_site(&input.account, &input.domain, SiteWebServer::Nginx).config_path,
+        )
         .unwrap();
     assert!(vhost.contains(&certificate.certificate_path().display().to_string()));
     assert!(vhost.contains(&certificate.key_path().display().to_string()));
@@ -125,7 +128,9 @@ fn a_vhost_nginx_rejects_leaves_the_previous_one_serving() {
     let host = host_with_site();
     let input = php_input();
     let plain = host
-        .config(&SitePaths::for_site(&input.account, &input.domain).config_path)
+        .config(
+            &SitePaths::for_site(&input.account, &input.domain, SiteWebServer::Nginx).config_path,
+        )
         .unwrap();
     host.reject_validation("ssl_certificate directive is not allowed here");
 
@@ -136,8 +141,10 @@ fn a_vhost_nginx_rejects_leaves_the_previous_one_serving() {
     // material and the vhost are two writes: one rollback restores a vhost that
     // serves traffic, rather than leaving a TLS vhost nginx refused.
     assert_eq!(
-        host.config(&SitePaths::for_site(&input.account, &input.domain).config_path)
-            .unwrap(),
+        host.config(
+            &SitePaths::for_site(&input.account, &input.domain, SiteWebServer::Nginx).config_path
+        )
+        .unwrap(),
         plain
     );
 }
@@ -225,7 +232,9 @@ fn an_alias_of_the_site_is_served_by_the_same_certificate() {
     install_certificate(&host, distro(), &input, &matching_material()).unwrap();
 
     let vhost = host
-        .config(&SitePaths::for_site(&input.account, &input.domain).config_path)
+        .config(
+            &SitePaths::for_site(&input.account, &input.domain, SiteWebServer::Nginx).config_path,
+        )
         .unwrap();
     let alias = Domain::parse("www.example.com").unwrap();
     // Rendered by the site area's own renderer, so the TLS half serves exactly
@@ -269,7 +278,9 @@ fn installing_a_certificate_on_a_suspended_site_places_the_material_and_leaves_t
     let input = php_input();
     disable_site(&host, distro(), &input).unwrap();
     let suspended = host
-        .config(&SitePaths::for_site(&input.account, &input.domain).config_path)
+        .config(
+            &SitePaths::for_site(&input.account, &input.domain, SiteWebServer::Nginx).config_path,
+        )
         .unwrap();
     let writes_before = host.vhost_writes();
     let certificate = SiteCertificate::for_domain(&input.domain);
@@ -283,8 +294,10 @@ fn installing_a_certificate_on_a_suspended_site_places_the_material_and_leaves_t
         "a suspended site must still receive its renewed material"
     );
     assert_eq!(
-        host.config(&SitePaths::for_site(&input.account, &input.domain).config_path)
-            .unwrap(),
+        host.config(
+            &SitePaths::for_site(&input.account, &input.domain, SiteWebServer::Nginx).config_path
+        )
+        .unwrap(),
         suspended,
         "a certificate installation must not un-suspend a site"
     );
@@ -299,7 +312,8 @@ fn installing_a_certificate_on_a_suspended_site_places_the_material_and_leaves_t
 fn installing_a_certificate_on_a_site_serving_the_earlier_stub_leaves_the_stub() {
     let host = host_with_site();
     let input = php_input();
-    let config_path = SitePaths::for_site(&input.account, &input.domain).config_path;
+    let config_path =
+        SitePaths::for_site(&input.account, &input.domain, SiteWebServer::Nginx).config_path;
     let legacy = legacy_suspended_text(&host, &input, "example.com");
     host.place_config(&config_path, &legacy);
     let writes_before = host.vhost_writes();
@@ -387,7 +401,9 @@ fn installing_a_certificate_keeps_the_sites_options_in_the_tls_block() {
     install_certificate(&host, distro(), &input, &matching_material()).unwrap();
 
     let vhost = host
-        .config(&SitePaths::for_site(&input.account, &input.domain).config_path)
+        .config(
+            &SitePaths::for_site(&input.account, &input.domain, SiteWebServer::Nginx).config_path,
+        )
         .unwrap();
     let secure = &vhost[vhost.find("listen 443").unwrap()..];
     assert!(secure.contains("auth_basic_user_file"), "{secure}");

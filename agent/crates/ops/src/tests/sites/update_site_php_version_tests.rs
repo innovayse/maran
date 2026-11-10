@@ -3,6 +3,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use maran_agent_core::validation::web::php_version::PhpVersion;
+use maran_distro::SiteWebServer;
 
 use crate::php::fake_php_host::FakePhpHost;
 use crate::php::model::php_override::PhpOverride;
@@ -55,7 +56,7 @@ fn switching_versions_repoints_the_vhost_at_the_new_socket() {
     .unwrap();
 
     let vhost = site_host
-        .config(&SitePaths::for_site(&site.account, &site.domain).config_path)
+        .config(&SitePaths::for_site(&site.account, &site.domain, SiteWebServer::Nginx).config_path)
         .unwrap();
     let account = site.account.as_str();
     assert!(vhost.contains(&format!("{account}-8.4.sock")), "{vhost}");
@@ -168,7 +169,8 @@ fn setting_the_version_a_site_already_has_repairs_a_pool_and_vhost_left_on_the_o
     let php_host = FakePhpHost::with_installed(&["8.3"]);
     let site = php_input();
     create_test_site(&site_host, &site).unwrap();
-    let vhost_path = SitePaths::for_site(&site.account, &site.domain).config_path;
+    let vhost_path =
+        SitePaths::for_site(&site.account, &site.domain, SiteWebServer::Nginx).config_path;
     let current_vhost = site_host.config(&vhost_path).unwrap();
     let aged_vhost = current_vhost.replace(
         maran_agent_core::agent_paths::AgentPaths::PHP_FPM_SOCKET_DIRECTORY,
@@ -391,7 +393,8 @@ fn switching_versions_on_a_suspended_site_writes_the_pool_and_leaves_the_stub() 
     let site = php_input();
     create_test_site(&site_host, &site).unwrap();
     disable_site(&site_host, distro(), &site).unwrap();
-    let vhost_path = SitePaths::for_site(&site.account, &site.domain).config_path;
+    let vhost_path =
+        SitePaths::for_site(&site.account, &site.domain, SiteWebServer::Nginx).config_path;
     let suspended = site_host.config(&vhost_path).unwrap();
     let writes_before = site_host.writes();
 
@@ -438,7 +441,8 @@ fn switching_versions_on_a_site_serving_the_earlier_stub_leaves_the_stub() {
     let php_host = FakePhpHost::with_installed(&["8.3", "8.4"]);
     let site = php_input();
     create_test_site(&site_host, &site).unwrap();
-    let vhost_path = SitePaths::for_site(&site.account, &site.domain).config_path;
+    let vhost_path =
+        SitePaths::for_site(&site.account, &site.domain, SiteWebServer::Nginx).config_path;
     let legacy = legacy_suspended_text(&site_host, &site, "example.com");
     site_host.place_config(&vhost_path, &legacy);
     let writes_before = site_host.writes();

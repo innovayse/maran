@@ -20,6 +20,8 @@ public sealed class SimulatedAgentSitesClientTests
         SiteBackendKind.Php,
         "8.3",
         string.Empty,
+        SiteNodeApp.None,
+        SiteWebServer.Nginx,
         false,
         SiteOptionsDescriptor.None);
 
@@ -56,6 +58,8 @@ public sealed class SimulatedAgentSitesClientTests
             SiteBackendKind.Static,
             "8.3",
             "http://127.0.0.1:9000",
+            SiteWebServer.Nginx,
+            SiteNodeApp.None,
             7,
             [new PhpSettingDto("memory_limit", "256M")],
             CancellationToken.None);
@@ -88,7 +92,7 @@ public sealed class SimulatedAgentSitesClientTests
     {
         var (_, client) = NewHost();
         await client.CreateAsync(
-            "acme", Domain, ["www.example.test"], SiteBackendKind.Static, string.Empty, string.Empty, 0, [],
+            "acme", Domain, ["www.example.test"], SiteBackendKind.Static, string.Empty, string.Empty, SiteWebServer.Nginx, SiteNodeApp.None, 0, [],
             CancellationToken.None);
 
         var clash = await CreatePhpAsync(client, "www.example.test");
@@ -104,7 +108,7 @@ public sealed class SimulatedAgentSitesClientTests
         await CreatePhpAsync(client, Domain);
 
         var clash = await client.CreateAsync(
-            "acme", "blog.example.test", [Domain], SiteBackendKind.Static, string.Empty, string.Empty, 0, [],
+            "acme", "blog.example.test", [Domain], SiteBackendKind.Static, string.Empty, string.Empty, SiteWebServer.Nginx, SiteNodeApp.None, 0, [],
             CancellationToken.None);
 
         Assert.Equal("AgentAlreadyExists", clash.Error!.Code);
@@ -117,7 +121,7 @@ public sealed class SimulatedAgentSitesClientTests
         var (ledger, client) = NewHost();
 
         var created = await client.CreateAsync(
-            "ghost", Domain, [], SiteBackendKind.Static, string.Empty, string.Empty, 0, [], CancellationToken.None);
+            "ghost", Domain, [], SiteBackendKind.Static, string.Empty, string.Empty, SiteWebServer.Nginx, SiteNodeApp.None, 0, [], CancellationToken.None);
 
         Assert.Equal("AgentNotFound", created.Error!.Code);
         Assert.Equal(0, ledger.Vhosts.Count);
@@ -130,7 +134,7 @@ public sealed class SimulatedAgentSitesClientTests
         var (_, client) = NewHost();
 
         var created = await client.CreateAsync(
-            "acme", Domain, [], SiteBackendKind.Php, "7.4", string.Empty, 5, [], CancellationToken.None);
+            "acme", Domain, [], SiteBackendKind.Php, "7.4", string.Empty, SiteWebServer.Nginx, SiteNodeApp.None, 5, [], CancellationToken.None);
 
         Assert.Equal("AgentValidationFailed", created.Error!.Code);
     }
@@ -154,10 +158,45 @@ public sealed class SimulatedAgentSitesClientTests
         var (ledger, client) = NewHost();
 
         var created = await client.CreateAsync(
-            "acme", domain, [], kind, "8.3", upstream, 5, [], CancellationToken.None);
+            "acme", domain, [], kind, "8.3", upstream, SiteWebServer.Nginx, SiteNodeApp.None, 5, [], CancellationToken.None);
 
         Assert.Equal("AgentInvalidInput", created.Error!.Code);
         Assert.Equal(0, ledger.Vhosts.Count);
+    }
+
+    /// <summary>A Node site is stored when it carries its runtime facts, and refused when any is missing.</summary>
+    /// <param name="version">The Node major in the request.</param>
+    /// <param name="port">The application port in the request.</param>
+    /// <param name="command">The start command in the request.</param>
+    /// <param name="accepted">Whether the site is created.</param>
+    [Theory]
+    [InlineData("22", 3100u, "npm start", true)]
+    [InlineData("", 3100u, "npm start", false)]
+    [InlineData("22", 0u, "npm start", false)]
+    [InlineData("22", 3100u, "", false)]
+    public async Task A_node_site_needs_its_version_port_and_start_command(
+        string version,
+        uint port,
+        string command,
+        bool accepted)
+    {
+        var (ledger, client) = NewHost();
+
+        var created = await client.CreateAsync(
+            "acme",
+            Domain,
+            [],
+            SiteBackendKind.Node,
+            string.Empty,
+            string.Empty,
+            SiteWebServer.Nginx,
+            new SiteNodeApp(version, port, command),
+            0,
+            [],
+            CancellationToken.None);
+
+        Assert.Equal(accepted, created.IsSuccess);
+        Assert.Equal(accepted ? 1 : 0, ledger.Vhosts.Count);
     }
 
     /// <summary>More aliases or overrides than the caps allow are refused, bounding what a site holds.</summary>
@@ -168,10 +207,10 @@ public sealed class SimulatedAgentSitesClientTests
         var (_, client) = NewHost(limits);
 
         var aliases = await client.CreateAsync(
-            "acme", Domain, ["a.example.test", "b.example.test"], SiteBackendKind.Static, string.Empty, string.Empty, 0,
+            "acme", Domain, ["a.example.test", "b.example.test"], SiteBackendKind.Static, string.Empty, string.Empty, SiteWebServer.Nginx, SiteNodeApp.None, 0,
             [], CancellationToken.None);
         var overrides = await client.CreateAsync(
-            "acme", Domain, [], SiteBackendKind.Php, "8.3", string.Empty, 5,
+            "acme", Domain, [], SiteBackendKind.Php, "8.3", string.Empty, SiteWebServer.Nginx, SiteNodeApp.None, 5,
             [new PhpSettingDto("a", "1"), new PhpSettingDto("b", "2")], CancellationToken.None);
 
         Assert.Equal("AgentInvalidInput", aliases.Error!.Code);
@@ -185,7 +224,7 @@ public sealed class SimulatedAgentSitesClientTests
         var (_, client) = NewHost();
 
         var created = await client.CreateAsync(
-            "acme", Domain, [], SiteBackendKind.Php, "8.3", string.Empty, 5,
+            "acme", Domain, [], SiteBackendKind.Php, "8.3", string.Empty, SiteWebServer.Nginx, SiteNodeApp.None, 5,
             [new PhpSettingDto("memory_limit", "256M\nauto_prepend_file=x")], CancellationToken.None);
 
         Assert.Equal("AgentInvalidInput", created.Error!.Code);
@@ -230,7 +269,7 @@ public sealed class SimulatedAgentSitesClientTests
     {
         var (_, client) = NewHost();
         await client.CreateAsync(
-            "acme", Domain, [], SiteBackendKind.Static, string.Empty, string.Empty, 0, [], CancellationToken.None);
+            "acme", Domain, [], SiteBackendKind.Static, string.Empty, string.Empty, SiteWebServer.Nginx, SiteNodeApp.None, 0, [], CancellationToken.None);
         await CreatePhpAsync(client, "php.example.test");
 
         var staticSite = await client.ChangePhpVersionAsync(
@@ -253,7 +292,7 @@ public sealed class SimulatedAgentSitesClientTests
         var changed = await client.ChangePhpVersionAsync(
             "globex", Domain, "8.3", Descriptor, 5, [], false, CancellationToken.None);
         var disabled = await client.DisableAsync("globex", Domain, Descriptor, CancellationToken.None);
-        var deleted = await client.DeleteAsync("globex", Domain, string.Empty, CancellationToken.None);
+        var deleted = await client.DeleteAsync("globex", Domain, string.Empty, SiteWebServer.Nginx, CancellationToken.None);
 
         Assert.Equal("AgentNotFound", changed.Error!.Code);
         Assert.Equal("AgentNotFound", disabled.Error!.Code);
@@ -304,8 +343,8 @@ public sealed class SimulatedAgentSitesClientTests
         var certificate = new SimulatedCertificate("acme", Domain, _clock.UtcNow.AddDays(30), _clock.UtcNow);
         ledger.Certificates.Add(Domain, certificate);
 
-        var deleted = await client.DeleteAsync("acme", Domain, "8.3", CancellationToken.None);
-        var again = await client.DeleteAsync("acme", Domain, "8.3", CancellationToken.None);
+        var deleted = await client.DeleteAsync("acme", Domain, "8.3", SiteWebServer.Nginx, CancellationToken.None);
+        var again = await client.DeleteAsync("acme", Domain, "8.3", SiteWebServer.Nginx, CancellationToken.None);
 
         Assert.True(deleted.IsSuccess);
         Assert.False(ledger.Vhosts.Contains(Domain));
@@ -320,7 +359,7 @@ public sealed class SimulatedAgentSitesClientTests
         var (ledger, client) = NewHost();
         await CreatePhpAsync(client, Domain);
 
-        var deleted = await client.DeleteAsync("acme", Domain, "eight", CancellationToken.None);
+        var deleted = await client.DeleteAsync("acme", Domain, "eight", SiteWebServer.Nginx, CancellationToken.None);
 
         Assert.Equal("AgentInvalidInput", deleted.Error!.Code);
         Assert.True(ledger.Vhosts.Contains(Domain));
@@ -332,7 +371,7 @@ public sealed class SimulatedAgentSitesClientTests
     {
         var (_, client) = NewHost();
 
-        Assert.True((await client.ReloadWebServerAsync(CancellationToken.None)).IsSuccess);
+        Assert.True((await client.ReloadWebServerAsync(SiteWebServer.Nginx, CancellationToken.None)).IsSuccess);
     }
 
     /// <summary>The tail replays the requested history, oldest first, and ends with one completed event.</summary>
@@ -619,6 +658,6 @@ public sealed class SimulatedAgentSitesClientTests
     private static Task<Result<CreatedSiteDto>> CreatePhpAsync(SimulatedAgentSitesClient client, string domain)
     {
         return client.CreateAsync(
-            "acme", domain, [], SiteBackendKind.Php, "8.3", string.Empty, 5, [], CancellationToken.None);
+            "acme", domain, [], SiteBackendKind.Php, "8.3", string.Empty, SiteWebServer.Nginx, SiteNodeApp.None, 5, [], CancellationToken.None);
     }
 }

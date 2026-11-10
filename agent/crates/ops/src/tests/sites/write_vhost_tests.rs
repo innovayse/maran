@@ -7,6 +7,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_distro::SiteWebServer;
 use std::path::Path;
 
 use maran_agent_core::utils::call_class::CallClass;
@@ -40,7 +41,14 @@ fn a_vhost_write_hands_the_protocol_a_short_class_validator_and_a_reload_ended_w
 {
     let host = FakeSiteHost::passing();
 
-    write_vhost(&host, distro(), Path::new(TARGET), "server {}\n").unwrap();
+    write_vhost(
+        &host,
+        distro(),
+        SiteWebServer::Nginx,
+        Path::new(TARGET),
+        "server {}\n",
+    )
+    .unwrap();
 
     assert_eq!(host.protocol(), vec![expected_call()]);
 }
@@ -52,7 +60,13 @@ fn a_vhost_write_whose_validator_times_out_reports_the_bound_and_never_a_refusal
     let host = FakeSiteHost::passing();
     host.time_out_validation();
 
-    let refusal = write_vhost(&host, distro(), Path::new(TARGET), "server {}\n");
+    let refusal = write_vhost(
+        &host,
+        distro(),
+        SiteWebServer::Nginx,
+        Path::new(TARGET),
+        "server {}\n",
+    );
 
     assert!(
         matches!(refusal, Err(SitesOpError::Bound(_))),
@@ -67,7 +81,13 @@ fn a_vhost_write_with_a_validator_that_answers_is_not_a_bound() {
     let host = FakeSiteHost::passing();
     host.reject_validation("unknown directive");
 
-    let refusal = write_vhost(&host, distro(), Path::new(TARGET), "server {}\n");
+    let refusal = write_vhost(
+        &host,
+        distro(),
+        SiteWebServer::Nginx,
+        Path::new(TARGET),
+        "server {}\n",
+    );
 
     assert!(
         matches!(refusal, Err(SitesOpError::NginxValidation { .. })),

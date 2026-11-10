@@ -20,6 +20,8 @@
 pub const READ_ONLY_RPCS: &[&str] = &[
     "/maran.agent.v1.AccountsService/GetAccountSuspensionState",
     "/maran.agent.v1.AccountsService/GetAccountUsage",
+    "/maran.agent.v1.AppsService/ListApps",
+    "/maran.agent.v1.AppsService/ListInstallableApps",
     "/maran.agent.v1.BackupService/ListBackups",
     "/maran.agent.v1.BackupService/ProbeDestination",
     "/maran.agent.v1.BackupService/VerifyBackup",

@@ -39,19 +39,30 @@
         "aliases": "Aliases",
         "backendType": "Backend",
         "phpVersion": "PHP version",
-        "proxyUpstream": "Upstream"
+        "proxyUpstream": "Upstream",
+        "webServer": "Web server",
+        "nodeVersion": "Node.js version",
+        "appPort": "App port",
+        "startCommand": "Start command"
       },
       "hints": {
         "aliases": "One hostname per line. The same vhost answers all of them.",
         "aliasesCount": "{count} of {max} additional hostnames.",
         "phpVersion": "Only versions installed on this server can be selected.",
-        "proxyUpstream": "Host or host:port requests are forwarded to, for example 127.0.0.1:3000. No scheme, path or query."
+        "proxyUpstream": "Host or host:port requests are forwarded to, for example 127.0.0.1:3000. No scheme, path or query.",
+        "webServer": "The web server installed on this server serves every site.",
+        "startCommand": "Runs inside the site's own service, in the site's folder, for example npm start.",
+        "appPort": "The port your app listens on, 1024 to 65535. Requests are forwarded to it.",
+        "nodeVersion": "Only versions installed on this server can be selected."
       },
       "placeholders": {
         "domain": "example.com",
         "proxyUpstream": "127.0.0.1:3000",
         "account": "Choose an account",
-        "phpVersion": "Choose a PHP version"
+        "phpVersion": "Choose a PHP version",
+        "nodeVersion": "Choose a Node.js version",
+        "startCommand": "npm start",
+        "appPort": "3000"
       },
       "phpVersionOption": "PHP {version}",
       "phpVersionDefaultOption": "PHP {version} (server default)",
@@ -65,9 +76,13 @@
         "aliasesLimit": "A site can have at most {max} additional hostnames.",
         "phpVersionRequired": "Choose an installed PHP version.",
         "proxyUpstreamRequired": "Upstream is required for a reverse-proxied site.",
-        "proxyUpstreamInvalid": "Upstream must be a host or host:port, with no scheme or path."
+        "proxyUpstreamInvalid": "Upstream must be a host or host:port, with no scheme or path.",
+        "nodeVersionRequired": "Choose an installed Node.js version.",
+        "appPortInvalid": "The app port must be a whole number from 1024 to 65535.",
+        "startCommandRequired": "The start command is required."
       },
-      "created": "Site {domain} added."
+      "created": "Site {domain} added.",
+      "noNodeVersions": "No Node.js versions are installed on this server."
     },
     "detail": {
       "heading": "Site",

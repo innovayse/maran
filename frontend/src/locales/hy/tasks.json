@@ -46,7 +46,9 @@
       "ModuleInstall": "Մոդուլի տեղադրում",
       "ModuleUpdate": "Մոդուլի թարմացում",
       "ModuleRemove": "Մոդուլի հեռացում",
-      "ModuleRollback": "Մոդուլի հետադարձ"
+      "ModuleRollback": "Մոդուլի հետադարձ",
+      "AppInstall": "Հավելվածի տեղադրում",
+      "AppUninstall": "Հավելվածի հեռացում"
     },
     "pane": {
       "correlationId": "Հարցման նույնացուցիչ",

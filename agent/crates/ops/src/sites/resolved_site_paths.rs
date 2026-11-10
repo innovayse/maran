@@ -2,6 +2,7 @@
 
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::web::domain::Domain;
+use maran_distro::SiteWebServer;
 
 use crate::sites::model::site_paths::SitePaths;
 use crate::sites::{SiteHost, SitesOpError};
@@ -40,8 +41,9 @@ pub(crate) fn resolved_site_paths(
     host: &dyn SiteHost,
     account: &AccountName,
     domain: &Domain,
+    web_server: SiteWebServer,
 ) -> Result<SitePaths, SitesOpError> {
-    let mut paths = SitePaths::for_site(account, domain);
+    let mut paths = SitePaths::for_site(account, domain, web_server);
     paths.document_root =
         host.resolve_in_account_home(account, &SitePaths::document_root_in_home(domain))?;
 

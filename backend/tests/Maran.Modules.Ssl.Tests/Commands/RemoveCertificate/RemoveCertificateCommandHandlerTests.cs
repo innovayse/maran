@@ -1,5 +1,7 @@
+using Maran.Agent.Client.Services.SitesService;
 using Maran.Modules.Ssl.Commands.RemoveCertificate;
 using Maran.Modules.Ssl.Tests.TestSupport;
+using Maran.SharedKernel.Apps;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,7 +19,7 @@ public sealed class RemoveCertificateCommandHandlerTests
     private static RemoveCertificateCommandHandler HandlerFor(SslHandlerFixture fixture)
     {
         return new RemoveCertificateCommandHandler(
-            fixture.DbContext, fixture.Sites, fixture.Accounts, fixture.Agent, fixture.Journal);
+            fixture.DbContext, fixture.Sites, fixture.Accounts, fixture.Agent, fixture.Journal, fixture.Stack);
     }
 
     /// <summary>Seeds a certificate for the fixture's own account and returns its identity.</summary>
@@ -50,6 +52,21 @@ public sealed class RemoveCertificateCommandHandlerTests
         Assert.True(result.IsSuccess);
         Assert.Single(fixture.Agent.Removals);
         Assert.Empty(await fixture.DbContext.Certificates.ToListAsync());
+    }
+
+    /// <summary>The vhost is rewritten for the installed web server.</summary>
+    [Theory]
+    [InlineData(StackWebServer.Nginx, SiteWebServer.Nginx)]
+    [InlineData(StackWebServer.Apache, SiteWebServer.Apache)]
+    public async Task The_vhost_is_rewritten_for_the_installed_web_server(StackWebServer installed, SiteWebServer expected)
+    {
+        using var fixture = new SslHandlerFixture([Domain], webServer: installed);
+        var id = await SeedAsync(fixture);
+
+        await HandlerFor(fixture).HandleAsync(
+            new RemoveCertificateCommand(id, "203.0.113.7", "tests"), CancellationToken.None);
+
+        Assert.Equal(expected, Assert.Single(fixture.Agent.Removals).Site.WebServer);
     }
 
     /// <summary>Removing clears the sites certificate flag so the next render does not write tls.</summary>

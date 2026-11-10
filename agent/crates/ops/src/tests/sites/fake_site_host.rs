@@ -25,12 +25,15 @@ use maran_agent_core::validation::web::basic_auth_user_name::BasicAuthUserName;
 use maran_agent_core::validation::web::bcrypt_hash::BcryptHash;
 use maran_agent_core::validation::web::client_body_size::ClientBodySize;
 use maran_agent_core::validation::web::domain::Domain;
+use maran_agent_core::validation::web::node_major::NodeMajor;
+use maran_agent_core::validation::web::node_start_command::NodeStartCommand;
 use maran_agent_core::validation::web::php_version::PhpVersion;
+use maran_agent_core::validation::web::port::Port;
 use maran_agent_core::validation::web::redirect_path::RedirectPath;
 use maran_agent_core::validation::web::redirect_target::RedirectTarget;
 use maran_agent_core::validation::web::source_cidr::SourceCidr;
 use maran_agent_core::validation::web::static_cache_days::StaticCacheDays;
-use maran_distro::{DistroAdapter, DistroFamily, adapter_for};
+use maran_distro::{DistroAdapter, DistroFamily, SiteWebServer, adapter_for};
 
 use crate::php::fake_php_host::FakePhpHost;
 use crate::safe_write::model::{Reload, Validator};
@@ -590,8 +593,30 @@ pub(crate) fn php_input() -> CreateSiteInput {
         kind: SiteKind::Php {
             version: PhpVersion::parse("8.3").unwrap(),
         },
+        web_server: SiteWebServer::Nginx,
         certificate: None,
         options: SiteOptions::default(),
+    }
+}
+
+/// The site of [`php_input`], served by Apache.
+pub(crate) fn apache_php_input() -> CreateSiteInput {
+    CreateSiteInput {
+        web_server: SiteWebServer::Apache,
+        ..php_input()
+    }
+}
+
+/// A Node.js site for this test's own account, served by `web_server`.
+pub(crate) fn node_input(web_server: SiteWebServer) -> CreateSiteInput {
+    CreateSiteInput {
+        kind: SiteKind::Node {
+            version: NodeMajor::parse("20").unwrap(),
+            port: Port::parse(3000).unwrap(),
+            start_command: NodeStartCommand::parse("node server.js").unwrap(),
+        },
+        web_server,
+        ..php_input()
     }
 }
 
@@ -648,6 +673,7 @@ pub(crate) fn php_identity() -> SiteIdentity {
     SiteIdentity {
         account: test_account(),
         domain: Domain::parse("example.com").unwrap(),
+        web_server: SiteWebServer::Nginx,
     }
 }
 

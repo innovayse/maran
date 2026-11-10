@@ -16,7 +16,7 @@ public sealed class SitesMigrationExporterTests
     private const string Planted = "PLANTED-SECRET-";
 
     /// <summary>The string columns the section carries, by property name: everything else must stay behind.</summary>
-    private static readonly HashSet<string> Carried = ["Domain", "PhpVersion", "ProxyUpstream"];
+    private static readonly HashSet<string> Carried = ["Domain", "PhpVersion", "ProxyUpstream", "NodeVersion", "StartCommand"];
 
     /// <summary>
     /// How the control serialises a row: the entity graph points back at itself (a hostname holds its site), which

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AppsStackNotReady">
+    <value>Այս սերվերում դեռ վեբ սերվեր չկա, ուստի կայքեր չեն կարող ստեղծվել կամ փոփոխվել։ Ավարտեք սերվերի կարգավորումը՝ տեղադրելով վեբ սերվեր հավելվածների խանութից, և կրկին փորձեք։</value>
+  </data>
+  <data name="AppsInUse">
+    <value>Այս սերվերի կայքերը դեռ օգտագործում են այս հավելվածը, ուստի այն չի հեռացվել։ Տեղափոխեք կամ ջնջեք այդ կայքերը և կրկին փորձեք։</value>
+  </data>
+  <data name="AppsNotInstalled">
+    <value>Այս հավելվածը տեղադրված չէ սերվերում։ Նախ տեղադրեք այն հավելվածների խանութից։</value>
+  </data>
+  <data name="AppsAlreadyInstalled">
+    <value>Այս հավելվածն արդեն տեղադրված է, ուստի ոչինչ չի փոխվել։</value>
+  </data>
+  <data name="AppsOperationInProgress">
+    <value>Այս հավելվածի մեկ այլ տեղադրում կամ հեռացում արդեն ընթանում է։ Սպասեք դրա ավարտին և կրկին փորձեք։</value>
+  </data>
+  <data name="AppsWebServerAlreadyInstalled">
+    <value>Կայքերի վեբ սերվերն արդեն տեղադրված է կամ փոփոխվում է այս սերվերում, ուստի ոչինչ չի տեղադրվել։ Նախ հեռացրեք մյուսը․ կայքեր կարող է սպասարկել միայն մեկը։</value>
+  </data>
+  <data name="AppsNotInstallable">
+    <value>Այս սերվերի փաթեթների աղբյուրները չեն առաջարկում այդ հավելվածը, ուստի ոչինչ չի տեղադրվել։ Ընտրեք էջում ցուցադրված ցանկից։</value>
+  </data>
+  <data name="AppIdInvalid">
+    <value>Վահանակը չի կարող կառավարել այդ հավելվածը։ Ընտրեք հավելվածների խանութից։</value>
+  </data>
+  <data name="AppsOutcomeUnobserved">
+    <value>Վահանակը կորցրեց տեղադրման կամ հեռացման հետքը մինչև սերվերի զեկուցելը, ուստի արդյունքը հայտնի չէ։ Ստուգեք հավելվածի վիճակը հավելվածների խանութում և կրկին փորձեք։</value>
+  </data>
+  <data name="AppsOperationFailed">
+    <value>Տեղադրումը կամ հեռացումն անսպասելիորեն ընդհատվեց։ Ստուգեք հավելվածի վիճակը հավելվածների խանութում և կրկին փորձեք, իսկ եթե կրկնվի՝ դիմեք աջակցությանը։</value>
+  </data>
+  <data name="AppsServiceActionUnknown">
+    <value>Վահանակը չի առաջարկում այդ գործողությունը։ Ընտրեք մեկնարկ, կանգ, վերամեկնարկ կամ վերաբեռնում։</value>
+  </data>
+  <data name="AppsHasNoService">
+    <value>Այս հավելվածը կառավարելի ծառայություն չունի․ այն գործարկման միջավայր է, որի վրա աշխատում են կայքերը։</value>
+  </data>
+  <data name="AppKindUnknown">
+    <value>Հավելվածի այդպիսի տեսակ չկա։ Ընտրեք վեբ սերվեր կամ գործարկման միջավայր։</value>
+  </data>
+  <data name="AppStateUnknown">
+    <value>Հավելվածը չի կարող լինել այդ վիճակում։ Ընտրեք տեղադրվում է, տեղադրված է, սխալ կամ հեռացվում է։</value>
+  </data>
+</root>

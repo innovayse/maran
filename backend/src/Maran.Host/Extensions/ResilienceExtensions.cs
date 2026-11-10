@@ -129,6 +129,10 @@ public static class ResilienceExtensions
         {
             return new ResilientAgentSslClient(inner, pipelines);
         });
+        Decorate<IAgentAppsClient>(services, (inner, pipelines) =>
+        {
+            return new ResilientAgentAppsClient(inner, pipelines);
+        });
         Decorate<IAgentPhpClient>(services, (inner, pipelines) =>
         {
             return new ResilientAgentPhpClient(inner, pipelines);

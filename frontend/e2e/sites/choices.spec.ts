@@ -42,6 +42,9 @@ const PANEL_CHOICES: SiteChoices = {
   ],
   trafficWindows: [{ value: '7', label: 'Panel-labelled week' }],
   logRetentions: [{ value: '14', label: 'Panel-labelled fortnight' }],
+  phpVersions: [],
+  nodeVersions: [],
+  webServer: null,
 }
 
 /** One site, so the list shows its toolbar: with no site at all the list is the empty state, which has no filters. */

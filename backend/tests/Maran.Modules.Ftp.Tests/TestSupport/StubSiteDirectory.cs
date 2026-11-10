@@ -36,6 +36,7 @@ public sealed class StubSiteDirectory : ISiteDirectory
             SiteBackend.Php,
             "8.3",
             string.Empty,
+            SiteNodeSnapshot.None,
             HasCertificate: true,
             SiteOptionsSnapshot.None));
     }

@@ -100,7 +100,7 @@ fn install_start(adapter: &dyn DistroAdapter, extension: &str) -> Vec<String> {
         &[
             "start",
             "--",
-            &format!("maran-php-install@{package}.service"),
+            &format!("maran-app-install@{package}.service"),
         ],
     )
 }

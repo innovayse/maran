@@ -15,6 +15,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Maran.Host.IntegrationTests.Fixtures;
 
@@ -67,6 +68,11 @@ public static class EndpointHarness
             {
                 // The real SMTP mailer must never be reached from a test.
                 services.AddSingleton<IMailer>(new RecordingMailer(TimeSpan.Zero));
+
+                // A server whose first-run setup is finished: the app store's own ledger is empty in a
+                // test database, and the Sites module refuses every site while no web server is
+                // installed (issue #517). A test of the gate itself overrides this in its own configure.
+                services.Replace(ServiceDescriptor.Scoped<IStackStatus, ReadyStackStatus>());
                 configure?.Invoke(services);
             });
         });

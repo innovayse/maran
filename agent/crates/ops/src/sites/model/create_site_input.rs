@@ -2,6 +2,7 @@
 
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::web::domain::Domain;
+use maran_distro::SiteWebServer;
 
 use crate::sites::model::site_certificate::SiteCertificate;
 use crate::sites::model::site_kind::SiteKind;
@@ -30,6 +31,9 @@ pub struct CreateSiteInput {
     pub aliases: Vec<Domain>,
     /// What serves the content.
     pub kind: SiteKind,
+    /// The web server the site is served by: it decides the vhost's directory, its dialect,
+    /// the validator that checks it and the service that is reloaded.
+    pub web_server: SiteWebServer,
     /// The installed certificate, when the site has one.
     ///
     /// `None` renders a plain-HTTP vhost; `Some` renders the redirect plus the

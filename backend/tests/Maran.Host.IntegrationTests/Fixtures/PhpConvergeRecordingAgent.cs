@@ -37,6 +37,8 @@ public sealed class PhpConvergeRecordingAgent : IAgentSitesClient
         SiteBackendKind kind,
         string phpVersion,
         string proxyUpstream,
+        SiteWebServer webServer,
+        SiteNodeApp node,
         uint maxChildren,
         IReadOnlyList<PhpSettingDto> settingOverrides,
         CancellationToken cancellationToken)
@@ -69,6 +71,7 @@ public sealed class PhpConvergeRecordingAgent : IAgentSitesClient
         string accountUsername,
         string domain,
         string retiredPhpVersion,
+        SiteWebServer webServer,
         CancellationToken cancellationToken)
     {
         throw new NotSupportedException("This double answers a PHP version change only.");
@@ -106,7 +109,7 @@ public sealed class PhpConvergeRecordingAgent : IAgentSitesClient
     }
 
     /// <inheritdoc />
-    public Task<Result> ReloadWebServerAsync(CancellationToken cancellationToken)
+    public Task<Result> ReloadWebServerAsync(SiteWebServer webServer, CancellationToken cancellationToken)
     {
         throw new NotSupportedException("This double answers a PHP version change only.");
     }

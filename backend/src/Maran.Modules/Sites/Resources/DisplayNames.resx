@@ -24,6 +24,9 @@
   <data name="SiteBackendTypeReverseProxy">
     <value>Reverse proxy</value>
   </data>
+  <data name="SiteBackendTypeNode">
+    <value>Node.js</value>
+  </data>
   <data name="SiteStatusEnabled">
     <value>Enabled</value>
   </data>

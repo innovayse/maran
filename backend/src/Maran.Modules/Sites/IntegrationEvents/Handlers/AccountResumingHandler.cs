@@ -2,6 +2,7 @@ using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Mappers;
 using Maran.Modules.Sites.Persistence;
+using Maran.Modules.Sites.Services;
 using Maran.Sdk.Events;
 
 namespace Maran.Modules.Sites.IntegrationEvents.Handlers;
@@ -42,13 +43,18 @@ public sealed class AccountResumingHandler
     /// <summary>The agent, which owns the vhost include directory.</summary>
     private readonly IAgentSitesClient _agent;
 
+    /// <summary>Names the installed site web server, which every vhost this handler touches belongs to.</summary>
+    private readonly SiteStackGate _stack;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Sites module's database context.</param>
     /// <param name="agent">The agent client that re-renders each vhost.</param>
-    public AccountResumingHandler(SitesDbContext dbContext, IAgentSitesClient agent)
+    /// <param name="stack">Names the installed site web server the vhosts belong to.</param>
+    public AccountResumingHandler(SitesDbContext dbContext, IAgentSitesClient agent, SiteStackGate stack)
     {
         _dbContext = dbContext;
         _agent = agent;
+        _stack = stack;
     }
 
     /// <summary>Restores the site's own vhost for every site the account had enabled.</summary>
@@ -74,10 +80,16 @@ public sealed class AccountResumingHandler
             .ToListAsync(cancellationToken);
 #pragma warning restore RS0030
 
+        if (enabled.Count == 0)
+        {
+            return;
+        }
+
+        var webServer = await _stack.RequireWebServerAsync(cancellationToken);
         foreach (var site in enabled)
         {
             var restored = await _agent.EnableAsync(
-                message.Username, site.Domain, SiteDescriptorMapper.From(site), cancellationToken);
+                message.Username, site.Domain, SiteDescriptorMapper.From(site, webServer), cancellationToken);
             if (!restored.IsSuccess)
             {
                 throw new InvalidOperationException(

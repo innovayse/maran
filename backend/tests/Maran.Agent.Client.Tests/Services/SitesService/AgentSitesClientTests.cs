@@ -3,6 +3,7 @@ using Maran.Agent.Client.Services.SitesService;
 using Maran.Agent.Client.Tests.TestSupport;
 using Maran.Agent.V1;
 using Microsoft.Extensions.Logging.Abstractions;
+using SiteWebServer = Maran.Agent.Client.Services.SitesService.SiteWebServer;
 
 namespace Maran.Agent.Client.Tests.Services.SitesService;
 
@@ -18,7 +19,7 @@ public sealed class AgentSitesClientTests
     /// to be interesting.
     /// </summary>
     private static readonly SiteDescriptor Descriptor =
-        new(["www.example.com"], SiteBackendKind.Php, "8.3", "127.0.0.1:3000", true, SiteOptionsDescriptor.None);
+        new(["www.example.com"], SiteBackendKind.Php, "8.3", "127.0.0.1:3000", SiteNodeApp.None, SiteWebServer.Nginx, true, SiteOptionsDescriptor.None);
 
     /// <summary>Create ok payload maps to success result.</summary>
     [Fact]
@@ -215,7 +216,7 @@ public sealed class AgentSitesClientTests
     {
         var stub = new StubSitesService { DeleteResponse = new DeleteSiteResponse { Ok = new DeleteSiteOk() } };
 
-        var result = await NewClient(stub).DeleteAsync("acc1", "example.com", "", CancellationToken.None);
+        var result = await NewClient(stub).DeleteAsync("acc1", "example.com", "", SiteWebServer.Nginx, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
     }
@@ -232,7 +233,7 @@ public sealed class AgentSitesClientTests
             },
         };
 
-        var result = await NewClient(stub).DeleteAsync("acc1", "example.com", "", CancellationToken.None);
+        var result = await NewClient(stub).DeleteAsync("acc1", "example.com", "", SiteWebServer.Nginx, CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AgentNotFound", result.Error!.Code);
@@ -244,7 +245,7 @@ public sealed class AgentSitesClientTests
     {
         var client = NewClient(new StubSitesService());
 
-        var result = await client.DeleteAsync("acc1", "example.com", "", CancellationToken.None);
+        var result = await client.DeleteAsync("acc1", "example.com", "", SiteWebServer.Nginx, CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AgentInvalidResponse", result.Error!.Code);
@@ -276,6 +277,8 @@ public sealed class AgentSitesClientTests
             SiteBackendKind.Static,
             string.Empty,
             string.Empty,
+            SiteWebServer.Nginx,
+            SiteNodeApp.None,
             0,
             [],
             CancellationToken.None);
@@ -418,6 +421,7 @@ public sealed class AgentSitesClientTests
     [InlineData(SiteBackendKind.Static, SiteBackendType.Static)]
     [InlineData(SiteBackendKind.Php, SiteBackendType.Php)]
     [InlineData(SiteBackendKind.ReverseProxy, SiteBackendType.ReverseProxy)]
+    [InlineData(SiteBackendKind.Node, SiteBackendType.Node)]
     public async Task Each_backend_kind_maps_to_its_own_wire_backend_type(
         SiteBackendKind kind,
         SiteBackendType expected)
@@ -431,11 +435,61 @@ public sealed class AgentSitesClientTests
             kind,
             "8.3",
             "127.0.0.1:3000",
+            SiteWebServer.Nginx,
+            SiteNodeApp.None,
             10,
             [],
             CancellationToken.None);
 
         Assert.Equal(expected, stub.LastCreateRequest!.BackendType);
+    }
+
+    /// <summary>A creation carries the web server and the Node application to the agent.</summary>
+    [Theory]
+    [InlineData(SiteWebServer.Nginx, Maran.Agent.V1.SiteWebServer.Nginx)]
+    [InlineData(SiteWebServer.Apache, Maran.Agent.V1.SiteWebServer.Apache)]
+    public async Task Create_carries_the_web_server_and_the_node_application(SiteWebServer webServer, Maran.Agent.V1.SiteWebServer expected)
+    {
+        var stub = new StubSitesService();
+
+        await NewClient(stub).CreateAsync(
+            "acc1",
+            "example.com",
+            [],
+            SiteBackendKind.Node,
+            string.Empty,
+            string.Empty,
+            webServer,
+            new SiteNodeApp("22", 3100, "npm start"),
+            0,
+            [],
+            CancellationToken.None);
+
+        var request = stub.LastCreateRequest!;
+        Assert.Equal(expected, request.WebServer);
+        Assert.Equal("22", request.NodeVersion);
+        Assert.Equal(3100u, request.AppPort);
+        Assert.Equal("npm start", request.StartCommand);
+    }
+
+    /// <summary>A re-render carries the Node application, and a site without one carries none.</summary>
+    [Fact]
+    public async Task A_re_render_carries_the_node_application_and_a_site_without_one_carries_none()
+    {
+        var withNode = new StubSitesService();
+        var without = new StubSitesService();
+        var node = Descriptor with { Backend = SiteBackendKind.Node, Node = new SiteNodeApp("20", 3200, "node server.js") };
+
+        await NewClient(withNode).EnableAsync("acc1", "example.com", node, CancellationToken.None);
+        await NewClient(without).EnableAsync("acc1", "example.com", Descriptor, CancellationToken.None);
+
+        var spec = withNode.LastEnableRequest!.Site;
+        Assert.Equal("20", spec.NodeVersion);
+        Assert.Equal(3200u, spec.AppPort);
+        Assert.Equal("node server.js", spec.StartCommand);
+        Assert.Equal(string.Empty, without.LastEnableRequest!.Site.NodeVersion);
+        Assert.Equal(0u, without.LastEnableRequest!.Site.AppPort);
+        Assert.Equal(string.Empty, without.LastEnableRequest!.Site.StartCommand);
     }
 
     /// <summary>Enable sends the account the domain and all five site facts.</summary>
@@ -463,6 +517,7 @@ public sealed class AgentSitesClientTests
     [InlineData(SiteBackendKind.Static, SiteBackendType.Static)]
     [InlineData(SiteBackendKind.Php, SiteBackendType.Php)]
     [InlineData(SiteBackendKind.ReverseProxy, SiteBackendType.ReverseProxy)]
+    [InlineData(SiteBackendKind.Node, SiteBackendType.Node)]
     public async Task Each_backend_kind_survives_the_site_spec_of_a_re_rendering_call(
         SiteBackendKind kind,
         SiteBackendType expected)
@@ -516,10 +571,40 @@ public sealed class AgentSitesClientTests
     {
         var stub = new StubSitesService();
 
-        await NewClient(stub).DeleteAsync("acc1", "example.com", "", CancellationToken.None);
+        await NewClient(stub).DeleteAsync("acc1", "example.com", "", SiteWebServer.Nginx, CancellationToken.None);
 
         Assert.Equal("acc1", stub.LastDeleteRequest!.AccountUsername);
         Assert.Equal("example.com", stub.LastDeleteRequest.Domain);
+    }
+
+    /// <summary>Delete names the web server whose vhost goes, and a reload names the one to reload.</summary>
+    [Theory]
+    [InlineData(SiteWebServer.Nginx, Maran.Agent.V1.SiteWebServer.Nginx)]
+    [InlineData(SiteWebServer.Apache, Maran.Agent.V1.SiteWebServer.Apache)]
+    public async Task Delete_and_reload_name_the_web_server(SiteWebServer webServer, Maran.Agent.V1.SiteWebServer expected)
+    {
+        // The wire reads an unset web server as nginx, so a delete or reload that forgot it would
+        // remove or reload the wrong server's vhosts on an Apache host.
+        var stub = new StubSitesService { ReloadResponse = new ReloadWebServerResponse { Ok = new ReloadWebServerOk() } };
+        var client = NewClient(stub);
+
+        await client.DeleteAsync("acc1", "example.com", "", webServer, CancellationToken.None);
+        await client.ReloadWebServerAsync(webServer, CancellationToken.None);
+
+        Assert.Equal(expected, stub.LastDeleteRequest!.WebServer);
+        Assert.Equal(expected, stub.LastReloadRequest!.WebServer);
+    }
+
+    /// <summary>A re-render carries the web server of its descriptor in the spec.</summary>
+    [Theory]
+    [InlineData(SiteWebServer.Nginx, Maran.Agent.V1.SiteWebServer.Nginx)]
+    [InlineData(SiteWebServer.Apache, Maran.Agent.V1.SiteWebServer.Apache)]
+    public void A_descriptor_writes_its_web_server_into_the_spec(SiteWebServer webServer, Maran.Agent.V1.SiteWebServer expected)
+    {
+        var descriptor = new SiteDescriptor(
+            [], SiteBackendKind.Static, string.Empty, string.Empty, SiteNodeApp.None, webServer, false, SiteOptionsDescriptor.None);
+
+        Assert.Equal(expected, descriptor.ToWire().WebServer);
     }
 
     /// <summary>Tail sends the account the domain and the history limit.</summary>
@@ -751,6 +836,8 @@ public sealed class AgentSitesClientTests
             SiteBackendKind.Php,
             "8.3",
             "127.0.0.1:3000",
+            SiteWebServer.Nginx,
+            SiteNodeApp.None,
             10,
             [],
             CancellationToken.None);
@@ -807,7 +894,7 @@ public sealed class AgentSitesClientTests
         };
 
         var result = await new AgentSitesClient(stub, NullLogger<AgentSitesClient>.Instance)
-            .ReloadWebServerAsync(CancellationToken.None);
+            .ReloadWebServerAsync(SiteWebServer.Nginx, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(1, stub.ReloadCallCount);
@@ -831,7 +918,7 @@ public sealed class AgentSitesClientTests
         };
 
         var result = await new AgentSitesClient(stub, NullLogger<AgentSitesClient>.Instance)
-            .ReloadWebServerAsync(CancellationToken.None);
+            .ReloadWebServerAsync(SiteWebServer.Nginx, CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AgentValidationFailed", result.Error!.Code);
@@ -846,7 +933,7 @@ public sealed class AgentSitesClientTests
     public async Task A_reload_response_with_neither_branch_set_is_refused_rather_than_read_as_success()
     {
         var result = await new AgentSitesClient(new StubSitesService(), NullLogger<AgentSitesClient>.Instance)
-            .ReloadWebServerAsync(CancellationToken.None);
+            .ReloadWebServerAsync(SiteWebServer.Nginx, CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AgentInvalidResponse", result.Error!.Code);

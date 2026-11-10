@@ -174,4 +174,22 @@
   <data name="SiteOptionNotForBackend">
     <value>Այս պարամետրը չի կիրառվում այսպիսի կայքի համար։</value>
   </data>
+  <data name="AppsStackNotReady">
+    <value>Այս սերվերում դեռ վեբ սերվեր չկա, ուստի կայքեր չեն կարող ստեղծվել կամ փոփոխվել։ Ավարտեք սերվերի կարգավորումը՝ տեղադրելով վեբ սերվեր հավելվածների խանութից, և կրկին փորձեք։</value>
+  </data>
+  <data name="AppsNotInstalled">
+    <value>Այս հավելվածը տեղադրված չէ սերվերում։ Նախ տեղադրեք այն հավելվածների խանութից։</value>
+  </data>
+  <data name="SiteNodeVersionInvalidFormat">
+    <value>Նշեք Node.js-ի տարբերակը հիմնական համարով, օրինակ՝ 22։</value>
+  </data>
+  <data name="SiteAppPortInvalid">
+    <value>Նշեք 1024-ից 65535 միջակայքի պորտ, որի վրա հավելվածը կլսի։</value>
+  </data>
+  <data name="SiteStartCommandInvalid">
+    <value>Մեկնարկի հրամանը վավեր չէ։ Օգտագործեք մեկ տող առանց կառավարող նիշերի։</value>
+  </data>
+  <data name="SiteAppPortTaken">
+    <value>Այս սերվերի մեկ այլ կայք արդեն օգտագործում է այդ պորտը։ Ընտրեք այլ պորտ։</value>
+  </data>
 </root>

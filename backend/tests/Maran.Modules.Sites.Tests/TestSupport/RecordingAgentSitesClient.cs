@@ -41,6 +41,12 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     /// <summary>The descriptors handed to the operations that re-render a vhost, in order.</summary>
     public List<SiteDescriptor> Descriptors { get; } = [];
 
+    /// <summary>The web server each creation was rendered for, in call order.</summary>
+    public List<SiteWebServer> WebServers { get; } = [];
+
+    /// <summary>The Node application each creation was given, in call order.</summary>
+    public List<SiteNodeApp> NodeApps { get; } = [];
+
     /// <summary>The worker budgets handed to <see cref="ChangePhpVersionAsync"/>, in order.</summary>
     public List<uint> MaxChildren { get; } = [];
 
@@ -75,6 +81,8 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
         SiteBackendKind kind,
         string phpVersion,
         string proxyUpstream,
+        SiteWebServer webServer,
+        SiteNodeApp node,
         uint maxChildren,
         IReadOnlyList<PhpSettingDto> settingOverrides,
         CancellationToken cancellationToken)
@@ -82,6 +90,8 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
         Calls.Add($"create:{accountUsername}:{domain}:{kind}:{phpVersion}:{string.Join('|', aliases)}:{maxChildren}");
         Tokens.Add(cancellationToken);
         SettingOverrides.Add(settingOverrides);
+        WebServers.Add(webServer);
+        NodeApps.Add(node);
         var failure = CreateFailure ?? _failure;
         return Task.FromResult(failure is null
             ? Result<CreatedSiteDto>.Ok(new CreatedSiteDto($"/home/{accountUsername}/sites/{domain}"))
@@ -145,12 +155,20 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
         string accountUsername,
         string domain,
         string retiredPhpVersion,
+        SiteWebServer webServer,
         CancellationToken cancellationToken)
     {
         Calls.Add($"delete:{accountUsername}:{domain}:{retiredPhpVersion}");
+        DeleteWebServers.Add(webServer);
         Tokens.Add(cancellationToken);
         return Task.FromResult(DeleteFailure is null ? Answer() : Result.Fail(DeleteFailure));
     }
+
+    /// <summary>The web server each delete named, in call order.</summary>
+    public List<SiteWebServer> DeleteWebServers { get; } = [];
+
+    /// <summary>The web server each reload named, in call order.</summary>
+    public List<SiteWebServer> ReloadWebServers { get; } = [];
 
     /// <summary>The events a tail yields, in order. Empty means a stream that ends saying nothing.</summary>
     public IReadOnlyList<SiteLogEvent> LogEvents { get; init; } = [];
@@ -233,9 +251,10 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     public int ReloadCallCount { get; private set; }
 
     /// <inheritdoc/>
-    public Task<Result> ReloadWebServerAsync(CancellationToken cancellationToken)
+    public Task<Result> ReloadWebServerAsync(SiteWebServer webServer, CancellationToken cancellationToken)
     {
         ReloadCallCount++;
+        ReloadWebServers.Add(webServer);
         return Task.FromResult(Answer());
     }
 

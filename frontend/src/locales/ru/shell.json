@@ -16,6 +16,7 @@
         "sitesList": "сайты домены ssl tls https сертификат nginx",
         "sitePhp": "php настройки версия ini",
         "phpVersions": "php версии установка",
+        "apps": "приложения магазин веб-сервер nginx apache php node nodejs установка среда",
         "smtp": "smtp исходящая почта email сервер отправка",
         "securityPolicy": "пароль политика безопасность password двухфакторная двухэтапная 2fa блокировка",
         "panelCertificate": "ssl tls https сертификат панель",

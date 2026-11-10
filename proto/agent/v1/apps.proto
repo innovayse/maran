@@ -1,0 +1,233 @@
+// The app store of the host: web servers and language runtimes the panel
+// installs, removes and controls. An "app" is an operating-system package set
+// the panel runs for sites; it is deliberately a different word from a panel
+// "module" (issue #186). The catalogue is closed and the agent owns it: the
+// panel names an app by id and never by package (issue #517,
+// docs/apps/README.md).
+syntax = "proto3";
+
+package maran.agent.v1;
+
+option csharp_namespace = "Maran.Agent.V1";
+
+import "agent/v1/common.proto";
+
+service AppsService {
+  // Lists the apps installed on this host, with the version and the service
+  // status of each. Read-only. Every field is probed from the host at the time
+  // of the call (the files a package leaves and the service manager's own
+  // answer), never remembered, so an app installed or removed by hand is
+  // reported as it is. A probe that could not be completed is SYSTEM_FAILURE,
+  // never a shorter list.
+  rpc ListApps(ListAppsRequest) returns (ListAppsResponse);
+
+  // Lists every app of the closed catalogue the host's package sources can
+  // install, each flagged as installed or not. Read-only, and cache-only: it
+  // reads the package metadata already on disk and opens no connection. An app
+  // is listed when the catalogue and the host's sources both carry it, which
+  // is the same test InstallApp applies, so a picker built on this list never
+  // offers an app the install would refuse; an installed app is listed even if
+  // the sources no longer carry it. A catalogue that was never built is
+  // SYSTEM_FAILURE, never an empty list.
+  rpc ListInstallableApps(ListInstallableAppsRequest) returns (ListInstallableAppsResponse);
+
+  // Installs one app through the installer's root unit
+  // `maran-app-install@<package>`, streaming progress. The package manager is
+  // not run by the agent: its own sandbox keeps /usr read-only. Idempotent: an
+  // app already installed completes immediately with a success terminal
+  // message. An app id outside the catalogue is INVALID_INPUT; a second site
+  // web server is WEB_SERVER_ALREADY_INSTALLED; a package the sources do not
+  // carry is PACKAGE_NOT_AVAILABLE, and a source that refused or could not be
+  // reached is PACKAGE_SOURCE_REFUSED or PACKAGE_SOURCE_UNREACHABLE.
+  // Cancellation class: run to completion, with nothing to reclaim.
+  rpc InstallApp(InstallAppRequest) returns (stream InstallAppResponse);
+
+  // Removes one app through the installer's root unit
+  // `maran-app-remove@<package>`, streaming progress. Refused with
+  // APP_NOT_INSTALLED when the app is not installed and with APP_IN_USE when a
+  // site (web server) or an account's pool (PHP) still uses it. The panel's own
+  // front is never an app and cannot be named here. Cancellation class: run to
+  // completion, with nothing to reclaim.
+  rpc UninstallApp(UninstallAppRequest) returns (stream UninstallAppResponse);
+
+  // Starts, stops, restarts or reloads the service of one installed app.
+  // APP_NOT_INSTALLED when the app is not installed, INVALID_INPUT when it has
+  // no service (a Node.js runtime) or when it cannot be reloaded.
+  // Idempotent for START and STOP. The effect is host-wide: stopping a web
+  // server takes every site it serves off the air.
+  rpc ControlAppService(ControlAppServiceRequest) returns (ControlAppServiceResponse);
+}
+
+// What an app is for.
+enum AppKind {
+  // Not set. A reader treats it as "not known" and offers no action.
+  APP_KIND_UNSPECIFIED = 0;
+  // The process that owns ports 80 and 443 for hosted sites: nginx or Apache.
+  APP_KIND_WEB_SERVER = 1;
+  // A language runtime sites run on: a PHP version or a Node.js major version.
+  APP_KIND_RUNTIME = 2;
+}
+
+// What the service manager reports about an app's service.
+enum AppServiceStatus {
+  // Not set. A reader treats it as "not known".
+  APP_SERVICE_STATUS_UNSPECIFIED = 0;
+  // The service is running.
+  APP_SERVICE_STATUS_ACTIVE = 1;
+  // The service is installed and not running.
+  APP_SERVICE_STATUS_INACTIVE = 2;
+  // The service is in a failed state.
+  APP_SERVICE_STATUS_FAILED = 3;
+  // The app has no service: a Node.js runtime is an interpreter, and a site's
+  // own unit is the thing that runs.
+  APP_SERVICE_STATUS_NONE = 4;
+}
+
+// What ControlAppService does to the service.
+enum AppServiceAction {
+  // Not set. Refused with INVALID_INPUT.
+  APP_SERVICE_ACTION_UNSPECIFIED = 0;
+  // Starts the service.
+  APP_SERVICE_ACTION_START = 1;
+  // Stops the service.
+  APP_SERVICE_ACTION_STOP = 2;
+  // Stops and starts the service.
+  APP_SERVICE_ACTION_RESTART = 3;
+  // Asks the running service to re-read its configuration without dropping
+  // connections. Refused for a service that is not running.
+  APP_SERVICE_ACTION_RELOAD = 4;
+}
+
+// Request for ListApps. Carries no parameters: the list is always scoped to the
+// host the agent runs on.
+message ListAppsRequest {}
+
+// Response for ListApps.
+message ListAppsResponse {
+  oneof result {
+    ListAppsOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+// Terminal success payload for ListApps.
+message ListAppsOk {
+  // The installed apps, in catalogue order: nginx, apache, then PHP versions
+  // newest first, then Node.js majors newest first.
+  repeated AppInfo apps = 1;
+}
+
+// One app installed on this host.
+message AppInfo {
+  // The app id, one of the closed catalogue: "nginx", "apache", `php-<ver>`
+  // (7.4 to 8.4) or `nodejs-<major>` (18, 20, 22, 24).
+  string app_id = 1;
+  // What the app is for.
+  AppKind kind = 2;
+  // The version as the host reports it, e.g. "1.24.0" for nginx or "8.3" for a
+  // PHP version; empty when the host reports none.
+  string version = 3;
+  // What the service manager reports about the app's service.
+  AppServiceStatus service_status = 4;
+}
+
+// Request for ListInstallableApps. Carries no parameters.
+message ListInstallableAppsRequest {}
+
+// Response for ListInstallableApps.
+message ListInstallableAppsResponse {
+  oneof result {
+    ListInstallableAppsOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+// Terminal success payload for ListInstallableApps.
+message ListInstallableAppsOk {
+  // The installable apps, in catalogue order, installed ones included.
+  repeated InstallableApp apps = 1;
+}
+
+// One app this host can install.
+message InstallableApp {
+  // The app id, as in AppInfo.
+  string app_id = 1;
+  // What the app is for.
+  AppKind kind = 2;
+  // True when the app is already installed on the host.
+  bool installed = 3;
+}
+
+// Request for InstallApp.
+message InstallAppRequest {
+  // The app to install: "nginx", "apache", `php-<ver>` or `nodejs-<major>`.
+  // Parsed by the agent against its closed catalogue; anything else, or a
+  // value carrying a control character, is INVALID_INPUT. The agent never
+  // takes a package name from the caller.
+  string app_id = 1;
+}
+
+// Streamed response for InstallApp.
+message InstallAppResponse {
+  oneof result {
+    // Emitted repeatedly while the installation runs.
+    Progress progress = 1;
+    // Terminal success.
+    InstallAppOk ok = 2;
+    // Terminal failure.
+    AgentError error = 3;
+  }
+}
+
+// Terminal success payload for InstallApp.
+message InstallAppOk {
+  // The app now installed, echoed back so a caller that retried a cancelled
+  // stream can confirm what it got.
+  string app_id = 1;
+}
+
+// Request for UninstallApp.
+message UninstallAppRequest {
+  // The app to remove, as in InstallAppRequest.
+  string app_id = 1;
+}
+
+// Streamed response for UninstallApp.
+message UninstallAppResponse {
+  oneof result {
+    // Emitted repeatedly while the removal runs.
+    Progress progress = 1;
+    // Terminal success.
+    UninstallAppOk ok = 2;
+    // Terminal failure.
+    AgentError error = 3;
+  }
+}
+
+// Terminal success payload for UninstallApp.
+message UninstallAppOk {
+  // The app now removed, echoed back.
+  string app_id = 1;
+}
+
+// Request for ControlAppService.
+message ControlAppServiceRequest {
+  // The app whose service to control, as in InstallAppRequest.
+  string app_id = 1;
+  // What to do to the service. UNSPECIFIED is INVALID_INPUT.
+  AppServiceAction action = 2;
+}
+
+// Response for ControlAppService.
+message ControlAppServiceResponse {
+  oneof result {
+    ControlAppServiceOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+// Terminal success payload for ControlAppService.
+message ControlAppServiceOk {
+  // What the service manager reports about the service after the action.
+  AppServiceStatus service_status = 1;
+}

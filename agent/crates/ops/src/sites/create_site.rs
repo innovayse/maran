@@ -12,6 +12,7 @@ use crate::sites::model::site_paths::SitePaths;
 use crate::sites::render_vhost::render_vhost;
 use crate::sites::resolved_site_paths::resolved_site_paths;
 use crate::sites::sync_site_auth_file::sync_site_auth_file;
+use crate::sites::write_node_unit::write_node_unit;
 use crate::sites::write_site_pool::write_site_pool;
 use crate::sites::{SiteHost, SitesOpError};
 
@@ -107,11 +108,12 @@ pub fn create_site(
     input
         .options
         .check_against(&input.kind, &input.domain, &input.aliases)?;
+    input.options.check_web_server(input.web_server)?;
 
     // Named, not yet resolved: the document root does not exist until the
     // block below creates it, and a path can only be proved contained once it
     // is there.
-    let named = SitePaths::for_site(&input.account, &input.domain);
+    let named = SitePaths::for_site(&input.account, &input.domain, input.web_server);
 
     if host.read_config(&named.config_path)?.is_some() {
         return Err(SitesOpError::AlreadyExists {
@@ -132,7 +134,7 @@ pub fn create_site(
     // the vhost with THAT path rather than with the one we asked for — through
     // the same derivation `enable_site` and `disable_site` use, so all three
     // render byte-identical text for the same site.
-    let paths = resolved_site_paths(host, &input.account, &input.domain)?;
+    let paths = resolved_site_paths(host, &input.account, &input.domain, input.web_server)?;
 
     // The pool BEFORE the vhost, and for the same reason a version switch
     // writes it first: the vhost about to be rendered names a socket by path,
@@ -167,7 +169,18 @@ pub fn create_site(
     // then refused the file stays: nothing reads it, and the start-up sweep
     // removes a file whose site has no vhost.
     sync_site_auth_file(host, distro, input)?;
-    create_vhost(host, distro, &paths.config_path, &contents, &served_names)?;
+    // The application BEFORE the vhost that proxies to it, for the reason the pool is written
+    // before a PHP vhost: a vhost that reaches a live web server ahead of its upstream answers
+    // every request with a 502. Only a Node.js site has a unit; every other kind skips it.
+    write_node_unit(host, distro, input, &paths)?;
+    create_vhost(
+        host,
+        distro,
+        input.web_server,
+        &paths.config_path,
+        &contents,
+        &served_names,
+    )?;
 
     Ok(CreatedSite {
         document_root: paths.document_root.display().to_string(),

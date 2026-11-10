@@ -458,10 +458,11 @@ public sealed class ReplaceSiteOptionsCommandHandlerTests
         Assert.Equal(cancellation.Token, Assert.Single(agent.Tokens));
     }
 
-    /// <summary>An upload size on a static site and cache headers on a proxied one are refused before the agent is asked.</summary>
+    /// <summary>An upload size on a static site and cache headers on a proxied or node one are refused before the agent is asked.</summary>
     [Theory]
     [InlineData(SiteBackendType.Static, true)]
     [InlineData(SiteBackendType.ReverseProxy, false)]
+    [InlineData(SiteBackendType.Node, false)]
     public async Task An_option_the_backend_has_no_place_for_is_refused_before_the_agent_is_asked(
         SiteBackendType backend,
         bool uploadSize)
@@ -472,6 +473,9 @@ public sealed class ReplaceSiteOptionsCommandHandlerTests
         var site = new Maran.Modules.Sites.Domain.Entities.Site(
             Guid.NewGuid(), account, "example.com", [], backend, string.Empty,
             backend == SiteBackendType.ReverseProxy ? "127.0.0.1:8080" : string.Empty,
+            backend == SiteBackendType.Node ? "22" : string.Empty,
+            backend == SiteBackendType.Node ? 3100 : 0,
+            backend == SiteBackendType.Node ? "npm start" : string.Empty,
             "/home/acme/sites/example.com", new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
         seed.Sites.Add(site);
         await seed.SaveChangesAsync();
@@ -515,16 +519,40 @@ public sealed class ReplaceSiteOptionsCommandHandlerTests
             siteId, CanonicalHost.None, null, null, [], [], null, [], null, "198.51.100.7", "tests");
     }
 
+    /// <summary>With no site web server installed the operation is refused before the host is touched.</summary>
+    [Fact]
+    public async Task With_no_web_server_installed_the_operation_is_refused_before_the_host_is_touched()
+    {
+        var account = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        var siteId = await SeedAsync(database, account, "example.com");
+        var agent = new RecordingAgentSitesClient();
+        var audit = new RecordingAuditWriter();
+        await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(account), database);
+
+        var result = await Handler(context, account, agent, audit, SiteStacks.NotReady()).HandleAsync(
+            Command(siteId),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AppsStackNotReady", result.Error!.Code);
+        Assert.Equal(ErrorType.Conflict, result.Error.Type);
+        Assert.Empty(agent.Calls);
+        Assert.False(Assert.Single(audit.Entries).Succeeded);
+    }
+
     /// <summary>Builds the handler under test.</summary>
     /// <param name="context">The context bound to the calling principal.</param>
     /// <param name="accountId">The account the caller owns.</param>
     /// <param name="agent">The agent double.</param>
     /// <param name="audit">The journal double.</param>
+    /// <param name="stack">The installed stack; defaults to a host with nginx and runtimes installed.</param>
     private static ReplaceSiteOptionsCommandHandler Handler(
         SitesDbContext context,
         Guid accountId,
         RecordingAgentSitesClient agent,
-        RecordingAuditWriter? audit = null)
+        RecordingAuditWriter? audit = null,
+        SiteStackGate? stack = null)
     {
         var accounts = new StubAccountDirectory(new AccountSnapshot(
             accountId,
@@ -541,7 +569,8 @@ public sealed class ReplaceSiteOptionsCommandHandlerTests
             agent,
             new SiteAuditJournal(audit ?? new RecordingAuditWriter(), FakeCurrentUser.Customer(accountId)),
             SitesTestContext.SiteNames(),
-            new RecordingLogger<ReplaceSiteOptionsCommandHandler>());
+            new RecordingLogger<ReplaceSiteOptionsCommandHandler>(),
+            stack ?? SiteStacks.Ready());
     }
 
     /// <summary>Seeds one site and returns its id.</summary>

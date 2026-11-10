@@ -94,6 +94,8 @@ public sealed class StubAgentSitesClient : IAgentSitesClient
     /// <param name="kind">Unused.</param>
     /// <param name="phpVersion">Unused.</param>
     /// <param name="proxyUpstream">Unused.</param>
+    /// <param name="webServer"></param>
+    /// <param name="node"></param>
     /// <param name="maxChildren">Unused.</param>
     /// <param name="settingOverrides">Unused.</param>
     /// <param name="cancellationToken">Unused.</param>
@@ -105,6 +107,8 @@ public sealed class StubAgentSitesClient : IAgentSitesClient
         SiteBackendKind kind,
         string phpVersion,
         string proxyUpstream,
+        SiteWebServer webServer,
+        SiteNodeApp node,
         uint maxChildren,
         IReadOnlyList<PhpSettingDto> settingOverrides,
         CancellationToken cancellationToken)
@@ -169,12 +173,14 @@ public sealed class StubAgentSitesClient : IAgentSitesClient
     /// <param name="accountUsername">Unused.</param>
     /// <param name="domain">Unused.</param>
     /// <param name="retiredPhpVersion">Unused.</param>
+    /// <param name="webServer"></param>
     /// <param name="cancellationToken">Unused.</param>
     /// <returns>Never returns.</returns>
     public Task<Result> DeleteAsync(
         string accountUsername,
         string domain,
         string retiredPhpVersion,
+        SiteWebServer webServer,
         CancellationToken cancellationToken)
     {
         throw new NotSupportedException();
@@ -201,9 +207,10 @@ public sealed class StubAgentSitesClient : IAgentSitesClient
     }
 
     /// <summary>Not exercised by these tests.</summary>
+    /// <param name="webServer"></param>
     /// <param name="cancellationToken">Unused.</param>
     /// <returns>Never returns.</returns>
-    public Task<Result> ReloadWebServerAsync(CancellationToken cancellationToken)
+    public Task<Result> ReloadWebServerAsync(SiteWebServer webServer, CancellationToken cancellationToken)
     {
         throw new NotSupportedException();
     }

@@ -4,6 +4,7 @@ import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubShellReads } from '../fixtures/stub-shell-reads'
+import { READY_STACK, stubStack } from '../fixtures/stub-stack-routes'
 import { stubEmptyTasks } from '../fixtures/stub-tasks-routes'
 
 /** What the backend answers a password-only sign-in with when the user has a second factor. */
@@ -39,6 +40,7 @@ test('entering the authenticator code completes the sign-in', async ({ page }) =
   // The completed sign-in lands on the home screen, which asks for its own reads.
   await stubShellReads(page)
   await stubEmptyTasks(page)
+  await stubStack(page, READY_STACK)
   await stubLandingReads(page)
   await page.route('**/api/v1/auth/two-factor', async (route) => {
     await route.fulfill({

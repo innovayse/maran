@@ -1,6 +1,6 @@
 //! InstallPanelCertificate: the panel's own TLS pair, replaced in place.
 
-use maran_distro::DistroAdapter;
+use maran_distro::{DistroAdapter, SiteWebServer};
 
 use crate::sites::SiteCertificate;
 use crate::ssl::certificate_expiry::certificate_expiry;
@@ -61,7 +61,7 @@ pub fn install_panel_certificate(
     let expiry = certificate_expiry(host, distro, material)?;
 
     if !already_installed {
-        write_material(host, distro, &certificate, material)?;
+        write_material(host, distro, SiteWebServer::Nginx, &certificate, material)?;
     }
 
     Ok(expiry)

@@ -5,6 +5,7 @@ using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Services;
 using Maran.Modules.Sites.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Apps;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 
@@ -119,7 +120,28 @@ public sealed class ChangeSitePhpVersionCommandHandlerTests
             CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal("PhpVersionNotInstalled", result.Error!.Code);
+        Assert.Equal("AppsNotInstalled", result.Error!.Code);
+        Assert.Empty(agent.Calls);
+        Assert.Equal("8.3", (await context.Sites.SingleAsync()).PhpVersion);
+    }
+
+    /// <summary>With no site web server installed the change is refused before the host is touched.</summary>
+    [Fact]
+    public async Task With_no_web_server_installed_the_change_is_refused_before_the_host_is_touched()
+    {
+        var account = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        var siteId = await SeedAsync(database, account, "example.com");
+        var agent = new RecordingAgentSitesClient();
+        await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(account), database);
+
+        var result = await Handler(context, account, agent, stack: SiteStacks.NotReady()).HandleAsync(
+            new ChangeSitePhpVersionCommand(siteId, "8.4", "198.51.100.7", "tests"),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AppsStackNotReady", result.Error!.Code);
+        Assert.Equal(ErrorType.Conflict, result.Error.Type);
         Assert.Empty(agent.Calls);
         Assert.Equal("8.3", (await context.Sites.SingleAsync()).PhpVersion);
     }
@@ -191,6 +213,7 @@ public sealed class ChangeSitePhpVersionCommandHandlerTests
     [Theory]
     [InlineData(SiteBackendType.Static)]
     [InlineData(SiteBackendType.ReverseProxy)]
+    [InlineData(SiteBackendType.Node)]
     public async Task A_site_whose_backend_is_not_php_cannot_be_rebound(SiteBackendType backendType)
     {
         // Without the guard the agent is asked to render an FPM pool for a site whose descriptor
@@ -306,6 +329,9 @@ public sealed class ChangeSitePhpVersionCommandHandlerTests
             backendType,
             string.Empty,
             backendType == SiteBackendType.ReverseProxy ? "127.0.0.1:8080" : string.Empty,
+            string.Empty,
+            0,
+            string.Empty,
             "/home/acct/sites/example.com",
             new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
         seed.Sites.Add(site);
@@ -317,16 +343,18 @@ public sealed class ChangeSitePhpVersionCommandHandlerTests
     /// <param name="context">The context bound to the calling principal.</param>
     /// <param name="accountId">The account the caller owns.</param>
     /// <param name="agent">The agent double.</param>
-    /// <param name="installedPhp">Versions the host reports as installed.</param>
+    /// <param name="installedPhp">PHP versions installed as apps.</param>
     /// <param name="maxPhpWorkersPerPool">The plan's per-pool worker budget.</param>
     /// <param name="audit">The journal double.</param>
+    /// <param name="stack">The installed stack; overrides <paramref name="installedPhp"/> when given.</param>
     private static ChangeSitePhpVersionCommandHandler Handler(
         Maran.Modules.Sites.Persistence.SitesDbContext context,
         Guid accountId,
         RecordingAgentSitesClient agent,
         string[]? installedPhp = null,
         int maxPhpWorkersPerPool = 10,
-        RecordingAuditWriter? audit = null)
+        RecordingAuditWriter? audit = null,
+        SiteStackGate? stack = null)
     {
         var accounts = new StubAccountDirectory(new AccountSnapshot(
             accountId,
@@ -341,10 +369,10 @@ public sealed class ChangeSitePhpVersionCommandHandlerTests
             context,
             accounts,
             agent,
-            new RecordingAgentPhpClient(installedPhp ?? ["8.3", "8.4"]),
             new SiteAuditJournal(audit ?? new RecordingAuditWriter(), FakeCurrentUser.Customer(accountId)),
             SitesTestContext.SiteNames(),
-            new PhpAccountPoolSettings(context));
+            new PhpAccountPoolSettings(context),
+            stack ?? SiteStacks.With(StackWebServer.Nginx, installedPhp ?? ["8.3", "8.4"], ["22"]));
     }
 
     /// <summary>Seeds one site and returns its id.</summary>

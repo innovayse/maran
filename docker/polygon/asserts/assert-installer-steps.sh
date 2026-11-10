@@ -42,6 +42,9 @@ readonly SSHD_CONFIG="/etc/ssh/sshd_config"
 # repository has lost verdicts before.
 readonly INSTALLER_ENTRY_POINT="${INSTALLER_ROOT}/install.sh"
 readonly PANEL_VHOST="${INSTALLER_ROOT}/nginx/maran.conf"
+# The panel's plain-HTTP ACME block, split out of the vhost so that the agent can take it out of
+# nginx's tree while Apache owns port 80 (issue #517). It is the only file that may bind port 80.
+readonly PANEL_PORT80_BLOCK="${INSTALLER_ROOT}/nginx/maran-port80.conf"
 readonly PANEL_ENV_EXAMPLE="${INSTALLER_ROOT}/panel.env.example"
 readonly CONFIG_STEP="${INSTALLER_LIB}/60-config.sh"
 readonly API_UNIT="${INSTALLER_ROOT}/systemd/maran-api.service"
@@ -57,11 +60,12 @@ readonly PHP_TMPFILES="${INSTALLER_ROOT}/systemd/maran-php.tmpfiles.conf"
 # the host's /tmp, /var/tmp and /dev/shm onto (issue #139). Applied by the directory layout check.
 readonly HOST_TMPFILES="${INSTALLER_ROOT}/systemd/maran-host.tmpfiles.conf"
 readonly AGENT_UNIT="${INSTALLER_ROOT}/systemd/maran-agent.service"
-# The package-install template step 70 renders and installs beside the two units above (issue #93).
-# RENDERED and INSTALLED by the step's own functions, never read for an expectation: see
-# parts/php-install-unit.sh. Step 70's install_units reads it, so a missing COPY stops the build
-# at the step and not only at the assertion.
-readonly PHP_INSTALL_UNIT_SOURCE="${INSTALLER_ROOT}/systemd/maran-php-install@.service"
+# The package-install and package-removal templates step 70 renders and installs beside the two
+# units above (issues #93, #517). RENDERED and INSTALLED by the step's own functions, never read for
+# an expectation: see parts/app-package-units.sh. Step 70's install_units reads them, so a missing
+# COPY stops the build at the step and not only at the assertion.
+readonly APP_INSTALL_UNIT_SOURCE="${INSTALLER_ROOT}/systemd/maran-app-install@.service"
+readonly APP_REMOVE_UNIT_SOURCE="${INSTALLER_ROOT}/systemd/maran-app-remove@.service"
 readonly SERVICES_STEP="${INSTALLER_LIB}/70-services.sh"
 # The shared helpers the step files call but no step defines. Sourced rather than read: a step that
 # calls `host_display_name` and cannot find it exits 127 with no assertion of this script ever
@@ -249,6 +253,7 @@ require_installer_file() {
 
 require_installer_file "$INSTALLER_ENTRY_POINT" installer/install.sh
 require_installer_file "$PANEL_VHOST" installer/nginx/maran.conf
+require_installer_file "$PANEL_PORT80_BLOCK" installer/nginx/maran-port80.conf
 require_installer_file "$PANEL_ENV_EXAMPLE" installer/panel.env.example
 require_installer_file "$CONFIG_STEP" installer/lib/60-config.sh
 require_installer_file "$API_UNIT" installer/systemd/maran-api.service
@@ -256,7 +261,8 @@ require_installer_file "$API_TMPFILES" installer/systemd/maran-api.tmpfiles.conf
 require_installer_file "$PHP_TMPFILES" installer/systemd/maran-php.tmpfiles.conf
 require_installer_file "$HOST_TMPFILES" installer/systemd/maran-host.tmpfiles.conf
 require_installer_file "$AGENT_UNIT" installer/systemd/maran-agent.service
-require_installer_file "$PHP_INSTALL_UNIT_SOURCE" installer/systemd/maran-php-install@.service
+require_installer_file "$APP_INSTALL_UNIT_SOURCE" installer/systemd/maran-app-install@.service
+require_installer_file "$APP_REMOVE_UNIT_SOURCE" installer/systemd/maran-app-remove@.service
 require_installer_file "$SERVICES_STEP" installer/lib/70-services.sh
 require_installer_file "$COMMON_LIB" installer/lib/00-common.sh
 require_installer_file "$PREFLIGHT_STEP" installer/lib/10-preflight.sh
@@ -541,7 +547,8 @@ for __part in \
   "${ASSERT_PARTS_DIR}/service-account.sh" \
   "${ASSERT_PARTS_DIR}/directory-layout.sh" \
   "${ASSERT_PARTS_DIR}/units-and-preflight.sh" \
-  "${ASSERT_PARTS_DIR}/php-install-unit.sh" \
+  "${ASSERT_PARTS_DIR}/app-package-units.sh" \
+  "${ASSERT_PARTS_DIR}/app-store.sh" \
   "${ASSERT_PARTS_DIR}/panel-backup-units.sh" \
   "${ASSERT_PARTS_DIR}/update-request-units.sh" \
   "${ASSERT_PARTS_DIR}/update-security-units.sh" \
@@ -623,6 +630,8 @@ main() {
   # or the served path while the two assertions above drive that same step. It puts the served
   # path, the document root and both log files back, and stops the server it started.
   assert_the_panel_vhost_can_never_log_a_query_string
+  assert_the_panel_acme_block_is_a_file_of_its_own_that_a_suspended_host_keeps_out
+  assert_the_packaged_default_port_80_server_is_disabled_and_restorable
   # After it, for the same reason: it installs the vhost through step 80 and starts nginx on it, and puts
   # the served path and both log files back. The frame location of a packaged module's screen (issue #185).
   assert_the_module_frame_location_has_its_own_headers_and_api_keeps_deny
@@ -634,8 +643,12 @@ main() {
   assert_the_panel_socket_directory_is_built_and_then_looked_at
   # After it, because both install and remove the same unit files through step 70's install_units,
   # and the socket assertion above leaves the unit directory clean for them.
-  assert_the_php_install_unit_is_the_one_fixed_oneshot_the_design_allows
-  assert_step_70_installs_the_php_install_unit_root_owned_and_never_enabled
+  assert_the_app_package_units_are_the_fixed_oneshots_the_design_allows
+  assert_step_70_installs_the_app_package_units_root_owned_and_never_enabled
+  # The first-run state and one app installed and removed through the units' stand-in (issue #517).
+  # After the unit assertions, which leave the unit directory clean for it.
+  assert_a_fresh_host_has_the_panel_front_and_no_site_runtime
+  assert_an_app_installs_and_uninstalls_through_the_package_units
   # The scheduled panel backup's units (issue #129), after the two units above for the same reason
   # they follow each other: every one of them installs into /etc/systemd/system and removes only its
   # own files, so none is holding a file another is about to look for. These three put the image
@@ -779,6 +792,7 @@ main() {
   # reuses the helpers of and which leave the image as they found it.
   assert_the_update_and_rollback_verbs_refuse_what_they_should
   assert_the_uninstaller_removes_the_break_glass_command
+  assert_the_uninstaller_removes_the_app_package_units
   assert_the_uninstaller_removes_the_release_layout_and_the_update_state
   assert_the_uninstaller_removes_the_panel_backup_schedule_and_keeps_the_archives
   if [ "${MARAN_OS_FAMILY:-}" = suse ]; then

@@ -116,6 +116,34 @@ public sealed class CreateSiteCommandValidator : AbstractValidator<CreateSiteCom
                 return command.BackendType == SiteBackendType.Php;
             });
 
+        // A Node site names an installed major, a port above the privileged range and one printable line
+        // to run. Only shapes are checked: whether the major is installed is the handler's question,
+        // answered from the installed apps, and what a command may contain is the agent's.
+        RuleFor(command => command.NodeVersion)
+            .NotEmpty()
+            .Matches(NodeVersionFormat.Pattern)
+            .WithMessage(nameof(ErrorMessages.SiteNodeVersionInvalidFormat))
+            .When(command =>
+            {
+                return command.BackendType == SiteBackendType.Node;
+            });
+
+        RuleFor(command => command.AppPort)
+            .InclusiveBetween(NodeAppLimits.MinimumPort, NodeAppLimits.MaximumPort)
+            .WithMessage(nameof(ErrorMessages.SiteAppPortInvalid))
+            .When(command =>
+            {
+                return command.BackendType == SiteBackendType.Node;
+            });
+
+        RuleFor(command => command.StartCommand)
+            .Must(NodeAppLimits.IsStartCommand)
+            .WithMessage(nameof(ErrorMessages.SiteStartCommandInvalid))
+            .When(command =>
+            {
+                return command.BackendType == SiteBackendType.Node;
+            });
+
         RuleFor(command => command.ProxyUpstream)
             .NotEmpty()
             .MaximumLength(253)

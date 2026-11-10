@@ -514,14 +514,14 @@ agent/
     │       ├── debian/        debian_adapter.rs · debian_paths.rs · debian_packages.rs ·
     │       │                  debian_package_candidates.rs (apt-cache: the program, its arguments and
     │       │                  the grammar of what the Debian family offers, issue #466) ·
-    │       │                  debian_services.rs · debian_php_extensions.rs
+    │       │                  debian_services.rs · debian_php_extensions.rs · debian_apps.rs
     │       ├── rhel/          rhel_adapter.rs · rhel_paths.rs · rhel_packages.rs ·
-    │       │                  rhel_services.rs · rhel_php_extensions.rs
+    │       │                  rhel_services.rs · rhel_php_extensions.rs · rhel_apps.rs
     │       └── suse/          suse_adapter.rs · suse_paths.rs · suse_packages.rs ·
     │                          suse_package_candidates.rs (zypper: the program, its arguments and
     │                          the grammar of what the family offers, issue #59) ·
     │                          suse_services.rs · suse_account_programs.rs · suse_mail_services.rs ·
-    │                          suse_dns_services.rs · suse_php_extensions.rs. The service questions
+    │                          suse_dns_services.rs · suse_php_extensions.rs · suse_apps.rs. The service questions
     │                          are four files, not one, because the SUSE family answers them for four
     │                          concerns that each outgrew a shared file: the base daemons
     │                          (suse_services.rs), the account programs and spool directories
@@ -632,10 +632,13 @@ agent/
     │       │                  directories through plan_zone_restoration.rs and keyed_zones.rs: a signed zone with no
     │       │                  complete key is NOT re-added, because the daemon would generate a key the registrar's
     │       │                  DS record does not name.
-    │       │                  php/classify_install_failure.rs is not an rpc: it reads a failed
-    │       │                  install unit's run back (systemctl show, then journalctl for that
-    │       │                  run only) into model/install_run.rs and asks the adapter to classify
-    │       │                  it (issue #251).
+    │       │                  packages/ is not an rpc: it starts the root package units
+    │       │                  (maran-app-install@, maran-app-remove@; the names live in
+    │       │                  php/run_install_unit.rs), reads a failed run back (systemctl show,
+    │       │                  then journalctl for that run only) into packages/install_run.rs and
+    │       │                  asks the adapter to classify it (issue #251), and asks which
+    │       │                  packages the sources offer. apps/ is the app store (issue #517):
+    │       │                  the closed catalogue, install, uninstall and service control.
     │       │                  php/ has both a service and an ops area. Installing a
     │       │                  PHP version is a host operation with no site to drive
     │       │                  it — it is done once and then bound by many sites — so
@@ -893,7 +896,7 @@ family's `DistroAdapter` methods ask; `debian_package_candidates.rs` /
 `rhel_package_candidates.rs` / `suse_package_candidates.rs` answer what the family's package manager offers (the program,
 its arguments and the grammar of its answer, issue #466); `suse_account_programs.rs`, `suse_mail_services.rs` and
 `suse_dns_services.rs` answer the account-deletion programs, the mail stack's units and the DNS daemon's
-identity for the SUSE family (issue #59); `debian_php_extensions.rs` /
+identity for the SUSE family (issue #59); `debian_apps.rs` / `rhel_apps.rs` / `suse_apps.rs` answer every question the app store asks of a family (the packages behind each app, Apache's include snippet, modules and enabler, the Node.js binary and candidate, issue #517); `debian_php_extensions.rs` /
 `rhel_php_extensions.rs` / `suse_php_extensions.rs` answer every question about a PHP extension (its package,
 its switch, its drop-in directory). `validation/path.rs` is the same pattern
 already, one file short of needing to be said out loud. Splitting these into one
@@ -1463,7 +1466,7 @@ mod tests;
   `rhel_paths.rs`, `rhel_packages.rs`,
   `rhel_services.rs`, `rhel_php_extensions.rs`, `suse_paths.rs`, `suse_packages.rs`,
   `suse_package_candidates.rs`, `suse_services.rs`, `suse_account_programs.rs`,
-  `suse_mail_services.rs`, `suse_dns_services.rs`, `suse_php_extensions.rs` — see "One unit per file"), where the concern is the unit and several functions are expected;
+  `suse_mail_services.rs`, `suse_dns_services.rs`, `suse_php_extensions.rs`, `debian_apps.rs`, `rhel_apps.rs`, `suse_apps.rs` — see "One unit per file"), where the concern is the unit and several functions are expected;
 - a definition in a crate root or `mod.rs`;
 - a file whose name does not match its single public item, in snake_case. The
   subject-named exceptions are LISTED in the script rather than inferred — an inferred

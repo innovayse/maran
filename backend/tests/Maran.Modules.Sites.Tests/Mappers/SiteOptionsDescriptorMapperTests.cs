@@ -17,7 +17,7 @@ public sealed class SiteOptionsDescriptorMapperTests
     [Fact]
     public void A_site_with_no_options_is_described_with_none()
     {
-        var descriptor = SiteDescriptorMapper.From(SitesTestContext.PhpSite(Guid.NewGuid(), "example.com"));
+        var descriptor = SiteDescriptorMapper.From(SitesTestContext.PhpSite(Guid.NewGuid(), "example.com"), SiteWebServer.Nginx);
 
         Assert.Equal(CanonicalHostKind.None, descriptor.Options.CanonicalHost);
         Assert.Null(descriptor.Options.ClientMaxBodySizeMib);
@@ -35,7 +35,7 @@ public sealed class SiteOptionsDescriptorMapperTests
         var site = SitesTestContext.PhpSite(Guid.NewGuid(), "example.com");
         site.ReplaceOptions(SiteOptionsSamples.Full());
 
-        var options = SiteDescriptorMapper.From(site).Options;
+        var options = SiteDescriptorMapper.From(site, SiteWebServer.Nginx).Options;
 
         Assert.Equal(CanonicalHostKind.Www, options.CanonicalHost);
         Assert.Equal(64u, options.ClientMaxBodySizeMib);
@@ -60,7 +60,7 @@ public sealed class SiteOptionsDescriptorMapperTests
         var site = SitesTestContext.PhpSite(Guid.NewGuid(), "example.com");
         site.ReplaceOptions(SiteOptionsSamples.Empty() with { IpAccessMode = IpAccessMode.DenyList, IpRules = ["198.51.100.7/32"] });
 
-        Assert.Equal(IpAccessKind.DenyList, SiteDescriptorMapper.From(site).Options.IpAccess!.Mode);
+        Assert.Equal(IpAccessKind.DenyList, SiteDescriptorMapper.From(site, SiteWebServer.Nginx).Options.IpAccess!.Mode);
     }
 
     /// <summary>Redirects and users are described in the order they were stated in.</summary>
@@ -82,7 +82,7 @@ public sealed class SiteOptionsDescriptorMapperTests
             ],
         });
 
-        var options = SiteDescriptorMapper.From(site).Options;
+        var options = SiteDescriptorMapper.From(site, SiteWebServer.Nginx).Options;
 
         Assert.Equal(["/z", "/a/"], options.Redirects.Select(rule =>
         {

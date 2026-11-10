@@ -32,9 +32,6 @@ public sealed class ChangeSitePhpVersionCommandHandler
     /// <summary>The agent, which owns the vhost and the pool.</summary>
     private readonly IAgentSitesClient _agent;
 
-    /// <summary>The host's PHP runtimes, so a site is never rebound to a version that is not installed.</summary>
-    private readonly IAgentPhpClient _php;
-
     /// <summary>This module's audit journal.</summary>
     private readonly SiteAuditJournal _journal;
 
@@ -47,29 +44,32 @@ public sealed class ChangeSitePhpVersionCommandHandler
     /// </summary>
     private readonly PhpAccountPoolSettings _poolSettings;
 
+    /// <summary>Refuses the operation while no site web server is installed.</summary>
+    private readonly SiteStackGate _stack;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Sites module's database context.</param>
     /// <param name="accounts">The owning account's system user name and per-pool worker budget.</param>
     /// <param name="agent">The agent client that re-renders the pool and the vhost.</param>
-    /// <param name="php">The agent client listing the host's installed PHP runtimes.</param>
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="siteNames">Names the site's backend and serving state for the request's culture.</param>
     /// <param name="poolSettings">The settings the account's pools carry, sent with every pool write.</param>
+    /// <param name="stack">Refuses the operation while no site web server is installed.</param>
     public ChangeSitePhpVersionCommandHandler(
         SitesDbContext dbContext,
         IAccountDirectory accounts,
         IAgentSitesClient agent,
-        IAgentPhpClient php,
         SiteAuditJournal journal,
         SiteDisplayNames siteNames,
-        PhpAccountPoolSettings poolSettings)
+        PhpAccountPoolSettings poolSettings,
+        SiteStackGate stack)
     {
+        _stack = stack;
         _dbContext = dbContext;
         _siteNames = siteNames;
         _poolSettings = poolSettings;
         _accounts = accounts;
         _agent = agent;
-        _php = php;
         _journal = journal;
     }
 
@@ -78,12 +78,20 @@ public sealed class ChangeSitePhpVersionCommandHandler
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>
     /// The site in its new state, or <c>SiteNotFound</c>, <c>SiteBackendNotPhp</c>,
-    /// <c>AccountNotFound</c>, <c>PhpVersionNotInstalled</c>, or the agent's own typed failure.
+    /// <c>AccountNotFound</c>, <c>AppsStackNotReady</c>, <c>AppsNotInstalled</c>, or the agent's own typed failure.
     /// </returns>
     public async Task<Result<SiteDto>> HandleAsync(
         ChangeSitePhpVersionCommand command,
         CancellationToken cancellationToken)
     {
+        // The stack gate: sites cannot be changed while no web server is installed. Enforced here and
+        // not in the SPA, which only reflects it (docs/apps/README.md).
+        var installed = await _stack.ReadAsync(cancellationToken);
+        if (installed.NotReadyFailure() is { } notReady)
+        {
+            return await FailAsync(command, command.SiteId.ToString(), notReady, cancellationToken);
+        }
+
         var site = await _dbContext.Sites.SingleOrDefaultAsync(s => s.Id == command.SiteId, cancellationToken);
         if (site is null)
         {
@@ -107,21 +115,12 @@ public sealed class ChangeSitePhpVersionCommandHandler
             return await FailAsync(command, site.Domain, Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound), cancellationToken);
         }
 
-        var versions = await _php.ListVersionsAsync(cancellationToken);
-        if (!versions.IsSuccess)
+        // The version must be an installed PHP app: the apps are what the host has, and a site bound to a
+        // runtime nobody installed would be born pointing at a socket nothing has bound. The stack was
+        // read once at the top, so this is a fact about the apps and not about the agent's reachability.
+        if (!installed.HasPhp(command.PhpVersion))
         {
-            return await FailAsync(command, site.Domain, versions.Error!, cancellationToken);
-        }
-
-        // "The agent could not be asked" and "the version is not installed" are different answers
-        // and are not conflated: the first is retried, the second is a fact the customer must act on.
-        var installed = versions.Value.Any(version =>
-        {
-            return string.Equals(version.Version, command.PhpVersion, StringComparison.Ordinal);
-        });
-        if (!installed)
-        {
-            return await FailAsync(command, site.Domain, Error.Of(nameof(ErrorMessages.PhpVersionNotInstalled), ErrorType.Validation), cancellationToken);
+            return await FailAsync(command, site.Domain, SiteHostApps.NotInstalledFailure(), cancellationToken);
         }
 
         // The descriptor is built from the STORED row, never assembled here, so the re-rendered
@@ -131,7 +130,7 @@ public sealed class ChangeSitePhpVersionCommandHandler
             account.Username,
             site.Domain,
             command.PhpVersion,
-            SiteDescriptorMapper.From(site),
+            SiteDescriptorMapper.From(site, installed.WebServer!.Value),
             (uint)account.MaxPhpWorkersPerPool,
             await _poolSettings.EffectiveAsync(site.AccountId, account.PhpLimits, cancellationToken),
             // Whether the version being LEFT may lose its pool, answered from the panel's own rows:

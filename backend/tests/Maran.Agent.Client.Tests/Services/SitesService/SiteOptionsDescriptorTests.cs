@@ -1,5 +1,6 @@
 using Maran.Agent.Client.Services.SitesService;
 using Maran.Agent.V1;
+using SiteWebServer = Maran.Agent.Client.Services.SitesService.SiteWebServer;
 
 namespace Maran.Agent.Client.Tests.Services.SitesService;
 
@@ -18,6 +19,8 @@ public sealed class SiteOptionsDescriptorTests
             SiteBackendKind.Php,
             "8.3",
             string.Empty,
+            SiteNodeApp.None,
+            SiteWebServer.Nginx,
             true,
             new SiteOptionsDescriptor(
                 CanonicalHostKind.Apex,
@@ -55,7 +58,7 @@ public sealed class SiteOptionsDescriptorTests
     [Fact]
     public void No_options_write_the_messages_zero_values_and_leave_the_optional_messages_absent()
     {
-        var descriptor = new SiteDescriptor(["a.example.com"], SiteBackendKind.Static, string.Empty, string.Empty, false, SiteOptionsDescriptor.None);
+        var descriptor = new SiteDescriptor(["a.example.com"], SiteBackendKind.Static, string.Empty, string.Empty, SiteNodeApp.None, SiteWebServer.Nginx, false, SiteOptionsDescriptor.None);
 
         var options = descriptor.ToWire().Options;
 

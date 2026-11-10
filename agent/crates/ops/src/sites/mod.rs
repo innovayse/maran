@@ -39,7 +39,7 @@ mod is_site_log_name;
 pub(crate) mod is_suspended_vhost;
 mod log_file_identity;
 pub mod model;
-pub(crate) mod nginx_validator;
+pub(crate) mod node_unit_path;
 mod open_site_log;
 mod open_site_log_directory;
 mod parse_access_log_line;
@@ -50,6 +50,7 @@ mod prune_site_logs;
 mod read_traffic_file;
 mod reconcile_orphan_auth_files;
 mod reload_web_server;
+pub(crate) mod remove_node_unit;
 mod remove_site_logs;
 mod remove_vhost;
 // Visible to the crate, not to the world: `crate::ssl` rewires a site's vhost
@@ -57,7 +58,9 @@ mod remove_vhost;
 // this area produces — a second rendering of a vhost is a second opinion about
 // what the site serves, and the halves drift on the one a browser reaches.
 pub(crate) mod remove_site_pool;
+pub(crate) mod render_apache_vhost;
 pub(crate) mod render_legacy_suspended_vhost;
+pub(crate) mod render_nginx_vhost;
 pub(crate) mod render_suspended_vhost;
 pub(crate) mod render_vhost;
 pub(crate) mod resolved_site_paths;
@@ -76,6 +79,9 @@ mod traffic_run_slot;
 mod traffic_run_slots;
 mod traffic_tally;
 mod update_site_php_version;
+pub(crate) mod vhost_server_names;
+pub(crate) mod web_server_validator;
+pub(crate) mod write_node_unit;
 pub(crate) mod write_site_pool;
 pub(crate) mod write_vhost;
 

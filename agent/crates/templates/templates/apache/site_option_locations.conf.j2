@@ -1,0 +1,8 @@
+{% for redirect in redirects %}    RedirectMatch {{ redirect.status }} "{{ redirect.pattern }}" "{{ redirect.replacement }}"
+{% endfor %}{% if let Some(days) = cache_days %}{% if !redirects.is_empty() %}
+{% endif %}    <FilesMatch "\.(css|js|mjs|map|png|jpg|jpeg|gif|webp|avif|svg|ico|woff|woff2|ttf|otf|eot)$">
+        ExpiresActive On
+        ExpiresDefault "access plus {{ days }} days"
+        Header append Cache-Control "public"
+    </FilesMatch>
+{% endif %}

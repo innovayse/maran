@@ -9,7 +9,7 @@ import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubShellReads } from '../fixtures/stub-shell-reads'
-import { stubInstallablePhpVersions, stubPhpVersions } from '../fixtures/stub-sites-routes'
+import { stubPhpVersions } from '../fixtures/stub-sites-routes'
 import type { PanelModule } from '../../src/types/module'
 import type { Page } from '@playwright/test'
 
@@ -41,11 +41,9 @@ const PHP_VERSIONS_SCENARIO: TableLoadingScenario = {
   stub: async (page) => {
     await signIn(page)
     await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
-    await stubInstallablePhpVersions(page, () => {return [{ version: '8.3', installed: true }]})
   },
   stubFailure: async (page) => {
     await signIn(page)
-    await stubInstallablePhpVersions(page, () => {return []})
     await page.route(PHP_VERSIONS, async (route) => {
       await route.fulfill({
         status: 500,

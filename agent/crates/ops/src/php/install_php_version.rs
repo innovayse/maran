@@ -23,7 +23,7 @@ const START_NOW: &str = "--now";
 ///
 /// The package manager is NOT run by the agent. Its own sandbox keeps `/usr`
 /// read-only, so a package install in it fails on the first file; instead the
-/// agent asks the service manager to start `maran-php-install@<package>`, a
+/// agent asks the service manager to start `maran-app-install@<package>`, a
 /// templated root unit the installer ships, and waits for that run to end. The
 /// package manager then runs in the unit's own cgroup and mount namespace.
 /// There is no fallback: a host whose installer has not been re-run has no

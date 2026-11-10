@@ -14,3 +14,4 @@ pub mod validated_overrides;
 pub mod validated_prune_request;
 pub mod validated_site;
 pub mod validated_traffic_request;
+pub mod validated_web_server;

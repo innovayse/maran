@@ -1,3 +1,5 @@
+using Maran.Modules.Sites.Domain.Entities;
+using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Services;
 using Maran.Modules.Sites.Tests.TestSupport;
 using Maran.Sdk.Contracts;
@@ -78,6 +80,41 @@ public sealed class SiteDirectoryTests
         Assert.Equal(SiteBackend.Php, site.Backend);
         Assert.Equal("8.3", site.PhpVersion);
         Assert.False(site.HasCertificate);
+    }
+
+    /// <summary>A node site is answered with its backend and its runtime facts, a php site with none.</summary>
+    [Fact]
+    public async Task A_node_site_is_answered_with_its_backend_and_its_runtime_facts_and_a_php_site_with_none()
+    {
+        var mine = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        await SeedAsync(database, mine, Guid.NewGuid());
+        await using (var seed = SitesTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            seed.Sites.Add(new Site(
+                Guid.NewGuid(),
+                mine,
+                "app.example.com",
+                [],
+                SiteBackendType.Node,
+                string.Empty,
+                string.Empty,
+                "22",
+                3100,
+                "npm start",
+                "/home/acme/sites/app.example.com",
+                new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)));
+            await seed.SaveChangesAsync();
+        }
+
+        await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(mine), database);
+        var directory = new SiteDirectory(context);
+        var node = await directory.FindByDomainAsync("app.example.com", CancellationToken.None);
+        var php = await directory.FindByDomainAsync("mine.example.com", CancellationToken.None);
+
+        Assert.Equal(SiteBackend.Node, node!.Backend);
+        Assert.Equal(new SiteNodeSnapshot("22", 3100, "npm start"), node.Node);
+        Assert.Equal(SiteNodeSnapshot.None, php!.Node);
     }
 
     /// <summary>Listing an account's domains answers its own, in order, and never another tenant's.</summary>

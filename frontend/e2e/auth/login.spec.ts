@@ -5,6 +5,7 @@ import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubShellReads } from '../fixtures/stub-shell-reads'
+import { READY_STACK, stubStack } from '../fixtures/stub-stack-routes'
 import { stubEmptyTasks } from '../fixtures/stub-tasks-routes'
 
 test('an anonymous visit to a panel page lands on the sign-in screen and remembers where it was headed', async ({
@@ -31,6 +32,7 @@ test('signing in returns the visitor to the page they originally asked for', asy
   // The shell the visitor is returned into asks for its own reads once signed in.
   await stubShellReads(page)
   await stubEmptyTasks(page)
+  await stubStack(page, READY_STACK)
 
   await page.goto('/accounts')
   await stubLogin(page, stubbedSignIn)
@@ -71,6 +73,7 @@ test('the sign-in form can be completed with the keyboard alone', async ({ page 
   // Signing in lands on the home screen, which asks for its own reads.
   await stubShellReads(page)
   await stubEmptyTasks(page)
+  await stubStack(page, READY_STACK)
   await stubLandingReads(page)
 
   await page.goto('/login')
@@ -88,6 +91,7 @@ test('a signed-in visitor is sent out of the sign-in screen rather than shown it
   await stubEmptyModules(page)
   await stubShellReads(page)
   await stubEmptyTasks(page)
+  await stubStack(page, READY_STACK)
   await stubLandingReads(page)
   await page.route('**/api/v1/setup/state', async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: '{"isComplete":true}' })

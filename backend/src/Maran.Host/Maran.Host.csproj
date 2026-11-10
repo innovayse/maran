@@ -64,6 +64,7 @@
     <ProjectReference Include="..\Maran.Modules\Idempotency\Maran.Modules.Idempotency.csproj" />
     <ProjectReference Include="..\Maran.Modules\Cron\Maran.Modules.Cron.csproj" />
     <ProjectReference Include="..\Maran.Modules\Files\Maran.Modules.Files.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Apps\Maran.Modules.Apps.csproj" />
     <ProjectReference Include="..\Maran.Modules\Firewall\Maran.Modules.Firewall.csproj" />
     <ProjectReference Include="..\Maran.Modules\Tasks\Maran.Modules.Tasks.csproj" />
     <ProjectReference Include="..\Maran.Modules\Monitoring\Maran.Modules.Monitoring.csproj" />

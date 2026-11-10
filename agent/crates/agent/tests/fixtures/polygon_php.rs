@@ -8,6 +8,8 @@
 //! to prove that a pool write racing a deletion did not leave a file that takes
 //! php-fpm down for every tenant on the host. Two suites, one question.
 
+use std::sync::Once;
+
 use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_distro::DistroAdapter;
 
@@ -17,6 +19,14 @@ use maran_distro::DistroAdapter;
 /// suite gives: a test that took its expectation from the code under test would
 /// pass even if that code stopped passing the argument.
 const VALIDATE_ARGUMENT: &str = "-t";
+
+/// The install unit the app store starts, spelled again here and not imported from the agent,
+/// for the reason `VALIDATE_ARGUMENT` is: a test that took its expectation from the code under
+/// test would pass even if that code started the wrong unit.
+const INSTALL_UNIT_PREFIX: &str = "maran-app-install@";
+
+/// Makes the install run once per test binary, however many tests ask.
+static INSTALLED: Once = Once::new();
 
 /// The real php-fpm of the polygon this suite is running in.
 ///
@@ -42,6 +52,47 @@ impl PolygonPhp {
     /// Panics if the constant above stops being a valid version.
     pub fn version() -> PhpVersion {
         PhpVersion::parse(Self::VERSION).expect("a valid PHP version")
+    }
+
+    /// Installs this version's php-fpm through the installer's app unit, once per test
+    /// binary, when the host does not have it yet.
+    ///
+    /// The polygon images preinstall no PHP (issue #517): a host starts with nothing for
+    /// sites, and PHP arrives the way it does in production, as a package the root install
+    /// unit installs. The package name is the adapter's, exactly as the agent's own install
+    /// derives it, so a wrong adapter name fails here the same way it would fail an install.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the unit cannot be started or its run fails.
+    pub fn ensure_installed(distro: &dyn DistroAdapter) {
+        INSTALLED.call_once(|| {
+            let pool_directory = distro.php_fpm_pool_directory(Self::VERSION);
+            if std::path::Path::new(&pool_directory).is_dir() {
+                return;
+            }
+            // The image's layers drop the Debian family's package lists to stay small; a real host
+            // keeps them. They are refreshed first so the install sees the sources it would see there.
+            if std::path::Path::new("/usr/bin/apt-get").exists() {
+                let refreshed = std::process::Command::new("apt-get")
+                    .args(["update", "-qq"])
+                    .status()
+                    .unwrap_or_else(|error| panic!("could not run apt-get update: {error}"));
+                assert!(
+                    refreshed.success(),
+                    "apt-get update must refresh the package lists: {refreshed}"
+                );
+            }
+            let unit = format!(
+                "{INSTALL_UNIT_PREFIX}{}.service",
+                distro.php_package(Self::VERSION)
+            );
+            let status = std::process::Command::new(distro.service_manager())
+                .args(["start", "--", unit.as_str()])
+                .status()
+                .unwrap_or_else(|error| panic!("could not start {unit}: {error}"));
+            assert!(status.success(), "{unit} must install php-fpm: {status}");
+        });
     }
 
     /// What the real `php-fpm -t` says about this host's whole pool tree right

@@ -112,6 +112,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 /// moved to it as the one-revision default: a revision-24 panel refuses a SUSE agent's handshake as an
 /// invalid response because it knows no such family, and a revision-24 agent never states it, so the
 /// panel reads a family the older revision cannot name.
+/// Revision 27 adds <c>AppsService</c> and the three app-store error codes (issue #517). Both ends moved to
+/// it as the one-revision default: a revision-26 agent answers the five rpcs <c>UNIMPLEMENTED</c>, so the
+/// first-run stack setup could never install a web server against it, and it reports a refused removal as a
+/// bare failure.
 /// </para>
 /// <para>
 /// <b>Both ends are needed, and they move for different reasons.</b> An agent NEWER than
@@ -138,10 +142,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 public static class AgentProtoVersionWindow
 {
     /// <summary>The oldest agent contract revision this panel drives.</summary>
-    public const uint Minimum = 26;
+    public const uint Minimum = 27;
 
     /// <summary>The newest agent contract revision this panel drives: the one it was built against.</summary>
-    public const uint Maximum = 26;
+    public const uint Maximum = 27;
 
     /// <summary>
     /// The machine code a handshake outside the window fails with, so a caller outside this assembly

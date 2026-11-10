@@ -21,7 +21,7 @@ pub trait PackageFacts: Send + Sync {
     /// `/usr/bin/apt-get` on the Debian family, `/usr/bin/dnf` on the RHEL
     /// family — the two package repositories the spec fixes (§4) are reached
     /// through these. The agent does NOT spawn it: a package install runs in
-    /// the installer's `maran-php-install@.service` unit, outside the agent's
+    /// the installer's `maran-app-install@.service` unit, outside the agent's
     /// sandbox. This is the program that unit's rendered `ExecStart=` names;
     /// the installer (`installer/lib/70-services.sh`) holds a second literal
     /// copy of the same path, so the two must be changed together.

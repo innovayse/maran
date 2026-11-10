@@ -33,7 +33,7 @@ public sealed class ResilientAgentClientRoutingTests
         var client = NewClient(channels);
 
         AmbientSelectionAgentChannels.Select("node");
-        var result = await client.DeleteAsync("acc1", "example.com", "8.3", default).WaitAsync(TestTimeout);
+        var result = await client.DeleteAsync("acc1", "example.com", "8.3", SiteWebServer.Nginx, default).WaitAsync(TestTimeout);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AgentUnavailable", result.Error!.Code);
@@ -83,7 +83,7 @@ public sealed class ResilientAgentClientRoutingTests
             new AgentSitesClient(channels, NullLogger<AgentSitesClient>.Instance),
             OperationPipelineRegistry.WithOperationTimeout(30));
 
-        var result = await client.DeleteAsync("acc1", "example.com", "8.3", default).WaitAsync(TestTimeout);
+        var result = await client.DeleteAsync("acc1", "example.com", "8.3", SiteWebServer.Nginx, default).WaitAsync(TestTimeout);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AgentServerDisabled", result.Error!.Code);
@@ -100,7 +100,7 @@ public sealed class ResilientAgentClientRoutingTests
         return Task.Run(async () =>
         {
             AmbientSelectionAgentChannels.Select(name);
-            await client.DeleteAsync("acc1", "example.com", "8.3", default);
+            await client.DeleteAsync("acc1", "example.com", "8.3", SiteWebServer.Nginx, default);
         });
     }
 

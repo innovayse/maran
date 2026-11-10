@@ -1,0 +1,12 @@
+<VirtualHost *:443>
+    ServerName {{ domain }}
+{% for alias in aliases %}    ServerAlias {{ alias }}
+{% endfor %}
+    SSLEngine on
+    SSLCertificateFile {{ certificate_path }}
+    SSLCertificateKeyFile {{ certificate_key_path }}
+    SSLProtocol -all +TLSv1.2 +TLSv1.3
+    SSLHonorCipherOrder off
+
+{{ server_body }}
+</VirtualHost>

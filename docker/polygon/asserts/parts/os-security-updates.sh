@@ -67,8 +67,8 @@ readonly OS_UPDATES_BLIND_SPOT_SENTENCE="UNOBSERVED HERE: a real security run"
 # glob as written, under `exclude=`. apt's Package-Blacklist is a list of regular expressions
 # matched with `re.match`, so the step anchors each pattern and turns its `*` into `.*`; a glob left
 # as it is would hold every name that merely begins `ph`.
-readonly -a OS_UPDATES_HOLD_EXPECTED=('mariadb*' 'mysql*' 'postgresql*' 'nginx*' 'php*' 'vsftpd*')
-readonly -a OS_UPDATES_APT_BLACKLIST_EXPECTED=('^mariadb.*' '^mysql.*' '^postgresql.*' '^nginx.*' '^php.*' '^vsftpd.*')
+readonly -a OS_UPDATES_HOLD_EXPECTED=('mariadb*' 'mysql*' 'postgresql*' 'nginx*' 'apache2*' 'httpd*' 'php*' 'nodejs*' 'vsftpd*')
+readonly -a OS_UPDATES_APT_BLACKLIST_EXPECTED=('^mariadb.*' '^mysql.*' '^postgresql.*' '^nginx.*' '^apache2.*' '^httpd.*' '^php.*' '^nodejs.*' '^vsftpd.*')
 
 # The family under test and what it writes, filled in by os_updates_select_family. Globals because
 # a function called through `$(...)` could not set them; every caller invokes it directly.

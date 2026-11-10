@@ -75,16 +75,17 @@ pub enum SitesOpError {
         domain: String,
     },
 
-    /// The rendered config failed `nginx -t`; the previous config was restored.
-    #[error("nginx validation failed: {stderr}")]
+    /// The rendered config failed the site web server's `-t` (`nginx -t` or Apache's
+    /// `apachectl -t`); the previous config was restored.
+    #[error("web server validation failed: {stderr}")]
     NginxValidation {
         /// The validator's standard error, for an operator's log.
         stderr: String,
     },
 
-    /// The configuration was valid but nginx refused to reload it; the
+    /// The configuration was valid but the web server refused to reload it; the
     /// previous config was restored.
-    #[error("nginx reload failed: {stderr}")]
+    #[error("web server reload failed: {stderr}")]
     ReloadFailed {
         /// The reload command's standard error, for an operator's log.
         stderr: String,

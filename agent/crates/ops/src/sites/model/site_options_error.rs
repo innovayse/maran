@@ -80,4 +80,12 @@ pub enum SiteOptionsError {
     /// from the upstream and not from files.
     #[error("a reverse-proxied site serves no files, so it has no static cache rule")]
     CacheOnProxiedSite,
+
+    /// The site asks for a per-address request limit and the host's site web server is Apache.
+    ///
+    /// Apache's stock modules have no such limit, so the request is refused where it is made
+    /// instead of being rendered without it: a limit the visitor was promised and the server
+    /// does not enforce is worse than a refusal.
+    #[error("a request limit needs nginx as the site web server")]
+    RequestRateOnApache,
 }

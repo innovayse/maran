@@ -12,6 +12,9 @@ namespace Maran.Modules.Sites.Common;
 /// <param name="BackendTypeName">The backend as an operator reads it, localized for the request's culture by <c>SiteDisplayNames</c>.</param>
 /// <param name="PhpVersion">The bound PHP version, or the empty string when the backend is not PHP.</param>
 /// <param name="ProxyUpstream">The upstream forwarded to, or the empty string when the backend is not a proxy.</param>
+/// <param name="NodeVersion">The installed Node major, or the empty string when the backend is not Node.</param>
+/// <param name="AppPort">The loopback port the Node application listens on, or zero when the backend is not Node.</param>
+/// <param name="StartCommand">The command the site's unit runs, or the empty string when the backend is not Node.</param>
 /// <param name="DocumentRoot">The absolute document root the agent allocated.</param>
 /// <param name="HasCertificate">Whether a TLS certificate is currently installed for this site.</param>
 /// <param name="Status">Whether the site serves its own content or a suspension response.</param>
@@ -27,6 +30,9 @@ public sealed record SiteDetailDto(
     string BackendTypeName,
     string PhpVersion,
     string ProxyUpstream,
+    string NodeVersion,
+    int AppPort,
+    string StartCommand,
     string DocumentRoot,
     bool HasCertificate,
     SiteStatus Status,

@@ -1,0 +1,25 @@
+# Rendered by Maran. Do not edit: this file is replaced whenever the site changes.
+<VirtualHost *:80>
+    ServerName {{ domain }}
+{% for alias in aliases %}    ServerAlias {{ alias }}
+{% endfor %}
+    # The ACME challenge is served over plain HTTP before a certificate exists,
+    # so this location stays reachable even when everything else redirects.
+    Alias /.well-known/acme-challenge/ {{ document_root }}/.well-known/acme-challenge/
+    <Directory {{ document_root }}/.well-known/acme-challenge/>
+        # A link is followed only when it and its target share an owner
+        # (see SiteBody).
+        Options -Indexes -FollowSymLinks +SymLinksIfOwnerMatch
+        AllowOverride None
+        ForceType text/plain
+        Require all granted
+    </Directory>
+
+{% if ssl.is_some() %}    RewriteEngine On
+    RewriteCond %{REQUEST_URI} !^/\.well-known/acme-challenge/
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+</VirtualHost>
+{{ ssl.as_ref().unwrap().render_into_server()? }}
+{% else %}{{ body }}
+</VirtualHost>
+{% endif %}

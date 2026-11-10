@@ -44,4 +44,24 @@ public sealed class SiteHostnameClaims
             .ToListAsync(cancellationToken);
 #pragma warning restore RS0030
     }
+
+    /// <summary>Whether any site on the server, of any account, already listens on a loopback port.</summary>
+    /// <param name="port">The application port a Node site asks for.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>True when a committed site already holds the port.</returns>
+    /// <remarks>
+    /// Unscoped for the reason <see cref="ClaimingSiteDomainsAsync"/> is: the port is on the host's one
+    /// loopback interface, which every account shares. Unlike a hostname this is checked and not keyed,
+    /// so two simultaneous creations may both pass it; the second application then fails to bind and its
+    /// unit reports it, which is why the check is advice to the customer and not the host's defence.
+    /// </remarks>
+    public async Task<bool> IsAppPortTakenAsync(int port, CancellationToken cancellationToken)
+    {
+#pragma warning disable RS0030 // a loopback port is shared by every account; scoping this read would let two accounts claim one
+        return await _dbContext.Sites
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .AnyAsync(site => site.AppPort == port, cancellationToken);
+#pragma warning restore RS0030
+    }
 }

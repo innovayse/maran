@@ -16,6 +16,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "../../../proto/agent/v1/sites.proto",
             "../../../proto/agent/v1/ssl.proto",
             "../../../proto/agent/v1/php.proto",
+            "../../../proto/agent/v1/apps.proto",
             "../../../proto/agent/v1/files.proto",
             "../../../proto/agent/v1/db.proto",
             "../../../proto/agent/v1/ftp.proto",

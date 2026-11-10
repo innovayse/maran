@@ -5,21 +5,19 @@ use std::path::Path;
 use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::web::domain::Domain;
+use maran_distro::SiteWebServer;
 
 use crate::sites::model::account_site_suspension::AccountSiteSuspension;
+use crate::sites::model::site_paths::SitePaths;
 use crate::sites::model::site_serving::SiteServing;
 use crate::sites::model::site_suspension_fact::SiteSuspensionFact;
 use crate::sites::render_legacy_suspended_vhost::render_legacy_suspended_vhost;
 use crate::sites::render_suspended_vhost::render_suspended_vhost;
 use crate::sites::resolved_site_paths::resolved_site_paths;
+use crate::sites::vhost_server_names::{
+    APACHE_ALIAS_DIRECTIVE, APACHE_NAME_DIRECTIVE, NGINX_DIRECTIVE,
+};
 use crate::sites::{SiteHost, SitesOpError};
-
-/// The directive whose values name every hostname a server block answers for.
-///
-/// Read with its rendered indentation attached, because that is the shape this
-/// agent writes and the only shape the comparison below can conclude anything
-/// about; see [`server_names`].
-const SERVER_NAME_DIRECTIVE: &str = "    server_name ";
 
 /// Reports, per vhost this host serves for `account`, whether it is the
 /// suspended stub.
@@ -145,10 +143,15 @@ fn observe_serving(
     let Ok(domain) = Domain::parse_existing(&file_stem(path)) else {
         return SiteServing::Unobservable;
     };
-    let Ok(resolved) = resolved_site_paths(host, account, &domain) else {
+    // The dialect the file is written in is the one of the directory it was found in; a
+    // file in neither directory is not one this agent wrote.
+    let Some(web_server) = SitePaths::web_server_of(path) else {
         return SiteServing::Unobservable;
     };
-    let Some((primary, aliases)) = server_names(contents) else {
+    let Ok(resolved) = resolved_site_paths(host, account, &domain, web_server) else {
+        return SiteServing::Unobservable;
+    };
+    let Some((primary, aliases)) = server_names(contents, web_server) else {
         return SiteServing::Unobservable;
     };
 
@@ -159,8 +162,8 @@ fn observe_serving(
     // stand in for an nginx parser here without weakening the answer.
     // Either the current stub or the one written before the challenge
     // location carried its symlink rule is a suspension.
-    let current = render_suspended_vhost(&primary, &aliases, &resolved);
-    let legacy = render_legacy_suspended_vhost(&primary, &aliases, &resolved);
+    let current = render_suspended_vhost(&primary, &aliases, &resolved, web_server);
+    let legacy = render_legacy_suspended_vhost(&primary, &aliases, &resolved, web_server);
     if current.is_err() && legacy.is_err() {
         // A template that refuses to render produced no text to compare.
         return SiteServing::Unobservable;
@@ -175,16 +178,26 @@ fn observe_serving(
     }
 }
 
-/// Reads the primary name and the aliases out of a rendered `server_name` line.
+/// Reads the primary name and the aliases out of a rendered vhost, in the dialect of
+/// `web_server`.
 ///
-/// Matched with its indentation and its terminating semicolon, and required to
-/// occur exactly ONCE, because the only files this can conclude anything about
-/// are the ones this agent renders — every other shape falls through to
-/// [`SiteServing::Unobservable`]. Returns [`None`] when the
-/// line is absent, repeated, or carries no name at all.
-fn server_names(contents: &str) -> Option<(String, Vec<String>)> {
+/// For nginx, a `server_name` line, matched with its indentation and its terminating
+/// semicolon and required to occur exactly ONCE. For Apache, exactly one `ServerName` line
+/// and every `ServerAlias` line, each matched with its indentation. The only files this can
+/// conclude anything about are the ones this agent renders — every other shape falls through
+/// to [`SiteServing::Unobservable`]. Returns [`None`] when the primary is absent, repeated,
+/// or carries no name at all.
+fn server_names(contents: &str, web_server: SiteWebServer) -> Option<(String, Vec<String>)> {
+    match web_server {
+        SiteWebServer::Nginx => nginx_server_names(contents),
+        SiteWebServer::Apache => apache_server_names(contents),
+    }
+}
+
+/// [`server_names`] for an nginx vhost.
+fn nginx_server_names(contents: &str) -> Option<(String, Vec<String>)> {
     let mut matches = contents.lines().filter_map(|line| {
-        line.strip_prefix(SERVER_NAME_DIRECTIVE)
+        line.strip_prefix(NGINX_DIRECTIVE)
             .and_then(|rest| rest.strip_suffix(';'))
     });
 
@@ -197,6 +210,27 @@ fn server_names(contents: &str) -> Option<(String, Vec<String>)> {
     let primary = names.next()?;
 
     Some((primary, names.collect()))
+}
+
+/// [`server_names`] for an Apache vhost.
+fn apache_server_names(contents: &str) -> Option<(String, Vec<String>)> {
+    let mut primaries = contents
+        .lines()
+        .filter_map(|line| line.strip_prefix(APACHE_NAME_DIRECTIVE));
+
+    let primary = primaries.next()?.trim();
+    if primary.is_empty() || primaries.next().is_some() {
+        return None;
+    }
+
+    let aliases = contents
+        .lines()
+        .filter_map(|line| line.strip_prefix(APACHE_ALIAS_DIRECTIVE))
+        .flat_map(str::split_whitespace)
+        .map(str::to_owned)
+        .collect();
+
+    Some((primary.to_owned(), aliases))
 }
 
 #[cfg(test)]

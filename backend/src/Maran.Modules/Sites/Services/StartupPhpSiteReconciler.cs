@@ -1,5 +1,6 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.PhpService;
+using Maran.Agent.Client.Services.SitesService;
 using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Mappers;
@@ -85,6 +86,13 @@ public sealed class StartupPhpSiteReconciler : BackgroundService
             new EventId(3, nameof(StartupPhpSiteReconciler)),
             "Skipped PHP site {Domain}: its owning account does not exist");
 
+    /// <summary>Pre-compiled log delegate for a pass that found PHP sites and no installed site web server.</summary>
+    private static readonly Action<ILogger, Exception?> LogStackNotReady =
+        LoggerMessage.Define(
+            LogLevel.Warning,
+            new EventId(6, nameof(StartupPhpSiteReconciler)),
+            "PHP sites exist but no site web server is installed yet; their vhosts cannot be converged until it is");
+
     /// <summary>Pre-compiled log delegate for a pass the agent would not complete.</summary>
     private static readonly Action<ILogger, int, Exception?> LogAttemptFailed =
         LoggerMessage.Define<int>(
@@ -143,6 +151,7 @@ public sealed class StartupPhpSiteReconciler : BackgroundService
         var agent = scope.ServiceProvider.GetRequiredService<IAgentSitesClient>();
         var accountDirectory = scope.ServiceProvider.GetRequiredService<IAccountDirectory>();
         var poolSettings = scope.ServiceProvider.GetRequiredService<PhpAccountPoolSettings>();
+        var stack = scope.ServiceProvider.GetRequiredService<SiteStackGate>();
 
 #pragma warning disable RS0030 // startup has no principal; every tenant's PHP sites are converged
         var sites = await dbContext.Sites
@@ -152,6 +161,15 @@ public sealed class StartupPhpSiteReconciler : BackgroundService
             .OrderBy(site => site.Domain)
             .ToListAsync(cancellationToken);
 #pragma warning restore RS0030
+
+        // A vhost is rendered for the installed web server, so with sites to converge and none installed
+        // the pass cannot be right: it fails (and is retried) instead of rendering for a guess.
+        var webServer = (await stack.ReadAsync(cancellationToken)).WebServer;
+        if (sites.Count > 0 && webServer is null)
+        {
+            LogStackNotReady(_logger, null);
+            return false;
+        }
 
         var accounts = (await accountDirectory.ListAsync(cancellationToken))
             .ToDictionary(account =>
@@ -181,7 +199,7 @@ public sealed class StartupPhpSiteReconciler : BackgroundService
                 settingsOfAccount[account.Id] = settings;
             }
 
-            if (await ConvergeAsync(agent, site, account, settings, cancellationToken))
+            if (await ConvergeAsync(agent, site, account, settings, webServer!.Value, cancellationToken))
             {
                 converged++;
             }
@@ -227,6 +245,7 @@ public sealed class StartupPhpSiteReconciler : BackgroundService
     /// <param name="site">The stored PHP site.</param>
     /// <param name="account">The site's owning account.</param>
     /// <param name="settings">The settings the account's pools carry, cut to its plan's bounds.</param>
+    /// <param name="webServer">The installed site web server the vhost is rendered for.</param>
     /// <param name="cancellationToken">Cancels the call.</param>
     /// <returns>True when the agent answered success.</returns>
     /// <remarks>
@@ -239,6 +258,7 @@ public sealed class StartupPhpSiteReconciler : BackgroundService
         Site site,
         AccountSnapshot account,
         IReadOnlyList<PhpSettingDto> settings,
+        SiteWebServer webServer,
         CancellationToken cancellationToken)
     {
         try
@@ -247,7 +267,7 @@ public sealed class StartupPhpSiteReconciler : BackgroundService
                 account.Username,
                 site.Domain,
                 site.PhpVersion,
-                SiteDescriptorMapper.From(site),
+                SiteDescriptorMapper.From(site, webServer),
                 (uint)account.MaxPhpWorkersPerPool,
                 settings,
                 removePreviousPool: false,

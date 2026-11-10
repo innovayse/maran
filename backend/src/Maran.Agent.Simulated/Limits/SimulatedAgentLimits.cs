@@ -58,6 +58,9 @@ public sealed record SimulatedAgentLimits
     /// <summary>Most PHP versions installed at once.</summary>
     public int MaxPhpRuntimes { get; init; } = 32;
 
+    /// <summary>Most apps (web servers and runtimes) installed through the app store at once.</summary>
+    public int MaxApps { get; init; } = 32;
+
     /// <summary>The longest account, suffix, backup id or entry id a simulated service accepts.</summary>
     public int MaxNameLength { get; init; } = 64;
 

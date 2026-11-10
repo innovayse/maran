@@ -1,9 +1,11 @@
+using Maran.Agent.Client.Services.SitesService;
 using Maran.Modules.Sites.Commands.CreateSite;
 using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Sites.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Apps;
 using Maran.SharedKernel.Callers;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
@@ -101,9 +103,9 @@ public sealed class CreateSiteCommandHandlerTests
         Assert.Equal(1, await world.DbContext.Sites.CountAsync());
     }
 
-    /// <summary>A php version the host does not have is refused before the agent is asked to create anything.</summary>
+    /// <summary>A php version that is not installed as an app is refused before the agent is asked to create anything.</summary>
     [Fact]
-    public async Task A_php_version_the_host_does_not_have_is_refused_before_the_agent_is_asked_to_create_anything()
+    public async Task A_php_version_that_is_not_installed_as_an_app_is_refused_before_the_agent_is_asked_to_create_anything()
     {
         var account = Guid.NewGuid();
         var world = new CreateSiteWorld(account, installedPhp: ["8.2"]);
@@ -111,39 +113,135 @@ public sealed class CreateSiteCommandHandlerTests
         var result = await world.Handler().HandleAsync(CreateSiteWorld.Command(account), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal("PhpVersionNotInstalled", result.Error!.Code);
+        Assert.Equal("AppsNotInstalled", result.Error!.Code);
         Assert.Empty(world.Agent.Calls);
     }
 
-    /// <summary>An agent that cannot list versions is not reported as a missing version.</summary>
+    /// <summary>The same version, installed as an app, is accepted: the control for the refusal above.</summary>
     [Fact]
-    public async Task An_agent_that_cannot_list_versions_is_not_reported_as_a_missing_version()
+    public async Task A_php_version_installed_as_an_app_is_accepted()
     {
-        // The two are different answers: one is retried, the other is a fact the customer must act
-        // on. Collapsing them would tell a customer their PHP version is uninstalled every time the
-        // agent socket hiccups.
         var account = Guid.NewGuid();
-        var world = new CreateSiteWorld(account, phpFailure: Error.Of("AgentUnavailable", ErrorType.Unavailable));
+        var world = new CreateSiteWorld(account, installedPhp: ["8.2", "8.3"]);
+
+        var result = await world.Handler().HandleAsync(CreateSiteWorld.Command(account), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("8.3", result.Value.PhpVersion);
+    }
+
+    /// <summary>With no site web server installed the creation is refused before anything else is read or asked.</summary>
+    [Fact]
+    public async Task With_no_web_server_installed_the_creation_is_refused_before_anything_is_asked()
+    {
+        var account = Guid.NewGuid();
+        var world = new CreateSiteWorld(account, webServer: StackWebServer.None);
 
         var result = await world.Handler().HandleAsync(CreateSiteWorld.Command(account), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal("AgentUnavailable", result.Error!.Code);
+        Assert.Equal("AppsStackNotReady", result.Error!.Code);
+        Assert.Equal(ErrorType.Conflict, result.Error.Type);
+        Assert.Empty(world.Agent.Calls);
+        Assert.Empty(await world.DbContext.Sites.ToListAsync());
+        Assert.False(Assert.Single(world.Audit.Entries).Succeeded);
     }
 
-    /// <summary>A static site is created without consulting the php runtimes at all.</summary>
-    [Fact]
-    public async Task A_static_site_is_created_without_consulting_the_php_runtimes_at_all()
+    /// <summary>The creation is rendered for the web server that is installed, whichever it is.</summary>
+    /// <param name="installed">The installed web server.</param>
+    /// <param name="expected">The web server the agent must be told.</param>
+    [Theory]
+    [InlineData(StackWebServer.Nginx, SiteWebServer.Nginx)]
+    [InlineData(StackWebServer.Apache, SiteWebServer.Apache)]
+    public async Task The_creation_is_rendered_for_the_installed_web_server(StackWebServer installed, SiteWebServer expected)
     {
         var account = Guid.NewGuid();
-        var world = new CreateSiteWorld(account, installedPhp: []);
+        var world = new CreateSiteWorld(account, webServer: installed);
+
+        var result = await world.Handler().HandleAsync(CreateSiteWorld.Command(account), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(expected, Assert.Single(world.Agent.WebServers));
+    }
+
+    /// <summary>A static site is created without any runtime installed.</summary>
+    [Fact]
+    public async Task A_static_site_is_created_without_any_runtime_installed()
+    {
+        var account = Guid.NewGuid();
+        var world = new CreateSiteWorld(account, installedPhp: [], installedNode: []);
 
         var result = await world.Handler().HandleAsync(
             CreateSiteWorld.Command(account) with { BackendType = SiteBackendType.Static, PhpVersion = string.Empty },
             CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(0, world.Php.ListCalls);
+        Assert.Equal(SiteNodeApp.None, Assert.Single(world.Agent.NodeApps));
+    }
+
+    /// <summary>A node site is provisioned with its runtime facts and stores them.</summary>
+    [Fact]
+    public async Task A_node_site_is_provisioned_with_its_runtime_facts_and_stores_them()
+    {
+        var account = Guid.NewGuid();
+        var world = new CreateSiteWorld(account);
+
+        var result = await world.Handler().HandleAsync(NodeCommand(account), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(SiteBackendType.Node, result.Value.BackendType);
+        Assert.Equal(new SiteNodeApp("22", 3100, "npm start"), Assert.Single(world.Agent.NodeApps));
+        var stored = await world.DbContext.Sites.SingleAsync();
+        Assert.Equal("22", stored.NodeVersion);
+        Assert.Equal(3100, stored.AppPort);
+        Assert.Equal("npm start", stored.StartCommand);
+    }
+
+    /// <summary>A node major that is not installed as an app is refused before the agent is asked to create anything.</summary>
+    [Fact]
+    public async Task A_node_major_that_is_not_installed_is_refused_before_the_agent_is_asked_to_create_anything()
+    {
+        var account = Guid.NewGuid();
+        var world = new CreateSiteWorld(account, installedNode: ["20"]);
+
+        var result = await world.Handler().HandleAsync(NodeCommand(account), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AppsNotInstalled", result.Error!.Code);
+        Assert.Empty(world.Agent.Calls);
+    }
+
+    /// <summary>A port another site already listens on is refused, whichever account owns that site.</summary>
+    [Fact]
+    public async Task A_port_another_site_listens_on_is_refused_whichever_account_owns_it()
+    {
+        var account = Guid.NewGuid();
+        var world = new CreateSiteWorld(account);
+        await using (var seed = SitesTestContext.Create(FakeCurrentUser.Admin(), world.Database))
+        {
+            seed.Sites.Add(new Site(
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                "other.example.com",
+                [],
+                SiteBackendType.Node,
+                string.Empty,
+                string.Empty,
+                "22",
+                3100,
+                "node app.js",
+                "/home/other/sites/other.example.com",
+                CreateSiteWorld.Now));
+            await seed.SaveChangesAsync();
+        }
+
+        var taken = await world.Handler().HandleAsync(NodeCommand(account), CancellationToken.None);
+        var free = await world.Handler().HandleAsync(NodeCommand(account) with { AppPort = 3101, Domain = "free.example.com" }, CancellationToken.None);
+
+        Assert.False(taken.IsSuccess);
+        Assert.Equal("SiteAppPortTaken", taken.Error!.Code);
+        Assert.Equal(ErrorType.Conflict, taken.Error.Type);
+        Assert.True(free.IsSuccess);
     }
 
     /// <summary>A refused provisioning leaves no site row behind.</summary>
@@ -302,5 +400,19 @@ public sealed class CreateSiteCommandHandlerTests
         Assert.Equal(caller.UserId, entry.ActorUserId);
         Assert.Equal(caller.Username, entry.ActorUsername);
         Assert.NotEqual(string.Empty, entry.ActorUsername);
+    }
+
+    /// <summary>Builds a creation of a Node site on Node 22, port 3100.</summary>
+    /// <param name="accountId">The account the site is created for.</param>
+    private static CreateSiteCommand NodeCommand(Guid accountId)
+    {
+        return new CreateSiteCommand(
+            accountId,
+            "app.example.com",
+            SiteBackendType.Node,
+            [],
+            NodeVersion: "22",
+            AppPort: 3100,
+            StartCommand: "npm start");
     }
 }

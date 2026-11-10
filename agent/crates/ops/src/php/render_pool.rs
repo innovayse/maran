@@ -4,6 +4,7 @@ use maran_distro::DistroAdapter;
 use maran_templates::php_fpm::pool::Pool;
 use maran_templates::php_fpm::pool_override::PoolOverride;
 
+use crate::apps::installed_site_web_server;
 use crate::php::PhpOpError;
 use crate::php::model::php_override::{DEFAULT_SIZE, PhpOverride};
 use crate::php::model::pool_input::PoolInput;
@@ -90,7 +91,7 @@ pub(crate) fn render_pool(
         pool_name: &paths.pool_name,
         account: input.account.as_str(),
         socket_path: &socket_path,
-        web_server_user: distro.web_server_user(),
+        web_server_user: distro.site_web_server_user(installed_site_web_server()),
         max_children,
         // Halfway between the idle bounds: starting at the floor makes every
         // morning's first visitors wait for workers to fork, and starting at

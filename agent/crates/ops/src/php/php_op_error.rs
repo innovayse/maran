@@ -2,6 +2,7 @@
 
 use maran_agent_core::utils::bound_exceeded::BoundExceeded;
 
+use crate::packages::PackageError;
 use crate::safe_write::SafeWriteError;
 
 /// What can go wrong while listing, installing, or configuring a PHP version.
@@ -173,7 +174,7 @@ pub enum PhpOpError {
     /// The package manager runs inside that unit, not in the agent, so its
     /// own output is in the unit's journal and not in this error; the agent
     /// reads that journal only to classify the failure
-    /// (`classify_install_failure`), and when it cannot, the reason is
+    /// (`classify_package_unit_failure`), and when it cannot, the reason is
     /// appended here.
     #[error("the PHP install unit failed: {stderr}")]
     PackageManager {
@@ -341,6 +342,24 @@ pub enum PhpOpError {
         /// for an operator's log.
         stderr: String,
     },
+}
+
+impl From<PackageError> for PhpOpError {
+    /// Folds a package unit's failure into this area's list, one variant to one variant.
+    fn from(error: PackageError) -> Self {
+        match error {
+            PackageError::Bound(bound) => Self::Bound(bound),
+            PackageError::PackageManager { stderr } => Self::PackageManager { stderr },
+            PackageError::SourceRefused { stderr } => Self::PackageSourceRefused { stderr },
+            PackageError::SourceUnreachable { stderr } => Self::PackageSourceUnreachable { stderr },
+            PackageError::NotAvailable { package, stderr } => {
+                Self::PackageNotAvailable { package, stderr }
+            }
+            PackageError::CatalogueUnavailable { reason } => {
+                Self::PackageCatalogueUnavailable { reason }
+            }
+        }
+    }
 }
 
 impl From<SafeWriteError> for PhpOpError {

@@ -76,7 +76,9 @@ fn polygon_family() -> DistroFamily {
 
 /// The distribution adapter for the polygon this suite is running in.
 fn polygon_distro() -> &'static dyn DistroAdapter {
-    adapter_for(polygon_family())
+    let distro = adapter_for(polygon_family());
+    PolygonPhp::ensure_installed(distro);
+    distro
 }
 
 /// The name `php-fpm -m` prints for a catalogue extension, spelled here and not

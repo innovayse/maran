@@ -24,7 +24,6 @@ import { stubSessions } from '../fixtures/stub-sessions-route'
 import { stubShellReads } from '../fixtures/stub-shell-reads'
 import {
   completePhpVersion,
-  stubInstallablePhpVersions,
   stubOpenSiteLogStream,
   stubPhpVersions,
   stubSiteDetail,
@@ -350,9 +349,6 @@ const CASES: Case[] = [
       await administrator(page)
       await page.route('**/api/v1/sites/php-versions', async (route) => {
         await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(PHP_VERSIONS.map(completePhpVersion)) })
-      })
-      await stubInstallablePhpVersions(page, () => {
-        return []
       })
     },
     ready: textReady('8.4'),

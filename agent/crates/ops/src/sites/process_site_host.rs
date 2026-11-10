@@ -207,27 +207,27 @@ impl SiteHost for ProcessSiteHost {
         }
     }
 
-    /// Lists the `.conf` files in the agent's own nginx include directory.
+    /// Lists the `.conf` files in the agent's own include directories, nginx's and Apache's.
     ///
-    /// Read as root and not through `fork_as_account`: this directory is
-    /// `/etc/maran/nginx/sites`, which the agent owns outright and no customer
-    /// can write into, so there is no untrusted path to be led down. Only
-    /// regular-file entries ending in `.conf` are returned, which is what the
-    /// web server itself includes.
+    /// Read as root and not through `fork_as_account`: these directories are
+    /// `/etc/maran/nginx/sites` and `/etc/maran/apache/sites`, which the agent owns outright
+    /// and no customer can write into, so there is no untrusted path to be led down. Only
+    /// regular-file entries ending in `.conf` are returned, which is what the web server
+    /// itself includes.
+    ///
+    /// The nginx directory is the panel's own front's and always exists, so one that cannot
+    /// be read is an error. The Apache directory exists only once the Apache app has been
+    /// installed, so one that is absent contributes nothing, and one that exists and cannot
+    /// be read is an error all the same.
     fn list_config_paths(&self) -> Result<Vec<PathBuf>, SitesOpError> {
-        let directory = Path::new(AgentPaths::NGINX_INCLUDE_DIRECTORY);
-        let entries = std::fs::read_dir(directory).map_err(|_| SitesOpError::ConfigUnreadable {
-            path: directory.display().to_string(),
-        })?;
+        let mut paths = list_conf_files(Path::new(AgentPaths::NGINX_INCLUDE_DIRECTORY))?;
 
-        Ok(entries
-            .filter_map(Result::ok)
-            .map(|entry| entry.path())
-            .filter(|path| {
-                path.extension()
-                    .is_some_and(|extension| extension == CONFIG_EXTENSION)
-            })
-            .collect())
+        let apache = Path::new(AgentPaths::APACHE_INCLUDE_DIRECTORY);
+        if apache.exists() {
+            paths.extend(list_conf_files(apache)?);
+        }
+
+        Ok(paths)
     }
 
     /// Creates `/var/log/maran/sites/<account>` as root, `0750`, if it is not
@@ -403,6 +403,26 @@ impl SiteHost for ProcessSiteHost {
     ) -> Result<PathBuf, SitesOpError> {
         Ok(resolve_in_home(account, relative)?)
     }
+}
+
+/// The `.conf` files directly inside `directory`.
+///
+/// # Errors
+///
+/// Returns [`SitesOpError::ConfigUnreadable`] when the directory cannot be listed.
+fn list_conf_files(directory: &Path) -> Result<Vec<PathBuf>, SitesOpError> {
+    let entries = std::fs::read_dir(directory).map_err(|_| SitesOpError::ConfigUnreadable {
+        path: directory.display().to_string(),
+    })?;
+
+    Ok(entries
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == CONFIG_EXTENSION)
+        })
+        .collect())
 }
 
 impl SiteMaintenanceHost for ProcessSiteHost {

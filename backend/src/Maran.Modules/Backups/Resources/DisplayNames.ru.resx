@@ -84,6 +84,15 @@
   <data name="BackupFailureAgentSaturated">
     <value>Сервер уже выполнял максимально допустимое число таких операций</value>
   </data>
+  <data name="BackupFailureAgentAppNotInstalled">
+    <value>Приложение не было установлено на сервере</value>
+  </data>
+  <data name="BackupFailureAgentAppInUse">
+    <value>Приложение всё ещё использовалось сайтом на сервере</value>
+  </data>
+  <data name="BackupFailureAgentWebServerAlreadyInstalled">
+    <value>Веб-сервер для сайтов уже был установлен на сервере</value>
+  </data>
   <data name="BackupDestinationDefault">
     <value>Локальное хранилище</value>
   </data>

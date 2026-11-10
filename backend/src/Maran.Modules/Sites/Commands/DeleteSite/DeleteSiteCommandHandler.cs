@@ -37,17 +37,23 @@ public sealed class DeleteSiteCommandHandler
     /// <summary>This module's audit journal.</summary>
     private readonly SiteAuditJournal _journal;
 
+    /// <summary>Refuses the operation while no site web server is installed.</summary>
+    private readonly SiteStackGate _stack;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Sites module's database context.</param>
     /// <param name="accounts">The owning account's system user name.</param>
     /// <param name="agent">The agent client that removes the vhost.</param>
     /// <param name="journal">This module's audit journal.</param>
+    /// <param name="stack">Refuses the operation while no site web server is installed.</param>
     public DeleteSiteCommandHandler(
         SitesDbContext dbContext,
         IAccountDirectory accounts,
         IAgentSitesClient agent,
-        SiteAuditJournal journal)
+        SiteAuditJournal journal,
+        SiteStackGate stack)
     {
+        _stack = stack;
         _dbContext = dbContext;
         _accounts = accounts;
         _agent = agent;
@@ -64,6 +70,14 @@ public sealed class DeleteSiteCommandHandler
     /// <returns>Success, or <c>SiteNotFound</c>, <c>AccountNotFound</c>, or the agent's own typed failure.</returns>
     public async Task<Result> HandleAsync(DeleteSiteCommand command, CancellationToken cancellationToken)
     {
+        // The stack gate: sites cannot be changed while no web server is installed. Enforced here and
+        // not in the SPA, which only reflects it (docs/apps/README.md).
+        var installed = await _stack.ReadAsync(cancellationToken);
+        if (installed.NotReadyFailure() is { } notReady)
+        {
+            return await FailAsync(command, command.SiteId.ToString(), notReady, cancellationToken);
+        }
+
         // The hostname claims are loaded with the site so that removing it frees the names it held
         // through the tracked graph, rather than relying on the database's cascade alone: a name
         // still claimed by a deleted site is a name its owner can never use again.
@@ -92,6 +106,7 @@ public sealed class DeleteSiteCommandHandler
             account.Username,
             site.Domain,
             await RetiredPhpVersionAsync(site, cancellationToken),
+            installed.WebServer!.Value,
             cancellationToken);
 
         // The agent answers NotFound when the vhost is already gone, and its contract says to read

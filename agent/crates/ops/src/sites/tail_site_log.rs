@@ -81,10 +81,9 @@ pub fn tail_site_log(
     // with it the reason to name two traits — and a bound nothing uses is worse
     // than none, because it tells the next reader this function reaches the
     // filesystem in a way it no longer does.
-    let named = SitePaths::for_site(account, domain);
     let log = match kind {
-        SiteLogKind::Access => named.access_log,
-        SiteLogKind::Error => named.error_log,
+        SiteLogKind::Access => SitePaths::access_log_for(account, domain),
+        SiteLogKind::Error => SitePaths::error_log_for(account, domain),
     };
 
     // Named as a directory rather than as the file: a site that has served no

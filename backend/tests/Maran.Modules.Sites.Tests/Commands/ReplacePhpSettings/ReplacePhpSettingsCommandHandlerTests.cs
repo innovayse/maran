@@ -116,6 +116,22 @@ public sealed class ReplacePhpSettingsCommandHandlerTests
         Assert.Empty(await world.Context.PhpSettings.ToListAsync());
     }
 
+    /// <summary>With no PHP installed as an app the settings are refused, journalled, and no pool is touched.</summary>
+    [Fact]
+    public async Task With_no_php_installed_as_an_app_the_settings_are_refused_and_no_pool_is_touched()
+    {
+        var world = World.Create(versions: ["8.3"]);
+        world.Stack = SiteStacks.WithoutRuntimes();
+
+        var result = await world.Handler().HandleAsync(Command(world, ("memory_limit", "128")), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AppsNotInstalled", result.Error!.Code);
+        Assert.Empty(world.Php.PoolCalls);
+        Assert.Empty(await world.Context.PhpSettings.ToListAsync());
+        Assert.False(Assert.Single(world.Audit.Entries).Succeeded);
+    }
+
     /// <summary>Builds a command for the world's account.</summary>
     /// <param name="world">The test world.</param>
     /// <param name="settings">The pairs to send.</param>
@@ -142,6 +158,9 @@ public sealed class ReplacePhpSettingsCommandHandlerTests
 
         /// <summary>The journal's writer.</summary>
         public RecordingAuditWriter Audit { get; } = new();
+
+        /// <summary>The installed stack; a host with PHP installed unless a test says otherwise.</summary>
+        public SiteStackGate Stack { get; set; } = SiteStacks.Ready();
 
         /// <summary>The account directory double.</summary>
         private StubAccountDirectory Accounts { get; init; } = null!;
@@ -184,7 +203,8 @@ public sealed class ReplacePhpSettingsCommandHandlerTests
                 new PhpAccountPoolSettings(Context),
                 new PhpPoolApplier(Php),
                 new PhpSettingsReader(Context, displayNames),
-                new SiteAuditJournal(Audit, FakeCurrentUser.Customer(AccountId)));
+                new SiteAuditJournal(Audit, FakeCurrentUser.Customer(AccountId)),
+                Stack);
         }
 
         /// <summary>Creates the world around an account id.</summary>

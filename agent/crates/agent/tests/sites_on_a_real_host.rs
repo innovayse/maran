@@ -23,6 +23,9 @@ mod in_process_agent;
 mod polygon_account;
 #[path = "fixtures/polygon_config_file.rs"]
 mod polygon_config_file;
+#[allow(dead_code)]
+#[path = "fixtures/polygon_php.rs"]
+mod polygon_php;
 
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::Path;
@@ -55,6 +58,7 @@ use maran_ops::ssl::{ProcessSslHost, delete_site_with_certificate, generate_self
 use in_process_agent::InProcessAgent;
 use polygon_account::PolygonAccount;
 use polygon_config_file::PolygonConfigFile;
+use polygon_php::PolygonPhp;
 
 /// The PHP version the Debian and RHEL polygon images install: 8.3 on Sury, 83 on Remi.
 ///
@@ -81,11 +85,14 @@ const VALIDATE_ARGUMENT: &str = "-t";
 /// Panics when the host is outside the support matrix, which a polygon image
 /// never is.
 fn polygon_distro() -> &'static dyn DistroAdapter {
-    adapter_for(
+    let distro = adapter_for(
         detect()
             .expect("a polygon image is a supported host")
             .family,
-    )
+    );
+    // PHP sites need PHP, which is an app since issue #517: installed once, the way production does.
+    PolygonPhp::ensure_installed(distro);
+    distro
 }
 
 #[test]
@@ -211,7 +218,12 @@ fn a_site_the_real_nginx_rejects_is_refused_by_create_site_and_leaves_the_tree_a
         "b".repeat(63)
     ))
     .expect("a long domain is still a valid domain");
-    let refused_vhost = SitePaths::for_site(account.name(), &refused_domain).config_path;
+    let refused_vhost = SitePaths::for_site(
+        account.name(),
+        &refused_domain,
+        maran_distro::SiteWebServer::Nginx,
+    )
+    .config_path;
 
     let refusal = create_polygon_site(&host, &php_site(&account, &refused_domain));
 
@@ -311,6 +323,7 @@ fn php_site(account: &PolygonAccount, domain: &Domain) -> CreateSiteInput {
         kind: SiteKind::Php {
             version: PhpVersion::parse(POLYGON_PHP_VERSION).expect("a valid PHP version"),
         },
+        web_server: maran_distro::SiteWebServer::Nginx,
         certificate: None,
         options: Default::default(),
     }
@@ -434,6 +447,7 @@ fn a_real_nginx_serves_a_site_out_of_the_accounts_own_home() {
         domain: domain.clone(),
         aliases: Vec::new(),
         kind: SiteKind::Static,
+        web_server: maran_distro::SiteWebServer::Nginx,
         certificate: None,
         options: Default::default(),
     };
@@ -747,6 +761,7 @@ fn deleting_a_site_takes_its_private_key_off_the_disk() {
         &SiteIdentity {
             account: account.name().clone(),
             domain: domain.clone(),
+            web_server: maran_distro::SiteWebServer::Nginx,
         },
         Some(&PhpVersion::parse(POLYGON_PHP_VERSION).expect("a valid PHP version")),
     )
@@ -823,6 +838,7 @@ fn deleting_a_site_takes_its_visitor_logs_so_a_recreated_pair_starts_empty() {
         &SiteIdentity {
             account: account.name().clone(),
             domain: domain.clone(),
+            web_server: maran_distro::SiteWebServer::Nginx,
         },
         Some(&PhpVersion::parse(POLYGON_PHP_VERSION).expect("a valid PHP version")),
     )
@@ -897,6 +913,7 @@ fn served_polygon_site(account: &PolygonAccount, domain: &Domain) -> CreateSiteI
         domain: domain.clone(),
         aliases: Vec::new(),
         kind: SiteKind::Static,
+        web_server: maran_distro::SiteWebServer::Nginx,
         certificate: None,
         options: Default::default(),
     };
@@ -926,7 +943,10 @@ fn a_suspended_accounts_site_answers_the_stub_and_not_the_customers_page() {
     let account = PolygonAccount::create("polysuspone");
     let domain = Domain::parse("suspone.example.test").expect("a valid domain");
     let input = served_polygon_site(&account, &domain);
-    let _vhost = PolygonConfigFile::at(&SitePaths::for_site(account.name(), &domain).config_path);
+    let _vhost = PolygonConfigFile::at(
+        &SitePaths::for_site(account.name(), &domain, maran_distro::SiteWebServer::Nginx)
+            .config_path,
+    );
 
     reload_polygon_nginx();
     let before = fetch_until(domain.as_str(), "/", |body| {
@@ -970,12 +990,16 @@ fn a_suspended_site_still_answers_the_acme_challenge_so_its_certificate_can_rene
     let account = PolygonAccount::create("polysusptwo");
     let domain = Domain::parse("susptwo.example.test").expect("a valid domain");
     let input = served_polygon_site(&account, &domain);
-    let _vhost = PolygonConfigFile::at(&SitePaths::for_site(account.name(), &domain).config_path);
+    let _vhost = PolygonConfigFile::at(
+        &SitePaths::for_site(account.name(), &domain, maran_distro::SiteWebServer::Nginx)
+            .config_path,
+    );
 
-    let challenge_directory = SitePaths::for_site(account.name(), &domain)
-        .document_root
-        .join(".well-known")
-        .join("acme-challenge");
+    let challenge_directory =
+        SitePaths::for_site(account.name(), &domain, maran_distro::SiteWebServer::Nginx)
+            .document_root
+            .join(".well-known")
+            .join("acme-challenge");
     ProcessSiteHost::new()
         .create_directories_as_account(account.name(), &[challenge_directory.as_path()])
         .expect("the challenge directory is created as the account");
@@ -1046,10 +1070,22 @@ fn resuming_restores_the_site_that_was_resumed_and_leaves_the_other_one_stubbed(
     let chosen_domain = Domain::parse("chosen.example.test").expect("a valid domain");
     let resumed = served_polygon_site(&account, &resumed_domain);
     let chosen = served_polygon_site(&account, &chosen_domain);
-    let _resumed_vhost =
-        PolygonConfigFile::at(&SitePaths::for_site(account.name(), &resumed_domain).config_path);
-    let _chosen_vhost =
-        PolygonConfigFile::at(&SitePaths::for_site(account.name(), &chosen_domain).config_path);
+    let _resumed_vhost = PolygonConfigFile::at(
+        &SitePaths::for_site(
+            account.name(),
+            &resumed_domain,
+            maran_distro::SiteWebServer::Nginx,
+        )
+        .config_path,
+    );
+    let _chosen_vhost = PolygonConfigFile::at(
+        &SitePaths::for_site(
+            account.name(),
+            &chosen_domain,
+            maran_distro::SiteWebServer::Nginx,
+        )
+        .config_path,
+    );
 
     let host = ProcessSiteHost::new();
     for input in [&resumed, &chosen] {
@@ -1105,10 +1141,22 @@ fn the_suspension_state_answers_on_a_real_host_what_the_requests_above_observed(
     let serving_domain = Domain::parse("serving.example.test").expect("a valid domain");
     let stubbed = served_polygon_site(&account, &stubbed_domain);
     let _serving = served_polygon_site(&account, &serving_domain);
-    let _stubbed_vhost =
-        PolygonConfigFile::at(&SitePaths::for_site(account.name(), &stubbed_domain).config_path);
-    let _serving_vhost =
-        PolygonConfigFile::at(&SitePaths::for_site(account.name(), &serving_domain).config_path);
+    let _stubbed_vhost = PolygonConfigFile::at(
+        &SitePaths::for_site(
+            account.name(),
+            &stubbed_domain,
+            maran_distro::SiteWebServer::Nginx,
+        )
+        .config_path,
+    );
+    let _serving_vhost = PolygonConfigFile::at(
+        &SitePaths::for_site(
+            account.name(),
+            &serving_domain,
+            maran_distro::SiteWebServer::Nginx,
+        )
+        .config_path,
+    );
 
     let host = ProcessSiteHost::new();
     maran_ops::sites::disable_site(&host, polygon_distro(), &stubbed)
@@ -1354,7 +1402,7 @@ fn a_customers_symlink_where_the_logs_used_to_live_no_longer_reaches_root() {
     let domain = Domain::parse("logattack.example.test").expect("a valid domain");
 
     let input = served_polygon_site(&account, &domain);
-    let paths = SitePaths::for_site(account.name(), &domain);
+    let paths = SitePaths::for_site(account.name(), &domain, maran_distro::SiteWebServer::Nginx);
     let _vhost = PolygonConfigFile::at(&paths.config_path);
     let old_directory = account.home().join("logs");
 
@@ -1371,7 +1419,8 @@ fn a_customers_symlink_where_the_logs_used_to_live_no_longer_reaches_root() {
     // ends in a reload of the one nginx that serves them all. A second site is
     // the most ordinary one there is.
     let second = Domain::parse("logattack-two.example.test").expect("a valid domain");
-    let second_paths = SitePaths::for_site(account.name(), &second);
+    let second_paths =
+        SitePaths::for_site(account.name(), &second, maran_distro::SiteWebServer::Nginx);
     let _second_vhost = PolygonConfigFile::at(&second_paths.config_path);
     create_polygon_site(
         &ProcessSiteHost::new(),
@@ -1460,6 +1509,7 @@ fn served_site_input(account: &PolygonAccount, domain: &Domain) -> CreateSiteInp
         domain: domain.clone(),
         aliases: Vec::new(),
         kind: SiteKind::Static,
+        web_server: maran_distro::SiteWebServer::Nginx,
         certificate: None,
         options: Default::default(),
     }
@@ -1494,7 +1544,7 @@ fn every_directory_the_site_log_tree_is_made_of_belongs_to_root() {
     let account = PolygonAccount::create("polysitelogtwo");
     let domain = Domain::parse("logmodes.example.test").expect("a valid domain");
 
-    let paths = SitePaths::for_site(account.name(), &domain);
+    let paths = SitePaths::for_site(account.name(), &domain, maran_distro::SiteWebServer::Nginx);
     let _vhost = PolygonConfigFile::at(&paths.config_path);
     create_polygon_site(
         &ProcessSiteHost::new(),
@@ -1552,7 +1602,7 @@ fn a_symlink_planted_at_the_new_log_location_is_refused_by_the_tail() {
     // the same code a site's creation uses, and nothing nginx reads names the
     // access log below; `a_symlink_at_a_log_nginx_names_is_followed_by_the_nginx_master`
     // is the control showing that nginx is the actor when it does.
-    let paths = SitePaths::for_site(account.name(), &domain);
+    let paths = SitePaths::for_site(account.name(), &domain, maran_distro::SiteWebServer::Nginx);
     ProcessSiteHost::new()
         .create_site_log_directory(account.name())
         .unwrap_or_else(|error| panic!("creating the log directory must succeed: {error}"));
@@ -1638,7 +1688,7 @@ fn a_symlink_at_a_log_nginx_names_is_followed_by_the_nginx_master() {
     let account = PolygonAccount::create("polysitelogfive");
     let domain = Domain::parse("logcontrol.example.test").expect("a valid domain");
 
-    let paths = SitePaths::for_site(account.name(), &domain);
+    let paths = SitePaths::for_site(account.name(), &domain, maran_distro::SiteWebServer::Nginx);
     let _vhost = PolygonConfigFile::at(&paths.config_path);
     create_polygon_site(
         &ProcessSiteHost::new(),
@@ -1673,7 +1723,7 @@ fn a_suspended_sites_logs_move_with_the_serving_ones() {
     let account = PolygonAccount::create("polysitelogfour");
     let domain = Domain::parse("logsuspend.example.test").expect("a valid domain");
 
-    let paths = SitePaths::for_site(account.name(), &domain);
+    let paths = SitePaths::for_site(account.name(), &domain, maran_distro::SiteWebServer::Nginx);
     let _vhost = PolygonConfigFile::at(&paths.config_path);
     let input = served_polygon_site(&account, &domain);
 
@@ -1821,6 +1871,7 @@ fn static_site(account: &PolygonAccount, domain: &Domain) -> CreateSiteInput {
         domain: domain.clone(),
         aliases: Vec::new(),
         kind: SiteKind::Static,
+        web_server: maran_distro::SiteWebServer::Nginx,
         certificate: None,
         options: Default::default(),
     }
@@ -1864,10 +1915,20 @@ fn a_neighbours_rejected_vhost_cannot_fail_this_tenants_valid_write() {
     // for the length of one real `nginx -t`.
     let refused_domain = Domain::parse(&format!("{}.{}.race.test", "a".repeat(63), "b".repeat(63)))
         .expect("a long domain is still a valid domain");
-    let refused_vhost = SitePaths::for_site(neighbour.name(), &refused_domain).config_path;
+    let refused_vhost = SitePaths::for_site(
+        neighbour.name(),
+        &refused_domain,
+        maran_distro::SiteWebServer::Nginx,
+    )
+    .config_path;
 
     let good_domain = Domain::parse("racewinner.example.test").expect("a valid domain");
-    let good_vhost = SitePaths::for_site(tenant.name(), &good_domain).config_path;
+    let good_vhost = SitePaths::for_site(
+        tenant.name(),
+        &good_domain,
+        maran_distro::SiteWebServer::Nginx,
+    )
+    .config_path;
     let _good = PolygonConfigFile::at(&good_vhost);
 
     let (entered, entry) = mpsc::channel();
@@ -1960,7 +2021,8 @@ fn installing_a_certificate_on_a_suspended_site_leaves_the_real_nginx_serving_th
     let account = PolygonAccount::create("polysuspcert");
     let domain = Domain::parse("suspcert.example.test").expect("a valid domain");
     let input = served_polygon_site(&account, &domain);
-    let vhost = SitePaths::for_site(account.name(), &domain).config_path;
+    let vhost = SitePaths::for_site(account.name(), &domain, maran_distro::SiteWebServer::Nginx)
+        .config_path;
     let _vhost = PolygonConfigFile::at(&vhost);
 
     // The inverse control: the site really is serving the customer's page
@@ -2092,16 +2154,24 @@ impl LinkFixture {
         let alice_pool = php.then(|| pool_guard(&alice));
         create_polygon_site(&ProcessSiteHost::new(), &alice_input)
             .unwrap_or_else(|error| panic!("creating alice's site must succeed: {error}"));
-        let alice_vhost =
-            PolygonConfigFile::at(&SitePaths::for_site(alice.name(), &alice_domain).config_path);
+        let alice_vhost = PolygonConfigFile::at(
+            &SitePaths::for_site(
+                alice.name(),
+                &alice_domain,
+                maran_distro::SiteWebServer::Nginx,
+            )
+            .config_path,
+        );
 
         create_polygon_site(
             &ProcessSiteHost::new(),
             &served_site_input(&bob, &bob_domain),
         )
         .unwrap_or_else(|error| panic!("creating bob's site must succeed: {error}"));
-        let bob_vhost =
-            PolygonConfigFile::at(&SitePaths::for_site(bob.name(), &bob_domain).config_path);
+        let bob_vhost = PolygonConfigFile::at(
+            &SitePaths::for_site(bob.name(), &bob_domain, maran_distro::SiteWebServer::Nginx)
+                .config_path,
+        );
 
         write_as_account(
             &alice,
@@ -2128,12 +2198,22 @@ impl LinkFixture {
 
     /// Alice's document root.
     fn alice_root(&self) -> std::path::PathBuf {
-        SitePaths::for_site(self.alice.name(), &self.alice_domain).document_root
+        SitePaths::for_site(
+            self.alice.name(),
+            &self.alice_domain,
+            maran_distro::SiteWebServer::Nginx,
+        )
+        .document_root
     }
 
     /// Bob's document root.
     fn bob_root(&self) -> std::path::PathBuf {
-        SitePaths::for_site(self.bob.name(), &self.bob_domain).document_root
+        SitePaths::for_site(
+            self.bob.name(),
+            &self.bob_domain,
+            maran_distro::SiteWebServer::Nginx,
+        )
+        .document_root
     }
 
     /// The absolute path of bob's private file.
@@ -2147,7 +2227,12 @@ impl LinkFixture {
 
     /// Alice's site error log.
     fn alice_error_log(&self) -> std::path::PathBuf {
-        SitePaths::for_site(self.alice.name(), &self.alice_domain).error_log
+        SitePaths::for_site(
+            self.alice.name(),
+            &self.alice_domain,
+            maran_distro::SiteWebServer::Nginx,
+        )
+        .error_log
     }
 
     /// Reloads nginx and proves controls (c1) and (c2): alice's own file is
@@ -2382,7 +2467,11 @@ fn a_document_root_swapped_for_a_link_to_another_accounts_root_is_not_served() {
     let own_target = fixture.alice.home().join("sites").join("own-target");
     write_as_account(&fixture.alice, "sites/own-target/alice.txt", LINK_OWN_BODY);
     let second_domain = Domain::parse("alicefive-two.example.test").expect("a valid domain");
-    let second_paths = SitePaths::for_site(fixture.alice.name(), &second_domain);
+    let second_paths = SitePaths::for_site(
+        fixture.alice.name(),
+        &second_domain,
+        maran_distro::SiteWebServer::Nginx,
+    );
     create_polygon_site(
         &ProcessSiteHost::new(),
         &served_site_input(&fixture.alice, &second_domain),
@@ -2545,20 +2634,29 @@ fn a_link_in_a_proxy_sites_challenge_directory_is_refused() {
         kind: SiteKind::ReverseProxy {
             upstream: Upstream::parse("127.0.0.1:9").expect("a valid upstream"),
         },
+        web_server: maran_distro::SiteWebServer::Nginx,
         certificate: None,
         options: Default::default(),
     };
     create_polygon_site(&ProcessSiteHost::new(), &input)
         .unwrap_or_else(|error| panic!("creating a proxy site must succeed: {error}"));
-    let _proxy_vhost =
-        PolygonConfigFile::at(&SitePaths::for_site(alice.name(), &proxy_domain).config_path);
+    let _proxy_vhost = PolygonConfigFile::at(
+        &SitePaths::for_site(
+            alice.name(),
+            &proxy_domain,
+            maran_distro::SiteWebServer::Nginx,
+        )
+        .config_path,
+    );
     create_polygon_site(
         &ProcessSiteHost::new(),
         &served_site_input(&bob, &bob_domain),
     )
     .unwrap_or_else(|error| panic!("creating bob's site must succeed: {error}"));
-    let _bob_vhost =
-        PolygonConfigFile::at(&SitePaths::for_site(bob.name(), &bob_domain).config_path);
+    let _bob_vhost = PolygonConfigFile::at(
+        &SitePaths::for_site(bob.name(), &bob_domain, maran_distro::SiteWebServer::Nginx)
+            .config_path,
+    );
 
     write_as_account(
         &bob,
@@ -2573,17 +2671,22 @@ fn a_link_in_a_proxy_sites_challenge_directory_is_refused() {
         ),
         ACME_TOKEN_BODY,
     );
-    let secret_path = SitePaths::for_site(bob.name(), &bob_domain)
-        .document_root
-        .join("wp-config.php");
+    let secret_path =
+        SitePaths::for_site(bob.name(), &bob_domain, maran_distro::SiteWebServer::Nginx)
+            .document_root
+            .join("wp-config.php");
     symlink_as_account(
         &alice,
         secret_path.to_str().expect("the path is UTF-8"),
-        SitePaths::for_site(alice.name(), &proxy_domain)
-            .document_root
-            .join(".well-known")
-            .join("acme-challenge")
-            .join("leak"),
+        SitePaths::for_site(
+            alice.name(),
+            &proxy_domain,
+            maran_distro::SiteWebServer::Nginx,
+        )
+        .document_root
+        .join(".well-known")
+        .join("acme-challenge")
+        .join("leak"),
     );
     reload_polygon_nginx();
 
@@ -2653,7 +2756,8 @@ fn a_site_suspended_before_the_upgrade_stays_suspended_through_a_certificate_ins
     let account = PolygonAccount::create("polylkupgrade");
     let domain = Domain::parse("upgrade.example.test").expect("a valid domain");
     let input = served_polygon_site(&account, &domain);
-    let vhost = SitePaths::for_site(account.name(), &domain).config_path;
+    let vhost = SitePaths::for_site(account.name(), &domain, maran_distro::SiteWebServer::Nginx)
+        .config_path;
     let _vhost = PolygonConfigFile::at(&vhost);
 
     maran_ops::sites::disable_site(&ProcessSiteHost::new(), polygon_distro(), &input)
@@ -2949,7 +3053,12 @@ fn a_site_naming_a_host_another_vhost_serves_is_refused_by_the_real_nginx_and_le
     write_as_account(&owner, "sites/shop.hn1.test/index.html", OWNER_BODY);
     let owned_before = std::fs::read_to_string(&owned.config_path).expect("the owner's vhost");
 
-    let refused_vhost = SitePaths::for_site(newcomer.name(), &newcomer_domain).config_path;
+    let refused_vhost = SitePaths::for_site(
+        newcomer.name(),
+        &newcomer_domain,
+        maran_distro::SiteWebServer::Nginx,
+    )
+    .config_path;
     let refusal = create_polygon_site(
         &ProcessSiteHost::new(),
         &site_with_aliases(&newcomer, &newcomer_domain, &["shop.hn1.test"]),
@@ -2995,7 +3104,12 @@ fn a_site_whose_domain_another_vhost_already_serves_as_an_alias_is_refused() {
         create_guarded_site(&site_with_aliases(&owner, &owner_domain, &["zzz.hn2.test"]));
     let owned_before = std::fs::read_to_string(&owned.config_path).expect("the owner's vhost");
 
-    let refused_vhost = SitePaths::for_site(newcomer.name(), &contested).config_path;
+    let refused_vhost = SitePaths::for_site(
+        newcomer.name(),
+        &contested,
+        maran_distro::SiteWebServer::Nginx,
+    )
+    .config_path;
     let refusal = create_polygon_site(
         &ProcessSiteHost::new(),
         &site_with_aliases(&newcomer, &contested, &[]),
@@ -3032,7 +3146,8 @@ fn a_name_another_file_serves_with_a_leading_dot_after_this_one_is_refused() {
     let _operator = plant_operator_vhost("zzzz-wild-hn3.conf", ".dot.hn3.test");
     assert_valid_nginx_tree("the tree with the operator's wildcard file alone");
 
-    let vhost = SitePaths::for_site(account.name(), &domain).config_path;
+    let vhost = SitePaths::for_site(account.name(), &domain, maran_distro::SiteWebServer::Nginx)
+        .config_path;
     let refusal = create_polygon_site(
         &ProcessSiteHost::new(),
         &site_with_aliases(&account, &domain, &[]),
@@ -3059,7 +3174,8 @@ fn a_name_another_file_serves_with_a_leading_dot_before_this_one_is_refused() {
     let _operator = plant_operator_vhost("aaaa-wild-hn3b.conf", ".dot.hn3b.test");
     assert_valid_nginx_tree("the tree with the operator's wildcard file alone");
 
-    let vhost = SitePaths::for_site(account.name(), &domain).config_path;
+    let vhost = SitePaths::for_site(account.name(), &domain, maran_distro::SiteWebServer::Nginx)
+        .config_path;
     let refusal = create_polygon_site(
         &ProcessSiteHost::new(),
         &site_with_aliases(&account, &domain, &[]),
@@ -3143,8 +3259,18 @@ fn two_creations_racing_for_one_host_name_leave_exactly_one_vhost_answering_for_
     // depending on which thread is the winner.
     let first_domain = host_name("shop.hn6.test");
     let second_domain = host_name("zero.hn6.test");
-    let first_vhost = SitePaths::for_site(first.name(), &first_domain).config_path;
-    let second_vhost = SitePaths::for_site(second.name(), &second_domain).config_path;
+    let first_vhost = SitePaths::for_site(
+        first.name(),
+        &first_domain,
+        maran_distro::SiteWebServer::Nginx,
+    )
+    .config_path;
+    let second_vhost = SitePaths::for_site(
+        second.name(),
+        &second_domain,
+        maran_distro::SiteWebServer::Nginx,
+    )
+    .config_path;
     let _first_guard = PolygonConfigFile::at(&first_vhost);
     let _second_guard = PolygonConfigFile::at(&second_vhost);
 
@@ -3195,7 +3321,8 @@ fn two_creations_of_the_same_domain_leave_one_vhost_and_never_overwrite_the_firs
     let first = PolygonAccount::create("polyhnsamea");
     let second = PolygonAccount::create("polyhnsameb");
     let domain = host_name("same.hn7.test");
-    let vhost = SitePaths::for_site(first.name(), &domain).config_path;
+    let vhost =
+        SitePaths::for_site(first.name(), &domain, maran_distro::SiteWebServer::Nginx).config_path;
     let _guard = PolygonConfigFile::at(&vhost);
 
     // The same domain from two accounts: one file name, so both creations pass
@@ -3434,8 +3561,18 @@ fn a_validator_that_hangs_on_a_real_host_is_killed_at_its_deadline_the_vhost_is_
     let next = PolygonAccount::create("polyhangtwo");
     let hung_domain = Domain::parse("hung.example.test").expect("a valid domain");
     let next_domain = Domain::parse("next.example.test").expect("a valid domain");
-    let hung_vhost = SitePaths::for_site(hung.name(), &hung_domain).config_path;
-    let next_vhost = SitePaths::for_site(next.name(), &next_domain).config_path;
+    let hung_vhost = SitePaths::for_site(
+        hung.name(),
+        &hung_domain,
+        maran_distro::SiteWebServer::Nginx,
+    )
+    .config_path;
+    let next_vhost = SitePaths::for_site(
+        next.name(),
+        &next_domain,
+        maran_distro::SiteWebServer::Nginx,
+    )
+    .config_path;
     let _next_vhost = PolygonConfigFile::at(&next_vhost);
 
     let fifo = plant_hanging_include();
@@ -3499,6 +3636,7 @@ fn a_hung_validator_reaches_the_panel_as_system_failure_over_the_real_rpc() {
     let next_vhost = SitePaths::for_site(
         next.name(),
         &Domain::parse("rpcnext.example.test").expect("a valid domain"),
+        maran_distro::SiteWebServer::Nginx,
     )
     .config_path;
     let _next_vhost = PolygonConfigFile::at(&next_vhost);

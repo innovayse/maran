@@ -12,6 +12,7 @@ integration test file. This page restates the rows added with the isolation test
 | Choices for narrowing a restore | `GET api/v1/backups/{id}/restore-choices` | Backups | Read | `BackupsAuthorizationTests` |
 | Read a site's options | `GET api/v1/sites/{id}/options` | Sites | Read | `SitesAuthorizationTests` |
 | Replace a site's options | `PUT api/v1/sites/{id}/options` | Sites | Refused | `SitesAuthorizationTests` |
+| Read the host's site stack status | `GET api/v1/apps/stack` | none | Read | none: reads the host-level web server and runtimes, no account's row |
 | Read the caller's dashboard layout | `GET api/v1/me/dashboard-layout` | none | Read | none: reads only the caller's own saved layout |
 | Save the caller's dashboard layout | `PUT api/v1/me/dashboard-layout` | none | Refused | none: changes only the caller's own saved layout |
 | Read the account's PHP settings | `GET api/v1/php-settings` | PHP | Read | `PhpSettingsTenantIsolationEndpointTests` |

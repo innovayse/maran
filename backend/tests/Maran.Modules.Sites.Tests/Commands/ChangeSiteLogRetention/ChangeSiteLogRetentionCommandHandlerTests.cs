@@ -4,6 +4,7 @@ using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Sites.Services;
 using Maran.Modules.Sites.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 using Wolverine;
 
@@ -119,17 +120,40 @@ public sealed class ChangeSiteLogRetentionCommandHandlerTests
         return site.Id;
     }
 
+    /// <summary>With no site web server installed the change is refused and nothing is stored or published.</summary>
+    [Fact]
+    public async Task With_no_web_server_installed_the_change_is_refused_and_nothing_is_stored()
+    {
+        var account = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        var siteId = await SeedAsync(database, account);
+        var bus = new RecordingMessageBus();
+        await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(account), database);
+        var before = (await context.Sites.SingleAsync()).LogRetentionDays;
+
+        var result = await Handler(context, account, bus, stack: SiteStacks.NotReady()).HandleAsync(
+            new ChangeSiteLogRetentionCommand(before == 5 ? 6 : 5, siteId, "198.51.100.7", "tests"),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AppsStackNotReady", result.Error!.Code);
+        Assert.Equal(ErrorType.Conflict, result.Error.Type);
+        Assert.Equal(before, (await context.Sites.SingleAsync()).LogRetentionDays);
+    }
+
     /// <summary>Builds the handler under test.</summary>
     /// <param name="context">The context bound to the calling principal.</param>
     /// <param name="accountId">The account the caller owns.</param>
     /// <param name="bus">The message bus double.</param>
     /// <param name="audit">The journal double.</param>
+    /// <param name="stack">The installed stack; defaults to a host with nginx and runtimes installed.</param>
     /// <returns>The handler.</returns>
     private static ChangeSiteLogRetentionCommandHandler Handler(
         SitesDbContext context,
         Guid accountId,
         IMessageBus bus,
-        RecordingAuditWriter? audit = null)
+        RecordingAuditWriter? audit = null,
+        SiteStackGate? stack = null)
     {
         var accounts = new StubAccountDirectory(Snapshots.Account(accountId, "acme"));
 
@@ -138,6 +162,7 @@ public sealed class ChangeSiteLogRetentionCommandHandlerTests
             accounts,
             new SiteAuditJournal(audit ?? new RecordingAuditWriter(), FakeCurrentUser.Customer(accountId)),
             SitesTestContext.SiteNames(),
-            bus);
+            bus,
+            stack ?? SiteStacks.Ready());
     }
 }

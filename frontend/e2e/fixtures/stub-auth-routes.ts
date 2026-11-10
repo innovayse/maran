@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 import type { AuthenticatedSession, AuthenticatedUser, LoginResult, SetupState } from '../../src/types/auth'
+import { READY_STACK, stubStack } from './stub-stack-routes'
 import { stubEmptyTasks } from './stub-tasks-routes'
 
 /** The administrator every authenticated spec signs in as. */
@@ -51,6 +52,11 @@ export const stubSignedIn = async (page: Page, user: AuthenticatedUser = ADMINIS
   // `/api/v1/tasks` is not a tasks-spec concern — it is every spec's. Installed FIRST on purpose:
   // Playwright matches routes newest-first, so a spec that stubs the listing itself still wins.
   await stubEmptyTasks(page)
+
+  // The stack guard asks whether the host has a site web server on every navigation of a signed-in
+  // visitor (issue #517). Installed first for the same reason: a spec about the setup wizard stubs its
+  // own, and the later route wins.
+  await stubStack(page, READY_STACK)
 
   await page.route('**/api/v1/auth/refresh', async (route) => {
     await route.fulfill({

@@ -8,6 +8,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use maran_agent_core::utils::call_class::CallClass;
+use maran_distro::SiteWebServer;
 
 use super::reload_web_server;
 use crate::sites::SitesOpError;
@@ -35,7 +36,7 @@ fn reloading_the_web_server_hands_the_protocol_a_short_class_validator_and_a_rel
  {
     let host = FakeSiteHost::passing();
 
-    reload_web_server(&host, distro()).unwrap();
+    reload_web_server(&host, distro(), SiteWebServer::Nginx).unwrap();
 
     assert_eq!(host.protocol(), vec![expected_call()]);
 }
@@ -47,7 +48,7 @@ fn reloading_the_web_server_whose_validator_times_out_reports_the_bound_and_neve
     let host = FakeSiteHost::passing();
     host.time_out_validation();
 
-    let refusal = reload_web_server(&host, distro());
+    let refusal = reload_web_server(&host, distro(), SiteWebServer::Nginx);
 
     assert!(
         matches!(refusal, Err(SitesOpError::Bound(_))),
@@ -62,7 +63,7 @@ fn reloading_the_web_server_with_a_validator_that_answers_is_not_a_bound() {
     let host = FakeSiteHost::passing();
     host.reject_validation("unknown directive");
 
-    let refusal = reload_web_server(&host, distro());
+    let refusal = reload_web_server(&host, distro(), SiteWebServer::Nginx);
 
     assert!(
         matches!(refusal, Err(SitesOpError::NginxValidation { .. })),

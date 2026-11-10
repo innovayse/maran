@@ -70,6 +70,8 @@ internal sealed class RecordingAgentSitesClient : IAgentSitesClient
         SiteBackendKind kind,
         string phpVersion,
         string proxyUpstream,
+        SiteWebServer webServer,
+        SiteNodeApp node,
         uint maxChildren,
         IReadOnlyList<PhpSettingDto> settingOverrides,
         CancellationToken cancellationToken)
@@ -148,6 +150,7 @@ internal sealed class RecordingAgentSitesClient : IAgentSitesClient
         string accountUsername,
         string domain,
         string retiredPhpVersion,
+        SiteWebServer webServer,
         CancellationToken cancellationToken)
     {
         LastAccountUsername = accountUsername;
@@ -184,7 +187,7 @@ internal sealed class RecordingAgentSitesClient : IAgentSitesClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result> ReloadWebServerAsync(CancellationToken cancellationToken)
+    public async Task<Result> ReloadWebServerAsync(SiteWebServer webServer, CancellationToken cancellationToken)
     {
         await AttemptAsync(cancellationToken);
 

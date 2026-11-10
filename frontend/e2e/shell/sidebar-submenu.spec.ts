@@ -5,7 +5,7 @@ import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubQuietScreens } from '../fixtures/stub-quiet-screens'
 import { stubShellReads } from '../fixtures/stub-shell-reads'
-import { stubInstallablePhpVersions, stubSites, stubPhpVersions } from '../fixtures/stub-sites-routes'
+import { stubSites, stubPhpVersions } from '../fixtures/stub-sites-routes'
 import type { PanelModule } from '../../src/types/module'
 import type { Page } from '@playwright/test'
 
@@ -43,7 +43,6 @@ const open = async (page: Page, path: string): Promise<void> => {
   await stubLandingReads(page)
   await stubSites(page, [])
   await stubPhpVersions(page, [])
-  await stubInstallablePhpVersions(page, () => {return []})
   await page.goto(path)
 }
 

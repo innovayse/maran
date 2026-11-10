@@ -46,7 +46,9 @@
       "ModuleInstall": "Installing a module",
       "ModuleUpdate": "Updating a module",
       "ModuleRemove": "Removing a module",
-      "ModuleRollback": "Rolling back a module"
+      "ModuleRollback": "Rolling back a module",
+      "AppInstall": "Installing an app",
+      "AppUninstall": "Removing an app"
     },
     "pane": {
       "correlationId": "Correlation id",

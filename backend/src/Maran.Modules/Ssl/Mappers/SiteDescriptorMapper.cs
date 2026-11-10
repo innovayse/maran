@@ -24,14 +24,17 @@ public static class SiteDescriptorMapper
     /// TLS on a site whose stored flag is still false, and a removal must render plain HTTP on a site
     /// whose stored flag is still true.
     /// </param>
+    /// <param name="webServer">The installed site web server the vhost is rendered for.</param>
     /// <returns>The descriptor carrying that site's own facts.</returns>
-    public static SiteDescriptor From(SiteSnapshot site, bool hasCertificate)
+    public static SiteDescriptor From(SiteSnapshot site, bool hasCertificate, SiteWebServer webServer)
     {
         return new SiteDescriptor(
             site.Aliases,
             ToBackendKind(site.Backend),
             site.PhpVersion,
             site.ProxyUpstream,
+            new SiteNodeApp(site.Node.Version, (uint)site.Node.Port, site.Node.StartCommand),
+            webServer,
             hasCertificate,
             // The options travel with the site: this operation rewrites the vhost, and a rewrite that
             // forgot them would drop the site's redirects, credentials and IP rules.
@@ -54,6 +57,7 @@ public static class SiteDescriptorMapper
             SiteBackend.Static => SiteBackendKind.Static,
             SiteBackend.Php => SiteBackendKind.Php,
             SiteBackend.ReverseProxy => SiteBackendKind.ReverseProxy,
+            SiteBackend.Node => SiteBackendKind.Node,
             _ => throw new ArgumentOutOfRangeException(nameof(backend), backend, "Unmapped site backend."),
         };
     }

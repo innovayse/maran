@@ -70,7 +70,7 @@ pub fn update_site_php_version(
         overrides,
         remove_previous_pool,
     } = *switch;
-    let paths = resolved_site_paths(host, &input.account, &input.domain)?;
+    let paths = resolved_site_paths(host, &input.account, &input.domain, input.web_server)?;
 
     let Some(current) = host.read_config(&paths.config_path)? else {
         return Err(SitesOpError::NotFound {
@@ -116,7 +116,13 @@ pub fn update_site_php_version(
         // The credential file the new vhost names, ahead of it.
         sync_site_auth_file(host, distro, &switched)?;
 
-        write_vhost(host, distro, &paths.config_path, &contents)?;
+        write_vhost(
+            host,
+            distro,
+            input.web_server,
+            &paths.config_path,
+            &contents,
+        )?;
     }
 
     // LAST, and only after the vhost is on the new socket and nginx has

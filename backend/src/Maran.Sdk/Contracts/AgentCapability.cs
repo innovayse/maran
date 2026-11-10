@@ -35,6 +35,19 @@ public enum AgentCapability
     /// <summary>System users and their home directories: <c>IAgentAccountsClient</c>.</summary>
     Accounts,
 
+    /// <summary>
+    /// The host's app store: the web servers and language runtimes the panel installs, removes and
+    /// controls through the installer's root units: <c>IAgentAppsClient</c>.
+    /// </summary>
+    /// <remarks>
+    /// The one capability that makes the agent install or remove operating-system packages, so a module
+    /// declaring it states to the administrator reading the manifest that the panel will change what
+    /// software the server carries. It is bounded by the agent's closed catalogue: the panel names an
+    /// app and never a package. Separate from <see cref="Php"/>, which only reads and configures
+    /// runtimes that are already installed.
+    /// </remarks>
+    Apps,
+
     /// <summary>An account's backups, their restore and their destinations: <c>IAgentBackupClient</c>.</summary>
     Backup,
 

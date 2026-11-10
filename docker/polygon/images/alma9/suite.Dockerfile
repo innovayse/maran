@@ -1,13 +1,12 @@
 # Development-only test container for the Rust agent on AlmaLinux 9.
 # Production never uses Docker — see spec §2.
 #
-# The image carries nginx, php-fpm and a Rust toolchain so that the agent's OWN
+# The image carries nginx and a Rust toolchain (no site runtime: php-fpm, Apache and Node.js are
+# apps, issue #517, installed by a suite through the app route; see the Ubuntu image) so that the agent's OWN
 # validation can be exercised: `safe_write` renames a rendered vhost into place
-# and then runs the real `nginx -t` against the real configuration tree, and
-# `write_pool` does the same with the real `php-fpm -t`. Until something ran
-# those binaries, the rollback protocol had never rolled anything back — and the
-# php-fpm binary this family's adapter named did not exist at all. The packages
-# are here to be VALIDATED AGAINST, not to make the container a web server —
+# and then runs the real `nginx -t` against the real configuration tree. Until
+# something ran that binary, the rollback protocol had never rolled anything back.
+# The package is here to be VALIDATED AGAINST, not to make the container a web server —
 # nothing is started by the image, no port is published, and the agent's
 # integration tests are the only thing that runs.
 #
@@ -37,10 +36,6 @@ ARG RUST_VERSION=1.98.0
 # unpinned dependency that could rewrite every other one.
 ARG RUSTUP_VERSION=1.28.2
 ARG RUSTUP_SHA256=20a06e644b0d9bd2fbdbfd52d42540bdde820ea7df86e92e533c073da0cdd43c
-# Remi drops the dot from the version and roots its packages under
-# /opt/remi/php83 — the family difference RhelAdapter encodes twice over, in the
-# pool directory and in the php-fpm binary path.
-ARG PHP_VERSION=83
 # Upstream protoc: see the toolchain layer below for why this family does not
 # use its own package.
 ARG PROTOC_VERSION=25.3
@@ -62,9 +57,12 @@ ENV RUSTUP_HOME=/usr/local/rustup \
 # in one.
 ENV MARAN_POLYGON=alma9
 
-# The web server and PHP first, from the family's own repositories: nginx from
-# AlmaLinux, php-fpm from Remi, which is the repository RhelAdapter's package and
-# service names are written against. Remi requires EPEL, so both release rpms are
+# `diffutils` is named because the installer asserts compare files with `cmp`, and the
+# minimal image only had it as a dependency of the php-fpm that is no longer preinstalled.
+#
+# The panel's web server first, from the family's own repositories: nginx from
+# AlmaLinux, and Remi as the PHP package SOURCE only (no PHP package is installed: a PHP
+# version is an app). Remi requires EPEL, so both release rpms are
 # downloaded, checked and only then installed.
 #
 # The nginx and php package VERSIONS deliberately float: they are what the family
@@ -82,8 +80,7 @@ RUN dnf install -y --nodocs ca-certificates \
     && rm /tmp/epel-release.rpm /tmp/remi-release.rpm \
     && dnf install -y --nodocs \
         nginx \
-        "php${PHP_VERSION}-php-fpm" \
-        "php${PHP_VERSION}-php-cli" \
+        diffutils \
     && dnf clean all
 
 # The Rust toolchain and what cargo needs to link a test binary: `cc` for the
@@ -200,6 +197,7 @@ COPY installer/lib/87-firewall.sh /tmp/maran-installer/lib/87-firewall.sh
 COPY installer/uninstall.sh /tmp/maran-installer/uninstall.sh
 COPY installer/install.sh /tmp/maran-installer/install.sh
 COPY installer/nginx/maran.conf /tmp/maran-installer/nginx/maran.conf
+COPY installer/nginx/maran-port80.conf /tmp/maran-installer/nginx/maran-port80.conf
 # The rotation policy for the PANEL'S OWN two nginx logs, which step 80 installs and which it
 # ABORTS BY NAME when the payload is missing. It is here because the assertions below run that
 # step for real: without this line step 80 refuses, every vhost assertion goes red for the wrong
@@ -242,8 +240,9 @@ COPY installer/systemd/maran-host.tmpfiles.conf /tmp/maran-installer/systemd/mar
 COPY installer/systemd/maran-php.tmpfiles.conf /tmp/maran-installer/systemd/maran-php.tmpfiles.conf
 COPY installer/systemd/maran-agent.service /tmp/maran-installer/systemd/maran-agent.service
 # Step 70's install_units renders and installs the package-install template with the units above
-# (issue #93), so it must be here or the step aborts on a missing source and no suite runs.
-COPY installer/systemd/maran-php-install@.service /tmp/maran-installer/systemd/maran-php-install@.service
+# (issues #93, #517), so both must be here or the step aborts on a missing source and no suite runs.
+COPY installer/systemd/maran-app-install@.service /tmp/maran-installer/systemd/maran-app-install@.service
+COPY installer/systemd/maran-app-remove@.service /tmp/maran-installer/systemd/maran-app-remove@.service
 COPY installer/lib/70-services.sh /tmp/maran-installer/lib/70-services.sh
 # Step 80 again — the earlier COPY was consumed by the `rm -rf /tmp/maran-installer` that ends
 # the include block above — and step 40 beside it. Both are RUN by the assert script, not read:

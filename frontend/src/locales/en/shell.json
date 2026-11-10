@@ -16,6 +16,7 @@
         "sitesList": "sites websites domains ssl tls https certificate nginx",
         "sitePhp": "php settings version ini",
         "phpVersions": "php versions install",
+        "apps": "apps app store web server nginx apache php node nodejs install runtime",
         "smtp": "smtp outgoing mail email relay server",
         "securityPolicy": "password policy security two-step 2fa lockout",
         "panelCertificate": "ssl tls https certificate panel",

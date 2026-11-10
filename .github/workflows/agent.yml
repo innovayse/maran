@@ -196,7 +196,7 @@ jobs:
           RUSTDOCFLAGS: -D warnings
 
   # The polygon: the agent's own validation, run against a real nginx and a real
-  # php-fpm on each supported family. Everything above this job runs on the
+  # php-fpm (installed on demand, issue #517) on each supported family. Everything above this job runs on the
   # runner's Ubuntu with a fake ConfigHost, so until this job existed `nginx -t`
   # had never parsed a file the agent wrote and the rollback in `safe_write` had
   # never rolled anything back.
@@ -237,7 +237,8 @@ jobs:
       # changed.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # The image carries its family's nginx, php-fpm and a Rust toolchain: a
+      # The image carries its family's nginx and a Rust toolchain (no site runtime; PHP, Apache and
+      # Node.js are apps a suite installs on request, issue #517): a
       # test binary built on the runner links against the runner's glibc and
       # will not start on AlmaLinux 9, so each polygon compiles its own.
       #

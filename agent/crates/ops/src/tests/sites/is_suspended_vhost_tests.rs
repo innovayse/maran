@@ -7,6 +7,7 @@
 // bans on unwrap/expect/panic are lifted here only.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_distro::SiteWebServer;
 use std::path::Path;
 
 use crate::sites::fake_site_host::{
@@ -25,7 +26,8 @@ fn a_sites_own_vhost_is_not_the_suspended_one() {
     let host = FakeSiteHost::passing();
     let input = php_input();
     create_test_site(&host, &input).unwrap();
-    let paths = resolved_site_paths(&host, &input.account, &input.domain).unwrap();
+    let paths =
+        resolved_site_paths(&host, &input.account, &input.domain, SiteWebServer::Nginx).unwrap();
     let contents = host.config(Path::new(VHOST)).unwrap();
 
     assert!(!is_suspended_vhost(&contents, &input, &paths).unwrap());
@@ -37,7 +39,8 @@ fn the_vhost_disable_site_writes_is_recognised_as_the_suspended_one() {
     let input = php_input();
     create_test_site(&host, &input).unwrap();
     disable_site(&host, distro(), &input).unwrap();
-    let paths = resolved_site_paths(&host, &input.account, &input.domain).unwrap();
+    let paths =
+        resolved_site_paths(&host, &input.account, &input.domain, SiteWebServer::Nginx).unwrap();
     let contents = host.config(Path::new(VHOST)).unwrap();
 
     assert!(
@@ -53,7 +56,8 @@ fn a_resumed_site_is_no_longer_the_suspended_one() {
     create_test_site(&host, &input).unwrap();
     disable_site(&host, distro(), &input).unwrap();
     enable_site(&host, distro(), &input).unwrap();
-    let paths = resolved_site_paths(&host, &input.account, &input.domain).unwrap();
+    let paths =
+        resolved_site_paths(&host, &input.account, &input.domain, SiteWebServer::Nginx).unwrap();
     let contents = host.config(Path::new(VHOST)).unwrap();
 
     assert!(!is_suspended_vhost(&contents, &input, &paths).unwrap());
@@ -64,7 +68,8 @@ fn a_vhost_that_is_neither_rendering_is_not_the_suspended_one() {
     let host = FakeSiteHost::passing();
     let input = php_input();
     create_test_site(&host, &input).unwrap();
-    let paths = resolved_site_paths(&host, &input.account, &input.domain).unwrap();
+    let paths =
+        resolved_site_paths(&host, &input.account, &input.domain, SiteWebServer::Nginx).unwrap();
 
     assert!(
         !is_suspended_vhost("server { server_name example.com; }\n", &input, &paths).unwrap(),
@@ -77,9 +82,16 @@ fn a_stub_written_before_the_symlink_rule_is_still_the_suspended_one() {
     let host = FakeSiteHost::passing();
     let input = php_input();
     create_test_site(&host, &input).unwrap();
-    let paths = resolved_site_paths(&host, &input.account, &input.domain).unwrap();
+    let paths =
+        resolved_site_paths(&host, &input.account, &input.domain, SiteWebServer::Nginx).unwrap();
     let aliases = vec!["www.example.com".to_owned()];
-    let legacy = render_legacy_suspended_vhost(input.domain.as_str(), &aliases, &paths).unwrap();
+    let legacy = render_legacy_suspended_vhost(
+        input.domain.as_str(),
+        &aliases,
+        &paths,
+        SiteWebServer::Nginx,
+    )
+    .unwrap();
 
     assert!(
         is_suspended_vhost(&legacy, &input, &paths).unwrap(),
@@ -92,9 +104,16 @@ fn a_legacy_stub_with_a_changed_byte_is_not_the_suspended_one() {
     let host = FakeSiteHost::passing();
     let input = php_input();
     create_test_site(&host, &input).unwrap();
-    let paths = resolved_site_paths(&host, &input.account, &input.domain).unwrap();
+    let paths =
+        resolved_site_paths(&host, &input.account, &input.domain, SiteWebServer::Nginx).unwrap();
     let aliases = vec!["www.example.com".to_owned()];
-    let legacy = render_legacy_suspended_vhost(input.domain.as_str(), &aliases, &paths).unwrap();
+    let legacy = render_legacy_suspended_vhost(
+        input.domain.as_str(),
+        &aliases,
+        &paths,
+        SiteWebServer::Nginx,
+    )
+    .unwrap();
     let altered = format!("{legacy}# edited\n");
 
     assert!(!is_suspended_vhost(&altered, &input, &paths).unwrap());
@@ -109,7 +128,8 @@ fn the_stub_an_earlier_agent_wrote_is_still_the_suspended_one() {
     let host = FakeSiteHost::passing();
     let input = php_input();
     create_test_site(&host, &input).unwrap();
-    let paths = resolved_site_paths(&host, &input.account, &input.domain).unwrap();
+    let paths =
+        resolved_site_paths(&host, &input.account, &input.domain, SiteWebServer::Nginx).unwrap();
     let legacy = legacy_suspended_text(&host, &input, "example.com");
 
     assert!(
@@ -125,7 +145,8 @@ fn another_sites_earlier_stub_is_not_this_sites_suspension() {
     let host = FakeSiteHost::passing();
     let input = php_input();
     create_test_site(&host, &input).unwrap();
-    let paths = resolved_site_paths(&host, &input.account, &input.domain).unwrap();
+    let paths =
+        resolved_site_paths(&host, &input.account, &input.domain, SiteWebServer::Nginx).unwrap();
     let other = legacy_suspended_text(&host, &input, "other.example");
 
     assert!(!is_suspended_vhost(&other, &input, &paths).unwrap());

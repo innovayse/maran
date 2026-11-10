@@ -30,6 +30,9 @@ internal sealed class StubSitesService : ISitesServiceInvoker
     /// <summary>Response returned from <see cref="ReloadWebServerAsync"/>.</summary>
     public ReloadWebServerResponse ReloadResponse { get; set; } = new();
 
+    /// <summary>The last request <see cref="ReloadWebServerAsync"/> received.</summary>
+    public ReloadWebServerRequest? LastReloadRequest { get; private set; }
+
     /// <summary>Response returned from <see cref="SummariseSiteTrafficAsync"/>.</summary>
     public SummariseSiteTrafficResponse SummariseResponse { get; set; } = new();
 
@@ -133,6 +136,7 @@ internal sealed class StubSitesService : ISitesServiceInvoker
         CancellationToken cancellationToken)
     {
         ReloadCallCount++;
+        LastReloadRequest = request;
         return Task.FromResult(ReloadResponse);
     }
 

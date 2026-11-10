@@ -1,4 +1,5 @@
 using Maran.Modules.Accounts;
+using Maran.Modules.Apps;
 using Maran.Modules.Backups;
 using Maran.Modules.Cron;
 using Maran.Modules.Databases;
@@ -48,6 +49,10 @@ public static class ModuleRegistry
 
             new AccountsModule(),
             new SitesModule(),
+
+            // The app store (issue #517): the web server and runtimes sites run on, and the first-run gate
+            // the Sites module reads. Administrator-facing, one endpoint readable by every signed-in role.
+            new AppsModule(),
             new SslModule(),
             new DatabasesModule(),
             new SftpModule(),

@@ -35,12 +35,38 @@ public sealed class SiteTests
             SiteBackendType.Php,
             "8.3",
             string.Empty,
+            string.Empty,
+            0,
+            string.Empty,
             "/home/acct/sites/example.com",
             CreatedAt);
 
         aliases[0] = "evil.example.com";
 
         Assert.Equal(["www.example.com"], site.Aliases);
+    }
+
+    /// <summary>A node site keeps the runtime facts it was created with, and any other site keeps none.</summary>
+    [Fact]
+    public void A_node_site_keeps_the_runtime_facts_it_was_created_with_and_any_other_site_keeps_none()
+    {
+        var node = new Site(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "app.example.com",
+            [],
+            SiteBackendType.Node,
+            string.Empty,
+            string.Empty,
+            "22",
+            3100,
+            "npm start",
+            "/home/acct/sites/app.example.com",
+            CreatedAt);
+        var php = NewSite();
+
+        Assert.Equal(("22", 3100, "npm start"), (node.NodeVersion, node.AppPort, node.StartCommand));
+        Assert.Equal((string.Empty, 0, string.Empty), (php.NodeVersion, php.AppPort, php.StartCommand));
     }
 
     /// <summary>Changing the php version replaces it and touches nothing else.</summary>
@@ -151,6 +177,9 @@ public sealed class SiteTests
             SiteBackendType.Static,
             string.Empty,
             string.Empty,
+            string.Empty,
+            0,
+            string.Empty,
             "/home/acct/sites/example.com",
             CreatedAt);
     }
@@ -165,6 +194,9 @@ public sealed class SiteTests
             ["www.example.com"],
             SiteBackendType.Php,
             "8.3",
+            string.Empty,
+            string.Empty,
+            0,
             string.Empty,
             "/home/acct/sites/example.com",
             CreatedAt);

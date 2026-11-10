@@ -1,3 +1,4 @@
+using Maran.Agent.Client.Services.SitesService;
 using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Interfaces;
 using Maran.Modules.Sites.Resources;
@@ -51,6 +52,7 @@ public sealed class SiteRecorder
     /// <param name="site">The row to write, carrying its hostname claims.</param>
     /// <param name="accountUsername">The owning account's system user name, which addresses the compensating delete.</param>
     /// <param name="allowance">How many sites the account's plan allows, re-checked inside the gate.</param>
+    /// <param name="webServer">The web server the vhost was written for, which addresses the compensating delete.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>Success, or the typed failure the customer is answered with — not yet journalled.</returns>
     /// <exception cref="DbUpdateException">Rethrown, after the vhost is removed, for any failure but a taken hostname.</exception>
@@ -58,6 +60,7 @@ public sealed class SiteRecorder
         Site site,
         string accountUsername,
         int allowance,
+        SiteWebServer webServer,
         CancellationToken cancellationToken)
     {
         try
@@ -75,7 +78,7 @@ public sealed class SiteRecorder
             // does. A DbUpdateException is also the one throw from the gate that proves nothing was
             // committed (ISiteSlotGate), so the vhost this request made is owned by no row of its own
             // and goes, unless the winner's row owns that very file.
-            await _compensator.CompensateUnlessOwnedAsync(accountUsername, site.Domain);
+            await _compensator.CompensateUnlessOwnedAsync(accountUsername, site.Domain, webServer);
 
             return Result.Fail(Error.Of(nameof(ErrorMessages.SiteDomainTaken), ErrorType.Conflict));
         }
@@ -86,7 +89,7 @@ public sealed class SiteRecorder
             // that was never the problem. Nothing was committed here either, so the vhost goes first,
             // and unconditionally: asking whether another site owns the file is a read against the
             // database that has just failed, and a same-domain winner would have surfaced as a 23505.
-            await _compensator.CompensateAsync(accountUsername, site.Domain);
+            await _compensator.CompensateAsync(accountUsername, site.Domain, webServer);
             throw;
         }
 
@@ -94,7 +97,7 @@ public sealed class SiteRecorder
         // one was on the host. Nothing owns the vhost this request made, so it goes, and the refusal
         // says the plan filled up rather than that the domain was taken — the domain is not the
         // problem and deleting a site the customer no longer needs is what unblocks them.
-        await _compensator.CompensateUnlessOwnedAsync(accountUsername, site.Domain);
+        await _compensator.CompensateUnlessOwnedAsync(accountUsername, site.Domain, webServer);
 
         return Result.Fail(Error.Of(nameof(ErrorMessages.SiteLimitReachedConcurrently), ErrorType.Conflict));
     }

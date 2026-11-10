@@ -1,4 +1,5 @@
 using Maran.Agent.Client.Interfaces;
+using Maran.Agent.Client.Services.SitesService;
 using Maran.Modules.Sites.Common;
 using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
@@ -76,6 +77,9 @@ public sealed class ReplaceSiteOptionsCommandHandler
     /// <summary>Where a compensation that did not take is reported.</summary>
     private readonly ILogger<ReplaceSiteOptionsCommandHandler> _logger;
 
+    /// <summary>Refuses the operation while no site web server is installed.</summary>
+    private readonly SiteStackGate _stack;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Sites module's database context.</param>
     /// <param name="accounts">The owning account's system user name.</param>
@@ -83,14 +87,17 @@ public sealed class ReplaceSiteOptionsCommandHandler
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="siteNames">Labels the closed sets for the request's culture.</param>
     /// <param name="logger">Where a failed compensation is reported.</param>
+    /// <param name="stack">Refuses the operation while no site web server is installed.</param>
     public ReplaceSiteOptionsCommandHandler(
         SitesDbContext dbContext,
         IAccountDirectory accounts,
         IAgentSitesClient agent,
         SiteAuditJournal journal,
         SiteDisplayNames siteNames,
-        ILogger<ReplaceSiteOptionsCommandHandler> logger)
+        ILogger<ReplaceSiteOptionsCommandHandler> logger,
+        SiteStackGate stack)
     {
+        _stack = stack;
         _dbContext = dbContext;
         _accounts = accounts;
         _agent = agent;
@@ -115,6 +122,14 @@ public sealed class ReplaceSiteOptionsCommandHandler
         ReplaceSiteOptionsCommand command,
         CancellationToken cancellationToken)
     {
+        // The stack gate: sites cannot be changed while no web server is installed. Enforced here and
+        // not in the SPA, which only reflects it (docs/apps/README.md).
+        var installed = await _stack.ReadAsync(cancellationToken);
+        if (installed.NotReadyFailure() is { } notReady)
+        {
+            return await FailAsync(command, command.SiteId.ToString(), notReady, cancellationToken);
+        }
+
         var site = await _dbContext.Sites.SingleOrDefaultAsync(candidate => candidate.Id == command.SiteId, cancellationToken);
         if (site is null)
         {
@@ -133,7 +148,8 @@ public sealed class ReplaceSiteOptionsCommandHandler
         // (InvalidOptions): neither backend has the part of the vhost the option is written into. Refused
         // here with a code of its own so the customer is told which option, before the host is asked.
         if ((command.ClientMaxBodySizeMib is not null && site.BackendType == SiteBackendType.Static)
-            || (command.StaticCacheDays is not null && site.BackendType == SiteBackendType.ReverseProxy))
+            || (command.StaticCacheDays is not null
+                && site.BackendType is SiteBackendType.ReverseProxy or SiteBackendType.Node))
         {
             return await FailAsync(command, site.Domain, Error.Of(nameof(ErrorMessages.SiteOptionNotForBackend), ErrorType.Validation), cancellationToken);
         }
@@ -173,7 +189,7 @@ public sealed class ReplaceSiteOptionsCommandHandler
         if (site.Status == SiteStatus.Enabled)
         {
             var rendered = await _agent.EnableAsync(
-                account.Username, site.Domain, SiteDescriptorMapper.From(site), cancellationToken);
+                account.Username, site.Domain, SiteDescriptorMapper.From(site, installed.WebServer!.Value), cancellationToken);
             if (!rendered.IsSuccess)
             {
                 // The change was only ever made in memory; clearing it makes sure nothing later in
@@ -189,7 +205,7 @@ public sealed class ReplaceSiteOptionsCommandHandler
         }
         catch (DbUpdateException)
         {
-            await RestoreVhostAsync(site, account.Username);
+            await RestoreVhostAsync(site, account.Username, installed.WebServer!.Value);
             throw;
         }
 
@@ -284,7 +300,8 @@ public sealed class ReplaceSiteOptionsCommandHandler
     /// <summary>Renders the vhost again from the row as it was stored, after the new options could not be saved.</summary>
     /// <param name="site">The site, whose tracked state still holds the unsaved replacement.</param>
     /// <param name="accountUsername">The owning account's system user name.</param>
-    private async Task RestoreVhostAsync(Site site, string accountUsername)
+    /// <param name="webServer">The installed site web server the vhost is rendered for.</param>
+    private async Task RestoreVhostAsync(Site site, string accountUsername, SiteWebServer webServer)
     {
         if (site.Status != SiteStatus.Enabled)
         {
@@ -303,7 +320,7 @@ public sealed class ReplaceSiteOptionsCommandHandler
         }
 
         var restored = await _agent.EnableAsync(
-            accountUsername, domain, SiteDescriptorMapper.From(stored), CancellationToken.None);
+            accountUsername, domain, SiteDescriptorMapper.From(stored, webServer), CancellationToken.None);
         if (!restored.IsSuccess)
         {
             LogRestoreFailed(_logger, domain, restored.Error!.Code, null);

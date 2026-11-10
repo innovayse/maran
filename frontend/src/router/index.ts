@@ -63,6 +63,9 @@ import CronRunsPage from '../pages/cron/CronRunsPage.vue'
 import TasksPage from '../pages/tasks/TasksPage.vue'
 import MonitoringPage from '../pages/monitoring/MonitoringPage.vue'
 import PendingUpdatesPage from '../pages/monitoring/PendingUpdatesPage.vue'
+import AppsListPage from '../pages/apps/AppsListPage.vue'
+import StackPendingPage from '../pages/apps/StackPendingPage.vue'
+import StackSetupPage from '../pages/apps/StackSetupPage.vue'
 import MarketplacePage from '../pages/marketplace/MarketplacePage.vue'
 import MarketplaceModuleDetailPage from '../pages/marketplace/MarketplaceModuleDetailPage.vue'
 import AuthLayout from '../layouts/AuthLayout.vue'
@@ -90,6 +93,7 @@ import { createAuthGuard } from './authGuard'
 import { createModuleAccessGuard } from './moduleAccessGuard'
 import { createPackagedRoutesGuard } from './packagedRoutesGuard'
 import { createRoleGuard } from './roleGuard'
+import { createStackSetupGuard } from './stackSetupGuard'
 
 /**
  * A route segment naming a site by its id, which the panel only ever issues as a UUID. A segment of
@@ -613,6 +617,30 @@ export const createAppRouter = (): Router => {
         ],
       },
       {
+        // The apps store (issue #517): install, remove and control the web server and the runtimes sites
+        // run on. Panel-wide and administrators' work, so it carries no `meta.module`; the endpoints refuse
+        // everyone else whatever `adminOnly` says.
+        path: '/apps',
+        component: DefaultLayout,
+        children: [
+          { path: '', name: 'apps', component: AppsListPage, meta: { title: 'apps.list.heading', adminOnly: true, viewAsRefused: true } },
+        ],
+      },
+      {
+        // The first-run wizard (issue #517): the stack guard holds an administrator here until a site web
+        // server is installed, and sends everyone else to the "being set up" screen. Nothing links to either.
+        path: '/setup/stack',
+        component: DefaultLayout,
+        children: [
+          { path: '', name: 'stack-setup', component: StackSetupPage, meta: { title: 'apps.setup.heading', adminOnly: true } },
+        ],
+      },
+      {
+        path: '/setup/pending',
+        component: DefaultLayout,
+        children: [{ path: '', name: 'stack-pending', component: StackPendingPage, meta: { title: 'apps.pending.heading' } }],
+      },
+      {
         // The module marketplace (issues #186, #187): administrators only, the endpoints refuse every
         // other role whatever `adminOnly` says. The detail route names the list as its
         // parent so the menu keeps the Settings entry marked while a module's page is open.
@@ -823,6 +851,9 @@ export const createAppRouter = (): Router => {
   // visitor who has not signed in, and answering it would tell an anonymous caller
   // which products this server has.
   router.beforeEach(createAuthGuard())
+  // A host with no site web server holds everyone on the screen that fixes it (issue #517). After the auth
+  // guard, which settles who is asking, and before the role guard, which would call the held screens "not available".
+  router.beforeEach(createStackSetupGuard())
   // The role guard runs before the licence guard: a customer must never be told to buy a screen
   // that is an administrator's, not theirs.
   router.beforeEach(createRoleGuard())

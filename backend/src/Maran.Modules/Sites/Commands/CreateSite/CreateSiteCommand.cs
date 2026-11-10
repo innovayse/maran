@@ -32,6 +32,17 @@ namespace Maran.Modules.Sites.Commands.CreateSite;
 /// The caller's user agent, recorded in the audit journal. Established by the server and stamped by
 /// the action; never bound from the request.
 /// </param>
+/// <param name="NodeVersion">
+/// The installed Node major to run on; required when the backend is Node. Optional on the wire for the
+/// reason given on <paramref name="Aliases"/>.
+/// </param>
+/// <param name="AppPort">
+/// The loopback port the Node application listens on; required when the backend is Node.
+/// </param>
+/// <param name="StartCommand">
+/// The command the site's unit runs; required when the backend is Node. Optional on the wire for the
+/// reason given on <paramref name="Aliases"/>.
+/// </param>
 public sealed record CreateSiteCommand(
     Guid AccountId,
     string Domain,
@@ -40,4 +51,7 @@ public sealed record CreateSiteCommand(
     string PhpVersion = "",
     string ProxyUpstream = "",
     [property: JsonIgnore][property: BindNever][BindNever] string IpAddress = "",
-    [property: JsonIgnore][property: BindNever][BindNever] string UserAgent = "");
+    [property: JsonIgnore][property: BindNever][BindNever] string UserAgent = "",
+    string NodeVersion = "",
+    int AppPort = 0,
+    string StartCommand = "");

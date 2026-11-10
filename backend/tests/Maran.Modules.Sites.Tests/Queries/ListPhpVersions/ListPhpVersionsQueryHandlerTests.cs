@@ -142,15 +142,32 @@ public sealed class ListPhpVersionsQueryHandlerTests
         Assert.Equal(PhpSupportStatus.SecurityOnly, result.Value[0].Lifecycle.Status);
     }
 
+    /// <summary>With no PHP installed as an app the list reports that, whatever the agent still carries.</summary>
+    [Fact]
+    public async Task With_no_php_installed_as_an_app_the_list_reports_it_is_not_installed()
+    {
+        var handler = Handler(
+            new RecordingAgentPhpClient("8.3"),
+            FakeCurrentUser.Admin(),
+            stack: SiteStacks.WithoutRuntimes());
+
+        var result = await handler.HandleAsync(new ListPhpVersionsQuery(), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AppsNotInstalled", result.Error!.Code);
+    }
+
     /// <summary>Builds the handler over the real display names, a fixed clock and the given caller.</summary>
     /// <param name="php">The agent's PHP surface.</param>
     /// <param name="caller">Who asks.</param>
     /// <param name="database">The in-memory database to read sites from; a fresh one when omitted.</param>
+    /// <param name="stack">The installed stack; a host with PHP installed when omitted.</param>
     /// <returns>The handler under test.</returns>
     private static ListPhpVersionsQueryHandler Handler(
         RecordingAgentPhpClient php,
         FakeCurrentUser caller,
-        string? database = null)
+        string? database = null,
+        SiteStackGate? stack = null)
     {
         return new ListPhpVersionsQueryHandler(
             php,
@@ -158,6 +175,7 @@ public sealed class ListPhpVersionsQueryHandlerTests
                 SitesTestContext.Create(caller, database),
                 new FakeClock(new DateTimeOffset(2026, 11, 7, 12, 0, 0, TimeSpan.Zero)),
                 caller,
-                SitesTestContext.SiteNames()));
+                SitesTestContext.SiteNames()),
+            stack ?? SiteStacks.Ready());
     }
 }

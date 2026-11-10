@@ -4,7 +4,7 @@ Normative. `proto/agent/v1/` is the single source of truth for the C#↔Rust bou
 
 ## Layout & naming
 
-- Package `maran.agent.v1`; one file per domain: `system.proto`, `sites.proto`, `ssl.proto`, `db.proto`, `ftp.proto`, `files.proto`, `cron.proto`, `firewall.proto`, `backup.proto`, `monitor.proto`, plus `common.proto`.
+- Package `maran.agent.v1`; one file per domain: `system.proto`, `sites.proto`, `ssl.proto`, `db.proto`, `ftp.proto`, `files.proto`, `cron.proto`, `firewall.proto`, `backup.proto`, `monitor.proto`, `apps.proto`, plus `common.proto`.
 - Services `PascalCase` + `Service` (`SitesService`); rpcs are verbs (`CreateSite`); messages are `<Rpc>Request` / `<Rpc>Response`; fields `snake_case`.
 - Every rpc, message, and field carries a doc comment: meaning, units, and validation expectations.
 

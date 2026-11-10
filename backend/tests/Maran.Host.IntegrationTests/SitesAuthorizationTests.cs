@@ -15,8 +15,10 @@ using Maran.Modules.Sites.Persistence;
 using Maran.SharedKernel.Interfaces;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Maran.Host.IntegrationTests;
 
@@ -86,8 +88,6 @@ public sealed class SitesAuthorizationTests : IAsyncLifetime
             { "GET", "/api/v1/sites/limits" },
             { "GET", "/api/v1/sites/choices" },
             { "GET", "/api/v1/sites/php-versions" },
-            { "GET", "/api/v1/sites/php-versions/installable" },
-            { "POST", "/api/v1/sites/php-versions/install" },
             { "GET", "/api/v1/sites/php-versions/{version}/extensions" },
             { "PUT", "/api/v1/sites/php-versions/{version}/extensions/{name}" },
             { "GET", "/api/v1/sites/{id}" },
@@ -436,6 +436,13 @@ public sealed class SitesAuthorizationTests : IAsyncLifetime
             {
                 builder.UseSetting(setting.Key, setting.Value);
             }
+
+            // A server whose first-run setup is finished: the Sites module refuses every site while no
+            // web server is installed (issue #517), and these tests are about tenancy, not that gate.
+            builder.ConfigureTestServices(services =>
+            {
+                services.Replace(ServiceDescriptor.Scoped<IStackStatus, ReadyStackStatus>());
+            });
         });
     }
 
@@ -499,6 +506,9 @@ public sealed class SitesAuthorizationTests : IAsyncLifetime
             [],
             SiteBackendType.Php,
             "8.3",
+            string.Empty,
+            string.Empty,
+            0,
             string.Empty,
             $"/home/acct/sites/{domain}",
             now);

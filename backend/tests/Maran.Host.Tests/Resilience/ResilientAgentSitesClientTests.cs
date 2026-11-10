@@ -28,7 +28,7 @@ public sealed class ResilientAgentSitesClientTests
     {
         var inner = new RecordingAgentSitesClient { FailuresBeforeSuccess = int.MaxValue };
 
-        var result = await NewClient(inner).DeleteAsync("acc1", "example.com", "", default).WaitAsync(TestTimeout);
+        var result = await NewClient(inner).DeleteAsync("acc1", "example.com", "", SiteWebServer.Nginx, default).WaitAsync(TestTimeout);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AgentUnavailable", result.Error!.Code);
@@ -38,7 +38,7 @@ public sealed class ResilientAgentSitesClientTests
 
     /// <summary>A site descriptor with every field set, to check it arrives unchanged.</summary>
     private static readonly SiteDescriptor Descriptor =
-        new(["www.example.com"], SiteBackendKind.Php, "8.3", "127.0.0.1:3000", true, SiteOptionsDescriptor.None);
+        new(["www.example.com"], SiteBackendKind.Php, "8.3", "127.0.0.1:3000", SiteNodeApp.None, SiteWebServer.Nginx, true, SiteOptionsDescriptor.None);
 
     /// <summary>Create retries a transport failure through the pipeline.</summary>
     [Fact]
@@ -48,7 +48,7 @@ public sealed class ResilientAgentSitesClientTests
 
         var result = await Invoke(inner, client =>
         {
-            return client.CreateAsync("acc1", "example.com", [], SiteBackendKind.Static, "", "", 0, [], default);
+            return client.CreateAsync("acc1", "example.com", [], SiteBackendKind.Static, "", "", SiteWebServer.Nginx, SiteNodeApp.None, 0, [], default);
         });
 
         Assert.True(result.IsSuccess);
@@ -108,7 +108,7 @@ public sealed class ResilientAgentSitesClientTests
 
         var result = await Invoke(inner, client =>
         {
-            return client.DeleteAsync("acc1", "example.com", "", default);
+            return client.DeleteAsync("acc1", "example.com", "", SiteWebServer.Nginx, default);
         });
 
         Assert.True(result.IsSuccess);
@@ -129,7 +129,7 @@ public sealed class ResilientAgentSitesClientTests
             inner,
             OperationPipelineRegistry.WithOperationTimeout(1));
 
-        var result = await client.DeleteAsync("acc1", "example.com", "", default).WaitAsync(TestTimeout);
+        var result = await client.DeleteAsync("acc1", "example.com", "", SiteWebServer.Nginx, default).WaitAsync(TestTimeout);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AgentUnavailable", result.Error!.Code);
@@ -150,6 +150,8 @@ public sealed class ResilientAgentSitesClientTests
             SiteBackendKind.ReverseProxy,
             "8.3",
             "127.0.0.1:3000",
+            SiteWebServer.Nginx,
+            SiteNodeApp.None,
             9,
             [],
             default);
@@ -220,7 +222,7 @@ public sealed class ResilientAgentSitesClientTests
     {
         var inner = new RecordingAgentSitesClient();
 
-        await NewClient(inner).DeleteAsync("acc1", "example.com", "", default);
+        await NewClient(inner).DeleteAsync("acc1", "example.com", "", SiteWebServer.Nginx, default);
 
         Assert.Equal("acc1", inner.LastAccountUsername);
         Assert.Equal("example.com", inner.LastDomain);

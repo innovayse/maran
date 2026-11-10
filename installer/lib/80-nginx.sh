@@ -45,6 +45,17 @@ readonly MARAN_CERTIFICATES_DIR="/etc/maran/certificates"
 # agent's rule of never touching files it does not own applies to the installer too.
 readonly MARAN_NGINX_INCLUDE_CONF="/etc/nginx/conf.d/maran-sites.conf"
 
+# The panel's plain-HTTP ACME challenge block, a file of its own beside the panel vhost
+# (installer/nginx/maran-port80.conf). It is the only thing in the panel's nginx configuration that
+# binds port 80, and port 80 belongs to the site web server: while Apache is that server the agent
+# takes this file out of nginx's tree (AgentPaths::NGINX_PORT80_CONFIG, the same path) and puts it
+# back after Apache is removed, so the path is spelled identically on both sides.
+readonly MARAN_NGINX_PORT80_CONF="/etc/nginx/conf.d/maran-port80.conf"
+
+# What the agent renames that file to while Apache owns port 80 (AgentPaths::NGINX_PORT80_SUSPENDED_CONFIG
+# is this path). It does not end in `.conf`, so nginx never opens it.
+readonly MARAN_PORT80_SUSPENDED_SUFFIX=".suspended"
+
 # Where the rotation policy for the PANEL'S OWN two logs lands. This step installs it rather
 # than step 81, which owns the customers' site logs, because the two files it bounds are named
 # by the vhost THIS step renders: whoever changes those paths must change the policy in the same
@@ -253,6 +264,86 @@ ensure_conf_d_include_in_nginx_conf() {
     exit 1
   fi
   echo "Added 'include /etc/nginx/conf.d/*.conf;' to ${conf}."
+}
+
+# The text every line of a disabled packaged server block is prefixed with, so that the edit is
+# reversible byte for byte (installer/uninstall.sh strips exactly this prefix) and idempotent (a
+# commented line is not an active directive, so a second pass finds nothing left to disable).
+readonly MARAN_DISABLED_PREFIX="# maran-disabled: "
+
+# render_nginx_conf_without_packaged_port80_server: the host's nginx.conf to stdout with every
+# http-level `server { ... }` block that has an active `listen` on port 80 commented out, line by
+# line, with MARAN_DISABLED_PREFIX. Everything else - the http settings, the includes, other server
+# blocks - is copied untouched.
+#
+# Why this exists: the RHEL family's packaged nginx.conf (and, believed, the SUSE one) carries a
+# default `server { listen 80; server_name _; ... }` of its own. While it is active nginx owns port 80
+# whatever Maran's files say, so Apache - which owns 80/443 once it is the site web server
+# (docs/apps/README.md) - could never start. nginx then binds the panel port and, while nginx is the
+# site web server, the vhosts in conf.d; the distribution's welcome page is not one of them.
+#
+# awk tracks brace depth over the text with `#` comments removed, buffers a block from its `server {`
+# line (only at depth 1 inside `http {`) to the brace that closes it, and decides at the close. A
+# block with no port-80 listen is printed as it came. The `listen` pattern takes the bare number, an
+# address or `[::]` in front of it, and a following `default_server` or `;`, and not `8080`.
+render_nginx_conf_without_packaged_port80_server() {
+  awk -v prefix="$MARAN_DISABLED_PREFIX" '
+    {
+      code = $0; sub(/#.*/, "", code)
+      opens = gsub(/\{/, "{", code); closes = gsub(/\}/, "}", code)
+      if (!buffering && inhttp && depth == 1 && code ~ /^[[:space:]]*server[[:space:]]*\{/) {
+        buffering = 1; held = 0; hit = 0
+      }
+      if (buffering) {
+        lines[held++] = $0
+        if (code ~ /listen[[:space:]]+(\[::\]:|[0-9.*]+:)?80[[:space:];]/) hit = 1
+        depth += opens - closes
+        if (depth == 1) {
+          for (i = 0; i < held; i++) print (hit ? prefix lines[i] : lines[i])
+          buffering = 0
+        }
+        next
+      }
+      if (!inhttp && depth == 0 && code ~ /^[[:space:]]*http[[:space:]]*\{/) inhttp = 1
+      depth += opens - closes
+      print
+    }
+  ' "$1"
+}
+
+# disable_packaged_port80_server_in_nginx_conf: makes the distribution's own default port-80 server
+# inactive, on every family (a no-op where the stock file has none, as the Debian family's does: its
+# default site is a sites-enabled link, see remove_distro_default_site).
+#
+# Same discipline as ensure_conf_d_include_in_nginx_conf: render, stage beside nginx.conf with the
+# original's owner and mode, fsync, rename, THEN `nginx -t`; on a refusal the original is renamed back
+# and the install stops. The pristine file is kept once as `nginx.conf.maran-previous` (never
+# overwritten). Idempotent: when the render equals the file nothing is written.
+disable_packaged_port80_server_in_nginx_conf() {
+  local conf="/etc/nginx/nginx.conf" staged previous
+  previous="${conf}.maran-previous"
+  [ -f "$conf" ] || return 0
+  staged="$(mktemp "${conf}.maran-staging.XXXXXX")"
+  render_nginx_conf_without_packaged_port80_server "$conf" > "$staged"
+  if cmp -s -- "$conf" "$staged"; then
+    rm -f "$staged"
+    return 0
+  fi
+  chmod --reference="$conf" "$staged"
+  chown --reference="$conf" "$staged"
+  if [ ! -e "$previous" ]; then
+    cp -p -- "$conf" "$previous"
+    sync "$previous"
+  fi
+  move_into_place "$staged" "$conf" || { rm -f "$staged"; echo "80-nginx.sh: could not replace ${conf}." >&2; exit 1; }
+  if ! nginx -t 2>&1; then
+    echo "80-nginx.sh: nginx refused ${conf} without its packaged port-80 server (its message is above); restoring the original." >&2
+    cp -p -- "$previous" "${conf}.maran-restore"
+    move_into_place "${conf}.maran-restore" "$conf" \
+      || echo "80-nginx.sh: could not restore ${conf}; the original is at ${previous}." >&2
+    exit 1
+  fi
+  echo "Disabled the distribution's default port-80 server in ${conf} (it would hold port 80); the original is at ${previous}."
 }
 
 # assert_vhost_in_loaded_tree: the observation the SUSE family's vhost placement stands on. `nginx -T`
@@ -550,6 +641,23 @@ panel_files_body_limit() {
   echo "$((configured + MARAN_FILES_BODY_LIMIT_ALLOWANCE_BYTES))"
 }
 
+# panel_server_name: the host name both panel server blocks answer to - the one string
+# maran.conf and maran-port80.conf are rendered with.
+#
+# host_display_name, the value 60-config.sh records as Panel__HostName: the vhost and the API's
+# reserved name must be one string from one function, and the bare `hostname` binary is absent
+# on some hosts (see 00-common.sh). The value goes through sed and into server_name; a machine name
+# with anything but letters, digits, dots and hyphens would corrupt either, so it is replaced by the
+# safe fallback rather than written (the same alphabet detect_panel_host_name records in panel.env).
+panel_server_name() {
+  local name
+  name="$(host_display_name | tr 'A-Z' 'a-z')"
+  case "$name" in
+    ""|*[!a-z0-9.-]*) name="localhost" ;;
+  esac
+  echo "$name"
+}
+
 # render_vhost: substitutes the placeholders in the shipped template into a temp file, and stamps
 # the provenance marker onto its first line — see MARAN_VHOST_MARKER_PREFIX for what the marker is
 # for and what it does not claim.
@@ -562,13 +670,7 @@ render_vhost() {
   # host_display_name, the value 60-config.sh records as Panel__HostName: the vhost and the API's
   # reserved name must be one string from one function, and the bare `hostname` binary is absent
   # on some hosts (see 00-common.sh).
-  hostname="$(host_display_name | tr 'A-Z' 'a-z')"
-  # The value goes through sed and into server_name; a machine name with anything but letters,
-  # digits, dots and hyphens would corrupt either, so it is replaced by the safe fallback rather
-  # than written (the same alphabet detect_panel_host_name records in panel.env).
-  case "$hostname" in
-    ""|*[!a-z0-9.-]*) hostname="localhost" ;;
-  esac
+  hostname="$(panel_server_name)"
   files_body_limit="$(panel_files_body_limit)"
   body="$(mktemp)"
   sed \
@@ -1368,6 +1470,62 @@ make_distro_nginx_logrotate_reload() {
   mv -f -- "$staged" "$file"
 }
 
+# install_port80_block: renders installer/nginx/maran-port80.conf with the panel's host name and
+# puts it at MARAN_NGINX_PORT80_CONF, the way the vhost is put at its own path: staged under a name
+# nginx never opens (it does not end in `.conf`), flushed, renamed, then validated against the real
+# tree, with the previous content restored - or the file removed when there was none - on a refusal.
+# The block holds no secret and no credential path, so it does not carry the vhost's provenance
+# marker or its interrupt guard: the file is wholly rendered from a template this step ships, and a
+# re-run overwrites it.
+#
+# While Apache is the site web server the agent keeps this file OUT of nginx's tree. A re-run of the
+# installer in that state must not put it back (Apache owns port 80 and nginx would fail to bind
+# it), so the block is written only when the agent's suspended copy is absent.
+install_port80_block() {
+  local dest="$MARAN_NGINX_PORT80_CONF" staged previous="" had_previous=0
+  if [ -e "${dest}${MARAN_PORT80_SUSPENDED_SUFFIX}" ]; then
+    echo "The ACME block on port 80 is suspended because Apache is the site web server; leaving it."
+    return 0
+  fi
+  staged="${dest}${MARAN_VHOST_CANDIDATE_SUFFIX}"
+  sed -e "s#__MARAN_SERVER_NAME__#$(panel_server_name)#g" "${LIB_DIR}/../nginx/maran-port80.conf" > "$staged"
+  chmod 0644 "$staged"
+  if [ -f "$dest" ]; then
+    previous="$(mktemp)"
+    cp -p -- "$dest" "$previous"
+    had_previous=1
+  fi
+  move_into_place "$staged" "$dest" || { rm -f "$staged"; return 1; }
+  if ! nginx_tree_loads; then
+    if [ "$had_previous" = 1 ]; then
+      move_into_place "$previous" "$dest" || true
+    else
+      rm -f "$dest"
+    fi
+    rm -f "$staged"
+    echo "nginx refused the ACME block on port 80 (${dest}); it was taken back." >&2
+    nginx -t >&2 || true
+    return 1
+  fi
+  [ -z "$previous" ] || rm -f "$previous"
+}
+
+# remove_distro_default_site: takes the Debian family's packaged default nginx site out of the
+# enabled set. That site is a `listen 80 default_server` block, so while it is enabled nginx owns
+# port 80 whatever the panel's own configuration says, and Apache - which owns 80/443 once it is the
+# site web server (docs/apps/README.md) - could never start. Only the enabled LINK is removed
+# (`sites-available/default` stays, so an operator can re-enable it), and only when it is a symlink:
+# a regular file at that path is the operator's own and is left alone. The other families keep their
+# default server inside nginx.conf itself, which disable_packaged_port80_server_in_nginx_conf handles.
+remove_distro_default_site() {
+  local link="/etc/nginx/sites-enabled/default"
+  [ "$MARAN_OS_FAMILY" = "debian" ] || return 0
+  if [ -L "$link" ]; then
+    rm -f -- "$link"
+    echo "Disabled the distribution's default nginx site (${link}); it would hold port 80."
+  fi
+}
+
 step_nginx() {
   echo "Installing nginx vhost on port ${MARAN_PANEL_PORT}..."
   # The SUSE family first of all: the include of conf.d is what makes everything written under it
@@ -1375,6 +1533,9 @@ step_nginx() {
   if [ "$MARAN_OS_FAMILY" = "suse" ]; then
     ensure_conf_d_include_in_nginx_conf
   fi
+  # And on every family, the distribution's own default server on port 80, which would hold the port
+  # Apache needs (issue #517). After the include above, so the SUSE edit keeps the true original.
+  disable_packaged_port80_server_in_nginx_conf
   # First, so that the validation below parses a tree that already includes the agent's
   # directory: a validation that passes without it has proved nothing about the
   # configuration nginx will actually run.
@@ -1392,6 +1553,8 @@ step_nginx() {
   if [ "$MARAN_OS_FAMILY" = "suse" ]; then
     assert_vhost_in_loaded_tree "$dest"
   fi
+  install_port80_block
+  remove_distro_default_site
 
   # After the vhost is installed and validated, not before: the policy names the two files that
   # vhost tells nginx to open, so installing it over a vhost that was refused would leave a

@@ -5,6 +5,7 @@ import { useAccountsStore } from '../stores/accounts'
 import { useAuthStore } from '../stores/auth'
 import { useModulesStore } from '../stores/modules'
 import { useNavigationBadgesStore } from '../stores/navigationBadges'
+import { useStackStore } from '../stores/stack'
 import { useTasksStore } from '../stores/tasks'
 import { buildNavigation } from '../utils/buildNavigation'
 import { useNavigationRole } from './useNavigationRole'
@@ -16,6 +17,8 @@ import type {
   NavigationAccountAccess,
   NavigationGrants,
   NavigationPlanFeatures,
+  NavigationRuntime,
+  NavigationRuntimes,
   NavigationState,
 } from '../types/navigation'
 
@@ -36,6 +39,7 @@ export const useNavigationState = (): ComputedRef<NavigationState> => {
   const accessStore = useAccountAccessStore()
   const tasksStore = useTasksStore()
   const badgesStore = useNavigationBadgesStore()
+  const stackStore = useStackStore()
   const router = useRouter()
   const viewingAs = useViewingAs()
 
@@ -66,6 +70,22 @@ export const useNavigationState = (): ComputedRef<NavigationState> => {
       return { state: 'owner' }
     }
     return { state: 'member', features: new Set(held.access.features) }
+  }
+
+  /**
+   * Which runtimes the stack status says the host has.
+   * @returns Reported runtimes once the panel answered, otherwise unreported (every runtime page is offered).
+   */
+  const runtimesOf = (): NavigationRuntimes => {
+    const php = stackStore.phpVersions
+    if (php === null) {
+      return { state: 'unreported' }
+    }
+    const installed = new Set<NavigationRuntime>()
+    if (php.length > 0) {
+      installed.add('php')
+    }
+    return { state: 'reported', installed }
   }
 
   // A customer's menu follows their plan and, for a member, what the owner granted, so the shell
@@ -152,6 +172,7 @@ export const useNavigationState = (): ComputedRef<NavigationState> => {
       ),
       planFeatures,
       accountAccess,
+      runtimes: runtimesOf(),
       // Each count is present only when the panel answered with a real one: a kind still loading,
       // refused or failed is left out, so it draws no badge (never a zero standing in for it). The
       // failed count is read once by the shell (`DefaultLayout`); the others by the badges store.

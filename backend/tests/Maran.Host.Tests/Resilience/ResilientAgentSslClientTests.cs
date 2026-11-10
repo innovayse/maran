@@ -32,7 +32,7 @@ public sealed class ResilientAgentSslClientTests
 
     /// <summary>A site descriptor with every field set, to check it arrives unchanged.</summary>
     private static readonly SiteDescriptor Descriptor =
-        new(["www.example.com"], SiteBackendKind.Php, "8.3", "127.0.0.1:3000", true, SiteOptionsDescriptor.None);
+        new(["www.example.com"], SiteBackendKind.Php, "8.3", "127.0.0.1:3000", SiteNodeApp.None, SiteWebServer.Nginx, true, SiteOptionsDescriptor.None);
 
     /// <summary>Install retries a transport failure through the pipeline.</summary>
     [Fact]

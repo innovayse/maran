@@ -88,6 +88,56 @@ pub fn web_server_group() -> &'static str {
     "www-data"
 }
 
+/// Absolute path of the Apache control script, whose `-t` checks the configuration.
+///
+/// Debian's `apache2` package ships `apache2ctl`, runs as `www-data` and registers the unit as `apache2`.
+#[must_use]
+pub fn apache_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/sbin/apache2ctl")
+}
+
+/// Name of the Apache systemd service unit.
+///
+/// Debian's `apache2` package ships `apache2ctl`, runs as `www-data` and registers the unit as `apache2`.
+#[must_use]
+pub fn apache_service() -> &'static str {
+    "apache2"
+}
+
+/// The user the Apache workers run as.
+///
+/// Debian's `apache2` package ships `apache2ctl`, runs as `www-data` and registers the unit as `apache2`.
+#[must_use]
+pub fn apache_user() -> &'static str {
+    "www-data"
+}
+
+/// The group the Apache workers run in, and the one an account's home is group-owned by
+/// when Apache is the site web server.
+///
+/// Debian's `apache2` package ships `apache2ctl`, runs as `www-data` and registers the unit as `apache2`.
+#[must_use]
+pub fn apache_group() -> &'static str {
+    "www-data"
+}
+
+/// Absolute path of the Node.js interpreter a site's unit runs.
+///
+/// Text and not an `AdapterBinary`: the agent never executes it, the service manager does,
+/// from a unit the agent renders (the same split as `sh_binary`).
+#[must_use]
+pub fn node_executable() -> &'static str {
+    "/usr/bin/node"
+}
+
+/// Absolute path of the npm launcher a site's unit may run.
+///
+/// Text for the same reason as [`node_executable`].
+#[must_use]
+pub fn npm_executable() -> &'static str {
+    "/usr/bin/npm"
+}
+
 /// Name of the php-fpm systemd service unit for `version`, e.g. `php8.3-fpm`.
 ///
 /// Sury names the unit after the package it ships, so this must change in

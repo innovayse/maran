@@ -17,6 +17,8 @@ use std::path::Path;
 use maran_agent_core::utils::call_class::CallClass;
 
 use super::create_vhost;
+use maran_distro::SiteWebServer;
+
 use crate::sites::SitesOpError;
 use crate::sites::fake_site_host::{FakeSiteHost, distro};
 
@@ -30,6 +32,7 @@ fn a_new_vhost_refuses_the_warning_for_each_of_its_names_bare_and_with_a_leading
     create_vhost(
         &host,
         distro(),
+        SiteWebServer::Nginx,
         Path::new(TARGET),
         "server {}\n",
         &["zero.example", "shop.example"],
@@ -53,6 +56,7 @@ fn a_warning_about_a_longer_name_does_not_match_a_shorter_one() {
     create_vhost(
         &host,
         distro(),
+        SiteWebServer::Nginx,
         Path::new(TARGET),
         "server {}\n",
         &["shop.example"],
@@ -85,6 +89,7 @@ fn a_new_vhost_is_validated_with_nginx_t_and_reloaded_through_the_service_manage
     create_vhost(
         &host,
         distro(),
+        SiteWebServer::Nginx,
         Path::new(TARGET),
         "server {}\n",
         &["shop.example"],
@@ -115,6 +120,7 @@ fn a_new_vhost_goes_through_the_creating_half_of_the_protocol_only() {
     create_vhost(
         &host,
         distro(),
+        SiteWebServer::Nginx,
         Path::new(TARGET),
         "server {}\n",
         &["shop.example"],
@@ -137,6 +143,7 @@ fn a_vhost_that_is_already_there_is_refused_as_a_taken_name_and_not_overwritten(
     let refusal = create_vhost(
         &host,
         distro(),
+        SiteWebServer::Nginx,
         Path::new(TARGET),
         "server {}\n",
         &["shop.example"],
@@ -159,6 +166,7 @@ fn a_new_vhost_runs_the_validator_in_the_short_class() {
     create_vhost(
         &host,
         distro(),
+        SiteWebServer::Nginx,
         Path::new(TARGET),
         "server {}\n",
         &["shop.example"],
@@ -183,6 +191,7 @@ fn a_new_vhost_whose_validator_times_out_reports_the_bound_and_never_a_taken_nam
     let refusal = create_vhost(
         &host,
         distro(),
+        SiteWebServer::Nginx,
         Path::new(TARGET),
         "server {}\n",
         &["shop.example"],

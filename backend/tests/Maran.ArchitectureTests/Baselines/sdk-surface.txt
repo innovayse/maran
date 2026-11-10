@@ -14,8 +14,9 @@
 # A reviewer, when this file grows, asks: why does every module need to see this type, and could a
 # message or an interface the owning module implements carry it instead (rules/architecture.md,
 # "A shared facility's contract lives in Maran.Sdk")?
-total 177
+total 179
 module Accounts 83
+module Apps 26
 module Backups 45
 module Cron 42
 module Databases 40
@@ -33,8 +34,8 @@ module Monitoring 43
 module Notifications 22
 module ServerMigration 44
 module Sftp 42
-module Sites 72
-module Ssl 62
+module Sites 74
+module Ssl 63
 module Tasks 29
 module Updates 17
 type Maran.Sdk.Alerts.OperatorAlertDispatcher
@@ -163,6 +164,7 @@ type Maran.Sdk.Contracts.SiteBasicAuthUserSnapshot
 type Maran.Sdk.Contracts.SiteCanonicalHost
 type Maran.Sdk.Contracts.SiteIpAccessMode
 type Maran.Sdk.Contracts.SiteIpAccessSnapshot
+type Maran.Sdk.Contracts.SiteNodeSnapshot
 type Maran.Sdk.Contracts.SiteOptionsSnapshot
 type Maran.Sdk.Contracts.SiteRedirectMatch
 type Maran.Sdk.Contracts.SiteRedirectSnapshot
@@ -254,6 +256,7 @@ type Maran.Sdk.Interfaces.IReservedHostDirectory
 type Maran.Sdk.Interfaces.ISearchProvider
 type Maran.Sdk.Interfaces.ISiteDirectory
 type Maran.Sdk.Interfaces.ISiteHostnameDirectory
+type Maran.Sdk.Interfaces.ISiteRuntimeUsage
 type Maran.Sdk.Interfaces.ISystemAuditJournal
 type Maran.Sdk.Interfaces.ITaskRecorder
 type Maran.Sdk.Interfaces.IVerifiedModulePackageSource

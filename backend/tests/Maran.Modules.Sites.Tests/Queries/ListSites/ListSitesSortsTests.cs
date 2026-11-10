@@ -44,6 +44,9 @@ public sealed class ListSitesSortsTests
             SiteBackendType.Php,
             "8.3",
             string.Empty,
+            string.Empty,
+            0,
+            string.Empty,
             "/home/acct/sites/rank.example.com",
             new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
     }

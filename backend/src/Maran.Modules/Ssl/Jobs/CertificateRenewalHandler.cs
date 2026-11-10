@@ -1,4 +1,5 @@
 using Maran.Agent.Client.Interfaces;
+using Maran.Agent.Client.Services.SitesService;
 using Maran.Modules.Ssl.Domain.Entities;
 using Maran.Modules.Ssl.Interfaces;
 using Maran.Modules.Ssl.Models;
@@ -110,6 +111,9 @@ public sealed class CertificateRenewalHandler
     /// </summary>
     private readonly ITaskRecorder _tasks;
 
+    /// <summary>What the app store has installed, which names the web server the batch reload addresses.</summary>
+    private readonly IStackStatus _stack;
+
     /// <summary>Creates the job.</summary>
     /// <param name="dbContext">The Ssl module's database context.</param>
     /// <param name="sites">The window onto site rows.</param>
@@ -122,6 +126,7 @@ public sealed class CertificateRenewalHandler
     /// <param name="clock">The injected time source defining the renewal window.</param>
     /// <param name="logger">Sink for renewal failures.</param>
     /// <param name="tasks">The panel-wide task journal.</param>
+    /// <param name="stack">What the app store has installed, which names the web server to reload.</param>
     public CertificateRenewalHandler(
         SslDbContext dbContext,
         ISiteDirectory sites,
@@ -133,7 +138,8 @@ public sealed class CertificateRenewalHandler
         ISslAlertMailer alerts,
         IClock clock,
         ILogger<CertificateRenewalHandler> logger,
-        ITaskRecorder tasks)
+        ITaskRecorder tasks,
+        IStackStatus stack)
     {
         _dbContext = dbContext;
         _sites = sites;
@@ -146,6 +152,7 @@ public sealed class CertificateRenewalHandler
         _clock = clock;
         _logger = logger;
         _tasks = tasks;
+        _stack = stack;
     }
 
     /// <summary>Runs one renewal pass over every certificate due within the window.</summary>
@@ -192,7 +199,7 @@ public sealed class CertificateRenewalHandler
 
         if (renewed > 0)
         {
-            var reloaded = await _agentSites.ReloadWebServerAsync(cancellationToken);
+            var reloaded = await _agentSites.ReloadWebServerAsync(SiteWebServerMapper.Require(_stack), cancellationToken);
             if (!reloaded.IsSuccess)
             {
                 // Loud, and Error rather than Warning: new certificates are on disk and the running

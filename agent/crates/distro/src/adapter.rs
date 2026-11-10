@@ -5,6 +5,7 @@
 //! the implementation.
 
 use crate::account_programs::AccountPrograms;
+use crate::app_facts::AppFacts;
 use crate::backup_facts::BackupFacts;
 use crate::database_facts::DatabaseFacts;
 use crate::dns_facts::DnsFacts;
@@ -55,6 +56,7 @@ pub trait DistroAdapter:
     + Sync
     + AccountPrograms
     + WebServerFacts
+    + AppFacts
     + PhpFacts
     + PhpExtensionFacts
     + PackageFacts

@@ -36,19 +36,25 @@ public sealed class EnableSiteCommandHandler
     /// <summary>Names the site's backend and serving state in the request's culture.</summary>
     private readonly SiteDisplayNames _siteNames;
 
+    /// <summary>Refuses the operation while no site web server is installed.</summary>
+    private readonly SiteStackGate _stack;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Sites module's database context.</param>
     /// <param name="accounts">The owning account's system user name.</param>
     /// <param name="agent">The agent client that performs the privileged half.</param>
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="siteNames">Names the site's backend and serving state for the request's culture.</param>
+    /// <param name="stack">Refuses the operation while no site web server is installed.</param>
     public EnableSiteCommandHandler(
         SitesDbContext dbContext,
         IAccountDirectory accounts,
         IAgentSitesClient agent,
         SiteAuditJournal journal,
-        SiteDisplayNames siteNames)
+        SiteDisplayNames siteNames,
+        SiteStackGate stack)
     {
+        _stack = stack;
         _dbContext = dbContext;
         _siteNames = siteNames;
         _accounts = accounts;
@@ -65,6 +71,14 @@ public sealed class EnableSiteCommandHandler
     /// <returns>The site in its new state, or <c>SiteNotFound</c>, <c>AccountNotFound</c>, or the agent's own typed failure.</returns>
     public async Task<Result<SiteDto>> HandleAsync(EnableSiteCommand command, CancellationToken cancellationToken)
     {
+        // The stack gate: sites cannot be changed while no web server is installed. Enforced here and
+        // not in the SPA, which only reflects it (docs/apps/README.md).
+        var installed = await _stack.ReadAsync(cancellationToken);
+        if (installed.NotReadyFailure() is { } notReady)
+        {
+            return await FailAsync(command, command.SiteId.ToString(), notReady, cancellationToken);
+        }
+
         var site = await _dbContext.Sites.SingleOrDefaultAsync(s => s.Id == command.SiteId, cancellationToken);
         if (site is null)
         {
@@ -84,7 +98,7 @@ public sealed class EnableSiteCommandHandler
         var applied = await _agent.EnableAsync(
             account.Username,
             site.Domain,
-            SiteDescriptorMapper.From(site),
+            SiteDescriptorMapper.From(site, installed.WebServer!.Value),
             cancellationToken);
         if (!applied.IsSuccess)
         {

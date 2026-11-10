@@ -63,6 +63,15 @@ public sealed class Site
     /// <summary>The upstream forwarded to, or the empty string when the backend is not a reverse proxy.</summary>
     public string ProxyUpstream { get; private set; }
 
+    /// <summary>The installed Node major the application runs on, or the empty string when the backend is not Node.</summary>
+    public string NodeVersion { get; private set; }
+
+    /// <summary>The loopback port the Node application listens on, or zero when the backend is not Node.</summary>
+    public int AppPort { get; private set; }
+
+    /// <summary>The command the site's unit runs, or the empty string when the backend is not Node.</summary>
+    public string StartCommand { get; private set; }
+
     /// <summary>The absolute document root the agent allocated. Operator-facing; never rendered into a customer's error.</summary>
     public string DocumentRoot { get; private set; }
 
@@ -109,6 +118,9 @@ public sealed class Site
     /// <param name="backendType">Which backend serves this site's content.</param>
     /// <param name="phpVersion">The bound PHP version, or the empty string when the backend is not PHP.</param>
     /// <param name="proxyUpstream">The upstream forwarded to, or the empty string when the backend is not a proxy.</param>
+    /// <param name="nodeVersion">The installed Node major, or the empty string when the backend is not Node.</param>
+    /// <param name="appPort">The Node application's loopback port, or zero when the backend is not Node.</param>
+    /// <param name="startCommand">The Node application's start command, or the empty string when the backend is not Node.</param>
     /// <param name="documentRoot">The absolute document root the agent allocated.</param>
     /// <param name="createdAt">The instant the site was created, taken from <see cref="IClock"/>.</param>
     /// <exception cref="ArgumentOutOfRangeException">
@@ -124,6 +136,9 @@ public sealed class Site
         SiteBackendType backendType,
         string phpVersion,
         string proxyUpstream,
+        string nodeVersion,
+        int appPort,
+        string startCommand,
         string documentRoot,
         DateTimeOffset createdAt)
     {
@@ -139,6 +154,9 @@ public sealed class Site
         BackendType = backendType;
         PhpVersion = phpVersion;
         ProxyUpstream = proxyUpstream;
+        NodeVersion = nodeVersion;
+        AppPort = appPort;
+        StartCommand = startCommand;
         DocumentRoot = documentRoot;
         HasCertificate = false;
         Status = SiteStatus.Enabled;
@@ -161,6 +179,8 @@ public sealed class Site
         Aliases = [];
         PhpVersion = string.Empty;
         ProxyUpstream = string.Empty;
+        NodeVersion = string.Empty;
+        StartCommand = string.Empty;
         DocumentRoot = string.Empty;
     }
 

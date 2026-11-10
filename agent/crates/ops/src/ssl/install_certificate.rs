@@ -98,7 +98,7 @@ pub fn install_certificate(
     // goes stale.
     let expiry = certificate_expiry(host, distro, material)?;
 
-    let paths = resolved_site_paths(host, &site.account, &site.domain)?;
+    let paths = resolved_site_paths(host, &site.account, &site.domain, site.web_server)?;
     let Some(current) = host.read_config(&paths.config_path)? else {
         return Err(SslOpError::SiteNotFound {
             domain: site.domain.as_str().to_owned(),
@@ -106,7 +106,7 @@ pub fn install_certificate(
     };
 
     if !already_installed {
-        write_material(host, distro, &certificate, material)?;
+        write_material(host, distro, site.web_server, &certificate, material)?;
     }
 
     // The material in this directory is not the placeholder a marker would
@@ -148,7 +148,7 @@ pub fn install_certificate(
         // panel retries after a timeout, and a reload of nginx per retry is a
         // storm.
         if current != wanted {
-            write_vhost(host, distro, &paths.config_path, &wanted)?;
+            write_vhost(host, distro, site.web_server, &paths.config_path, &wanted)?;
         }
     }
 

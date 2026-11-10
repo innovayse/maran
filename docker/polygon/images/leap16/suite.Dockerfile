@@ -7,11 +7,11 @@
 # command that settles it, and a wrong name stops the build at that RUN, which is the intended
 # failure. docker/polygon/images/README.md carries the matrix row and what is still owed.
 #
-# The image carries nginx, php-fpm and a Rust toolchain so that the agent's OWN
+# The image carries nginx and a Rust toolchain (no site runtime: php-fpm, Apache and Node.js are apps,
+# issue #517, installed by a suite through the app route) so that the agent's OWN
 # validation can be exercised: `safe_write` renames a rendered vhost into place
-# and then runs the real `nginx -t` against the real configuration tree, and
-# `write_pool` does the same with the real `php-fpm -t`. The packages
-# are here to be VALIDATED AGAINST, not to make the container a web server —
+# and then runs the real `nginx -t` against the real configuration tree. The package
+# is here to be VALIDATED AGAINST, not to make the container a web server —
 # nothing is started by the image, no port is published, and the agent's
 # integration tests are the only thing that runs.
 #
@@ -61,14 +61,13 @@ ENV RUSTUP_HOME=/usr/local/rustup \
 # in one.
 ENV MARAN_POLYGON=leap16
 
-# The web server and PHP first, from the family's own repositories. This family ships ONE PHP minor
-# (decision 219: Leap 16 offers php 8.4 as the `php8-*` packages) and no third-party PHP repository is
-# added, so there is nothing to enable here and nothing to download. The nginx and php package
+# The panel's web server first, from the family's own repositories. This family ships ONE PHP minor
+# (decision 219: Leap 16 offers php 8.4 as the `php8-*` packages) as an app, installed on request, so
+# no PHP package is installed here. The nginx package
 # VERSIONS deliberately float: they are what the family ships on the day of the build, which is what
 # the agent will meet on a customer's server, and pinning them would test a configuration nobody runs.
 #
-# UNVERIFIED: the package names `nginx`, `php8-fpm`, `php8-cli`, and that `/usr/sbin/php-fpm` and
-# `/usr/sbin/nginx` are where they land. Confirm with `rpm -ql php8-fpm | grep sbin` and
+# UNVERIFIED: the package name `nginx`, and that `/usr/sbin/nginx` is where it lands. Confirm with
 # `rpm -ql nginx | grep sbin` in the pinned image; `binary_paths_on_a_real_host` stats what the
 # adapter declares against exactly these.
 # What the BUILD and the assert script need from the base, named instead of guessed: this family's
@@ -81,8 +80,6 @@ RUN zypper --non-interactive install --no-recommends \
         ca-certificates curl systemd openssl gawk findutils tar gzip util-linux \
     && zypper --non-interactive install --no-recommends \
         nginx \
-        php8-fpm \
-        php8-cli \
     && zypper --non-interactive clean --all
 
 # The Rust toolchain and what cargo needs to link a test binary: `cc` for the
@@ -198,6 +195,7 @@ COPY installer/lib/87-firewall.sh /tmp/maran-installer/lib/87-firewall.sh
 COPY installer/uninstall.sh /tmp/maran-installer/uninstall.sh
 COPY installer/install.sh /tmp/maran-installer/install.sh
 COPY installer/nginx/maran.conf /tmp/maran-installer/nginx/maran.conf
+COPY installer/nginx/maran-port80.conf /tmp/maran-installer/nginx/maran-port80.conf
 # The rotation policy for the PANEL'S OWN two nginx logs, which step 80 installs and which it
 # ABORTS BY NAME when the payload is missing. It is here because the assertions below run that
 # step for real: without this line step 80 refuses, every vhost assertion goes red for the wrong
@@ -241,7 +239,8 @@ COPY installer/systemd/maran-php.tmpfiles.conf /tmp/maran-installer/systemd/mara
 COPY installer/systemd/maran-agent.service /tmp/maran-installer/systemd/maran-agent.service
 # Step 70's install_units renders and installs the package-install template with the units above
 # (issue #93), so it must be here or the step aborts on a missing source and no suite runs.
-COPY installer/systemd/maran-php-install@.service /tmp/maran-installer/systemd/maran-php-install@.service
+COPY installer/systemd/maran-app-install@.service /tmp/maran-installer/systemd/maran-app-install@.service
+COPY installer/systemd/maran-app-remove@.service /tmp/maran-installer/systemd/maran-app-remove@.service
 COPY installer/lib/70-services.sh /tmp/maran-installer/lib/70-services.sh
 # Step 80 again — the earlier COPY was consumed by the `rm -rf /tmp/maran-installer` that ends
 # the include block above — and step 40 beside it. Both are RUN by the assert script, not read:

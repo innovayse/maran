@@ -145,4 +145,21 @@ public static class TaskKinds
     /// system user name, and the audience is administrators only: an import is never a customer's act.
     /// </remarks>
     public const string AccountImport = "AccountImport";
+
+    /// <summary>
+    /// An app (a site web server or a language runtime) is being installed on this server from the app
+    /// store (issue #517). The subject is the app id, e.g. <c>php-8.3</c>.
+    /// </summary>
+    /// <remarks>
+    /// It earns a task for the reason <see cref="PhpVersionInstall"/> does: the host's package manager
+    /// fetching and unpacking takes minutes on a slow mirror, and the first-run setup screen shows the
+    /// stage line of exactly this task until the web server is in place.
+    /// </remarks>
+    public const string AppInstall = "AppInstall";
+
+    /// <summary>
+    /// An app is being removed from this server through the app store (issue #517). The subject is the
+    /// app id.
+    /// </summary>
+    public const string AppUninstall = "AppUninstall";
 }

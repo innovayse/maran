@@ -19,14 +19,20 @@ public static class SiteDescriptorMapper
 {
     /// <summary>Describes a stored site to the agent.</summary>
     /// <param name="site">The row that defines the site.</param>
+    /// <param name="webServer">
+    /// The installed site web server. Not a column: exactly one is installed at a time and uninstalling it is
+    /// refused while a site exists, so every site is served by it (docs/apps/README.md).
+    /// </param>
     /// <returns>The descriptor carrying that row's own facts.</returns>
-    public static SiteDescriptor From(Site site)
+    public static SiteDescriptor From(Site site, SiteWebServer webServer)
     {
         return new SiteDescriptor(
             site.Aliases,
             ToBackendKind(site.BackendType),
             site.PhpVersion,
             site.ProxyUpstream,
+            new SiteNodeApp(site.NodeVersion, (uint)site.AppPort, site.StartCommand),
+            webServer,
             site.HasCertificate,
             // Read from the row like every other fact, so the options travel with the site on every
             // re-render: a vhost written without them loses the site's redirects, credentials and
@@ -50,6 +56,7 @@ public static class SiteDescriptorMapper
             SiteBackendType.Static => SiteBackendKind.Static,
             SiteBackendType.Php => SiteBackendKind.Php,
             SiteBackendType.ReverseProxy => SiteBackendKind.ReverseProxy,
+            SiteBackendType.Node => SiteBackendKind.Node,
             _ => throw new ArgumentOutOfRangeException(nameof(backendType), backendType, "Unmapped site backend type."),
         };
     }

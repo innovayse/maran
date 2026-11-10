@@ -120,6 +120,9 @@ internal static class AgentErrorTranslator
             ErrorCode.ArchiveUnsafe => ErrorType.Validation,
             ErrorCode.TooLarge => ErrorType.Validation,
             ErrorCode.ArchiveUnopenable => ErrorType.Validation,
+            ErrorCode.AppNotInstalled => ErrorType.NotFound,
+            ErrorCode.AppInUse => ErrorType.Conflict,
+            ErrorCode.WebServerAlreadyInstalled => ErrorType.Conflict,
             _ => ErrorType.Failure,
         };
     }
@@ -218,6 +221,15 @@ internal static class AgentErrorTranslator
     /// key and a damaged sealed file fail identically, and the agent cannot say "wrong key". It
     /// travels as its own code so the backups module can tell the operator to check the destination's
     /// archive key, which the shared validation sentence ("correct these details") does not say.
+    ///
+    /// <see cref="ErrorCode.AppNotInstalled"/>, <see cref="ErrorCode.AppInUse"/> and
+    /// <see cref="ErrorCode.WebServerAlreadyInstalled"/> are the three refusals of the app store
+    /// (issue #517). Each is a state the host is in and the request cannot change: removing or
+    /// controlling an app that is not installed is <see cref="ErrorType.NotFound"/> (the app is not
+    /// there), and removing an app a site still uses, or installing a second site web server, is
+    /// <see cref="ErrorType.Conflict"/> (the host's state forbids the request as asked). They travel
+    /// as their own codes so the page can say which app and why, which the generic validation
+    /// sentence does not.
     /// </remarks>
     public static string ToErrorCode(ErrorCode code)
     {
@@ -242,6 +254,9 @@ internal static class AgentErrorTranslator
             ErrorCode.ArchiveUnsafe => nameof(ErrorMessages.AgentArchiveUnsafe),
             ErrorCode.TooLarge => nameof(ErrorMessages.AgentTooLarge),
             ErrorCode.ArchiveUnopenable => nameof(ErrorMessages.AgentArchiveUnopenable),
+            ErrorCode.AppNotInstalled => nameof(ErrorMessages.AgentAppNotInstalled),
+            ErrorCode.AppInUse => nameof(ErrorMessages.AgentAppInUse),
+            ErrorCode.WebServerAlreadyInstalled => nameof(ErrorMessages.AgentWebServerAlreadyInstalled),
             _ => nameof(ErrorMessages.AgentUnspecified),
         };
     }

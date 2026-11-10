@@ -13,7 +13,7 @@ use maran_distro::AdapterBinary;
 /// must not guess at either (rules/rust.md "Distro adapter"). The type cannot be
 /// built outside the distro crate, so a validator cannot name a program the
 /// adapter did not.
-/// # A validator MUST be a check, and four of this workspace's validators are not
+/// # A validator MUST be a check, and six of this workspace's validators are not
 ///
 /// `rules/rust.md` names step 5 "validate", and the examples it gives are all
 /// pure: `nginx -t`, `php-fpm -t`, `crontab -T`. A command that CHANGES the
@@ -28,17 +28,18 @@ use maran_distro::AdapterBinary;
 /// `reconcile_web_tree` and `reconcile_php_pool_trees` in the daemon cover the
 /// nginx and php-fpm trees and nothing covers the other three.
 ///
-/// Four construction sites in this crate pass `distro.service_manager()` as the
+/// Six construction sites in this crate pass `distro.service_manager()` as the
 /// `program`, which is the mechanical signature of an action: the SFTP jail
-/// mount unit and the FTPS jail mount unit pass `systemctl daemon-reload`,
+/// mount unit, the FTPS jail mount unit and the Node.js site's unit (written and
+/// removed, two sites) pass `systemctl daemon-reload`,
 /// because a systemd unit file has no check-without-load, and `vsftpd.conf`
 /// passes `systemctl restart` at two sites, because `vsftpd` has no `-t` mode at
 /// all. `validator_tests.rs` DISCOVERS every site from this crate's own source
-/// and asserts the list, so the count above cannot go stale and a fifth cannot
+/// and asserts the list, so the count above cannot go stale and a seventh cannot
 /// appear unremarked. Closing it needs a pure validator per tree, which does not
 /// exist behind today's `DistroAdapter`.
 ///
-/// A fifth action exists, and it is chosen by data rather than by a literal: the mail
+/// A further action exists, and it is chosen by data rather than by a literal: the mail
 /// stack's write path (`mail/converge_mail_stage.rs`) takes each daemon's checker and
 /// class from its `MailStage`, and the Redis-protocol server's stage has no check mode, so
 /// its validator is the service manager's restart in `CallClass::Reload`. It is not among
@@ -66,7 +67,7 @@ pub struct Validator<'a> {
     /// Arguments passed to `program`, as an argv array — never a shell string.
     pub arguments: &'a [&'a str],
     /// How long the validator may run: [`CallClass::Validate`] for a pure check
-    /// (`nginx -t`, `php-fpm -t`), [`CallClass::Reload`] for the four mutating
+    /// (`nginx -t`, `php-fpm -t`), [`CallClass::Reload`] for the six mutating
     /// ones, because they ask the service manager to change unit state.
     pub class: CallClass,
 }

@@ -392,6 +392,9 @@ public sealed class SiteListEndpointTests : IAsyncLifetime
             SiteBackendType.Php,
             phpVersion,
             string.Empty,
+            string.Empty,
+            0,
+            string.Empty,
             $"/home/acct/sites/{domain}",
             createdAt ?? Epoch);
     }

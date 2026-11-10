@@ -4,6 +4,7 @@ use maran_agent_core::validation::web::client_body_size::ClientBodySize;
 use maran_agent_core::validation::web::domain::Domain;
 use maran_agent_core::validation::web::request_rate::RequestRate;
 use maran_agent_core::validation::web::static_cache_days::StaticCacheDays;
+use maran_distro::SiteWebServer;
 
 use crate::sites::model::basic_auth_user::BasicAuthUser;
 use crate::sites::model::canonical_host::CanonicalHost;
@@ -189,13 +190,32 @@ impl SiteOptions {
             SiteKind::Static if self.client_max_body_size.is_some() => {
                 return Err(SiteOptionsError::BodySizeOnStaticSite);
             }
-            SiteKind::ReverseProxy { .. } if self.static_cache_days.is_some() => {
+            SiteKind::ReverseProxy { .. } | SiteKind::Node { .. }
+                if self.static_cache_days.is_some() =>
+            {
                 return Err(SiteOptionsError::CacheOnProxiedSite);
             }
-            SiteKind::Static | SiteKind::ReverseProxy { .. } | SiteKind::Php { .. } => {}
+            SiteKind::Static
+            | SiteKind::ReverseProxy { .. }
+            | SiteKind::Node { .. }
+            | SiteKind::Php { .. } => {}
         }
 
         self.canonical_split(domain, aliases).map(|_| ())
+    }
+
+    /// Checks the options against the web server that will serve the site.
+    ///
+    /// # Errors
+    ///
+    /// - [`SiteOptionsError::RequestRateOnApache`] for a request limit on an Apache host.
+    pub fn check_web_server(&self, web_server: SiteWebServer) -> Result<(), SiteOptionsError> {
+        match web_server {
+            SiteWebServer::Apache if self.request_rate.is_some() => {
+                Err(SiteOptionsError::RequestRateOnApache)
+            }
+            SiteWebServer::Apache | SiteWebServer::Nginx => Ok(()),
+        }
     }
 
     /// Divides the site's names between the canonical host and the names that

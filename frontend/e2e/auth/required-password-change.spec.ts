@@ -6,6 +6,7 @@ import { STEERED_CUSTOMER, stubRequiredPasswordChange } from '../fixtures/stub-r
 import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubQuietOwnAccount } from '../fixtures/stub-quiet-own-account'
 import { stubShellReads } from '../fixtures/stub-shell-reads'
+import { READY_STACK, stubStack } from '../fixtures/stub-stack-routes'
 import { stubEmptyTasks } from '../fixtures/stub-tasks-routes'
 
 /** The new password the specs choose; long enough that no client rule could matter, because none exists. */
@@ -42,6 +43,8 @@ test('choosing the new password sends it, renews the session and enters the pane
   // The customer's shell reads the account it acts for once the password is accepted.
   await stubQuietOwnAccount(page, STEERED_CUSTOMER.accountId ?? '')
   await stubEmptyTasks(page)
+  // Entering the panel asks the stack guard whether the host has a site web server.
+  await stubStack(page, READY_STACK)
   await stubLandingReads(page, 'customer')
 
   await page.goto('/change-password')

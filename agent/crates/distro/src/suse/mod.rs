@@ -2,6 +2,7 @@
 
 pub mod suse_account_programs;
 pub mod suse_adapter;
+pub mod suse_apps;
 pub mod suse_dns_services;
 pub mod suse_mail_services;
 pub mod suse_package_candidates;

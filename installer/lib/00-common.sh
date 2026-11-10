@@ -54,7 +54,8 @@ host_display_name() {
 
 # MARAN_OS_UPDATE_HOLD: the packages the OPT-IN unattended OS security updates (step 68, flag
 # --os-security-updates, issue #163) never touch: database engines (mariadb*, mysql*, postgresql*),
-# the web server (nginx*), the PHP runtimes (php*) and the FTP daemon (vsftpd*).
+# the web servers (nginx*, apache2*, httpd*), the runtimes the app store installs (php*, nodejs*) and
+# the FTP daemon (vsftpd*).
 #
 # The single source of the list. Space-separated glob patterns of lowercase letters, digits and
 # hyphens with an optional trailing `*`, which are the same words on both families: step 68 writes
@@ -72,4 +73,4 @@ host_display_name() {
 # so a manual `apt-get upgrade` or `dnf upgrade` still applies it. The patterns are generous on
 # purpose (`php*` also matches a package that merely starts with those letters): that errs toward
 # holding too much, never toward applying a package that should have been held.
-MARAN_OS_UPDATE_HOLD="mariadb* mysql* postgresql* nginx* php* vsftpd*"
+MARAN_OS_UPDATE_HOLD="mariadb* mysql* postgresql* nginx* apache2* httpd* php* nodejs* vsftpd*"

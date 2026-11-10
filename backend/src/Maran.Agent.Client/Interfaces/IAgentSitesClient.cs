@@ -29,6 +29,8 @@ public interface IAgentSitesClient
     /// <param name="kind">Which backend serves the site's content.</param>
     /// <param name="phpVersion">Installed PHP version to bind to; required when the backend is PHP.</param>
     /// <param name="proxyUpstream">Upstream to forward to; required when the backend is a reverse proxy.</param>
+    /// <param name="webServer">The installed site web server the vhost is rendered for.</param>
+    /// <param name="node">What a Node backend runs; <see cref="SiteNodeApp.None"/> for any other backend.</param>
     /// <param name="maxChildren">The plan's worker budget, written into the pool's <c>pm.max_children</c>; ignored unless the backend is PHP.</param>
     /// <param name="settingOverrides">The customer's php.ini overrides, re-validated by the agent; ignored unless the backend is PHP.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
@@ -44,6 +46,8 @@ public interface IAgentSitesClient
         SiteBackendKind kind,
         string phpVersion,
         string proxyUpstream,
+        SiteWebServer webServer,
+        SiteNodeApp node,
         uint maxChildren,
         IReadOnlyList<PhpSettingDto> settingOverrides,
         CancellationToken cancellationToken);
@@ -105,12 +109,14 @@ public interface IAgentSitesClient
     /// two of the account's sites on the same version share one pool and one worker budget — so
     /// this is set only when no other site of this account still uses the version.
     /// </param>
+    /// <param name="webServer">The web server whose vhost is removed; the installed site web server.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>Success, or a typed failure.</returns>
     Task<Result> DeleteAsync(
         string accountUsername,
         string domain,
         string retiredPhpVersion,
+        SiteWebServer webServer,
         CancellationToken cancellationToken);
 
     /// <summary>Tails one of a site's logs: recent lines first, then new ones as they are written.</summary>
@@ -169,6 +175,7 @@ public interface IAgentSitesClient
         CancellationToken cancellationToken);
 
     /// <summary>Validates the running web-server configuration and reloads it once.</summary>
+    /// <param name="webServer">The web server to reload; the installed site web server.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>Success, or a typed failure; on a validation failure the previous config keeps running.</returns>
     /// <remarks>
@@ -178,5 +185,5 @@ public interface IAgentSitesClient
     /// account name and no domain, and a caller must have already established that it may act on every
     /// site it changed. Idempotent: reloading with nothing pending is a no-op success.
     /// </remarks>
-    Task<Result> ReloadWebServerAsync(CancellationToken cancellationToken);
+    Task<Result> ReloadWebServerAsync(SiteWebServer webServer, CancellationToken cancellationToken);
 }

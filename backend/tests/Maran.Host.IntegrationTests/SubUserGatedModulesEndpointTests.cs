@@ -304,7 +304,7 @@ public sealed class SubUserGatedModulesEndpointTests : IAsyncLifetime
 
         var id = Guid.NewGuid();
         sites.Sites.Add(new Site(
-            id, accountId, domain, [], SiteBackendType.Php, "8.3", string.Empty, $"/home/x/sites/{domain}", now));
+            id, accountId, domain, [], SiteBackendType.Php, "8.3", string.Empty, string.Empty, 0, string.Empty, $"/home/x/sites/{domain}", now));
         await sites.SaveChangesAsync();
 
         return id;

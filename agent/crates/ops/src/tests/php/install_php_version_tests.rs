@@ -1,7 +1,7 @@
 //! Tests for [`install_php_version`].
 //!
 //! The package manager is not run by the agent: the operation starts the
-//! installer's `maran-php-install@<package>` unit through the service manager
+//! installer's `maran-app-install@<package>` unit through the service manager
 //! and waits for it. These tests pin the argv it hands the service manager,
 //! that nothing else ever stands in for that unit, and what a failure carries.
 
@@ -49,7 +49,7 @@ fn install(host: &FakePhpHost, version: &str) -> Result<Vec<(u32, String)>, PhpO
 /// The install unit's name for `package`, spelled out rather than built by the
 /// code under test.
 fn unit_for(package: &str) -> String {
-    format!("maran-php-install@{package}.service")
+    format!("maran-app-install@{package}.service")
 }
 
 /// Whether any recorded command ran `program`.
@@ -177,7 +177,7 @@ fn installing_starts_the_install_unit_named_after_the_adapters_package_as_an_arg
     );
     assert_eq!(
         host.commands()[0][3],
-        "maran-php-install@php8.3-fpm.service"
+        "maran-app-install@php8.3-fpm.service"
     );
 }
 
@@ -196,7 +196,7 @@ fn the_install_unit_name_follows_the_rhel_adapter_too() {
             rhel.service_manager().to_string(),
             "start".to_owned(),
             "--".to_owned(),
-            "maran-php-install@php83-php-fpm.service".to_owned(),
+            "maran-app-install@php83-php-fpm.service".to_owned(),
         ]
     );
 }
@@ -219,7 +219,7 @@ fn the_install_unit_name_follows_the_suse_adapter_too() {
             suse.service_manager().to_string(),
             "start".to_owned(),
             "--".to_owned(),
-            "maran-php-install@php8-fpm.service".to_owned(),
+            "maran-app-install@php8-fpm.service".to_owned(),
         ]
     );
 
@@ -228,7 +228,7 @@ fn the_install_unit_name_follows_the_suse_adapter_too() {
     install_reporting(&not_offered, suse, "8.3").0.unwrap();
     assert_eq!(
         not_offered.commands()[0][3],
-        "maran-php-install@php8.3-fpm.service"
+        "maran-app-install@php8.3-fpm.service"
     );
 }
 
@@ -261,7 +261,7 @@ fn a_failed_install_unit_never_falls_back_to_the_package_manager() {
         "start",
         5,
         "",
-        "Unit maran-php-install@php8.3-fpm.service not found.",
+        "Unit maran-app-install@php8.3-fpm.service not found.",
     );
 
     let (result, _) = install_reporting(&host, distro(), "8.3");
@@ -286,13 +286,13 @@ fn a_failed_install_unit_is_a_package_manager_failure_carrying_its_report() {
         "start",
         1,
         "",
-        "Job for maran-php-install@php8.3-fpm.service failed because the control process exited with error code.",
+        "Job for maran-app-install@php8.3-fpm.service failed because the control process exited with error code.",
     );
 
     match install(&host, "8.3") {
         Err(PhpOpError::PackageManager { stderr }) => {
-            assert!(stderr.contains("Job for maran-php-install@php8.3-fpm.service failed"));
-            assert!(stderr.contains("journalctl -u maran-php-install@php8.3-fpm.service"));
+            assert!(stderr.contains("Job for maran-app-install@php8.3-fpm.service failed"));
+            assert!(stderr.contains("journalctl -u maran-app-install@php8.3-fpm.service"));
         }
         other => panic!("expected PackageManager, got {other:?}"),
     }
@@ -305,13 +305,13 @@ fn a_missing_install_unit_is_reported_as_needing_the_installer_rerun() {
         "start",
         5,
         "",
-        "Unit maran-php-install@php8.3-fpm.service not found.",
+        "Unit maran-app-install@php8.3-fpm.service not found.",
     );
 
     match install(&host, "8.3") {
         Err(PhpOpError::PackageManager { stderr }) => {
             assert!(stderr.contains("installer"));
-            assert!(stderr.contains("maran-php-install@php8.3-fpm.service"));
+            assert!(stderr.contains("maran-app-install@php8.3-fpm.service"));
         }
         other => panic!("expected PackageManager, got {other:?}"),
     }
@@ -325,7 +325,7 @@ fn a_start_that_cannot_be_spawned_is_reported_with_the_unit_and_the_reason() {
     match install(&host, "8.3") {
         Err(PhpOpError::PackageManager { stderr }) => {
             assert!(stderr.contains("no such file or directory"));
-            assert!(stderr.contains("maran-php-install@php8.3-fpm.service"));
+            assert!(stderr.contains("maran-app-install@php8.3-fpm.service"));
         }
         other => panic!("expected PackageManager, got {other:?}"),
     }
@@ -368,7 +368,7 @@ fn every_instance_the_agent_can_produce_is_a_plain_unit_name() {
 
             let unit = host.commands()[0][3].clone();
             let instance = unit
-                .strip_prefix("maran-php-install@")
+                .strip_prefix("maran-app-install@")
                 .and_then(|rest| rest.strip_suffix(".service"))
                 .unwrap();
 
@@ -544,7 +544,7 @@ fn an_install_unit_whose_mirror_refused_the_archives_is_a_refused_package_source
         "start",
         1,
         "",
-        "Job for maran-php-install@php8.3-fpm.service failed because the control process exited with error code.",
+        "Job for maran-app-install@php8.3-fpm.service failed because the control process exited with error code.",
     );
     host.answer(
         "show",
@@ -561,7 +561,7 @@ fn an_install_unit_whose_mirror_refused_the_archives_is_a_refused_package_source
 
     match install(&host, "8.3") {
         Err(PhpOpError::PackageSourceRefused { stderr }) => {
-            assert!(stderr.contains("journalctl -u maran-php-install@php8.3-fpm.service"));
+            assert!(stderr.contains("journalctl -u maran-app-install@php8.3-fpm.service"));
         }
         other => panic!("expected PackageSourceRefused, got {other:?}"),
     }
@@ -577,7 +577,7 @@ fn an_install_of_a_package_no_source_carries_is_not_available_and_names_the_pack
         "start",
         1,
         "",
-        "Job for maran-php-install@php8.2-fpm.service failed because the control process exited with error code.",
+        "Job for maran-app-install@php8.2-fpm.service failed because the control process exited with error code.",
     );
     host.answer(
         "show",
@@ -595,7 +595,7 @@ fn an_install_of_a_package_no_source_carries_is_not_available_and_names_the_pack
     match install(&host, "8.2") {
         Err(PhpOpError::PackageNotAvailable { package, stderr }) => {
             assert_eq!(package, "php8.2-fpm");
-            assert!(stderr.contains("journalctl -u maran-php-install@php8.2-fpm.service"));
+            assert!(stderr.contains("journalctl -u maran-app-install@php8.2-fpm.service"));
         }
         other => panic!("expected PackageNotAvailable, got {other:?}"),
     }

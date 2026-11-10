@@ -1,0 +1,1 @@
+    RedirectMatch 301 "^(.*)$" "{% if secure %}https{% else %}http{% endif %}://{{ canonical }}$1"

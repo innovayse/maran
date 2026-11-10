@@ -46,7 +46,9 @@
       "ModuleInstall": "Установка модуля",
       "ModuleUpdate": "Обновление модуля",
       "ModuleRemove": "Удаление модуля",
-      "ModuleRollback": "Откат модуля"
+      "ModuleRollback": "Откат модуля",
+      "AppInstall": "Установка приложения",
+      "AppUninstall": "Удаление приложения"
     },
     "pane": {
       "correlationId": "Идентификатор запроса",

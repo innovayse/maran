@@ -20,6 +20,8 @@ public sealed class SimulatedAgentSslClientTests
         SiteBackendKind.Static,
         string.Empty,
         string.Empty,
+        SiteNodeApp.None,
+        SiteWebServer.Nginx,
         true,
         SiteOptionsDescriptor.None);
 

@@ -2,7 +2,9 @@
 
 use std::path::PathBuf;
 
-use maran_agent_core::agent_paths::AgentPaths;
+use maran_distro::SiteWebServer;
+
+use crate::sites::model::site_paths::SitePaths;
 
 use crate::sites::{SiteHost, SitesOpError};
 
@@ -61,9 +63,19 @@ pub fn reconcile_orphan_auth_files(host: &dyn SiteHost) -> Result<usize, SitesOp
         };
         // Built by formatting and not by `with_extension`: a domain holds dots,
         // and replacing the extension of `example.com` would name `example.conf`.
-        let vhost = PathBuf::from(AgentPaths::NGINX_INCLUDE_DIRECTORY)
-            .join(format!("{}.conf", domain.to_string_lossy()));
-        if vhosts.contains(&vhost) {
+        // A site's vhost may sit in either web server's directory: the credential file is
+        // an orphan only when neither holds one.
+        let has_vhost = [
+            SitePaths::include_directory(SiteWebServer::Nginx),
+            SitePaths::include_directory(SiteWebServer::Apache),
+        ]
+        .iter()
+        .any(|directory| {
+            vhosts.contains(
+                &PathBuf::from(directory).join(format!("{}.conf", domain.to_string_lossy())),
+            )
+        });
+        if has_vhost {
             continue;
         }
 

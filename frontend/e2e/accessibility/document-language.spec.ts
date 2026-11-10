@@ -42,6 +42,9 @@ test('a panel booted in Armenian declares Armenian, and its skip link is Armenia
   await page.goto('/')
 
   await expect(page.locator('html')).toHaveAttribute('lang', 'hy')
+  // Tab only once the shell is drawn: the route guards read the host before the first screen, and a
+  // key pressed while they are still reading lands on a document that is then replaced.
+  await expect(page.getByRole('navigation').first()).toBeVisible()
   await page.keyboard.press('Tab')
   await expect(page.getByRole('link', { name: 'Անցնել բովանդակությանը' })).toBeFocused()
 })

@@ -152,8 +152,8 @@ distribution's job, configured by one file Maran wrote.
 ## 3. The hold list: a policy, not a mitigation
 
 `MARAN_OS_UPDATE_HOLD` is a single space-separated constant of distribution-native patterns per
-family: database engines (`mariadb*`, `mysql*`, `postgresql*`), the web server (`nginx*`), PHP
-runtimes (`php*`) and the FTP daemon (`vsftpd*`). It is written into `Unattended-Upgrade::Package-Blacklist`
+family: database engines (`mariadb*`, `mysql*`, `postgresql*`), the web servers (`nginx*`, `apache2*`, `httpd*`), the app
+store runtimes (`php*`, `nodejs*`; issue #517) and the FTP daemon (`vsftpd*`). It is written into `Unattended-Upgrade::Package-Blacklist`
 on the Debian family and `exclude=` under `[base]` on the RHEL family.
 
 - **What it is for.** An unattended restart of these drops every customer's connections or can

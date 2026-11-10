@@ -1,0 +1,18 @@
+<VirtualHost *:80>
+{% for name in names %}{% if loop.first %}    ServerName{% else %}    ServerAlias{% endif %} {{ name }}
+{% endfor %}
+    # The ACME challenge of a redirected name is answered here, not redirected.
+    Alias /.well-known/acme-challenge/ {{ document_root }}/.well-known/acme-challenge/
+    <Directory {{ document_root }}/.well-known/acme-challenge/>
+        # A link is followed only when it and its target share an owner
+        # (see SiteBody).
+        Options -Indexes -FollowSymLinks +SymLinksIfOwnerMatch
+        AllowOverride None
+        ForceType text/plain
+        Require all granted
+    </Directory>
+
+{{ body }}
+</VirtualHost>
+{% if ssl.is_some() %}{{ ssl.as_ref().unwrap().render_into_server()? }}
+{% endif %}

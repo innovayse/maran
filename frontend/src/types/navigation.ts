@@ -99,7 +99,17 @@ export interface NavigationGate {
    * left unflagged costs a refused request, never a leak.
    */
   viewAsRefused: boolean
+  /**
+   * The site runtime the page is about, or null when it is about none. A page about PHP is offered
+   * only while the host has a PHP version installed (issue #517). Advice: the endpoints answer
+   * `apps.notInstalled` regardless, and while the panel has not reported its runtimes the page is
+   * offered, since hiding is advice and errs permissive.
+   */
+  runtime: NavigationRuntime | null
 }
+
+/** The runtimes a menu item can depend on; the apps the stack status reports versions of. */
+export type NavigationRuntime = 'php'
 
 /** One page in the navigation tree. */
 export interface NavigationPageSpec extends NavigationGate {
@@ -220,6 +230,22 @@ export interface NavigationGrants {
   accountAccess: NavigationAccountAccess
 }
 
+/**
+ * Which runtimes the host has, as the stack status reports them: unreported until the panel has
+ * answered, which offers every runtime page rather than hiding them.
+ */
+export type NavigationRuntimes =
+  | {
+      /** The panel has not said (not asked yet, or the read failed). */
+      state: 'unreported'
+    }
+  | {
+      /** The panel answered. */
+      state: 'reported'
+      /** The runtimes with at least one installed version. */
+      installed: ReadonlySet<NavigationRuntime>
+    }
+
 /** What the shell knows about the caller and the panel when it builds the navigation. */
 export interface NavigationContext {
   /** The signed-in caller's role. */
@@ -240,6 +266,8 @@ export interface NavigationContext {
    * since hiding is advice and errs permissive.
    */
   accountAccess: NavigationAccountAccess
+  /** Which runtimes the host has; see {@link NavigationRuntimes}. */
+  runtimes: NavigationRuntimes
   /**
    * The live counts the shell holds, per badge kind. A partial map and not a total one: a kind is
    * present exactly when the panel answered with a real count, and absent when it was not asked,

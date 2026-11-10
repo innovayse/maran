@@ -42,6 +42,13 @@
 // workspace-wide bans on unwrap/expect/panic are lifted here only.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+// This suite uses only the installer of the shared PHP fixture; the other suites use the rest of
+// it. The allow is on the module rather than on the fixture, so a fixture item no suite uses is
+// still reported where it is declared.
+#[allow(dead_code)]
+#[path = "fixtures/polygon_php.rs"]
+mod polygon_php;
+
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
@@ -51,6 +58,7 @@ use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::utils::spawn_argv::spawn_argv;
 use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_distro::{AdapterBinary, DistroAdapter, DistroFamily, adapter_for, detect};
+use polygon_php::PolygonPhp;
 
 /// The PHP version the Debian and RHEL polygon images ship.
 ///
@@ -228,14 +236,17 @@ fn unusable_reason(path: &str) -> Option<String> {
 fn every_declared_binary_path_names_an_executable_file() {
     require_polygon();
     let distro = polygon_distro();
+    // The images preinstall no PHP (issue #517): php-fpm arrives the way it does in production,
+    // through the app install unit, so the path it is declared at can be stat'ed.
+    PolygonPhp::ensure_installed(distro);
 
     for (accessor, path) in declared_binaries(distro) {
         if let Some(reason) = unusable_reason(&path) {
             panic!(
                 "DistroAdapter::{accessor}() declares {path}, and {reason}. The agent \
                  execs that exact path: either the declaration is wrong for this \
-                 family ({:?}), or the polygon image is missing the package that \
-                 installs it. On the SUSE family every path is UNVERIFIED until the \
+                 family ({:?}), or the package that installs it is missing (PHP is installed by the app unit, \
+                 everything else by the polygon image). On the SUSE family every path is UNVERIFIED until the \
                  first run in the pinned Leap image: confirm with `rpm -qf {path}`.",
                 distro.family()
             );

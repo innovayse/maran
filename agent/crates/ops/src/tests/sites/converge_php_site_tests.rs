@@ -6,6 +6,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_distro::SiteWebServer;
 use std::path::PathBuf;
 
 use maran_agent_core::agent_paths::AgentPaths;
@@ -61,7 +62,8 @@ impl Fixture {
             },
         )
         .unwrap();
-        let vhost_path = SitePaths::for_site(&site.account, &site.domain).config_path;
+        let vhost_path =
+            SitePaths::for_site(&site.account, &site.domain, SiteWebServer::Nginx).config_path;
         let pool_path = PathBuf::from(format!(
             "/etc/php/8.3/fpm/pool.d/{}.conf",
             site.account.as_str()

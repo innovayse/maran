@@ -3,6 +3,7 @@
 use maran_distro::DistroAdapter;
 
 use crate::sites::model::create_site_input::CreateSiteInput;
+use crate::sites::remove_node_unit::remove_node_unit;
 use crate::sites::render_suspended_vhost::render_suspended_vhost;
 use crate::sites::resolved_site_paths::resolved_site_paths;
 use crate::sites::write_vhost::write_vhost;
@@ -38,7 +39,7 @@ pub fn disable_site(
     // Resolved, not merely named: `create_site` rendered the canonical
     // document root, so anything less here renders different text for the same
     // site and the comparison below never matches.
-    let paths = resolved_site_paths(host, &input.account, &input.domain)?;
+    let paths = resolved_site_paths(host, &input.account, &input.domain, input.web_server)?;
 
     let current = host
         .read_config(&paths.config_path)?
@@ -51,13 +52,21 @@ pub fn disable_site(
         .iter()
         .map(|alias| alias.as_str().to_owned())
         .collect();
-    let contents = render_suspended_vhost(input.domain.as_str(), &aliases, &paths)?;
+    let contents =
+        render_suspended_vhost(input.domain.as_str(), &aliases, &paths, input.web_server)?;
 
-    if current == contents {
-        return Ok(());
+    // The application stops with the site, and AFTER the stub is on the air: the other order
+    // answers every request in the window with a 502 from a vhost that still proxies to it.
+    if current != contents {
+        write_vhost(
+            host,
+            distro,
+            input.web_server,
+            &paths.config_path,
+            &contents,
+        )?;
     }
-
-    write_vhost(host, distro, &paths.config_path, &contents)
+    remove_node_unit(host, distro, &input.domain)
 }
 
 #[cfg(test)]

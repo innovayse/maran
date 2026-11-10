@@ -17,6 +17,7 @@ fn a_static_spec(aliases: &[&str]) -> SiteSpec {
         proxy_upstream: String::new(),
         has_certificate: false,
         options: None,
+        ..Default::default()
     }
 }
 
@@ -191,4 +192,87 @@ fn an_unrelated_domain_and_alias_are_accepted_beside_the_panel_names() {
         .expect("accepted");
 
     assert_eq!(input.aliases.len(), 1);
+}
+
+#[test]
+fn a_node_site_carries_its_major_port_and_start_command() {
+    let spec = SiteSpec {
+        backend_type: SiteBackendType::Node as i32,
+        node_version: "20".to_owned(),
+        app_port: 3000,
+        start_command: "node server.js".to_owned(),
+        ..a_static_spec(&[])
+    };
+
+    let input =
+        validated_site("acme", "example.com", Some(&spec), &PanelHostNames::none()).unwrap();
+
+    assert!(matches!(
+        input.kind,
+        maran_ops::sites::SiteKind::Node { .. }
+    ));
+}
+
+#[test]
+fn a_node_site_with_a_major_outside_the_catalogue_or_a_shell_command_is_refused() {
+    let valid = SiteSpec {
+        backend_type: SiteBackendType::Node as i32,
+        node_version: "20".to_owned(),
+        app_port: 3000,
+        start_command: "node server.js".to_owned(),
+        ..a_static_spec(&[])
+    };
+    // Positive control: the base spec is accepted, so each refusal below is its one change.
+    validated_site("acme", "example.com", Some(&valid), &PanelHostNames::none()).unwrap();
+
+    for broken in [
+        SiteSpec {
+            node_version: "19".to_owned(),
+            ..valid.clone()
+        },
+        SiteSpec {
+            start_command: "node server.js; rm -rf /".to_owned(),
+            ..valid.clone()
+        },
+        SiteSpec {
+            app_port: 0,
+            ..valid.clone()
+        },
+    ] {
+        assert!(
+            validated_site(
+                "acme",
+                "example.com",
+                Some(&broken),
+                &PanelHostNames::none()
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
+fn the_web_server_is_apache_only_when_the_spec_says_so() {
+    let apache = SiteSpec {
+        web_server: crate::proto::SiteWebServer::Apache as i32,
+        ..a_static_spec(&[])
+    };
+
+    let chosen = validated_site(
+        "acme",
+        "example.com",
+        Some(&apache),
+        &PanelHostNames::none(),
+    )
+    .unwrap();
+    let default = validated_site(
+        "acme",
+        "example.com",
+        Some(&a_static_spec(&[])),
+        &PanelHostNames::none(),
+    )
+    .unwrap();
+
+    assert_eq!(chosen.web_server, maran_distro::SiteWebServer::Apache);
+    assert_eq!(default.web_server, maran_distro::SiteWebServer::Nginx);
 }

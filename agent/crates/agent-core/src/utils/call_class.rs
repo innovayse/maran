@@ -42,7 +42,7 @@ pub enum CallClass {
     Mutation,
     /// One database-client statement.
     Database,
-    /// The blocking `systemctl start maran-php-install@<package>.service`.
+    /// The blocking `systemctl start maran-app-install@<package>.service`.
     /// That unit is `Type=oneshot` with `TimeoutStartSec=1800`, so `systemctl`
     /// returns only when the unit leaves "activating", which can be 1800 s plus
     /// the unit's stop timeout (90 s by default) later. This deadline is above

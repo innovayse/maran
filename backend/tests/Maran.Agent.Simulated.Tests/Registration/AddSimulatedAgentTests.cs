@@ -12,11 +12,11 @@ namespace Maran.Agent.Simulated.Tests.Registration;
 public sealed class AddSimulatedAgentTests
 {
     /// <summary>The panel talks to the agent through sixteen contracts; the census must find all of them.</summary>
-    private const int AgentContractCount = 16;
+    private const int AgentContractCount = 17;
 
     /// <summary>
     /// Every <c>IAgent*Client</c> contract the agent client declares resolves to an implementation that
-    /// lives in the simulated agent's assembly. The sixteen is the positive control: a census that
+    /// lives in the simulated agent's assembly. The seventeen is the positive control: a census that
     /// found none, or a different number, would be reading the wrong assembly or a changed contract set.
     /// </summary>
     [Fact]

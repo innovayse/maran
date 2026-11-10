@@ -103,11 +103,13 @@ const UNIT_STATE_DIRECTORY: &str = "/run/polygon-units";
 /// Panics when the host is outside the support matrix, which a polygon image
 /// never is.
 fn polygon_distro() -> &'static dyn DistroAdapter {
-    adapter_for(
+    let distro = adapter_for(
         detect()
             .expect("a polygon image is a supported host")
             .family,
-    )
+    );
+    PolygonPhp::ensure_installed(distro);
+    distro
 }
 
 /// The pool input every write in this suite uses for `account`.
@@ -210,7 +212,8 @@ impl ServedSite {
     /// Panics when the creation or the page write fails.
     fn create(account: &PolygonAccount, domain: &str) -> Self {
         let domain = Domain::parse(domain).expect("a valid domain");
-        let paths = SitePaths::for_site(account.name(), &domain);
+        let paths =
+            SitePaths::for_site(account.name(), &domain, maran_distro::SiteWebServer::Nginx);
         let pool_path =
             PoolPaths::for_pool(polygon_distro(), account.name(), &PolygonPhp::version())
                 .config_path;
@@ -230,6 +233,7 @@ impl ServedSite {
                 kind: SiteKind::Php {
                     version: PolygonPhp::version(),
                 },
+                web_server: maran_distro::SiteWebServer::Nginx,
                 certificate: None,
                 options: Default::default(),
             },

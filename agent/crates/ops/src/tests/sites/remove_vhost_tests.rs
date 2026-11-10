@@ -7,6 +7,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_distro::SiteWebServer;
 use std::path::Path;
 
 use maran_agent_core::utils::call_class::CallClass;
@@ -40,7 +41,7 @@ fn a_vhost_removal_hands_the_protocol_a_short_class_validator_and_a_reload_ended
  {
     let host = FakeSiteHost::passing();
 
-    remove_vhost(&host, distro(), Path::new(TARGET)).unwrap();
+    remove_vhost(&host, distro(), SiteWebServer::Nginx, Path::new(TARGET)).unwrap();
 
     assert_eq!(host.protocol(), vec![expected_call()]);
 }
@@ -52,7 +53,7 @@ fn a_vhost_removal_whose_validator_times_out_reports_the_bound_and_never_a_refus
     let host = FakeSiteHost::passing();
     host.time_out_validation();
 
-    let refusal = remove_vhost(&host, distro(), Path::new(TARGET));
+    let refusal = remove_vhost(&host, distro(), SiteWebServer::Nginx, Path::new(TARGET));
 
     assert!(
         matches!(refusal, Err(SitesOpError::Bound(_))),
@@ -67,7 +68,7 @@ fn a_vhost_removal_with_a_validator_that_answers_removes_the_file() {
     let host = FakeSiteHost::passing();
     host.place_config(Path::new(TARGET), "server {}\n");
 
-    remove_vhost(&host, distro(), Path::new(TARGET)).unwrap();
+    remove_vhost(&host, distro(), SiteWebServer::Nginx, Path::new(TARGET)).unwrap();
 
     assert_eq!(host.config(Path::new(TARGET)), None);
 }

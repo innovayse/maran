@@ -18,6 +18,10 @@ namespace Maran.Sdk.Contracts;
 /// <param name="Backend">Which backend serves the site's content.</param>
 /// <param name="PhpVersion">The bound PHP version, or the empty string when the backend is not PHP.</param>
 /// <param name="ProxyUpstream">The upstream forwarded to, or the empty string when the backend is not a proxy.</param>
+/// <param name="Node">
+/// What a Node backend runs; <see cref="SiteNodeSnapshot.None"/> for any other backend. Carried for the
+/// reason <paramref name="HasCertificate"/> is: a vhost re-rendered without it loses the site's unit.
+/// </param>
 /// <param name="HasCertificate">
 /// Whether a TLS certificate is currently installed. Carried so a re-render keeps the site's TLS
 /// block; a renderer that guesses drops a live site back to plain HTTP on the next unrelated edit.
@@ -35,5 +39,6 @@ public sealed record SiteSnapshot(
     SiteBackend Backend,
     string PhpVersion,
     string ProxyUpstream,
+    SiteNodeSnapshot Node,
     bool HasCertificate,
     SiteOptionsSnapshot Options);

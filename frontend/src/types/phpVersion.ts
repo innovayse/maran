@@ -6,21 +6,6 @@
 export type PhpDefaultStatus = 'default' | 'notDefault' | 'unknown'
 
 /**
- * One PHP version this server can install, mirroring the backend's `InstallablePhpVersionDto`
- * field-for-field.
- *
- * The set is whatever the agent reports the host's package repository can install; the SPA never
- * carries a list of versions of its own. The install picker offers the versions where `installed`
- * is `false`, and the backend validates the chosen one against the same set again.
- */
-export interface InstallablePhpVersion {
-  /** Two-component version as the packages name it, e.g. `8.3`. */
-  version: string
-  /** Whether the server already has this version installed. */
-  installed: boolean
-}
-
-/**
  * One PHP runtime installed on this server, mirroring the backend's `PhpVersionDto`
  * field-for-field.
  *

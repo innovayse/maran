@@ -1,3 +1,4 @@
+using Maran.Agent.Client.Services.SitesService;
 using Maran.Modules.Ssl.Domain.Enums;
 using Maran.Modules.Ssl.Interfaces;
 using Maran.Modules.Ssl.Jobs;
@@ -5,6 +6,7 @@ using Maran.Modules.Ssl.Models;
 using Maran.Modules.Ssl.Services;
 using Maran.Modules.Ssl.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Apps;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -30,7 +32,8 @@ public sealed class CertificateRenewalHandlerTests
             fixture.Alerts,
             fixture.Clock,
             NullLogger<CertificateRenewalHandler>.Instance,
-            fixture.Tasks);
+            fixture.Tasks,
+            fixture.Stack);
     }
 
     /// <summary>Seeds one certificate for a fixture's site.</summary>
@@ -109,6 +112,23 @@ public sealed class CertificateRenewalHandlerTests
 
         Assert.Equal(3, renewed);
         Assert.Equal(1, fixture.AgentSites.ReloadCallCount);
+    }
+
+    /// <summary>The reload and the rewritten vhosts address the installed web server.</summary>
+    [Theory]
+    [InlineData(StackWebServer.Nginx, SiteWebServer.Nginx)]
+    [InlineData(StackWebServer.Apache, SiteWebServer.Apache)]
+    public async Task The_reload_and_the_rewritten_vhosts_address_the_installed_web_server(StackWebServer installed, SiteWebServer expected)
+    {
+        // The wire reads an unset web server as nginx, so an Apache host's renewals would be written for and
+        // reloaded into a server that does not serve them, and the old certificates would keep being served.
+        using var fixture = new SslHandlerFixture(["a.example.com"], webServer: installed);
+        await SeedAsync(fixture, "a.example.com", 1);
+
+        await HandlerFor(fixture).HandleAsync(new CertificateRenewalRequested(), CancellationToken.None);
+
+        Assert.Equal(expected, Assert.Single(fixture.AgentSites.ReloadWebServers));
+        Assert.Equal(expected, Assert.Single(fixture.Agent.Installs).Site.WebServer);
     }
 
     /// <summary>A pass that renewed nothing does not reload the web server.</summary>
@@ -361,6 +381,7 @@ public sealed class CertificateRenewalHandlerTests
             fixture.Alerts,
             fixture.Clock,
             NullLogger<CertificateRenewalHandler>.Instance,
-            fixture.Tasks);
+            fixture.Tasks,
+            fixture.Stack);
     }
 }

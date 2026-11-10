@@ -51,6 +51,8 @@ public sealed class ResilientAgentSitesClient : IAgentSitesClient
         SiteBackendKind kind,
         string phpVersion,
         string proxyUpstream,
+        SiteWebServer webServer,
+        SiteNodeApp node,
         uint maxChildren,
         IReadOnlyList<PhpSettingDto> settingOverrides,
         CancellationToken cancellationToken)
@@ -64,6 +66,8 @@ public sealed class ResilientAgentSitesClient : IAgentSitesClient
                 kind,
                 phpVersion,
                 proxyUpstream,
+                webServer,
+                node,
                 maxChildren,
                 settingOverrides,
                 token);
@@ -126,11 +130,12 @@ public sealed class ResilientAgentSitesClient : IAgentSitesClient
         string accountUsername,
         string domain,
         string retiredPhpVersion,
+        SiteWebServer webServer,
         CancellationToken cancellationToken)
     {
         return ExecuteAsync(token =>
         {
-            return _inner.DeleteAsync(accountUsername, domain, retiredPhpVersion, token);
+            return _inner.DeleteAsync(accountUsername, domain, retiredPhpVersion, webServer, token);
         }, cancellationToken);
     }
 
@@ -165,11 +170,11 @@ public sealed class ResilientAgentSitesClient : IAgentSitesClient
     }
 
     /// <inheritdoc/>
-    public Task<Result> ReloadWebServerAsync(CancellationToken cancellationToken)
+    public Task<Result> ReloadWebServerAsync(SiteWebServer webServer, CancellationToken cancellationToken)
     {
         return ExecuteAsync(token =>
         {
-            return _inner.ReloadWebServerAsync(token);
+            return _inner.ReloadWebServerAsync(webServer, token);
         }, cancellationToken);
     }
 

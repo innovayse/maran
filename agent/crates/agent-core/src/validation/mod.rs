@@ -12,7 +12,8 @@
 //! [`crate::secret_string`].
 //!
 //! Grouped by the domain the value ends up in, so a reader finds a validator by
-//! asking "where is this written?": `system/` becomes OS objects, `db/` reaches
+//! asking "where is this written?": `apps/` names an app of the closed app catalogue
+//! (it becomes a package name and a unit instance), `system/` becomes OS objects, `db/` reaches
 //! MySQL/MariaDB, `web/` is written into web-server configuration or matched on
 //! by the firewall, `fleet/` is what fleet mode carries between machines (a listen address, a
 //! node address, a certificate fingerprint), `fs/` names and modes filesystem entries, `secrets/` holds
@@ -26,6 +27,7 @@
 //! three account-prefixed names — a database, a database user and an SFTP login
 //! — are built from, so they sit at this level and stay crate-internal.
 
+pub mod apps;
 pub mod db;
 pub mod dns;
 pub mod fleet;

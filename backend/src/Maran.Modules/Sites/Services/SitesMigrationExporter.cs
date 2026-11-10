@@ -58,7 +58,10 @@ public sealed class SitesMigrationExporter : IAccountMigrationExporter
                     site.BackendType,
                     site.PhpVersion,
                     site.ProxyUpstream,
-                    site.Status == SiteStatus.Enabled);
+                    site.Status == SiteStatus.Enabled,
+                    site.NodeVersion,
+                    site.AppPort,
+                    site.StartCommand);
             }).ToList()).ToSection(ModuleId, SectionVersion, sites.Count);
     }
 }
