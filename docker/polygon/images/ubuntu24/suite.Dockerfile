@@ -210,6 +210,7 @@ COPY installer/lib/00-common.sh /tmp/maran-installer/lib/00-common.sh
 COPY installer/lib/10-preflight.sh /tmp/maran-installer/lib/10-preflight.sh
 # Read, so the documented keys can be checked against what the installer writes.
 COPY installer/panel.env.example /tmp/maran-installer/panel.env.example
+COPY installer/agent.env.example /tmp/maran-installer/agent.env.example
 # The api's unit, the tmpfiles snippet that builds the directory holding its listening socket,
 # the agent unit step 70 installs beside it, and step 70 itself. The step is SOURCED and RUN:
 # assert_the_panel_socket_directory_is_built_and_then_looked_at calls its own install_units,
