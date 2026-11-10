@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="ServerMigrationModuleDisplayName">
+    <value>Migration</value>
+  </data>
+  <data name="ServerMigrationMenuRemoteServers">
+    <value>Remote servers</value>
+  </data>
+  <data name="ServerMigrationRouteRemoteServers">
+    <value>Remote servers</value>
+  </data>
+  <data name="DiscoveryWarningNameRefused">
+    <value>A name on the source is not one this panel accepts, so it was left out.</value>
+  </data>
+  <data name="DiscoveryWarningSiteUnreadable">
+    <value>A site's web server configuration could not be read.</value>
+  </data>
+  <data name="DiscoveryWarningCronUnreadable">
+    <value>Scheduled jobs could not be read.</value>
+  </data>
+  <data name="DiscoveryWarningDatabasesUnreadable">
+    <value>The list of databases could not be read.</value>
+  </data>
+  <data name="DiscoveryWarningDiskUnreadable">
+    <value>Disk use could not be measured.</value>
+  </data>
+  <data name="DiscoveryWarningTruncated">
+    <value>The inventory reached a limit and stops here. Some items are not listed.</value>
+  </data>
+  <data name="DiscoveryWarningMailNotMigrated">
+    <value>Mail is counted but never migrated. Mailboxes on the source stay where they are.</value>
+  </data>
+  <data name="RemoteServerStateHostKeyUnconfirmed">
+    <value>Host key not confirmed</value>
+  </data>
+  <data name="RemoteServerStatePinned">
+    <value>Host key confirmed</value>
+  </data>
+  <data name="RemoteServerStateReady">
+    <value>Ready</value>
+  </data>
+  <data name="RemoteServerStateHostKeyChanged">
+    <value>Host key changed</value>
+  </data>
+  <data name="RemoteServerStateAuthRefused">
+    <value>Key refused</value>
+  </data>
+  <data name="RemoteServerStateUnreachable">
+    <value>Unreachable</value>
+  </data>
+  <data name="RemoteSourceKindGenericLinux">
+    <value>Linux server</value>
+  </data>
+  <data name="RemoteSourceKindMaran">
+    <value>Server running Maran</value>
+  </data>
+  <data name="RemoteFailureKindHostKeyChanged">
+    <value>The server's host key changed</value>
+  </data>
+  <data name="RemoteFailureKindAuthRefused">
+    <value>The server refused the key</value>
+  </data>
+  <data name="RemoteFailureKindUnreachable">
+    <value>The server could not be reached</value>
+  </data>
+  <data name="RemoteFailureKindAddressRefused">
+    <value>The address is not allowed</value>
+  </data>
+  <data name="DiscoveredSiteBackendUnknown">
+    <value>Unknown</value>
+  </data>
+  <data name="DiscoveredSiteBackendStatic">
+    <value>Static files</value>
+  </data>
+  <data name="DiscoveredSiteBackendPhp">
+    <value>PHP</value>
+  </data>
+  <data name="DiscoveredSiteBackendProxy">
+    <value>Proxied to another process</value>
+  </data>
+  <data name="ServerMigrationMenuJobs">
+    <value>Migration jobs</value>
+  </data>
+  <data name="ServerMigrationRouteJobs">
+    <value>Migration jobs</value>
+  </data>
+  <data name="MigrationJobStateDraft">
+    <value>Draft</value>
+  </data>
+  <data name="MigrationJobStateRunning">
+    <value>Running</value>
+  </data>
+  <data name="MigrationJobStatePaused">
+    <value>Paused</value>
+  </data>
+  <data name="MigrationJobStateCompleted">
+    <value>Completed</value>
+  </data>
+  <data name="MigrationJobStateCancelled">
+    <value>Cancelled</value>
+  </data>
+  <data name="MigrationAccountStatePending">
+    <value>Waiting</value>
+  </data>
+  <data name="MigrationAccountStateRunning">
+    <value>Running</value>
+  </data>
+  <data name="MigrationAccountStateSynced">
+    <value>Synced, awaiting cut-over</value>
+  </data>
+  <data name="MigrationAccountStateCuttingOver">
+    <value>Cutting over</value>
+  </data>
+  <data name="MigrationAccountStateCompleted">
+    <value>Completed</value>
+  </data>
+  <data name="MigrationAccountStatePaused">
+    <value>Paused</value>
+  </data>
+  <data name="MigrationAccountStateFailed">
+    <value>Failed</value>
+  </data>
+  <data name="MigrationAccountStateCancelled">
+    <value>Cancelled</value>
+  </data>
+  <data name="MigrationAccountStateRolledBack">
+    <value>Rolled back</value>
+  </data>
+  <data name="MigrationAccountStateRolledBackIncomplete">
+    <value>Rollback incomplete</value>
+  </data>
+  <data name="AccountImportStateStaged">
+    <value>Waiting to start</value>
+  </data>
+  <data name="AccountImportStateRunning">
+    <value>Running</value>
+  </data>
+  <data name="AccountImportStateCompleted">
+    <value>Completed</value>
+  </data>
+  <data name="AccountImportStateRolledBack">
+    <value>Rolled back</value>
+  </data>
+  <data name="AccountImportStateRolledBackIncomplete">
+    <value>Rolled back incompletely</value>
+  </data>
+  <data name="AccountImportStateDiscarded">
+    <value>Discarded</value>
+  </data>
+  <data name="ExportGrantStateLive">
+    <value>Live</value>
+  </data>
+  <data name="ExportGrantStateUsed">
+    <value>Used</value>
+  </data>
+  <data name="ExportGrantStateRevoked">
+    <value>Revoked</value>
+  </data>
+  <data name="ExportGrantStateExpired">
+    <value>Expired</value>
+  </data>
+</root>

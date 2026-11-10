@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { expect, test } from '@playwright/test'
 import {
   WHITE,
   compositeOver,
@@ -12,6 +11,7 @@ import {
   type ThemeTokens,
   type TokenMap,
 } from '../fixtures/contrast-ratio'
+import { expect, test } from '../fixtures/guarded-test'
 
 // Issue #82: the contrast table in docs/design/redesign-2026-10/README.md section 3 was typed in
 // by hand, so a token edit could invalidate every number in it without a single gate noticing. This

@@ -1,6 +1,9 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Host.Configuration;
 using Maran.Host.Resilience;
+using Maran.Modules.Licensing.Options;
+using Maran.Modules.Marketplace.Options;
+using Maran.Modules.ServerMigration.Services;
 using Maran.Modules.Ssl.Options;
 using Microsoft.Extensions.Options;
 using Polly;
@@ -16,9 +19,10 @@ public static class ResilienceExtensions
 {
     /// <summary>
     /// Adds the named pipelines: the agent-call and agent-operation pipelines (timeout plus bounded retry
-    /// on transient failures), the cron-run pipeline, and the ACME client's. It decorates no client; that
-    /// is <see cref="AddResilientAgentClients"/>, kept apart so a host that composes a different agent
-    /// registers the pipelines without there being a client of the real agent to wrap.
+    /// on transient failures), the cron-run pipeline, and the timeouts of the ACME, marketplace and licence lease clients.
+    /// It decorates no client; that is <see cref="AddResilientAgentClients"/>, kept apart so a host that
+    /// composes a different agent registers the pipelines without there being a client of the real agent
+    /// to wrap.
     /// </summary>
     /// <param name="services">The application service collection.</param>
     /// <returns>The same collection, for chaining.</returns>
@@ -49,6 +53,53 @@ public static class ResilienceExtensions
             {
                 var acmeOptions = context.ServiceProvider.GetRequiredService<IOptions<AcmeOptions>>().Value;
                 AcmePipeline.Configure(builder, acmeOptions.RequestTimeout);
+            });
+
+        // The same for the marketplace host: the timeout is attached to the module's named client, so a
+        // call through it is governed whether or not the module remembers anything about deadlines.
+        // The options are read when the client's handler chain is first built, which the transport
+        // reaches only after it has validated them and the administrator has switched the marketplace on.
+        services.AddHttpClient(MarketplaceOptions.HttpClientName)
+            .AddResilienceHandler(MarketplacePipeline.Name, (builder, context) =>
+            {
+                var marketplaceOptions =
+                    context.ServiceProvider.GetRequiredService<IOptions<MarketplaceOptions>>().Value;
+                MarketplacePipeline.Configure(
+                    builder, TimeSpan.FromSeconds(marketplaceOptions.RequestTimeoutSeconds));
+            });
+
+        // The licence lease renewal: the deadline is attached to the module's named client for the same reason.
+        // The options are read when the client's handler chain is first built, which the licence service client
+        // reaches only after the address passed its check.
+        services.AddHttpClient(LeaseServiceOptions.HttpClientName)
+            .AddResilienceHandler(OutboundHttpPipeline.Name, (builder, context) =>
+            {
+                var leaseOptions = context.ServiceProvider.GetRequiredService<IOptions<LeaseServiceOptions>>().Value;
+                OutboundHttpPipeline.Configure(builder, TimeSpan.FromSeconds(leaseOptions.LeaseRequestTimeoutSeconds));
+            });
+
+        // And the pull of an account package from another panel (issue #127): a timeout, never a retry, because
+        // the request spends a single-use grant.
+        services.AddHttpClient(MigrationPullClient.HttpClientName)
+            .AddResilienceHandler(MigrationPullPipeline.Name, (builder, _) =>
+            {
+                MigrationPullPipeline.Configure(builder);
+            });
+
+        // The verification of a migrated site (issue #197): the panel's own web server on the loopback address, with the
+        // migrated domain in the Host header. The address is the module's constant, a redirect is an answer and is not
+        // followed, and the timeout is the pipeline's.
+        services.AddHttpClient(LoopbackSiteProbe.HttpClientName, client =>
+            {
+                client.BaseAddress = new Uri(LoopbackSiteProbe.Origin);
+            })
+            .ConfigurePrimaryHttpMessageHandler(() =>
+            {
+                return new SocketsHttpHandler { AllowAutoRedirect = false };
+            })
+            .AddResilienceHandler(OutboundHttpPipeline.Name, (builder, _) =>
+            {
+                OutboundHttpPipeline.Configure(builder, TimeSpan.FromSeconds(15));
             });
 
         return services;
@@ -121,6 +172,10 @@ public static class ResilienceExtensions
         Decorate<IAgentBackupClient>(services, (inner, pipelines) =>
         {
             return new ResilientAgentBackupClient(inner, pipelines);
+        });
+        Decorate<IAgentTransferClient>(services, (inner, pipelines) =>
+        {
+            return new ResilientAgentTransferClient(inner, pipelines);
         });
 
         return services;

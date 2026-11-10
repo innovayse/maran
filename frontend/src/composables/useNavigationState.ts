@@ -8,6 +8,7 @@ import { useNavigationBadgesStore } from '../stores/navigationBadges'
 import { useTasksStore } from '../stores/tasks'
 import { buildNavigation } from '../utils/buildNavigation'
 import { useNavigationRole } from './useNavigationRole'
+import { useViewingAs } from './useViewingAs'
 import type { ModuleState } from '../types/module'
 import type { MyAccount } from '../types/account'
 import type { HeldAccountAccess } from '../types/profile'
@@ -36,6 +37,7 @@ export const useNavigationState = (): ComputedRef<NavigationState> => {
   const tasksStore = useTasksStore()
   const badgesStore = useNavigationBadgesStore()
   const router = useRouter()
+  const viewingAs = useViewingAs()
 
   /**
    * What the plan read says about features, for the account the caller acts for.
@@ -141,6 +143,7 @@ export const useNavigationState = (): ComputedRef<NavigationState> => {
     }
     const entries = buildNavigation({
       role: role.value,
+      viewingAs: viewingAs.value,
       catalogue: modulesStore.modules,
       modules: new Map(
         modulesStore.modules.map((module): [string, ModuleState] => {

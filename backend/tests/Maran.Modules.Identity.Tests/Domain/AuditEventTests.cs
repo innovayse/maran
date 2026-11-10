@@ -6,6 +6,9 @@ namespace Maran.Modules.Identity.Tests.Domain;
 /// <summary>Behavioural contract of the audit row: sealing once, and the two kinds of erasure.</summary>
 public sealed class AuditEventTests
 {
+    /// <summary>No names: the person's own subjects are not offered for replacement.</summary>
+    private static readonly IReadOnlySet<string> NoNames = new HashSet<string>();
+
     /// <summary>The time the row was written.</summary>
     private static readonly DateTimeOffset Written = new(2026, 11, 7, 10, 0, 0, TimeSpan.Zero);
 
@@ -30,8 +33,9 @@ public sealed class AuditEventTests
     /// <summary>Builds an unsealed row for an actor, optionally viewed-as by an operator.</summary>
     /// <param name="actor">The actor's login id.</param>
     /// <param name="impersonator">The operator viewing as the actor, or null.</param>
+    /// <param name="subjectUserId">The login the row is about, or null.</param>
     /// <returns>A fresh row carrying an address, a user agent, a subject and an account.</returns>
-    private static AuditEvent NewRow(Guid actor, AuditImpersonator? impersonator = null)
+    private static AuditEvent NewRow(Guid actor, AuditImpersonator? impersonator = null, Guid? subjectUserId = null)
     {
         return new AuditEvent(
             Guid.NewGuid(),
@@ -45,7 +49,8 @@ public sealed class AuditEventTests
             true,
             "corr-1",
             impersonator,
-            Account);
+            Account,
+            subjectUserId);
     }
 
     /// <summary>Builds a byte array of one repeated value.</summary>
@@ -168,7 +173,7 @@ public sealed class AuditEventTests
         var row = NewRow(ErasedUser);
         var id = row.Id;
 
-        row.ErasePerson(ErasedUser, FirstErasure, Pseudonym, "erased-user-1", false);
+        row.ErasePerson(ErasedUser, FirstErasure, Pseudonym, "erased-user-1", NoNames);
 
         Assert.Equal(Pseudonym, row.ActorUserId);
         Assert.Equal("erased-user-1", row.ActorUsername);
@@ -185,18 +190,40 @@ public sealed class AuditEventTests
         Assert.True(row.IsErased);
     }
 
-    /// <summary>The subject is replaced only when the caller says it names the person.</summary>
+    /// <summary>The subject text is replaced on a row the person acted in only when it is one of their own names.</summary>
     [Fact]
-    public void The_subject_is_replaced_only_when_asked()
+    public void The_subject_of_the_persons_own_row_is_replaced_only_when_it_is_their_name()
     {
         var kept = NewRow(ErasedUser);
         var replaced = NewRow(ErasedUser);
 
-        kept.ErasePerson(ErasedUser, FirstErasure, Pseudonym, "erased-user-1", false);
-        replaced.ErasePerson(ErasedUser, FirstErasure, Pseudonym, "erased-user-1", true);
+        kept.ErasePerson(ErasedUser, FirstErasure, Pseudonym, "erased-user-1", NoNames);
+        replaced.ErasePerson(
+            ErasedUser,
+            FirstErasure,
+            Pseudonym,
+            "erased-user-1",
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "ALICE@example.test" });
 
         Assert.Equal("alice@example.test", kept.Subject);
         Assert.Equal("erased-user-1", replaced.Subject);
+    }
+
+    /// <summary>A row done to the person by somebody else loses the subject login and text and keeps the living actor's columns.</summary>
+    [Fact]
+    public void A_row_about_the_person_as_subject_login_loses_the_subject_and_keeps_the_actor()
+    {
+        var row = NewRow(OtherUser, subjectUserId: ErasedUser);
+
+        row.ErasePerson(ErasedUser, FirstErasure, Pseudonym, "erased-user-1", NoNames);
+
+        Assert.Equal("erased-user-1", row.Subject);
+        Assert.Equal(Pseudonym, row.SubjectUserId);
+        Assert.Equal(OtherUser, row.ActorUserId);
+        Assert.Equal("alice", row.ActorUsername);
+        Assert.Equal("203.0.113.7", row.IpAddress);
+        Assert.Equal("Mozilla/5.0", row.UserAgent);
+        Assert.True(row.IsErased);
     }
 
     /// <summary>An erased operator who viewed as somebody else is replaced as impersonator while the actor is kept.</summary>
@@ -205,7 +232,7 @@ public sealed class AuditEventTests
     {
         var row = NewRow(OtherUser, new AuditImpersonator(ErasedUser, "operator"));
 
-        row.ErasePerson(ErasedUser, FirstErasure, Pseudonym, "erased-user-1", false);
+        row.ErasePerson(ErasedUser, FirstErasure, Pseudonym, "erased-user-1", NoNames);
 
         Assert.Equal(OtherUser, row.ActorUserId);
         Assert.Equal("alice", row.ActorUsername);
@@ -216,42 +243,37 @@ public sealed class AuditEventTests
         Assert.Equal(string.Empty, row.UserAgent);
     }
 
-    /// <summary>A refused sign-in typed with the person's name holds that name twice, and both go.</summary>
+    /// <summary>
+    /// A refused sign-in that merely typed the person's name carries no identity and is never touched, even
+    /// when the caller offers that very name as one of the person's own (issue #464).
+    /// </summary>
     [Fact]
-    public void An_unidentified_claim_of_the_persons_name_is_erased_as_a_whole()
+    public void An_unidentified_claim_of_the_persons_name_is_left_alone()
     {
         var claim = new AuditEvent(
             Guid.NewGuid(),
             Written,
             null,
-            "Alice@Example.test",
+            "alice@example.test",
             "LoginFailed",
             "alice@example.test",
             "203.0.113.7",
             "Mozilla/5.0",
             false,
             null);
-        var other = new AuditEvent(
-            Guid.NewGuid(),
-            Written,
-            null,
-            "maran-identity",
-            "LoginFailed",
-            "alice@example.test",
-            string.Empty,
-            string.Empty,
-            false,
-            null);
 
-        claim.ErasePerson(ErasedUser, FirstErasure, Pseudonym, "erased-user-1", true);
-        other.ErasePerson(ErasedUser, FirstErasure, Pseudonym, "erased-user-1", true);
+        claim.ErasePerson(
+            ErasedUser,
+            FirstErasure,
+            Pseudonym,
+            "erased-user-1",
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "alice@example.test" });
 
-        Assert.Equal("erased-user-1", claim.ActorUsername);
-        Assert.Equal("erased-user-1", claim.Subject);
-        Assert.Equal(string.Empty, claim.IpAddress);
-        Assert.Equal(string.Empty, claim.UserAgent);
-        Assert.Equal("maran-identity", other.ActorUsername);
-        Assert.Equal("erased-user-1", other.Subject);
+        Assert.Equal("alice@example.test", claim.ActorUsername);
+        Assert.Equal("alice@example.test", claim.Subject);
+        Assert.Equal("203.0.113.7", claim.IpAddress);
+        Assert.Equal("Mozilla/5.0", claim.UserAgent);
+        Assert.False(claim.IsErased);
     }
 
     /// <summary>A row that is about somebody else entirely is left untouched, erasure mark included.</summary>
@@ -260,7 +282,7 @@ public sealed class AuditEventTests
     {
         var row = NewRow(OtherUser, new AuditImpersonator(OtherUser, "operator"));
 
-        row.ErasePerson(ErasedUser, FirstErasure, Pseudonym, "erased-user-1", false);
+        row.ErasePerson(ErasedUser, FirstErasure, Pseudonym, "erased-user-1", NoNames);
 
         Assert.Equal(OtherUser, row.ActorUserId);
         Assert.Equal("203.0.113.7", row.IpAddress);
@@ -295,7 +317,7 @@ public sealed class AuditEventTests
         SealWithSalt(person);
         SealWithSalt(account);
 
-        person.ErasePerson(ErasedUser, FirstErasure, Pseudonym, "erased-user-1", false);
+        person.ErasePerson(ErasedUser, FirstErasure, Pseudonym, "erased-user-1", NoNames);
         account.EraseAccount(FirstErasure, Pseudonym, "erased-account-1");
 
         foreach (var row in new[] { person, account })
@@ -314,7 +336,7 @@ public sealed class AuditEventTests
         var row = NewRow(ErasedUser);
 
         row.EraseAccount(FirstErasure, Pseudonym, "erased-account-1");
-        row.ErasePerson(ErasedUser, LaterErasure, Pseudonym, "erased-user-1", false);
+        row.ErasePerson(ErasedUser, LaterErasure, Pseudonym, "erased-user-1", NoNames);
 
         Assert.Equal(FirstErasure, row.ErasedAt);
     }
@@ -327,7 +349,7 @@ public sealed class AuditEventTests
 
         Assert.Throws<ArgumentException>(() =>
         {
-            row.ErasePerson(ErasedUser, FirstErasure, Pseudonym, " ", false);
+            row.ErasePerson(ErasedUser, FirstErasure, Pseudonym, " ", NoNames);
         });
         Assert.Throws<ArgumentException>(() =>
         {

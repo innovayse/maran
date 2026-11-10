@@ -56,6 +56,20 @@ namespace Maran.Modules.Licensing.Common;
 /// <c>Services.LicenceStatusDisplayNames.ReasonNameFor</c>, which reads the same resx entry
 /// <see cref="Advice"/>'s sibling sentence is paired with.
 /// </param>
+/// <param name="IsOffline">
+/// Whether the licence is an offline licence, covered by its own expiry alone; false for every other
+/// state. A signed fact of the licence.
+/// </param>
+/// <param name="Lease">
+/// Where the licence's lease stands (<see cref="LeaseStandingKind"/>); <see cref="LeaseStandingKind.Missing"/>
+/// when there is no valid licence to hold one and <see cref="LeaseStandingKind.NotRequired"/> for an offline
+/// licence. The machine value, serialized by member name.
+/// </param>
+/// <param name="LeaseDisplayName">
+/// <paramref name="Lease"/> as an operator reads it, in the caller's language. The lease's standing is
+/// the only thing about the lease this response carries: not its text, signature or machine id.
+/// </param>
+/// <param name="LeaseValidUntil">When the lease stops (or stopped) being valid, when a trusted lease was read; else null.</param>
 /// <remarks>
 /// <para>
 /// <b>What this type may NOT carry, and why the fields above stop where they do.</b>
@@ -87,4 +101,8 @@ public sealed record LicenceStatusDto(
     string Sentence,
     string? Advice,
     string StateDisplayName,
-    string? RefusalReasonDisplayName);
+    string? RefusalReasonDisplayName,
+    bool IsOffline,
+    LeaseStandingKind Lease,
+    string LeaseDisplayName,
+    DateTimeOffset? LeaseValidUntil);

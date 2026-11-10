@@ -1,18 +1,21 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
+import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { stubBackups } from '../fixtures/stub-backups-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubPlans, THREE_PLANS } from '../fixtures/stub-plans-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubTasks, stubTaskStream, taskEndFrame, taskFrame } from '../fixtures/stub-tasks-routes'
-import { stubAudit } from '../fixtures/stub-audit-routes'
+import { stubAudit, stubAuditChain, stubAuditRetention } from '../fixtures/stub-audit-routes'
 import type { Account } from '../../src/types/account'
 import type { AuditEvent } from '../../src/types/audit'
 import type { Backup } from '../../src/types/backup'
 import type { PanelModule } from '../../src/types/module'
 import type { PanelTask } from '../../src/types/panelTask'
+import type { Locator, Page } from '@playwright/test'
 
 /**
  * Protects how the redesigned data tables behave on a narrow screen (issue #82), on the four list
@@ -198,6 +201,7 @@ const AUDIT_EVENTS: AuditEvent[] = [
     action: 'BackupRestoredFromRemoteDestination',
     actionName: 'BackupRestoredFromRemoteDestination',
     subject: 'customer-account-with-a-rather-long-name',
+    subjectName: 'customer-account-with-a-rather-long-name',
     ipAddress: '2001:0db8:85a3:0000:0000:8a2e:0370:7334',
     succeeded: true,
     outcomeName: 'Succeeded',
@@ -210,6 +214,7 @@ const AUDIT_EVENTS: AuditEvent[] = [
     action: 'LoginFailed',
     actionName: 'LoginFailed',
     subject: 'admin',
+    subjectName: 'admin',
     ipAddress: '198.51.100.4',
     succeeded: false,
     outcomeName: 'Failed',
@@ -335,6 +340,7 @@ const stubScreens = async (page: Page, locale: (typeof LOCALES)[number] = 'en'):
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, MODULES)
+  await stubShellReads(page)
   await stubTasks(page, tasks)
   await stubTaskStream(page, taskFrame(tasks[0] ?? TASKS[0]) + taskEndFrame('completed'))
   await stubPlans(page, THREE_PLANS)
@@ -346,6 +352,7 @@ const stubScreens = async (page: Page, locale: (typeof LOCALES)[number] = 'en'):
     }),
   )
   // The backup states arrive named by the panel as well.
+  await stubBackupOptions(page)
   await stubBackups(
     page,
     BACKUPS.map((backup) => {
@@ -353,6 +360,9 @@ const stubScreens = async (page: Page, locale: (typeof LOCALES)[number] = 'en'):
     }),
   )
   await stubAudit(page, auditEvents)
+  // The journal's retention and integrity cards read their own settings when the page opens.
+  await stubAuditRetention(page)
+  await stubAuditChain(page)
 }
 
 /** What one cell measurement reports. */

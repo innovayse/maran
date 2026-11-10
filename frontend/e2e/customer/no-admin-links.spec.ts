@@ -1,10 +1,12 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import { stubMyAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { stubBackups } from '../fixtures/stub-backups-routes'
 import { stubDatabases } from '../fixtures/stub-databases-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubSessions } from '../fixtures/stub-sessions-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { forbidAccountsList, stubMyAccount } from '../fixtures/stub-my-account-route'
 import { stubSites, stubPhpVersions } from '../fixtures/stub-sites-routes'
@@ -12,6 +14,7 @@ import { stubEmptyTasks } from '../fixtures/stub-tasks-routes'
 import type { MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 /**
  * A customer is not offered a way into a server-wide screen: the in-page links to Grant repair,
@@ -64,9 +67,12 @@ const ADMIN_LINKS = ['Grant repair', 'Backup schedule', 'Backup destinations', '
 const signInCustomer = async (page: Page): Promise<() => number> => {
   await stubSignedIn(page, CUSTOMER)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubModules(page, MODULES)
   await stubEmptyTasks(page)
   await stubMyAccount(page, OWN_ACCOUNT)
+  // The create forms ask how much of the plan is spent (issue #312); nothing is.
+  await stubMyAccountResources(page, { accountId: OWN_ACCOUNT.id, resources: [] })
   await stubDatabases(page, [])
   await stubBackups(page, [])
   await stubBackupOptions(page)

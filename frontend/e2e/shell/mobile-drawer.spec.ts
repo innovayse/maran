@@ -1,9 +1,12 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn, stubbedAdministrator } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
-import { stubDashboard, WITHHELD_DASHBOARD } from '../fixtures/stub-dashboard-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubAudit } from '../fixtures/stub-audit-routes'
+import { stubQuietScreens } from '../fixtures/stub-quiet-screens'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
+import type { Locator, Page } from '@playwright/test'
 
 /**
  * The phone shell's navigation drawer (issue #82, acceptance criterion "Mobile menu"), at 390px.
@@ -35,9 +38,13 @@ const OPENERS: readonly { opener: Opener; title: string }[] = [
  * @returns Resolves once the routes are installed.
  */
 const stubPanel = async (page: Page): Promise<void> => {
+  // First, so every narrower stub below wins: the audit journal's other reads (retention, the chain
+  // check) are not what the drawer specs are about, and answer with the quietest body the contract allows.
+  await stubQuietScreens(page)
   await stubSignedIn(page, stubbedAdministrator)
   await stubHealthy(page)
-  await stubDashboard(page, WITHHELD_DASHBOARD)
+  await stubShellReads(page)
+  await stubLandingReads(page)
   await stubEmptyModules(page)
   await stubAudit(page, [])
 }

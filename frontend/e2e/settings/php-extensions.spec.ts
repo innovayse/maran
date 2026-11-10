@@ -1,12 +1,15 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { holdRoute } from '../fixtures/hold-route'
 import { stubPhpExtensions, type PhpExtensionsStub } from '../fixtures/stub-php-extension-routes'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubInstallablePhpVersions, stubPhpVersions } from '../fixtures/stub-sites-routes'
 import type { PanelModule } from '../../src/types/module'
 import type { PhpExtension } from '../../src/types/phpVersion'
+import type { Page } from '@playwright/test'
 
 // Issue #157: an administrator switches the extensions of an installed PHP version from the PHP
 // versions screen. The labels and what can be done to each row are the panel's; the SPA draws a
@@ -41,6 +44,8 @@ const openExtensions = async (
 ): Promise<PhpExtensionsStub> => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
   await stubModules(page, MODULES)
   await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
   await stubInstallablePhpVersions(page, () => {
@@ -99,7 +104,8 @@ test('an extension that is on but cannot be switched off is held with its reason
   await expect(page.getByRole('switch', { name: 'Redis' })).toBeEnabled()
 })
 
-test('a refused switch prints the panel sentence verbatim and leaves the switch as it was', async ({ page }) => {
+test('a refused switch prints the panel sentence verbatim and leaves the switch as it was', async ({ page, guard }) => {
+  guard.allow(400, /\/api\/v1\/sites\/php-versions\/[^/]+\/extensions\/[^/]+$/)
   const refusal = 'PHP refused to reload with this extension: the configuration test failed.'
   const stub = await openExtensions(page, startingExtensions(), refusal)
 
@@ -113,6 +119,8 @@ test('a refused switch prints the panel sentence verbatim and leaves the switch 
 test('while a change applies every switch is held and a notice points to the tasks screen', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
   await stubModules(page, MODULES)
   await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
   await stubInstallablePhpVersions(page, () => {

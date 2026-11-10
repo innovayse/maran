@@ -212,7 +212,8 @@ export const stubFirewall = async (page: Page, state: StubbedFirewall): Promise<
       const submitted = request.postDataJSON() as { address: string; durationMinutes: number | null }
       state.bans = [
         {
-          id: `ban-${state.bans.length + 1}`,
+          // A UUID, as the contract documents the identity: the guarded lane refuses any other spelling.
+          id: `00000000-0000-0000-0000-${String(state.bans.length + 1).padStart(12, '0')}`,
           ipAddress: submitted.address,
           // The reason is the panel's, never the caller's: a ban placed from this form is a manual
           // one, and the request carries no reason field for the SPA to have chosen it with.

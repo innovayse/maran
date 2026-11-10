@@ -174,6 +174,11 @@ pub(crate) struct FakeFtpsHost {
     unit_contents: Mutex<Vec<(String, String)>>,
     /// Whether the account's bind mount is up.
     mounted: Mutex<bool>,
+    /// The mode of the account's real home, `0750` as an account's is, changed
+    /// by the one thing that can change it here: a mode applied to the mount
+    /// point while the mount is up, because a `chmod` by path goes through the
+    /// mount onto the home (issue #483).
+    home_mode: Mutex<u32>,
     /// Whether the password database can be read at all.
     /// What a NEIGHBOURING operation leaves in the live configuration right
     /// after this "host" commits a daemon config write.
@@ -187,6 +192,9 @@ pub(crate) struct FakeFtpsHost {
     chpasswd_status: i32,
     /// The status the service manager gives for a mount unit it is told to stop.
     unit_stop_status: i32,
+    /// The status the service manager gives for a mount unit it is told to
+    /// restart.
+    mount_restart_status: i32,
     /// Whether the bind mount survives a service manager that reports success.
     stuck_mount: bool,
     /// Every login's shadow password field, by login name.
@@ -261,10 +269,12 @@ impl FakeFtpsHost {
             written_units: Mutex::new(Vec::new()),
             unit_contents: Mutex::new(Vec::new()),
             mounted: Mutex::new(false),
+            home_mode: Mutex::new(0o750),
             neighbour_writes_after_the_swap: Mutex::new(None),
             passwd_readable: true,
             chpasswd_status: 0,
             unit_stop_status: 0,
+            mount_restart_status: 0,
             stuck_mount: false,
             shadow: Mutex::new(Vec::new()),
             getent_status: 0,
@@ -394,6 +404,12 @@ impl FakeFtpsHost {
     /// `chpasswd` refuses the line it is given.
     pub(crate) fn refusing_passwords(mut self) -> Self {
         self.chpasswd_status = 1;
+        self
+    }
+
+    /// The service manager refuses to restart the account's mount unit.
+    pub(crate) fn refusing_mount_restart(mut self) -> Self {
+        self.mount_restart_status = 1;
         self
     }
 
@@ -546,6 +562,11 @@ impl FakeFtpsHost {
     /// How many times this host was asked to enumerate the account's logins.
     pub(crate) fn login_enumerations(&self) -> usize {
         *self.login_enumerations.lock().unwrap()
+    }
+
+    /// The mode of the account's real home now.
+    pub(crate) fn home_mode(&self) -> u32 {
+        *self.home_mode.lock().unwrap()
     }
 
     /// Whether the account's bind mount is up.
@@ -940,6 +961,7 @@ impl FakeFtpsHost {
                 }
                 refusal(self.unit_stop_status)
             }
+            Some("restart") => refusal(self.mount_restart_status),
             _ => refusal(0),
         }
     }
@@ -1230,6 +1252,10 @@ impl FtpsHost for FakeFtpsHost {
 
     fn create_directory(&self, path: &Path, mode: u32) -> Result<(), FtpsError> {
         let path = path.to_string_lossy().into_owned();
+        if path == self.jail().mount_point() && *self.mounted.lock().unwrap() {
+            *self.home_mode.lock().unwrap() = mode;
+            return Ok(());
+        }
         let mut directories = self.directories.lock().unwrap();
         if let Some(existing) = directories
             .iter_mut()
@@ -1241,6 +1267,19 @@ impl FtpsHost for FakeFtpsHost {
         }
 
         Ok(())
+    }
+
+    fn ensure_mount_point(
+        &self,
+        mount_point: &Path,
+        _home: &Path,
+        mode: u32,
+    ) -> Result<(), FtpsError> {
+        if mount_point == Path::new(self.jail().mount_point()) && *self.mounted.lock().unwrap() {
+            return Ok(());
+        }
+
+        self.create_directory(mount_point, mode)
     }
 
     fn account_logins(

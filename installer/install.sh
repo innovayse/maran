@@ -293,7 +293,7 @@ setup_logging() {
   fi
 }
 
-# detect_os: identifies distro family (debian|rhel), distro id and version from
+# detect_os: identifies distro family (debian|rhel|suse), distro id and version from
 # /etc/os-release. Exported for lib/10-preflight.sh and the package-manager adapter
 # in lib/20-dependencies.sh. Unsupported values are rejected by 10-preflight.sh, not
 # here — this function only detects, it never judges.
@@ -315,12 +315,24 @@ detect_os() {
     almalinux|rocky)
       MARAN_OS_FAMILY="rhel"
       ;;
+    opensuse-leap|sles)
+      # The SUSE family (issue #59): openSUSE Leap and SLES share the zypper/rpm/systemd base.
+      # Only these two ids are named here; opensuse-tumbleweed, opensuse-microos, sled and
+      # sles_sap carry "suse" in ID_LIKE and fall to the fallback below, which makes them family
+      # "suse" for DETECTION only. 10-preflight.sh then refuses them because their exact id is not
+      # in MARAN_SUPPORTED_MATRIX (a rolling release and a read-only transactional system were
+      # never tested).
+      MARAN_OS_FAMILY="suse"
+      ;;
     *)
       # Fall back to ID_LIKE for derivative distros that still ship compatible package
       # managers; preflight still validates the concrete (id, version) pair against the
       # supported matrix, so a permissive fallback here cannot admit an untested target.
       case "$MARAN_OS_ID_LIKE" in
         *debian*) MARAN_OS_FAMILY="debian" ;;
+        # Listed BEFORE the rhel pattern so an ID_LIKE that names both resolves to the SUSE
+        # package manager rather than to dnf. Detection never widens support: the matrix does.
+        *suse*) MARAN_OS_FAMILY="suse" ;;
         *rhel*|*fedora*) MARAN_OS_FAMILY="rhel" ;;
         *) MARAN_OS_FAMILY="unknown" ;;
       esac
@@ -350,6 +362,14 @@ detect_web_server_identity() {
       MARAN_WEB_SERVER_GROUP="www-data"
       ;;
     rhel)
+      MARAN_WEB_SERVER_USER="nginx"
+      MARAN_WEB_SERVER_GROUP="nginx"
+      ;;
+    suse)
+      # UNVERIFIED: read from the distribution documentation (the `nginx` package creates the
+      # `nginx` user and group). Confirm with `rpm -q --scripts nginx | grep -E 'useradd|groupadd'`
+      # and `getent passwd nginx` in the pinned Leap image; the polygon observes the running
+      # worker's user.
       MARAN_WEB_SERVER_USER="nginx"
       MARAN_WEB_SERVER_GROUP="nginx"
       ;;

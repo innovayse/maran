@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="MarketplaceDisabled">
+    <value>Մարկետփլեյսը անջատված է։ Ադմինիստրատորը կարող է այն միացնել «Մարկետփլեյս» էջից։</value>
+  </data>
+  <data name="MarketplaceHostNotConfigured">
+    <value>Այս սերվերում մարկետփլեյսի հասցեն սխալ է կարգավորված, ուստի մարկետփլեյսին հնարավոր չէ միանալ։ Խնդրեք վահանակը տեղադրած անձին ստուգել մարկետփլեյսի կարգավորումը։</value>
+  </data>
+  <data name="MarketplaceUnreachable">
+    <value>Մարկետփլեյսին հնարավոր չեղավ միանալ։ Արդեն տեղադրված մոդուլները շարունակում են աշխատել։ Խնդրում ենք փորձել ավելի ուշ։</value>
+  </data>
+  <data name="CatalogueUnsigned">
+    <value>Մարկետփլեյսի պատասխանը հնարավոր չեղավ ստուգել, ուստի այն չօգտագործվեց։ Ոչինչ չի տեղադրվել կամ փոփոխվել։</value>
+  </data>
+  <data name="CatalogueStale">
+    <value>Մարկետփլեյսի պատասխանը չափազանց հին է՝ վստահելու համար, ուստի այն չօգտագործվեց։ Ստուգեք կրկին մի քանի րոպեից։</value>
+  </data>
+  <data name="CatalogueKeyMissing">
+    <value>Այս սերվերում մարկետփլեյսի ստուգման բանալի չկա, ուստի մարկետփլեյսի պատասխանները հնարավոր չէ ստուգել և դրանից ոչինչ հնարավոր չէ տեղադրել։ Խնդրեք վահանակը տեղադրած անձին վերականգնել բանալին։</value>
+  </data>
+  <data name="LeaseRequired">
+    <value>Այս մոդուլի համար սերվերում պետք է գործող լիցենզիա։ Տեղադրեք կամ երկարացրեք լիցենզիան և կրկին փորձեք։</value>
+  </data>
+  <data name="EntitlementMissing">
+    <value>Ձեր լիցենզիան չի ներառում այս մոդուլը։ Այն կարող եք ստանալ ձեր Innovayse հաշվից, ապա կրկին փորձել։</value>
+  </data>
+  <data name="IncompatiblePanel">
+    <value>Մոդուլի այս տարբերակը չի աշխատում այս սերվերում տեղադրված վահանակի տարբերակի հետ։</value>
+  </data>
+  <data name="PackageRevoked">
+    <value>Մոդուլի այս տարբերակը հետ է կանչվել հրատարակչի կողմից և չի կարող տեղադրվել։</value>
+  </data>
+  <data name="GrantHostRefused">
+    <value>Մարկետփլեյսը ուղարկեց ներբեռնման հասցե, որին այս վահանակը չի վստահում, ուստի ոչինչ չներբեռնվեց։</value>
+  </data>
+  <data name="DownloadSizeMismatch">
+    <value>Ներբեռնված փաթեթի չափը չի համապատասխանում մարկետփլեյսի հայտարարածին, ուստի այն հեռացվեց։ Ոչինչ չի տեղադրվել։</value>
+  </data>
+  <data name="DownloadDigestMismatch">
+    <value>Ներբեռնված փաթեթը չի համապատասխանում մարկետփլեյսի հայտարարած մատնահետքին, ուստի այն հեռացվեց։ Ոչինչ չի տեղադրվել։</value>
+  </data>
+  <data name="ModuleNotInCatalogue">
+    <value>Այս մոդուլը մարկետփլեյսի կատալոգում չկա։</value>
+  </data>
+  <data name="ModuleNotInstalled">
+    <value>Այս մոդուլը տեղադրված չէ։</value>
+  </data>
+  <data name="ModuleOperationInProgress">
+    <value>Այս մոդուլի հետ մեկ այլ գործողություն դեռ կատարվում է։ Սպասեք դրա ավարտին և կրկին փորձեք։</value>
+  </data>
+  <data name="ModuleVersionNotInstallable">
+    <value>Մոդուլի այս տարբերակը հնարավոր չէ տեղադրել։ Ընտրեք ավելի նոր տարբերակ։</value>
+  </data>
+  <data name="InstallNotAcknowledged">
+    <value>Մոդուլը տեղադրելուց առաջ հաստատեք, որ կարդացել եք, թե ինչ է թույլատրված անել նրան։</value>
+  </data>
+  <data name="MarketplaceResponseInvalid">
+    <value>Մարկետփլեյսը ուղարկեց պատասխան, որը վահանակը չկարողացավ հասկանալ, ուստի այն չօգտագործվեց։</value>
+  </data>
+  <data name="MarketplaceResponseTooLarge">
+    <value>Մարկետփլեյսը ուղարկեց ավելի շատ տվյալ, քան այս վահանակը ընդունում է, ուստի պատասխանը հեռացվեց։</value>
+  </data>
+  <data name="MarketplaceRedirectRefused">
+    <value>Մարկետփլեյսը փորձեց վահանակը վերահասցեավորել այլ հասցեի, ինչը թույլատրված չէ, ուստի հարցումը կանգնեցվեց։</value>
+  </data>
+  <data name="MarketplaceRequestRefused">
+    <value>Մարկետփլեյսը մերժեց հարցումը։ Ոչինչ չի տեղադրվել կամ փոփոխվել։</value>
+  </data>
+  <data name="MarketplaceStorageUnavailable">
+    <value>Ներբեռնված փաթեթների պանակում գրել հնարավոր չէ, ուստի ոչինչ չի ներբեռնվել։ Ստուգեք սերվերի մարկետփլեյսի պանակը։</value>
+  </data>
+  <data name="ModuleAlreadyInstalled">
+    <value>Այս մոդուլն արդեն տեղադրված է այս տարբերակով։ Այն փոխելու համար թարմացրեք կամ նախ հեռացրեք այն։</value>
+  </data>
+  <data name="ModuleHasNoPreviousVersion">
+    <value>Այս մոդուլը չունի ավելի վաղ տարբերակ, որին կարելի է վերադառնալ։</value>
+  </data>
+  <data name="ModuleOperationFailed">
+    <value>Գործողությունը չավարտվեց։ Աշխատող տարբերակը շարունակում է աշխատել։ Խնդրում ենք փորձել կրկին։</value>
+  </data>
+  <data name="ModuleIdInvalid">
+    <value>Մոդուլի անունը վավեր չէ։ Օգտագործեք փոքրատառ տառեր և թվեր՝ սկսած տառից։</value>
+  </data>
+  <data name="ModuleVersionInvalid">
+    <value>Տարբերակը վավեր չէ։ Օգտագործեք տարբերակի համար՝ երեք թվից, որոնք բաժանված են կետերով։</value>
+  </data>
+  <data name="MarketplaceChannelInvalid">
+    <value>Թողարկումների ալիքը վավեր չէ։ Օգտագործեք փոքրատառ տառեր, թվեր և գծիկներ՝ սկսած տառից։</value>
+  </data>
+  <data name="MarketplaceSearchInvalid">
+    <value>Որոնման տեքստը չափազանց երկար է կամ պարունակում է չթույլատրված նիշեր։</value>
+  </data>
+  <data name="MarketplaceCursorInvalid">
+    <value>Էջի նշիչը չափազանց երկար է կամ պարունակում է չթույլատրված նիշեր։</value>
+  </data>
+</root>

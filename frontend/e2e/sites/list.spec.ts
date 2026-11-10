@@ -1,12 +1,16 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import { ONE_SHOT, stubDashboard } from '../fixtures/stub-dashboard-route'
 import { stubAccountNames, stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubIdleLiveDashboard } from '../fixtures/stub-live-dashboard-stream'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
-import { stubPhpVersions, stubSites, stubSitesProblem } from '../fixtures/stub-sites-routes'
+import { stubPhpVersions, stubSiteChoices, stubSiteDetail, stubSites, stubSitesProblem } from '../fixtures/stub-sites-routes'
 import type { Account } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
-import type { Site } from '../../src/types/site'
+import type { Site, SiteDetail } from '../../src/types/site'
+import type { Locator, Page } from '@playwright/test'
 
 // The sites list is server-paged (#196): the page, its size, the search, the sort and the filters
 // live in the URL, the panel answers one page, the total and each row's owner, and the SPA filters
@@ -62,6 +66,32 @@ const BETA: Site = {
 }
 
 /**
+ * The detail page's answer for a site the list links to: the same identity and names, plus the fields
+ * only the detail carries. The detail stub answers any site id with it, which is all a list spec needs
+ * from the page it navigates to.
+ * @param site The list row to describe.
+ * @returns The detail the panel would send for that row.
+ */
+const detailOf = (site: Site): SiteDetail => {
+  return {
+    id: site.id,
+    accountId: site.accountId,
+    domain: site.domain,
+    aliases: [],
+    backendType: site.backendType,
+    backendTypeName: site.backendTypeName,
+    phpVersion: site.phpVersion,
+    proxyUpstream: '',
+    documentRoot: `/home/${site.ownerName}/sites/${site.domain}/public`,
+    hasCertificate: false,
+    status: site.status,
+    statusName: site.statusName,
+    createdAt: site.createdAt,
+    logRetentionDays: site.logRetentionDays,
+  }
+}
+
+/**
  * Builds a catalogue of numbered sites: `site-01.example.com` and so on, alternating between
  * alice and bob, every fourth one static and every fifth one disabled.
  * @param count How many sites.
@@ -82,7 +112,8 @@ const catalogue = (count: number): Site[] => {
       phpVersion: isStatic ? '' : '8.3',
       status: index % 5 === 4 ? 'disabled' : 'enabled',
       statusName: index % 5 === 4 ? 'Disabled' : 'Enabled',
-      createdAt: `2026-08-${number}T10:00:00Z`,
+      // A real calendar day per row: a day number past the month would be no date-time at all.
+      createdAt: new Date(Date.UTC(2026, 7, index + 1, 10)).toISOString(),
       logRetentionDays: 14,
     }
   })
@@ -96,11 +127,14 @@ const catalogue = (count: number): Site[] => {
  */
 const openWith = async (page: Page, sites: Site[]): Promise<() => readonly URL[]> => {
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_SITES)
   await stubAccounts(page, [ALICE, BOB])
   await stubAccountNames(page, [ALICE, BOB])
   const requests = await stubSites(page, sites)
+  // After stubSites, whose single-site route this narrower one must not be shadowed by.
+  await stubSiteDetail(page, detailOf(ALPHA))
   await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
   return requests
 }
@@ -153,6 +187,9 @@ test('the site domain links to that site detail page', async ({ page }) => {
 // The other way in: the sidebar entry the module catalogue drives.
 test('the sidebar links to the sites list when the panel licenses the sites module', async ({ page }) => {
   await openWith(page, [])
+  // The sidebar test starts on the dashboard, so the administrator's dashboard reads are answered too.
+  await stubDashboard(page, ONE_SHOT)
+  await stubIdleLiveDashboard(page)
 
   await page.goto('/')
   await page.getByRole('navigation').getByRole('link', { name: 'Sites' }).click()
@@ -164,11 +201,17 @@ test('the sidebar links to the sites list when the panel licenses the sites modu
 // rules/vue.md: "Error messages are produced by the backend, already localized, and rendered as-is."
 test('sites list renders the backend RFC 7807 detail verbatim when the list request fails', async ({
   page,
+  guard,
 }) => {
   const backendDetail = 'The sites store is temporarily unavailable. Try again in a moment.'
+  // The refusal is the point; the disabled-count read beside the list is refused by the same stub.
+  guard.allow(500, /\/api\/v1\/sites(\?.*)?$/)
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_SITES)
+  await stubSiteChoices(page)
+  await stubPhpVersions(page, [])
   await stubSitesProblem(page, backendDetail)
 
   await page.goto('/sites')

@@ -1,0 +1,165 @@
+{
+  "migrationJobs": {
+    "list": {
+      "heading": "Server migrations",
+      "subtitle": "Move all the accounts of a registered server here: in parallel, with the source still serving, then cut over when you are ready.",
+      "addAction": "New migration",
+      "emptyTitle": "No migrations yet",
+      "emptyDescription": "Register a server, read what it serves, then start a migration of its accounts.",
+      "searchLabel": "Search migrations",
+      "searchPlaceholder": "Search by name",
+      "searchClear": "Clear search",
+      "noResultsTitle": "No migration matches",
+      "noResultsDescription": "No migration has that name.",
+      "tableCaption": "Server migrations",
+      "columns": {
+        "name": "Name",
+        "state": "State",
+        "accounts": "Accounts",
+        "done": "Cut over",
+        "created": "Created"
+      }
+    },
+    "stages": {
+      "accounts": "Creating the account",
+      "databases": "Databases",
+      "sites": "Sites",
+      "ftp": "FTP logins",
+      "sftp": "SFTP logins",
+      "cron": "Scheduled tasks",
+      "files": "Copying files",
+      "verify": "Verifying",
+      "pull": "Fetching the package",
+      "import": "Importing the package"
+    },
+    "form": {
+      "heading": "New server migration",
+      "subtitle": "Choose a registered server whose accounts were read. Every account found becomes part of the migration; you map each to a plan and an owner next.",
+      "server": "Server",
+      "serverPlaceholder": "Choose a server",
+      "name": "Name of the migration",
+      "concurrency": "Accounts at once (1 to 8)",
+      "bandwidth": "Bandwidth limit in KiB per second (empty for none)",
+      "maranNote": "This server is a Maran panel. Accounts are moved as packages: give the address of its pull endpoint, the key fingerprint you confirmed, and a pull grant for each account on the next screen.",
+      "sourceUrl": "Address of the source panel (https)",
+      "fingerprint": "Confirmed key fingerprint",
+      "create": "Create the migration",
+      "created": "The migration {name} was created.",
+      "errors": {
+        "name": "Enter a name.",
+        "server": "Choose a server with discovered accounts.",
+        "concurrency": "Enter a whole number from 1 to 8.",
+        "bandwidth": "Enter a whole number or leave it empty.",
+        "maran": "Enter the https address and the 64-character fingerprint."
+      }
+    },
+    "detail": {
+      "subtitle": "{count} accounts",
+      "notFoundTitle": "That migration does not exist",
+      "notFoundDescription": "It may have been removed.",
+      "back": "Back to the migrations",
+      "dryRun": "Dry run",
+      "start": "Start",
+      "pause": "Pause",
+      "resume": "Resume",
+      "cancel": "Cancel",
+      "summaryCsv": "Download summary (CSV)",
+      "summaryJson": "Download summary (JSON)"
+    },
+    "limits": {
+      "title": "Limits",
+      "description": "Both apply while the migration runs: the number of accounts at once from the next account, the bandwidth from the next slice of every copy.",
+      "concurrency": "Accounts at once",
+      "bandwidth": "KiB per second",
+      "save": "Save limits"
+    },
+    "accounts": {
+      "title": "Accounts",
+      "searchLabel": "Search accounts",
+      "searchPlaceholder": "Search by account or domain",
+      "noResultsTitle": "No account matches",
+      "noResultsDescription": "No account has that name or domain.",
+      "tableCaption": "Accounts of the migration",
+      "rowActions": "Actions for {name}",
+      "columns": {
+        "name": "Account",
+        "domain": "Primary domain",
+        "size": "Size on the source",
+        "state": "State"
+      },
+      "map": "Map to a plan and owner",
+      "cutOver": "Cut over",
+      "retry": "Retry",
+      "report": "Show the report",
+      "secrets": "Show the generated passwords",
+      "cancel": "Cancel account"
+    },
+    "mapping": {
+      "title": "Map {name}",
+      "plan": "Plan",
+      "ownerEmail": "Owner e-mail",
+      "ownerLanguage": "Owner language",
+      "primaryDomain": "Primary domain",
+      "pullGrant": "Pull grant (from the source panel)",
+      "languages": {
+        "en": "English",
+        "ru": "Russian",
+        "hy": "Armenian"
+      },
+      "errors": {
+        "plan": "Choose a plan.",
+        "email": "Enter a valid e-mail address.",
+        "domain": "Enter the primary domain."
+      }
+    },
+    "dryRun": {
+      "canStart": "No conflicts. The migration can start.",
+      "hasConflicts": "There are conflicts. Names are never changed, so resolve each one on the source or leave the account out.",
+      "clean": "Nothing to report.",
+      "severity": {
+        "Conflict": "Conflict",
+        "Warning": "Warning",
+        "Info": "Note"
+      }
+    },
+    "report": {
+      "title": "Report for {name}",
+      "files": "Files",
+      "converged": "The final copy finished and the destination equals the source ({slices} runs).",
+      "notCopied": "The files were moved as a package, not copied.",
+      "sourceBytes": "Size of the source home: {bytes} bytes.",
+      "limit": "The report states that the final copy converged. It is not a second measurement of the home on this server.",
+      "databases": "Databases",
+      "noDatabases": "No databases were loaded.",
+      "dumpBytes": "{bytes} bytes loaded",
+      "sites": "Sites",
+      "noSites": "No sites were checked.",
+      "noAnswer": "no answer",
+      "serves": "serves",
+      "doesNotServe": "does not serve"
+    },
+    "dns": {
+      "title": "DNS",
+      "description": "Where the migration's domains resolve now, read by this server.",
+      "check": "Check DNS",
+      "ttlAdvice": "Lower the TTL of each record a day before the cut-over, point the records at this server after it, and keep the old copy until the new TTL has expired.",
+      "thisServer": "This server: {addresses}",
+      "unresolved": "does not resolve",
+      "pointsHere": "points here",
+      "pointsElsewhere": "points elsewhere"
+    },
+    "confirm": {
+      "accountTitle": "Cancel {name}",
+      "accountQuestion": "The account created here for it is deleted again. Nothing on the source changes.",
+      "accountAction": "Cancel account",
+      "jobTitle": "Cancel {name}",
+      "jobQuestion": "Every account this migration created that is not yet cut over is deleted again. Accounts already cut over stay.",
+      "jobAction": "Cancel migration"
+    },
+    "secrets": {
+      "title": "Generated passwords",
+      "intro": "The source carries no passwords, so new ones were made. They are shown once and kept by nobody.",
+      "done": "I have saved them"
+    }
+  }
+}

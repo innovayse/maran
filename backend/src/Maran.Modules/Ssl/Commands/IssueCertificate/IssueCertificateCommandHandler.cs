@@ -16,7 +16,8 @@ namespace Maran.Modules.Ssl.Commands.IssueCertificate;
 
 /// <summary>
 /// Handles <see cref="IssueCertificateCommand"/>: proves the caller owns the domain, orders a
-/// certificate over HTTP-01, installs it, and only then records the row (spec §11).
+/// certificate (over HTTP-01, or over DNS-01 for a wildcard), installs it, and only then records the row
+/// (spec §11).
 /// </summary>
 /// <remarks>
 /// The order of the steps is the whole design.
@@ -25,6 +26,10 @@ namespace Maran.Modules.Ssl.Commands.IssueCertificate;
 /// domain hosted here by somebody else gets the same answer as one who names a domain that is not
 /// hosted here at all — a certificate is issuance authority over a name, and confirming that a name
 /// exists on this server would be the first half of taking it (rules/security.md — 404, never 403).
+///
+/// A WILDCARD is checked next, before anything is ordered: it needs a plan that sells DNS and a zone this
+/// server serves for the domain, and an order that could only fail at the authority would spend its rate
+/// limit to learn what the panel already knows.
 ///
 /// The ORDER comes second, and no row is written before it succeeds. A failed order must leave no
 /// trace in the certificates table: a row for a certificate that does not exist would make the site
@@ -54,6 +59,9 @@ public sealed class IssueCertificateCommandHandler
     /// <summary>This module's audit journal.</summary>
     private readonly CertificateAuditJournal _journal;
 
+    /// <summary>Whether a wildcard can be ordered for the domain: the plan, the DNS module and the zone.</summary>
+    private readonly WildcardAvailabilityCheck _wildcards;
+
     /// <summary>The injected time source; never the ambient clock (rules/csharp.md).</summary>
     private readonly IClock _clock;
 
@@ -73,6 +81,7 @@ public sealed class IssueCertificateCommandHandler
     /// <param name="acme">The certificate authority.</param>
     /// <param name="installer">The shared install path.</param>
     /// <param name="journal">This module's audit journal.</param>
+    /// <param name="wildcards">Answers whether a wildcard can be ordered for the domain.</param>
     /// <param name="clock">The injected time source used to stamp the new row.</param>
     /// <param name="tasks">The panel-wide task journal.</param>
     /// <param name="correlationIds">The current request's correlation id.</param>
@@ -84,6 +93,7 @@ public sealed class IssueCertificateCommandHandler
         IAcmeClient acme,
         CertificateInstaller installer,
         CertificateAuditJournal journal,
+        WildcardAvailabilityCheck wildcards,
         IClock clock,
         ITaskRecorder tasks,
         ICorrelationIdAccessor correlationIds,
@@ -95,6 +105,7 @@ public sealed class IssueCertificateCommandHandler
         _acme = acme;
         _installer = installer;
         _journal = journal;
+        _wildcards = wildcards;
         _clock = clock;
         _tasks = tasks;
         _correlationIds = correlationIds;
@@ -106,7 +117,7 @@ public sealed class IssueCertificateCommandHandler
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>
     /// The recorded certificate, or <c>SiteNotFound</c>, <c>CertificateAlreadyExists</c>,
-    /// <c>AccountNotFound</c>, or the authority's or agent's own typed failure.
+    /// <c>AccountNotFound</c>, a <c>Wildcard…</c> refusal, or the authority's or agent's own typed failure.
     /// </returns>
     public async Task<Result<CertificateDto>> HandleAsync(
         IssueCertificateCommand command,
@@ -161,10 +172,25 @@ public sealed class IssueCertificateCommandHandler
             return await FailAsync(command, Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound), taskId, cancellationToken);
         }
 
+        if (command.Wildcard)
+        {
+            // Asked about the SITE's owner, not the caller: an administrator ordering for a customer's
+            // site needs that customer's plan and that customer's zone.
+            var availability = await _wildcards.CheckAsync(site.AccountId, command.Domain, cancellationToken);
+            if (availability != WildcardAvailability.Available)
+            {
+                return await FailAsync(command, WildcardRefusalMapper.From(availability), taskId, cancellationToken);
+            }
+        }
+
         await _tasks.ReportAsync(taskId, 20, "ordering the certificate from the authority", cancellationToken);
 
-        var issued = await _acme.OrderAsync(
-            new AcmeOrderRequest(command.Domain, new SiteDocumentRootChallenge(account.Username)), cancellationToken);
+        // A plain certificate is proven with a file in the site's document root, written as the account;
+        // a wildcard is proven with a record in the account's DNS zone, which names no user at all.
+        AcmeChallengeTarget challenge = command.Wildcard
+            ? new DnsZoneChallenge(site.AccountId)
+            : new SiteDocumentRootChallenge(account.Username);
+        var issued = await _acme.OrderAsync(new AcmeOrderRequest(command.Domain, challenge), cancellationToken);
         if (!issued.IsSuccess)
         {
             return await FailAsync(command, issued.Error!, taskId, cancellationToken);
@@ -186,7 +212,8 @@ public sealed class IssueCertificateCommandHandler
             command.Domain,
             CertificateSource.Acme,
             installed.Value,
-            _clock.UtcNow);
+            _clock.UtcNow,
+            command.Wildcard);
 
         _dbContext.Certificates.Add(certificate);
 
@@ -220,7 +247,11 @@ public sealed class IssueCertificateCommandHandler
         }
 
         await _journal.RecordSuccessAsync(
-            CertificateAuditActions.CertificateIssued, command.Domain, command.IpAddress, command.UserAgent, cancellationToken);
+            CertificateAuditActions.CertificateIssued,
+            CertificateAuditJournal.SubjectOf(command.Domain, command.Wildcard),
+            command.IpAddress,
+            command.UserAgent,
+            cancellationToken);
 
         await _tasks.CompleteAsync(taskId, cancellationToken);
 
@@ -245,7 +276,11 @@ public sealed class IssueCertificateCommandHandler
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            CertificateAuditActions.CertificateIssued, command.Domain, command.IpAddress, command.UserAgent, cancellationToken);
+            CertificateAuditActions.CertificateIssued,
+            CertificateAuditJournal.SubjectOf(command.Domain, command.Wildcard),
+            command.IpAddress,
+            command.UserAgent,
+            cancellationToken);
 
         await _tasks.FailAsync(taskId, error.Code, cancellationToken);
 

@@ -1,11 +1,19 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
-import { stubCreateSiteProblem, stubPhpVersions, stubSites } from '../fixtures/stub-sites-routes'
+import {
+  stubCreateSiteProblem,
+  stubPhpVersions,
+  stubSiteChoices,
+  stubSiteLimits,
+  stubSites,
+} from '../fixtures/stub-sites-routes'
 import type { Account } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 const LICENSED_SITES: PanelModule[] = [
   { name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -25,12 +33,14 @@ const OWNER: Account = {
 
 /**
  * Installs everything the create-site form reads: the signed-in session, the shell's health and
- * module catalogue, the account picker's accounts and the runtime picker's installed versions.
+ * module catalogue, the account picker's accounts, the runtime picker's installed versions, and the
+ * limits and backend choices the form shows.
  * @param page The Playwright page whose network the routes are installed on.
  * @returns Resolves once every route is installed.
  */
 const stubFormDependencies = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_SITES)
   await stubAccounts(page, [OWNER])
@@ -38,6 +48,8 @@ const stubFormDependencies = async (page: Page): Promise<void> => {
     { version: '8.2', defaultStatus: 'notDefault' },
     { version: '8.3', defaultStatus: 'default' },
   ])
+  await stubSiteLimits(page, { maximumAliases: 10 })
+  await stubSiteChoices(page)
 }
 
 test('the site form offers a PHP version only once the backend is PHP', async ({ page }) => {
@@ -108,7 +120,8 @@ test('the site form validates an empty domain itself rather than letting the bro
 })
 
 // rules/vue.md: the backend owns the text of its own refusals.
-test('the site form renders the server rejection verbatim', async ({ page }) => {
+test('the site form renders the server rejection verbatim', async ({ page, guard }) => {
+  guard.allow(409, /\/api\/v1\/sites$/)
   const backendDetail = 'A site already serves alpha.example.com on this server.'
   await stubFormDependencies(page)
   await stubCreateSiteProblem(page, backendDetail)

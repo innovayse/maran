@@ -76,6 +76,13 @@ readonly MARAN_DNS_ENVIRONMENT_FILE="${MARAN_DNS_CONFIG_DIR}/dns.env"
 readonly MARAN_DNS_UNIT_NAME="maran-dns.service"
 readonly MARAN_DNS_UNIT_DIR="/etc/systemd/system"
 
+# The names, below the daemon's state directory, of the two directories signed zones use
+# (issue #452), matching `DnsFacts::dns_signed_zone_directory` and `::dns_key_directory`, which
+# spell them `<state>/signed-zones` and `<state>/keys`. Compared with the adapter by
+# docker/polygon/asserts/parts/dns.sh.
+readonly MARAN_DNS_SIGNED_ZONES_SUBDIR="signed-zones"
+readonly MARAN_DNS_KEYS_SUBDIR="keys"
+
 # The local override file the Ubuntu AppArmor profile for named includes, and the marker lines
 # of the block this step owns inside it. Anything outside the block is the operator's and is
 # never touched.
@@ -102,6 +109,10 @@ dns_packages_for_family() {
         *)     echo "bind bind-utils" ;;
       esac
       ;;
+    # UNVERIFIED: BIND is the package `bind` on openSUSE Leap 16 and carries named, the checkers and
+    # rndc (`bind-utils` is the dig package and is not needed). Confirm with `rpm -ql bind | grep
+    # -E 'sbin/(named|rndc)'` in the pinned image.
+    suse) echo "bind" ;;
     *)
       echo "89-dns.sh: unsupported OS family '${MARAN_OS_FAMILY:-}'" >&2
       exit 1
@@ -116,6 +127,9 @@ dns_packaged_units_for_family() {
   case "${MARAN_OS_FAMILY:-}" in
     debian) echo "named.service bind9.service" ;;
     rhel)   echo "named.service" ;;
+    # UNVERIFIED: `named.service`, matching suse_dns_services.rs. Confirm with
+    # `rpm -ql bind | grep service` in the pinned image.
+    suse)   echo "named.service" ;;
     *)
       echo "89-dns.sh: unsupported OS family '${MARAN_OS_FAMILY:-}'" >&2
       exit 1
@@ -132,6 +146,9 @@ dns_user_for_family() {
   case "${MARAN_OS_FAMILY:-}" in
     debian) echo "bind" ;;
     rhel)   echo "named" ;;
+    # UNVERIFIED: user and group `named`, matching suse_dns_services.rs::dns_user. Confirm with
+    # `getent passwd named` and `getent group named` after installing `bind` in the pinned image.
+    suse)   echo "named" ;;
     *)
       echo "89-dns.sh: unsupported OS family '${MARAN_OS_FAMILY:-}'" >&2
       exit 1
@@ -143,6 +160,10 @@ dns_state_directory_for_family() {
   case "${MARAN_OS_FAMILY:-}" in
     debian) echo "/var/lib/bind/maran" ;;
     rhel)   echo "/var/named/maran" ;;
+    # UNVERIFIED: a `maran` subdirectory of the daemon's own working directory /var/lib/named,
+    # matching suse_dns_services.rs::dns_state_directory (zones, signed-zones and keys below it).
+    # Confirm with `ls -Zd /var/lib/named` and an AVC check after the first `rndc addzone`.
+    suse)   echo "/var/lib/named/maran" ;;
     *)
       echo "89-dns.sh: unsupported OS family '${MARAN_OS_FAMILY:-}'" >&2
       exit 1
@@ -161,6 +182,9 @@ dns_binaries_for_family() {
   case "${MARAN_OS_FAMILY:-}" in
     debian) echo "/usr/sbin/named /usr/bin/named-checkconf /usr/bin/named-checkzone /usr/sbin/rndc" ;;
     rhel)   echo "/usr/sbin/named /usr/sbin/named-checkconf /usr/sbin/named-checkzone /usr/sbin/rndc" ;;
+    # UNVERIFIED: the paths suse_dns_services.rs answers; /usr/sbin/named is the daemon and also the
+    # ExecStart of maran-dns.service. Confirm with `rpm -ql bind | grep -E 'sbin/'` in the pinned image.
+    suse)   echo "/usr/sbin/named /usr/sbin/named-checkconf /usr/sbin/named-checkzone /usr/sbin/rndc" ;;
     *)
       echo "89-dns.sh: unsupported OS family '${MARAN_OS_FAMILY:-}'" >&2
       exit 1
@@ -257,14 +281,43 @@ assert_dns_identity_exists() {
   fi
 }
 
-# ensure_dns_directories: the configuration directory, the daemon's state directory and the zones
-# directory below it, each with owner and mode restated rather than inherited from an umask.
+# ensure_dns_writable_subdirectory <path> <group>: a directory of the daemon's state that the
+# daemon itself writes into, `root:<group> 0770`.
+#
+# The state directory is group-writable, so the daemon's group can put a symbolic link or a
+# directory of its own at this name; `install -d` would follow the link and chown and chmod
+# whatever it points at, as root. So whatever occupies the path that is not a real directory owned
+# by root is removed first (`rm -rf` on a link removes the link and never its target), and the
+# directory is made afresh. What is lost by that is the daemon's own scratch files and a signed
+# copy it rebuilds; the zone files and keys are re-sent by the panel's reconciler.
+ensure_dns_writable_subdirectory() {
+  local path="${1:?}" group="${2:?}"
+
+  if [ -L "$path" ] \
+    || { [ -e "$path" ] && [ ! -d "$path" ]; } \
+    || { [ -d "$path" ] && [ "$(stat -c '%u' "$path")" -ne 0 ]; }; then
+    rm -rf -- "$path"
+  fi
+  install -d -o root -g "$group" -m 0770 "$path"
+}
+
+# ensure_dns_directories: the configuration directory, the daemon's state directory and the
+# directories below it, each with owner and mode restated rather than inherited from an umask.
 #
 #   /etc/maran/bind          root:<group> 0750  the daemon's group reads the key and the config
 #   <state>                  root:<group> 0770  the daemon WRITES here: the zone list it keeps
-#                                               itself (`rndc addzone`) and nothing else
+#                                               itself (`rndc addzone`)
 #   <state>/zones            root:<group> 0750  the agent writes zone files, the daemon reads
 #                                               them and cannot change them
+#   <state>/signed-zones     root:<group> 0770  zone files of SIGNED zones: the agent writes the
+#                                               file, and inline signing makes the daemon write
+#                                               the signed copy and its journal beside it
+#   <state>/keys             root:<group> 0770  a signed zone's key files: the agent writes
+#                                               K<zone>.+013+<tag>.key and .private, and the
+#                                               daemon writes the .state file of each key
+#
+# The two writable directories exist so that the plain zones directory can stay read-only to the
+# daemon for every zone that is not signed.
 #
 # `install -d` alone would exit 0 on a path somebody else had put there and would follow a symbolic
 # link, so whatever occupies a state path is removed first unless it is already a real directory
@@ -282,6 +335,8 @@ ensure_dns_directories() {
   fi
   install -d -o root -g "$group" -m 0770 "$state"
   install -d -o root -g "$group" -m 0750 "${state}/zones"
+  ensure_dns_writable_subdirectory "${state}/${MARAN_DNS_SIGNED_ZONES_SUBDIR}" "$group"
+  ensure_dns_writable_subdirectory "${state}/${MARAN_DNS_KEYS_SUBDIR}" "$group"
 
   if [ ! -d "$MARAN_DNS_CONFIG_PARENT" ]; then
     install -d -o root -g root -m 0750 "$MARAN_DNS_CONFIG_PARENT"
@@ -343,13 +398,15 @@ install_dns_unit() {
 # distribution's own profile is never edited. Does nothing — and says so — on a host with no such
 # profile.
 allow_dns_under_apparmor() {
-  local state staged
+  local state staged signed_zones keys
   if [ ! -f "$MARAN_DNS_APPARMOR_PROFILE" ]; then
     echo "AppArmor: no ${MARAN_DNS_APPARMOR_PROFILE} on this host, so no rule was written for named."
     return 0
   fi
 
   state="$(dns_state_directory_for_family)"
+  signed_zones="${state}/${MARAN_DNS_SIGNED_ZONES_SUBDIR}"
+  keys="${state}/${MARAN_DNS_KEYS_SUBDIR}"
   install -d -o root -g root -m 0755 "$(dirname -- "$MARAN_DNS_APPARMOR_LOCAL")"
   [ -f "$MARAN_DNS_APPARMOR_LOCAL" ] || : > "$MARAN_DNS_APPARMOR_LOCAL"
 
@@ -363,6 +420,11 @@ allow_dns_under_apparmor() {
     printf '%s\n' "$MARAN_DNS_APPARMOR_BEGIN"
     printf '%s/ r,\n%s/** r,\n' "$MARAN_DNS_CONFIG_DIR" "$MARAN_DNS_CONFIG_DIR"
     printf '%s/ rw,\n%s/** rwk,\n' "$state" "$state"
+    # The two directories signed zones use (issue #452). The state rule above already reaches
+    # them (`**` matches below any depth); they are stated again so that narrowing the state rule
+    # later cannot silently stop the daemon writing its signed copies, journals and key state.
+    printf '%s/ rw,\n%s/** rwk,\n' "$signed_zones" "$signed_zones"
+    printf '%s/ rw,\n%s/** rwk,\n' "$keys" "$keys"
     printf '%s\n' "$MARAN_DNS_APPARMOR_END"
   } > "$staged"
   chown root:root "$staged"
@@ -383,7 +445,13 @@ allow_dns_under_apparmor() {
 # The state directory sits below /var/named and would inherit `named_zone_t`, which `named_t` writes
 # only with the `named_write_master_zones` boolean; `named_cache_t` is writable by default, and is
 # what the zone list needs. The zones directory keeps `named_zone_t`: the daemon reads zone files
-# the agent wrote and never changes them. `semanage fcontext -a` fails on a rule that already
+# the agent wrote and never changes them.
+#
+# The signed-zones and keys directories (issue #452) need NO line of their own: the first rule
+# below, `<state>(/.*)?`, matches `<state>/signed-zones` and `<state>/keys` and everything under
+# them, so they are `named_cache_t` and the daemon writes them by default. The second rule,
+# `<state>/zones(/.*)?`, does not match them: the regular expressions are anchored at both ends and
+# `signed-zones` is not `zones`. The echo at the end prints both labels as they are on disk. `semanage fcontext -a` fails on a rule that already
 # exists, so a re-run falls back to `-m`. Does nothing — and says so — where SELinux is not
 # enforcing.
 label_dns_under_selinux() {
@@ -405,7 +473,9 @@ label_dns_under_selinux() {
     || semanage fcontext -m -t named_zone_t "${state}/zones(/.*)?"
   restorecon -R "$state"
   echo "SELinux: ${state} is $(stat -c '%C' "$state" 2>/dev/null || echo unknown)," \
-       "${state}/zones is $(stat -c '%C' "${state}/zones" 2>/dev/null || echo unknown)." \
+       "${state}/zones is $(stat -c '%C' "${state}/zones" 2>/dev/null || echo unknown)," \
+       "${state}/${MARAN_DNS_SIGNED_ZONES_SUBDIR} is $(stat -c '%C' "${state}/${MARAN_DNS_SIGNED_ZONES_SUBDIR}" 2>/dev/null || echo unknown)," \
+       "${state}/${MARAN_DNS_KEYS_SUBDIR} is $(stat -c '%C' "${state}/${MARAN_DNS_KEYS_SUBDIR}" 2>/dev/null || echo unknown)." \
        "UNOBSERVED HERE: an AVC check of a running named (ausearch -m avc)."
 }
 

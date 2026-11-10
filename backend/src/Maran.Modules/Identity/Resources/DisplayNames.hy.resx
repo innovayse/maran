@@ -289,6 +289,9 @@
   <data name="AuditActionPasswordResetRefused">
     <value>Մերժվեց գաղտնաբառի վերակայման թոքենը</value>
   </data>
+  <data name="AuditActionCredentialTokensRetired">
+    <value>Չեղարկվեցին հրավերի և գաղտնաբառի վերակայման թոքենները</value>
+  </data>
   <data name="AuditActionSecurityPolicySaved">
     <value>Պահպանվեց անվտանգության քաղաքականությունը</value>
   </data>
@@ -327,6 +330,18 @@
   </data>
   <data name="AuditActionLicenceInstalled">
     <value>Տեղադրվեց լիցենզիա</value>
+  </data>
+  <data name="AuditActionLicenceModuleLapsed">
+    <value>Մոդուլի լիցենզիայի ժամկետը սպառվեց</value>
+  </data>
+  <data name="AuditActionLicenceModuleRecovered">
+    <value>Մոդուլը կրկին ծածկված է լիցենզիայով</value>
+  </data>
+  <data name="AuditActionLicenceLeaseRenewed">
+    <value>Լիցենզիայի վարձակալությունը երկարաձգվեց</value>
+  </data>
+  <data name="AuditActionLicenceLeaseRenewalFailed">
+    <value>Լիցենզիայի վարձակալությունը չհաջողվեց երկարաձգել</value>
   </data>
   <data name="AuditActionCustomerInvited">
     <value>Հրավիրվեց հաճախորդ</value>
@@ -476,16 +491,16 @@
     <value>Սերվերի տվյալների ընթերցում</value>
   </data>
   <data name="ApiKeyScopePlansRead">
-    <value>Վերավաճառողի սակագների ընթերցում</value>
+    <value>Ռեսելլերի սակագների ընթերցում</value>
   </data>
   <data name="ApiKeyScopeAccountsRead">
-    <value>Վերավաճառողի հաշիվների ընթերցում</value>
+    <value>Ռեսելլերի հաշիվների ընթերցում</value>
   </data>
   <data name="ApiKeyScopeAccountsWrite">
-    <value>Վերավաճառողի հաշիվների ստեղծում և փոփոխում</value>
+    <value>Ռեսելլերի հաշիվների ստեղծում և փոփոխում</value>
   </data>
   <data name="ApiKeyScopeAccountsDelete">
-    <value>Վերավաճառողի հաշիվների ջնջում</value>
+    <value>Ռեսելլերի հաշիվների ջնջում</value>
   </data>
   <data name="ApiKeyStatusActive">
     <value>Ակտիվ</value>
@@ -607,6 +622,9 @@
   <data name="AuditActionPanelUpdateRequested">
     <value>Ադմինիստրատորը պահանջեց վահանակի թարմացում</value>
   </data>
+  <data name="AuditActionPanelUpdateCheckRequested">
+    <value>Ադմինիստրատորը պահանջեց վահանակի թարմացումների ստուգում</value>
+  </data>
   <data name="AuditActionPanelUpdateRunApplied">
     <value>Պահանջված թարմացումը տեղադրվեց</value>
   </data>
@@ -651,6 +669,30 @@
   </data>
   <data name="AuditActionModuleRestartRequested">
     <value>Մոդուլը գործարկելու համար պահանջվել է վահանակի վերագործարկում</value>
+  </data>
+  <data name="AuditActionReauthenticationFailed">
+    <value>Գաղտնաբառի կրկնակի մուտքը մերժվել է</value>
+  </data>
+  <data name="AuditActionMarketplaceEnabled">
+    <value>Մարկետփլեյսը միացվել է</value>
+  </data>
+  <data name="AuditActionMarketplaceDisabled">
+    <value>Մարկետփլեյսն անջատվել է</value>
+  </data>
+  <data name="AuditActionModuleInstallRequested">
+    <value>Պահանջվել է մոդուլի տեղադրում մարկետփլեյսից</value>
+  </data>
+  <data name="AuditActionModuleUpdateRequested">
+    <value>Պահանջվել է մոդուլի թարմացում մարկետփլեյսից</value>
+  </data>
+  <data name="AuditActionModuleRemoveRequested">
+    <value>Պահանջվել է մոդուլի հեռացում</value>
+  </data>
+  <data name="AuditActionModuleRollbackRequested">
+    <value>Պահանջվել է մոդուլի հետադարձ</value>
+  </data>
+  <data name="AuditActionCatalogueVerificationFailed">
+    <value>Մարկետփլեյսի կատալոգը չանցավ ստորագրության ստուգումը</value>
   </data>
   <data name="AuditActionDnsEnabled">
     <value>DNS սերվերը միացվեց</value>
@@ -735,5 +777,218 @@
   </data>
   <data name="AuditActionMailAutoresponderCleared">
     <value>Ավտոպատասխանը հեռացվել է</value>
+  </data>
+  <data name="AuditActionZoneTemplateSaved">
+    <value>DNS գոտու ձևանմուշը պահպանվել է</value>
+  </data>
+  <data name="AuditActionZoneTemplateDeleted">
+    <value>DNS գոտու ձևանմուշը ջնջվել է</value>
+  </data>
+  <data name="AuditActionZoneTemplateDefaultChanged">
+    <value>Լռելյայն DNS գոտու ձևանմուշը փոխվել է</value>
+  </data>
+  <data name="AuditActionZoneSigningEnabled">
+    <value>DNSSEC ստորագրումը միացվել է DNS գոտու համար</value>
+  </data>
+  <data name="AuditActionZoneSigningWithdrawalStarted">
+    <value>DNS գոտու DNSSEC ստորագրումից դուրս բերումը սկսվել է</value>
+  </data>
+  <data name="AuditActionZoneSigningWithdrawn">
+    <value>DNS գոտին դուրս է բերվել DNSSEC ստորագրումից</value>
+  </data>
+  <data name="AuditSubjectChainIntact">
+    <value>Շղթան անխախտ է, ստուգվել է {0} տող</value>
+  </data>
+  <data name="AuditSubjectChainBroken">
+    <value>Շղթան խախտված է ({0}), սկսած {1}-րդ տողից, ստուգվել է {2} տող</value>
+  </data>
+  <data name="AuditSubjectChainBrokenNoIndex">
+    <value>Շղթան խախտված է ({0}), ստուգվել է {1} տող</value>
+  </data>
+  <data name="AuditSubjectChainBreakRowHashMismatch">
+    <value>տողը փոփոխվել է</value>
+  </data>
+  <data name="AuditSubjectChainBreakCommitmentMismatch">
+    <value>ջնջվող դաշտերը չեն համապատասխանում պարտավորությանը</value>
+  </data>
+  <data name="AuditSubjectChainBreakIndexGap">
+    <value>տողը բացակայում է</value>
+  </data>
+  <data name="AuditSubjectChainBreakAnchorMismatch">
+    <value>առաջին տողը չի հետևում վերջին մաքրմանը</value>
+  </data>
+  <data name="AuditSubjectChainBreakSaltMissing">
+    <value>տողն ունի ո՛չ աղ, ո՛չ ջնջման նշում</value>
+  </data>
+  <data name="AuditSubjectRetentionChange">
+    <value>Փոխվեց՝ {0} → {1}</value>
+  </data>
+  <data name="AuditSubjectRetentionDays">
+    <value>{0} օր</value>
+  </data>
+  <data name="AuditSubjectRetentionIndefinite">
+    <value>առանց սահմանի</value>
+  </data>
+  <data name="AuditSubjectRetentionRun">
+    <value>Ժամկետ՝ {0}, սահման՝ {1}, ջնջվել է {2} տող, մինչև շղթայի {3}-րդ ինդեքսը</value>
+  </data>
+  <data name="AuditSubjectRetentionRunFailed">
+    <value>Ժամկետ՝ {0}, գործարկումը չավարտվեց</value>
+  </data>
+  <data name="AuditSubjectNoCutoff">
+    <value>չկա</value>
+  </data>
+  <data name="AuditSubjectCutoff">
+    <value>{0:g} UTC</value>
+  </data>
+  <data name="AuditSubjectThresholds">
+    <value>սկավառակ՝ {0}, պրոցեսոր՝ {1}, հիշողություն՝ {2}</value>
+  </data>
+  <data name="AuditSubjectThresholdPercent">
+    <value>{0}%</value>
+  </data>
+  <data name="AuditSubjectThresholdOff">
+    <value>չի հսկվում</value>
+  </data>
+  <data name="AuditSubjectChange">
+    <value>{0} → {1}</value>
+  </data>
+  <data name="AuditSubjectLogLevelVerbose">
+    <value>Մանրամասն</value>
+  </data>
+  <data name="AuditSubjectLogLevelDebug">
+    <value>Վրիպազերծում</value>
+  </data>
+  <data name="AuditSubjectLogLevelInformation">
+    <value>Տեղեկատվություն</value>
+  </data>
+  <data name="AuditSubjectLogLevelWarning">
+    <value>Նախազգուշացում</value>
+  </data>
+  <data name="AuditSubjectLogLevelError">
+    <value>Սխալ</value>
+  </data>
+  <data name="AuditSubjectLogLevelFatal">
+    <value>Կրիտիկական</value>
+  </data>
+  <data name="AuditActionRemoteServerAdded">
+    <value>Հեռավոր սերվերը գրանցվեց</value>
+  </data>
+  <data name="AuditActionRemoteServerHostKeyPinned">
+    <value>Հեռավոր սերվերի հոսթի բանալին հաստատվեց</value>
+  </data>
+  <data name="AuditActionRemoteServerTested">
+    <value>Հեռավոր սերվերի հետ կապը փորձարկվեց</value>
+  </data>
+  <data name="AuditActionRemoteServerEdited">
+    <value>Հեռավոր սերվերը փոփոխվեց</value>
+  </data>
+  <data name="AuditActionRemoteServerRemoved">
+    <value>Հեռավոր սերվերը հեռացվեց</value>
+  </data>
+  <data name="AuditActionRemoteServerDiscovered">
+    <value>Հեռավոր սերվերի պարունակությունը կարդացվեց</value>
+  </data>
+  <data name="AuditActionRemoteServerHostKeysScanned">
+    <value>Հեռավոր սերվերի հոսթի բանալիները կարդացվեցին</value>
+  </data>
+  <data name="AuditActionAccountExported">
+    <value>Հաշիվը արտահանվեց</value>
+  </data>
+  <data name="AuditActionExportGrantIssued">
+    <value>Տրվեց արտահանման ներբեռնման թույլտվություն</value>
+  </data>
+  <data name="AuditActionExportGrantRevoked">
+    <value>Արտահանման ներբեռնման թույլտվությունը չեղարկվեց</value>
+  </data>
+  <data name="AuditActionExportDownloaded">
+    <value>Արտահանումը ներբեռնվեց</value>
+  </data>
+  <data name="AuditActionExportGrantPulled">
+    <value>Արտահանումը ստացվեց թույլտվությամբ</value>
+  </data>
+  <data name="AuditActionExportExpired">
+    <value>Արտահանման պահպանման ժամկետը լրացավ, այն հեռացվեց</value>
+  </data>
+  <data name="AuditActionImportPullPreviewed">
+    <value>Մեկ այլ վահանակի փաթեթի նախադիտումը կարդացվեց</value>
+  </data>
+  <data name="AuditActionImportPulled">
+    <value>Փաթեթը ստացվեց մեկ այլ վահանակից</value>
+  </data>
+  <data name="AuditActionImportStaged">
+    <value>Ներմուծման փաթեթը պատրաստվեց</value>
+  </data>
+  <data name="AuditActionImportPlanned">
+    <value>Ներմուծման փորձնական գործարկումը կարդացվեց</value>
+  </data>
+  <data name="AuditActionImportStarted">
+    <value>Ներմուծումը սկսվեց</value>
+  </data>
+  <data name="AuditActionImportCompleted">
+    <value>Ներմուծումը ավարտվեց</value>
+  </data>
+  <data name="AuditActionImportRolledBack">
+    <value>Ներմուծումը հետ վերադարձվեց</value>
+  </data>
+  <data name="AuditActionImportRollbackIncomplete">
+    <value>Ներմուծման հետ վերադարձը չավարտվեց</value>
+  </data>
+  <data name="AuditActionImportDiscarded">
+    <value>Պատրաստված ներմուծումը հեռացվեց</value>
+  </data>
+  <data name="AuditActionMigrationJobCreated">
+    <value>Տեղափոխման առաջադրանքը ստեղծվեց</value>
+  </data>
+  <data name="AuditActionMigrationJobMapped">
+    <value>Տեղափոխման առաջադրանքի համապատասխանեցումը փոխվեց</value>
+  </data>
+  <data name="AuditActionMigrationJobPlanned">
+    <value>Տեղափոխման առաջադրանքի փորձնական գործարկումը կարդացվեց</value>
+  </data>
+  <data name="AuditActionMigrationJobLimitsChanged">
+    <value>Տեղափոխման առաջադրանքի սահմանաչափերը փոխվեցին</value>
+  </data>
+  <data name="AuditActionMigrationJobStarted">
+    <value>Տեղափոխման առաջադրանքը մեկնարկեց</value>
+  </data>
+  <data name="AuditActionMigrationJobPaused">
+    <value>Տեղափոխման առաջադրանքը դադարեցվեց</value>
+  </data>
+  <data name="AuditActionMigrationJobResumed">
+    <value>Տեղափոխման առաջադրանքը վերսկսվեց</value>
+  </data>
+  <data name="AuditActionMigrationJobCancelled">
+    <value>Տեղափոխման առաջադրանքը չեղարկվեց</value>
+  </data>
+  <data name="AuditActionMigrationJobCompleted">
+    <value>Տեղափոխման առաջադրանքը ավարտվեց</value>
+  </data>
+  <data name="AuditActionMigrationAccountSynced">
+    <value>Տեղափոխվող հաշիվը համաժամեցվեց</value>
+  </data>
+  <data name="AuditActionMigrationAccountCutOver">
+    <value>Տեղափոխվող հաշիվը փոխանցվեց</value>
+  </data>
+  <data name="AuditActionMigrationAccountRolledBack">
+    <value>Տեղափոխվող հաշիվը հետ վերադարձվեց</value>
+  </data>
+  <data name="AuditActionMigrationAccountRollbackIncomplete">
+    <value>Տեղափոխվող հաշվի հետ վերադարձը չավարտվեց</value>
+  </data>
+  <data name="AuditActionMigrationAccountCutOverFailed">
+    <value>Տեղափոխվող հաշվի փոխանցումը ձախողվեց</value>
+  </data>
+  <data name="AuditActionMigrationAccountCancelled">
+    <value>Հաշվի տեղափոխումը չեղարկվեց</value>
+  </data>
+  <data name="AuditActionMigrationAccountRetried">
+    <value>Հաշվի տեղափոխումը կրկնվեց</value>
+  </data>
+  <data name="AuditActionMigrationAccountSecretsClaimed">
+    <value>Տեղափոխված հաշվի հավատարմագրերը վերցվեցին</value>
+  </data>
+  <data name="AuditActionMigrationBackupTaken">
+    <value>Տեղափոխման համար պահուստային պատճեն ստեղծվեց</value>
   </data>
 </root>

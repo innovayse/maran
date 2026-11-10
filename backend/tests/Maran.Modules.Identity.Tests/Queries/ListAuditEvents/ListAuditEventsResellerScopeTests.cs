@@ -131,7 +131,8 @@ public sealed class ListAuditEventsResellerScopeTests : IDisposable
             new AuditEventQuery(_context),
             new AuditEventScopeReader(user, _directory),
             IdentityTestContext.ActionNames(),
-            IdentityTestContext.OutcomeNames());
+            IdentityTestContext.OutcomeNames(),
+            IdentityTestContext.SubjectNames());
     }
 
     /// <summary>Records one entry.</summary>

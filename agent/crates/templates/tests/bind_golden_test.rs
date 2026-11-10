@@ -21,6 +21,15 @@ fn debian_conf() -> NamedConf {
         control_key_name: "maran-rndc".to_owned(),
         control_port: 953,
         state_directory: "/var/lib/bind/maran".to_owned(),
+        dnssec_policy_supported: false,
+    }
+}
+
+/// The same configuration for a daemon that accepts a signing policy.
+fn debian_conf_with_dnssec_policy() -> NamedConf {
+    NamedConf {
+        dnssec_policy_supported: true,
+        ..debian_conf()
     }
 }
 
@@ -43,6 +52,7 @@ fn every_field_reaches_the_rendered_configuration() {
         control_key_name: "sentinel-key-name".to_owned(),
         control_port: 40_953,
         state_directory: "/sentinel/state".to_owned(),
+        dnssec_policy_supported: false,
     }
     .render_config()
     .unwrap();
@@ -76,4 +86,64 @@ fn the_control_channel_listens_on_loopback_only() {
     assert!(rendered.contains("inet 127.0.0.1 port 953 allow { 127.0.0.1; }"));
     assert!(!rendered.contains("inet *"));
     assert!(!rendered.contains("inet 0.0.0.0"));
+}
+
+/// The signing-policy variant is its own golden: the review artifact for the one
+/// statement a daemon without `dnssec-policy` would refuse the whole file over.
+#[test]
+fn the_daemon_configuration_with_a_signing_policy_renders_its_golden() {
+    assert_eq!(
+        debian_conf_with_dnssec_policy().render_config().unwrap(),
+        golden("bind/named_with_dnssec_policy.conf")
+    );
+}
+
+/// The unsupported render states no policy anywhere: the statement is absent
+/// and not merely commented out, so a daemon that cannot sign reads nothing of it.
+#[test]
+fn a_daemon_that_cannot_sign_is_told_nothing_about_a_policy() {
+    let rendered = debian_conf().render_config().unwrap();
+
+    assert!(!rendered.contains("dnssec-policy"));
+    assert!(!rendered.contains("maran-csk"));
+    assert!(!rendered.contains("csk"));
+}
+
+/// The supported render states the policy exactly once, at the top level of the
+/// file and after the `options` block, never inside it.
+#[test]
+fn the_signing_policy_is_a_top_level_statement_after_the_options_block() {
+    let rendered = debian_conf_with_dnssec_policy().render_config().unwrap();
+    let statement = "dnssec-policy \"maran-csk\" { keys { csk lifetime unlimited algorithm ecdsap256sha256; }; };\n";
+
+    assert_eq!(rendered.matches("dnssec-policy").count(), 1);
+    assert!(rendered.contains(&format!("\n{statement}")));
+    let options_end = rendered.find("\n};\n").unwrap();
+    assert!(rendered.find(statement).unwrap() > options_end);
+}
+
+/// Turning the field on adds the policy and changes nothing else: removing the
+/// statement from the supported render gives the unsupported one back.
+#[test]
+fn the_supported_render_differs_from_the_default_by_the_policy_statement_only() {
+    let plain = debian_conf().render_config().unwrap();
+    let signing = debian_conf_with_dnssec_policy().render_config().unwrap();
+    let statement = "\ndnssec-policy \"maran-csk\" { keys { csk lifetime unlimited algorithm ecdsap256sha256; }; };\n";
+
+    assert_ne!(plain, signing);
+    assert_eq!(signing.replace(statement, ""), plain);
+    assert!(signing.ends_with('\n'));
+    assert!(plain.ends_with("};\n"));
+}
+
+/// The recursion refusal and the rate limit are in the supported render too: the
+/// field cannot be the way to lose them.
+#[test]
+fn the_security_statements_survive_the_signing_policy() {
+    let rendered = debian_conf_with_dnssec_policy().render_config().unwrap();
+
+    assert!(rendered.contains("    recursion no;\n"));
+    assert!(rendered.contains("    allow-recursion { none; };\n"));
+    assert!(rendered.contains("    rate-limit {\n"));
+    assert!(rendered.contains("    allow-transfer { none; };\n"));
 }

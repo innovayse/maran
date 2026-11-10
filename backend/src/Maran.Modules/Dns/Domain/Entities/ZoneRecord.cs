@@ -1,4 +1,5 @@
 using Maran.Modules.Dns.Domain.Enums;
+using Maran.Modules.Dns.Domain.Policies;
 using Maran.Modules.Dns.Domain.ValueObjects;
 
 namespace Maran.Modules.Dns.Domain.Entities;
@@ -110,10 +111,15 @@ public sealed class ZoneRecord
         return new RecordDraft(Name, Type, Ttl, Value, Priority, Weight, Port, Flags, Tag);
     }
 
-    /// <summary>Replaces what the record says with a normalised, shape-checked draft. Only <see cref="Zone"/> calls it.</summary>
+    /// <summary>
+    /// Replaces what the record says with a normalised, shape-checked draft, and makes it the customer's own
+    /// (<see cref="RecordOriginPolicy.AfterOwnerEdit"/>). Only <see cref="Zone"/> calls it, after it asked
+    /// <see cref="RecordOriginPolicy.IsOwnerEditable"/>.
+    /// </summary>
     /// <param name="draft">The normalised draft.</param>
     internal void Change(RecordDraft draft)
     {
+        Origin = RecordOriginPolicy.AfterOwnerEdit(Origin);
         Name = draft.Name;
         Type = draft.Type;
         Ttl = draft.Ttl;

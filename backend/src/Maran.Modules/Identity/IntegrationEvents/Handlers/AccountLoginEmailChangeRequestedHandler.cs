@@ -25,8 +25,14 @@ namespace Maran.Modules.Identity.IntegrationEvents.Handlers;
 /// this address. The login is the account's OWNER login, found through the owner membership.
 /// </para>
 /// <para>
-/// <b>It writes no audit entry of its own.</b> The Accounts module journals the change, with the
-/// administrator who asked and from where; a second entry here would record the same act twice.
+/// <b>The invitation and reset tokens mailed to the address being left are retired in the same
+/// save.</b> The old address may be a typo, a former contact or a mailbox somebody else reads, and a
+/// token mailed there would otherwise still set the owner login's password for its whole life (seven
+/// days for an invitation). A new token is issued for the new address afterwards and is not touched.
+/// </para>
+/// <para>
+/// <b>The change itself is journaled by the Accounts module</b>, with the administrator who asked and
+/// from where; this handler writes only the entry for the tokens it retired.
 /// </para>
 /// </remarks>
 public sealed class AccountLoginEmailChangeRequestedHandler
@@ -37,13 +43,33 @@ public sealed class AccountLoginEmailChangeRequestedHandler
     /// <summary>Finds the account's owner login.</summary>
     private readonly AccountOwnerFinder _owners;
 
+    /// <summary>Retires the invitation and reset tokens mailed to the address being left.</summary>
+    private readonly CredentialTokenRetirement _tokenRetirement;
+
+    /// <summary>Records the retirement of those tokens.</summary>
+    private readonly IdentityAuditJournal _journal;
+
+    /// <summary>The panel's clock; the ambient one is a banned API (rules/csharp.md).</summary>
+    private readonly IClock _clock;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Identity module's database context.</param>
     /// <param name="owners">Finds the account's owner login.</param>
-    public AccountLoginEmailChangeRequestedHandler(IdentityDbContext dbContext, AccountOwnerFinder owners)
+    /// <param name="tokenRetirement">Retires the tokens mailed to the old address.</param>
+    /// <param name="journal">Records the retirement.</param>
+    /// <param name="clock">The panel's clock.</param>
+    public AccountLoginEmailChangeRequestedHandler(
+        IdentityDbContext dbContext,
+        AccountOwnerFinder owners,
+        CredentialTokenRetirement tokenRetirement,
+        IdentityAuditJournal journal,
+        IClock clock)
     {
         _dbContext = dbContext;
         _owners = owners;
+        _tokenRetirement = tokenRetirement;
+        _journal = journal;
+        _clock = clock;
     }
 
     /// <summary>Moves the account's login to the new address, or refuses.</summary>
@@ -70,6 +96,14 @@ public sealed class AccountLoginEmailChangeRequestedHandler
             return Result.Fail(Error.Of(nameof(ErrorMessages.EmailTaken), ErrorType.Conflict));
         }
 
+        // Only a real move retires anything: keeping the address leaves its mail where it was sent.
+        var moved = !string.Equals(user.Email, message.Email, StringComparison.Ordinal);
+        var retired = 0;
+        if (moved)
+        {
+            retired = await _tokenRetirement.RetireAsync(user.Id, _clock.UtcNow, cancellationToken);
+        }
+
         user.ChangeEmail(message.Email);
         try
         {
@@ -82,6 +116,12 @@ public sealed class AccountLoginEmailChangeRequestedHandler
             // check above and this save. The change is undone so the context is not left dirty.
             _dbContext.Entry(user).State = EntityState.Detached;
             return Result.Fail(Error.Of(nameof(ErrorMessages.EmailTaken), ErrorType.Conflict));
+        }
+
+        if (retired > 0)
+        {
+            await _journal.RecordSystemAsync(
+                IdentityAuditActions.CredentialTokensRetired, $"{user.Id}: {retired}", succeeded: true, cancellationToken);
         }
 
         return Result.Ok();

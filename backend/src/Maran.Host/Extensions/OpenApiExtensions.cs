@@ -2,6 +2,7 @@ using Maran.Host.Cli.Commands;
 using Maran.Host.Cli.Models;
 using Maran.Host.OpenApi;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Security;
 using Microsoft.OpenApi.Models;
 
 namespace Maran.Host.Extensions;
@@ -30,6 +31,30 @@ public static class OpenApiExtensions
     }
 
     /// <summary>
+    /// Maps the panel's endpoints for the <c>openapi</c> verb, which never reaches the mapping a served start
+    /// does. The API explorer describes an endpoint only once it is in the route table, so without this the
+    /// document held the controller actions and none of the minimal endpoints (the module catalogue, the
+    /// dashboard, the search). Nothing is served: the pipeline is built and never run.
+    /// </summary>
+    /// <param name="app">The built application.</param>
+    /// <param name="invocation">The parsed command line.</param>
+    /// <returns>The same application, for chaining.</returns>
+    public static WebApplication MapPanelOpenApiEndpoints(this WebApplication app, CliInvocation invocation)
+    {
+        if (invocation.Verb == OpenApiCliCommand.VerbName)
+        {
+            // The API explorer reads endpoints through the routing options, and only UseEndpoints copies a
+            // builder's data sources into them. The application itself is never served on this verb, so the
+            // endpoints are mapped on a separate pipeline branch that is built here and never run.
+            var describing = ((IApplicationBuilder)app).New();
+            describing.UseRouting();
+            describing.UseEndpoints(endpoints => { endpoints.MapPanelEndpoints(); });
+        }
+
+        return app;
+    }
+
+    /// <summary>
     /// Registers the generator and the writer unconditionally. The tests call this directly to build
     /// the same document the verb writes; production reaches it only through
     /// <see cref="AddPanelOpenApi"/>.
@@ -38,6 +63,9 @@ public static class OpenApiExtensions
     /// <returns>The same collection, for chaining.</returns>
     public static IServiceCollection AddPanelOpenApiGenerator(this IServiceCollection services)
     {
+        // The minimal endpoints (the module catalogue, the dashboard, the search) are described by the
+        // endpoint API explorer; the controller explorer alone does not see them.
+        services.AddEndpointsApiExplorer();
         services.AddSwaggerGen(options =>
         {
             options.SwaggerDoc(
@@ -46,13 +74,20 @@ public static class OpenApiExtensions
                 {
                     Title = OpenApiDocumentNames.Title,
                     Version = OpenApiBuildVersion.Of(typeof(Program).Assembly),
-                    Description = "Controller actions of the panel API. The minimal endpoints (health, "
-                        + "module catalogue, dashboard, attention count) are not described here.",
+                    Description = "Every endpoint of the panel API: the controller actions and the minimal "
+                        + "endpoints (health, module catalogue, dashboard, search).",
                 });
 
             options.CustomSchemaIds(OpenApiSchemaIds.Of);
             options.SupportNonNullableReferenceTypes();
             options.DescribeAllParametersInCamelCase();
+
+            // The wire is what the serializer writes, not the shape of the C# type. A secret is written as
+            // its plain string (SensitiveStringJsonConverter), never as an object with members.
+            options.MapType<SensitiveString>(() => { return new OpenApiSchema { Type = "string" }; });
+            options.SchemaFilter<PolymorphicSchemaFilter>();
+            options.SchemaFilter<DashboardSectionSchemaFilter>();
+            options.SchemaFilter<NullableReferenceSchemaFilter>();
 
             options.AddSecurityDefinition(
                 OpenApiDocumentNames.BearerScheme,

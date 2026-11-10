@@ -296,6 +296,28 @@ enum ErrorCode {
   // lacks this value sees the earlier codes for the same failures
   // (VALIDATION_FAILED for a wrong key, INVALID_INPUT for a missing one).
   ERROR_CODE_ARCHIVE_UNOPENABLE = 20;
+  // Added 2026-11-09, additively (issue #466). A package install failed
+  // because the host's package manager reached its sources and none of them
+  // carries the package: `apt-get` printed `Unable to locate package`, `dnf`
+  // printed `No match for argument`. The request was sound and the host works;
+  // the distribution release or the repositories configured on it simply do not
+  // offer what was asked for (PHP 8.2 on an Ubuntu release whose only PHP is
+  // 8.3). Retrying changes nothing, and the remedy is a repository to add, not
+  // a mirror to wait for.
+  //
+  // Only the agent's package classification produces it, from the package
+  // manager's exit status AND its own output, and only when the run shows no
+  // source fault beside it: a source that was refused or unreachable may be the
+  // reason the package was not found, and keeps ERROR_CODE_PACKAGE_SOURCE_REFUSED
+  // or ERROR_CODE_PACKAGE_SOURCE_UNREACHABLE. The list of installable versions
+  // is built from the same question, so a caller that picks from it meets this
+  // code only when a source changed between the list and the install.
+  //
+  // It is NOT ERROR_CODE_SYSTEM_FAILURE, which a held database lock or a
+  // failing maintainer script still ride on, and NOT ERROR_CODE_NOT_FOUND, which
+  // names a resource the agent manages. A caller predating this value reads it
+  // as an unknown code and treats it as a failure of the host.
+  ERROR_CODE_PACKAGE_NOT_AVAILABLE = 21;
 }
 
 // Streamed progress of a long-running operation (backup, restore, install).

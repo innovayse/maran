@@ -1,10 +1,11 @@
-import { expect, test, type Page } from '@playwright/test'
-import { breadcrumbItems, mainNavigation, openFullShell, openSection } from '../fixtures/open-full-shell'
+import { expect, test } from '../fixtures/guarded-test'
+import { breadcrumbItems, FULL_CATALOGUE, mainNavigation, openFullShell, openSection } from '../fixtures/open-full-shell'
 import { delayRoute } from '../fixtures/delay-route'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSiteDetail, stubSites } from '../fixtures/stub-sites-routes'
 import type { Account, AccountDetail } from '../../src/types/account'
 import type { Site, SiteDetail } from '../../src/types/site'
+import type { Page } from '@playwright/test'
 
 // Issue #209, point 6: the breadcrumb stopped one level early on submenu pages and on records, and
 // a record's crumb must be its name (a placeholder while it loads), never the id in the address.
@@ -147,14 +148,28 @@ test('an account ends the trail on its name', async ({ page }) => {
 
 test('an account the panel does not have ends the trail on the screen title, not on its id', async ({
   page,
+  guard,
 }) => {
-  await openFullShell(page, `/accounts/${ACCOUNT.id}`)
+  // The refusal is the subject: the one record this spec opens by address is not there.
+  guard.allow(404, new RegExp(`/api/v1/accounts/${ACCOUNT.id}$`))
+  await openFullShell(page, `/accounts/${ACCOUNT.id}`, FULL_CATALOGUE, async (target) => {
+    await target.route(`**/api/v1/accounts/${ACCOUNT.id}`, async (route) => {
+      await route.fulfill({
+        status: 404,
+        contentType: 'application/problem+json',
+        body: JSON.stringify({ title: 'Not found', status: 404 }),
+      })
+    })
+  })
   await expect(page.getByRole('main')).toBeVisible()
   await expectTrail(page, 'Hosting / Accounts / Account')
 })
 
 test('settings screens are named by their titles, never by a URL segment (#72)', async ({ page }) => {
   await openFullShell(page)
+  // Wide enough for the longest of these trails beside the app bar's controls: the breadcrumb hides
+  // itself when the whole trail does not fit (see ShellBreadcrumb), and at 1440 this one is cut off.
+  await page.setViewportSize({ width: 1680, height: 900 })
   const nav = mainNavigation(page)
 
   await openSection(page, 'Monitoring')

@@ -19,6 +19,11 @@
 #                           php-fpm unit does: re-read the configuration and
 #                           re-bind every pool's listener), and success when
 #                           none is. See reload_php_fpm below.
+#   restart <x>.mount       unmounts the bind mount and makes it again, the way a
+#                           real restart does, so a jail follows a home that was
+#                           replaced (issue #487). A busy mount is detached when the
+#                           unit says `LazyUnmount=yes` and refused when it does not,
+#                           which is systemd's own behaviour. See remount_unit.
 #   enable --now <x>.mount  performs the bind mount the unit describes, AFTER
 #                           checking the unit the way systemd checks it.
 #   disable --now <x>.mount unmounts it again, which the account-deletion
@@ -32,6 +37,13 @@
 #                           itself fails. See INSTALLED_SUFFIX below.
 #   show <u> --property=…   prints the four properties ops::monitor asks for,
 #                           derived from the same recorded state.
+#   show <u> --property=Environment [--value]
+#                           prints the `Environment=` assignments of the unit file
+#                           under /etc/systemd/system, space-separated. It reads the
+#                           file's TEXT and not systemd's merged view (no drop-ins,
+#                           no `EnvironmentFile=`), which is the only thing a
+#                           container with no manager can offer; the SUSE family's
+#                           step 68 asks for it. See show_environment.
 #   anything else           succeeds silently. It never starts a service and
 #                           never enables one at boot; the polygon suites assert
 #                           what the agent WRITES and what the real tools make of
@@ -284,6 +296,38 @@ unmount_unit() {
     exec umount "$where"
 }
 
+# remount_unit: the `restart <name>.mount` arm.
+#
+# A bind mount follows the INODE it was made from. A restore that renames a new
+# directory into the home's place leaves a jail showing the displaced one until the
+# mount is made again, and `systemctl restart` of the jail's unit is how it is made
+# again. This does what systemd does for it: unmount, then mount what the unit says.
+#
+# The unmount is lazy only when the unit says `LazyUnmount=yes`, because that is when
+# systemd's is: a session still inside the jail keeps a plain unmount busy, and a stand-in
+# that detached it regardless would pass for a unit the real manager fails to stop.
+remount_unit() {
+    unit="$1"
+    path="${UNIT_DIRECTORY}/${unit}"
+
+    [ -f "$path" ] || fail "unit ${unit} not found in ${UNIT_DIRECTORY}"
+
+    what="$(value_of What "$path")"
+    where="$(value_of Where "$path")"
+    [ -n "$what" ] || fail "unit ${unit} has no What="
+    [ -n "$where" ] || fail "unit ${unit} has no Where="
+
+    if grep -qE "[[:space:]]${where}[[:space:]]" /proc/self/mountinfo; then
+        if [ "$(value_of LazyUnmount "$path")" = yes ]; then
+            umount --lazy "$where" || fail "could not unmount ${where}"
+        else
+            umount "$where" || fail "could not unmount ${where}: target is busy"
+        fi
+    fi
+
+    mount --bind "$what" "$where" || fail "could not mount ${what} on ${where}"
+}
+
 # require_unit_name: refuse a unit name that would not be one.
 #
 # The name is used as a file name, so one carrying a `/` would escape the state
@@ -354,10 +398,15 @@ record_state() {
 # installs both and enables neither, because the operator switches the timer on with
 # `maran panel-backup-schedule enable` after writing the configuration, so a stand-in
 # that reported the timer enabled would make "step 67 left it off" unobservable.
+# The unattended security-patch update's pair (issue #383) is dormant until step 69 or
+# `maran update-schedule enable` records otherwise, so that "an offline install left the
+# timer off" and "a disabled timer stayed off" are observable (docker/polygon/asserts/parts/
+# update-security-units.sh).
 is_dormant_panel_unit() {
     case "$1" in
         maran-ftps.service | maran-php-install@*.service) return 0 ;;
         maran-panel-backup.timer | maran-panel-backup.service) return 0 ;;
+        maran-update-security.timer | maran-update-security.service) return 0 ;;
     esac
     return 1
 }
@@ -444,6 +493,32 @@ show_unit() {
     exit 0
 }
 
+# show_environment: the `show <unit> --property=Environment [--value]` arm. Never returns.
+#
+# Prints the unit file's `Environment=` values on one line, the shape systemd prints them in, with
+# the `Environment=` prefix unless `--value` was asked for. It READS THE UNIT FILE'S TEXT, which is
+# not what a real manager answers (that is the merged result of the unit, its drop-ins and the
+# manager's own state), so a caller that needs the merged view must say UNOBSERVED HERE: this
+# stand-in cannot tell a drop-in that overrides the value. A unit with no file, or no
+# `Environment=` line, answers an empty value, as systemd does.
+show_environment() {
+    unit="$1"
+    shift
+    path="${UNIT_DIRECTORY}/${unit}"
+    values=""
+    if [ -f "$path" ]; then
+        values="$(sed -n 's/^Environment=//p' "$path" | tr '\n' ' ' | sed 's/ $//')"
+    fi
+    for argument in "$@"; do
+        if [ "$argument" = "--value" ]; then
+            printf '%s\n' "$values"
+            exit 0
+        fi
+    done
+    printf 'Environment=%s\n' "$values"
+    exit 0
+}
+
 # reload_php_fpm: the `reload php*-fpm` arm. Never returns.
 #
 # A php-fpm unit's reload is SIGUSR2 to its master, which re-reads the global
@@ -472,9 +547,13 @@ fi
 case "$verb" in
     start | restart)
         # Records the state and starts nothing. The polygon's real daemons are
-        # started by the suites' own fixtures, as real processes.
+        # started by the suites' own fixtures, as real processes. The one thing it
+        # DOES is remount a `.mount` unit on a restart (see remount_unit).
         unit="$(unit_from "$@")"
         require_unit_name "$unit"
+        case "$verb:$unit" in
+            restart:*.mount) remount_unit "$unit" ;;
+        esac
         record_state "$unit" active
         exit 0
         ;;
@@ -503,6 +582,9 @@ case "$verb" in
     show)
         unit="$(unit_from "$@")"
         require_unit_name "$unit"
+        for argument in "$@"; do
+            [ "$argument" = "--property=Environment" ] && show_environment "$unit" "$@"
+        done
         show_unit "$unit"
         ;;
     enable)

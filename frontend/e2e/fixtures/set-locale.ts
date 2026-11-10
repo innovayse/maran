@@ -21,7 +21,13 @@ const LOCALE_STORAGE_KEY = 'maran.locale'
 export const setPersistedLocale = async (page: Page, locale: 'en' | 'ru' | 'hy'): Promise<void> => {
   await page.addInitScript(
     ({ key, value }) => {
-      window.localStorage.setItem(key, value)
+      try {
+        window.localStorage.setItem(key, value)
+      } catch {
+        // Playwright runs init scripts in every frame. A sandboxed module frame has an opaque origin
+        // and no storage by design (rules/vue.md, packaged modules), so only the shell's own origin
+        // is meant to hold the language.
+      }
     },
     { key: LOCALE_STORAGE_KEY, value: locale },
   )

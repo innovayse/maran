@@ -401,3 +401,50 @@ fn an_extension_left_in_the_wrong_state_is_a_system_failure_without_tool_output(
         assert!(wire.tool_output.is_empty());
     }
 }
+
+#[test]
+fn a_package_no_source_carries_is_its_own_code_and_names_the_package() {
+    let error = PhpOpError::PackageNotAvailable {
+        package: "php8.2-fpm".to_owned(),
+        stderr: "Job for maran-php-install@php8.2-fpm.service failed".to_owned(),
+    };
+
+    let wire = to_agent_error(&error);
+
+    assert_eq!(wire.code, ErrorCode::PackageNotAvailable as i32);
+    assert!(wire.message.contains("php8.2-fpm"), "{}", wire.message);
+    assert_eq!(
+        wire.tool_output,
+        "Job for maran-php-install@php8.2-fpm.service failed"
+    );
+}
+
+#[test]
+fn a_package_no_source_carries_is_not_a_system_failure_nor_a_source_fault() {
+    // Inverse control: the three neighbours keep their own codes.
+    let local = PhpOpError::PackageManager {
+        stderr: "dpkg was interrupted".to_owned(),
+    };
+
+    assert_eq!(code_of(&local), ErrorCode::SystemFailure as i32);
+    assert_ne!(
+        ErrorCode::PackageNotAvailable as i32,
+        ErrorCode::PackageSourceRefused as i32
+    );
+    assert_ne!(
+        ErrorCode::PackageNotAvailable as i32,
+        ErrorCode::PackageSourceUnreachable as i32
+    );
+}
+
+#[test]
+fn a_package_catalogue_that_could_not_be_read_is_a_system_failure_with_no_tool_output() {
+    let error = PhpOpError::PackageCatalogueUnavailable {
+        reason: "the package manager's query exited with status 100".to_owned(),
+    };
+
+    let wire = to_agent_error(&error);
+
+    assert_eq!(wire.code, ErrorCode::SystemFailure as i32);
+    assert!(wire.tool_output.is_empty());
+}

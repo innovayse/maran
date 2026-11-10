@@ -115,7 +115,41 @@ public sealed class IdentityAuditJournal
             ipAddress,
             userAgent,
             succeeded,
+            subjectUserId: null,
             cancellationToken);
+    }
+
+    /// <summary>Records an operation a verified user did to another verified login.</summary>
+    /// <param name="actorUserId">The user doing it, established by the handler from their token.</param>
+    /// <param name="subjectUserId">The login it was done to; recorded so erasing that login finds the row by identity.</param>
+    /// <param name="action">The action name, one of the Sdk's <c>*AuditActions</c> constants.</param>
+    /// <param name="subject">The login's name as the row reads it. Never a token and never its digest.</param>
+    /// <param name="ipAddress">The caller's address.</param>
+    /// <param name="userAgent">The caller's user agent.</param>
+    /// <param name="succeeded">Whether it took effect.</param>
+    /// <param name="cancellationToken">Cancellation token for the write.</param>
+    /// <returns>Resolves once the entry is stored.</returns>
+    /// <remarks>
+    /// A separate method because a typed or probed subject has no login to name: those rows go through
+    /// <see cref="RecordIdentifiedAsync"/> and carry no subject login, and so are never selected by
+    /// another person's erasure.
+    /// </remarks>
+    public async Task RecordOnUserAsync(
+        Guid actorUserId,
+        Guid subjectUserId,
+        string action,
+        string subject,
+        string ipAddress,
+        string userAgent,
+        bool succeeded,
+        CancellationToken cancellationToken)
+    {
+        var name = _currentUser.Caller is PrincipalCaller principal && principal.UserId == actorUserId
+            ? principal.Username
+            : string.Empty;
+
+        await WriteAsync(
+            actorUserId, name, action, subject, ipAddress, userAgent, succeeded, subjectUserId, cancellationToken);
     }
 
     /// <summary>Records an operation the panel performed for a user it had already identified.</summary>
@@ -150,7 +184,8 @@ public sealed class IdentityAuditJournal
             ? principal.Username
             : string.Empty;
 
-        await WriteAsync(actorUserId, name, action, subject, ipAddress, userAgent, succeeded, cancellationToken);
+        await WriteAsync(actorUserId, name, action, subject, ipAddress, userAgent, succeeded, subjectUserId: null,
+            cancellationToken);
     }
 
     /// <summary>Records a refused attempt whose caller neither proved nor claimed an identity.</summary>
@@ -183,6 +218,7 @@ public sealed class IdentityAuditJournal
             ipAddress,
             userAgent,
             succeeded: false,
+            subjectUserId: null,
             cancellationToken);
     }
 
@@ -206,6 +242,7 @@ public sealed class IdentityAuditJournal
             string.Empty,
             string.Empty,
             succeeded,
+            subjectUserId: null,
             cancellationToken);
     }
 
@@ -242,6 +279,7 @@ public sealed class IdentityAuditJournal
             ConsoleOrigin,
             OperatorClaimPrefix + operatorClaim,
             succeeded,
+            subjectUserId: null,
             cancellationToken);
     }
 
@@ -283,6 +321,7 @@ public sealed class IdentityAuditJournal
             ipAddress,
             userAgent,
             succeeded,
+            subjectUserId: null,
             cancellationToken);
     }
 
@@ -361,6 +400,7 @@ public sealed class IdentityAuditJournal
             ipAddress,
             string.Empty,
             statusCode < MinimumFailureStatus,
+            subjectUserId: null,
             cancellationToken);
     }
 
@@ -373,6 +413,7 @@ public sealed class IdentityAuditJournal
     /// <param name="userAgent">The caller's user agent.</param>
     /// <param name="succeeded">Whether the operation took effect.</param>
     /// <param name="cancellationToken">Cancellation token for the write.</param>
+    /// <param name="subjectUserId">The verified login the entry is about, or <c>null</c>.</param>
     /// <returns>Resolves once the entry is stored.</returns>
     private async Task WriteAsync(
         Guid? actorUserId,
@@ -382,6 +423,7 @@ public sealed class IdentityAuditJournal
         string ipAddress,
         string userAgent,
         bool succeeded,
+        Guid? subjectUserId,
         CancellationToken cancellationToken)
     {
         await _auditWriter.WriteAsync(
@@ -392,7 +434,8 @@ public sealed class IdentityAuditJournal
                 subject,
                 ipAddress,
                 userAgent,
-                succeeded),
+                succeeded,
+                SubjectUserId: subjectUserId),
             cancellationToken);
     }
 }

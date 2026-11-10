@@ -36,6 +36,9 @@
   <data name="TaskKindBackupRestore">
     <value>Восстановление из резервной копии</value>
   </data>
+  <data name="TaskKindAccountImport">
+    <value>Импорт аккаунта с другого сервера</value>
+  </data>
   <data name="TaskStatusRunning">
     <value>Выполняется</value>
   </data>

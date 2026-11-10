@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import {
   stubDatabaseGrants,
@@ -8,10 +8,12 @@ import {
 import { stubDatabases } from '../fixtures/stub-databases-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { GrantRepairReport } from '../../src/types/grantRepair'
 import type { PanelModule } from '../../src/types/module'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { setPersistedLocale } from '../fixtures/set-locale'
+import type { Locator, Page } from '@playwright/test'
 
 /**
  * The screen's banners: every `status` except the loading region's own announcement.
@@ -66,6 +68,7 @@ test('the report shows the four buckets and says they account for every row read
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubDatabaseGrants(page, REPORT)
 
   await page.goto('/databases/grant-repair')
@@ -98,6 +101,7 @@ test('the report states that a repair settles nothing about whether the reach wa
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubDatabaseGrants(page, REPORT)
 
   await page.goto('/databases/grant-repair')
@@ -123,6 +127,7 @@ test('a repaired row with nothing else matching says so without reading as an al
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubDatabaseGrants(page, {
     ...REPORT,
     work: {
@@ -151,6 +156,7 @@ test('a refused row shows the raw columns, the verdict and what to do about it',
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubDatabaseGrants(page, REPORT)
 
   await page.goto('/databases/grant-repair')
@@ -176,6 +182,7 @@ test('the repair is confirmed in a dialog and replaces the plan with what it cha
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubDatabaseGrants(page, REPORT)
 
   await page.goto('/databases/grant-repair')
@@ -211,6 +218,7 @@ test('the dialog counts more than one grant in the plural', async ({ page }) => 
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubDatabaseGrants(page, {
     ...REPORT,
     work: {
@@ -247,6 +255,7 @@ test('the repair is not offered again over the result of one', async ({ page }) 
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubDatabaseGrants(page, REPORT)
 
   await page.goto('/databases/grant-repair')
@@ -267,6 +276,7 @@ test('a host with nothing to narrow says so instead of offering a repair', async
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubDatabaseGrants(page, {
     examinedGrants: 9,
     alreadyCorrect: 9,
@@ -294,10 +304,13 @@ test('a host with nothing to narrow says so instead of offering a repair', async
 // other tenants' names the refused body carried may reach the page.
 test('a caller the panel refuses is told who may run this and shown no census', async ({
   page,
+  guard,
 }) => {
+  guard.allow(403, /\/api\/v1\/database-grants$/)
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubDatabaseGrantsForbidden(page)
 
   await page.goto('/databases/grant-repair')
@@ -311,10 +324,12 @@ test('a caller the panel refuses is told who may run this and shown no census', 
 
 // A real failure is a different state again, and its text is the backend's: the SPA holds no locale
 // key for a server message (rules/vue.md), so the sentence on screen must be the one that arrived.
-test('a failure renders the backend own message and not a census', async ({ page }) => {
+test('a failure renders the backend own message and not a census', async ({ page, guard }) => {
+  guard.allow(500, /\/api\/v1\/database-grants$/)
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubDatabaseGrantsProblem(page, 'The server agent could not be reached.')
 
   await page.goto('/databases/grant-repair')
@@ -329,6 +344,7 @@ test('the databases list links to the grant repair screen', async ({ page }) => 
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubDatabaseGrants(page, REPORT)
   await stubDatabases(page, [])
   await stubAccounts(page, [])
@@ -350,6 +366,7 @@ test('the grant repair screen has one Armenian name in the button, the title and
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubDatabaseGrants(page, REPORT)
   await stubDatabases(page, [])
   await stubAccounts(page, [])

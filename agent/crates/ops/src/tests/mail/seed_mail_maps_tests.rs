@@ -7,11 +7,12 @@ use crate::mail::fake_mail_host::{FakeMailHost, distro};
 use crate::mail::model::mail_daemon::MailDaemon;
 use crate::mail::seed_mail_maps::seed_mail_maps;
 
-const TABLES: [&str; 4] = [
+const TABLES: [&str; 5] = [
     "/etc/maran/mail/virtual_domains",
     "/etc/maran/mail/virtual_mailboxes",
     "/etc/maran/mail/virtual_aliases",
     "/etc/maran/mail/sender_login_maps",
+    "/etc/postfix/maran_local_submit_users",
 ];
 
 #[test]

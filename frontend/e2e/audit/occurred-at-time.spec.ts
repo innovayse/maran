@@ -1,6 +1,7 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubAudit } from '../fixtures/stub-audit-routes'
@@ -29,6 +30,7 @@ const SIGNED_IN: AuditEvent = {
   action: 'LoginSucceeded',
   actionName: 'Вход выполнен',
   subject: 'verifier',
+  subjectName: 'verifier',
   ipAddress: '127.0.0.1',
   succeeded: true,
   outcomeName: 'Succeeded',
@@ -43,6 +45,7 @@ const ADMIN_CREATED: AuditEvent = {
   action: 'AdministratorCreated',
   actionName: 'Создан администратор',
   subject: 'verifier',
+  subjectName: 'verifier',
   ipAddress: '127.0.0.1',
   succeeded: true,
   outcomeName: 'Succeeded',
@@ -53,6 +56,7 @@ test('the journal states the time of day, so two entries on one day are told apa
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
   await stubAudit(page, [SIGNED_IN, ADMIN_CREATED])
 
   await page.goto('/settings/audit')

@@ -149,7 +149,8 @@ agent's own sandbox never has to open /usr."
 }
 
 
-# The agent unit directives issue #91 adopted or kept, each as the exact line the unit must carry
+# The agent unit directives issue #91 adopted or kept (and KillMode=mixed, issue #476: the stop signal
+# reaches the agent alone, so the programs of an in-flight operation survive the drain), each as the exact line the unit must carry
 # once. Spelled out here and not read from the unit, so deleting a line from the unit cannot also
 # delete its check. When the verification phase removes a directive that failed its measurement,
 # the entry goes from this list and from AGENT_UNIT_HARDENING_COUNT in the same change.
@@ -159,8 +160,9 @@ readonly AGENT_UNIT_HARDENING=(
   "ProtectKernelModules=true"
   "RestrictSUIDSGID=true"
   "MemoryDenyWriteExecute=true"
+  "KillMode=mixed"
 )
-readonly AGENT_UNIT_HARDENING_COUNT=5
+readonly AGENT_UNIT_HARDENING_COUNT=6
 
 
 # agent_unit_hardening_defect: prints why the unit at $1 lacks one of its adopted hardening
@@ -222,8 +224,12 @@ assert_the_agent_unit_keeps_its_measured_hardening() {
   [ -n "$(agent_unit_hardening_defect "${work}/no-mdwe.service")" ] \
     || fail "the hardening check ACCEPTED a unit with MemoryDenyWriteExecute= deleted"
 
+  sed 's/^KillMode=mixed$/KillMode=control-group/' "$AGENT_UNIT" > "${work}/control-group.service"
+  [ -n "$(agent_unit_hardening_defect "${work}/control-group.service")" ] \
+    || fail "the hardening check ACCEPTED KillMode=control-group; a stop would signal every child program and the drain protects nothing (issue #476)"
+
   rm -rf "$work"
-  echo "maran-agent.service carries all ${AGENT_UNIT_HARDENING_COUNT} adopted hardening directives exactly once, and the check refused all five planted breaks."
+  echo "maran-agent.service carries all ${AGENT_UNIT_HARDENING_COUNT} adopted hardening directives exactly once, and the check refused all six planted breaks."
   echo "UNOBSERVED HERE: this image boots no systemd. A key the running systemd does not know is logged and IGNORED, so the text can name a directive the loaded unit does not have."
 }
 

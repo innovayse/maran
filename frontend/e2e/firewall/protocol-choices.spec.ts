@@ -1,10 +1,12 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubFirewall } from '../fixtures/stub-firewall-routes'
 import type { FirewallProtocolChoice } from '../../src/types/firewall'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 // The rule form's protocol is a closed set the panel produces (#330): the picker lists what
 // `GET /api/v1/firewall/rules/protocols` answers, names each entry with the text the panel gave it,
@@ -32,6 +34,7 @@ const openScreen = async (page: Page, protocols: FirewallProtocolChoice[]): Prom
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubFirewall(page, { rules: [], bans: [], whitelist: [], protocols })
   page.on('request', (request) => {
     if (request.method() === 'POST' && request.url().includes('/api/v1/firewall/rules')) {

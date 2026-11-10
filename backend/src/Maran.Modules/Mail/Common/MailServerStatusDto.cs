@@ -15,6 +15,7 @@ namespace Maran.Modules.Mail.Common;
 /// <param name="QueuedMessages">The number of messages in the queue, or null when it was not read.</param>
 /// <param name="PasswordScheme">The scheme the host verifies mailbox passwords in, or null when it was not read.</param>
 /// <param name="SieveAvailable">Whether the host can run autoresponder scripts.</param>
+/// <param name="StartingValues">What a server that is off is turned on with when the administrator names nothing else.</param>
 public sealed record MailServerStatusDto(
     MailServerSettingsDto? Settings,
     IReadOnlyList<int> Ports,
@@ -24,4 +25,5 @@ public sealed record MailServerStatusDto(
     MailObservation TlsInUse,
     uint? QueuedMessages,
     MailPasswordScheme? PasswordScheme,
-    MailObservation SieveAvailable);
+    MailObservation SieveAvailable,
+    MailServerStartingValuesDto StartingValues);

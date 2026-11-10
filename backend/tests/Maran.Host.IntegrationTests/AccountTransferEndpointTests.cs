@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Maran.Host.IntegrationTests.Fixtures;
@@ -186,5 +187,111 @@ public sealed class AccountTransferEndpointTests : IAsyncLifetime
         // The customer's own token still reads its account: the move ended nothing of theirs.
         var own = await olive.GetAsync("/api/v1/accounts/me");
         Assert.Equal(HttpStatusCode.OK, own.StatusCode);
+    }
+
+    /// <summary>
+    /// A view-as session the former reseller opens while the move is half-done, after the agent was told
+    /// and before the row is written, is refused on its first request once the move commits (issue #460).
+    /// The planted break is the old order: it revoked before the push and never again, so this session
+    /// survived and read the account as its owner's login.
+    /// </summary>
+    [Fact]
+    public async Task A_view_as_session_started_during_the_move_is_refused_once_the_move_commits()
+    {
+        var agent = new ResellerAgentAccountsClient();
+        await using var world = await new ResellerFixtureBuilder(_pg).WithAgent(agent).BuildAsync();
+        await EndpointHarness.SeedCustomerAsync(world.Factory, "olive", world.Alpha.AccountId);
+        await GrowPlanAsync(world, world.Bravo.PlanId);
+        using var alpha = await world.SignInAsync("alpha");
+        using var admin = await world.SignInAsync("admin");
+        string? lateToken = null;
+        agent.DuringQuotaPush = async () =>
+        {
+            var started = await alpha.PostAsJsonAsync("/api/v1/view-as", new { AccountId = world.Alpha.AccountId });
+            Assert.Equal(HttpStatusCode.OK, started.StatusCode);
+            using var body = JsonDocument.Parse(await started.Content.ReadAsStringAsync());
+            lateToken = body.RootElement.GetProperty("accessToken").GetString();
+        };
+
+        var moved = await admin.PutAsJsonAsync(
+            $"/api/v1/accounts/{world.Alpha.AccountId}/owner",
+            new { ResellerId = world.Bravo.ResellerId, PlanId = world.Bravo.PlanId });
+
+        Assert.Equal(HttpStatusCode.OK, moved.StatusCode);
+        Assert.NotEmpty(agent.Quotas);
+        Assert.NotNull(lateToken);
+        using var late = ClientWith(world, lateToken!);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await late.GetAsync("/api/v1/accounts/me")).StatusCode);
+    }
+
+    /// <summary>
+    /// Inverse control of the race above: the same session, started the same way, reads the account while
+    /// the move has not happened, and the NEW owner's view-as session on the moved account reads it too, so
+    /// the refusal above is the ownership change and not a check that refuses every view-as token.
+    /// </summary>
+    [Fact]
+    public async Task A_view_as_session_of_the_owner_reads_the_account_and_the_new_owners_does_after_the_move()
+    {
+        await using var world = await new ResellerFixtureBuilder(_pg).BuildAsync();
+        await EndpointHarness.SeedCustomerAsync(world.Factory, "olive", world.Alpha.AccountId);
+        using var alpha = await world.SignInAsync("alpha");
+        using var bravo = await world.SignInAsync("bravo");
+        using var admin = await world.SignInAsync("admin");
+        using var before = ClientWith(world, await StartViewAsTokenAsync(alpha, world.Alpha.AccountId));
+        Assert.Equal(HttpStatusCode.OK, (await before.GetAsync("/api/v1/accounts/me")).StatusCode);
+
+        var moved = await admin.PutAsJsonAsync(
+            $"/api/v1/accounts/{world.Alpha.AccountId}/owner",
+            new { ResellerId = world.Bravo.ResellerId, PlanId = world.Bravo.PlanId });
+        Assert.Equal(HttpStatusCode.OK, moved.StatusCode);
+
+        using var after = ClientWith(world, await StartViewAsTokenAsync(bravo, world.Alpha.AccountId));
+        Assert.Equal(HttpStatusCode.OK, (await after.GetAsync("/api/v1/accounts/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await before.GetAsync("/api/v1/accounts/me")).StatusCode);
+    }
+
+    /// <summary>Sells bravo's plan more disk than alpha's, so a move onto it pushes a quota to the agent.</summary>
+    /// <param name="world">The seeded world.</param>
+    /// <param name="planId">The plan to grow.</param>
+    /// <returns>Resolves once the plan is stored.</returns>
+    private static async Task GrowPlanAsync(ResellerWorld world, Guid planId)
+    {
+        await world.AccountsAsync(async accounts =>
+        {
+            var plan = await accounts.Plans.IgnoreQueryFilters().SingleAsync(p => p.Id == planId);
+            plan.ChangeLimits(
+                plan.DiskQuotaMb + 1_024,
+                plan.MaxSites,
+                plan.MaxDatabases,
+                plan.MaxSftpUsers,
+                plan.MaxFtpUsers,
+                plan.MaxCronEntries,
+                plan.MaxPhpWorkersPerPool);
+            await accounts.SaveChangesAsync();
+            return 0;
+        });
+    }
+
+    /// <summary>Starts a view-as session on an account and returns its access token.</summary>
+    /// <param name="operatorClient">The signed-in operator.</param>
+    /// <param name="accountId">The account to view as.</param>
+    /// <returns>The view-as access token.</returns>
+    private static async Task<string> StartViewAsTokenAsync(HttpClient operatorClient, Guid accountId)
+    {
+        var started = await operatorClient.PostAsJsonAsync("/api/v1/view-as", new { AccountId = accountId });
+        Assert.Equal(HttpStatusCode.OK, started.StatusCode);
+        using var body = JsonDocument.Parse(await started.Content.ReadAsStringAsync());
+        return body.RootElement.GetProperty("accessToken").GetString()!;
+    }
+
+    /// <summary>A client carrying a bearer token.</summary>
+    /// <param name="world">The seeded world.</param>
+    /// <param name="accessToken">The token.</param>
+    /// <returns>A client the caller disposes.</returns>
+    private static HttpClient ClientWith(ResellerWorld world, string accessToken)
+    {
+        var client = world.Factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        return client;
     }
 }

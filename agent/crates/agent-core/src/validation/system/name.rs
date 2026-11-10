@@ -76,3 +76,7 @@ impl AccountName {
 #[cfg(test)]
 #[path = "../../tests/validation/system/name_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "../../tests/validation/system/name_property_tests.rs"]
+mod property_tests;

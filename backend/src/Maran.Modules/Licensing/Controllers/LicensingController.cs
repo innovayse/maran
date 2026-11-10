@@ -5,6 +5,7 @@ using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
+using Wolverine;
 
 namespace Maran.Modules.Licensing.Controllers;
 
@@ -62,45 +63,21 @@ namespace Maran.Modules.Licensing.Controllers;
 [EnableRateLimiting(RateLimitPolicies.Api)]
 public sealed class LicensingController : BaseApiController
 {
-    /// <summary>The handler this controller's one route dispatches to.</summary>
-    /// <remarks>
-    /// <b>Resolved directly, not through <c>IMessageBus</c>.</b> Every other module controller in this
-    /// panel dispatches through Wolverine, but Wolverine's handler discovery walks
-    /// <c>Maran.Host.Modules.ModuleRegistry.All</c> (<c>Maran.Host.Extensions.MessagingExtensions</c>'s
-    /// own comment names this explicitly), and this module is deliberately NOT in that list — see
-    /// <see cref="LicensingModule"/>'s own remarks for why registering it broke the SPA's composition
-    /// check. A query routed through <c>IMessageBus</c> from an unregistered module's controller fails
-    /// at runtime with "Could not determine any valid subscribers" (measured, not assumed, while
-    /// writing this controller); resolving the handler through ordinary constructor injection instead
-    /// sidesteps Wolverine entirely and needs no change to that registry.
-    /// </remarks>
-    private readonly GetLicenceStatusQueryHandler _handler;
+    /// <summary>The bus the query and the command are dispatched through.</summary>
+    private readonly IMessageBus _bus;
 
-    /// <summary>The handler the install route dispatches to.</summary>
-    private readonly InstallLicenceCommandHandler _installHandler;
-
-    /// <summary>Creates the controller with the caller identity and the handlers its routes dispatch to.</summary>
+    /// <summary>Creates the controller.</summary>
     /// <param name="currentUser">The authenticated principal of the current request.</param>
-    /// <param name="handler">The handler the status route dispatches to.</param>
-    /// <param name="installHandler">The handler the install route dispatches to.</param>
-    public LicensingController(
-        ICurrentUser currentUser,
-        GetLicenceStatusQueryHandler handler,
-        InstallLicenceCommandHandler installHandler)
+    /// <param name="bus">The bus the query and the command are dispatched through.</param>
+    public LicensingController(ICurrentUser currentUser, IMessageBus bus)
         : base(currentUser)
     {
-        _handler = handler;
-        _installHandler = installHandler;
+        _bus = bus;
     }
 
-    /// <summary>Reports the installed licence's current three-state status, changing nothing.</summary>
-    /// <param name="cancellationToken">Cancellation token for the request.</param>
-    /// <remarks>
-    /// A <c>GET</c> because it performs no write: the licence artefact, if any, is re-read and
-    /// re-verified, and the audit entry this call produces (see
-    /// <see cref="Services.LicensingAuditJournal"/>) records that the fact was read, not that anything
-    /// about the licence changed.
-    /// </remarks>
+    /// <summary>Reads the installed licence's status and the standing of its lease.</summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>200 with the status; 401 or 403 for a caller who is not an administrator.</returns>
     [HttpGet]
     [ProducesResponseType(typeof(LicenceStatusDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -108,30 +85,14 @@ public sealed class LicensingController : BaseApiController
     public async Task<IActionResult> GetAsync(CancellationToken cancellationToken)
     {
         var query = new GetLicenceStatusQuery(IpAddress: ClientIpAddress, UserAgent: CallerUserAgent);
-        return ToActionResult(await _handler.HandleAsync(query, cancellationToken));
+
+        return ToActionResult(await _bus.InvokeAsync<Result<LicenceStatusDto>>(query, cancellationToken));
     }
 
-    /// <summary>Installs or replaces the licence artefact, verifying it first and persisting only on success.</summary>
+    /// <summary>Verifies an uploaded licence and installs it only when it verifies.</summary>
     /// <param name="command">The uploaded licence text.</param>
-    /// <param name="cancellationToken">Cancellation token for the request.</param>
-    /// <remarks>
-    /// <para>
-    /// A <c>POST</c>, not a <c>PUT</c>: there is exactly one licence artefact and no caller-chosen
-    /// identifier to address it by, the same reason the status route above takes none.
-    /// </para>
-    /// <para>
-    /// A rejected upload changes nothing on disk — see
-    /// <see cref="Commands.InstallLicence.InstallLicenceCommandHandler"/>'s own remarks for the
-    /// verify-then-persist order this route relies on — and each of the five possible rejections
-    /// answers its own distinguishable 400 code, never one generic "invalid licence".
-    /// </para>
-    /// <para>
-    /// <b>Installing a licence does NOT bind it to this server.</b> The success response's
-    /// <c>Sentence</c> field states this outright (see <c>Services.LicenceStatusDisplayNames.InstalledSentence</c>)
-    /// — nothing in this build can check a server fingerprint yet
-    /// (docs/superpowers/notes/2026-09-22-licence-installation-threat-note.md §6).
-    /// </para>
-    /// </remarks>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>200 with the new status; 400 with a distinguishable code when the licence is refused.</returns>
     [HttpPost("install")]
     [ProducesResponseType(typeof(LicenceStatusDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -143,6 +104,6 @@ public sealed class LicensingController : BaseApiController
     {
         var stamped = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
 
-        return ToActionResult(await _installHandler.HandleAsync(stamped, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result<LicenceStatusDto>>(stamped, cancellationToken));
     }
 }

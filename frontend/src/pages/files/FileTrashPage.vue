@@ -28,6 +28,7 @@ import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiPagination from '../../components/ui/UiPagination.vue'
 import UiSearchInput from '../../components/ui/UiSearchInput.vue'
+import UiToolbar from '../../components/ui/UiToolbar.vue'
 import FileBatchResultNotice from '../../components/files/FileBatchResultNotice.vue'
 import TrashTable from '../../components/files/TrashTable.vue'
 import { useFileTrash } from '../../composables/useFileTrash'
@@ -99,13 +100,15 @@ onMounted(start)
         <UiAlert v-if="failureMessage !== null" variant="error">{{ failureMessage }}</UiAlert>
         <FileBatchResultNotice v-if="restoreResult !== null" :result="restoreResult" />
 
-        <UiSearchInput
-          :model-value="table.search.value"
-          :label="t('filesTrash.searchLabel')"
-          :placeholder="t('filesTrash.searchPlaceholder')"
-          :clear-label="t('filesTrash.searchClear')"
-          @update:model-value="table.search.value = $event"
-        />
+        <UiToolbar>
+          <UiSearchInput
+            :model-value="table.search.value"
+            :label="t('filesTrash.searchLabel')"
+            :placeholder="t('filesTrash.searchPlaceholder')"
+            :clear-label="t('filesTrash.searchClear')"
+            @update:model-value="table.search.value = $event"
+          />
+        </UiToolbar>
 
         <UiCheckbox
           :model-value="store.allSelected"

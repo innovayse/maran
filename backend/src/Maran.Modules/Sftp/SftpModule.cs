@@ -78,6 +78,11 @@ public sealed class SftpModule : IPanelModule
         // summary. Scoped, because it reads through the request-scoped, tenant-filtered context.
         services.AddScoped<IAccountResourceCounter, SftpAccountResourceCounter>();
 
+        // Moving an account to another Maran server (issue #127): what this module hands over, and how it
+        // creates what it is handed. The Migration module gathers every implementation through the Sdk.
+        services.AddScoped<IAccountMigrationExporter, SftpMigrationExporter>();
+        services.AddScoped<IAccountMigrationImporter, SftpMigrationImporter>();
+
         // The shared resource pool the panel-wide ResxErrorTextProvider resolves error codes and
         // Manifest.DisplayNameKey against. Module-internal lookups inject IStringLocalizer<T>
         // directly instead.

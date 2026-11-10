@@ -1,8 +1,9 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAudit } from '../fixtures/stub-audit-routes'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { AuditEvent } from '../../src/types/audit'
 
 // The outcome word on a journal row is the panel's own: the row carries it, so the bundle holds no
@@ -17,6 +18,7 @@ const REFUSED: AuditEvent = {
   action: 'LoginFailed',
   actionName: 'Sign-in refused',
   subject: 'mallory',
+  subjectName: 'mallory',
   ipAddress: '198.51.100.4',
   succeeded: false,
   outcomeName: 'Panel-named refusal',
@@ -26,6 +28,7 @@ test('the outcome badge of a journal row prints the name the row carries', async
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
   await stubAudit(page, [REFUSED])
 
   await page.goto('/settings/audit')
@@ -38,6 +41,7 @@ test('a link naming an outcome the panel does not list is not applied once the l
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
   await stubAudit(page, [REFUSED])
 
   await page.goto('/settings/audit?outcome=bogus')

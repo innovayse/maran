@@ -9,6 +9,7 @@ use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::utils::child_input::ChildInput;
 use maran_agent_core::utils::spawn_argv::spawn_argv;
 use maran_agent_core::validation::db::database_name::DatabaseName;
+use maran_agent_core::validation::db::grant_pattern_for::grant_pattern_for;
 use maran_distro::{AdapterBinary, DistroAdapter};
 
 use crate::backup::backup_error::{BackupError, PROGRAM_UNAVAILABLE};
@@ -91,12 +92,35 @@ impl ProcessRestrictedDumpHost {
     }
 }
 
+/// The statements that create `user` and grant it one database, as the client
+/// reads them on its standard input.
+///
+/// The database goes through [`grant_pattern_for`] and not in as the identifier
+/// it is everywhere else: a database-level `GRANT` reads its name as a pattern
+/// in which `_` and `%` are wildcards, so `acct_my_db` unescaped also names
+/// `acctxmy_db`, another tenant's database, and the temporary user would hold
+/// every privilege on it while a hostile dump loaded.
+fn creation_statements(
+    user: &ImportUser,
+    password: &SecretString,
+    database: &DatabaseName,
+) -> String {
+    format!(
+        "CREATE USER '{name}'@'localhost' IDENTIFIED BY '{password}';\n\
+         GRANT ALL PRIVILEGES ON `{pattern}`.* TO '{name}'@'localhost';\n",
+        name = user.name(),
+        password = password.expose(),
+        pattern = grant_pattern_for(database.as_str()),
+    )
+}
+
 impl RestrictedDumpHost for ProcessRestrictedDumpHost {
     /// Sends the creation and the grant to the client on its standard input.
     ///
     /// The name of the database is interpolated as a backtick-quoted identifier
     /// and is a [`DatabaseName`], whose alphabet holds nothing to close the
-    /// quoting with; the user and password are hex digits.
+    /// quoting with; the user and password are hex digits. The grant's name is
+    /// written by `creation_statements` as a pattern, escaped.
     ///
     /// # Errors
     ///
@@ -107,13 +131,7 @@ impl RestrictedDumpHost for ProcessRestrictedDumpHost {
         password: &SecretString,
         database: &DatabaseName,
     ) -> Result<(), BackupError> {
-        let statements = format!(
-            "CREATE USER '{name}'@'localhost' IDENTIFIED BY '{password}';\n\
-             GRANT ALL PRIVILEGES ON `{database}`.* TO '{name}'@'localhost';\n",
-            name = user.name(),
-            password = password.expose(),
-            database = database.as_str(),
-        );
+        let statements = creation_statements(user, password, database);
 
         let outcome = run_discarding(
             self.client_binary.as_path(),
@@ -273,3 +291,7 @@ impl RestrictedDumpHost for ProcessRestrictedDumpHost {
             .collect())
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/backup/process_restricted_dump_host_tests.rs"]
+mod tests;

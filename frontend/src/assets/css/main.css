@@ -163,7 +163,8 @@ html[data-theme='dark'] {
  *  - --d-control: the height of a text field, a select, a labelled button.
  *  - --d-inset: the square of a button inside a field (reveal, clear, generate).
  *  - --d-row: a row in a menu or listbox.
- *  - --d-choice: the line a checkbox, radio or switch sits on (its click target).
+ *  - --d-choice: the line a checkbox, radio or switch sits on (its click target). Inside a
+ *    `UiToolbar` it is set to --d-control, so every control on the toolbar's line is one height.
  *  - --d-menu: the padding of a menu or listbox panel; --r-row is derived from it.
  */
 :root {

@@ -58,6 +58,11 @@ mod polygon_account;
 mod polygon_certificate_authority;
 #[path = "fixtures/polygon_vsftpd.rs"]
 mod polygon_vsftpd;
+// Shared with the SFTP suites; this one asks the daemon what it would do with an
+// FTPS login, and uses only part of it.
+#[allow(dead_code)]
+#[path = "fixtures/polygon_sshd.rs"]
+mod polygon_sshd;
 #[path = "fixtures/retrieved_file.rs"]
 mod retrieved_file;
 
@@ -72,6 +77,7 @@ use maran_agent_core::validation::system::ftps_user_name::FtpsUserName;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::web::domain::Domain;
 use maran_agent_core::validation::web::port::Port;
+use maran_distro::DistroFamily;
 use maran_ops::accounts::{AccountOperations, ProcessSystemHost};
 use maran_ops::cron::ProcessCronHost;
 use maran_ops::ftps::{
@@ -84,6 +90,7 @@ use maran_ops::sites::{ProcessSiteHost, SiteCertificate};
 use ftps_control_session::FtpsControlSession;
 use polygon_account::PolygonAccount;
 use polygon_certificate_authority::PolygonCertificateAuthority;
+use polygon_sshd::PolygonSshd;
 use polygon_vsftpd::PolygonVsftpd;
 
 /// The hostname every test in this suite serves FTPS for.
@@ -550,6 +557,36 @@ fn can_authenticate(field: &str) -> bool {
 /// The inverse control is the assertion itself: it demands a specific code (7)
 /// and refuses an unknown one, so a helper that has moved, stopped running, or
 /// started answering something else fails here rather than passing quietly.
+/// A family that offers FTPS has the daemon its adapter declares, and the SUSE family, which
+/// does not offer FTPS, has none.
+///
+/// The suite's other tests refuse to run on a family without FTPS (`PolygonVsftpd::require_polygon`),
+/// so this one states the fact they rely on and checks it against the disk in both directions: the
+/// Debian and RHEL families have a vsftpd at the declared path, and SUSE has nothing there, which is
+/// what the installer's plain "FTPS is skipped" message promises. UNVERIFIED on SUSE: that the
+/// pinned Leap image's repositories carry no vsftpd; confirm with
+/// `zypper --non-interactive search --match-exact vsftpd`.
+#[test]
+#[ignore = "asks the polygon image whether the vsftpd its adapter declares is installed: polygon only"]
+fn ftps_is_offered_where_the_adapter_declares_a_daemon_and_is_not_offered_on_suse() {
+    PolygonAccount::require_polygon();
+    let distro = PolygonVsftpd::distro();
+    let declared = distro.vsftpd_binary().to_string();
+    let present = std::path::Path::new(&declared).exists();
+
+    match distro.family() {
+        DistroFamily::Debian | DistroFamily::Rhel => assert!(
+            present,
+            "the adapter declares {declared} as this family's vsftpd and the image has none"
+        ),
+        DistroFamily::Suse => assert!(
+            !present,
+            "the SUSE family does not offer FTPS but the image has a vsftpd at {declared}: \
+             the suite's refusal to run there, and the installer's skip, are now out of date"
+        ),
+    }
+}
+
 #[test]
 #[ignore = "asks this container's own PAM helper about the shadow database: polygon only"]
 fn the_shadow_database_can_be_read_for_authentication_in_this_container() {
@@ -665,6 +702,108 @@ fn a_login_reaches_its_own_home_over_tls_and_a_file_it_uploads_belongs_to_the_ac
         existing.exists(),
         "nothing here may remove the customer's files"
     );
+}
+
+/// Issue #483: a SECOND login for an account runs the jail's setup again while
+/// the first login's bind mount is up, and a `chmod` of the mount point goes
+/// through the mount onto the account's real home. The home was `0750` and became
+/// `0755`, readable by every other tenant.
+#[test]
+#[ignore = "creates a real system account and a real bind mount: polygon only"]
+fn a_second_ftps_login_leaves_the_accounts_home_at_its_own_mode_and_group() {
+    PolygonVsftpd::require_polygon();
+    let account = PolygonAccount::create("ftpsmode");
+    let first = PolygonFtpsLogin::create(account.name(), CUSTOMER_PASSWORD);
+    let before = std::fs::metadata(account.home()).expect("the home exists");
+    assert_eq!(
+        before.mode() & 0o777,
+        0o750,
+        "the premise: the account's home is 0750 after the first login"
+    );
+    let mount_point = std::path::Path::new(AgentPaths::FTPS_JAIL_ROOT)
+        .join(account.name().as_str())
+        .join(HOME_INSIDE_THE_JAIL);
+    assert!(
+        std::fs::metadata(&mount_point).is_ok_and(|mounted| mounted.ino() == before.ino()),
+        "the premise: the first login's bind mount is up, so the jail's home IS the account's home"
+    );
+
+    let second = PolygonFtpsLogin::create_with_suffix(account.name(), "media", CUSTOMER_PASSWORD);
+
+    let after = std::fs::metadata(account.home()).expect("the home still exists");
+    assert_eq!(
+        (after.mode() & 0o777, after.uid(), after.gid()),
+        (0o750, before.uid(), before.gid()),
+        "creating a second login must not change the account's home: other tenants \
+         could otherwise traverse and read it"
+    );
+
+    drop(second);
+    drop(first);
+}
+
+/// Issue #484: an FTPS login is a system user with a real password, and sshd
+/// authenticates any such user. The password the panel shows for an FTPS login
+/// must be refused by sshd, and sshd must resolve no forwarding for it.
+#[test]
+#[ignore = "starts a real vsftpd and a real sshd: polygon only"]
+fn an_ftps_logins_password_is_refused_by_sshd_which_forwards_nothing_for_it() {
+    PolygonVsftpd::require_polygon();
+    let sshd = PolygonSshd::start();
+    let account = PolygonAccount::create("ftpssshd");
+    give_the_account_a_file(&account);
+    PolygonVsftpd::place_certificate_material(&hostname());
+    let login = PolygonFtpsLogin::create(account.name(), CUSTOMER_PASSWORD);
+    let (_daemon, _) = PolygonVsftpd::apply(&configuration());
+
+    // The control that makes the refusal mean something: this is the right
+    // password, and the FTPS daemon takes it.
+    let listing = list_over_tls(login.name(), CUSTOMER_PASSWORD);
+    assert!(
+        listing.contains(LOGIN_SUCCESSFUL),
+        "the password must be the one FTPS accepts: {listing}"
+    );
+
+    let sftp = sshd.sftp(login.name(), CUSTOMER_PASSWORD, "pwd\n");
+    assert!(
+        !sftp.status.success(),
+        "sshd must refuse an FTPS login's password:\n{}{}",
+        String::from_utf8_lossy(&sftp.stdout),
+        String::from_utf8_lossy(&sftp.stderr)
+    );
+    let exec = sshd.exec(login.name(), CUSTOMER_PASSWORD, "true");
+    assert!(
+        !exec.status.success(),
+        "sshd must refuse an FTPS login's password for a command too:\n{}{}",
+        String::from_utf8_lossy(&exec.stdout),
+        String::from_utf8_lossy(&exec.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&exec.stderr).contains("Permission denied"),
+        "the refusal is the daemon's, not a client failure: {}",
+        String::from_utf8_lossy(&exec.stderr)
+    );
+
+    let effective = sshd.effective_config(login.name());
+    assert!(
+        effective
+            .lines()
+            .any(|line| line == "denygroups maran-ftps"),
+        "sshd resolves no denial of the FTPS group for the login:\n{effective}"
+    );
+    for forwarding in [
+        "allowtcpforwarding",
+        "allowstreamlocalforwarding",
+        "allowagentforwarding",
+        "x11forwarding",
+    ] {
+        assert!(
+            effective
+                .lines()
+                .any(|line| line == format!("{forwarding} no")),
+            "sshd resolves {forwarding} for an FTPS login to something other than no:\n{effective}"
+        );
+    }
 }
 
 #[test]

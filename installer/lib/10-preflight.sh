@@ -44,7 +44,16 @@ readonly MARAN_REQUIRED_PORTS="${MARAN_PANEL_PORT:?must be set by install.sh bef
 # `ID=ol` (measured: ol 9.8, ID_LIKE=fedora), RHEL itself reports `ID=rhel`. All four EL vendors run
 # the same code path — the rhel family — so listing them costs one word each and claims nothing that
 # AlmaLinux's and Rocky's polygon runs do not already exercise.
-readonly MARAN_SUPPORTED_MATRIX="ubuntu:22.04 ubuntu:24.04 ubuntu:26.04 debian:12 debian:13 almalinux:8 almalinux:9 almalinux:10 rocky:8 rocky:9 rocky:10 rhel:8 rhel:9 rhel:10 ol:8 ol:9 ol:10"
+#
+# SUSE (issue #59): `opensuse-leap:16.0 opensuse-leap:16.1 sles:16.0`. SLES 16 is claimed THROUGH its
+# community sibling Leap 16 (same base, same packages), exactly as RHEL is claimed through its
+# rebuilds: the polygon runs Leap, because SLES needs a subscription we do not hold. Several ids
+# carry "suse" in ID_LIKE and are deliberately NOT here, so detection (install.sh) names the family
+# and this list still refuses them: opensuse-tumbleweed (a rolling release has no version to pin),
+# opensuse-microos (read-only transactional root: zypper installs do not persist), sled (a desktop),
+# sles_sap (an SAP-specific product) and sles 15.x / Leap 15.x (out of general support, and their
+# default MAC is AppArmor, which no step here was written for).
+readonly MARAN_SUPPORTED_MATRIX="ubuntu:22.04 ubuntu:24.04 ubuntu:26.04 debian:12 debian:13 almalinux:8 almalinux:9 almalinux:10 rocky:8 rocky:9 rocky:10 rhel:8 rhel:9 rhel:10 ol:8 ol:9 ol:10 opensuse-leap:16.0 opensuse-leap:16.1 sles:16.0"
 
 # fail: print a uniform "what failed / what to do" message and mark preflight failed.
 # Preflight collects ALL failures before exiting so the operator does not have to
@@ -126,7 +135,7 @@ check_os_supported() {
     ok "OS ${MARAN_OS_ID} ${MARAN_OS_VERSION_ID} is supported"
   else
     fail "OS ${MARAN_OS_ID} ${MARAN_OS_VERSION_ID} is not a supported target" \
-      "Install on one of: Ubuntu 22.04/24.04/26.04, Debian 12/13, or RHEL/AlmaLinux/Rocky/Oracle 8/9/10."
+      "Install on one of: Ubuntu 22.04/24.04/26.04, Debian 12/13, RHEL/AlmaLinux/Rocky/Oracle 8/9/10, openSUSE Leap 16.0/16.1, or SLES 16.0."
   fi
 }
 

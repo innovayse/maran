@@ -5,9 +5,10 @@
  *
  * Modeled directly on {@link ../auth/ResetPasswordPage.vue}: same form shape, same
  * password rules, same error rendering — only the endpoint and the copy differ.
- * The token comes from the query string, because that is where the invitation
- * mail put it, and it is the only credential this screen has — nothing here
- * names the account, and naming one would let a caller aim a token at somebody
+ * The token comes from the link's query string, because that is where the invitation
+ * mail put it, but `main.ts` moves it into memory (`stores/linkToken.ts`) before the router
+ * installs, so it never stays in the address or in a request's Referer. It is the only
+ * credential this screen has — nothing here names the account, and naming one would let a caller aim a token at somebody
  * else's login.
  *
  * The new-password field offers to generate one, exactly as the reset screen's
@@ -35,13 +36,13 @@
  */
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiAuthHeading from '../../components/ui/UiAuthHeading.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiForm from '../../components/ui/UiForm.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
 import UiPasswordInput from '../../components/ui/UiPasswordInput.vue'
+import { useLinkTokenStore } from '../../stores/linkToken'
 import { usePasswordLinksStore } from '../../stores/passwordLinks'
 
 /**
@@ -51,7 +52,7 @@ import { usePasswordLinksStore } from '../../stores/passwordLinks'
 const DEFAULT_MIN_PASSWORD_LENGTH = 12
 
 const { t } = useI18n()
-const route = useRoute()
+const linkTokenStore = useLinkTokenStore()
 const passwordLinksStore = usePasswordLinksStore()
 
 /** The password being set. */
@@ -73,9 +74,9 @@ const mismatch: Ref<string | null> = ref(null)
 /** True once the password has been set. */
 const done: Ref<boolean> = ref(false)
 
-/** The token from the invitation link, or the empty string when the link carried none. */
+/** The token from the invitation link (moved out of the address into memory at boot, `main.ts`), or the empty string when the link carried none. */
 const token: ComputedRef<string> = computed(() => {
-  return typeof route.query.token === 'string' ? route.query.token : ''
+  return linkTokenStore.token
 })
 
 /** The password field's own message while the short-password warning is raised, or `null`. */
@@ -122,6 +123,10 @@ const submit = async (): Promise<void> => {
 
   mismatch.value = null
   done.value = await passwordLinksStore.acceptInvitation({ token: token.value, newPassword: password.value })
+  if (done.value) {
+    // Spent: nothing on this screen needs it again.
+    linkTokenStore.discard()
+  }
 }
 </script>
 

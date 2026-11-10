@@ -1,7 +1,6 @@
 //! The closed set of PHP versions this panel runs, and the check against it.
 
 use maran_agent_core::validation::web::php_version::PhpVersion;
-use maran_distro::DistroAdapter;
 
 /// Every PHP version the panel supports, oldest first (spec §11).
 ///
@@ -34,33 +33,6 @@ pub(crate) fn is_supported(version: &PhpVersion) -> bool {
 /// Returns [`crate::php::PhpOpError::UnsupportedVersion`] for anything else.
 pub(crate) fn ensure_supported(version: &PhpVersion) -> Result<(), crate::php::PhpOpError> {
     if is_supported(version) {
-        return Ok(());
-    }
-
-    Err(crate::php::PhpOpError::UnsupportedVersion {
-        version: version.as_str().to_owned(),
-    })
-}
-
-/// Refuses `version` unless this host's package repository publishes it.
-///
-/// The closed supported set is the panel's; this is the family's. A version
-/// both agree on is installable, and it is the same intersection the
-/// installable-versions query reports, so the picker never offers what the
-/// install would refuse.
-///
-/// # Errors
-///
-/// Returns [`crate::php::PhpOpError::UnsupportedVersion`] for a version the
-/// adapter's repository does not publish.
-pub(crate) fn ensure_installable(
-    distro: &dyn DistroAdapter,
-    version: &PhpVersion,
-) -> Result<(), crate::php::PhpOpError> {
-    if distro
-        .installable_php_versions()
-        .contains(&version.as_str())
-    {
         return Ok(());
     }
 

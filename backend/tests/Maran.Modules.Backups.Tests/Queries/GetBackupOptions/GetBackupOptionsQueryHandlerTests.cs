@@ -26,7 +26,7 @@ public sealed class GetBackupOptionsQueryHandlerTests
     private static readonly string[] StatusValues = new[] { "running", "completed", "failed" };
 
     /// <summary>The backup kinds on the wire.</summary>
-    private static readonly string[] KindValues = new[] { "manual", "scheduled", "preDeletion", "preRestore" };
+    private static readonly string[] KindValues = new[] { "manual", "scheduled", "preDeletion", "preRestore", "migration" };
 
     /// <summary>The destination kinds on the wire.</summary>
     private static readonly string[] DestinationKindValues = new[] { "local", "s3" };
@@ -137,7 +137,7 @@ public sealed class GetBackupOptionsQueryHandlerTests
         var options = await OptionsInAsync(culture);
         var labels = NamedLabels(options);
 
-        Assert.Equal(18, labels.Length);
+        Assert.Equal(19, labels.Length);
         Assert.DoesNotContain(labels, label => { return label.StartsWith("Backup", StringComparison.Ordinal); });
 
         if (culture != "en")

@@ -47,6 +47,8 @@
     <ProjectReference Include="..\..\src\Maran.Modules\Idempotency\Maran.Modules.Idempotency.csproj" />
     <ProjectReference Include="..\..\src\Maran.Modules\Fleet\Maran.Modules.Fleet.csproj" />
     <ProjectReference Include="..\..\src\Maran.Modules\Updates\Maran.Modules.Updates.csproj" />
+    <ProjectReference Include="..\..\src\Maran.Modules\ServerMigration\Maran.Modules.ServerMigration.csproj" />
+    <ProjectReference Include="..\..\src\Maran.Modules\Marketplace\Maran.Modules.Marketplace.csproj" />
     <!-- The sample module (backend/samples) is packaged, not composed, so it is not in Maran.sln; this
          reference is what builds it with the solution, and the architecture tests point the module contract
          at it (SampleModuleContractTests). -->

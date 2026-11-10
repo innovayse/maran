@@ -488,3 +488,87 @@ fn deleting_an_account_leaves_a_neighbours_shared_directory_files_at_jobs_and_ip
     );
     assert!(neighbour_mail, "the neighbour's mail spool must survive");
 }
+
+/// The root of every account's site-log directory.
+///
+/// A literal on purpose: it is the layout the installer builds and `logrotate` globs, and an
+/// expectation read from the code under test agrees with it by construction.
+const SITE_LOG_ROOT: &str = "/var/log/maran/sites";
+
+/// Plants an account's site-log directory the way nginx and logrotate leave it: root-owned, with a
+/// live and a rotated log of one site carrying a visitor's request.
+///
+/// # Panics
+///
+/// Panics when a file cannot be written.
+fn plant_site_logs(account: &str) -> PathBuf {
+    let directory = Path::new(SITE_LOG_ROOT).join(account);
+    std::fs::create_dir_all(&directory).expect("the account's log directory can be created");
+    std::fs::write(
+        directory.join("shop.example.access.log"),
+        "203.0.113.9 - - [09/Nov/2026:10:00:00 +0000] \"GET /?sid=previous-tenant HTTP/1.1\" 200 5 \"-\" \"probe\"\n",
+    )
+    .expect("the live log can be written");
+    std::fs::write(directory.join("shop.example.access.log.2.gz"), b"rotated")
+        .expect("the rotated log can be written");
+    directory
+}
+
+#[test]
+#[ignore = "creates and deletes a real account and plants root-owned logs under /var/log/maran: polygon only"]
+fn a_deleted_accounts_site_logs_are_not_readable_by_the_next_holder_of_its_name() {
+    PolygonAccount::require_polygon();
+    let _binds = HostBinds::mount();
+
+    let account = PolygonAccount::create(ACCOUNT);
+    let name = account.name().clone();
+    let logs = plant_site_logs(name.as_str());
+    // Positive control: the probe sees what was planted before the deletion, or "gone" afterwards
+    // would also be the answer of a probe that looks in the wrong place.
+    assert!(
+        logs.join("shop.example.access.log").exists(),
+        "the planted log must be visible before the deletion"
+    );
+
+    delete_the_account(&name);
+
+    assert!(
+        !logs.exists(),
+        "the deleted account's site-log directory must be removed with the account: {logs:?}"
+    );
+
+    // The recycled name: the next holder finds no directory at all, so no history to tail.
+    let reborn = PolygonAccount::create(ACCOUNT);
+    assert!(
+        !Path::new(SITE_LOG_ROOT)
+            .join(reborn.name().as_str())
+            .join("shop.example.access.log")
+            .exists(),
+        "an account created under the same name must inherit none of the previous tenant's logs"
+    );
+}
+
+#[test]
+#[ignore = "creates and deletes real accounts and plants root-owned logs under /var/log/maran: polygon only"]
+fn deleting_an_account_leaves_a_neighbours_site_logs_untouched() {
+    PolygonAccount::require_polygon();
+    let _binds = HostBinds::mount();
+
+    let neighbour = PolygonAccount::create(NEIGHBOUR);
+    let account = PolygonAccount::create(ACCOUNT);
+    let neighbours_logs = plant_site_logs(neighbour.name().as_str());
+    let own_logs = plant_site_logs(account.name().as_str());
+
+    delete_the_account(&account.name().clone());
+
+    let own_gone = !own_logs.exists();
+    let neighbour_kept = neighbours_logs.join("shop.example.access.log").exists();
+    let _ = std::fs::remove_dir_all(&neighbours_logs);
+
+    assert!(
+        own_gone,
+        "the deleted account's logs must be gone, or the sweep did nothing and the neighbour's \
+         survival below proves nothing"
+    );
+    assert!(neighbour_kept, "the neighbour's site logs must survive");
+}

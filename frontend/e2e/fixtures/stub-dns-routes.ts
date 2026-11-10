@@ -1,6 +1,7 @@
 import type { Page, Route } from '@playwright/test'
 import { pagedAnswer, type PagedRules } from './paged-answer'
 import type { DnsRecordCatalog, DnsZone } from '../../src/types/dns'
+import type { ZoneDnssec } from '../../src/types/dnsDnssec'
 import type { DnsRecord, DnsRecordRequest, SaveDnsRecordRequest } from '../../src/types/dnsRecord'
 import type { DnsServerStatus, DnsSettings } from '../../src/types/dnsSettings'
 
@@ -16,6 +17,9 @@ const LITERAL_SEGMENTS: ReadonlySet<string> = new Set([
   'record-types',
   'enable',
   'disable',
+  'dnssec',
+  'templates',
+  'choices',
 ])
 
 /** The record types the panel serves, as `GET /api/v1/dns-zones/record-types` lists them. */
@@ -58,8 +62,21 @@ export const DNS_SERVER: DnsServerStatus = {
   version: '9.18.28',
   zoneCount: 2,
   agentReachable: true,
+  port: 53,
   recursionRefused: 'inForce',
   responseRateLimiting: 'inForce',
+}
+
+/** What the panel answers about a zone's signing on a host that cannot sign. */
+const DNSSEC_UNAVAILABLE: ZoneDnssec = {
+  state: 'off',
+  available: false,
+  ds: null,
+  dnskey: null,
+  observed: null,
+  withdrawalStartedAt: null,
+  withdrawalEarliestFinishAt: null,
+  rolloverAutomatic: false,
 }
 
 /** The names the panel gives the sources of a record. */
@@ -154,17 +171,37 @@ export const dnsDraft = (fields: Pick<DnsRecordRequest, 'name' | 'type' | 'value
 }
 
 /**
+ * Derives the identity a record has on the wire from a readable handle, so a spec can name a record
+ * `rec-www` while the panel's contract (a UUID) still holds and the same handle always gives the
+ * same identity.
+ * @param handle The readable name a spec gives the record.
+ * @returns A version-4-shaped UUID.
+ */
+export const dnsRecordId = (handle: string): string => {
+  // Two 32-bit FNV-1a runs with different seeds give twelve hex digits, enough to tell a spec's few
+  // records apart.
+  const run = (seed: number): string => {
+    let hash = seed
+    for (const character of handle) {
+      hash = Math.imul(hash ^ (character.codePointAt(0) ?? 0), 0x01000193) >>> 0
+    }
+    return hash.toString(16).padStart(8, '0')
+  }
+  return `dec00000-0000-4000-8000-${run(0x811c9dc5)}${run(0x2545f491).slice(0, 4)}`
+}
+
+/**
  * Builds a record the way the panel answers one.
  * @param zoneId The zone it belongs to.
- * @param id The record's identity.
+ * @param handle The readable name of the record; its identity is {@link dnsRecordId} of it.
  * @param request The record's fields.
  * @param origin The machine name of the record's source; only a record added by hand is editable.
  * @returns The record.
  */
-export const dnsRecord = (zoneId: string, id: string, request: DnsRecordRequest, origin = 'customer'): DnsRecord => {
+export const dnsRecord = (zoneId: string, handle: string, request: DnsRecordRequest, origin = 'customer'): DnsRecord => {
   return {
     ...request,
-    id,
+    id: dnsRecordId(handle),
     zoneId,
     origin,
     originName: ORIGIN_NAMES[origin] ?? origin,
@@ -271,10 +308,18 @@ export const stubDns = async (page: Page, seed: Partial<DnsStubState> = {}): Pro
           createdAt: '2026-11-01T10:00:00Z',
           updatedAt: '2026-11-01T10:00:00Z',
           nameservers: [state.settings.primaryNameserver],
+          dnssecState: 'off',
         }
         state.zones.push(made)
         return json(route, made, 201)
       }
+      case 'GET dns-zones/templates/choices':
+        // No template is offered unless a spec installs the templates stub after this one.
+        return json(route, [])
+      case 'GET dns-zones/:id/dnssec':
+        // A host that cannot sign: the zone page offers no DNSSEC pane unless a spec installs the
+        // DNSSEC stub after this one.
+        return json(route, DNSSEC_UNAVAILABLE)
       case 'GET dns-zones/:id':
         return zone === undefined ? notFound() : json(route, zone)
       case 'DELETE dns-zones/:id':
@@ -286,7 +331,7 @@ export const stubDns = async (page: Page, seed: Partial<DnsStubState> = {}): Pro
         return json(route, pagedAnswer(state.records[rowId] ?? [], request.url(), RECORD_RULES))
       case 'POST dns-zones/:id/records': {
         const held = (state.records[rowId] ??= [])
-        const made = dnsRecord(rowId, `rec-${held.length + 1}`, (body as SaveDnsRecordRequest).record)
+        const made = dnsRecord(rowId, `rec-${(held.length + 1).toString()}`, (body as SaveDnsRecordRequest).record)
         held.push(made)
         return json(route, made, 201)
       }
@@ -298,7 +343,7 @@ export const stubDns = async (page: Page, seed: Partial<DnsStubState> = {}): Pro
         if (index < 0) {
           return notFound()
         }
-        const changed = dnsRecord(rowId, parts[3] ?? '', (body as SaveDnsRecordRequest).record)
+        const changed: DnsRecord = { ...dnsRecord(rowId, '', (body as SaveDnsRecordRequest).record), id: parts[3] ?? '' }
         held[index] = changed
         return json(route, changed)
       }

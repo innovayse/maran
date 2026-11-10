@@ -34,21 +34,27 @@ public sealed class ListAuditEventsQueryHandler
     /// <summary>Names an audit outcome as an administrator reads it, in the request's culture.</summary>
     private readonly AuditOutcomeDisplayNames _outcomeNames;
 
+    /// <summary>Spells each row's subject as an operator reads it, in the request's culture.</summary>
+    private readonly AuditSubjectDisplayNames _subjectNames;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="events">Narrows the journal by the request's filters.</param>
     /// <param name="scopeReader">Decides which entries the caller may read.</param>
     /// <param name="actionNames">Names an audit action for the request's culture.</param>
     /// <param name="outcomeNames">Names an audit outcome for the request's culture.</param>
+    /// <param name="subjectNames">Spells an audit subject for the request's culture.</param>
     public ListAuditEventsQueryHandler(
         AuditEventQuery events,
         AuditEventScopeReader scopeReader,
         AuditActionDisplayNames actionNames,
-        AuditOutcomeDisplayNames outcomeNames)
+        AuditOutcomeDisplayNames outcomeNames,
+        AuditSubjectDisplayNames subjectNames)
     {
         _events = events;
         _scopeReader = scopeReader;
         _actionNames = actionNames;
         _outcomeNames = outcomeNames;
+        _subjectNames = subjectNames;
     }
 
     /// <summary>
@@ -92,7 +98,11 @@ public sealed class ListAuditEventsQueryHandler
 
         return Result<PagedResult<AuditEventDto>>.Ok(page.Map(auditEvent =>
         {
-            return AuditEventMapper.From(auditEvent, _actionNames.Of(auditEvent.Action), _outcomeNames.Of(auditEvent.Succeeded));
+            return AuditEventMapper.From(
+                auditEvent,
+                _actionNames.Of(auditEvent.Action),
+                _outcomeNames.Of(auditEvent.Succeeded),
+                _subjectNames.Of(auditEvent.Action, auditEvent.Subject));
         }));
     }
 }

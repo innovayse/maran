@@ -13,10 +13,15 @@ use crate::dns::dns_host::DnsHost;
 use crate::dns::get_dns_status::get_dns_status;
 use crate::dns::model::dns_state::DnsState;
 use crate::dns::model::dns_unit::DnsUnit;
+use crate::dns::probe_dnssec_support::probe_dnssec_support;
 use crate::dns::wait_for_control_channel::wait_for_control_channel;
 use crate::safe_write::model::{Reload, Validator};
 
 /// Configures and starts this host's authoritative DNS daemon.
+///
+/// The daemon's ability to sign is asked of its own checker before the text is
+/// rendered (`probe_dnssec_support`), and the status it returns reports the
+/// answer as `dnssec_supported` (issue #452).
 ///
 /// Idempotent: applying a configuration the host already has, while the unit is
 /// running and its daemon answering, writes nothing and restarts nothing (a unit
@@ -69,7 +74,9 @@ use crate::safe_write::model::{Reload, Validator};
 /// failures they name, and [`DnsError::Bound`] when a program outruns its
 /// deadline.
 pub fn enable_dns(host: &dyn DnsHost, distro: &dyn DistroAdapter) -> Result<DnsState, DnsError> {
-    let rendered = render(distro)?;
+    // Asked first, because the answer decides the text: a build without
+    // `dnssec-policy` refuses a file that states it.
+    let rendered = render(distro, probe_dnssec_support(host, distro))?;
     let target = Path::new(AgentPaths::DNS_CONFIG_PATH);
     let previous = host.read_config(target)?;
 
@@ -141,22 +148,24 @@ fn enable_at_boot(host: &dyn DnsHost, distro: &dyn DistroAdapter) -> Result<(), 
     Ok(())
 }
 
-/// Renders the daemon configuration.
+/// Renders the daemon configuration, stating the signing policy only when
+/// `dnssec_policy_supported`.
 ///
-/// Every input is an agent constant or a distro fact; none comes from the
-/// request, so there is nothing to validate here (rules/rust.md "Validation
-/// first" applies to caller-supplied values).
+/// Every input is an agent constant, a distro fact or the daemon's own observed
+/// answer; none comes from the request, so there is nothing to validate here
+/// (rules/rust.md "Validation first" applies to caller-supplied values).
 ///
 /// # Errors
 ///
 /// Returns [`DnsError::Render`] when the template and its render type have
 /// drifted apart.
-fn render(distro: &dyn DistroAdapter) -> Result<String, DnsError> {
+fn render(distro: &dyn DistroAdapter, dnssec_policy_supported: bool) -> Result<String, DnsError> {
     NamedConf {
         control_key_path: AgentPaths::DNS_CONTROL_KEY_PATH.to_owned(),
         control_key_name: AgentPaths::DNS_CONTROL_KEY_NAME.to_owned(),
         control_port: AgentPaths::DNS_CONTROL_PORT,
         state_directory: distro.dns_state_directory().to_owned(),
+        dnssec_policy_supported,
     }
     .render_config()
     .map_err(|_| DnsError::Render)

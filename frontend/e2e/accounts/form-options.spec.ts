@@ -1,12 +1,14 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import type { PanelModule } from '../../src/types/module'
 import { stubCreateRefused, recordCreateRequests, submitCreate } from '../fixtures/stub-account-create'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubPlans, THE_PLAN } from '../fixtures/stub-plans-route'
 import { setPersistedLocale } from '../fixtures/set-locale'
+import type { Page } from '@playwright/test'
 
 // Issue #194: the create form suggests the username from the domain, refuses a "www." domain the
 // way the server does, asks for the owner's language and says what creation makes on the server.
@@ -25,6 +27,7 @@ const openForm = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_ACCOUNTS)
+  await stubShellReads(page)
   await stubAccounts(page, [])
   await stubPlans(page)
   await page.goto('/accounts/new')
@@ -58,7 +61,9 @@ test('a domain typed with www is refused on the form, and nothing is sent', asyn
   expect(createRequests).toEqual([])
 })
 
-test('the chosen owner language is posted with the account', async ({ page }) => {
+test('the chosen owner language is posted with the account', async ({ page, guard }) => {
+  // The create is refused on purpose so the sent body can be read.
+  guard.allow(400, /\/api\/v1\/accounts$/)
   await openForm(page)
   await stubCreateRefused(page)
 
@@ -87,6 +92,7 @@ test('the owner language starts as the operator own interface language', async (
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_ACCOUNTS)
+  await stubShellReads(page)
   await stubAccounts(page, [])
   await stubPlans(page)
 
@@ -99,6 +105,7 @@ test('the owner language choices are exactly the languages the panel lists', asy
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_ACCOUNTS)
+  await stubShellReads(page)
   await stubAccounts(page, [])
   await stubPlans(page)
   // Installed after the shared stub, so it answers first: a panel that ships two languages only.
@@ -120,10 +127,13 @@ test('the owner language choices are exactly the languages the panel lists', asy
   await expect(page.getByRole('option')).toHaveText(['English', 'Հայերեն'])
 })
 
-test('a language list the panel could not give says so instead of offering a made-up one', async ({ page }) => {
+test('a language list the panel could not give says so instead of offering a made-up one', async ({ page, guard }) => {
+  // The refusal is the subject: the language list answers 500.
+  guard.allow(500, /\/api\/v1\/accounts\/owner-languages$/)
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_ACCOUNTS)
+  await stubShellReads(page)
   await stubAccounts(page, [])
   await stubPlans(page)
   await page.route('**/api/v1/accounts/owner-languages', async (route) => {

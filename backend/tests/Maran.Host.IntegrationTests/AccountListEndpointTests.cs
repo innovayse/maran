@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using Maran.Host.IntegrationTests.Fixtures;
 using Maran.Modules.Accounts.Domain.Entities;
+using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Persistence;
 using Maran.SharedKernel.Pagination;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -209,7 +210,7 @@ public sealed class AccountListEndpointTests : IAsyncLifetime
         {
             // Active orders before Suspended, so suspending alpha makes the status order bravo, alpha.
             var accounts = scope.ServiceProvider.GetRequiredService<AccountsDbContext>();
-            (await accounts.Accounts.IgnoreQueryFilters().SingleAsync(account => account.Name == "alpha")).Suspend();
+            (await accounts.Accounts.IgnoreQueryFilters().SingleAsync(account => account.Name == "alpha")).Suspend(SuspensionActor.Administrator);
             await accounts.SaveChangesAsync();
         }
 
@@ -248,7 +249,7 @@ public sealed class AccountListEndpointTests : IAsyncLifetime
         using (var scope = factory.Services.CreateScope())
         {
             var accounts = scope.ServiceProvider.GetRequiredService<AccountsDbContext>();
-            (await accounts.Accounts.IgnoreQueryFilters().SingleAsync(account => account.Name == "bravo")).Suspend();
+            (await accounts.Accounts.IgnoreQueryFilters().SingleAsync(account => account.Name == "bravo")).Suspend(SuspensionActor.Administrator);
             await accounts.SaveChangesAsync();
         }
 

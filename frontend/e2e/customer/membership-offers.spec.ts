@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { FULL_CATALOGUE } from '../fixtures/open-full-shell'
 import {
   stubAccountMemberships,
@@ -6,15 +6,19 @@ import {
   type MembershipsState,
 } from '../fixtures/stub-account-memberships-routes'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
+import { stubMyAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubMembershipOffers, type MembershipOffersBehaviour } from '../fixtures/stub-membership-offers-routes'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
 import { setPersistedLocale } from '../fixtures/set-locale'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubEmptyTasks } from '../fixtures/stub-tasks-routes'
 import type { MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { MembershipOffer } from '../../src/types/membershipOffer'
+import type { Page } from '@playwright/test'
 
 // Issue #328: a person offered access to another account answers inside their own signed-in session.
 // Reached by clicks only: the sidebar's My account section, then its My account page. Nothing here is
@@ -82,9 +86,13 @@ const openMyAccount = async (
   await stubSignedIn(page, CUSTOMER)
   await stubRefreshFollowsActiveAccount(page, CUSTOMER, state)
   await stubHealthy(page)
+  // The shell's defaults first: the memberships below replace the empty list of further accounts.
+  await stubShellReads(page)
   await stubModules(page, FULL_CATALOGUE)
   await stubEmptyTasks(page)
+  await stubLandingReads(page, 'customer')
   await stubMyAccount(page, OWN_ACCOUNT)
+  await stubMyAccountResources(page, { accountId: OWN_ACCOUNT.id, resources: [] })
   await stubAccountMemberships(page, state)
   const sent = await stubMembershipOffers(page, offers, behaviour)
   await page.goto('/')
@@ -157,7 +165,11 @@ test('declining asks for confirmation and sends nothing until it is given', asyn
   expect(sent.accepted).toEqual([])
 })
 
-test('a refused answer is shown verbatim and the offer stays until the panel says it is gone', async ({ page }) => {
+test('a refused answer is shown verbatim and the offer stays until the panel says it is gone', async ({
+  page,
+  guard,
+}) => {
+  guard.allow(409, /\/api\/v1\/me\/membership-offers\/[^/]+\/accept$/)
   await openMyAccount(page, [{ ...SHOP_OFFER }], ownAccountOnly(), {
     refuseWith: { status: 409, detail: 'That account is suspended, so the offer cannot be accepted now.' },
   })

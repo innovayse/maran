@@ -18,6 +18,15 @@ public static class MailDefaults
     /// <summary>The largest message the MTA accepts unless an administrator chooses otherwise, in MiB.</summary>
     public const int MessageSizeMib = 50;
 
+    /// <summary>Whether POP3 and POP3S are served beside IMAP unless an administrator chooses otherwise.</summary>
+    public const bool Pop3Enabled = false;
+
+    /// <summary>Whether incoming mail is scanned for viruses unless an administrator chooses otherwise.</summary>
+    public const bool AntivirusEnabled = false;
+
+    /// <summary>Whether a forwarder may point outside its account's own mail domains unless an administrator chooses otherwise.</summary>
+    public const bool AllowExternalForwarding = false;
+
     /// <summary>The largest message size an administrator may choose, in MiB; the agent refuses more.</summary>
     public const int MaxMessageSizeMib = 512;
 

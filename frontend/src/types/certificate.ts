@@ -47,6 +47,12 @@ export interface Certificate {
   /** How many renewal attempts have failed in a row. */
   consecutiveRenewalFailures: number;
   /**
+   * Whether the certificate also covers every name directly under the domain (`*.domain`), which
+   * the panel validates through the DNS zone it serves for the domain. Renewal repeats the same
+   * validation.
+   */
+  wildcard: boolean;
+  /**
    * The last renewal failure as a sentence in the caller's language, written by the panel, or `null`
    * when there is no failure. Rendered as plain text and never used to look anything up.
    */
@@ -72,6 +78,29 @@ export interface AcmeDirectory {
 export interface IssueCertificateRequest {
   /** The domain to issue for. It must be a site the caller owns. */
   domain: string;
+  /**
+   * Whether the certificate should also cover `*.domain`. Only sent as `true` when the panel said
+   * it can ({@link IssuanceOptions.wildcardAvailable}); the panel refuses it otherwise.
+   */
+  wildcard: boolean;
+}
+
+/**
+ * What the panel can issue for one domain, as `GET /api/v1/certificates/issuance-options` reports it.
+ * The panel decides, because only it knows whether it serves the domain's DNS zone.
+ */
+export interface IssuanceOptions {
+  /** The domain the answer is about. */
+  domain: string;
+  /** Whether a wildcard certificate can be requested for the domain now. */
+  wildcardAvailable: boolean;
+  /**
+   * Machine-stable code of why a wildcard cannot be requested, or `null` when it can. Read for
+   * behaviour only, never for text.
+   */
+  wildcardUnavailableCode: string | null;
+  /** That reason as a sentence in the caller's language, written by the panel, or `null` when a wildcard can be requested. */
+  wildcardUnavailableMessage: string | null;
 }
 
 /** Body of `POST /api/v1/certificates/custom`: install material the customer supplied. */
@@ -129,6 +158,14 @@ export interface CertificatesApi {
    * @param signal Optional abort signal to cancel the in-flight request.
    */
   remove: (id: string, signal?: AbortSignal) => Promise<void>;
+
+  /**
+   * Reads which kinds of certificate the panel can issue for one domain.
+   * @param domain The domain to ask about.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns What can be issued.
+   */
+  issuanceOptions: (domain: string, signal?: AbortSignal) => Promise<IssuanceOptions>;
 
   /**
    * Reads which ACME directory the panel orders from. Administrators only.

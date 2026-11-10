@@ -25,13 +25,19 @@
     <value>The source range must be written in CIDR notation, with no host bits beyond the prefix.</value>
   </data>
   <data name="FirewallRuleLocksOutCaller">
-    <value>This rule would stop the address you are connected from reaching the SSH port of this server, and there is no way back in from outside once that port is closed to you. Open the SSH port to a range that includes your address (or to every source), or make this change from an address inside the range.</value>
+    <value>This change would stop the address you are connected from reaching the SSH port of this server, and there is no way back in from outside once that port is closed to you. Open the SSH port to a range that includes your address (or to every source), keep a rule that does, or make this change from an address inside the range.</value>
   </data>
   <data name="BanAddressInvalid">
     <value>This is not an address the firewall can ban.</value>
   </data>
   <data name="BanAddressLoopback">
     <value>A loopback address cannot be banned: this host accepts loopback traffic before any ban is consulted, so the ban would block nothing. Ban the address the traffic reaches this server from instead: the one shown for the connection, not 127.0.0.1 or ::1.</value>
+  </data>
+  <data name="BanAddressIsCaller">
+    <value>You cannot ban the address you are connected from: the ban is applied before any other rule, so it would cut you off from this server and from the panel, with no way back in from outside. Ban the other address, or make this change from a different address.</value>
+  </data>
+  <data name="BanAddressWhitelisted">
+    <value>This address is on the whitelist, which lists the addresses that must never be cut off, so it cannot be banned. Remove its range from the whitelist first if you really mean to ban it.</value>
   </data>
   <data name="BanDurationInvalid">
     <value>A ban lasts between one minute and one year; leave the duration empty for a permanent ban.</value>

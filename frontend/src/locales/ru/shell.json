@@ -8,6 +8,21 @@
       "apiKeys": "API-ключи",
       "phpVersions": "Версии PHP",
       "plans": "Тарифы",
+      "searchTerms": {
+        "firewallRules": "firewall брандмауэр файрвол правила iptables nftables порты",
+        "firewallBans": "firewall бан блокировка заблокированные ip fail2ban",
+        "firewallWhitelist": "firewall белый список разрешённые доверенные ip whitelist",
+        "cron": "cron крон crontab расписание задачи планировщик",
+        "sitesList": "сайты домены ssl tls https сертификат nginx",
+        "sitePhp": "php настройки версия ini",
+        "phpVersions": "php версии установка",
+        "smtp": "smtp исходящая почта email сервер отправка",
+        "securityPolicy": "пароль политика безопасность password двухфакторная двухэтапная 2fa блокировка",
+        "panelCertificate": "ssl tls https сертификат панель",
+        "audit": "аудит журнал лог история log",
+        "accountOverview": "аккаунт профиль пароль password",
+        "accountTwoFactor": "пароль password безопасность двухфакторная двухэтапная 2fa аутентификатор"
+      },
       "lockedBadge": "Заблокировано",
       "groups": {
         "overview": "Обзор",
@@ -15,6 +30,8 @@
         "infrastructure": "Инфраструктура",
         "system": "Система",
         "panel": "Панель",
+        "migration": "Миграция",
+        "modules": "Модули",
         "account": "Ваш аккаунт"
       },
       "expandSection": "Показать разделы «{name}»",
@@ -46,6 +63,13 @@
         "serversFleet": "Парк серверов",
         "serversServices": "Службы",
         "serversUpdates": "Обновления",
+        "remoteServers": "Удалённые серверы",
+        "migrationJobs": "Миграции серверов",
+        "accountExport": "Экспорт аккаунта",
+        "accountImport": "Импорт аккаунта",
+        "accountExports": "Экспорты",
+        "accountImports": "Импорты",
+        "exportGrants": "Гранты на загрузку",
         "monitoringMetrics": "Метрики и часы",
         "monitoringLogs": "Журналы и уровень логов",
         "settingsPanel": "Панель",
@@ -59,7 +83,7 @@
         "fileManager": "Файловый менеджер",
         "backupsRestore": "Восстановление",
         "siteLogs": "Логи сайтов",
-        "subUsers": "Пользователи",
+        "subUsers": "Субпользователи",
         "sshKeys": "SSH-ключи",
         "dnsMyZones": "Мои зоны"
       },
@@ -77,6 +101,7 @@
         "monitoring": "Мониторинг",
         "settings": "Настройки",
         "activity": "Активность",
+        "migration": "Перенос аккаунтов",
         "account": "Мой аккаунт"
       },
       "badges": {
@@ -106,10 +131,11 @@
       "paletteHintOpen": "↵ — открыть",
       "signedOut": "Никто не вошёл в систему",
       "accountMenu": "Меню аккаунта",
+      "headerAccountMenu": "Ваш аккаунт",
       "menu": {
         "myAccount": "Мой аккаунт",
-        "sessions": "Сессии",
-        "twoFactor": "Двухфакторная проверка",
+        "sessions": "Сеансы",
+        "twoFactor": "Двухэтапная проверка",
         "profile": "Профиль и защита"
       },
       "authCredit": "© {year} Maran · разработано {company}",

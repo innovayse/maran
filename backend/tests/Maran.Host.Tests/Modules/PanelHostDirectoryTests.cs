@@ -122,4 +122,98 @@ public sealed class PanelHostDirectoryTests
     {
         Assert.False(Build(configured).TryGet(out _));
     }
+
+    /// <summary>Builds a directory configured with both the vhost's name and the public address.</summary>
+    /// <param name="hostName">The configured vhost name, or null for none.</param>
+    /// <param name="publicUrl">The configured public address, or null for none.</param>
+    /// <returns>The directory under test.</returns>
+    private static PanelHostDirectory BuildBoth(string? hostName, string? publicUrl)
+    {
+        return new PanelHostDirectory(
+            Options.Create(new PanelHostOptions { HostName = hostName, PublicUrl = publicUrl }));
+    }
+
+    /// <summary>
+    /// The host of the public address is the panel's own although it differs from the vhost's name:
+    /// issue #468, where only <c>hostname -f</c> was reserved and the advertised name stayed open to a tenant.
+    /// </summary>
+    [Theory]
+    [InlineData("panel.example.com")]
+    [InlineData("PANEL.Example.COM")]
+    [InlineData("www.panel.example.com")]
+    [InlineData("panel.example.com.")]
+    public void The_host_of_the_public_address_is_the_panels_own_beside_a_different_host_name(string candidate)
+    {
+        var directory = BuildBoth("srv1.provider.net", "https://panel.example.com:8443");
+
+        Assert.True(directory.IsPanelHostName(candidate));
+    }
+
+    /// <summary>The vhost's name stays the panel's own when a public address is configured too.</summary>
+    [Fact]
+    public void The_host_name_stays_the_panels_own_beside_a_public_address()
+    {
+        var directory = BuildBoth("srv1.provider.net", "https://panel.example.com:8443");
+
+        Assert.True(directory.IsPanelHostName("srv1.provider.net"));
+        Assert.True(directory.IsPanelHostName("www.srv1.provider.net"));
+    }
+
+    /// <summary>The public address alone reserves its host when no host name is configured.</summary>
+    [Fact]
+    public void The_public_address_alone_reserves_its_host()
+    {
+        var directory = BuildBoth(null, "https://panel.example.com");
+
+        Assert.True(directory.IsPanelHostName("panel.example.com"));
+    }
+
+    /// <summary>Inverse control: an unrelated domain is accepted when both names are configured.</summary>
+    [Theory]
+    [InlineData("shop.example.com")]
+    [InlineData("example.com")]
+    [InlineData("x.panel.example.com")]
+    [InlineData("panel.example.com.evil.test")]
+    [InlineData("notsrv1.provider.net")]
+    public void An_unrelated_domain_is_not_the_panels_own_beside_both_names(string candidate)
+    {
+        var directory = BuildBoth("srv1.provider.net", "https://panel.example.com:8443");
+
+        Assert.False(directory.IsPanelHostName(candidate));
+    }
+
+    /// <summary>A public address with no usable DNS host reserves nothing and never throws.</summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("not a url")]
+    [InlineData("http://panel.example.com")]
+    [InlineData("https://user@panel.example.com")]
+    [InlineData("https://203.0.113.7")]
+    [InlineData("https://[2001:db8::1]:8443")]
+    [InlineData("https://localhost:8443")]
+    public void An_unusable_public_address_reserves_nothing_and_does_not_throw(string? publicUrl)
+    {
+        var directory = BuildBoth(null, publicUrl);
+
+        Assert.False(directory.IsPanelHostName("panel.example.com"));
+        Assert.False(directory.IsPanelHostName("shop.example.com"));
+    }
+
+    /// <summary>The panel-name window still hands out the vhost's name, never the public address's host.</summary>
+    [Fact]
+    public void The_panel_name_window_hands_out_the_vhost_name_only()
+    {
+        var directory = BuildBoth("srv1.provider.net", "https://panel.example.com:8443");
+
+        Assert.True(directory.TryGet(out var hostName));
+        Assert.Equal("srv1.provider.net", hostName);
+    }
+
+    /// <summary>With only a public address the window hands out no name: the panel's certificate is ordered for the vhost's.</summary>
+    [Fact]
+    public void The_panel_name_window_hands_out_nothing_when_only_a_public_address_is_configured()
+    {
+        Assert.False(BuildBoth(null, "https://panel.example.com").TryGet(out _));
+    }
 }

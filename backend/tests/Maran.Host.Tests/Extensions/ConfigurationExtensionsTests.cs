@@ -43,6 +43,62 @@ public sealed class ConfigurationExtensionsTests
     /// <summary>A well-formed, random-looking signing key, base64.</summary>
     private static readonly string GoodSigningKey = DerivedTestKeys.Base64("signing", 32);
 
+    /// <summary>The published setup token is refused in Production, naming the setting and not echoing the token.</summary>
+    [Fact]
+    public void Reading_setup_options_in_production_refuses_the_published_token()
+    {
+        var failure = SetupFailure("Production", "dev-setup-token");
+
+        var message = Assert.Single(failure.Failures);
+        Assert.Contains("Setup:Token", message, StringComparison.Ordinal);
+        Assert.Contains("published", message, StringComparison.Ordinal);
+        Assert.Contains("openssl rand -hex 24", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("dev-setup-token", message, StringComparison.Ordinal);
+    }
+
+    /// <summary>A short token is refused in Production as weak, not as published.</summary>
+    [Fact]
+    public void Reading_setup_options_in_production_refuses_a_short_token()
+    {
+        var failure = SetupFailure("Production", "abc");
+
+        var message = Assert.Single(failure.Failures);
+        Assert.Contains("Setup:Token", message, StringComparison.Ordinal);
+        Assert.Contains("guessed", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("published", message, StringComparison.Ordinal);
+    }
+
+    /// <summary>Inverse control: a random token, no token, and the sample in Development or Testing are accepted.</summary>
+    /// <param name="environment">The environment name.</param>
+    /// <param name="token">The configured token.</param>
+    [Theory]
+    [InlineData("Production", "")]
+    [InlineData("Production", "5f0a3c9d1e7b42a8c6d4e2f1a9b8c7d65e4f3a2b1c0d9e8f")]
+    [InlineData("Development", "dev-setup-token")]
+    [InlineData("Testing", "dev-setup-token")]
+    [InlineData("Testing", "a-one-time-token")]
+    public void Acceptable_setup_tokens_are_read_without_a_refusal(string environment, string token)
+    {
+        using var provider = Build(environment, GoodEncryptionKey, GoodSigningKey, token);
+
+        Assert.Equal(token, provider.GetRequiredService<IOptions<SetupOptions>>().Value.Token);
+    }
+
+    /// <summary>Reads <see cref="SetupOptions"/> in <paramref name="environmentName"/> and returns the refusal.</summary>
+    /// <param name="environmentName">The environment name.</param>
+    /// <param name="token">The configured setup token.</param>
+    /// <returns>The validation failure the read raised.</returns>
+    private static OptionsValidationException SetupFailure(string environmentName, string token)
+    {
+        using var provider = Build(environmentName, GoodEncryptionKey, GoodSigningKey, token);
+        var options = provider.GetRequiredService<IOptions<SetupOptions>>();
+
+        return Assert.Throws<OptionsValidationException>(() =>
+        {
+            return options.Value;
+        });
+    }
+
     /// <summary>A published encryption key is refused in Production when the options are read, and named.</summary>
     [Fact]
     public void Reading_security_options_in_production_refuses_the_published_key_without_a_host_start()
@@ -275,8 +331,13 @@ public sealed class ConfigurationExtensionsTests
     /// <param name="environmentName">The environment name.</param>
     /// <param name="encryptionKey">The encryption key, base64.</param>
     /// <param name="signingKey">The signing key, base64.</param>
+    /// <param name="setupToken">The configured setup token; empty for a finished panel.</param>
     /// <returns>The service provider; the caller disposes it.</returns>
-    private static ServiceProvider Build(string environmentName, string encryptionKey, string signingKey)
+    private static ServiceProvider Build(
+        string environmentName,
+        string encryptionKey,
+        string signingKey,
+        string setupToken = "")
     {
         IConfiguration configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(
@@ -284,6 +345,7 @@ public sealed class ConfigurationExtensionsTests
                 {
                     [PanelTestSettings.EncryptionKeyPath] = encryptionKey,
                     [PanelTestSettings.JwtSigningKeyPath] = signingKey,
+                    ["Setup:Token"] = setupToken,
                 })
             .Build();
 

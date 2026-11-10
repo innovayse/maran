@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { expectNoHorizontalOverflow } from '../fixtures/measure-horizontal-extent'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubAccountNames, stubAccounts } from '../fixtures/stub-accounts-route'
@@ -11,9 +11,11 @@ import {
 } from '../fixtures/stub-file-browser-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { FileEntry } from '../../src/types/file'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 // The file browser lists one folder a server page at a time: the account, the folder, the dot-name
 // toggle, the search, the sort and the page live in the URL, and the SPA filters nothing itself.
@@ -59,6 +61,7 @@ const openWith = async (page: Page, tree: Record<string, FileEntry[]>): Promise<
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_FILES)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubAccountNames(page, [ALICE])
   await stubFilesOptions(page)
@@ -211,7 +214,8 @@ test('the keyboard walks the names with the arrows and ticks a row with Space', 
   await expect(page.getByRole('link', { name: 'public_html' })).toBeFocused()
 })
 
-test('a path typed into the address is sent as typed and the panel refusal is shown', async ({ page }) => {
+test('a path typed into the address is sent as typed and the panel refusal is shown', async ({ page, guard }) => {
+  guard.allow(400, /\/api\/v1\/files\/entries(\?.*)?$/)
   const requests = await openWith(page, { '': HOME })
 
   await page.goto('/files?path=a/../../etc')
@@ -225,10 +229,15 @@ test('a path typed into the address is sent as typed and the panel refusal is sh
   ).toBe(true)
 })
 
-test("another tenant's account is answered 404 and shown as the panel's text, never as rows", async ({ page }) => {
+test("another tenant's account is answered 404 and shown as the panel's text, never as rows", async ({
+  page,
+  guard,
+}) => {
+  guard.allow(404, /\/api\/v1\/files\/entries(\?.*)?$/)
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_FILES)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubAccountNames(page, [ALICE])
   await stubFilesOptions(page)

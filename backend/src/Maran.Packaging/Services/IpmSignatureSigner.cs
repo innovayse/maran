@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Maran.Packaging.Resources;
+using Maran.SharedKernel.Utilities.Signatures;
 
 namespace Maran.Packaging.Services;
 
@@ -21,7 +22,7 @@ public static class IpmSignatureSigner
 
         try
         {
-            if (!IpmP384Key.Is(privateKey))
+            if (!EcdsaP384Signature.IsP384(privateKey))
             {
                 return Invalid();
             }

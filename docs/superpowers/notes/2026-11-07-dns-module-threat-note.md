@@ -50,7 +50,7 @@ that depend on it must be rewritten before the code, not after. Nothing here is 
 | D7 | Deleting a site keeps its zone; the account's deletion removes it | 3 |
 | D8 | No public-suffix list in v1; customers create zones only for hostnames their own sites claim; only an administrator creates any other (non-single-label) zone | 3 |
 | D9 | DNS screens are administrator-only plus the customer's own; a reseller sees nothing | 5 |
-| D10 | EnableDns opens 53 tcp+udp in the firewall and DisableDns closes it, if the FTPS precedent does so (see "could not verify") | 1 |
+| D10 | EnableDns and DisableDns do NOT touch the firewall, as for FTPS; the administrator opens and closes 53 tcp+udp separately, and the DNS screen shows whether the panel firewall lets it through with a one-click fix (corrected, issue #486) | 1 |
 | D11 | A new administrator setting holds the public IPv4/IPv6, nameserver hostnames, hostmaster mailbox, default TTL | 4 |
 | D12 | The note stays OUTSTANDING; the branch does not merge to `main` | above |
 
@@ -73,8 +73,9 @@ be delivered as a seam.
 
 - The installer step installs the package, **masks the distribution's own unit first**, installs
   `maran-dns.service` disabled and stopped. No socket is bound during the install. Port 53 opens only
-  when an administrator runs EnableDns. The firewall rule for 53 is created by that same action and
-  removed by DisableDns (D10).
+  when an administrator runs EnableDns. EnableDns does NOT create a firewall rule and DisableDns does not
+  remove one (D10): the administrator opens and closes 53 separately, on the DNS screen's one-click
+  action or the Firewall screen. See "Correction" below.
 - Mask first, as for FTPS (`installer/lib/89-ftps.sh`): on the Debian family the package postinst
   starts the daemon with the distribution's own configuration, which may recurse, before our unit
   exists. The ordering is the control.
@@ -194,6 +195,9 @@ be delivered as a seam.
 
 ### 10. DNSSEC and transfer (off by default, later phases)
 
+- **DNSSEC is designed and analysed in `2026-11-09-dns-templates-and-dnssec-threat-note.md` (issue #452),
+  which supersedes the DNSSEC bullet below** (key custody, signing inside `PutZone`, the 48 hour withdrawal
+  guard, directories the daemon writes, capability by observation). Second review: OUTSTANDING (#331).
 - DNSSEC: ECDSAP256SHA256 only; the DS record is shown to the customer to place at the registrar.
   **Disabling DNSSEC while the DS is still published at the registrar makes the zone fail validation
   for every validating resolver, which is an outage the customer causes to themselves.** The disable
@@ -212,12 +216,18 @@ be delivered as a seam.
   not exist yet (Mail) or are not changed here (Ssl). Neither is wired in this issue.
 - DNS-01 against a zone nobody delegates to this server proves nothing; Ssl must check delegation and
   fail with a typed error rather than loop (#161's work, not this one's).
+- **Amended 2026-11-09 (#161): there is no delegation pre-check.** The window `IDnsChallengeRecords` is
+  delivered and consumed by Ssl, and the sentence above is superseded: a resolver in the panel or agent
+  would be a new outbound call (item 10), so the certificate authority is the judge of delegation and the
+  typed error carries the hint. The window, its bypasses and its tests are argued in
+  `2026-11-09-acme-dns01-wildcard-threat-note.md`; the second review of that note is OUTSTANDING (#331).
 
 ## What a reviewer must check
 
 1. The packaged unit is masked, `maran-dns.service` is disabled and stopped after the installer, and no
    socket is bound before EnableDns (`ss -lntu | grep ':53 '` before and after; positive control: after
-   Enable it IS listed; after Disable it is not, and the firewall rule is gone).
+   Enable it IS listed; after Disable it is not. The firewall rule is NOT created or removed by either;
+   see "Correction").
 2. `named-checkconf -p` of the rendered configuration shows recursion off and RRL on; a real query for
    a foreign name is REFUSED.
 3. Every zone rdata field is a validated type on the agent side. Try each of: newline, CR, `"`, `\`,
@@ -232,7 +242,7 @@ be delivered as a seam.
    named test must fail.
 8. AppArmor and SELinux results on both families (section 9), recorded in this note.
 9. Mutation set (rules/testing.md): remove the recursion refusal; remove the overlap check; remove the
-   CNAME-exclusivity check; remove a TXT character check; make Disable leave the firewall rule. Each
+   CNAME-exclusivity check; remove a TXT character check; make the rendered `listen-on` ignore the daemon's own state. Each
    must kill a NAMED test.
 10. The apply-order divergence (section 6): kill the process between the agent call and the save; the
     reconciler must converge the daemon to the database.
@@ -253,9 +263,8 @@ memory.
 - Whether `dnssec-policy` exists on every supported build.
 - AppArmor and SELinux behaviour (section 9).
 - RRL defaults and the effective amplification factor, signed and unsigned.
-- Whether FTPS leaves its firewall rule to the operator or creates it (D10). Not inspected; the plan
-  says to inspect before coding and mirror it. `installer/lib/87-firewall.sh` only validates port
-  numbers in what was read.
+- Whether FTPS leaves its firewall rule to the operator or creates it (D10): resolved, it leaves it to
+  the operator (the FTPS screen offers the rules separately), and DNS mirrors that. See "Correction".
 - Whether the existing `ISiteDirectory.FindByDomainAsync` covers aliases and can serve as the
   ownership window, or whether a new member is needed (the plan assumes a new
   `OwnsHostnameAsync`). Not read in full.
@@ -265,6 +274,38 @@ memory.
   story for account transfer (#127) or fleet placement (#180); both need follow-up issues.
 - Whether a registrar glue/NS setup mistake by a customer can make this server answer for a name it
   should not; this is outside the panel's control and not testable here.
+
+## Correction (issue #486): who opens port 53
+
+**What was wrong.** This note, the module manifest, the controller and command comments, the agent-client
+comments and the SPA's confirmation and status texts (en, ru, hy) all said that turning the server on opens
+port 53 and turning it off closes it. The agent does neither: `EnableDns` and `DisableDns` never touch the
+firewall, and the rendered BIND configuration has `listen-on { any; }`. So with no panel firewall in force
+port 53 was reachable from the moment Enable ran, while the administrator had been told the port was opened
+by their confirmation; and with the panel firewall in force the server stayed unreachable although the screen
+said it had been opened. The screen also never showed whether the firewall let the port through.
+
+**What changed.** D10 is decided as the plan said for the case where FTPS leaves the ports to the
+administrator (it does): neither rpc touches the firewall. Every claim was corrected (manifest, command,
+controller, agent-client and capability comments, SPA en/ru/hy, `docs/operations/dns.md`). The status now
+carries the port (`DnsStatusDto.Port`, from `DnsServerPort`, so the SPA holds no port), and the DNS server
+card shows whether the panel firewall lets TCP and UDP 53 through, with an "Open port 53" action when the
+server is on and a port is missing and a "Close port 53" action when it is off and a rule remains. The
+confirmation dialogs state that the firewall is untouched and that without a running firewall the port is
+reachable at once. The module still declares no `Firewall` capability: the actions go through the Firewall
+module's own endpoints, as the FTPS card does.
+
+**Why it is safe now.** The surface is described as it is. The port is never opened as a side effect of a
+switch, so an administrator who wants a private server has nothing to undo; the screen shows the firewall's
+state beside the daemon's; and the daemon still refuses recursion and rate-limits answers whoever reaches it.
+**What this does not fix:** the daemon listens on every address, so a host with no panel firewall in force
+exposes 53 as soon as Enable runs. The screen can only read the panel's own rules and says "not open" when
+none matches; it cannot tell "no firewall" from "firewall in force". Binding to specific addresses would be a
+separate decision (D11 holds the public addresses).
+
+**Second review: OUTSTANDING (#331).** A reviewer must check that no rpc touches the firewall (grep
+`ops/src/dns` for the firewall area), that the card's rule derivation matches the Firewall module's rule
+identity, and the `listen-on` stance above. The author ran the DNS specs and tests, nothing on a real host.
 
 ## Website docs needed (for the owner; agents do not touch the website)
 

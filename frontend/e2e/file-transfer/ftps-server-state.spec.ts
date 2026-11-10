@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubFirewall } from '../fixtures/stub-firewall-routes'
@@ -14,9 +14,11 @@ import {
 } from '../fixtures/stub-ftp-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { FtpsStatus } from '../../src/types/ftpsStatus'
 import type { PanelModule } from '../../src/types/module'
+import type { Locator, Page } from '@playwright/test'
 
 // Issue #215: the card used to say "Turned off" beside "Running", leave "Turn FTPS off" enabled in
 // every state, and answer a click with nothing. One case per state the backend's verdict can take,
@@ -81,6 +83,7 @@ const openScreen = async (page: Page, status: FtpsStatus): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubFirewall(page, { rules: [], bans: [], whitelist: [] })
   await stubFtpsServer(page, status)
@@ -213,7 +216,8 @@ test('turning FTPS off re-reads the firewall, as turning it on does', async ({ p
   expect(reads).toHaveLength(2)
 })
 
-test('a refused switch shows the backend sentence on the card', async ({ page }) => {
+test('a refused switch shows the backend sentence on the card', async ({ page, guard }) => {
+  guard.allow(500, /\/api\/v1\/ftps-server\/disable$/)
   await openScreen(page, runningFtpsStatus)
   await stubFtpsServerSwitchProblem(page, 'The agent could not stop the FTPS service.')
 

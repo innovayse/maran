@@ -42,6 +42,36 @@ public static class RateLimitPolicies
     public const string PasswordReset = "password-reset";
 
     /// <summary>
+    /// The password-reset COMPLETION limit: its own bucket, keyed by the caller's address, for the
+    /// endpoint that spends a reset token (<c>reset-password</c>), separate from <see cref="PasswordReset"/>
+    /// which meters the requests that send mail (issue #492).
+    /// </summary>
+    /// <remarks>
+    /// The two share a name's worth of intent and nothing else. Requesting a reset spends an outgoing
+    /// message and is metered tightly; completing one spends a guess at a 256-bit token and sends
+    /// nothing. In one bucket a flood of requests made from an address exhausted the budget of the
+    /// person who then clicked the link in the mail they had legitimately received, and — the other
+    /// way round — attempts to complete a reset ate the budget for asking for the mail at all.
+    /// </remarks>
+    public const string PasswordResetCompletion = "password-reset-completion";
+
+    /// <summary>
+    /// The session-refresh limit: its own bucket, keyed by the caller's address, for the two anonymous
+    /// endpoints that act on the refresh cookie (<c>refresh</c> and <c>logout</c>).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Separate from <see cref="Login"/> because the traffic is of a different shape: the SPA asks to
+    /// refresh once per signed-out page load and once per expired access token, so a person using the
+    /// panel legitimately makes many such calls and none of them is a guess. Sharing sign-in's tight
+    /// bucket would lock real users out of their open session; leaving the endpoints unlimited lets an
+    /// anonymous caller spend a database lookup per request and probe the reuse-detection path at wire
+    /// speed (issue #471).
+    /// </para>
+    /// </remarks>
+    public const string SessionRefresh = "session-refresh";
+
+    /// <summary>
     /// The invitation-acceptance limit: its own bucket, keyed by the caller's address, separate
     /// from <see cref="PasswordReset"/> even though both endpoints are anonymous and both spend a
     /// token.
@@ -177,4 +207,28 @@ public static class RateLimitPolicies
     /// allowed.
     /// </remarks>
     public const string Dns = "dns";
+
+    /// <summary>
+    /// The update-check limit: its own bucket, keyed by the signed-in administrator (issue #516).
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="Api"/> because every accepted request makes the SERVER contact the
+    /// release host as root: the general budget is sized for reading screens and would allow hundreds of
+    /// outbound fetches a minute to a stolen administrator session. Small, because a person presses
+    /// "Check for updates" a few times a day, and the root side adds its own exclusion (one marker, one
+    /// lock) behind it.
+    /// </remarks>
+    public const string UpdateCheck = "update-check";
+
+    /// <summary>
+    /// The pull limit: its own bucket, keyed by the caller's address, for the endpoints a single-use export grant
+    /// reaches (issue #127).
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="Api"/> because the caller holds no account and no login, and what it can spend is a
+    /// guess at a 256-bit token and a read of a customer's whole package. A refused grant is also counted by the
+    /// grant failure limiter, which authorization consults BEFORE this limiter runs; this one bounds the requests
+    /// a valid grant can make.
+    /// </remarks>
+    public const string MigrationPull = "migration-pull";
 }

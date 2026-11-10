@@ -1316,3 +1316,54 @@ What changed in `agent/crates/ops/src/ftps/`, and what an attacker could do with
 Not changed: the unit, its sandbox, PAM, the jail base, TLS settings. No new privilege, no new path
 written. Not measured here: the real-systemd install lane (the polygon's `systemctl` is a shim), and
 a crash-looping daemon still costs the full 10 s before `NotListening`.
+
+## Amendment 2026-11-09: the second login no longer rewrites the account's home, and sshd refuses the FTPS credential (#483, #484)
+
+**#483 - what was wrong.** The jail's `home` directory is the target of the account's bind mount. This
+note, and the comment on `JAIL_MODE`, argued that the mount point's `0755` "is only ever VISIBLE while the
+mount is down, because a live bind mount covers it". That is true of reading the mode and false of setting
+it: `ensure_account_jail` ran on every login creation and `chmod`ed the mount point by path, and `chmod(2)`
+follows the path onto whatever is mounted there. The first login created the mount point before the mount
+existed, so it was harmless; the SECOND login for the same account changed `/home/<account>` from `0750` to
+`0755`, and every other tenant could then traverse the home and read what vsftpd's `local_umask=022` and CMS
+defaults had left world-readable (`wp-config.php` among them). An ordinary customer triggers it by making
+two logins.
+
+**What changed.** `FtpsHost::create_directory` is no longer used for the mount point. A new method,
+`ensure_mount_point`, creates the directory and applies a mode ONLY when the directory is not the account's
+home; it recognises the mounted home by `(st_dev, st_ino)` equal to the home's, not by comparing the device
+with the parent's, because a bind mount shares its source's filesystem and on a host with one filesystem for
+`/home` and `/var/lib` the device numbers are equal whether or not anything is mounted (the code is the
+shared `ops::logins::ensure_mount_point`, used by SFTP too). The jail and its base directory are still
+`chmod`ed on every creation (drift is corrected there, and they are never mount targets). Why it is safe now:
+no code path applies a mode through a path that can lead onto the home. If the agent's mount namespace did
+not see the mount at all, the `chmod` would land on the empty directory underneath, which is harmless.
+
+**#484 - what was wrong.** The claim at "The credential surface a system login adds", that "nothing that
+already exists on the host starts accepting these credentials because this step ran", was true of the
+`maran-ftps` PAM service and false of sshd: an FTPS login is a passwd entry with a real password, and sshd
+authenticates any local user whose shell exists (`nologin` does). The only sshd policy the product installed
+was `Match Group maran-sftp`, which does not apply to `maran-ftps` members. A customer could run
+`ssh -N -D 1080 <login>@server` and get a tunnel into the server's loopback and private network (and a second,
+unthrottled place to guess the credential). `AllowTcpForwarding no` also did not cover unix-socket
+forwarding, which reaches every socket the account's uid may open.
+
+**What changed.** The block `installer/lib/86-sftp.sh` writes between the existing markers now also carries
+`Match Group maran-ftps` with `DenyGroups maran-ftps`, so sshd refuses the login before any credential is
+looked at, plus the forwarding floor (`AllowTcpForwarding`, `AllowStreamLocalForwarding`, `X11Forwarding`,
+`AllowAgentForwarding`, `PermitTunnel`, `PermitTTY`, `PermitUserRC` all off). The same floor was added to the
+SFTP `Match` block, so EVERY jailed login has it. One block under one pair of markers means the uninstaller
+and the drift check keep working unchanged. Checked by `assert_sshd_confines_every_jailed_login` (the daemon's
+own resolved configuration for a user in each group, with a user in neither as the inverse control) and by
+`ftps_on_a_real_host.rs`, which logs in to a real sshd with an FTPS login's correct password and requires the
+refusal.
+
+**What a reviewer must check.** That `DenyGroups` inside a `Match Group` block is honoured on every supported
+OpenSSH (measured on the two polygon families through `sshd -T -C`; the refusal itself is exercised by the
+real-host suite); that the group literal in `86-sftp.sh` (`MARAN_SSHD_FTPS_GROUP`) stays equal to
+`ftps_group()` (the polygon asserts the block it produced contains the group `89-ftps.sh` creates). **Not
+verified:** an actual forwarded connection (the image has no network peer; the denial is read from sshd's
+resolved configuration, the value its channel code consults), SELinux enforcing, and a host whose sshd has a
+site-local `Match` earlier in the file that sets these options differently (first match wins per option).
+
+**Second review: OUTSTANDING (#331).**

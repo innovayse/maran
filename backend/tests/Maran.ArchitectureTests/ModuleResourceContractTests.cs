@@ -1,5 +1,4 @@
 using Maran.Host.Modules;
-using Maran.Modules.Licensing;
 using Maran.Sdk.Interfaces;
 
 namespace Maran.ArchitectureTests;
@@ -123,7 +122,6 @@ public sealed class ModuleResourceContractTests
     private static List<ModuleResourceSubject> RealSubjects()
     {
         return ModuleRegistry.All
-            .Append(new LicensingModule())
             .Select(SubjectOf)
             .ToList();
     }

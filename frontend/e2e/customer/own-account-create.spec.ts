@@ -1,4 +1,5 @@
-import { expect, test, type Page, type Request } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import { stubMyAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { stubBackups } from '../fixtures/stub-backups-routes'
@@ -9,11 +10,13 @@ import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { forbidAccountsList, stubMyAccount } from '../fixtures/stub-my-account-route'
 import { stubSftpUsers } from '../fixtures/stub-sftp-routes'
-import { stubPhpVersions, stubSites } from '../fixtures/stub-sites-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
+import { stubPhpVersions, stubSiteLimits, stubSites } from '../fixtures/stub-sites-routes'
 import { stubEmptyTasks } from '../fixtures/stub-tasks-routes'
 import type { MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { PanelModule } from '../../src/types/module'
+import type { Page, Request } from '@playwright/test'
 
 /**
  * A customer owns exactly one account, so every create form sends that account's id on its own:
@@ -66,9 +69,12 @@ const MODULES: PanelModule[] = [
 const signInCustomer = async (page: Page): Promise<() => number> => {
   await stubSignedIn(page, CUSTOMER)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubModules(page, MODULES)
   await stubEmptyTasks(page)
   await stubMyAccount(page, OWN_ACCOUNT)
+  // The create forms ask how much of the plan is spent (issue #312); nothing is.
+  await stubMyAccountResources(page, { accountId: OWN_ACCOUNT.id, resources: [] })
   return forbidAccountsList(page)
 }
 
@@ -154,6 +160,7 @@ test('a customer takes a backup of their own account without a picker', async ({
 test('a customer creates a site on their own account without a picker', async ({ page }) => {
   const accountsCalls = await signInCustomer(page)
   await stubSites(page, [])
+  await stubSiteLimits(page, { maximumAliases: 20 })
   await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
 
   await page.goto('/sites/new')

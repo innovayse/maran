@@ -198,6 +198,9 @@ cli_panel_restore() {
   CLI_PANEL_RESTORE_ENV_TEMP=""
   cli_panel_restore_licence "$state_tar"
   # A file written by install/mv carries the staging context, not the one policy gives its path.
+  # Keyed on the program being present, not on the OS family, so every SELinux family (the RHEL family
+  # and the SUSE family, whose Leap 16 enforces SELinux by default; UNVERIFIED, confirm with
+  # `getenforce` in the pinned Leap image) takes this branch and a host without it skips it.
   if command -v restorecon >/dev/null 2>&1; then
     restorecon -- "$MARAN_CLI_ENV_FILE" "$MARAN_PANEL_STATE_DIR"/* || true
   fi

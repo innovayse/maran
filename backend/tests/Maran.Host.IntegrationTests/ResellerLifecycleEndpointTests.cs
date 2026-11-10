@@ -135,7 +135,6 @@ public sealed class ResellerLifecycleEndpointTests : IAsyncLifetime
             ("delete plan", await alpha.DeleteAsync($"/api/v1/plans/{plan}")),
             ("create account", await alpha.PostAsJsonAsync("/api/v1/accounts", ResellerRequestBodies.Account("alphatwo", plan))),
             ("change plan", await alpha.PutAsJsonAsync($"/api/v1/accounts/{account}/plan", new { PlanId = plan })),
-            ("change owner", await alpha.PutAsJsonAsync($"/api/v1/accounts/{account}/owner-email", new { OwnerEmail = "x@example.com" })),
             ("suspend account", await alpha.PostAsync($"/api/v1/accounts/{account}/suspend", null)),
             ("reactivate account", await alpha.PostAsync($"/api/v1/accounts/{account}/reactivate", null)),
             ("delete account", await alpha.DeleteAsync($"/api/v1/accounts/{account}")),
@@ -163,7 +162,6 @@ public sealed class ResellerLifecycleEndpointTests : IAsyncLifetime
             AccountAuditActions.PlanDeleted,
             AccountAuditActions.AccountCreated,
             AccountAuditActions.AccountPlanChanged,
-            AccountAuditActions.AccountOwnerEmailChanged,
             AccountAuditActions.AccountSuspended,
             AccountAuditActions.AccountReactivated,
             AccountAuditActions.AccountDeleted);

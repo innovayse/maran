@@ -1,3 +1,4 @@
+using Maran.Agent.Client.Errors;
 using Maran.Agent.Client.Services.BackupService;
 using Maran.Modules.Backups.Resources;
 
@@ -97,14 +98,6 @@ public static class RestoreAgentErrorTranslator
     private const string AgentAlreadyExistsCode = "AgentAlreadyExists";
 
     /// <summary>
-    /// The agent client's code for the wire's <c>NOT_FOUND</c>, which on a restore narrowed to one
-    /// database or one site means the archive does not hold that part (or, rarely, the archive
-    /// itself is gone).
-    /// </summary>
-    /// <remarks>A literal for the reason <see cref="AgentAlreadyExistsCode"/> is.</remarks>
-    private const string AgentNotFoundCode = "AgentNotFound";
-
-    /// <summary>
     /// The agent client's code for a sealed archive that did not open under the key the restore
     /// carried, or that was sent none (issue #445).
     /// </summary>
@@ -157,7 +150,7 @@ public static class RestoreAgentErrorTranslator
 
         if (scope is not AgentWholeRestoreScope
             && terminal.Kind == BackupRestoreEventKind.Failed
-            && string.Equals(terminal.Failure?.Code, AgentNotFoundCode, StringComparison.Ordinal))
+            && string.Equals(terminal.Failure?.Code, AgentErrorCodes.NotFound, StringComparison.Ordinal))
         {
             return Error.Of(nameof(ErrorMessages.RestoreScopeNotInBackup), ErrorType.NotFound);
         }

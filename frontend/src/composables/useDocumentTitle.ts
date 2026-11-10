@@ -1,6 +1,7 @@
 import { watchEffect, type WatchHandle } from 'vue'
 import type { Composer } from 'vue-i18n'
 import type { Router } from 'vue-router'
+import { routeTitleText } from '../utils/routeTitleText'
 
 /**
  * Keeps `document.title` equal to "<screen> · <product>" for the current route (WCAG 2.4.2 Page
@@ -8,7 +9,8 @@ import type { Router } from 'vue-router'
  * announces the same name after every navigation and the browser's tab strip and history cannot be
  * told apart.
  *
- * The screen name is the i18n key the route declares in `meta.title`; the effect reads both the
+ * The screen name is the i18n key the route declares in `meta.title` (or, for a packaged module's
+ * route, the backend's text from `meta.titleFrom`); the effect reads both the
  * route and the i18n locale, so it re-runs on navigation AND when the interface language changes
  * — a title translated once at navigation time would stay in the old language until the next
  * click. It takes the router and the composer as arguments rather than injecting them because it
@@ -23,7 +25,12 @@ import type { Router } from 'vue-router'
 export const useDocumentTitle = (router: Router, i18n: Composer): WatchHandle => {
   return watchEffect((): void => {
     const product = i18n.t('app.title')
-    const key = router.currentRoute.value.meta.title
-    document.title = key === undefined ? product : `${i18n.t(key)} · ${product}`
+    const meta = router.currentRoute.value.meta
+    document.title =
+      meta.title === undefined && meta.titleFrom === undefined
+        ? product
+        : `${routeTitleText(meta, (key: string): string => {
+          return i18n.t(key)
+        })} · ${product}`
   })
 }

@@ -55,14 +55,17 @@ import ShellTabBar from '../components/shell/ShellTabBar.vue'
 import ShellViewingAsBanner from '../components/shell/ShellViewingAsBanner.vue'
 import { useNavigationState } from '../composables/useNavigationState'
 import { useNavigationRole } from '../composables/useNavigationRole'
+import { usePackagedModules } from '../composables/usePackagedModules'
 import { useShellBranding } from '../composables/useShellBranding'
 import { useShellLiveReads } from '../composables/useShellLiveReads'
 import { useLocaleStore } from '../stores/locale'
 import { useModulesStore } from '../stores/modules'
+import { useViewingAs } from '../composables/useViewingAs'
 import { FALLBACK_GROUP } from '../router/navigationTree'
 import { locateNavigation } from '../utils/locateNavigation'
 import { PAGE_EYEBROW_KEY } from '../utils/pageEyebrowKey'
 import { PAGE_HEADING_KEY } from '../utils/pageHeadingKey'
+import { SESSION_READ_ONLY_KEY } from '../utils/sessionReadOnlyKey'
 import type { NavigationEntry } from '../types/navigation'
 import type { PageHeading } from '../types/pageHeading'
 
@@ -93,6 +96,10 @@ const localeStore = useLocaleStore()
 // The shell's polls and streams (running tasks, failed-task count, needs-attention and updates
 // figures), started only for the roles that may call them and dropped with the identity (issue #415).
 useShellLiveReads()
+
+// Installed modules' routes follow the catalogue, and the catalogue is re-read when the window is
+// focused again, so a module installed or removed elsewhere appears without a reload.
+usePackagedModules()
 
 /**
  * The public demo's banner and read-only notice, or `null` in every other build. Written inline so
@@ -173,6 +180,11 @@ const pageHeading: Ref<PageHeading | null> = shallowRef(null)
 
 provide(PAGE_EYEBROW_KEY, eyebrow)
 provide(PAGE_HEADING_KEY, pageHeading)
+
+// A view-as session can only look: every write of it is refused by the panel (issue #334), so the
+// kit draws the forms and the saving and removing buttons of the page disabled instead of letting an
+// operator fill a form that is refused after submit (issue #515). The banner above the page says why.
+provide(SESSION_READ_ONLY_KEY, useViewingAs())
 
 /** The `<main>` element, the target the skip link moves focus to. */
 const mainElement = useTemplateRef<HTMLElement>('main')

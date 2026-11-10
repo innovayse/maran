@@ -32,6 +32,8 @@ const verify = async (): Promise<void> => {
 }
 
 onMounted(async () => {
+  // Feedback belongs to the visit (issue #508): a verdict or refusal from an earlier visit is not current.
+  store.clearVerificationFeedback()
   await store.loadChain()
 })
 </script>

@@ -1,4 +1,5 @@
 using Maran.Modules.Accounts.Common;
+using Maran.Modules.Accounts.Mappers;
 using Maran.Modules.Accounts.Resources;
 using Maran.SharedKernel.Constants;
 using Microsoft.Extensions.Localization;
@@ -10,7 +11,7 @@ namespace Maran.Modules.Accounts.Queries.ListOwnerLanguages;
 /// order, each with its name.
 /// </summary>
 /// <remarks>
-/// Each name is looked up under <c>OwnerLanguage&lt;CODE&gt;</c> in <c>DisplayNames</c>. A language is
+/// Each name is looked up by <see cref="OwnerLanguageMapper"/> under <c>OwnerLanguage&lt;CODE&gt;</c> in <c>DisplayNames</c>. A language is
 /// named in itself in every culture's table, so the picker reads the same in whichever language the
 /// administrator uses. A language added to <see cref="PanelLanguages.Supported"/> without its three
 /// entries reads as its key, which the handler's test catches by asking for every language.
@@ -35,7 +36,7 @@ public sealed class ListOwnerLanguagesQueryHandler
         IReadOnlyList<OwnerLanguageDto> languages = PanelLanguages.Supported
             .Select(language =>
             {
-                return new OwnerLanguageDto(language, _displayNames[$"OwnerLanguage{language.ToUpperInvariant()}"].Value);
+                return OwnerLanguageMapper.ToDto(language, _displayNames);
             })
             .ToList();
 

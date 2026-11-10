@@ -37,9 +37,10 @@ impl AgentPaths {
     /// Outside the `*.conf` glob the web server includes, so nothing here is
     /// parsed as configuration, and outside every home, so no customer can
     /// write or swap a file. The agent creates it `root:<web server group>`
-    /// with mode `2750` (setgid, so a file written inside inherits the group):
+    /// with mode `0750` (no setgid bit: the agent's unit sets
+    /// `RestrictSUIDSGID=true`, under which the kernel refuses one, issue #498):
     /// the web server's workers read a credential file on every request and
-    /// nobody else on the host can even list the directory. The same on every
+    /// nobody else on the host can even enter the directory. The same on every
     /// family, which is why it is here and not an adapter method; the web
     /// server's GROUP is a family fact and is asked of the adapter.
     pub const SITE_AUTH_DIRECTORY: &'static str = "/etc/maran/nginx/auth";
@@ -210,6 +211,19 @@ impl AgentPaths {
         Path::new(Self::PAM_LIMITS_DIRECTORY).join(format!("maran-{}.conf", account.as_str()))
     }
 
+    /// The table of system users allowed to use the local `sendmail` and
+    /// `postdrop` commands: `<postfix_directory>/`[`Self::MAIL_LOCAL_SUBMIT_USERS_FILE_NAME`]
+    /// (issue #500).
+    ///
+    /// `postfix_directory` is the distribution's Postfix configuration
+    /// directory (`MailFacts::postfix_config_directory`). The one place that
+    /// joins the two, so the file Postfix is told to read and the file the
+    /// agent seeds cannot be spelled differently.
+    #[must_use]
+    pub fn mail_local_submit_users_path(postfix_directory: &str) -> PathBuf {
+        Path::new(postfix_directory).join(Self::MAIL_LOCAL_SUBMIT_USERS_FILE_NAME)
+    }
+
     /// Name of the file manager's trash directory, directly inside an account's
     /// home (issue #167): `<home>/.maran-trash/`.
     ///
@@ -352,6 +366,17 @@ impl AgentPaths {
     /// The submission service refuses a sender the authenticated login does not
     /// own (`reject_sender_login_mismatch`), and this is the table it asks.
     pub const MAIL_SENDER_LOGIN_MAPS_PATH: &'static str = "/etc/maran/mail/sender_login_maps";
+
+    /// File name of the table of system users allowed to submit mail through
+    /// the local `sendmail` and `postdrop` commands (issue #500).
+    ///
+    /// The name is identical on every family; the DIRECTORY it sits in is
+    /// Postfix's configuration directory, a family fact, so the full path is
+    /// [`Self::mail_local_submit_users_path`]. It is NOT inside
+    /// [`Self::MAIL_CONFIG_DIRECTORY`] on purpose: `postdrop` runs as the
+    /// submitting customer's own uid and reads this table to decide whether to
+    /// accept the message, and `/etc/maran` is not traversable by a customer.
+    pub const MAIL_LOCAL_SUBMIT_USERS_FILE_NAME: &'static str = "maran_local_submit_users";
 
     /// The directory holding what only Dovecot's auth process may read.
     ///
@@ -756,6 +781,50 @@ impl AgentPaths {
     pub fn agent_scratch_dir() -> &'static Path {
         Path::new("/run/maran/scratch")
     }
+
+    /// Root-only directory a migration source's private key and its one-line
+    /// `known_hosts` file are written into for the length of one `ssh` call, and
+    /// removed from on every path (issue #197).
+    ///
+    /// Under `/run`, on the tmpfs, on purpose and unlike
+    /// [`Self::BULK_SCRATCH_ROOT`]: what is staged here is a few hundred bytes
+    /// whose size is bounded by the validated types that produced them, never by a
+    /// customer's data, and a private key that lives on a tmpfs is never written
+    /// to a disk the host might keep, snapshot or back up. A reboot empties it
+    /// for free, so a key a killed call left behind does not outlive the next
+    /// boot.
+    ///
+    /// A child of `/run/maran` (`root:maran 0750`, created by the unit's
+    /// `RuntimeDirectory=`, already in `ReadWritePaths=`), so the unprivileged
+    /// panel uid can traverse the parent but owns no ancestor of this directory
+    /// and cannot enter it: the agent creates it `0700 root`, and the operations
+    /// that use it check that mode and that owner before writing, the same
+    /// discipline the bulk scratch gets, so nobody can swap the directory for a
+    /// symlink between the check and the write. Not a sibling directory under
+    /// `/run` of its own, because nothing outside the agent needs to traverse it.
+    /// An agent decision identical on every family, so it belongs here.
+    pub const TRANSFER_SCRATCH_DIRECTORY: &'static str = "/run/maran/transfer-scratch";
+
+    /// Where a migration transfer's receiver keeps the private key and the
+    /// known_hosts file for the length of one `rsync` run (issue #197, phase 2,
+    /// decision D18 option a).
+    ///
+    /// The receiver runs as the ACCOUNT's uid (`fork_as_account`), so the key it
+    /// connects with has to be readable by that uid, and the account can enter
+    /// neither [`Self::TRANSFER_SCRATCH_DIRECTORY`] (root-only, `0700`) nor
+    /// `/run/maran` (the unit's `RuntimeDirectoryMode=0750`). This directory is
+    /// therefore below `/run/maran-host`, the mount-point directory the unit's
+    /// `BindPaths=` makes (`0755`, on the tmpfs under `/run`, inside the agent's own
+    /// mount namespace, already in `ReadWritePaths=`), and is itself `0711 root`:
+    /// anyone may traverse it, nobody may list it. Each run makes one
+    /// subdirectory in it with a random name, `0700`, owned by the account, which
+    /// holds the two files and is removed on every path. The credential is
+    /// therefore readable, for the length of one run, by the account's own
+    /// processes; the threat note says so and why it is accepted (the account is
+    /// new and not yet serving, and nothing of the customer runs in it before the
+    /// cut-over). That `/run/maran-host` is traversable by an account's uid on a
+    /// real host is read from the unit and NOT measured; the threat note lists it.
+    pub const TRANSFER_RECEIVER_DIRECTORY: &'static str = "/run/maran-host/transfer-receivers";
 
     /// The account's backup directory: `<backup root>/<account>`.
     ///

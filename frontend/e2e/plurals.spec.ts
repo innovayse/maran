@@ -1,11 +1,14 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from './fixtures/guarded-test'
 import { setPersistedLocale } from './fixtures/set-locale'
 import { stubSignedIn } from './fixtures/stub-auth-routes'
 import { ALERT_DELIVERY_OK, loaded, stubDashboard, UNAVAILABLE, SYNCHRONIZED_CLOCK } from './fixtures/stub-dashboard-route'
 import { stubHealthy } from './fixtures/stub-health-route'
+import { stubIdleLiveDashboard } from './fixtures/stub-live-dashboard-stream'
 import { stubModules } from './fixtures/stub-modules-route'
+import { stubShellReads } from './fixtures/stub-shell-reads'
 import type { Dashboard } from '../src/types/dashboard'
 import type { PanelModule } from '../src/types/module'
+import type { Page } from '@playwright/test'
 
 // #212: a counted message chooses its form from the count. Russian has three forms and the choice
 // is made on the last digit, so 1 and 5 land in different forms and a message that ignored the count
@@ -53,8 +56,10 @@ const openInRussian = async (page: Page, count: number): Promise<void> => {
   await setPersistedLocale(page, 'ru')
   await stubModules(page, LICENSED)
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubDashboard(page, dashboardWith(count))
+  await stubIdleLiveDashboard(page)
   await page.goto('/')
 }
 
@@ -80,8 +85,10 @@ test('Needs attention uses the singular form for 1 in English', async ({ page })
   await setPersistedLocale(page, 'en')
   await stubModules(page, LICENSED)
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubDashboard(page, dashboardWith(1))
+  await stubIdleLiveDashboard(page)
   await page.goto('/')
 
   await expect(page.getByRole('link', { name: '1 task failed' })).toBeVisible()

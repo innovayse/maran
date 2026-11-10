@@ -19,8 +19,15 @@
  * page's template stays the one description of its fields and the loaded form lands in exactly the
  * space the placeholder held. The form is `aria-busy` meanwhile; the announcement itself belongs to
  * the {@link UiLoadingRegion} around it.
+ *
+ * **A read-only session draws the form disabled** (issue #515). While an operator is viewing as
+ * another login the session cannot write, so the form's content sits in a disabled `<fieldset>`:
+ * every field and button inside is disabled by the browser itself, and Enter submits nothing. A
+ * submit button outside the `<form>` (a dialog's footer) is disabled by `UiButton` on its own.
+ * Advice only: the panel refuses the write whatever the browser shows.
  */
 import { provide, toRef } from 'vue'
+import { useSessionReadOnly } from '../../composables/useSessionReadOnly'
 import { FORM_LOADING_KEY } from '../../utils/formLoadingKey'
 
 /** Props accepted by {@link UiForm}. */
@@ -40,13 +47,15 @@ const emit = defineEmits<{
 
 provide(FORM_LOADING_KEY, toRef(props, 'loading'))
 
+const readOnly = useSessionReadOnly()
+
 /**
  * Handles the native `submit` event and re-emits it as the component's own `submit` event.
- * A form still loading its record has no values to send, so Enter in it submits nothing.
+ * A form still loading its record has no values to send, so Enter in it submits nothing; nor does a form of a read-only session.
  * @returns Nothing; re-emits synchronously.
  */
 const onSubmit = (): void => {
-  if (props.loading) {
+  if (props.loading || readOnly.value) {
     return
   }
   emit('submit')
@@ -55,6 +64,10 @@ const onSubmit = (): void => {
 
 <template>
   <form novalidate :aria-busy="loading ? 'true' : undefined" @submit.prevent="onSubmit">
-    <slot />
+    <!-- `contents`: the fieldset takes no box of its own, so the form's own grid or stack still lays out its fields. -->
+    <fieldset v-if="readOnly" disabled class="m-0 contents min-w-0 border-0 p-0">
+      <slot />
+    </fieldset>
+    <slot v-else />
   </form>
 </template>

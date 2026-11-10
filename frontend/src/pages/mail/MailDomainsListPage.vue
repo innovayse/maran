@@ -30,11 +30,13 @@ import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiPagination from '../../components/ui/UiPagination.vue'
 import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
 import UiSearchInput from '../../components/ui/UiSearchInput.vue'
+import UiToolbar from '../../components/ui/UiToolbar.vue'
 import MailDnsRecordsDialog from '../../components/mail/MailDnsRecordsDialog.vue'
 import MailDomainActionConfirm from '../../components/mail/MailDomainActionConfirm.vue'
 import MailDomainCreateForm from '../../components/mail/MailDomainCreateForm.vue'
 import MailDomainsFilterSheet from '../../components/mail/MailDomainsFilterSheet.vue'
 import MailDomainsTable from '../../components/mail/MailDomainsTable.vue'
+import MailServerGate from '../../components/mail/MailServerGate.vue'
 import { useAccountChoice } from '../../composables/useAccountChoice'
 import { useAccountFilter } from '../../composables/useAccountFilter'
 import { useCallerRole } from '../../composables/useCallerRole'
@@ -193,6 +195,14 @@ const dismissNotice = (): void => {
 }
 
 /**
+ * Says that mail was turned on from the gate above the form.
+ * @returns Nothing.
+ */
+const serverEnabled = (): void => {
+  notice.value = t('mail.server.enabled')
+}
+
+/**
  * Opens the DNS records dialog of one domain.
  * @param domain The row the person acted on.
  * @returns Resolves once the records were read.
@@ -219,14 +229,16 @@ onBeforeUnmount((): void => {
     <UiAlert v-if="store.createErrorMessage !== null" variant="error">{{ store.createErrorMessage }}</UiAlert>
     <UiAlert v-if="store.actionErrorMessage !== null" variant="error">{{ store.actionErrorMessage }}</UiAlert>
 
-    <MailDomainCreateForm
-      ref="form"
-      :account-picker="accountPicker"
-      :fixed-account-id="fixedAccountId"
-      :submitting="store.creating"
-      @search-accounts="searchAccounts"
-      @submit="create"
-    />
+    <MailServerGate @enabled="serverEnabled">
+      <MailDomainCreateForm
+        ref="form"
+        :account-picker="accountPicker"
+        :fixed-account-id="fixedAccountId"
+        :submitting="store.creating"
+        @search-accounts="searchAccounts"
+        @submit="create"
+      />
+    </MailServerGate>
 
     <UiEmptyState
       v-if="answeredNothing && !isNarrowed"
@@ -238,7 +250,7 @@ onBeforeUnmount((): void => {
 
     <UiCard v-else>
       <div class="flex flex-col gap-4">
-        <div class="flex flex-wrap items-end gap-3">
+        <UiToolbar>
           <UiSearchInput
             v-model="table.search.value"
             class="min-w-55 max-w-85 flex-1"
@@ -252,7 +264,7 @@ onBeforeUnmount((): void => {
             :active-label="t('common.list.filtersApplied', { n: table.activeFilterCount.value }, table.activeFilterCount.value)"
             @click="openFilters"
           />
-        </div>
+        </UiToolbar>
 
         <UiActiveFilter
           v-if="chips.length > 0"

@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="MarketplaceDisabled">
+    <value>Маркетплейс выключен. Администратор может включить его на странице «Маркетплейс».</value>
+  </data>
+  <data name="MarketplaceHostNotConfigured">
+    <value>Адрес маркетплейса на этом сервере настроен неверно, поэтому связаться с маркетплейсом нельзя. Попросите того, кто устанавливал панель, проверить настройку маркетплейса.</value>
+  </data>
+  <data name="MarketplaceUnreachable">
+    <value>Не удалось связаться с маркетплейсом. Уже установленные модули продолжают работать. Попробуйте позже.</value>
+  </data>
+  <data name="CatalogueUnsigned">
+    <value>Ответ маркетплейса не удалось проверить, поэтому он не использован. Ничего не установлено и не изменено.</value>
+  </data>
+  <data name="CatalogueStale">
+    <value>Ответ маркетплейса слишком старый, чтобы ему доверять, поэтому он не использован. Проверьте снова через несколько минут.</value>
+  </data>
+  <data name="CatalogueKeyMissing">
+    <value>На этом сервере нет ключа проверки маркетплейса, поэтому ответы маркетплейса проверить нельзя и ничего установить из него не получится. Попросите того, кто устанавливал панель, восстановить ключ.</value>
+  </data>
+  <data name="LeaseRequired">
+    <value>Для этого модуля на сервере нужна действующая лицензия. Установите или продлите лицензию и повторите попытку.</value>
+  </data>
+  <data name="EntitlementMissing">
+    <value>Ваша лицензия не включает этот модуль. Получить его можно в вашем аккаунте Innovayse, после чего повторите попытку.</value>
+  </data>
+  <data name="IncompatiblePanel">
+    <value>Эта версия модуля не работает с версией панели, установленной на этом сервере.</value>
+  </data>
+  <data name="PackageRevoked">
+    <value>Эта версия модуля отозвана издателем и не может быть установлена.</value>
+  </data>
+  <data name="GrantHostRefused">
+    <value>Маркетплейс прислал адрес загрузки, которому эта панель не доверяет, поэтому ничего не загружено.</value>
+  </data>
+  <data name="DownloadSizeMismatch">
+    <value>Размер загруженного пакета не совпал с объявленным маркетплейсом, поэтому он удалён. Ничего не установлено.</value>
+  </data>
+  <data name="DownloadDigestMismatch">
+    <value>Загруженный пакет не совпал с отпечатком, объявленным маркетплейсом, поэтому он удалён. Ничего не установлено.</value>
+  </data>
+  <data name="ModuleNotInCatalogue">
+    <value>Этого модуля нет в каталоге маркетплейса.</value>
+  </data>
+  <data name="ModuleNotInstalled">
+    <value>Этот модуль не установлен.</value>
+  </data>
+  <data name="ModuleOperationInProgress">
+    <value>Другая операция с этим модулем ещё выполняется. Дождитесь её завершения и повторите попытку.</value>
+  </data>
+  <data name="ModuleVersionNotInstallable">
+    <value>Эту версию модуля установить нельзя. Выберите более новую версию.</value>
+  </data>
+  <data name="InstallNotAcknowledged">
+    <value>Прежде чем устанавливать модуль, подтвердите, что вы прочитали, что ему разрешено делать.</value>
+  </data>
+  <data name="MarketplaceResponseInvalid">
+    <value>Маркетплейс прислал ответ, который панель не смогла разобрать, поэтому он не использован.</value>
+  </data>
+  <data name="MarketplaceResponseTooLarge">
+    <value>Маркетплейс прислал больше данных, чем принимает эта панель, поэтому ответ отброшен.</value>
+  </data>
+  <data name="MarketplaceRedirectRefused">
+    <value>Маркетплейс попытался перенаправить панель на другой адрес, что запрещено, поэтому запрос остановлен.</value>
+  </data>
+  <data name="MarketplaceRequestRefused">
+    <value>Маркетплейс отклонил запрос. Ничего не установлено и не изменено.</value>
+  </data>
+  <data name="MarketplaceStorageUnavailable">
+    <value>В папку, где хранятся скачанные пакеты, нельзя записать, поэтому ничего не было скачано. Проверьте папку маркетплейса на сервере.</value>
+  </data>
+  <data name="ModuleAlreadyInstalled">
+    <value>Этот модуль уже установлен в этой версии. Чтобы изменить его, обновите его или сначала удалите.</value>
+  </data>
+  <data name="ModuleHasNoPreviousVersion">
+    <value>У этого модуля нет более ранней версии, к которой можно вернуться.</value>
+  </data>
+  <data name="ModuleOperationFailed">
+    <value>Операция не завершилась. Версия, которая работала, продолжает работать. Попробуйте ещё раз.</value>
+  </data>
+  <data name="ModuleIdInvalid">
+    <value>Недопустимое имя модуля. Используйте строчные буквы и цифры, начиная с буквы.</value>
+  </data>
+  <data name="ModuleVersionInvalid">
+    <value>Недопустимая версия. Используйте номер версии из трёх чисел, разделённых точками.</value>
+  </data>
+  <data name="MarketplaceChannelInvalid">
+    <value>Недопустимый канал выпусков. Используйте строчные буквы, цифры и дефисы, начиная с буквы.</value>
+  </data>
+  <data name="MarketplaceSearchInvalid">
+    <value>Текст поиска слишком длинный или содержит недопустимые символы.</value>
+  </data>
+  <data name="MarketplaceCursorInvalid">
+    <value>Метка страницы слишком длинная или содержит недопустимые символы.</value>
+  </data>
+</root>

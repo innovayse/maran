@@ -50,6 +50,17 @@ export interface RequestOptions {
    * then goes out as `application/octet-stream`. At most one of the two is set.
    */
   rawBody?: Blob
+  /**
+   * Extra headers for this request, for a caller that must declare something to the server (the
+   * packaged-module relay names the module it speaks for). They never replace the headers the
+   * client owns (`Accept`, `Accept-Language`, the CSRF header, `Authorization`, `Content-Type`).
+   */
+  headers?: Record<string, string>
+  /**
+   * When true, a non-2xx response is returned to the caller instead of being turned into an
+   * {@link ApiError}, so a relay can pass the server's refusal on as data. Defaults to false.
+   */
+  passFailure?: boolean
 }
 
 /** Public surface of the low-level API client returned by {@link useApi}. */
@@ -150,6 +161,36 @@ export interface ApiClient {
     onEvent: (event: ServerSentEvent) => void,
     signal: AbortSignal,
   ) => Promise<void>
+
+  /**
+   * Performs a request on behalf of another party and hands back the server's answer as data: the
+   * status and the parsed JSON body, whether the call succeeded or was refused. Goes through the
+   * same pipeline as every other call (bearer token, CSRF header, one-shot token renewal), but a
+   * non-2xx status is a result, not an exception, so a relay never throws a refusal into the party
+   * it speaks for. A network failure is the one thing that still rejects.
+   * @param path Request path, relative to the app origin (proxied in dev).
+   * @param options Method, optional JSON body and the extra headers to declare.
+   * @returns The HTTP status and the parsed body (`null` when it was empty or not JSON).
+   */
+  relay: (path: string, options: ApiRelayOptions) => Promise<ApiRelayAnswer>
+}
+
+/** What a relayed request is made of. */
+export interface ApiRelayOptions {
+  /** HTTP method. */
+  method: RequestOptions['method']
+  /** The payload to serialize as JSON, or `undefined` for a body-less request. */
+  body?: unknown
+  /** The extra headers to send; see {@link RequestOptions.headers}. */
+  headers: Record<string, string>
+}
+
+/** The server's answer to a relayed request, as data. */
+export interface ApiRelayAnswer {
+  /** The HTTP status. */
+  status: number
+  /** The parsed JSON body, or `null` when the response had none or it was not JSON. */
+  body: unknown
 }
 
 /** A file the panel streamed back, held in memory until the browser saves it. */

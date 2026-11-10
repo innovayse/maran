@@ -84,6 +84,12 @@
   <data name="IpmSignatureMissing">
     <value>Пакет не подписан.</value>
   </data>
+  <data name="IpmSpaDocumentForbidden">
+    <value>В папке интерфейса пакета лежит веб-страница. Страницу строит сама панель, поэтому в папке могут быть только скрипты, стили, изображения и переводы.</value>
+  </data>
+  <data name="IpmSpaEntryNotClassicScript">
+    <value>Точкой входа интерфейса пакета должен быть обычный скрипт (файл .js), лежащий прямо в папке интерфейса.</value>
+  </data>
   <data name="IpmTooManyEntries">
     <value>В пакете больше записей, чем принимает панель.</value>
   </data>

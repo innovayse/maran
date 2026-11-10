@@ -1,8 +1,10 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures/guarded-test'
 import { FULL_CATALOGUE } from './fixtures/open-full-shell'
 import { openLiveDashboard } from './fixtures/open-live-dashboard'
+import { stubAccounts } from './fixtures/stub-accounts-route'
 import { stubFirewall } from './fixtures/stub-firewall-routes'
 import { DEFAULT_LAYOUT } from './fixtures/stub-live-dashboard-stream'
+import { stubPlans } from './fixtures/stub-plans-route'
 
 // Issue #199 (slice S1): the quick-actions bar. Every shortcut is a link to the screen that owns
 // the work; creating something is `?action=create` on that screen, which brings its own form into
@@ -36,6 +38,9 @@ test.describe('the quick-actions bar', () => {
 
   test('a shortcut can be reached and followed with the keyboard alone', async ({ page }) => {
     await openLiveDashboard(page)
+    // The create-account shortcut opens the account form, which reads its choices.
+    await stubAccounts(page, [])
+    await stubPlans(page)
 
     await page.getByTestId('quick-action-createAccount').focus()
     await page.keyboard.press('Tab')

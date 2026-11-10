@@ -1,4 +1,5 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import { stubMyAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubFirewall } from '../fixtures/stub-firewall-routes'
@@ -13,11 +14,13 @@ import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
 import { stubSftpUsers } from '../fixtures/stub-sftp-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account, MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { FirewallRule } from '../../src/types/firewall'
 import type { FtpsStatus } from '../../src/types/ftpsStatus'
 import type { PanelModule } from '../../src/types/module'
+import type { Locator, Page } from '@playwright/test'
 
 const LICENSED: PanelModule[] = [
   { name: 'sftp', displayName: 'File transfer', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -104,6 +107,7 @@ const openScreen = async (
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubFirewall(page, { rules, bans: [], whitelist: [] })
   await stubFtpsServer(page, status)
@@ -208,10 +212,12 @@ test('the placeholder-certificate line on the server panel follows the status', 
 
 // The panel refuses the status to anyone but an administrator, and that refusal is not a failure:
 // the page must still render the caller's own logins rather than a red banner about a correct 403.
-test('a caller refused the status sees no server panel and no error', async ({ page }) => {
+test('a caller refused the status sees no server panel and no error', async ({ page, guard }) => {
+  guard.allow(403, /\/api\/v1\/ftps-server$/)
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubFirewall(page, { rules: [], bans: [], whitelist: [] })
   await stubFtpsServerForbidden(page)
@@ -239,7 +245,9 @@ test('a customer sees no server panel, and the page never asks for the status', 
   await stubSignedIn(page, CUSTOMER)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubMyAccount(page, OWN_ACCOUNT)
+  await stubMyAccountResources(page, { accountId: OWN_ACCOUNT.id, resources: [] })
   await stubFtpsServerForbidden(page)
   await stubFtpUsers(page, [])
   await page.goto('/file-transfer/ftps')

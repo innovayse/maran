@@ -150,7 +150,7 @@ public static class EndpointAuthorizationCensus
 
         foreach (var item in data)
         {
-            if (IsApiKeyOptIn(item))
+            if (IsApiKeyOptIn(item) || IsMigrationGrantOptIn(item))
             {
                 continue;
             }
@@ -190,5 +190,18 @@ public static class EndpointAuthorizationCensus
             && string.Equals(item.AuthenticationSchemes, ApiKeyDefaults.Scheme, StringComparison.Ordinal)
             && item.Policy is not null
             && ApiKeyOptInPolicies.Contains(item.Policy, StringComparer.Ordinal);
+    }
+
+    /// <summary>Whether an authorize declaration is the one way an endpoint admits a single-use export grant (issue #127).</summary>
+    /// <param name="item">One <c>[Authorize]</c> attribute's data.</param>
+    /// <returns>
+    /// <c>true</c> when it names the <c>MigrationGrant</c> scheme, no roles, and the grant's pull policy: that pair,
+    /// and nothing else, is how a grant is admitted.
+    /// </returns>
+    private static bool IsMigrationGrantOptIn(IAuthorizeData item)
+    {
+        return string.IsNullOrWhiteSpace(item.Roles)
+            && string.Equals(item.AuthenticationSchemes, MigrationGrantDefaults.Scheme, StringComparison.Ordinal)
+            && string.Equals(item.Policy, MigrationGrantPolicyNames.Pull, StringComparison.Ordinal);
     }
 }

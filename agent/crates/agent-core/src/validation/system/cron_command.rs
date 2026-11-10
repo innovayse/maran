@@ -81,3 +81,7 @@ impl CronCommand {
 #[cfg(test)]
 #[path = "../../tests/validation/system/cron_command_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "../../tests/validation/system/cron_command_property_tests.rs"]
+mod property_tests;

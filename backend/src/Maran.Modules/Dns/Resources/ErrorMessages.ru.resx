@@ -96,6 +96,18 @@
   <data name="RecordNotEditable">
     <value>Эта запись управляется панелью и не редактируется здесь.</value>
   </data>
+  <data name="DnsChallengeValuesFull">
+    <value>Под одним именем может одновременно храниться не более двух значений проверки сертификата.</value>
+  </data>
+  <data name="DnsChallengeValueInvalid">
+    <value>Значение проверки сертификата должно состоять из 43 символов: букв, цифр, дефисов и подчёркиваний.</value>
+  </data>
+  <data name="DnsChallengeHostnameInvalid">
+    <value>Запись проверки сертификата можно разместить только под обычным именем хоста в нижнем регистре.</value>
+  </data>
+  <data name="DnsChallengeZoneNotFound">
+    <value>Этот сервер не обслуживает DNS-зону этого аккаунта, содержащую это имя.</value>
+  </data>
   <data name="DnsNameserverInvalid">
     <value>Сервер имён должен быть именем хоста, например ns1.example.com.</value>
   </data>
@@ -107,5 +119,56 @@
   </data>
   <data name="DnsDefaultTtlOutOfRange">
     <value>Время жизни по умолчанию должно быть от 60 секунд до одной недели.</value>
+  </data>
+  <data name="ZoneTemplateNotFound">
+    <value>Этот шаблон зоны не найден.</value>
+  </data>
+  <data name="ZoneTemplateNameInvalid">
+    <value>Название шаблона должно содержать от 1 до 64 символов, без управляющих символов.</value>
+  </data>
+  <data name="ZoneTemplateNameTaken">
+    <value>Шаблон зоны с таким названием уже существует.</value>
+  </data>
+  <data name="ZoneTemplateDescriptionInvalid">
+    <value>Описание шаблона должно содержать не более 256 символов, без управляющих символов.</value>
+  </data>
+  <data name="ZoneTemplateTooManyRecords">
+    <value>В этом шаблоне больше записей, чем разрешено в одной зоне на этом сервере.</value>
+  </data>
+  <data name="ZoneTemplateTokenUnknown">
+    <value>В значении записи указана несуществующая переменная. Используйте только переменные из списка в редакторе.</value>
+  </data>
+  <data name="ZoneTemplateTokenUnbalanced">
+    <value>В значении записи есть фигурная скобка, которая не относится к переменной. Фигурные скобки нужны только для записи переменной.</value>
+  </data>
+  <data name="ZoneTemplateTokenNotAllowed">
+    <value>В значении записи указана переменная, которую этот тип записи не допускает.</value>
+  </data>
+  <data name="ZoneTemplateBuiltIn">
+    <value>Шаблон, поставляемый с панелью, можно изменить, но нельзя удалить.</value>
+  </data>
+  <data name="ZoneTemplateIsDefault">
+    <value>Это шаблон по умолчанию. Сначала сделайте шаблоном по умолчанию другой шаблон.</value>
+  </data>
+  <data name="ZoneTemplateInvalid">
+    <value>Этот шаблон больше не даёт корректных записей для этой зоны. Обратитесь к администратору или создайте зону без шаблона.</value>
+  </data>
+  <data name="ZoneSigningHostCannotSign">
+    <value>Программа DNS-сервера на этом сервере не умеет подписывать зоны, поэтому DNSSEC здесь недоступен.</value>
+  </data>
+  <data name="ZoneSigningNotOff">
+    <value>DNSSEC для этой зоны уже включён.</value>
+  </data>
+  <data name="ZoneSigningNotSigning">
+    <value>Эта зона не подписана, поэтому нечего выводить из подписания.</value>
+  </data>
+  <data name="ZoneSigningNotWithdrawing">
+    <value>Эта зона не выводится из DNSSEC.</value>
+  </data>
+  <data name="ZoneSigningWithdrawalTooEarly">
+    <value>DNSSEC пока нельзя отключить. Подождите не менее 48 часов после начала вывода, чтобы удалённая у регистратора запись DS устарела везде.</value>
+  </data>
+  <data name="ZoneSigningDsRemovalNotConfirmed">
+    <value>Подтвердите, что вы удалили запись DS у регистратора, прежде чем отключать DNSSEC. Если отключить его, пока запись опубликована, домен станет недоступен для проверяющих резолверов.</value>
   </data>
 </root>

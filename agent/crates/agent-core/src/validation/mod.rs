@@ -36,3 +36,15 @@ pub(crate) mod prefixed_name;
 pub mod secrets;
 pub mod system;
 pub mod web;
+
+// Test support shared by the property tests of the validators, mounted once because its
+// users are the tests of units in three groups (rules/rust.md "Tests").
+#[cfg(test)]
+#[path = "../tests/support/property_draws.rs"]
+pub(crate) mod property_draws;
+#[cfg(test)]
+#[path = "../tests/support/property_insertion.rs"]
+pub(crate) mod property_insertion;
+#[cfg(test)]
+#[path = "../tests/support/property_runs.rs"]
+pub(crate) mod property_runs;

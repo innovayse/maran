@@ -1,3 +1,4 @@
+using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Security;
 
 namespace Maran.Sdk.Interfaces;
@@ -10,15 +11,19 @@ namespace Maran.Sdk.Interfaces;
 /// (rules/architecture.md "A shared facility's contract lives in Maran.Sdk").
 /// </summary>
 /// <remarks>
-/// It answers a verdict and never says which rule failed: the caller refuses with one code, and the
-/// password is revealed only inside the implementation, which is the one place that hashes it.
+/// It names the rule that failed, as a closed <see cref="InitialPasswordVerdict"/>, and nothing more: the
+/// caller refuses with the code for that rule, and the password is revealed only inside the
+/// implementation, which is the one place that hashes it.
 /// </remarks>
 public interface IInitialPasswordPolicy
 {
-    /// <summary>Whether <paramref name="password"/> is acceptable as the first password of the login <paramref name="username"/>.</summary>
+    /// <summary>Judges <paramref name="password"/> as the first password of the login <paramref name="username"/>.</summary>
     /// <param name="password">The password the administrator chose.</param>
     /// <param name="username">The login's name, which a password may not equal.</param>
     /// <param name="cancellationToken">Cancels the read of the operator's policy.</param>
-    /// <returns>True when the password meets every rule the panel applies to a password a person sets.</returns>
-    Task<bool> AcceptsAsync(SensitiveString password, string username, CancellationToken cancellationToken);
+    /// <returns>
+    /// <see cref="InitialPasswordVerdict.Accepted"/> when the password meets every rule the panel applies to
+    /// a password a person sets; otherwise the first rule it breaks.
+    /// </returns>
+    Task<InitialPasswordVerdict> JudgeAsync(SensitiveString password, string username, CancellationToken cancellationToken);
 }

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="MarketplaceModuleDisplayName">
+    <value>Маркетплейс</value>
+  </data>
+  <data name="SentItemPanelVersion">
+    <value>Версия этой панели.</value>
+  </data>
+  <data name="SentItemChannel">
+    <value>Канал выпусков, который вы используете, например stable.</value>
+  </data>
+  <data name="SentItemLanguage">
+    <value>Язык интерфейса панели.</value>
+  </data>
+  <data name="SentItemLeaseCredential">
+    <value>Данные вашей лицензии, только при проверке права на установку модуля или при запросе его загрузки. При просмотре каталога они не отправляются.</value>
+  </data>
+  <data name="SentItemInstalledModules">
+    <value>При проверке обновлений: идентификатор, версия и отпечаток каждого установленного модуля.</value>
+  </data>
+  <data name="SentItemNothingElse">
+    <value>Больше ничего: ни имени хоста, ни аккаунтов, сайтов, пользователей или данных клиентов. Как и любой веб-запрос, он показывает маркетплейсу сетевой адрес этого сервера.</value>
+  </data>
+  <data name="EntitlementNotRequired">
+    <value>Входит в комплект</value>
+  </data>
+  <data name="EntitlementEntitled">
+    <value>Лицензия есть</value>
+  </data>
+  <data name="EntitlementNotPurchased">
+    <value>Не приобретён</value>
+  </data>
+  <data name="EntitlementLeaseExpired">
+    <value>Срок лицензии истёк</value>
+  </data>
+  <data name="EntitlementUnknown">
+    <value>Неизвестно</value>
+  </data>
+  <data name="MarketplaceTierIncluded">
+    <value>Входит в панель</value>
+  </data>
+  <data name="MarketplaceTierAddOn">
+    <value>Дополнение</value>
+  </data>
+  <data name="MarketplaceTierPlanGated">
+    <value>Функция тарифа</value>
+  </data>
+</root>

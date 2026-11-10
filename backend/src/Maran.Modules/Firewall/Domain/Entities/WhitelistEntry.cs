@@ -8,11 +8,11 @@ namespace Maran.Modules.Firewall.Domain.Entities;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>This is an exemption from AUTOMATIC bans, not from the firewall.</b> A whitelisted range is
-/// not allowed through anything; it is only never banned by the brute-force detector. An
-/// administrator can still ban it deliberately, and the journal records that they did — which is the
-/// right split, because the danger this list exists to prevent is a mistyped password locking the
-/// only person who could undo it out of the server.
+/// <b>This is an exemption from bans, not from the firewall.</b> A whitelisted range is not allowed
+/// through anything; it is never banned, by the brute-force detector or by an administrator's manual
+/// ban (<c>BanAddressWhitelisted</c>, issue #459). The danger this list exists to prevent is the only
+/// person who could undo a mistake being locked out of the server, and a ban is dropped ahead of
+/// every accept, so a manual ban would do exactly that. To ban inside a range, remove the range first.
 /// </para>
 /// <para>
 /// <b>The range is stored in one spelling, and matched by parsing that.</b> Every path that creates

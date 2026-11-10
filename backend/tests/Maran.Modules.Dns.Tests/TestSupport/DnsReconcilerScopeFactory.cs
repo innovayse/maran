@@ -1,13 +1,14 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Dns.Interfaces;
 using Maran.Modules.Dns.Persistence;
+using Maran.Modules.Dns.Services;
 using Maran.SharedKernel.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Maran.Modules.Dns.Tests.TestSupport;
 
 /// <summary>
-/// A real container holding just the services <c>DnsZoneReconciler</c> resolves per pass.
+/// A real container holding just the services <c>DnsZoneReconciler</c> and <c>DnsChallengeSweeper</c> resolve per pass.
 /// </summary>
 /// <remarks>
 /// A real <see cref="IServiceScopeFactory"/> and not a double, because opening a scope and resolving from it
@@ -35,6 +36,7 @@ public sealed class DnsReconcilerScopeFactory : IDisposable
         services.AddSingleton(agent);
         services.AddSingleton(zoneLock ?? new LocklessDnsZoneLock(dbContext));
         services.AddSingleton<IClock>(new FixedClock());
+        services.AddTransient<DnsZoneEditor>();
 
         _provider = services.BuildServiceProvider();
         Scopes = _provider.GetRequiredService<IServiceScopeFactory>();

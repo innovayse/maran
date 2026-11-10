@@ -61,6 +61,27 @@ public sealed class ListAuditEventsQueryHandlerTests : IDisposable
         }));
     }
 
+    /// <summary>A retention run row carries its subject spelled beside the stored line; a login name is untouched.</summary>
+    /// <remarks>
+    /// The pinned defect (issue #509): the journal's subject column printed
+    /// <c>retentionDays=indefinite cutoff=none purged=0 throughChainIndex=0</c> in every language.
+    /// </remarks>
+    [Fact]
+    public async Task A_retention_run_row_carries_its_subject_spelled_beside_the_stored_line()
+    {
+        const string stored = "retentionDays=indefinite cutoff=none purged=0 throughChainIndex=0";
+        await WriteAsync(Now, stored, IdentityAuditActions.AuditRetentionRun);
+        await WriteAsync(Now.AddMinutes(1), "edgar");
+
+        var result = await Handler().HandleAsync(new ListAuditEventsQuery(), CancellationToken.None);
+
+        var login = result.Value.Items[0];
+        var run = result.Value.Items[1];
+        Assert.Equal("edgar", login.SubjectName);
+        Assert.Equal(stored, run.Subject);
+        Assert.DoesNotContain("=", run.SubjectName, StringComparison.Ordinal);
+    }
+
     /// <summary>A page past the end is empty and still carries the true total.</summary>
     [Fact]
     public async Task A_page_past_the_end_is_empty_with_the_true_total()
@@ -209,7 +230,8 @@ public sealed class ListAuditEventsQueryHandlerTests : IDisposable
             new AuditEventQuery(_context),
             new AuditEventScopeReader(new StubCurrentUser(), new StubResellerDirectory()),
             IdentityTestContext.ActionNames(),
-            IdentityTestContext.OutcomeNames());
+            IdentityTestContext.OutcomeNames(),
+            IdentityTestContext.SubjectNames());
     }
 
     /// <summary>Reads one page and answers the subjects on it, in order.</summary>

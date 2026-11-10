@@ -1,7 +1,8 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedOut } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
+import type { Page } from '@playwright/test'
 
 // Issue #149: a reader who asked for reduced motion gets every transition finished at once. The
 // sign-in button is the probe because it carries the panel's longest transition, the 700ms spring

@@ -99,17 +99,42 @@ public sealed class GetPanelUpdateQueryHandlerTests
         Assert.True((await AskAsync(world, "1.0.0")).UpdateInProgress);
     }
 
+    /// <summary>A young check marker means a check is queued, and says nothing about an update.</summary>
+    [Fact]
+    public async Task A_young_check_marker_means_a_check_is_in_progress_and_no_update_is()
+    {
+        using var world = new UpdatesWorld();
+        world.PlantCheckMarker(TimeSpan.FromSeconds(10));
+
+        var dto = await AskAsync(world, "1.0.0");
+
+        Assert.True(dto.CheckInProgress);
+        Assert.False(dto.UpdateInProgress);
+    }
+
+    /// <summary>With no check marker no check is in progress, and a marker nobody took within the grace period is not a check in flight.</summary>
+    [Fact]
+    public async Task No_marker_and_a_stale_check_marker_mean_no_check_is_in_progress()
+    {
+        using var world = new UpdatesWorld();
+        Assert.False((await AskAsync(world, "1.0.0")).CheckInProgress);
+
+        world.PlantCheckMarker(TimeSpan.FromHours(1));
+
+        Assert.False((await AskAsync(world, "1.0.0")).CheckInProgress);
+    }
+
     /// <summary>The wire names are exactly the ones the SPA's types declare.</summary>
     [Fact]
     public void The_wire_names_are_the_ones_the_screen_reads()
     {
         var json = System.Text.Json.JsonSerializer.Serialize(
-            new PanelUpdateDto("1.0.0", "stable", new PanelUpdateAvailableDto("1.1.0", null, null), null, null, false, true),
+            new PanelUpdateDto("1.0.0", "stable", new PanelUpdateAvailableDto("1.1.0", null, null), null, null, false, false, true),
             WebOptions);
 
         Assert.Equal(
             "{\"currentVersion\":\"1.0.0\",\"channel\":\"stable\",\"available\":{\"version\":\"1.1.0\",\"releasedAt\":null,\"notesUrl\":null},"
-            + "\"lastCheckedAt\":null,\"previousVersion\":null,\"updateInProgress\":false,\"canStart\":true}",
+            + "\"lastCheckedAt\":null,\"previousVersion\":null,\"updateInProgress\":false,\"checkInProgress\":false,\"canStart\":true}",
             json);
     }
 }

@@ -1,10 +1,13 @@
 import { expect, type Page } from '@playwright/test'
+import { stubAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn, stubSignedOut } from '../fixtures/stub-auth-routes'
 import { stubBackupDestinations } from '../fixtures/stub-backup-destination-routes'
+import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { stubBackupSchedules } from '../fixtures/stub-backup-schedule-routes'
 import { stubBackups } from '../fixtures/stub-backups-routes'
 import { certificateFor, CERTIFICATE_SITE_ID, stubCertificates } from '../fixtures/stub-certificates-routes'
+import { stubCronOptions } from '../fixtures/stub-cron-options-route'
 import { stubCronEntries, stubCronEnvironment } from '../fixtures/stub-cron-routes'
 import { ALERT_DELIVERY_OK, loaded, stubDashboard, SYNCHRONIZED_CLOCK } from '../fixtures/stub-dashboard-route'
 import { stubDatabaseGrants } from '../fixtures/stub-database-grant-routes'
@@ -12,19 +15,24 @@ import { stubDatabases } from '../fixtures/stub-databases-routes'
 import { stubFirewall } from '../fixtures/stub-firewall-routes'
 import { runningFtpsStatus, stubFtpUsers, stubFtpsServer } from '../fixtures/stub-ftp-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubInvitation } from '../fixtures/stub-invitation-routes'
+import { DEFAULT_LAYOUT, installLiveStream, stubDashboardLayout } from '../fixtures/stub-live-dashboard-stream'
 import { stubEmptyModules, stubModules } from '../fixtures/stub-modules-route'
 import { stubMonitoring, stubbedBucket } from '../fixtures/stub-monitoring-routes'
 import { MANAGED_PLANS, stubManagedPlans, stubPlans, THREE_PLANS } from '../fixtures/stub-plans-route'
 import type { CardActions } from '../fixtures/expect-table-cards'
 import { stubSftpUsers } from '../fixtures/stub-sftp-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import {
   stubOpenSiteLogStream,
   stubPhpVersions,
   stubSiteDetail,
+  stubSiteLimits,
   stubSites,
 } from '../fixtures/stub-sites-routes'
 import { stubTasks, stubTaskStream, taskEndFrame, taskFrame } from '../fixtures/stub-tasks-routes'
-import type { Account } from '../../src/types/account'
+import type { Account, AccountDetail } from '../../src/types/account'
+import type { AccountResourceSummary } from '../../src/types/accountResourceSummary'
 import type { Backup } from '../../src/types/backup'
 import type { BackupDestination } from '../../src/types/backupDestination'
 import type { BackupSchedule } from '../../src/types/backupSchedule'
@@ -39,6 +47,7 @@ import type { PanelModule } from '../../src/types/module'
 import type { PanelTask } from '../../src/types/panelTask'
 import type { SftpUser } from '../../src/types/sftpUser'
 import type { Site, SiteDetail } from '../../src/types/site'
+import type { SiteTraffic } from '../../src/types/siteTraffic'
 
 // The data, the stub and the table below are the administrator sweep's
 // (e2e/ui-kit/no-horizontal-scroll-admin.spec.ts), kept here as the one list the tablet sweep and
@@ -108,7 +117,16 @@ const SITE: Site = {
 }
 
 const SITE_DETAIL: SiteDetail = {
-  ...SITE,
+  id: SITE.id,
+  accountId: SITE.accountId,
+  domain: SITE.domain,
+  backendType: SITE.backendType,
+  backendTypeName: SITE.backendTypeName,
+  phpVersion: SITE.phpVersion,
+  status: SITE.status,
+  statusName: SITE.statusName,
+  createdAt: SITE.createdAt,
+  logRetentionDays: SITE.logRetentionDays,
   aliases: ['www.' + LONG_DOMAIN, 'cdn-assets-for-the-storefront.acme-industrial-holdings.example.com'],
   proxyUpstream: '',
   documentRoot: '/home/acme-industrial-holdings/sites/' + LONG_DOMAIN + '/public',
@@ -153,6 +171,7 @@ const DASHBOARD: Dashboard = {
       action: 'AccountCreated',
       actionName: 'Account created',
       subject: LONG_ACCOUNT,
+      subjectName: LONG_ACCOUNT,
       ipAddress: '2001:0db8:85a3:0000:0000:8a2e:0370:7334',
       succeeded: true,
       outcomeName: 'Succeeded',
@@ -165,6 +184,7 @@ const DASHBOARD: Dashboard = {
       action: 'SignInFailed',
       actionName: 'Sign-in failed',
       subject: 'admin',
+      subjectName: 'admin',
       ipAddress: '203.0.113.9',
       succeeded: false,
       outcomeName: 'Failed',
@@ -430,6 +450,36 @@ const TASKS: PanelTask[] = [
   },
 ]
 
+/** The account detail the account screen reads: the list shape plus its plan name and contact address. */
+const ACCOUNT_DETAIL: AccountDetail = {
+  ...ACCOUNT,
+  planDisplayName: 'Business',
+  ownerEmail: 'owner@' + LONG_DOMAIN,
+}
+
+/** What the account holds against its plan, as the account screen's resources card reads it. */
+const ACCOUNT_RESOURCES: AccountResourceSummary = {
+  accountId: ACCOUNT.id,
+  resources: [
+    { kind: 'sites', count: { state: 'counted', used: 1 }, limit: { kind: 'limited', maximum: 25 } },
+    { kind: 'databases', count: { state: 'counted', used: 1 }, limit: { kind: 'unlimited' } },
+  ],
+}
+
+/** The site's traffic summary: no traffic recorded yet, the ordinary first state of a new site. */
+const SITE_TRAFFIC: SiteTraffic = {
+  days: 7,
+  from: '2026-11-01',
+  to: '2026-11-07',
+  hasData: false,
+  totals: { requests: 0, bytes: 0 },
+  perDay: [],
+  statusCodes: [],
+  topPaths: [],
+  incompleteSince: null,
+  updatedAt: null,
+}
+
 /**
  * Installs the shell and every endpoint any administrator screen reads, with realistic and
  * deliberately long values. One superset rather than one set per screen: the screens differ in
@@ -445,10 +495,15 @@ export const stubPanel = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, MODULES)
+  // The reads the shell makes on every screen come first, so a screen's own stub can still win.
+  await stubShellReads(page)
   await stubTasks(page, TASKS)
   // The running task is watched by the shell's badge; without this its stream would leave the page.
   await stubTaskStream(page, taskFrame(TASKS[0]) + taskEndFrame('completed'))
   await stubDashboard(page, DASHBOARD)
+  // The dashboard's live stream is a stand-in that never leaves the page, and its layout is held here.
+  await stubDashboardLayout(page, DEFAULT_LAYOUT)
+  await installLiveStream(page)
 
   await stubPlans(page, THREE_PLANS)
   await stubManagedPlans(page, [
@@ -463,11 +518,22 @@ export const stubPanel = async (page: Page): Promise<void> => {
       await route.fallback()
       return
     }
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ACCOUNT) })
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ACCOUNT_DETAIL) })
   })
+  await stubAccountResources(page, ACCOUNT_RESOURCES)
+  await stubInvitation(page, ACCOUNT.id, 'pending')
 
   await stubSites(page, [SITE])
+  await stubSiteLimits(page, { maximumAliases: 20 })
   await stubSiteDetail(page, SITE_DETAIL)
+  await page.route('**/api/v1/sites/*/traffic*', async (route) => {
+    const days = Number(new URL(route.request().url()).searchParams.get('days'))
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ...SITE_TRAFFIC, days }),
+    })
+  })
   await stubPhpVersions(page, [
     { version: '8.2', defaultStatus: 'notDefault' },
     { version: '8.3', defaultStatus: 'default' },
@@ -482,6 +548,7 @@ export const stubPanel = async (page: Page): Promise<void> => {
   await stubFtpUsers(page, [FTP_USER])
   await stubFtpsServer(page, runningFtpsStatus)
 
+  await stubCronOptions(page)
   await stubCronEntries(page, [CRON_ENTRY])
   await stubCronEnvironment(page, [
     { name: 'MAILTO_ADDRESS_FOR_FAILURES', value: 'operations@' + LONG_DOMAIN },
@@ -489,6 +556,7 @@ export const stubPanel = async (page: Page): Promise<void> => {
 
   await stubFirewall(page, { rules: RULES, bans: BANS, whitelist: WHITELIST })
 
+  await stubBackupOptions(page)
   await stubBackups(page, BACKUPS)
   await stubBackupSchedules(page, { host: BACKUP_SCHEDULE })
   await stubBackupDestinations(page, DESTINATIONS)

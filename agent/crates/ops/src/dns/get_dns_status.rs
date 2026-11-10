@@ -12,6 +12,7 @@ use crate::dns::dns_host::DnsHost;
 use crate::dns::model::dns_policy_observation::DnsPolicyObservation;
 use crate::dns::model::dns_state::DnsState;
 use crate::dns::model::dns_unit::DnsUnit;
+use crate::dns::probe_dnssec_support::probe_dnssec_support;
 use crate::dns::rndc_arguments::rndc_arguments;
 
 /// The DNS port the daemon serves on. A protocol constant, not a platform fact.
@@ -20,7 +21,9 @@ pub(crate) const DNS_PORT: u16 = 53;
 /// Observes the DNS daemon: the unit, the control channel, port 53 and the two
 /// policy statements of the live configuration.
 ///
-/// Read-only and idempotent. The control channel is asked only while the unit is
+/// Read-only and idempotent, apart from the throwaway probe file that asks the
+/// daemon's checker whether this build can sign (`probe_dnssec_support`, written
+/// and removed each time, issue #452). The control channel is asked only while the unit is
 /// active: a stopped unit cannot answer, and a spawn that can only fail is noise.
 ///
 /// The configuration is read from the file the daemon is started against and its
@@ -62,6 +65,7 @@ pub fn get_dns_status(
         recursion_refused: recursion_refused_in(live.as_deref()),
         response_rate_limiting: rate_limiting_in(live.as_deref()),
         enabled_at_boot: enabled.status == 0,
+        dnssec_supported: probe_dnssec_support(host, distro),
     })
 }
 

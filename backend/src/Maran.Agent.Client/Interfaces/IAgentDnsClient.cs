@@ -21,12 +21,12 @@ namespace Maran.Agent.Client.Interfaces;
 /// </remarks>
 public interface IAgentDnsClient
 {
-    /// <summary>Configures and starts the name server, opening port 53 for it.</summary>
+    /// <summary>Configures and starts the name server. The firewall is not touched.</summary>
     /// <param name="cancellationToken">Cancels the call.</param>
     /// <returns>The daemon's state after the change, or the agent's typed failure.</returns>
     Task<Result<DnsDaemonStatusDto>> EnableAsync(CancellationToken cancellationToken);
 
-    /// <summary>Stops the name server and closes port 53. Zone files stay where they are.</summary>
+    /// <summary>Stops the name server. The firewall is not touched. Zone files stay where they are.</summary>
     /// <param name="cancellationToken">Cancels the call.</param>
     /// <returns>The daemon's state after the change, or the agent's typed failure.</returns>
     Task<Result<DnsDaemonStatusDto>> DisableAsync(CancellationToken cancellationToken);

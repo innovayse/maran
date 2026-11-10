@@ -26,6 +26,7 @@ import UiPagination from '../../components/ui/UiPagination.vue'
 import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
 import UiSearchInput from '../../components/ui/UiSearchInput.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
+import UiToolbar from '../../components/ui/UiToolbar.vue'
 import FirewallBanForm from '../../components/firewall/FirewallBanForm.vue'
 import FirewallBansTable from '../../components/firewall/FirewallBansTable.vue'
 import { useListLabels } from '../../composables/useListLabels'
@@ -143,14 +144,15 @@ onMounted(clearBanError)
 
       <div class="flex flex-col gap-4">
         <!-- No search has anything to narrow before the first ban exists. -->
-        <UiSearchInput
-          v-if="!answeredNothing || isNarrowed"
-          v-model="table.search.value"
-          class="min-w-55 max-w-85"
-          :label="t('firewall.bans.searchLabel')"
-          :placeholder="t('firewall.bans.searchPlaceholder')"
-          :clear-label="t('firewall.bans.searchClear')"
-        />
+        <UiToolbar v-if="!answeredNothing || isNarrowed">
+          <UiSearchInput
+            v-model="table.search.value"
+            class="min-w-55 max-w-85"
+            :label="t('firewall.bans.searchLabel')"
+            :placeholder="t('firewall.bans.searchPlaceholder')"
+            :clear-label="t('firewall.bans.searchClear')"
+          />
+        </UiToolbar>
 
         <UiLoadingRegion :state="table.loadingState.value">
           <template #error>

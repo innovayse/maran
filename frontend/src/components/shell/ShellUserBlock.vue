@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * The sidebar's identity card: the signed-in person's avatar, name and role as the
- * account menu's trigger, and a plain "Sign out" control beneath it.
+ * account menu's trigger, and an icon-only "Sign out" button at its right edge.
  *
  * **The name and the menu are ONE control.** A separate identity block beside a dropdown that
  * repeats the same name is a bug at 390px: the dropdown takes half of a 245px footer and leaves
@@ -14,10 +14,12 @@
  * account-menu spec finds the card and that line by `data-testid` (`shell-identity`,
  * `shell-identity-name`) — hooks that say what they are for and survive a restyle.
  *
- * **Sign out is a visible button, and only that.** Ending a session is the one account action a
- * person expects to find without opening anything, so it is on the card. The menu used to repeat
- * it directly above the button (issue #210); the copy is gone, so the menu is three rows and
- * covers less of the navigation when it opens upwards.
+ * **Sign out is a visible icon button, and only that.** Ending a session is the one account action a
+ * person expects to find without opening anything, so it is on the card, in the place the menu's
+ * chevron used to take (issue #510): a full-width button under the card cost a row of the sidebar
+ * and said what the icon says. The menu used to repeat it directly above the button (issue #210);
+ * the copy is gone, so the menu is three rows and covers less of the navigation when it opens
+ * upwards. The icon carries the translated name and tooltip, since it has no text.
  *
  * The person comes from the auth store, which holds what the backend reported at
  * sign-in. The role is translated here (`app.auth.role.*`) because the contract
@@ -31,9 +33,8 @@ import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import UiButton from '../ui/UiButton.vue'
-import UiDropdown from '../ui/UiDropdown.vue'
-import UiDropdownItem from '../ui/UiDropdownItem.vue'
 import UiIcon from '../ui/UiIcon.vue'
+import ShellAccountMenu from './ShellAccountMenu.vue'
 import ShellAvatar from './ShellAvatar.vue'
 import { useAuthStore } from '../../stores/auth'
 
@@ -53,15 +54,6 @@ const role: ComputedRef<string | null> = computed(() => {
 })
 
 /**
- * Opens one of the account pages.
- * @param target The route name to navigate to.
- * @returns Resolves once the navigation has settled.
- */
-const go = async (target: string): Promise<void> => {
-  await router.push({ name: target })
-}
-
-/**
  * Signs out of this device and returns to the sign-in screen.
  * @returns Resolves once the request has settled.
  */
@@ -72,17 +64,15 @@ const signOut = async (): Promise<void> => {
 </script>
 
 <template>
-  <div class="flex min-w-0 flex-col gap-2.5">
+  <div class="flex min-w-0 items-center gap-1">
     <!-- Signed in: avatar, name and role are the account menu's trigger, so the card
          names the person once and the menu opens from where a user expects — the
-         block showing who they are. -->
-    <UiDropdown
+         block showing who they are. The chevron is off: the sign-out button below takes its place. -->
+    <ShellAccountMenu
       v-if="name !== null"
-      class="min-w-0"
-      align="start"
-      variant="bare"
-      :label="name"
-      :aria-label="t('app.shell.accountMenu')"
+      class="min-w-0 flex-1"
+      :chevron="false"
+      :trigger-label="t('app.shell.accountMenu')"
     >
       <template #trigger>
         <ShellAvatar />
@@ -96,20 +86,7 @@ const signOut = async (): Promise<void> => {
           <span class="block text-xs wrap-anywhere text-text-muted">{{ role }}</span>
         </span>
       </template>
-
-      <!-- Profile first (issue #210): the signed-in person's own profile, the same entry for every
-           role. A customer's hosting account is linked from the profile page, never from here. -->
-      <UiDropdownItem @select="go('profile')">
-        {{ t('app.shell.menu.profile') }}
-      </UiDropdownItem>
-      <UiDropdownItem @select="go('sessions')">{{ t('app.shell.menu.sessions') }}</UiDropdownItem>
-      <UiDropdownItem @select="go('two-factor')">{{
-        t('app.shell.menu.twoFactor')
-      }}</UiDropdownItem>
-      <!-- No "Sign out" item: the card's own Sign out button sits right under this menu, and a
-           second copy made the menu taller, so it opened up over the group label above it. A
-           keyboard user leaves the menu with Escape and reaches the button with the next Tab. -->
-    </UiDropdown>
+    </ShellAccountMenu>
 
     <!-- Nobody signed in: there is no account to offer a menu for, so the card is
          plain text beside a neutral mark. -->
@@ -122,12 +99,14 @@ const signOut = async (): Promise<void> => {
 
     <UiButton
       v-if="name !== null"
-      variant="secondary"
-      class="w-full justify-center"
+      variant="ghost"
+      size="icon"
+      class="shrink-0"
+      :aria-label="t('app.auth.signOut')"
+      :title="t('app.auth.signOut')"
       @click="signOut"
     >
       <UiIcon name="logOut" size="md" />
-      {{ t('app.auth.signOut') }}
     </UiButton>
   </div>
 </template>

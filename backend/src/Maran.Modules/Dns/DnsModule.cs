@@ -2,6 +2,7 @@ using System.Resources;
 using Maran.Modules.Dns.Interfaces;
 using Maran.Modules.Dns.Options;
 using Maran.Modules.Dns.Persistence;
+using Maran.Modules.Dns.Seeders;
 using Maran.Modules.Dns.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
@@ -72,11 +73,23 @@ public sealed class DnsModule : IPanelModule
         // Scoped, because it reads the request's own ICurrentUser for the journal's actor.
         services.AddScoped<DnsAuditJournal>();
 
+        // Scoped, because it writes through the module's scoped context; the Host's startup task resolves
+        // it inside its own scope. It seeds the built-in zone templates and the default one.
+        services.AddScoped<ZoneTemplateSeeder>();
+
         // Scoped, because they take a transaction on the request's own DbContext connection: the advisory
         // lock each holds is scoped to that transaction and must be released by its commit.
         services.AddScoped<IDnsZoneSlotGate, DnsZoneSlotGate>();
         services.AddScoped<IDnsZoneLock, DnsZoneLock>();
         services.AddScoped<DnsZoneEditor>();
+
+        // Scoped, because it is built on the request's agent client: it asks whether this host's name server
+        // software can sign, and DNSSEC is offered only when it positively can.
+        services.AddScoped<DnssecHostProbe>();
+
+        // The certificate module's door into the zones: the one TXT record a DNS-01 validation needs and
+        // nothing else. Scoped like the editor it is built on.
+        services.AddScoped<IDnsChallengeRecords, DnsChallengeRecords>();
 
         // Scoped, because it reads through the request's context with the tenant filter deliberately off
         // for exactly one question (see ZoneNameDirectory).

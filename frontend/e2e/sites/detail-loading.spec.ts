@@ -1,5 +1,5 @@
+import { expect, test } from '../fixtures/guarded-test'
 import { answerBeforeDelay, earlySkeletons, recordSkeletonFlashes, runPastDelay } from '../fixtures/skeleton-flash'
-import { expect, test, type Page } from '@playwright/test'
 import { delayRoute } from '../fixtures/delay-route'
 import { holdRoute } from '../fixtures/hold-route'
 import {
@@ -8,20 +8,24 @@ import {
   expectRegionSlowLoad,
   type RegionLoadingScenario,
 } from '../fixtures/expect-region-loading'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import {
   CERTIFICATE_SITE_ID,
   CERTIFICATES_PATTERN,
   certificateFor,
+  stubAcmeDirectoryFailure,
   stubCertificates,
   stubCertificatesProblem,
 } from '../fixtures/stub-certificates-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubPhpVersions, stubSiteDetail, stubSites } from '../fixtures/stub-sites-routes'
+import type { NetworkGuard } from '../fixtures/network-guard'
 import type { Certificate } from '../../src/types/certificate'
 import type { PanelModule } from '../../src/types/module'
 import type { SiteDetail } from '../../src/types/site'
+import type { Page } from '@playwright/test'
 
 // The site page while it is on the way (#243): the details card keeps its terms over placeholder
 // values, and the SSL tab holds one certificate card with its real labels while the list loads.
@@ -64,6 +68,7 @@ const SITE_PATTERN = `**/api/v1/sites/${SITE.id}`
  */
 const stubShell = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_SITES)
   await stubSites(page, [])
@@ -103,16 +108,22 @@ test('site detail: a fast answer shows no placeholder', async ({ page }) => {
   await expectRegionFastLoad(page, SITE_DETAIL_SCENARIO)
 })
 
-test('site detail: a slow failure is an alert, never a skeleton', async ({ page }) => {
+test('site detail: a slow failure is an alert, never a skeleton', async ({ page, guard }) => {
+  guard.allow(503, new RegExp(`/api/v1/sites/${SITE.id}$`))
   await expectRegionSlowFailure(page, SITE_DETAIL_SCENARIO)
 })
 
 /**
- * Opens the site and then its SSL tab, whose certificate list is read when the tab mounts.
+ * Opens the site and then its SSL tab, whose certificate list is read when the tab mounts. The tab also
+ * asks an administrator which ACME directory the panel orders from; that read is refused here so the
+ * line stays absent and nothing moves under the card being measured.
  * @param page The Playwright page.
+ * @param guard The network guard, told the directory refusal is expected.
  * @returns Resolves once the tab has been chosen.
  */
-const openSsl = async (page: Page): Promise<void> => {
+const openSsl = async (page: Page, guard: NetworkGuard): Promise<void> => {
+  guard.allow(500, /\/api\/v1\/certificates\/acme-directory$/)
+  await stubAcmeDirectoryFailure(page)
   await page.goto(`/sites/${SITE.id}`)
   await page.getByRole('button', { name: 'SSL' }).click()
 }
@@ -126,12 +137,15 @@ const certificatesStatus = (page: Page): ReturnType<Page['getByTestId']> => {
   return page.getByTestId('loading-status').last()
 }
 
-test('ssl tab: a slow list holds a certificate card with its real labels, then the certificate', async ({ page }) => {
+test('ssl tab: a slow list holds a certificate card with its real labels, then the certificate', async ({
+  page,
+  guard,
+}) => {
   await stubShell(page)
   await stubSiteDetail(page, SITE)
   await stubCertificates(page, [CERTIFICATE])
   await delayRoute(page, CERTIFICATES_PATTERN, 600)
-  await openSsl(page)
+  await openSsl(page, guard)
 
   const anchor = page.getByText('Days left', { exact: true })
   await expect(anchor).toBeVisible()
@@ -145,13 +159,13 @@ test('ssl tab: a slow list holds a certificate card with its real labels, then t
   expect(await anchor.boundingBox()).toEqual(before)
 })
 
-test('ssl tab: a fast list shows no placeholder', async ({ page }) => {
+test('ssl tab: a fast list shows no placeholder', async ({ page, guard }) => {
   await stubShell(page)
   await stubSiteDetail(page, SITE)
   await stubCertificates(page, [CERTIFICATE])
   const held = await holdRoute(page, CERTIFICATES_PATTERN)
   await recordSkeletonFlashes(page)
-  await openSsl(page)
+  await openSsl(page, guard)
 
   // The page's clock is the test's (see `recordSkeletonFlashes`): the read is answered after 50 ms
   // of page time however busy the machine is, then time runs far past the 150 ms delay, and no
@@ -162,13 +176,14 @@ test('ssl tab: a fast list shows no placeholder', async ({ page }) => {
   expect(await earlySkeletons(page)).toEqual([])
 })
 
-test('ssl tab: a slow refused list is an alert, never a skeleton', async ({ page }) => {
+test('ssl tab: a slow refused list is an alert, never a skeleton', async ({ page, guard }) => {
+  guard.allow(500, CERTIFICATES_PATTERN)
   await stubShell(page)
   await stubSiteDetail(page, SITE)
   await stubCertificates(page, [])
   await stubCertificatesProblem(page, REFUSAL)
   await delayRoute(page, CERTIFICATES_PATTERN, 600)
-  await openSsl(page)
+  await openSsl(page, guard)
 
   await expect(page.getByText(REFUSAL)).toBeVisible()
   await expect(page.locator('[data-skeleton]')).toHaveCount(0)

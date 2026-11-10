@@ -1,11 +1,14 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubTaskStream, stubTasks, taskFrame } from '../fixtures/stub-tasks-routes'
 import type { PanelModule } from '../../src/types/module'
 import type { PanelTask } from '../../src/types/panelTask'
+import type { Page } from '@playwright/test'
 
 /**
  * Protects the app bar's fit on a phone (issue #82): with the running-tasks badge showing, the
@@ -56,6 +59,8 @@ const LOCALES = ['en', 'ru', 'hy'] as const
  */
 const openWithBadge = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
   await stubTasks(page, [RUNNING])

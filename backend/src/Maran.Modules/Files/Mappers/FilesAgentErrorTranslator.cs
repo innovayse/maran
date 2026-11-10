@@ -1,3 +1,4 @@
+using Maran.Agent.Client.Errors;
 using Maran.Modules.Files.Resources;
 using Microsoft.Extensions.Logging;
 
@@ -58,7 +59,7 @@ public static class FilesAgentErrorTranslator
 
         return agentError.Code switch
         {
-            "AgentNotFound" => Error.Of(nameof(ErrorMessages.FilesEntryNotFound), ErrorType.NotFound),
+            AgentErrorCodes.NotFound => Error.Of(nameof(ErrorMessages.FilesEntryNotFound), ErrorType.NotFound),
             "AgentAlreadyExists" => Error.Of(nameof(ErrorMessages.FilesEntryExists), ErrorType.Conflict),
             "AgentQuotaExceeded" or "AgentBelowFreeSpaceFloor" =>
                 Error.Of(nameof(ErrorMessages.FilesQuotaExceeded), ErrorType.Conflict),

@@ -49,6 +49,13 @@ fn rhel_host(before: &str, after: &str) -> FakePhpHost {
     host
 }
 
+/// A SUSE host with 8.3 whose first listing is `before` and later ones `after`.
+fn suse_host(before: &str, after: &str) -> FakePhpHost {
+    let host = FakePhpHost::with_installed_on(adapter_for(DistroFamily::Suse), &["8.3"]);
+    host.answer_in_turn("-m", &[(0, before, ""), (0, after, "")]);
+    host
+}
+
 /// Runs the operation and returns its result with the progress it reported.
 fn set(
     host: &FakePhpHost,
@@ -245,6 +252,55 @@ fn disabling_on_the_rhel_family_is_refused_as_unsupported_before_anything_change
         result.unwrap_err(),
         PhpOpError::ExtensionSwitchUnsupported { ref extension } if extension == "gd"
     ));
+    assert_eq!(host.commands(), vec![probe(adapter)]);
+}
+
+#[test]
+fn enabling_on_the_suse_family_installs_the_package_and_runs_no_switch() {
+    // UNVERIFIED: the family is read to ship no `phpdismod`-style switch, so enabling is the
+    // package install alone, as on the RHEL family; confirm with `command -v phpdismod` in the
+    // pinned Leap image.
+    let adapter = adapter_for(DistroFamily::Suse);
+    let host = suse_host(WITHOUT_GD, WITH_GD);
+
+    let (result, progress) = set(&host, adapter, "gd", true);
+
+    result.unwrap();
+    assert_eq!(
+        host.commands(),
+        vec![
+            probe(adapter),
+            install_start(adapter, "gd"),
+            validate(adapter),
+            reload(adapter),
+            probe(adapter),
+        ]
+    );
+    assert!(progress.iter().all(|(_, stage)| stage != "switch"));
+}
+
+#[test]
+fn disabling_on_the_suse_family_is_refused_as_unsupported_before_anything_changes() {
+    let adapter = adapter_for(DistroFamily::Suse);
+    let host = suse_host(WITH_GD, WITH_GD);
+
+    let (result, _) = set(&host, adapter, "gd", false);
+
+    assert!(matches!(
+        result.unwrap_err(),
+        PhpOpError::ExtensionSwitchUnsupported { ref extension } if extension == "gd"
+    ));
+    assert_eq!(host.commands(), vec![probe(adapter)]);
+}
+
+#[test]
+fn an_extension_already_off_on_the_suse_family_is_a_no_op_and_not_unsupported() {
+    let adapter = adapter_for(DistroFamily::Suse);
+    let host = suse_host(WITHOUT_GD, WITHOUT_GD);
+
+    let (result, _) = set(&host, adapter, "gd", false);
+
+    result.unwrap();
     assert_eq!(host.commands(), vec![probe(adapter)]);
 }
 

@@ -16,6 +16,7 @@ fn state() -> DnsState {
         recursion_refused: DnsPolicyObservation::InForce,
         response_rate_limiting: DnsPolicyObservation::InForce,
         enabled_at_boot: true,
+        dnssec_supported: true,
     }
 }
 
@@ -65,4 +66,23 @@ fn the_two_flags_that_can_differ_are_carried_apart() {
     assert!(wire.running);
     assert!(!wire.control_channel_answered);
     assert!(!wire.port_53_answering);
+}
+
+#[test]
+fn a_daemon_that_can_sign_is_reported_so() {
+    assert!(to_wire_dns_status(&state()).dnssec_supported);
+}
+
+#[test]
+fn a_daemon_that_cannot_sign_is_reported_so_and_the_other_flags_are_unmoved() {
+    // The planted failure: a mapping that dropped the field would report true
+    // (or the wire's false for both); the pair pins both directions.
+    let wire = to_wire_dns_status(&DnsState {
+        dnssec_supported: false,
+        ..state()
+    });
+
+    assert!(!wire.dnssec_supported);
+    assert!(wire.running);
+    assert!(wire.enabled_at_boot);
 }

@@ -92,6 +92,26 @@ export const useAuditIntegrityStore = defineStore('auditIntegrity', () => {
   }
 
   /**
+   * Forgets the outcome of the last retention save. Feedback belongs to the visit that caused it: the
+   * retention card calls this when it opens, so a refusal from an earlier visit (the panel's text, in
+   * the language of that visit) is not shown as if it were current.
+   * @returns Nothing; the state is reset synchronously.
+   */
+  const clearRetentionFeedback = (): void => {
+    retentionSave.value = { state: 'idle' }
+  }
+
+  /**
+   * Forgets the last verification, its refusal and its verdict, for the same reason as
+   * {@link clearRetentionFeedback}: the integrity card calls this when it opens.
+   * @returns Nothing; the state is reset synchronously.
+   */
+  const clearVerificationFeedback = (): void => {
+    verification.value = { state: 'idle' }
+    verdict.value = null
+  }
+
+  /**
    * Loads the retention setting with the bounds the panel accepts.
    * @returns Resolves once the request has settled, successfully or not.
    */
@@ -169,6 +189,8 @@ export const useAuditIntegrityStore = defineStore('auditIntegrity', () => {
     verificationMessage,
     verifying,
     verdict,
+    clearRetentionFeedback,
+    clearVerificationFeedback,
     loadRetention,
     saveRetentionDays,
     loadChain,

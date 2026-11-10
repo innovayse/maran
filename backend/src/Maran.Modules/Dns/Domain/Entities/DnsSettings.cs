@@ -46,6 +46,12 @@ public sealed class DnsSettings
     /// <summary>Whether the administrator asked for the name server to run.</summary>
     public bool Enabled { get; private set; }
 
+    /// <summary>
+    /// The zone template a zone created for a new site is made from, or null when none is chosen. Not a foreign
+    /// key: a template that is the default cannot be deleted, so the row it names always exists.
+    /// </summary>
+    public Guid? DefaultTemplateId { get; private set; }
+
     /// <summary>The instant of the last change.</summary>
     public DateTimeOffset UpdatedAt { get; private set; }
 
@@ -112,6 +118,15 @@ public sealed class DnsSettings
         PublicIpv4 = publicIpv4;
         PublicIpv6 = publicIpv6;
         DefaultTtl = defaultTtl;
+        UpdatedAt = now;
+    }
+
+    /// <summary>Chooses the zone template a zone created for a new site is made from.</summary>
+    /// <param name="templateId">The template, which the caller has found to exist.</param>
+    /// <param name="now">The change instant, from the clock.</param>
+    public void ChooseDefaultTemplate(Guid templateId, DateTimeOffset now)
+    {
+        DefaultTemplateId = templateId;
         UpdatedAt = now;
     }
 

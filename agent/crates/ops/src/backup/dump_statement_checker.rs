@@ -101,6 +101,15 @@ pub(crate) struct DumpStatementChecker {
     tokens: Vec<DumpToken>,
     /// Whether the statement had more tokens than were kept.
     overflowed: bool,
+    /// Whether the previous token was a name that a `.` may now qualify, and if
+    /// so whether it is the database being loaded. `None` for any other token.
+    qualifier: Option<bool>,
+    /// Whether the statement so far qualified a name by another database. Judged
+    /// when the statement ends, after its kind: a trigger is refused as a trigger.
+    foreign_qualifier: bool,
+    /// Whether the previous token was a `.`, so the name after it is a table or
+    /// a column and not a database.
+    after_dot: bool,
 }
 
 impl DumpStatementChecker {
@@ -110,6 +119,9 @@ impl DumpStatementChecker {
             database: database.to_owned(),
             tokens: Vec::new(),
             overflowed: false,
+            qualifier: None,
+            foreign_qualifier: false,
+            after_dot: false,
         }
     }
 
@@ -134,6 +146,7 @@ impl DumpStatementChecker {
         if let DumpToken::Word(word) = &token {
             refuse_word(word)?;
         }
+        self.check_qualifier(&token);
 
         let limit = if self.wants_literal_content() {
             SET_TOKEN_LIMIT
@@ -149,6 +162,40 @@ impl DumpStatementChecker {
         Ok(())
     }
 
+    /// Notes a name qualified by a database other than the one being loaded,
+    /// wherever in a statement it stands (`other`.`t`, `REFERENCES other.t`); the
+    /// statement is refused when it ends, once its kind has been judged.
+    ///
+    /// Read as a stream over every token of the statement, not over the few that
+    /// are kept: a foreign key or an `INSERT` target stands past them. A name is a
+    /// qualifier when a `.` follows it and no `.` came before it, so the table of
+    /// `db`.`t`.`c` is not judged as a database. Numbers (`1.5`) and variables
+    /// (`@@session.x`) are not names. A `SET` is judged by its own rules.
+    ///
+    /// This is the second line, not the first: the temporary user's grant is
+    /// escaped to this one database (`grant_pattern_for`), so the server refuses
+    /// another database's table whatever the text says.
+    fn check_qualifier(&mut self, token: &DumpToken) {
+        let previous = self.qualifier.take();
+        let after_dot = std::mem::replace(&mut self.after_dot, false);
+
+        match token {
+            DumpToken::Symbol(b'.') => {
+                self.after_dot = true;
+                if previous == Some(false) && !self.wants_literal_content() {
+                    self.foreign_qualifier = true;
+                }
+            }
+            DumpToken::Identifier(name) if !after_dot => {
+                self.qualifier = Some(*name == self.database);
+            }
+            DumpToken::Word(name) if !after_dot && is_plain_name(name) => {
+                self.qualifier = Some(*name == self.database);
+            }
+            _ => {}
+        }
+    }
+
     /// Ends the input: a statement without a terminator is still executed by the
     /// client, so it is judged like any other.
     ///
@@ -161,6 +208,9 @@ impl DumpStatementChecker {
 
     /// Judges the statement read so far and starts a new one.
     fn conclude(&mut self) -> Result<(), DumpRefusal> {
+        self.qualifier = None;
+        self.after_dot = false;
+        let foreign_qualifier = std::mem::take(&mut self.foreign_qualifier);
         let tokens = std::mem::take(&mut self.tokens);
         let overflowed = std::mem::replace(&mut self.overflowed, false);
 
@@ -175,7 +225,7 @@ impl DumpStatementChecker {
         let second = second.as_deref();
         let after_second = tokens.get(2..).unwrap_or_default();
 
-        match keyword.as_str() {
+        let verdict = match keyword.as_str() {
             "SET" if overflowed => Err(DumpRefusal::UnsafeSet),
             "SET" => check_set(tokens.get(1..).unwrap_or_default()),
             "INSERT" | "REPLACE" | "BEGIN" | "COMMIT" => Ok(()),
@@ -204,6 +254,12 @@ impl DumpStatementChecker {
             "USE" => self.check_database_clause(tokens.get(1..).unwrap_or_default()),
             other if CLIENT_COMMANDS.contains(&other) => Err(DumpRefusal::ClientCommand),
             _ => Err(DumpRefusal::ForbiddenStatement),
+        };
+
+        if foreign_qualifier {
+            verdict.and(Err(DumpRefusal::OtherDatabase))
+        } else {
+            verdict
         }
     }
 
@@ -232,6 +288,13 @@ impl DumpStatementChecker {
             _ => Err(DumpRefusal::OtherDatabase),
         }
     }
+}
+
+/// Whether a bare word is a name, and not a number or a `@variable`.
+fn is_plain_name(word: &str) -> bool {
+    word.bytes()
+        .next()
+        .is_some_and(|byte| byte.is_ascii_alphabetic() || byte == b'_' || byte >= 0x80)
 }
 
 /// `Ok` when `allowed`, the statement's kind refusal otherwise.

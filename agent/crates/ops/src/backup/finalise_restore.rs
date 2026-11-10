@@ -6,6 +6,7 @@ use std::os::unix::fs::{PermissionsExt as _, chown};
 use maran_agent_core::validation::system::name::AccountName;
 
 use crate::backup::backup_error::BackupError;
+use crate::backup::jail_mounts::JailMounts;
 use crate::backup::model::restore_sink::RestoreSink;
 use crate::backup::model::restore_stage::RestoreStage;
 use crate::backup::restore_placement::RestorePlacement;
@@ -13,7 +14,8 @@ use crate::backup::restore_placement::RestorePlacement;
 /// The mode the account's home directory carries.
 pub(super) const HOME_MODE: u32 = 0o750;
 
-/// Step 8: the home root's ownership and mode, and the parked tree.
+/// Step 8: the home root's ownership and mode, the file-transfer jails, and the
+/// parked tree.
 ///
 /// **Measured, not assumed.** An account's home is created owned by the account
 /// but group-owned by the WEB SERVER's group, mode `0750`, because the web
@@ -24,18 +26,29 @@ pub(super) const HOME_MODE: u32 = 0o750;
 /// distro adapter, and it is re-applied BEFORE the parked tree is removed, so
 /// that a failure at this step is one an operator can still undo by hand.
 ///
+/// **The jails follow the new home before the parked tree goes** (issue #487).
+/// A file-transfer jail is a bind mount of `/home/<account>`, which follows the
+/// inode and not the path, so after the swap it still shows the displaced home;
+/// `jails` mounts it again. If that fails the parked tree is KEPT, so the jail
+/// is not left showing a tree this step has just emptied, and the failure is
+/// returned: the customer's files are restored, but the restore is not
+/// reported as clean while a transfer login would read and write the wrong
+/// tree. The next start of the agent finishes the job (`recover_restores`).
+///
 /// Only the home ROOT is touched. Everything inside it was written by the
 /// account, by construction, because the extraction ran as the account.
 ///
 /// # Errors
 ///
 /// [`BackupError::StagingUnusable`] when the ownership or mode cannot be
-/// applied. The removal of the parked tree is NOT an error: at this point the
+/// applied, and [`BackupError::JailsNotRefreshed`] when a jail could not be
+/// mounted onto the new home (the parked tree is kept). The removal of the parked tree is NOT an error: at this point the
 /// restore has succeeded, and a leftover directory is disk space to reclaim,
 /// not a customer who cannot work.
 pub(super) fn finalise_restore(
     placement: &RestorePlacement,
     account: &AccountName,
+    jails: &dyn JailMounts,
     sink: &mut dyn RestoreSink,
 ) -> Result<(), BackupError> {
     sink.report(
@@ -48,6 +61,8 @@ pub(super) fn finalise_restore(
         .map_err(|_| BackupError::StagingUnusable)?;
     std::fs::set_permissions(&home, std::fs::Permissions::from_mode(HOME_MODE))
         .map_err(|_| BackupError::StagingUnusable)?;
+
+    jails.refresh(account)?;
 
     let _ = remove_dir_all(&placement.previous);
 

@@ -12,7 +12,10 @@ use crate::adapter_binary::AdapterBinary;
 use crate::backup_facts::BackupFacts;
 use crate::catalogue_probe::CatalogueProbe;
 use crate::database_facts::DatabaseFacts;
-use crate::debian::{debian_packages, debian_paths, debian_php_extensions, debian_services};
+use crate::debian::{
+    debian_package_candidates, debian_packages, debian_paths, debian_php_extensions,
+    debian_services,
+};
 use crate::dns_facts::DnsFacts;
 use crate::dovecot_major::DovecotMajor;
 use crate::family::DistroFamily;
@@ -22,6 +25,7 @@ use crate::key_value_server::KeyValueServer;
 use crate::mail_facts::MailFacts;
 use crate::package_facts::PackageFacts;
 use crate::package_failure::PackageFailure;
+use crate::package_query_failure::PackageQueryFailure;
 use crate::pending_update::PendingUpdate;
 use crate::pending_updates_failure::PendingUpdatesFailure;
 use crate::php_extension_facts::PhpExtensionFacts;
@@ -178,10 +182,6 @@ impl PhpFacts for DebianAdapter {
     fn php_package(&self, version: &str) -> String {
         debian_packages::php_package(version)
     }
-
-    fn installable_php_versions(&self) -> &'static [&'static str] {
-        debian_packages::installable_php_versions()
-    }
 }
 
 impl PhpExtensionFacts for DebianAdapter {
@@ -221,6 +221,24 @@ impl PackageFacts for DebianAdapter {
 
     fn package_query_binary(&self) -> AdapterBinary {
         debian_services::package_query_binary()
+    }
+
+    fn package_candidate_binary(&self) -> AdapterBinary {
+        debian_package_candidates::package_candidate_binary()
+    }
+
+    fn package_candidate_arguments(&self, packages: &[String]) -> Vec<String> {
+        debian_package_candidates::package_candidate_arguments(packages)
+    }
+
+    fn read_package_candidates(
+        &self,
+        status: i32,
+        stdout: &str,
+        _stderr: &str,
+        packages: &[String],
+    ) -> Result<Vec<String>, PackageQueryFailure> {
+        debian_package_candidates::read_package_candidates(status, stdout, packages)
     }
 
     fn catalogue_probe(&self) -> Option<CatalogueProbe> {
@@ -294,6 +312,14 @@ impl DnsFacts for DebianAdapter {
     fn dns_zone_directory(&self) -> &'static str {
         debian_services::dns_zone_directory()
     }
+
+    fn dns_signed_zone_directory(&self) -> &'static str {
+        debian_services::dns_signed_zone_directory()
+    }
+
+    fn dns_key_directory(&self) -> &'static str {
+        debian_services::dns_key_directory()
+    }
 }
 
 impl FileTransferFacts for DebianAdapter {
@@ -313,8 +339,20 @@ impl FileTransferFacts for DebianAdapter {
         debian_services::vsftpd_tls_version_keys()
     }
 
+    fn rsync_binary(&self) -> AdapterBinary {
+        debian_services::rsync_binary()
+    }
+
     fn ssh_keygen_binary(&self) -> AdapterBinary {
         debian_services::ssh_keygen_binary()
+    }
+
+    fn ssh_binary(&self) -> AdapterBinary {
+        debian_services::ssh_binary()
+    }
+
+    fn ssh_keyscan_binary(&self) -> AdapterBinary {
+        debian_services::ssh_keyscan_binary()
     }
 
     fn ssh_service(&self) -> &'static str {

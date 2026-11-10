@@ -28,6 +28,7 @@ const SIGNED_IN_SESSION: AuthenticatedSession = {
   expiresAt: '2099-01-01T00:00:00+00:00',
   user: ADMINISTRATOR,
   requiresTwoFactorSetup: false,
+  requiresPasswordChange: false,
 }
 
 /** The login result a stubbed sign-in returns: the signed-in half in its envelope. */

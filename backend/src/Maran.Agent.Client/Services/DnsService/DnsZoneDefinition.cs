@@ -7,10 +7,12 @@ namespace Maran.Agent.Client.Services.DnsService;
 /// <param name="HostmasterMailbox">The SOA's responsible mailbox, in dotted form.</param>
 /// <param name="Nameservers">The apex NS set, system-managed from the name-server settings.</param>
 /// <param name="Records">Every other record of the zone.</param>
+/// <param name="Signing">The zone's signing instruction, or null for a zone that is not signed.</param>
 public sealed record DnsZoneDefinition(
     string Name,
     long Serial,
     string PrimaryNameserver,
     string HostmasterMailbox,
     IReadOnlyList<string> Nameservers,
-    IReadOnlyList<DnsRecordDefinition> Records);
+    IReadOnlyList<DnsRecordDefinition> Records,
+    DnsSigningDefinition? Signing = null);

@@ -1,9 +1,11 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn, stubbedAdministrator } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubProfile } from '../fixtures/stub-profile-route'
 import { stubSteeredAdministrator } from '../fixtures/stub-password-reset-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
+import type { Page } from '@playwright/test'
 
 /** The secret a stubbed enrolment hands out. */
 const SECRET = 'JBSWY3DPEHPK3PXP'
@@ -21,6 +23,8 @@ const signInWithTwoFactor = async (page: Page, isTwoFactorEnabled: boolean): Pro
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
+  // After the shell's quiet profile, so the two-factor state this spec chose is the one answered.
   await stubProfile(page, {
     username: stubbedAdministrator.username,
     email: stubbedAdministrator.email,

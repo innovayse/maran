@@ -1,3 +1,4 @@
+using Maran.Agent.Client.Errors;
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Dns.Interfaces;
 using Maran.Modules.Dns.Persistence;
@@ -29,12 +30,13 @@ namespace Maran.Modules.Dns.Commands.DeleteZone;
 /// It takes the zone's lock, so an edit that is publishing the zone cannot put it back on the host after
 /// this handler removed it.
 /// </para>
+/// <para>
+/// A zone that is signed or being withdrawn is removed like any other, and its key goes with it. The registrar
+/// may still hold the DS record, which the panel cannot see: the screen's confirmation says so before it asks.
+/// </para>
 /// </remarks>
 public sealed class DeleteZoneCommandHandler
 {
-    /// <summary>The agent's code for a zone it does not serve, which deleting treats as already done.</summary>
-    private const string AgentNotFoundCode = "AgentNotFound";
-
     /// <summary>The Dns module's database context, and this module's tenant boundary.</summary>
     private readonly DnsDbContext _dbContext;
 
@@ -85,7 +87,9 @@ public sealed class DeleteZoneCommandHandler
         }
 
         await using var transaction = await _lock.TakeAsync(command.ZoneId, cancellationToken);
-        var zone = await _dbContext.Zones.SingleOrDefaultAsync(row => row.Id == command.ZoneId, cancellationToken);
+        var zone = await _dbContext.Zones
+            .Include(row => row.SigningKeys)
+            .SingleOrDefaultAsync(row => row.Id == command.ZoneId, cancellationToken);
         if (zone is null)
         {
             return await FailAsync(
@@ -97,7 +101,7 @@ public sealed class DeleteZoneCommandHandler
 
         var name = zone.Name;
         var removed = await _agent.DeleteZoneAsync(name, cancellationToken);
-        if (!removed.IsSuccess && !string.Equals(removed.Error!.Code, AgentNotFoundCode, StringComparison.Ordinal))
+        if (!removed.IsSuccess && !string.Equals(removed.Error!.Code, AgentErrorCodes.NotFound, StringComparison.Ordinal))
         {
             return await FailAsync(command, name, removed.Error!, cancellationToken);
         }

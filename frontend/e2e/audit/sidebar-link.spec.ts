@@ -1,9 +1,21 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn, stubbedAdministrator } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubAudit } from '../fixtures/stub-audit-routes'
+import {
+  ALERT_DELIVERY_OK,
+  loaded,
+  stubDashboard,
+  SYNCHRONIZED_CLOCK,
+  UNAVAILABLE,
+  WITHHELD_DASHBOARD,
+} from '../fixtures/stub-dashboard-route'
+import { DEFAULT_LAYOUT, installLiveStream, stubDashboardLayout } from '../fixtures/stub-live-dashboard-stream'
+import type { Dashboard } from '../../src/types/dashboard'
+import type { Page } from '@playwright/test'
 
 /**
  * The measured defect: `/settings/audit` was routed, rendered and tested, and no LINK in the
@@ -12,6 +24,24 @@ import { stubAudit } from '../fixtures/stub-audit-routes'
  * the axis the static reachability gate declares it cannot see (an entry built but never
  * returned looks identical to it).
  */
+
+/** What the panel tells an administrator who opens the dashboard: a server it could read nothing of. */
+const SERVER_DASHBOARD: Dashboard = {
+  audience: 'administrator',
+  resources: UNAVAILABLE,
+  services: UNAVAILABLE,
+  counts: { accounts: loaded(0), sites: loaded(0), databases: loaded(0) },
+  attention: {
+    certificatesExpiringSoon: loaded(0),
+    failedBackups: loaded(0),
+    sitesOnEndOfLifePhp: loaded(0),
+    alertDelivery: ALERT_DELIVERY_OK,
+    bannedAddresses: loaded(0),
+    failedTasks: loaded(0),
+    clock: SYNCHRONIZED_CLOCK,
+  },
+  recentAudit: loaded([]),
+}
 
 /**
  * Signs a person in with the given role, in Russian, with the shell's endpoints answered.
@@ -24,6 +54,12 @@ const stubRussianShell = async (page: Page, role: 'admin' | 'customer'): Promise
   await stubSignedIn(page, { ...stubbedAdministrator, role })
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
+  // Both tests open the home screen first: the dashboard answers per role, and the server's one
+  // reads the person's layout and opens its live stream.
+  await stubDashboard(page, role === 'admin' ? SERVER_DASHBOARD : WITHHELD_DASHBOARD)
+  await stubDashboardLayout(page, DEFAULT_LAYOUT)
+  await installLiveStream(page)
   await stubAudit(page, [])
 }
 

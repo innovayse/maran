@@ -1,13 +1,20 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import { ONE_SHOT, stubDashboard } from '../fixtures/stub-dashboard-route'
+import { stubMyAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubAccountNames, stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubDatabases, stubDatabasesProblem } from '../fixtures/stub-databases-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { DEFAULT_LAYOUT, installLiveStream, stubDashboardLayout } from '../fixtures/stub-live-dashboard-stream'
 import { stubModules } from '../fixtures/stub-modules-route'
-import type { Account } from '../../src/types/account'
+import { stubMyAccount } from '../fixtures/stub-my-account-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
+import type { Account, MyAccount } from '../../src/types/account'
+import type { AccountResourceSummary } from '../../src/types/accountResourceSummary'
 import type { Database } from '../../src/types/database'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { PanelModule } from '../../src/types/module'
+import type { Locator, Page } from '@playwright/test'
 
 // The databases list is server-paged (#196): the page, its size, the search, the sort and the
 // account filter live in the URL, the panel answers one page, the total and each row's owner, and
@@ -44,10 +51,24 @@ const SHOP: Database = {
   createdAt: '2026-08-01T10:00:00Z',
 }
 
+/**
+ * Answers every read the dashboard makes, for a case that opens the panel at its front page. The
+ * live stream is the controllable stand-in, so nothing is live and no request for it reaches the
+ * network.
+ * @param page The Playwright page.
+ * @returns Resolves once the stubs are installed.
+ */
+const stubDashboardReads = async (page: Page): Promise<void> => {
+  await installLiveStream(page)
+  await stubDashboard(page, ONE_SHOT)
+  await stubDashboardLayout(page, DEFAULT_LAYOUT)
+}
+
 test('the databases screen shows the empty state when the panel reports no databases', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubDatabases(page, [])
 
@@ -63,6 +84,7 @@ test('the panel shows the prefixed name so the operator can find it in mysql', a
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubDatabases(page, [SHOP])
 
@@ -88,6 +110,7 @@ test('the row names the account that owns the database rather than printing its 
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubDatabases(page, [SHOP])
 
@@ -106,6 +129,7 @@ test('a database another tenant owns is not listed', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubDatabases(page, [SHOP])
 
@@ -118,11 +142,14 @@ test('a database another tenant owns is not listed', async ({ page }) => {
 // rules/vue.md: "Error messages are produced by the backend, already localized, and rendered as-is."
 test('the databases screen renders the backend RFC 7807 detail verbatim when the list request fails', async ({
   page,
+  guard,
 }) => {
   const backendDetail = 'The database service is temporarily unavailable. Try again in a moment.'
+  guard.allow(500, /\/api\/v1\/databases(\?.*)?$/)
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubDatabasesProblem(page, backendDetail)
 
@@ -142,6 +169,7 @@ test('the databases table scrolls inside its own container rather than moving th
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubDatabases(page, [SHOP])
 
@@ -156,9 +184,11 @@ test('the databases table scrolls inside its own container rather than moving th
 })
 
 test('the sidebar links to the databases screen when the panel licenses the module', async ({ page }) => {
+  await stubDashboardReads(page)
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubDatabases(page, [])
 
@@ -172,9 +202,11 @@ test('the sidebar links to the databases screen when the panel licenses the modu
 // Three identical glyphs in a column of three rows tell the reader nothing the labels do not.
 // `reports` is in the catalogue precisely as the neutral case to compare against.
 test('the databases and files entries draw their own glyph rather than the neutral one', async ({ page }) => {
+  await stubDashboardReads(page)
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubDatabases(page, [])
 
@@ -212,6 +244,30 @@ const CUSTOMER: AuthenticatedUser = {
   accountId: ALICE.id,
 }
 
+/** The account the customer acts for, as the panel reports it to its owner. */
+const OWN_ACCOUNT: MyAccount = {
+  id: ALICE.id,
+  name: ALICE.name,
+  primaryDomain: ALICE.primaryDomain,
+  status: 'active',
+  statusName: 'Active',
+  plan: {
+    displayName: 'Starter',
+    diskQuotaMb: 1024,
+    maxSites: 5,
+    maxDatabases: 5,
+    maxSftpUsers: 5,
+    maxFtpUsers: 5,
+    maxCronEntries: 5,
+  },
+}
+
+/** The customer's allowances: databases are unlimited, so the plan never withholds the create form. */
+const OWN_RESOURCES: AccountResourceSummary = {
+  accountId: ALICE.id,
+  resources: [{ kind: 'databases', count: { state: 'counted', used: 0 }, limit: { kind: 'unlimited' } }],
+}
+
 /**
  * Builds a catalogue of numbered databases: `alice_db01`, `bob_db02` and so on, alternating between
  * the two accounts, each created a day after the one before.
@@ -229,7 +285,8 @@ const catalogue = (count: number): Database[] => {
       name: `db${number}`,
       fullName: `${owner.name}_db${number}`,
       dbUserName: `${owner.name}_user${number}`,
-      createdAt: `2026-08-${number}T10:00:00Z`,
+      // A real calendar day per row: a day number past the month would be no date-time at all.
+      createdAt: new Date(Date.UTC(2026, 7, index + 1, 10)).toISOString(),
     }
   })
 }
@@ -245,8 +302,14 @@ const openWith = async (page: Page, databases: Database[], user?: AuthenticatedU
   await stubSignedIn(page, user)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE, BOB])
   await stubAccountNames(page, [ALICE, BOB])
+  if (user !== undefined) {
+    // A customer's shell reads their own account and the plan allowance the create form is held to.
+    await stubMyAccount(page, OWN_ACCOUNT)
+    await stubMyAccountResources(page, OWN_RESOURCES)
+  }
   return await stubDatabases(page, databases)
 }
 

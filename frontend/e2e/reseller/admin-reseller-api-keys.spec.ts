@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { overseenKeyPaths, apiKeyRow, stubApiKeys, type ApiKeyCalls } from '../fixtures/stub-api-keys-routes'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
@@ -9,6 +9,7 @@ import { ACME_HOSTING, stubResellers } from '../fixtures/stub-resellers-routes'
 import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { ApiKey } from '../../src/types/apiKey'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 // Issue #435: an administrator sees one reseller's API keys from that reseller's page and revokes
 // one without suspending the reseller. It is the API keys screen asking the reseller-scoped
@@ -118,7 +119,8 @@ test('revoking a reseller key asks first, then sends the DELETE to the reseller-
   await expect(row.getByText('Withdrawn')).toBeVisible()
 })
 
-test('a refused revoke shows the panel sentence as received', async ({ page }) => {
+test('a refused revoke shows the panel sentence as received', async ({ page, guard }) => {
+  guard.allow(404, /\/api\/v1\/resellers\/[^/]+\/api-keys\/[^/]+$/)
   const sentence = 'No such API key.'
   await openOverseenKeys(page, [PROVISIONING])
   await page.route(`**/api/v1/resellers/${ACME_HOSTING.id}/api-keys/*`, async (route) => {

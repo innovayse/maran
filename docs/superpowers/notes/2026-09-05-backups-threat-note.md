@@ -566,3 +566,23 @@ through — those are not the same person.
 
 The verdict for all twenty-eight notes is tabulated in
 `docs/superpowers/notes/2026-09-22-second-review-packet.md`.
+
+## Amendment 2026-11-09: manual backups are counted (#478)
+
+Section 7 accepted "every backup costs a full copy ... and retention is the only thing between that and
+a full disk", but retention only follows a scheduled run, so an account with no schedule, or a run of
+manual backups between two scheduled ones, was never bounded. Manual and pre-restore backups now count
+against a per-account allowance (`AccountBackupAllowance`, 10 together, at most 3 of them pre-restore
+copies); a manual create past it is refused with `BackupAllowanceReached`. The detail, limits and the
+reviewer's checks are in `2026-11-07-pre-restore-backup-threat-note.md`, "Amendment 2026-11-09".
+**Second review: OUTSTANDING (#331)** for this amendment. A dedicated rate limit for `POST /api/v1/backups`
+and a host-wide byte quota are not built.
+
+## Amendment 2026-11-09: the file-transfer jails follow the restored home (#487)
+
+Step 7's home swap changes the inode at `/home/<account>`, so the SFTP/FTPS jails' bind mounts kept showing
+the displaced tree and the restore emptied it; uploads after the restore were lost. Step 8 now mounts the
+jails onto the new home before the parked tree is removed, and the startup recovery does the same. Detail,
+the new `JailMounts` seam, the `JailsNotRefreshed` outcome and the stated limit (sessions open at the
+instant of the restore) are in `2026-09-09-restore-interruption-recovery-threat-note.md`, "Amendment
+2026-11-09". **Second review: OUTSTANDING (#331)** for this amendment.

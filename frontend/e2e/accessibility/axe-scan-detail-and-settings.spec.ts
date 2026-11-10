@@ -1,7 +1,8 @@
-import { expect, test, type Page } from '@playwright/test'
 import { expectNoSeriousViolations } from '../fixtures/expect-no-serious-violations'
+import { expect, test } from '../fixtures/guarded-test'
 import { FULL_CATALOGUE } from '../fixtures/open-full-shell'
 import { setPersistedLocale } from '../fixtures/set-locale'
+import { stubAccountResources, stubMyAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { RESELLER_KEY_PATHS, apiKeyRow, stubApiKeys } from '../fixtures/stub-api-keys-routes'
 import { stubAudit, stubResellerAudit } from '../fixtures/stub-audit-routes'
@@ -10,6 +11,9 @@ import { NO_BRANDING, stubResellerBranding } from '../fixtures/stub-branding-rou
 import { CERTIFICATE_SITE_ID } from '../fixtures/stub-certificates-routes'
 import { stubDashboard, WITHHELD_DASHBOARD } from '../fixtures/stub-dashboard-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubInvitation } from '../fixtures/stub-invitation-routes'
+import { stubIdleLiveDashboard } from '../fixtures/stub-live-dashboard-stream'
+import { stubMembershipOffers } from '../fixtures/stub-membership-offers-routes'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
 import { MANAGED_PLANS, stubManagedPlans, stubPlans, THREE_PLANS } from '../fixtures/stub-plans-route'
@@ -20,9 +24,11 @@ import { stubSessions } from '../fixtures/stub-sessions-route'
 import { stubShellReads } from '../fixtures/stub-shell-reads'
 import {
   completePhpVersion,
+  stubInstallablePhpVersions,
   stubOpenSiteLogStream,
   stubPhpVersions,
   stubSiteDetail,
+  stubSiteLimits,
   stubSites,
   type PhpVersionStub,
 } from '../fixtures/stub-sites-routes'
@@ -34,6 +40,7 @@ import type { AuthenticatedUser, Session } from '../../src/types/auth'
 import type { PanelCertificateReading } from '../../src/types/panelCertificate'
 import type { SecurityPolicy } from '../../src/types/securityPolicy'
 import type { Site, SiteDetail } from '../../src/types/site'
+import type { Page } from '@playwright/test'
 
 /*
  * Issue #82: axe on the screens `axe-scan.spec.ts` does not reach, in both themes. That spec stops
@@ -184,6 +191,7 @@ const EVENT: AuditEvent = {
   action: 'AccountCreated',
   actionName: 'Account created',
   subject: 'alice',
+  subjectName: 'alice',
   ipAddress: '203.0.113.9',
   succeeded: true,
   outcomeName: 'Succeeded',
@@ -269,7 +277,10 @@ const administratorWithData = async (page: Page): Promise<void> => {
     }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ALICE) })
   })
+  await stubAccountResources(page, { accountId: ALICE.id, resources: [] })
+  await stubInvitation(page, ALICE.id, 'pending')
   await stubSites(page, [SITE])
+  await stubSiteLimits(page, { maximumAliases: 20 })
   await stubSiteDetail(page, SITE_DETAIL)
   await stubPhpVersions(page, PHP_VERSIONS)
   await stubOpenSiteLogStream(page)
@@ -340,6 +351,9 @@ const CASES: Case[] = [
       await page.route('**/api/v1/sites/php-versions', async (route) => {
         await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(PHP_VERSIONS.map(completePhpVersion)) })
       })
+      await stubInstallablePhpVersions(page, () => {
+        return []
+      })
     },
     ready: textReady('8.4'),
   },
@@ -402,8 +416,11 @@ const CASES: Case[] = [
     prepare: async (page): Promise<void> => {
       await stubSignedIn(page, CUSTOMER)
       await stubHealthy(page)
+      await stubShellReads(page)
       await stubModules(page, MODULES)
       await stubMyAccount(page, OWN_ACCOUNT)
+      await stubMyAccountResources(page, { accountId: OWN_ACCOUNT.id, resources: [] })
+      await stubMembershipOffers(page, [])
     },
     ready: textReady(OWN_ACCOUNT.primaryDomain),
   },
@@ -413,6 +430,7 @@ const CASES: Case[] = [
     prepare: async (page): Promise<void> => {
       await stubSignedIn(page, CUSTOMER)
       await stubHealthy(page)
+      await stubShellReads(page)
       await stubModules(page, MODULES)
       await stubMyAccount(page, OWN_ACCOUNT)
       await stubSubUsers(page, [subUserRow('deploy', ['databases']), subUserRow('writer', [], 'invited')])
@@ -497,6 +515,7 @@ for (const theme of ['dark', 'light'] as const) {
         await stubShellReads(page)
         await stubModules(page, MODULES)
         await stubDashboard(page, WITHHELD_DASHBOARD)
+        await stubIdleLiveDashboard(page)
         await page.goto('/')
         await expect(page.getByRole('main')).toBeVisible()
 

@@ -1,14 +1,16 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
-import { stubBackupRestore, stubBackups } from '../fixtures/stub-backups-routes'
+import { stubBackupRestore, stubBackupRestoreChoices, stubBackups } from '../fixtures/stub-backups-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { Backup } from '../../src/types/backup'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 const LICENSED: PanelModule[] = [
   { name: 'backups', displayName: 'Backups', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -51,6 +53,13 @@ const COMPLETED: Backup = {
 }
 
 /**
+ * What the panel lists for the account's databases and sites: nothing, so the dialog offers the
+ * whole-account restore these specs are about and no narrower one (e2e/backups/restore-scope.spec.ts
+ * covers the narrower ones).
+ */
+const NOTHING_TO_NARROW_TO = { databases: [], sites: [] }
+
+/**
  * Puts the backups screen in front of a signed-in caller with one completed copy of alice's
  * account, and opens the restore dialog on it.
  * @param page The Playwright page under test.
@@ -61,8 +70,10 @@ const openDialog = async (page: Page): Promise<void> => {
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubBackups(page, [COMPLETED])
+  await stubBackupRestoreChoices(page, NOTHING_TO_NARROW_TO)
   await page.goto('/backups')
   // The row's commands live behind a per-row menu whose trigger names the row's account.
   await page.getByRole('button', { name: 'Actions for the backup of alice' }).click()
@@ -130,7 +141,9 @@ test('the dialog says a restore is not an undo and that a backup of the account 
 // destroys what the first attempt left usable.
 test('a partial restore reports a changed account and offers no way to try again', async ({
   page,
+  guard,
 }) => {
+  guard.allow(500, /\/api\/v1\/backups\/[^/]+\/restore$/)
   const backendDetail = 'The restore replaced part of the account and rolled the rest back.'
   await openDialog(page)
   await stubBackupRestore(page, 500, {
@@ -154,7 +167,8 @@ test('a partial restore reports a changed account and offers no way to try again
 
 // The inverse control for the test above: every other code means nothing was touched, and a dialog
 // that refused a retry on all of them would be as wrong as one that offered it on all of them.
-test('a refused confirmation says nothing changed and keeps the form', async ({ page }) => {
+test('a refused confirmation says nothing changed and keeps the form', async ({ page, guard }) => {
+  guard.allow(409, /\/api\/v1\/backups\/[^/]+\/restore$/)
   const backendDetail = 'That is not the name of the account this backup belongs to.'
   await openDialog(page)
   await stubBackupRestore(page, 409, {
@@ -198,7 +212,8 @@ test('a whole restore reports the counts the panel gave back', async ({ page }) 
 // at all — the page mounts the dialog already open, and a plain watcher does not fire for that. The
 // visible half of the same defect is this one: the store's restore outcome outlived the dialog that
 // produced it, so opening a second row met the first row's failure already on screen.
-test('a dialog opened after a failed restore does not show the previous failure', async ({ page }) => {
+test('a dialog opened after a failed restore does not show the previous failure', async ({ page, guard }) => {
+  guard.allow(409, /\/api\/v1\/backups\/[^/]+\/restore$/)
   const backendDetail = 'That is not the name of the account this backup belongs to.'
   await openDialog(page)
   await stubBackupRestore(page, 409, {
@@ -269,7 +284,8 @@ test('the confirm control of a dialog taller than the window can actually be pre
 // so during a recovery the panel was sending the operator to the one action that cannot help.
 // A spec that only ever fed a confirmation failure could not see it: both arms rendered the same
 // sentence, so the check would have read the same on either side of the bug.
-test('a copy the server could not use is not blamed on the operator typing', async ({ page }) => {
+test('a copy the server could not use is not blamed on the operator typing', async ({ page, guard }) => {
+  guard.allow(400, /\/api\/v1\/backups\/[^/]+\/restore$/)
   const backendDetail = 'Your server rejected these details as invalid. Please correct them and try again.'
   await openDialog(page)
   await stubBackupRestore(page, 400, {
@@ -298,7 +314,8 @@ test('a copy the server could not use is not blamed on the operator typing', asy
 // they matter most: the panel used to build them and discard them there. They now arrive as the
 // problem response's `restore` extension, and the changed-account arm shows them — the server's own
 // statement of how far it got, asserted by VALUE so a swap of restored and total cannot pass.
-test('a partial restore shows the servers own counts of the damage', async ({ page }) => {
+test('a partial restore shows the servers own counts of the damage', async ({ page, guard }) => {
+  guard.allow(500, /\/api\/v1\/backups\/[^/]+\/restore$/)
   const backendDetail = 'The restore replaced part of the account and rolled the rest back.'
   await openDialog(page)
   await stubBackupRestore(page, 500, {
@@ -331,7 +348,8 @@ test('a partial restore shows the servers own counts of the damage', async ({ pa
 // no counts, and the dialog must render its plain changed-account copy rather than invent a
 // "0 of 0". The spec above is this one's positive control: same arm, and the sentences ARE there
 // when the server sent the member.
-test('a changed account without counts from the server shows none', async ({ page }) => {
+test('a changed account without counts from the server shows none', async ({ page, guard }) => {
+  guard.allow(500, /\/api\/v1\/backups\/[^/]+\/restore$/)
   const backendDetail = 'The restore stream ended before the agent reported an outcome.'
   await openDialog(page)
   await stubBackupRestore(page, 500, {
@@ -361,15 +379,19 @@ test('a changed account without counts from the server shows none', async ({ pag
 // fails here by value.
 test('a partial restore reports the counts in Russian words when the interface is Russian', async ({
   page,
+  guard,
 }) => {
+  guard.allow(500, /\/api\/v1\/backups\/[^/]+\/restore$/)
   const backendDetail = 'Восстановление заменило часть аккаунта; остальное возвращено из дампов.'
   await setPersistedLocale(page, 'ru')
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubBackups(page, [COMPLETED])
+  await stubBackupRestoreChoices(page, NOTHING_TO_NARROW_TO)
   await page.goto('/backups')
   // The screen is in Russian BEFORE anything is clicked: the heading is the cheapest proof the
   // persisted locale took, and waiting on it keeps the row menu from being hunted for while the

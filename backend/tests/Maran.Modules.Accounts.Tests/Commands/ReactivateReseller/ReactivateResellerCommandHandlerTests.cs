@@ -126,7 +126,7 @@ public sealed class ReactivateResellerCommandHandlerTests : IDisposable
             plan.Id,
             ResellerTestData.CreatedAt,
             resellerId: _reseller.Id);
-        paused.Suspend();
+        paused.Suspend(SuspensionActor.Administrator);
         _dbContext.Plans.Add(plan);
         _dbContext.Accounts.Add(paused);
         await _dbContext.SaveChangesAsync();

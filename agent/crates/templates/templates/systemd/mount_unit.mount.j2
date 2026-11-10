@@ -11,6 +11,12 @@ What={{ source_directory }}
 Where={{ mount_point }}
 Type=none
 Options=bind
+# A bind mount follows the INODE, so when the account's home is replaced (a
+# whole-account restore renames a new tree into place) the jail must be mounted
+# again. A session still inside the jail keeps the old mount busy, and a plain
+# unmount of a busy mount fails and leaves the jail showing the old tree;
+# detaching it lazily lets the restart succeed while the session ends on its own.
+LazyUnmount=yes
 
 [Install]
 WantedBy=multi-user.target

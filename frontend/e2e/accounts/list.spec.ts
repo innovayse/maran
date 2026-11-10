@@ -1,11 +1,16 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
-import { stubAccounts, stubAccountsProblem } from '../fixtures/stub-accounts-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
+import { stubAccountResources } from '../fixtures/stub-account-resources-route'
+import { stubAccountStatuses } from '../fixtures/stub-account-statuses-route'
+import { stubAccountNames, stubAccounts, stubAccountsProblem } from '../fixtures/stub-accounts-route'
+import { stubInvitation } from '../fixtures/stub-invitation-routes'
 import { stubPlans } from '../fixtures/stub-plans-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import type { Account, Plan } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
+import type { Locator, Page } from '@playwright/test'
 
 // The accounts list is server-paged (#196): the page, its size, the search, the sort and the
 // filters live in the URL, the panel answers one page and the total, and the SPA filters nothing.
@@ -44,7 +49,8 @@ const catalogue = (count: number): Account[] => {
       planId: index % 2 === 0 ? STARTER.id : BUSINESS.id,
       status: index % 3 === 2 ? 'suspended' : 'active',
       statusName: index % 3 === 2 ? 'Suspended' : 'Active',
-      createdAt: `2026-08-${number}T10:00:00Z`,
+      // A real calendar day per row: a day number past the month would be no date-time at all.
+      createdAt: new Date(Date.UTC(2026, 7, index + 1, 10)).toISOString(),
       resellerId: null,
       resellerName: null,
     }
@@ -61,6 +67,7 @@ const openWith = async (page: Page, accounts: Account[]): Promise<() => readonly
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_ACCOUNTS)
+  await stubShellReads(page)
   await stubPlans(page, [STARTER, BUSINESS])
   return await stubAccounts(page, accounts)
 }
@@ -100,11 +107,17 @@ test('accounts list renders a row per account with its backend-reported status',
 // as-is." A failed list load must show the server's `detail`, and nothing the SPA made up.
 test('accounts list renders the backend RFC 7807 detail verbatim when the list request fails', async ({
   page,
+  guard,
 }) => {
+  // The refusal is the subject: the list read answers 500 with the panel's own sentence.
+  guard.allow(500, /\/api\/v1\/accounts(\?.*)?$/)
   await stubSignedIn(page)
   const backendDetail = 'The accounts store is temporarily unavailable. Try again in a moment.'
   await stubHealthy(page)
   await stubModules(page, LICENSED_ACCOUNTS)
+  await stubShellReads(page)
+  // The list page also asks which account states exist, whatever the list read answers.
+  await stubAccountStatuses(page)
   await stubAccountsProblem(page, backendDetail)
 
   await page.goto('/accounts')
@@ -186,7 +199,12 @@ test('a page past the end moves to the last page that has rows', async ({ page }
 })
 
 test('Back from an account returns to the page of the list it was opened from', async ({ page }) => {
-  await openWith(page, catalogue(30))
+  const accounts = catalogue(30)
+  await openWith(page, accounts)
+  // Opening an account reads it and its resource summary; the detail is not what this test is about.
+  await stubAccountNames(page, accounts)
+  await stubAccountResources(page, { accountId: accounts[25].id, resources: [] })
+  await stubInvitation(page, accounts[25].id, 'accepted')
 
   await page.goto('/accounts?page=2&search=acct')
   await expect(nameLinks(page).first()).toHaveText('acct-26')

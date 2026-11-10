@@ -93,6 +93,66 @@ public sealed class RetentionHandlerTests
         Assert.DoesNotContain(older.Id, remaining);
     }
 
+    /// <summary>Pre-restore copies beyond the newest few are removed, newest kept (issue #479).</summary>
+    [Fact]
+    public async Task Pre_restore_copies_beyond_the_newest_few_are_removed()
+    {
+        var accountId = Guid.NewGuid();
+        var rows = Enumerable.Range(0, 5)
+            .Select(day => { return Completed(accountId, Origin.AddDays(day), BackupKind.PreRestore); })
+            .ToList();
+        var world = await World.SeededAsync(accountId, rows);
+
+        var pruned = await world.Handler.HandleAsync(new PreRestoreRetentionRequested(accountId), CancellationToken.None);
+
+        Assert.Equal(2, pruned);
+        var kept = await world.Read().Backups.IgnoreQueryFilters().Select(row => row.Id).ToListAsync();
+        Assert.Equal(
+            new[] { rows[2].Id, rows[3].Id, rows[4].Id }.OrderBy(id => { return id; }),
+            kept.OrderBy(id => { return id; }));
+        Assert.Equal(2, world.Agent.Deletes.Count);
+    }
+
+    /// <summary>The inverse control: at the bound nothing is removed, and no other kind is touched.</summary>
+    [Fact]
+    public async Task The_pre_restore_pass_removes_nothing_at_the_bound_and_never_another_kind()
+    {
+        var accountId = Guid.NewGuid();
+        var rows = new List<Backup>
+        {
+            Completed(accountId, Origin, BackupKind.PreRestore),
+            Completed(accountId, Origin.AddDays(1), BackupKind.PreRestore),
+            Completed(accountId, Origin.AddDays(2), BackupKind.PreRestore),
+            Completed(accountId, Origin.AddDays(3), BackupKind.Manual),
+            Completed(accountId, Origin.AddDays(4), BackupKind.Scheduled),
+            Completed(accountId, Origin.AddDays(5), BackupKind.PreDeletion),
+        };
+        var world = await World.SeededAsync(accountId, rows);
+
+        var pruned = await world.Handler.HandleAsync(new PreRestoreRetentionRequested(accountId), CancellationToken.None);
+
+        Assert.Equal(0, pruned);
+        Assert.Empty(world.Agent.Deletes);
+        Assert.Equal(6, await world.Read().Backups.IgnoreQueryFilters().CountAsync());
+    }
+
+    /// <summary>A scheduled pass bounds the pre-restore copies too, so a lost request is made up for.</summary>
+    [Fact]
+    public async Task A_scheduled_pass_also_bounds_the_pre_restore_copies()
+    {
+        var accountId = Guid.NewGuid();
+        var rows = Enumerable.Range(0, 5)
+            .Select(day => { return Completed(accountId, Origin.AddDays(day), BackupKind.PreRestore); })
+            .Append(Completed(accountId, Origin.AddDays(9)))
+            .ToList();
+        var world = await World.SeededAsync(accountId, rows);
+
+        var pruned = await world.Handler.HandleAsync(new RetentionRequested(accountId, 7), CancellationToken.None);
+
+        Assert.Equal(2, pruned);
+        Assert.Equal(4, await world.Read().Backups.IgnoreQueryFilters().CountAsync());
+    }
+
     /// <summary>A failed backup is neither counted nor pruned.</summary>
     /// <remarks>
     /// If failures counted toward the retained number, a bad week would silently expire every good

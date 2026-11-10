@@ -32,7 +32,7 @@ public static class LicensingManifest
         MinPanelVersion: "1.0.0-beta.1",
         SchemaName: null,
         Dependencies: [],
-        AgentCapabilities: [],
+        AgentCapabilities: [AgentCapability.Monitor],
         Permissions: [AuthorizationPolicies.AdminOnly],
         Menu: [],
         Routes: [],

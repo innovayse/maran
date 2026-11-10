@@ -25,7 +25,7 @@ pub fn validated_existing_site(
 ) -> Result<CreateSiteInput, AgentError> {
     let identity = validated_existing_identity(account_username, domain)?;
 
-    site_from_spec(identity, spec, Domain::parse_existing)
+    site_from_spec(identity, spec, &Domain::parse_existing)
 }
 
 #[cfg(test)]

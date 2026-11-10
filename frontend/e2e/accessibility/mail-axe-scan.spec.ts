@@ -1,12 +1,15 @@
-import { expect, test, type Page } from '@playwright/test'
 import { expectNoSeriousViolations } from '../fixtures/expect-no-serious-violations'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccountNames, stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubMailAliases, stubMailboxes, stubMailChoices, stubMailDomains } from '../fixtures/stub-mail-routes'
+import { MAIL_ON, stubMailServer } from '../fixtures/stub-mail-server-routes'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 // Issue #177 and rules/vue.md "Accessibility": axe scans each new top-level list with a real row
 // in it, in both themes, and finds no serious or critical WCAG 2.2 AA violation. Kept in its own
@@ -36,10 +39,12 @@ const DOMAIN_ID = '11111111-1111-1111-1111-111111111111'
 const signInWithData = async (page: Page): Promise<void> => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubAccountNames(page, [ALICE])
+  await stubMailServer(page, MAIL_ON)
   await stubMailChoices(page)
   await stubMailDomains(page, [
     {

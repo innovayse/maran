@@ -23,7 +23,8 @@
 # install pulls `procps-ng` in, and installer/lib/20-dependencies.sh named neither spelling.
 #
 # WHY A CENSUS AND NOT "THE TWO FAMILIES BOTH NAME IT". The two families spell the package
-# differently — `procps` on the Debian family, `procps-ng` on the RHEL family — so the obvious
+# differently — `procps` on the Debian family, `procps-ng` on the RHEL family (and `procps` again on
+# the SUSE family, UNVERIFIED) — so the obvious
 # check is two named copies compared to each other, which is exactly the arrangement that goes
 # quiet when a THIRD family arrives: a new `case` arm in the installer with no signalling package
 # would satisfy a check written about debian and rhel. So the family list is DERIVED from the
@@ -201,7 +202,8 @@ assert_every_supported_family_installs_the_process_signalling_tool() {
   # path, it asks the adapter (rules/architecture.md), so the adapter is where the installer's
   # obligation is written down. Both families are read, because each answers independently.
   declared=""
-  for value in "$AGENT_DEBIAN_SERVICES" "$AGENT_RHEL_SERVICES"; do
+  # The SUSE adapter keeps its account-program paths (this one among them) in a file of its own.
+  for value in "$AGENT_DEBIAN_SERVICES" "$AGENT_RHEL_SERVICES" "$AGENT_SUSE_ACCOUNT_PROGRAMS"; do
     local path_here
     path_here="$(agent_string_after 'fn pkill_binary()' "$value")"
     [ -n "$path_here" ] \
@@ -237,9 +239,9 @@ assert_every_supported_family_installs_the_process_signalling_tool() {
   # The vacuity guard, on the axis that can actually go blind: the enumerator. An arm list that
   # came back empty — a renamed function, an arm spelled in a way the reader cannot see — makes
   # every comparison below a comparison over nothing, and this product supports two families.
-  [ "$reference_count" -ge 2 ] \
-    || fail "only ${reference_count} family arm(s) could be read out of pkg_install in ${DEPENDENCIES_STEP}, and this installer supports two families. The census below would have enumerated nothing and reported that every family names a signalling package (rules/testing.md)"
-  [ "$signalling_count" -ge 2 ] \
+  [ "$reference_count" -ge 3 ] \
+    || fail "only ${reference_count} family arm(s) could be read out of pkg_install in ${DEPENDENCIES_STEP}, and this installer supports three families. The census below would have enumerated nothing and reported that every family names a signalling package (rules/testing.md)"
+  [ "$signalling_count" -ge 3 ] \
     || fail "only ${signalling_count} family arm(s) could be read out of signalling_packages_for_family in ${DEPENDENCIES_STEP}. Either the function has gone, or its arms are spelled in a way this reader cannot see — both are failures to observe, and neither is a clean census (rules/testing.md)"
   censused=$((censused + 2))
 

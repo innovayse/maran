@@ -1,0 +1,649 @@
+openapi: 3.1.0
+info:
+  title: Maran marketplace service
+  version: 1.0.0
+  summary: The service contract the Maran panel's marketplace client speaks.
+  description: |
+    The cloud team implements this document; the panel side is `backend/src/Maran.Modules/Marketplace`.
+    The prose contract, with the reasoning and the exact list of what the panel sends, is `docs/marketplace/api-v1.md`;
+    where the two differ, fix this file. Additive only within v1.
+
+    Every 2xx answer of every operation except the download and the lease request is signed: the `X-Maran-Signature` header holds the base64
+    of a DER ECDSA P-384 / SHA-384 signature over the exact bytes of the response body, made with the marketplace
+    metadata key. Error answers are not signed. The lease answer is signed inside its body by the lease key instead.
+servers:
+  - url: https://api-marketplace-maran.innovayse.com/api/v1
+    description: The documented host. An operator can configure another; the panel then talks to that one host only.
+tags:
+  - name: Catalogue
+  - name: Updates
+  - name: Keys
+  - name: Download
+  - name: Lease
+paths:
+  /catalogue:
+    get:
+      tags: [Catalogue]
+      operationId: listCatalogue
+      summary: One page of the modules compatible with the panel version in the request header.
+      security:
+        - {}
+        - leaseBearer: []
+      parameters:
+        - $ref: '#/components/parameters/PanelVersion'
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - name: channel
+          in: query
+          required: true
+          description: The release channel, 1 to 32 lower-case letters, digits or hyphens, starting with a letter.
+          schema:
+            type: string
+            pattern: '^[a-z][a-z0-9-]{0,31}$'
+            examples: [stable]
+        - name: locale
+          in: query
+          required: true
+          description: The language of every display string in the answer.
+          schema:
+            $ref: '#/components/schemas/Locale'
+        - name: search
+          in: query
+          required: false
+          description: Text the administrator typed. Omitted when empty.
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          required: false
+          description: The `nextCursor` of the previous page. Omitted on the first page.
+          schema:
+            type: string
+        - name: If-None-Match
+          in: header
+          required: false
+          description: The `ETag` of a page the panel already holds for the same query.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A signed page.
+          headers:
+            X-Maran-Signature:
+              $ref: '#/components/headers/Signature'
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CataloguePage'
+        '304':
+          description: >-
+            The held page is still current. The panel accepts this only for a page it holds, and judges that page's
+            `signedAt` again, so answer 200 with a fresh signature once the held page is older than 24 hours.
+        default:
+          $ref: '#/components/responses/Problem'
+  /modules/{moduleId}:
+    get:
+      tags: [Catalogue]
+      operationId: getModule
+      summary: One module with every compatible version and the server's copy of its manifest summary.
+      security:
+        - {}
+        - leaseBearer: []
+      parameters:
+        - $ref: '#/components/parameters/PanelVersion'
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - $ref: '#/components/parameters/ModuleId'
+        - name: locale
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/Locale'
+      responses:
+        '200':
+          description: A signed answer. `module.id` must equal the requested id.
+          headers:
+            X-Maran-Signature:
+              $ref: '#/components/headers/Signature'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleDetails'
+        default:
+          $ref: '#/components/responses/Problem'
+  /updates:
+    post:
+      tags: [Updates]
+      operationId: checkUpdates
+      summary: Newer versions and revocations for installed modules. Made only when an administrator asks.
+      security:
+        - {}
+        - leaseBearer: []
+      parameters:
+        - $ref: '#/components/parameters/PanelVersion'
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatesRequest'
+      responses:
+        '200':
+          description: A signed report.
+          headers:
+            X-Maran-Signature:
+              $ref: '#/components/headers/Signature'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdatesReport'
+        default:
+          $ref: '#/components/responses/Problem'
+  /keys:
+    get:
+      tags: [Keys]
+      operationId: listKeys
+      summary: The current metadata signing keys. Never carries a lease credential.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PanelVersion'
+        - $ref: '#/components/parameters/AcceptLanguage'
+      responses:
+        '200':
+          description: >-
+            A signed list. The panel trusts it only when a key it already trusts signed it; a list signed only by the
+            keys it announces is refused whole.
+          headers:
+            X-Maran-Signature:
+              $ref: '#/components/headers/Signature'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KeySet'
+        default:
+          $ref: '#/components/responses/Problem'
+  /modules/{moduleId}/versions/{version}/download-grant:
+    post:
+      tags: [Download]
+      operationId: requestDownloadGrant
+      summary: Checks the entitlement and returns a single-use grant. The panel never retries this request.
+      security:
+        - leaseBearer: []
+      parameters:
+        - $ref: '#/components/parameters/PanelVersion'
+        - $ref: '#/components/parameters/AcceptLanguage'
+        - $ref: '#/components/parameters/ModuleId'
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+            description: A Semantic Versioning 2.0.0 version.
+      responses:
+        '200':
+          $ref: '#/components/responses/Grant'
+        '201':
+          $ref: '#/components/responses/Grant'
+        default:
+          $ref: '#/components/responses/Problem'
+  /lease:
+    post:
+      tags: [Lease]
+      operationId: requestLease
+      summary: >-
+        A fresh licence lease for the panel's licence. Made by the panel about once a day, by itself, sending the
+        licence id and nothing else.
+      description: >-
+        No credential, no panel version, no machine id and no other member: the licence id is the whole request. The
+        answer is the lease envelope exactly as the panel stores it, signed by the lease key (Ed25519) over the exact
+        text of `payload`, not by the metadata key; it carries no `X-Maran-Signature`. The panel reads at most 16 KiB,
+        follows no redirect, and writes the answer only after it verifies, names the installed licence (and this
+        machine, when it names one), was issued within the last 24 hours and ends later than the lease already stored.
+        408, 429 and every 5xx count as unreachable, every other non-200 status as refused. See `api-v1.md`,
+        "Lease renewal".
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeaseRequest'
+      responses:
+        '200':
+          description: The lease envelope.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaseEnvelope'
+        default:
+          $ref: '#/components/responses/Problem'
+  /downloads/{grantId}:
+    get:
+      tags: [Download]
+      operationId: download
+      summary: The package bytes. The panel requests the grant's `url` with only `Accept`; no credential, no panel version.
+      security: []
+      parameters:
+        - name: grantId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: Accept
+          in: header
+          required: false
+          schema:
+            type: string
+            const: application/octet-stream
+      responses:
+        '200':
+          description: >-
+            The `.ipm` bytes. `Content-Length`, when present, must equal the grant's `sizeBytes`. Same-host https
+            redirects (at most three) are followed; anything else ends the download. Not signed: integrity rests on
+            the signed digest and authenticity on the package's own signature.
+          headers:
+            Content-Length:
+              required: false
+              schema:
+                type: integer
+                format: int64
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        default:
+          $ref: '#/components/responses/Problem'
+components:
+  securitySchemes:
+    leaseBearer:
+      type: http
+      scheme: bearer
+      description: >-
+        The licence lease the licence service issued to the panel, handed back unchanged and written as
+        base64url(payload) "." base64url(signature), both without padding. The payload is the exact UTF-8 JSON text that
+        was signed (kind "lease", licence id, issued, validUntil, and the bound machine id as "server" when the lease
+        has one); the signature is the 64-byte Ed25519 signature over those bytes made by the lease key. The service
+        verifies its own signature, kind and validity. Attached only while the lease is good; an offline licence holds
+        none. Never placed in a URL and never logged.
+      bearerFormat: base64url(lease payload) "." base64url(Ed25519 signature)
+  parameters:
+    PanelVersion:
+      name: X-Maran-Panel-Version
+      in: header
+      required: true
+      description: The running panel's Semantic Versioning 2.0.0 version. The service decides compatibility from it.
+      schema:
+        type: string
+    AcceptLanguage:
+      name: Accept-Language
+      in: header
+      required: false
+      description: The interface language. Requests whose answer nobody reads ask for `en`.
+      schema:
+        $ref: '#/components/schemas/Locale'
+    ModuleId:
+      name: moduleId
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^[a-z][a-z0-9]*$'
+  headers:
+    Signature:
+      required: true
+      description: Base64 of a DER ECDSA P-384 / SHA-384 signature over the exact response body bytes (at most 256 characters).
+      schema:
+        type: string
+        maxLength: 256
+    ETag:
+      description: Validator the panel sends back as `If-None-Match`.
+      schema:
+        type: string
+  responses:
+    Grant:
+      description: A signed single-use grant.
+      headers:
+        X-Maran-Signature:
+          $ref: '#/components/headers/Signature'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DownloadGrant'
+    Problem:
+      description: >-
+        An RFC 7807 failure. The panel selects its behaviour from `code`, falls back to the status for an absent or
+        unknown code, and never shows `title` or `detail`.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    Locale:
+      type: string
+      enum: [en, ru, hy]
+    EntitlementState:
+      type: string
+      description: >-
+        A word outside this set makes the panel discard the whole answer, so adding a state is a breaking change.
+      enum: [NotRequired, Entitled, NotPurchased, LeaseExpired, Unknown]
+    ProblemCode:
+      type: string
+      description: Stable snake_case codes the panel acts on. Other codes are allowed; the panel then uses the status.
+      examples: [entitlement_missing, lease_expired, incompatible_panel, revoked, not_found, licence_unknown, licence_revoked]
+    Problem:
+      type: object
+      required: [code]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        code:
+          $ref: '#/components/schemas/ProblemCode'
+      additionalProperties: true
+    LeaseRequest:
+      type: object
+      required: [licence]
+      description: The whole request. No other member is sent.
+      properties:
+        licence:
+          type: string
+          minLength: 1
+          description: The id of the licence the service issued (the `id` member of the licence payload).
+      additionalProperties: false
+    LeasePayload:
+      type: object
+      required: [kind, licence, issued, validUntil]
+      description: >-
+        The exact JSON text of this object is what the lease signature covers, so the service must write it in the
+        answer byte for byte as it signed it.
+      properties:
+        kind:
+          type: string
+          const: lease
+        licence:
+          type: string
+          minLength: 1
+        issued:
+          type: string
+          format: date-time
+          description: The moment of issue. The panel refuses a lease issued more than 24 hours ago or in the future.
+        validUntil:
+          type: string
+          format: date-time
+          description: After `issued`; fourteen days after it by convention.
+        server:
+          type: string
+          description: The machine id the lease is bound to; present only for a licence bound to a server.
+    LeaseEnvelope:
+      type: object
+      required: [payload, signature]
+      properties:
+        payload:
+          $ref: '#/components/schemas/LeasePayload'
+        signature:
+          type: string
+          description: Base64 of the 64-byte Ed25519 signature over the UTF-8 bytes of `payload`'s exact JSON text, made with the lease key.
+    Entitlement:
+      type: object
+      required: [state]
+      properties:
+        state:
+          $ref: '#/components/schemas/EntitlementState'
+        until:
+          type: [string, 'null']
+          format: date-time
+    Price:
+      type: object
+      description: Display only. A purchase happens in the vendor's cabinet, never in the panel.
+      required: [display]
+      properties:
+        display:
+          type: string
+          description: Already localized, for example "9 EUR / month".
+        purchaseUrl:
+          type: [string, 'null']
+          format: uri
+          description: Shown by the panel only when it is https.
+        currency:
+          type: [string, 'null']
+    Version:
+      type: object
+      required: [version, minPanelVersion, sizeBytes, sha256, publishedAt, releaseNotes]
+      properties:
+        version:
+          type: string
+        minPanelVersion:
+          type: string
+        maxPanelVersion:
+          type: [string, 'null']
+        sizeBytes:
+          type: integer
+          format: int64
+          minimum: 1
+          description: The package file's size.
+        sha256:
+          type: string
+          pattern: '^[0-9a-fA-F]{64}$'
+          description: The package FILE's SHA-256. The loader later checks the package's own signature and SHA-384 pins.
+        publishedAt:
+          type: string
+          format: date-time
+        releaseNotes:
+          type: string
+          description: Already localized.
+        revoked:
+          type: boolean
+          default: false
+        revokedReason:
+          type: [string, 'null']
+          description: Already localized.
+    Module:
+      type: object
+      required: [id, displayName, summary, publisher, tier, entitlement, revoked]
+      properties:
+        id:
+          type: string
+        displayName:
+          type: string
+        summary:
+          type: string
+        publisher:
+          type: string
+        tier:
+          type: string
+          description: The licence tier's wire name.
+          examples: [Included, AddOn, PlanGated]
+        entitlement:
+          $ref: '#/components/schemas/Entitlement'
+        revoked:
+          type: boolean
+          description: The module as a whole has been withdrawn.
+        latest:
+          oneOf:
+            - $ref: '#/components/schemas/Version'
+            - type: 'null'
+          description: The newest version compatible with this panel; absent when none is.
+        price:
+          oneOf:
+            - $ref: '#/components/schemas/Price'
+            - type: 'null'
+    NamedItem:
+      type: object
+      required: [key, displayName]
+      properties:
+        key:
+          type: string
+        displayName:
+          type: string
+          description: Already localized.
+    ManifestSummary:
+      type: object
+      description: The server's copy of the newest version's signed manifest summary, shown before an install.
+      required: [publisher, tier, minPanelVersion, dependencies, agentCapabilities, permissions]
+      properties:
+        publisher:
+          type: string
+        tier:
+          type: string
+        minPanelVersion:
+          type: string
+        schemaName:
+          type: [string, 'null']
+        dependencies:
+          type: array
+          items:
+            type: string
+        agentCapabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/NamedItem'
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/NamedItem'
+    SignedDocument:
+      type: object
+      required: [signedAt, validUntil]
+      properties:
+        signedAt:
+          type: string
+          format: date-time
+          description: >-
+            The moment of signing. The panel treats the document as stale when this is older than 24 hours by default
+            (at most 168), more than five minutes in the future, or when validUntil has passed.
+        validUntil:
+          type: string
+          format: date-time
+    CataloguePage:
+      allOf:
+        - $ref: '#/components/schemas/SignedDocument'
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Module'
+            nextCursor:
+              type: [string, 'null']
+    ModuleDetails:
+      allOf:
+        - $ref: '#/components/schemas/SignedDocument'
+        - type: object
+          required: [module, versions]
+          properties:
+            module:
+              $ref: '#/components/schemas/Module'
+            versions:
+              type: array
+              description: Every compatible version, newest first. A withdrawn one stays, with revoked true.
+              items:
+                $ref: '#/components/schemas/Version'
+            manifest:
+              oneOf:
+                - $ref: '#/components/schemas/ManifestSummary'
+                - type: 'null'
+    InstalledModule:
+      type: object
+      description: The only data about the panel's modules the panel ever sends.
+      required: [id, version, sha256]
+      properties:
+        id:
+          type: string
+        version:
+          type: string
+        sha256:
+          type: string
+          pattern: '^[0-9a-fA-F]{64}$'
+          description: The installed package file's SHA-256.
+    UpdatesRequest:
+      type: object
+      required: [channel, installed]
+      properties:
+        channel:
+          type: string
+        installed:
+          type: array
+          items:
+            $ref: '#/components/schemas/InstalledModule'
+    UpdateNotice:
+      type: object
+      required: [moduleId, revoked]
+      properties:
+        moduleId:
+          type: string
+        revoked:
+          type: boolean
+          description: The installed version has been withdrawn.
+        revokedReason:
+          type: [string, 'null']
+        latest:
+          oneOf:
+            - $ref: '#/components/schemas/Version'
+            - type: 'null'
+    UpdatesReport:
+      allOf:
+        - $ref: '#/components/schemas/SignedDocument'
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/UpdateNotice'
+    KeyEntry:
+      type: object
+      required: [id, publicKeyPem]
+      properties:
+        id:
+          type: string
+        publicKeyPem:
+          type: string
+          description: A `PUBLIC KEY` PEM block holding an ECDSA P-384 key. Any other key type refuses the whole list.
+    KeySet:
+      allOf:
+        - $ref: '#/components/schemas/SignedDocument'
+        - type: object
+          required: [keys]
+          properties:
+            keys:
+              type: array
+              maxItems: 8
+              items:
+                $ref: '#/components/schemas/KeyEntry'
+    DownloadGrant:
+      type: object
+      description: >-
+        Single use, bound by the service to (licence, server identity, module, version). The panel accepts it only when
+        `url` is https on the configured host and port, `expiresAt` is in the future, `sizeBytes` equals the signed
+        catalogue's size and `sha256` equals the signed catalogue's digest.
+      required: [grantId, url, expiresAt, sha256, sizeBytes]
+      properties:
+        grantId:
+          type: string
+        url:
+          type: string
+          format: uri
+        expiresAt:
+          type: string
+          format: date-time
+        sha256:
+          type: string
+          pattern: '^[0-9a-fA-F]{64}$'
+        sizeBytes:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 268435456
+        encrypted:
+          type: boolean
+          default: false
+          description: The body is encrypted for this panel; the loader decrypts it.

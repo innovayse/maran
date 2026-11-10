@@ -138,6 +138,39 @@ public sealed class IpmManifestValidatorTests : IDisposable
         RefusalAssert.Is("IpmManifestInvalid", Judge(Good() with { Spa = spa with { Locales = ["EN"] } }).Error);
     }
 
+    /// <summary>A web page anywhere under spa/, in any letter case, is refused, and the same bundle with a stylesheet in its place is accepted.</summary>
+    /// <param name="document">The path of the page the package smuggles in.</param>
+    [Theory]
+    [InlineData("spa/page.html")]
+    [InlineData("spa/page.htm")]
+    [InlineData("spa/PAGE.HTML")]
+    [InlineData("spa/assets/inner.Htm")]
+    public void A_document_under_the_interface_folder_is_refused(string document)
+    {
+        var page = new IpmFileEntry(document, IpmFixtureBuilder.Hex([3]), 1);
+        var style = page with { Path = "spa/style.css" };
+
+        Assert.True(Judge(WithFiles(style)).IsSuccess);
+        RefusalAssert.Is("IpmSpaDocumentForbidden", Judge(WithFiles(page)).Error);
+        RefusalAssert.Is("IpmSpaDocumentForbidden", Judge(Good() with { Spa = null, Files = FilesWithout("spa/").Append(page).ToList() }).Error);
+    }
+
+    /// <summary>An entry that is a web page, a module script or a nested file is refused, and the sample's own layout (spa/entry.js) is accepted.</summary>
+    /// <param name="entry">The entry the bundle declares in place of the good one.</param>
+    /// <param name="code">The code the refusal carries.</param>
+    [Theory]
+    [InlineData("spa/index.mjs", "IpmSpaEntryNotClassicScript")]
+    [InlineData("spa/index.ts", "IpmSpaEntryNotClassicScript")]
+    [InlineData("spa/index.JS", "IpmSpaEntryNotClassicScript")]
+    [InlineData("spa/.js", "IpmSpaEntryNotClassicScript")]
+    [InlineData("spa/app/index.js", "IpmSpaEntryNotClassicScript")]
+    [InlineData("spa/index.html", "IpmSpaDocumentForbidden")]
+    public void An_interface_entry_that_is_not_a_classic_script_directly_under_spa_is_refused(string entry, string code)
+    {
+        Assert.True(Judge(WithEntry("spa/entry.js")).IsSuccess);
+        RefusalAssert.Is(code, Judge(WithEntry(entry)).Error);
+    }
+
     /// <summary>Applies the one change a case names to a manifest.</summary>
     /// <param name="change">The case name.</param>
     /// <param name="manifest">The good manifest.</param>
@@ -176,6 +209,22 @@ public sealed class IpmManifestValidatorTests : IDisposable
     private static Result<IpmManifest> Judge(IpmManifest manifest)
     {
         return IpmManifestValidator.Validate(manifest, TestPanel.Version);
+    }
+
+    /// <summary>The good manifest with the interface entry renamed; the pin, and so the integrity value, stay the entry's own.</summary>
+    /// <param name="entry">The new entry path.</param>
+    /// <returns>The manifest.</returns>
+    private IpmManifest WithEntry(string entry)
+    {
+        var good = Good();
+        var files = good.Files
+            .Select(file =>
+            {
+                return file.Path == good.Spa!.Entry ? file with { Path = entry } : file;
+            })
+            .ToList();
+
+        return good with { Files = files, Spa = good.Spa! with { Entry = entry } };
     }
 
     /// <summary>The good manifest from the fixture builder.</summary>

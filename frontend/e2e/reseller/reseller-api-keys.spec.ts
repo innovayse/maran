@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { mainNavigation, openSection } from '../fixtures/open-full-shell'
 import {
   RESELLER_KEY_PATHS,
@@ -12,7 +12,9 @@ import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { ADMIN_MODULES, RESELLER_MODULES, stubResellerSession } from '../fixtures/stub-reseller-session'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { ApiKey } from '../../src/types/apiKey'
+import type { Page } from '@playwright/test'
 
 // Issue #435: a reseller manages the API keys it owns from Settings, API keys. It is the same screen
 // the administrator has, asking the reseller's own endpoint (`/api/v1/reseller/api-keys`): the panel
@@ -135,6 +137,7 @@ test('the screen is a reseller screen: an administrator is sent to the not-avail
   await page.setViewportSize({ width: 1440, height: 900 })
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubModules(page, ADMIN_MODULES)
   await stubApiKeys(page, { keys: [PROVISIONING] }, RESELLER_KEY_PATHS)
 

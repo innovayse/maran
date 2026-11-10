@@ -1,6 +1,8 @@
 //! What the panel found when it checked its own `Match Group` block in
 //! `sshd_config`.
 
+use maran_agent_core::agent_paths::AgentPaths;
+
 /// The exact marker comment the installer's `installer/lib/86-sftp.sh` writes
 /// immediately before the block, character for character
 /// (`render_sshd_block`, `installer/lib/86-sftp.sh:122`).
@@ -20,15 +22,32 @@ const END_MARKER: &str = "# END Maran SFTP";
 
 /// The directive lines the installer writes inside the block, each as
 /// `(keyword, value)`, in the order `render_sshd_block` writes them
-/// (`installer/lib/86-sftp.sh:124-129`). `Match Group <group>` is not in this
-/// list: its value is the group name, which the caller supplies, so it is
-/// checked on its own rather than folded into a list of fixed pairs.
-const REQUIRED_DIRECTIVES: [(&str, &str); 4] = [
-    ("chrootdirectory", "%h"),
-    ("forcecommand", "internal-sftp"),
-    ("allowtcpforwarding", "no"),
-    ("x11forwarding", "no"),
-];
+/// (`installer/lib/86-sftp.sh`). `Match Group <group>` is not in this list:
+/// its value is the group name, which the caller supplies, so it is checked on
+/// its own rather than folded into a list of fixed pairs.
+///
+/// `authorizedkeysfile` is the one whose value is built rather than literal
+/// (the keys directory is `AgentPaths`' fact, shared with the code that writes
+/// the key files), which is why this is a function and not a `const` array.
+/// Without it a group falls back to the per-user `authorized_keys` inside the
+/// customer-writable home, so a customer could log in by a key of their own
+/// and a suspended login's parked key file would not stop anything.
+fn required_directives() -> [(&'static str, String); 5] {
+    [
+        ("chrootdirectory", "%h".to_owned()),
+        (
+            AUTHORIZED_KEYS_KEYWORD,
+            format!("{}/%u", AgentPaths::SFTP_AUTHORIZED_KEYS_DIRECTORY),
+        ),
+        ("forcecommand", "internal-sftp".to_owned()),
+        ("allowtcpforwarding", "no".to_owned()),
+        ("x11forwarding", "no".to_owned()),
+    ]
+}
+
+/// The keyword that points the group's public-key logins at the root-owned
+/// per-login key files.
+const AUTHORIZED_KEYS_KEYWORD: &str = "authorizedkeysfile";
 
 /// The keyword of the block's own opening line.
 const MATCH_KEYWORD: &str = "match";
@@ -75,17 +94,25 @@ impl SftpJailStatus {
     ///
     /// # What this cannot see
     ///
-    /// A block that reads back unchanged but is followed, later in this same
-    /// file, by another `Match` block that also matches the sftp group and
-    /// relaxes one of these directives again — OpenSSH applies the LAST
-    /// matching block's directives, so a second block after this one can
-    /// silently undo it. This function reports [`Self::Intact`] in that case,
-    /// because the text it was told to look for is there; it is not asked to
-    /// re-implement OpenSSH's own conflict resolution across the rest of the
-    /// file, and doing so would still not see a change reaching sshd through
-    /// an `Include`d drop-in — see the caveat on
-    /// [`crate::monitor::MonitorHost::read_sshd_config`] for why that is a
-    /// gap this area accepts rather than one it silently pretends to close.
+    /// A block that reads back unchanged but is governed by something else:
+    /// for every keyword `sshd_config(5)` uses the FIRST value it obtains, and
+    /// a `Match` block applies on top of the global section. So a later block
+    /// can never undo this one, but an EARLIER one can: both families
+    /// `Include sshd_config.d/*.conf` from the TOP of the file while the
+    /// installer appends this block at the END, so a drop-in whose `Match`
+    /// matches the sftp group (`Match all`, `Match Group <group>`) with
+    /// `ChrootDirectory none` or `ForceCommand none` wins over this block.
+    /// This function reports [`Self::Intact`] in that case, because the text it
+    /// was told to look for is there; it reads the one file and the text
+    /// between the markers only, and does not resolve `Include` — see the
+    /// caveat on [`crate::monitor::MonitorHost::read_sshd_config`] for the gap
+    /// this area accepts rather than pretends to close.
+    ///
+    /// Inside the block the same first-value rule is applied: the FIRST line
+    /// carrying a required keyword must carry the required value, so a changed
+    /// or doubled `AuthorizedKeysFile` line that comes before the right one is
+    /// drift, not a block that "also contains" the right line.
+    ///
     #[must_use]
     pub fn evaluate(config: &str, group: &str) -> Self {
         let mut missing = Vec::new();
@@ -103,11 +130,8 @@ impl SftpJailStatus {
             missing.push(format!("Match Group {group}"));
         }
 
-        for (keyword, expected_value) in REQUIRED_DIRECTIVES {
-            if !lines
-                .iter()
-                .any(|line| matches_directive(line, keyword, expected_value))
-            {
+        for (keyword, expected_value) in required_directives() {
+            if !first_directive_is(&lines, keyword, &expected_value) {
                 missing.push(format!("{keyword} {expected_value}"));
             }
         }
@@ -157,6 +181,21 @@ fn matches_group(line: &str, group: &str) -> bool {
         && criterion.eq_ignore_ascii_case(GROUP_CRITERION)
         && named_group == group
         && words.next().is_none()
+}
+
+/// Whether the FIRST line of the block that names `keyword` is exactly
+/// `keyword expected_value` — the line `sshd` would act on, since for each
+/// keyword it keeps the first value it obtains. A later, correct line does not
+/// rescue an earlier wrong one.
+fn first_directive_is(lines: &[&str], keyword: &str, expected_value: &str) -> bool {
+    lines
+        .iter()
+        .find(|line| {
+            line.split_whitespace()
+                .next()
+                .is_some_and(|found| found.eq_ignore_ascii_case(keyword))
+        })
+        .is_some_and(|line| matches_directive(line, keyword, expected_value))
 }
 
 /// Whether `line` is exactly `keyword value`, keyword compared

@@ -8,6 +8,21 @@
       "apiKeys": "API keys",
       "phpVersions": "PHP versions",
       "plans": "Plans",
+      "searchTerms": {
+        "firewallRules": "firewall rules iptables nftables ports allow deny",
+        "firewallBans": "firewall ban banned blocked ip fail2ban",
+        "firewallWhitelist": "firewall whitelist allowlist trusted ip",
+        "cron": "cron crontab scheduled tasks jobs schedule",
+        "sitesList": "sites websites domains ssl tls https certificate nginx",
+        "sitePhp": "php settings version ini",
+        "phpVersions": "php versions install",
+        "smtp": "smtp outgoing mail email relay server",
+        "securityPolicy": "password policy security two-step 2fa lockout",
+        "panelCertificate": "ssl tls https certificate panel",
+        "audit": "audit log journal history",
+        "accountOverview": "account profile password",
+        "accountTwoFactor": "password security two-step 2fa authenticator"
+      },
       "lockedBadge": "Locked",
       "groups": {
         "overview": "Overview",
@@ -15,6 +30,8 @@
         "infrastructure": "Infrastructure",
         "system": "System",
         "panel": "Panel",
+        "migration": "Migration",
+        "modules": "Modules",
         "account": "Your account"
       },
       "expandSection": "Show the {name} pages",
@@ -46,6 +63,13 @@
         "serversFleet": "Fleet",
         "serversServices": "Services",
         "serversUpdates": "Updates",
+        "remoteServers": "Remote servers",
+        "migrationJobs": "Server migrations",
+        "accountExport": "Export an account",
+        "accountImport": "Import an account",
+        "accountExports": "Exports",
+        "accountImports": "Imports",
+        "exportGrants": "Pull grants",
         "monitoringMetrics": "Metrics and clock",
         "monitoringLogs": "Logs and log level",
         "settingsPanel": "Panel",
@@ -77,6 +101,7 @@
         "monitoring": "Monitoring",
         "settings": "Settings",
         "activity": "Activity",
+        "migration": "Moving accounts",
         "account": "My account"
       },
       "badges": {
@@ -106,6 +131,7 @@
       "paletteHintOpen": "↵ to open",
       "signedOut": "Nobody is signed in",
       "accountMenu": "Account menu",
+      "headerAccountMenu": "Your account",
       "menu": {
         "myAccount": "My account",
         "sessions": "Sessions",

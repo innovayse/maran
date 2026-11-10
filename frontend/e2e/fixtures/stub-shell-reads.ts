@@ -54,6 +54,11 @@ export const stubShellReads = async (page: Page): Promise<void> => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ required: null }) })
   })
 
+  // An administrator's shell reads the mail queue's size for the navigation badge on every screen.
+  await page.route(/\/api\/v1\/mail-queue\/count(\?.*)?$/, async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ count: 0 }) })
+  })
+
   // The customer's shell asks which branding to wear (issue #367); the quiet answer is the panel's own.
   await stubShellBranding(page)
 

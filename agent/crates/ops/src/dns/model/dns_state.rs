@@ -23,4 +23,9 @@ pub struct DnsState {
     pub response_rate_limiting: DnsPolicyObservation,
     /// The service manager reports the unit enabled for boot.
     pub enabled_at_boot: bool,
+    /// The daemon's own configuration checker accepted a probe configuration
+    /// stating a `dnssec-policy`. Observed, never read off a version table; a
+    /// probe that could not run is `false`, so DNSSEC stays hidden rather than
+    /// being offered on a daemon that was never asked (issue #452).
+    pub dnssec_supported: bool,
 }

@@ -630,3 +630,9 @@ pub(crate) fn distro() -> &'static dyn DistroAdapter {
 pub(crate) fn rhel_distro() -> &'static dyn DistroAdapter {
     adapter_for(DistroFamily::Rhel)
 }
+
+/// The SUSE-family adapter, which enables its SSH service directly like the RHEL family's
+/// (UNVERIFIED: read from the distribution documentation, not measured).
+pub(crate) fn suse_distro() -> &'static dyn DistroAdapter {
+    adapter_for(DistroFamily::Suse)
+}

@@ -111,6 +111,7 @@ public sealed class IssueCertificateTaskRecordingTests
             fixture.Acme,
             fixture.Installer,
             fixture.Journal,
+            fixture.Wildcards,
             fixture.Clock,
             fixture.Tasks,
             fixture.CorrelationIds,

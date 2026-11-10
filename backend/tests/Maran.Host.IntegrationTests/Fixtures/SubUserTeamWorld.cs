@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
@@ -161,7 +162,7 @@ public static class SubUserTeamWorld
         var accounts = scope.ServiceProvider.GetRequiredService<AccountsDbContext>();
         var account = await accounts.Accounts.IgnoreQueryFilters()
             .SingleAsync(candidate => candidate.Name == accountName);
-        account.Suspend();
+        account.Suspend(SuspensionActor.Administrator);
         await accounts.SaveChangesAsync();
 
         var handler = new AccountSuspendingHandler(

@@ -38,7 +38,22 @@ public static class MailServerStatusMapper
             ToObservation(observed.TlsInUse),
             observed.QueuedMessages,
             observed.PasswordScheme is { } scheme ? ToPasswordScheme(scheme) : null,
-            ToObservation(observed.SieveAvailable));
+            ToObservation(observed.SieveAvailable),
+            StartingValues());
+    }
+
+    /// <summary>States the values a server is turned on with when the administrator names none.</summary>
+    /// <returns>The module's starting values, as the wire shape.</returns>
+    private static MailServerStartingValuesDto StartingValues()
+    {
+        return new MailServerStartingValuesDto(
+            MailDefaults.Pop3Enabled,
+            MailDefaults.AntivirusEnabled,
+            MailDefaults.AllowExternalForwarding,
+            MailDefaults.MessageSizeMib,
+            MailDefaults.SpamGreylistScore,
+            MailDefaults.SpamAddHeaderScore,
+            MailDefaults.SpamRejectScore);
     }
 
     /// <summary>Restates the settings row.</summary>

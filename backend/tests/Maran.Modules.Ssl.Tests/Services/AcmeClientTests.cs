@@ -271,6 +271,7 @@ public sealed class AcmeClientTests : IDisposable
             factory,
             options,
             new AcmeChallengeWriter(files ?? _files, new RecordingAgentSslClient()),
+            new AcmeDnsChallengeWriter([]),
             new AcmeAccountStore(_dbContext, new FakeClock(Expiry), NullLogger<AcmeAccountStore>.Instance),
             new AdvancingClock(Expiry),
             NullLogger<AcmeClient>.Instance);

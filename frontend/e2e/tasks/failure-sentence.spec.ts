@@ -1,11 +1,13 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubTaskStream, stubTasks, taskEndFrame, taskFrame } from '../fixtures/stub-tasks-routes'
 import type { PanelModule } from '../../src/types/module'
 import type { PanelTask } from '../../src/types/panelTask'
+import type { Page } from '@playwright/test'
 
 // #222, #272: a failed task reads as the panel's own sentence — already in the operator's language,
 // because the backend resolves it from the stored code each time the task is read — with the code as
@@ -74,6 +76,7 @@ const openFailure = async (
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubTasks(page, [task])
   await stubTaskStream(page, taskFrame(task) + taskEndFrame('failed'))
   await page.goto('/tasks')

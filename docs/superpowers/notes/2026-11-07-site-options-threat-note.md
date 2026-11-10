@@ -113,6 +113,23 @@ refuse. A redirect reveals only the target its owner wrote. Documented for custo
 - That `return 301 /relative` and `rewrite ... permanent` with a relative replacement produce the
   absolute `Location` the author expects on every nginx version the families ship (read from
   nginx's header filter, not measured).
-- That the setgid bit on the credential directory yields group ownership of files created inside
-  it on every filesystem the host may use for `/etc` (it is a POSIX rule; not measured here).
 - The agent's build and test suites were not run by the author of this note.
+
+## Amendment, issue #498: the credential directory carries no setgid bit
+
+Measured on the Ubuntu 24.04 dev host: turning on password protection answered 500, and the panel's log
+read `could not set the mode of /etc/maran/nginx/auth: Operation not permitted`. The agent's unit sets
+`RestrictSUIDSGID=true`, so the kernel refuses the `2750` the directory was meant to carry. The
+protection moves to what the sandbox allows: the directory is `root:<web server group>` `0750` and the
+credential file is `0644`. A process outside the web server's group cannot traverse to the file, so the
+hashes stay readable by the same set of readers as under `0640` + inherited group (root and the group's
+members, which on both families is the web server's workers). Nothing is added to the surface; one
+protection (an inherited group) is replaced by another that the directory alone provides.
+
+What a reviewer must check: that no customer account or customer-run process is a member of the web
+server's group on either family (the account homes are `<account>:<web server group>`, which makes
+the account the owner, not the group a member). Not verified by the author: the polygon run of the
+real-host suite, and the effect on a host where an earlier agent left `0640` files, which are rewritten
+only when their content changes.
+
+Second review: OUTSTANDING (#331)

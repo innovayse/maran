@@ -199,7 +199,8 @@ public sealed class AccountBackupServiceTests
                     BackupRunnerFactory.Create(Agent, Tasks, dbContext, _currentUser, Audit, new FakeClock(Now)),
                     new BackupDestinationResolver(dbContext),
                     new BackupAuditJournal(Audit, _currentUser),
-                    new FakeClock(Now)));
+                    new FakeClock(Now),
+                    new RecordingMessageBus()));
         }
 
         /// <summary>Assembles a world for one account.</summary>

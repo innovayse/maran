@@ -1,8 +1,9 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { PanelModule } from '../../src/types/module'
 
 // The defect this file pins, measured on a Russian panel: the upgrade screen read
@@ -27,12 +28,13 @@ const LOCKED_IN_RUSSIAN: PanelModule[] = [
 test('the upgrade page names the licence tier in Russian and never prints the wire constant', async ({ page }) => {
   await setPersistedLocale(page, 'ru')
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, LOCKED_IN_RUSSIAN)
 
   await page.goto('/upgrade/backups')
 
-  await expect(page.getByText('Тариф лицензии: Дополнительный модуль.')).toBeVisible()
+  await expect(page.getByText('Уровень лицензии: Дополнительный модуль.')).toBeVisible()
   await expect(page.getByText('Модуль «Резервные копии» не входит в вашу текущую лицензию.')).toBeVisible()
 
   // Positive control on the probe: `tierDisplayName` IS rendered above, so the same body-text probe
@@ -46,6 +48,7 @@ test('the upgrade page names the licence tier in Russian and never prints the wi
 test('a catalogue that names no tier shows no tier sentence rather than the constant', async ({ page }) => {
   await setPersistedLocale(page, 'ru')
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   // A panel older than `tierDisplayName` answers exactly like this. The screen must degrade to
   // saying nothing about the tier — showing the machine value would be the original defect again.
@@ -55,12 +58,13 @@ test('a catalogue that names no tier shows no tier sentence rather than the cons
 
   await expect(page.getByText('Модуль «Резервные копии» не входит в вашу текущую лицензию.')).toBeVisible()
   await expect(page.locator('body')).not.toContainText('planGated')
-  await expect(page.locator('body')).not.toContainText('Тариф лицензии')
+  await expect(page.locator('body')).not.toContainText('Уровень лицензии')
 })
 
 test('the English upgrade page names the tier in the backend words it was given', async ({ page }) => {
   await setPersistedLocale(page, 'en')
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, [
     { name: 'backups', displayName: 'Backups', kindDisplayName: 'Core', tier: 'addOn', tierDisplayName: 'Add-on', state: 'locked' },

@@ -9,7 +9,9 @@ namespace Maran.Modules.Identity.Options;
 /// <remarks>
 /// Deliberately NOT <c>[Required]</c>. A panel whose setup is finished has no token, and demanding
 /// one would refuse to boot every server that has been running for a week — the exact opposite of
-/// what a required security setting should do.
+/// what a required security setting should do. A token that IS set is judged at start by
+/// <c>SetupTokenPolicy</c> (wired in the Host's <c>AddPanelConfiguration</c>): outside Development
+/// and Testing the published sample and a short or uniform value stop the boot.
 ///
 /// It lives in this module rather than in the Host's <c>Configuration/</c> folder for the same
 /// reason <c>JwtOptions</c> does: the code that reads it is here, and a module can never reference

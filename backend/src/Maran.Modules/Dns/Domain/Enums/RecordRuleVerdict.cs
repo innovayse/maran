@@ -29,4 +29,7 @@ public enum RecordRuleVerdict
 
     /// <summary>The record is managed by another facility and is not edited here.</summary>
     RecordNotEditable,
+
+    /// <summary>The name already holds the most challenge values a single order needs.</summary>
+    ChallengeValuesFull,
 }

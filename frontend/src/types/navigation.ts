@@ -66,7 +66,7 @@ export type NavigationBadgeKind =
   | 'failedTasks'
   /** Things on the server asking to be looked at (`GET /api/v1/dashboard/attention-count`). */
   | 'needsAttention'
-  /** Messages waiting in the mail queue. Not fed yet: the mail module (issue #177) does not exist. */
+  /** Messages waiting in the mail queue (`GET /api/v1/mail-queue/count`, administrators only). */
   | 'mailQueue'
   /** Package updates waiting to be installed (`GET /api/v1/monitoring/updates/count`, read from the package cache). */
   | 'availableUpdates'
@@ -92,6 +92,13 @@ export interface NavigationGate {
    * Advice: the endpoint behind the page refuses a member regardless of what the menu shows.
    */
   ownerOnly: boolean
+  /**
+   * Whether the endpoints behind the page refuse a view-as session (`ViewAsAccess.Refused`,
+   * issue #334), so the page cannot work while an operator is viewing as a login. Such a page is not
+   * offered during viewing (issue #513). Advice: the panel refuses the request regardless, and a page
+   * left unflagged costs a refused request, never a leak.
+   */
+  viewAsRefused: boolean
 }
 
 /** One page in the navigation tree. */
@@ -104,6 +111,12 @@ export interface NavigationPageSpec extends NavigationGate {
   availability: NavigationAvailability
   /** The live count drawn beside the item, or null. */
   badge: NavigationBadgeKind | null
+  /**
+   * i18n key of the extra words the jump-to palette finds the page by (what an operator calls it:
+   * "firewall", "cron", "ssl"), or null when the label says it all. The label stays what the menu
+   * draws; these words are only searched, never drawn.
+   */
+  searchTermsKey: string | null
 }
 
 /** A top-level item that is a single page: a direct link, never a submenu. */
@@ -211,6 +224,8 @@ export interface NavigationGrants {
 export interface NavigationContext {
   /** The signed-in caller's role. */
   role: NavigationRole
+  /** Whether the session is a view-as one, as the panel last reported it; see {@link NavigationGate.viewAsRefused}. */
+  viewingAs: boolean
   /** The module catalogue as the panel reported it, in its order. */
   catalogue: readonly PanelModule[]
   /** Module machine name to how the licence stands; a module absent here is not installed. */
@@ -266,6 +281,8 @@ export interface NavigationEntry {
   icon: NavigationIcon
   /** The live count to draw beside the entry, or null when there is none to show. */
   badge: NavigationBadge | null
+  /** i18n key of the extra words the jump-to palette searches besides the label, or null. */
+  searchTermsKey: string | null
   /**
    * The section's pages, drawn as a collapsible submenu. One level deep. Empty for a link, for a
    * section left with one page (drawn as that page's link), and for every child.

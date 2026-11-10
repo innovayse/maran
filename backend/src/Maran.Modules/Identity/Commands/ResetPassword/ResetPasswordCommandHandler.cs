@@ -80,6 +80,9 @@ public sealed class ResetPasswordCommandHandler
     /// <summary>Closes every session the account had.</summary>
     private readonly ISessionService _sessionService;
 
+    /// <summary>Retires every other outstanding reset and invitation token.</summary>
+    private readonly CredentialTokenRetirement _tokenRetirement;
+
     /// <summary>Records the reset, and records a refusal.</summary>
     private readonly IdentityAuditJournal _journal;
 
@@ -90,18 +93,21 @@ public sealed class ResetPasswordCommandHandler
     /// <param name="dbContext">The module's database context.</param>
     /// <param name="passwordHasher">Hashes the new password.</param>
     /// <param name="sessionService">Closes every session the account had.</param>
+    /// <param name="tokenRetirement">Retires the other outstanding tokens.</param>
     /// <param name="journal">Records the reset or the refusal.</param>
     /// <param name="clock">The panel's clock.</param>
     public ResetPasswordCommandHandler(
         IdentityDbContext dbContext,
         IPasswordHasher passwordHasher,
         ISessionService sessionService,
+        CredentialTokenRetirement tokenRetirement,
         IdentityAuditJournal journal,
         IClock clock)
     {
         _dbContext = dbContext;
         _passwordHasher = passwordHasher;
         _sessionService = sessionService;
+        _tokenRetirement = tokenRetirement;
         _journal = journal;
         _clock = clock;
     }
@@ -146,22 +152,10 @@ public sealed class ResetPasswordCommandHandler
 
         token.Consume(now);
 
-        foreach (var outstanding in await _dbContext.PasswordResetTokens
-            .Where(other => other.UserId == user.Id && other.UsedAt == null)
-            .ToListAsync(cancellationToken))
-        {
-            outstanding.Consume(now);
-        }
-
-        // An outstanding invitation is retired here too — see the type's remarks — so a lost mail
-        // that turns up later, or one an attacker held onto, cannot still be spent to overwrite the
-        // password this call is about to set.
-        foreach (var outstandingInvitation in await _dbContext.InvitationTokens
-            .Where(other => other.UserId == user.Id && other.UsedAt == null)
-            .ToListAsync(cancellationToken))
-        {
-            outstandingInvitation.Consume(now);
-        }
+        // Every other outstanding reset token and every outstanding invitation token goes with it —
+        // see the type's remarks — so a lost mail that turns up later, or one an attacker held onto,
+        // cannot still be spent to overwrite the password this call is about to set.
+        await _tokenRetirement.RetireAsync(user.Id, now, cancellationToken);
 
         // Read before Activate mutates it, so the journal below can still say which path this was.
         var completesInvitation = user.HasPendingInvitation;

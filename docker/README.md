@@ -61,7 +61,7 @@
   - Otherwise identical in shape to the Ubuntu image, including running the installer step for the nginx include.
 
 - **`polygon/asserts/assert-installer-steps.sh`**: run at **build** time by both images, after they have installed the packages and started MariaDB.
-  - It sources `installer/lib/85-mysql.sh` and `installer/lib/86-sftp.sh` and calls their functions — `verify_mysql_socket_auth`, `install_sftp_prerequisites`, `install_sshd_match_block` — then asserts the result: root authenticates over the unix socket, the `maran-sftp` group exists, `/var/lib/maran-sftp` is `root:root 0700` **and every ancestor of it up to `/` is root-owned and not group- or other-writable**, and sshd_config carries exactly **one** `Match Group maran-sftp` block with its four directives after the installer function has been run **twice**.
+  - It sources `installer/lib/85-mysql.sh` and `installer/lib/86-sftp.sh` and calls their functions — `verify_mysql_socket_auth`, `install_sftp_prerequisites`, `install_sshd_match_block` — then asserts the result: root authenticates over the unix socket, the `maran-sftp` group exists, `/var/lib/maran-sftp` is `root:root 0700` **and every ancestor of it up to `/` is root-owned and not group- or other-writable**, and sshd_config carries exactly **one** `Match Group maran-sftp` block and **one** `Match Group maran-ftps` block (which denies the FTPS group outright, issue #484) with every directive of both, including the forwarding floor, after the installer function has been run **twice**; and `sshd -T -C` resolves forwarding off for a user in each group while leaving a user in neither alone.
   - It also asserts the failure paths, which no positive test reaches: the gate must refuse a root with a password *and* a root with no password at all, each with the right diagnosis, and `install_sshd_match_block` must leave an invalid sshd_config untouched rather than replacing it. To do that it really does set a throwaway root password inside the build layer and really does break sshd_config, restoring both afterwards.
   - Same reasoning as the nginx include above, now for two more areas: **the installer does the work and the image proves it**. Every one of these assertions has been checked by deleting the installer step it covers and watching the image build fail naming it.
   - It also holds the **on-disk boundary that four panel→root ownership defects were closed**. It RUNS `installer/lib/40-user.sh`'s `create_directory_layout` and `installer/lib/50-artifacts.sh`'s `prepare_staging_dir`, and then looks at every directory they made: `/usr/local/maran`, `/etc/maran`, `/var/lib/maran`, `/var/log/maran` (root's, since root and the root nginx master append to files directly inside it), its panel-owned `panel/` subdirectory and its root-only `sites/` subdirectory (`root:root 0750` — the site-log escalation fix, whose whole defence is the ownership and mode of every ancestor), `/var/backups/maran`, `/home/.maran-restore`, `/var/lib/maran-scratch`, `/var/lib/maran-sftp`, `/run/maran` and `/var/lib/maran-artifact-staging`. Each one is asked four separate questions — does it exist, is it a REAL directory rather than a symbolic link to one, which uid and gid own it, and what is its exact mode — and every ancestor up to `/` is required to be root-owned and not group- or other-writable. The fourth defect is the one that could not be fixed by moving anything, so the ancestor walk is aimed at the three log **leaves** root appends to — `install.log`, `nginx-access.log`, `nginx-error.log`, read out of `install.sh`'s own list — and its control puts the defect back by chowning `/var/log/maran` to the panel uid, requires all three refusals by name, restores it and requires all three acceptances. Both the plant and the restore are read back with `stat` and disagreement is a failure: a `chown` that silently did not take would leave the walk looking at a healthy directory and the control reporting itself held while it measured nothing, which is how three mutations in this repository were once scored blind.
@@ -311,7 +311,7 @@ docker run --rm \
 
 ## Running the Polygon Suites
 
-Twenty-five test files are `#[ignore]`d by default and run only inside a polygon:
+Twenty-eight test files are `#[ignore]`d by default and run only inside a polygon:
 `sites_on_a_real_host.rs`, `php_pools_on_a_real_host.rs`,
 `privileges_on_a_real_host.rs`, `databases_on_a_real_host.rs`,
 `monitor_on_a_real_host.rs`, `binary_paths_on_a_real_host.rs`,
@@ -323,7 +323,7 @@ Twenty-five test files are `#[ignore]`d by default and run only inside a polygon
 `account_leftovers_on_a_real_host.rs` (what a deleted account leaves in `/tmp`, `/var/tmp`, `/dev/shm`, `/var/mail`, the `at` queue and SysV IPC; needs `--privileged` and `at`) and
 `php_socket_migration_on_a_real_host.rs`, `panel_certificate_on_a_real_host.rs` (the panel's own certificate: the production panel vhost loaded in the real nginx, a challenge fetched over port 80, issuance, renewal and fallback observed by a real TLS handshake), `account_limits_on_a_real_host.rs` (an account's login shell and open-files limit, judged by the password database and a real `su` session),
 `php_extensions_on_a_real_host.rs` (the extension list and switch against the real `php-fpm`) and
-`site_traffic_on_a_real_host.rs` (the traffic summary and the log prune on a root-owned log directory), `dns_zone_files_on_a_real_host.rs` (rendered zone files handed to the platform's own `named-checkzone`), `files_archives_on_a_real_host.rs` (the archive rpcs and every hostile archive, against a real home and the real privilege drop) and the three browse suites of the file manager (issue #166), `files_browse_on_a_real_host.rs` (listing, sorting, paging, byte-exact reads and name search against a real home), `files_browse_containment_on_a_real_host.rs` (traversal, symlink, other-account, other-owner, hard link and FIFO/device/socket attacks, each with a positive control) and `files_browse_bounds_on_a_real_host.rs` (every size, depth, result and concurrency ceiling, crossed by exactly one and sat on exactly). One case of the first mounts a tmpfs inside a home, so the three run in the privileged command below and print `UNOBSERVED HERE` when the container may not mount. They create real system accounts and real database
+`site_traffic_on_a_real_host.rs` (the traffic summary and the log prune on a root-owned log directory), `transfer_on_a_real_host.rs` (moving an account's backup between servers: the exported bytes against the real archiver, the manifest digest against `sha256sum`, and an import refused for a name the real password database already holds), `dns_zone_files_on_a_real_host.rs` (rendered zone files handed to the platform's own `named-checkzone`), `files_archives_on_a_real_host.rs` (the archive rpcs and every hostile archive, against a real home and the real privilege drop) and the three browse suites of the file manager (issue #166), `files_browse_on_a_real_host.rs` (listing, sorting, paging, byte-exact reads and name search against a real home), `files_browse_containment_on_a_real_host.rs` (traversal, symlink, other-account, other-owner, hard link and FIFO/device/socket attacks, each with a positive control) and `files_browse_bounds_on_a_real_host.rs` (every size, depth, result and concurrency ceiling, crossed by exactly one and sat on exactly). One case of the first mounts a tmpfs inside a home, so the three run in the privileged command below and print `UNOBSERVED HERE` when the container may not mount. They create real system accounts and real database
 users, write real vhosts and pools, mount real filesystems, log in to a real
 sshd and drop real privileges, so they refuse to run unless the image's
 `MARAN_POLYGON` marker is set and the process is root — asked to run anywhere
@@ -343,6 +343,7 @@ docker run --rm -v "$PWD:/maran" -w /maran/agent -e CARGO_TARGET_DIR=/tmp/target
     --test account_limits_on_a_real_host \
     --test php_extensions_on_a_real_host \
     --test site_traffic_on_a_real_host \
+    --test transfer_on_a_real_host \
     --test dns_zone_files_on_a_real_host \
     --test files_archives_on_a_real_host \
     --no-fail-fast \
@@ -684,13 +685,13 @@ stops NOTHING" by its own header, and four defects hid behind exactly that (#39,
                     [--publish PORT] [--browser] [--no-panel-recovery]
                     [--no-update-rollback] [--no-account-restore] [--keep]
 
-`<version>` is any folder under `docker/polygon/images`: thirteen at the time of writing, covering
-Ubuntu 22.04/24.04/26.04, Debian 12/13, and AlmaLinux, Rocky Linux and Oracle Linux 8/9/10 — except
+`<version>` is any folder under `docker/polygon/images`: fourteen at the time of writing, covering
+Ubuntu 22.04/24.04/26.04, Debian 12/13, openSUSE Leap 16 (`leap16`, built from `install-suse.Dockerfile`), and AlmaLinux, Rocky Linux and Oracle Linux 8/9/10 — except
 Rocky 10, which `docker/polygon/images/README.md` explains. `--os` with an unknown value prints the
 list rather than guessing at a family, so that file and this sentence cannot be the only things
 keeping the count honest. Each version's base digest and measured glibc live in that README too.
 
-`images/install-debian.Dockerfile` and `images/install-rhel.Dockerfile` are one template per family,
+`images/install-debian.Dockerfile`, `images/install-rhel.Dockerfile` and `images/install-suse.Dockerfile` are one template per family,
 built against the digest in the chosen version's `images/<version>/base.txt`. They are fresh servers
 with real systemd as PID 1 and **nothing Maran needs** pre-installed — no PostgreSQL, no nginx, no
 openssh-server, no .NET, no python. `curl`, `ca-certificates` and `sudo` are the reader's starting

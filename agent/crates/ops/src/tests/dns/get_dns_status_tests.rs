@@ -125,3 +125,31 @@ fn a_unit_that_is_not_enabled_for_boot_is_reported_so() {
 
     assert!(!state.enabled_at_boot);
 }
+
+#[test]
+fn a_daemon_whose_checker_accepts_a_policy_is_reported_able_to_sign() {
+    let host = FakeDnsHost::new().with_running_daemon();
+    let state = get_dns_status(&host, distro()).unwrap();
+
+    assert!(state.dnssec_supported);
+    assert_eq!(host.probes().len(), 1);
+}
+
+#[test]
+fn a_daemon_whose_checker_refuses_a_policy_is_reported_unable_to_sign() {
+    let host = FakeDnsHost::new()
+        .with_running_daemon()
+        .with_dnssec_unsupported();
+    let state = get_dns_status(&host, distro()).unwrap();
+
+    assert!(!state.dnssec_supported);
+}
+
+#[test]
+fn the_support_is_asked_of_a_stopped_unit_too_because_only_the_checker_is_needed() {
+    let host = FakeDnsHost::new();
+    let state = get_dns_status(&host, distro()).unwrap();
+
+    assert!(!state.running);
+    assert!(state.dnssec_supported);
+}

@@ -243,4 +243,7 @@
   <data name="PersonalDataExportTooLarge">
     <value>This export holds too many audit entries for one file.</value>
   </data>
+  <data name="ReauthenticationFailed">
+    <value>The password you entered is not correct.</value>
+  </data>
 </root>

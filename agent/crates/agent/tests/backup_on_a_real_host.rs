@@ -77,6 +77,17 @@ fn polygon_distro() -> &'static dyn DistroAdapter {
     )
 }
 
+/// The seam a restore mounts the file-transfer jails through, composed the way
+/// the daemon composes it (issue #487). The accounts here hold no login, so it
+/// finds no jail to refresh.
+fn jails() -> FileTransferJails<ProcessSftpHost, ProcessFtpsHost> {
+    FileTransferJails::new(
+        ProcessSftpHost::new(),
+        ProcessFtpsHost::new(),
+        polygon_distro(),
+    )
+}
+
 /// The variable the outer half of each case uses to hand the inner half the
 /// directory it must work in.
 ///
@@ -386,6 +397,7 @@ use std::os::unix::fs::symlink;
 use std::process::{Command, Stdio};
 
 use maran_agent::services::backup::db_host_catalog::DbHostCatalog;
+use maran_agent::services::backup::file_transfer_jails::FileTransferJails;
 use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::privs::account_ids::AccountIds;
 use maran_agent_core::privs::group_id::GroupId;
@@ -401,6 +413,7 @@ use maran_ops::backup::{
     RestoreStage, create_backup, delete_backup, list_backups, restore_backup, verify_backup,
 };
 use maran_ops::db::{CreateDatabaseRequest, ProcessDbHost, create_database};
+use maran_ops::ftps::ProcessFtpsHost;
 use maran_ops::php::ProcessPhpHost;
 use maran_ops::sftp::ProcessSftpHost;
 
@@ -789,6 +802,7 @@ fn a_restore_puts_the_home_and_the_database_back_and_leaves_the_home_as_the_acco
         &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
             .expect("a one-mebibyte floor"),
         None,
+        &jails(),
         &mut sink,
     )
     .unwrap_or_else(|error| panic!("the restore must succeed: {error}"));
@@ -892,6 +906,7 @@ fn an_archive_naming_a_member_outside_the_layout_is_refused_and_writes_nothing()
         &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
             .expect("a one-mebibyte floor"),
         None,
+        &jails(),
         &mut RecordingSink::default(),
     )
     .expect_err("a hostile archive must be refused");
@@ -1583,6 +1598,7 @@ fn a_deletion_that_overlaps_a_restore_is_refused_and_the_home_keeps_its_own_uid(
                 &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
                     .expect("a one-mebibyte floor"),
                 None,
+                &jails(),
                 &mut RecordingSink::default(),
             )
         }

@@ -3,6 +3,7 @@
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::web::domain::Domain;
 use maran_agent_core::validation::web::domain_error::DomainError;
+use maran_agent_core::validation::web::panel_host_names::PanelHostNames;
 use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_agent_core::validation::web::upstream::Upstream;
 use maran_ops::sites::{CreateSiteInput, SiteCertificate, SiteKind};
@@ -55,13 +56,15 @@ pub(super) const MAXIMUM_ALIASES: usize = CERTIFICATE_NAME_LIMIT - 1;
 /// names no valid upstream, when it carries more than `MAXIMUM_ALIASES`
 /// aliases, when any alias is not a valid hostname, or when the domain or any
 /// alias is a reserved host name (an address literal, the loopback family, a
-/// special-use suffix).
+/// special-use suffix) or one of the names `panel` records the panel itself is
+/// served under.
 pub fn validated_site(
     account_username: &str,
     domain: &str,
     spec: Option<&SiteSpec>,
+    panel: &PanelHostNames,
 ) -> Result<CreateSiteInput, AgentError> {
-    let identity = validated_identity(account_username, domain)?;
+    let identity = validated_identity(account_username, domain, panel)?;
 
     let alias_count = spec.map_or(0, |spec| spec.aliases.len());
     if alias_count > MAXIMUM_ALIASES {
@@ -70,7 +73,9 @@ pub fn validated_site(
         )));
     }
 
-    site_from_spec(identity, spec, Domain::parse)
+    site_from_spec(identity, spec, &|alias| {
+        Domain::parse(alias).and_then(|alias| panel.check(alias))
+    })
 }
 
 /// Builds the site description from an already validated identity and the
@@ -85,7 +90,7 @@ pub fn validated_site(
 pub(super) fn site_from_spec(
     (account, domain): (AccountName, Domain),
     spec: Option<&SiteSpec>,
-    parse_alias: fn(&str) -> Result<Domain, DomainError>,
+    parse_alias: &dyn Fn(&str) -> Result<Domain, DomainError>,
 ) -> Result<CreateSiteInput, AgentError> {
     let spec = spec.ok_or_else(|| {
         invalid_input("the site description is required: this rpc re-renders the vhost".to_owned())

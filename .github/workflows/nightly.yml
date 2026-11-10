@@ -1,0 +1,431 @@
+name: nightly
+
+# THE NIGHTLY AND WEEKLY INSTALLER RUNS (issue #8, owner decision D10).
+#
+# rules/testing.md promised a nightly fresh-container installer run for as long as it has existed and
+# no workflow ran one; the installer polygon (`maran installer`, docker/README.md "The install
+# polygon") was a workstation tool. This workflow is what runs it on a hosted runner. It needs no
+# self-hosted runner: agent.yml already runs `docker run --privileged` containers on ubuntu-24.04, and
+# the install polygon is the same kind of container with real systemd as PID 1 (`--privileged
+# --cgroupns=host`, scripts/lib/install-polygon.sh `start_server_container`). Whether systemd as PID 1
+# boots on a hosted runner for each of the fourteen images is NOT proven by this file: see UNMEASURED
+# below.
+#
+#   bundle           builds ONE signed offline bundle from this tree, with a throwaway signing key
+#                    (see "THE KEY" below), and uploads it with the throwaway public key.
+#   installer        daily: the installer polygon on ubuntu24 and alma9 through
+#                    `maran installer --mode offline --bundle <bundle>`.
+#   installer-weekly weekly (Sunday), or by dispatch: the same run on the other twelve images under
+#                    docker/polygon/images/* that agent.yml does not run, fail-fast off.
+#   e2e-real         daily, when the repository variable MARAN_E2E_REAL_URL names a panel: the real-stack
+#                    browser lane (`maran e2e-real`, issue #519); skipped, not green, until it is set.
+#
+# WHAT EACH INSTALLER LEG RUNS: `maran installer` with its defaults, which is the install checks, the
+# lockout-recovery and diagnostics stages, and the panel-recovery, update-and-rollback and
+# account-restore stages (docker/README.md). That is four full installs per image. It is not the
+# stripped-down run a pull request could afford, and that is deliberate: the stages are the closing
+# criteria of #129, #128 and #6 and they ran nowhere in CI before this file.
+#
+# WHAT THIS FILE DOES NOT RUN, and the testing rule says so too:
+#   * The Playwright golden path (frontend/e2e/golden-path). It needs E2E_REAL_BACKEND=1 and a real
+#     backend, and there is no verb in this repository that stands one up on a runner and scores the
+#     golden path against it. A hosted job written around a hand-assembled backend would be a gate
+#     that could not be shown to observe anything, so it is left out rather than faked.
+#   * `maran installer --browser`. It needs Chromium and frontend/node_modules on the machine that
+#     runs the harness and the panel port published; no leg here installs them. The real-browser
+#     check of an installed panel (issue #68) stays a workstation run.
+#   * `--mode get` (the published one-liner) and `--arch aarch64` (qemu). Neither is meaningful on a
+#     tree that has not been released, or cheap on a hosted runner.
+#   * The network fetch path of `maran update` (the update stage uses --offline-tarball).
+#
+# THE KEY. The production release key's private half is never in this repository or in CI
+# (scripts/lib/release-bundle.sh, rules/security.md item 9). The installer trusts exactly the public
+# key at installer/keys/release-signing.pub, so a bundle signed with a throwaway key is refused by the
+# tree's own installer. The recipe used here is therefore: generate a throwaway P-384 key on the runner
+# (the same `openssl ecparam -name secp384r1` the selftests use), `maran release build`, `sign --key`,
+# `package --pubkey <throwaway.pub>`, and then, in each installer leg's EPHEMERAL checkout only, replace
+# installer/keys/release-signing.pub with the throwaway public key before `maran installer` copies
+# installer/ into the container. That is what scripts/lib/deploy-local-ship.sh does to its copy of the
+# installer. What it means: the signature path (manifest signature, checksums, the artifacts' hashes)
+# is exercised in full, with a different key. Which key the product trusts is NOT exercised, so a
+# wrong production key file is invisible here. The private key never leaves the `bundle` job, and the
+# swap happens in a runner workspace that is discarded; nothing is committed or pushed.
+# UNVERIFIED: `maran installer --mode offline` with a bundle signed this way has not been run in this
+# session (nothing could be run). scripts/lib/install-polygon.sh copies ${root}/installer and the
+# bundle verbatim and passes no key, so the swap is the only way to make the bundle trusted that the
+# scripts support; if the first run fails at "signature does not match", this recipe is the suspect.
+#
+# THE PASS CONDITION is the harness's printed verdict line, never its exit status. `maran installer`
+# prints `INSTALL-POLYGON-OK (<os>, x86_64, offline)` as its last line when nothing failed and exits 1
+# after printing `N failure(s) on ...` otherwise. A leg passes only when that exact line for ITS image
+# is present, no `failure(s) on` line is present, and the exit status agrees. A run that exits 0
+# without the line fails, and so does a line followed by a non-zero status, because the two disagree
+# and neither is then evidence (rules/testing.md).
+#
+# UNMEASURED: not run in this session. No `timeout-minutes` below has a measured basis; each is a
+# guess at generous headroom and says so. The first `workflow_dispatch` run of each lane must be read
+# for its durations and the numbers replaced with the run ids and times they were sized from.
+
+on:
+  schedule:
+    # Daily, on the default branch: ubuntu24 and alma9. Scheduled workflows only run from the default
+    # branch, so nothing happens here until this file is on it.
+    - cron: '41 1 * * *'
+    # Weekly (Sunday), the remaining twelve images.
+    - cron: '41 3 * * 0'
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: 'Which installer images to run'
+        type: choice
+        options:
+          - nightly
+          - weekly
+          - both
+        default: nightly
+
+# Least privilege: reads the repository, writes nothing.
+permissions:
+  contents: read
+
+# One run at a time and none cancelled: a run killed half-way leaves a half-measured image and no
+# verdict. A run that is queued while one is in progress waits; GitHub keeps only the newest pending
+# run, which is right for a nightly (the older pending one is superseded by the same tree anyway).
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  bundle:
+    runs-on: ubuntu-24.04
+    # UNMEASURED: not run in this session. The nearest figure is release.yml's own build job, itself
+    # an estimate (about 60 minutes for BOTH architectures, the aarch64 agent under qemu). This build is
+    # one architecture and builds no SBOM, so 90 is that estimate plus headroom for a cold NuGet, npm
+    # and agent-builder image, not a figure sized from runs.
+    timeout-minutes: 90
+    steps:
+      # Pinned to the commit the sibling workflows pin.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The EXACT patch, kept equal to backend.yml and release.yml by hand; the assertion below proves
+      # the pin took (a band would be resolved by the action at run time).
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '9.0.317'
+
+      - name: The SDK is the one this repository is built against
+        run: |
+          want=9.0.317
+          have="$(dotnet --version 2>&1 | head -1)"
+          echo "dotnet --version -> $have"
+          if [ "$have" != "$want" ]; then
+            echo "::error::dotnet SDK is '$have', and this repository builds on $want."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # The agent's build.rs compiles the proto contract with protoc (rules/proto.md).
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      # `maran release build` runs `npm run build` in frontend/ and does not install dependencies
+      # itself (scripts/lib/release-build-components.sh `build_frontend`). release.yml has no such
+      # step either; whether a bare `npm run build` works on a clean runner is UNVERIFIED, so the
+      # dependencies are installed first, which cannot hurt.
+      - name: Install the SPA dependencies
+        run: (cd frontend && npm ci)
+
+      # A throwaway key, generated here and used for nothing else. The private half is written to the
+      # runner's temp directory, never uploaded, and dies with the runner.
+      - name: Build, sign with a throwaway key, and package one offline bundle
+        run: |
+          set -euo pipefail
+          out="$PWD/nightly-out"
+          mkdir -p "$out" "$RUNNER_TEMP/key"
+          openssl ecparam -name secp384r1 -genkey -noout -out "$RUNNER_TEMP/key/throwaway.key"
+          openssl ec -in "$RUNNER_TEMP/key/throwaway.key" -pubout -out "$out/throwaway.pub"
+          # --out is ABSOLUTE: the agent builder mounts it with `docker -v`, which rejects a relative
+          # path. A single architecture, so the unsuffixed names the offline path reads are written.
+          bash scripts/maran release build --arch x86_64 --out "$out/bundle" \
+            2>&1 | tee "$out/build.log"
+          bash scripts/maran release sign --key "$RUNNER_TEMP/key/throwaway.key" --bundle "$out/bundle" \
+            2>&1 | tee "$out/sign.log"
+          bash scripts/maran release package --bundle "$out/bundle" --arch x86_64 \
+            --pubkey "$out/throwaway.pub" --out "$out/maran-offline.tar.gz" \
+            2>&1 | tee "$out/package.log"
+          # `package` verifies each bundle it writes and removes one that does not verify; its own
+          # success line is the check that the bundle exists and verified against the throwaway key.
+          if ! grep -qa 'offline bundle(s) verified against' "$out/package.log"; then
+            echo "::error::'maran release package' did not print its verification line, so the bundle is unproven."
+            exit 1
+          fi
+          test -s "$out/maran-offline.tar.gz"
+          ls -l "$out/maran-offline.tar.gz"
+
+      # The bundle and the PUBLIC key only. The private key stays in $RUNNER_TEMP.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: nightly-bundle
+          path: |
+            nightly-out/maran-offline.tar.gz
+            nightly-out/throwaway.pub
+          if-no-files-found: error
+          retention-days: 3
+
+  installer:
+    needs: bundle
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.scope != 'weekly' || github.event_name == 'schedule' && github.event.schedule == '41 1 * * *' }}
+    runs-on: ubuntu-24.04
+    # UNMEASURED: not run in this session. Four full installs (the install, then the panel-recovery,
+    # update-and-rollback and account-restore servers) plus the image build, with the account-restore
+    # leg adding 128 MiB, two thousand files and 300000 rows. No figure for any of it exists, so 120 is
+    # a hang guard and not a measurement. A hosted runner has 4 vCPU and 16 GB: if memory or disk is
+    # the real limit, the first dispatch will show it.
+    timeout-minutes: 120
+    strategy:
+      # Both families are reported, always: cancelling the second when the first fails is how a
+      # family-specific break gets attributed to the family that failed first.
+      fail-fast: false
+      matrix:
+        image: [ubuntu24, alma9]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: nightly-bundle
+          path: ${{ runner.temp }}/bundle
+
+      # THE KEY SWAP, in this runner's checkout only (see "THE KEY" in the header).
+      - name: Trust the throwaway key in this checkout
+        run: |
+          set -euo pipefail
+          cp -- "$RUNNER_TEMP/bundle/throwaway.pub" installer/keys/release-signing.pub
+          cmp -s -- "$RUNNER_TEMP/bundle/throwaway.pub" installer/keys/release-signing.pub
+
+      - name: Installer polygon, offline bundle — ${{ matrix.image }}
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/installer-logs"
+          log="$RUNNER_TEMP/installer-logs/$IMAGE.log"
+          status=0
+          bash scripts/maran installer --os "$IMAGE" --mode offline \
+            --bundle "$RUNNER_TEMP/bundle/maran-offline.tar.gz" 2>&1 | tee "$log" || status=$?
+          echo "harness exit status: $status (recorded; the verdict is the line below, not this)"
+          if ! grep -qaxF "INSTALL-POLYGON-OK ($IMAGE, x86_64, offline)" "$log"; then
+            echo "::error::the installer polygon for $IMAGE did not print 'INSTALL-POLYGON-OK ($IMAGE, x86_64, offline)'."
+            echo "This lane passes on the printed verdict line, never on an exit code, and no such line was printed."
+            echo "--- what the run reported ---"
+            if ! grep -aE '(failure\(s\) on|FAIL:|SKIPPED|NOT RUN|systemd never finished booting|INSTALL-POLYGON)' "$log"; then
+              echo "(no verdict-shaped line in the log; its last 40 lines follow)"
+              tail -40 "$log" || echo "(the log is empty or absent)"
+            fi
+            exit 1
+          fi
+          if grep -qaE 'failure\(s\) on ' "$log"; then
+            echo "::error::the log carries both the OK line and a 'failure(s) on' line, so it is not a score."
+            exit 1
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo "::error::the harness printed the OK line and then exited $status."
+            echo "Those two disagree, so neither is evidence: score nothing from this run."
+            exit 1
+          fi
+
+      # The harness's own per-run log as well, on a red run especially.
+      - name: Keep the logs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: installer-logs-${{ matrix.image }}
+          path: |
+            ${{ runner.temp }}/installer-logs
+            .polygon-logs
+          if-no-files-found: warn
+          retention-days: 7
+
+  installer-weekly:
+    needs: bundle
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.scope != 'nightly' || github.event_name == 'schedule' && github.event.schedule == '41 3 * * 0' }}
+    runs-on: ubuntu-24.04
+    # UNMEASURED: not run in this session; the same reasoning and the same guess as `installer`.
+    # Several of these images are unproven on a hosted runner at all: the EL8 family boots systemd 239
+    # and Ubuntu 26.04 / the EL10 family are newer than anything agent.yml has run, so a leg that never
+    # reaches `systemd never finished booting` clearance is a finding about the image on this runner,
+    # not necessarily about the product.
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        # Every folder under docker/polygon/images that agent.yml does not run (agent.yml runs
+        # ubuntu24 and alma9, and the daily `installer` job above runs the same two). Control that
+        # this list is complete:
+        #   ls -d docker/polygon/images/*/ | sed 's#.*/images/##; s#/$##' | sort
+        # must equal this list plus ubuntu24 and alma9. leap16 is the SUSE family's folder (issue #59):
+        # nothing about it has run, so its first leg is the first measurement of every UNVERIFIED fact in
+        # install-suse.Dockerfile, and a red leg there is a finding about the image before it is one about
+        # the product. The 120-minute limit below is shared and unchanged; it was a hang guard, not a
+        # measurement, and stays one.
+        image: [alma8, alma10, debian12, debian13, leap16, oracle8, oracle9, oracle10, rocky8, rocky9, ubuntu22, ubuntu26]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: nightly-bundle
+          path: ${{ runner.temp }}/bundle
+
+      - name: Trust the throwaway key in this checkout
+        run: |
+          set -euo pipefail
+          cp -- "$RUNNER_TEMP/bundle/throwaway.pub" installer/keys/release-signing.pub
+          cmp -s -- "$RUNNER_TEMP/bundle/throwaway.pub" installer/keys/release-signing.pub
+
+      - name: Installer polygon, offline bundle — ${{ matrix.image }}
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/installer-logs"
+          log="$RUNNER_TEMP/installer-logs/$IMAGE.log"
+          status=0
+          bash scripts/maran installer --os "$IMAGE" --mode offline \
+            --bundle "$RUNNER_TEMP/bundle/maran-offline.tar.gz" 2>&1 | tee "$log" || status=$?
+          echo "harness exit status: $status (recorded; the verdict is the line below, not this)"
+          if ! grep -qaxF "INSTALL-POLYGON-OK ($IMAGE, x86_64, offline)" "$log"; then
+            echo "::error::the installer polygon for $IMAGE did not print 'INSTALL-POLYGON-OK ($IMAGE, x86_64, offline)'."
+            echo "This lane passes on the printed verdict line, never on an exit code, and no such line was printed."
+            echo "--- what the run reported ---"
+            if ! grep -aE '(failure\(s\) on|FAIL:|SKIPPED|NOT RUN|systemd never finished booting|INSTALL-POLYGON)' "$log"; then
+              echo "(no verdict-shaped line in the log; its last 40 lines follow)"
+              tail -40 "$log" || echo "(the log is empty or absent)"
+            fi
+            exit 1
+          fi
+          if grep -qaE 'failure\(s\) on ' "$log"; then
+            echo "::error::the log carries both the OK line and a 'failure(s) on' line, so it is not a score."
+            exit 1
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo "::error::the harness printed the OK line and then exited $status."
+            echo "Those two disagree, so neither is evidence: score nothing from this run."
+            exit 1
+          fi
+
+      - name: Keep the logs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: installer-logs-${{ matrix.image }}
+          path: |
+            ${{ runner.temp }}/installer-logs
+            .polygon-logs
+          if-no-files-found: warn
+          retention-days: 7
+
+  # THE REAL-STACK BROWSER LANE (issue #519): `maran e2e-real`, daily, against a long-lived dev panel.
+  #
+  # The everyday suite stubs every API route, so it cannot see a backend or agent failure, an
+  # authorization mismatch between the SPA and the panel, or a stub that drifted from the API; this
+  # lane signs in to a panel that is really running, with a real agent, and clicks through the journeys
+  # in frontend/e2e/real/ for the administrator, the reseller and the customer.
+  #
+  # WHY IT RUNS AGAINST A HOST AND NOT A CONTAINER THIS WORKFLOW STARTS. The installer legs above end by
+  # discarding the container they installed into, and no verb here stands a panel up on a runner and
+  # keeps it for a browser (see "WHAT THIS FILE DOES NOT RUN" in the header). So the subject is a
+  # persistent panel installed with `maran deploy-local` (docs/operations/deploy-local.md), named by the
+  # repository variable MARAN_E2E_REAL_URL, with the six logins in repository secrets of the same names
+  # as the lane's environment variables.
+  #
+  # UNMEASURED, and honest about when it does not run: until MARAN_E2E_REAL_URL is set this job is
+  # SKIPPED, which GitHub draws as skipped and not as green. That is the owner's action, not an
+  # oversight; a job that failed every night until a host existed would be a gate people learn to ignore
+  # (rules/testing.md). Once the variable is set, a missing secret or an unreachable panel makes the
+  # harness print `E2E-REAL VERDICT: DID NOT RUN`, which this step turns into a red job under its own
+  # message, because from then on the lane is expected to run.
+  #
+  # Before a release the same lane is run by hand against the release candidate's host:
+  #   MARAN_REAL_URL=... bash scripts/maran e2e-real
+  #
+  # The pass condition is the harness's printed verdict line and not its exit status, the shape of every
+  # other lane in this file.
+  e2e-real:
+    if: ${{ vars.MARAN_E2E_REAL_URL != '' && (github.event_name == 'workflow_dispatch' && inputs.scope != 'weekly' || github.event_name == 'schedule' && github.event.schedule == '41 1 * * *') }}
+    runs-on: ubuntu-24.04
+    # UNMEASURED: not run in this session. Twelve journeys, several of which delete an account (a final
+    # backup first) on a real agent; 60 is a hang guard and not a measurement. Re-measure from the first
+    # dispatched run and write its id and duration here.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install the frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      # Not cached, for the reason frontend.yml gives beside the same step.
+      - name: Install the Playwright browser
+        timeout-minutes: 20
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Real-stack lane
+        env:
+          MARAN_REAL_URL: ${{ vars.MARAN_E2E_REAL_URL }}
+          MARAN_REAL_ADMIN_USERNAME: ${{ secrets.MARAN_REAL_ADMIN_USERNAME }}
+          MARAN_REAL_ADMIN_PASSWORD: ${{ secrets.MARAN_REAL_ADMIN_PASSWORD }}
+          MARAN_REAL_RESELLER_USERNAME: ${{ secrets.MARAN_REAL_RESELLER_USERNAME }}
+          MARAN_REAL_RESELLER_PASSWORD: ${{ secrets.MARAN_REAL_RESELLER_PASSWORD }}
+          MARAN_REAL_CUSTOMER_USERNAME: ${{ secrets.MARAN_REAL_CUSTOMER_USERNAME }}
+          MARAN_REAL_CUSTOMER_PASSWORD: ${{ secrets.MARAN_REAL_CUSTOMER_PASSWORD }}
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/e2e-real-logs"
+          log="$RUNNER_TEMP/e2e-real-logs/e2e-real.log"
+          status=0
+          bash scripts/maran e2e-real 2>&1 | tee "$log" || status=$?
+          echo "harness exit status: $status (recorded; the verdict is the line below, not this)"
+          if grep -qaF 'E2E-REAL VERDICT: DID NOT RUN' "$log"; then
+            echo "::error::the real-stack lane did not run: nothing was measured. See the REFUSED / DID NOT RUN lines above (a missing secret, an unreachable panel, or a missing toolchain)."
+            exit 1
+          fi
+          if ! grep -qaE '^E2E-REAL VERDICT: OK ' "$log"; then
+            echo "::error::the real-stack lane did not print 'E2E-REAL VERDICT: OK'. This lane passes on that line, never on an exit code."
+            exit 1
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo "::error::the harness printed the OK line and then exited $status. Those two disagree, so neither is evidence."
+            exit 1
+          fi
+
+      - name: Keep the logs and traces
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-real-logs
+          path: |
+            ${{ runner.temp }}/e2e-real-logs
+            frontend/test-results
+          if-no-files-found: warn
+          retention-days: 7

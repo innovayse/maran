@@ -98,8 +98,9 @@ public static class PasswordChangeGateCensus
             return;
         }
 
-        if (AdmitsApiKey(policy))
+        if (AdmitsApiKey(policy) || policy.AuthenticationSchemes.Contains(MigrationGrantDefaults.Scheme))
         {
+            // A machine caller (an API key, an export grant) has no password to replace.
             return;
         }
 

@@ -1,3 +1,4 @@
+using Maran.Agent.Client.Errors;
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Mail.Persistence;
 using Maran.Modules.Mail.Resources;
@@ -30,9 +31,6 @@ namespace Maran.Modules.Mail.Commands.DeleteMailDomain;
 /// </remarks>
 public sealed class DeleteMailDomainCommandHandler
 {
-    /// <summary>The agent client's stable code for "the host no longer holds this".</summary>
-    private const string AgentNotFoundCode = "AgentNotFound";
-
     /// <summary>The Mail module's database context, and this module's tenant boundary.</summary>
     private readonly MailDbContext _dbContext;
 
@@ -152,7 +150,7 @@ public sealed class DeleteMailDomainCommandHandler
     /// <returns><c>true</c> for the agent's not-found code.</returns>
     private static bool IsAlreadyGone(Error error)
     {
-        return string.Equals(error.Code, AgentNotFoundCode, StringComparison.Ordinal);
+        return string.Equals(error.Code, AgentErrorCodes.NotFound, StringComparison.Ordinal);
     }
 
     /// <summary>Journals a refused deletion and returns it as the typed failure.</summary>

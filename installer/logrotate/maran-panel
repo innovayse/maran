@@ -48,11 +48,15 @@
 #     nothing in the panel reads them off the disk, and the directory above them is already
 #     group-readable — a group-readable file inside it would widen the audience of the panel's
 #     access log for no reader that exists.
-#   * `kill -USR1`, NOT `copytruncate`. USR1 makes the nginx master reopen its log files, which is
-#     the supported idiom and loses no line to a race with the writer; copytruncate loses whatever
-#     is written between the copy and the truncation. The postrotate script reads nginx's own pid
-#     file and does nothing when it is absent, so a host where nginx is stopped rotates its files
-#     and does not fail the daily run.
+#   * `nginx -s reload`, NOT `kill -USR1` and NOT `copytruncate`. USR1 makes every nginx WORKER
+#     reopen the logs by path as the worker user, which cannot traverse /var/log/maran (0750,
+#     deliberately): each worker logged `[emerg] open() ... (13: Permission denied)` and kept
+#     writing to the renamed file (issue #490). A reload has the root master open the files and
+#     pass the descriptors to new workers, so only root opens them by path. It loses no line to
+#     a race with the writer, which copytruncate does. The postrotate script checks nginx's own
+#     pid file and does nothing when it is absent, so a host where nginx is stopped rotates its
+#     files and does not fail the daily run. The distro's /etc/logrotate.d/nginx signals USR1 for
+#     ALL of nginx's files, so installer/lib/80-nginx.sh makes that stanza reload too.
 #   * `missingok`, because the error log legitimately does not exist on a quiet host — nginx
 #     creates it on the first message it has to write — and a daily cron error on every such host
 #     would train operators to ignore logrotate's output entirely.
@@ -72,7 +76,7 @@
     sharedscripts
     postrotate
         if [ -f /run/nginx.pid ]; then
-            kill -USR1 "$(cat /run/nginx.pid)" 2>/dev/null || true
+            nginx -s reload
         fi
     endscript
 }

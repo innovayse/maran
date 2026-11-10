@@ -112,6 +112,13 @@ public sealed class AccountsModule : IPanelModule
         // it reads the request's own DbContext and applies the request's own tenant scope.
         services.AddScoped<IAccountDirectory, AccountDirectory>();
 
+        // The unscoped ownership question the view-as bearer check asks on every request of a reseller's
+        // view-as session, before the request has a principal (issue #460).
+        services.AddScoped<IAccountOwnership, AccountOwnership>();
+
+        // Tells the other modules, after the commit, that an account has a new owner.
+        services.AddScoped<AccountOwnerChangeAnnouncer>();
+
         // The reseller counterpart of the window above, for the facts Identity needs about a reseller it
         // may not read the tables of: its name and whether it is suspended. Scoped, because it applies
         // the request's own tenant scope.
@@ -134,6 +141,12 @@ public sealed class AccountsModule : IPanelModule
         // administrator's and the customer's summary. Scoped, because it reads the request's own
         // tenant-scoped context and the counters, which are scoped too.
         services.AddScoped<AccountResourceSummaryReader>();
+
+        // Moving an account to another Maran server (issue #127): what this module hands over, and how it
+        // creates what it is handed. The Migration module gathers every implementation through the Sdk.
+        services.AddScoped<IAccountMigrationExporter, AccountsMigrationExporter>();
+        services.AddScoped<IAccountMigrationImporter, AccountsMigrationImporter>();
+        services.AddScoped<IAccountMigrationRollback, AccountMigrationRollback>();
 
         // Registers this module's resource managers into the shared pool the panel-wide
         // ResxErrorTextProvider resolves error codes and Manifest.DisplayNameKey against

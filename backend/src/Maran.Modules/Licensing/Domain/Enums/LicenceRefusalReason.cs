@@ -31,8 +31,8 @@ public enum LicenceRefusalReason
     Malformed,
 
     /// <summary>
-    /// The envelope parsed, but its Ed25519 signature does not verify against the embedded public
-    /// key for the payload bytes it was verified against. The file was edited, truncated, or is a
+    /// The envelope parsed, but its Ed25519 signature does not verify against the verification
+    /// public key for the payload bytes it was verified against. The file was edited, truncated, or is a
     /// forgery.
     /// </summary>
     SignatureInvalid,
@@ -68,4 +68,12 @@ public enum LicenceRefusalReason
     /// </para>
     /// </remarks>
     FingerprintMismatch,
+
+    /// <summary>
+    /// This build carries no licence verification key, so no licence can be checked and none is
+    /// accepted. Distinct from <see cref="SignatureInvalid"/>: nothing is wrong with the licence, the
+    /// panel simply has no key to judge it by. It is the state of every build until the real key pair
+    /// exists; a placeholder key is never trusted in its place.
+    /// </summary>
+    NoVerificationKey,
 }

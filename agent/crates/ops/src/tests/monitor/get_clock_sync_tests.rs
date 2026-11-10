@@ -5,7 +5,7 @@
 use maran_agent_core::utils::call_class::CallClass;
 
 use super::get_clock_sync;
-use crate::monitor::fake_monitor_host::{FakeMonitorHost, distro, rhel_distro};
+use crate::monitor::fake_monitor_host::{FakeMonitorHost, distro, rhel_distro, suse_distro};
 use crate::monitor::model::clock_sync_state::ClockSyncState;
 use crate::monitor::monitor_error::MonitorError;
 
@@ -112,10 +112,10 @@ fn a_program_killed_at_its_deadline_is_a_bound_not_a_finding() {
 }
 
 /// The exact argv: a reporting subcommand, both properties, the query class,
-/// and the adapter's absolute path on both families.
+/// and the adapter's absolute path on every family.
 #[test]
 fn timedatectl_is_a_query_asking_for_both_properties() {
-    for adapter in [distro(), rhel_distro()] {
+    for adapter in [distro(), rhel_distro(), suse_distro()] {
         let host = host_printing("NTP=yes\nNTPSynchronized=yes\n");
 
         get_clock_sync(&host, adapter).expect("the read succeeds");

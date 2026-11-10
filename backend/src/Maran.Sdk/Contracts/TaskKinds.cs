@@ -104,4 +104,45 @@ public static class TaskKinds
     /// module closes it from the root update's report, or its own reaper when no report arrives.
     /// </remarks>
     public const string PanelUpdate = "PanelUpdate";
+
+    /// <summary>
+    /// A module is being installed from the marketplace: its entitlement checked, the package
+    /// downloaded, its signature verified and the verified package staged (issue #186).
+    /// </summary>
+    /// <remarks>
+    /// It earns a task because the download is a network transfer of up to the package size limit
+    /// that an operator must be able to watch, and the task ends in "restart required": the module
+    /// activates at the next start, so the line an operator reads last must say so. The subject is the
+    /// module id.
+    /// </remarks>
+    public const string ModuleInstall = "ModuleInstall";
+
+    /// <summary>
+    /// An installed marketplace module is being replaced by a newer version: the same steps as an
+    /// install, ending in "restart required" (issue #186). The subject is the module id.
+    /// </summary>
+    public const string ModuleUpdate = "ModuleUpdate";
+
+    /// <summary>
+    /// An installed marketplace module is being stopped and its package removed; its data is kept
+    /// (issue #186). The subject is the module id.
+    /// </summary>
+    public const string ModuleRemove = "ModuleRemove";
+
+    /// <summary>
+    /// An installed marketplace module is being returned to the version it ran before its last
+    /// update (issue #186). The subject is the module id.
+    /// </summary>
+    public const string ModuleRollback = "ModuleRollback";
+
+    /// <summary>
+    /// An account is being created on this server from a package another Maran server exported: the account, its
+    /// databases, sites, logins and cron entries made, then the files and database content restored (issue #127).
+    /// </summary>
+    /// <remarks>
+    /// It earns a task because the restore moves gigabytes and the job outlives the request that started it, so an
+    /// administrator must be able to watch its stage and read why it was rolled back. The subject is the account's
+    /// system user name, and the audience is administrators only: an import is never a customer's act.
+    /// </remarks>
+    public const string AccountImport = "AccountImport";
 }

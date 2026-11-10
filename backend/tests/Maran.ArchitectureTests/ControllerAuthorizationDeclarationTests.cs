@@ -105,6 +105,10 @@ public sealed class ControllerAuthorizationDeclarationTests
                 "UndeclaredAuthorizationController.ApiKeySchemeWithWrongPolicyAsync restricts by Roles or "
                     + "AuthenticationSchemes instead of a named policy",
                 "UndeclaredAuthorizationController.BareAsync uses a bare [Authorize] that names no policy",
+                "UndeclaredAuthorizationController.GrantPolicyWithoutSchemeAsync names the unknown policy "
+                    + "'MigrationGrantPull'",
+                "UndeclaredAuthorizationController.GrantSchemeWithWrongPolicyAsync restricts by Roles or "
+                    + "AuthenticationSchemes instead of a named policy",
                 "UndeclaredAuthorizationController.NoAttributeAsync declares no authorization "
                     + "(it would fall to the fallback policy)",
                 "UndeclaredAuthorizationController.RolesAsync restricts by Roles or AuthenticationSchemes "
@@ -122,7 +126,7 @@ public sealed class ControllerAuthorizationDeclarationTests
         var pin = new[] { new PinnedAnonymousAction("DeclaredAuthorizationController.OpenAsync", "planted control") };
 
         var violations = ControllerAuthorizationCensus.FindViolations(
-            new[] { typeof(DeclaredAuthorizationController), typeof(DeclaredApiKeyAuthorizationController) },
+            new[] { typeof(DeclaredAuthorizationController), typeof(DeclaredApiKeyAuthorizationController), typeof(DeclaredMigrationGrantController) },
             pin);
 
         Assert.Empty(violations);

@@ -66,7 +66,7 @@ package_must_refuse() {
   if output="$( ( cmd_package "$@" ) 2>&1 )"; then
     release_failed "package selftest: ${label} was ACCEPTED — the check behind it is decoration."
   fi
-  printf '%s' "$output" | grep -qE -- "$pattern" \
+  grep -qE -- "$pattern" <<<"$output" \
     || release_failed "package selftest: ${label} was refused for another reason than expected (wanted /${pattern}/): ${output}"
   if compgen -G "${leftover}/*.tar.gz" >/dev/null; then
     release_failed "package selftest: ${label} was refused but left a tarball in ${leftover}."
@@ -168,7 +168,7 @@ cmd_package_selftest() {
   if nosig_out="$(verify_offline_tarball "${work}/nosig.tar.gz" x86_64 "$pub" 2>&1)"; then
     release_failed "package selftest: a tarball with no integrity-manifest.json.sig was ACCEPTED."
   fi
-  printf '%s' "$nosig_out" | grep -q 'missing integrity-manifest.json' \
+  grep -q 'missing integrity-manifest.json' <<<"$nosig_out" \
     || release_failed "package selftest: the signature-less tarball was refused for another reason: ${nosig_out}"
   echo "${VERDICT_PREFIX}: OK — a tarball without integrity-manifest.json.sig REFUSED by the verifier (expected)."
   verify_offline_tarball "${out}/maran-offline-selftest-x86_64.tar.gz" x86_64 "$pub" \
@@ -235,7 +235,7 @@ cmd_package_selftest() {
   local empty_path="${work}/empty-path" refusal status=0
   install -d "$empty_path"
   refusal="$( ( PATH="$empty_path"; cmd_package --bundle "$good" --out "${work}/o-noopenssl" --pubkey "$pub" ) 2>&1 )" || status=$?
-  if [ "$status" -eq "$SUITE_STATUS_DID_NOT_RUN" ] && printf '%s' "$refusal" | grep -q 'DID NOT RUN'; then
+  if [ "$status" -eq "$SUITE_STATUS_DID_NOT_RUN" ] && grep -q 'DID NOT RUN' <<<"$refusal"; then
     echo "${VERDICT_PREFIX}: OK — no openssl on PATH printed DID NOT RUN and returned ${status} (expected; the inverse control is case 1, same arguments, openssl present)."
   else
     release_failed "package selftest: with no openssl the packager returned ${status} and said: ${refusal}"

@@ -16,6 +16,13 @@ services:
     image: ghcr.io/letsencrypt/pebble:latest
     container_name: maran-pebble
     network_mode: host
+    # DNS-01 (the wildcard test): pebble's validation authority asks the mock DNS server below instead of the
+    # system resolver. The mock answers any A query with 127.0.0.1, so the HTTP-01 test's "localhost" still
+    # resolves to the host loopback it always did. The image's own default command is
+    # `-config test/config/pebble-config.json`; it is restated here with the one added flag.
+    command: ["-config", "test/config/pebble-config.json", "-dnsserver", "127.0.0.1:8053"]
+    depends_on:
+      - challtestsrv
     environment:
       # Deterministic knobs — see .superpowers/sdd/acme-pebble.md for exactly what each one hides.
       # PEBBLE_WFE_NONCEREJECT=0: pebble by default rejects a random ~5% of nonces on purpose, to
@@ -33,4 +40,15 @@ services:
       # challenge to actually be served and validated, not skipped because a prior run's pending
       # authorization got reused.
       PEBBLE_AUTHZREUSE: "0"
+    restart: "no"
+
+  # The mock DNS server pebble's own integration tests use. It serves TXT records set through its management
+  # API (http://localhost:8055/set-txt, /clear-txt), which is how PebbleDnsAcmeIssuanceTests publishes the
+  # DNS-01 challenge. Its HTTP-01, HTTPS and TLS-ALPN mocks are switched off: the HTTP-01 test brings its own
+  # listener on port 5002, and a second owner of that port would break it.
+  challtestsrv:
+    image: ghcr.io/letsencrypt/pebble-challtestsrv:latest
+    container_name: maran-pebble-challtestsrv
+    network_mode: host
+    command: ["-http01", "", "-https01", "", "-tlsalpn01", "", "-doh", "", "-defaultIPv4", "127.0.0.1", "-defaultIPv6", ""]
     restart: "no"

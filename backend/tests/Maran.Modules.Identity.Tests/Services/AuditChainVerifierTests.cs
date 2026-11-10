@@ -179,7 +179,7 @@ public sealed class AuditChainVerifierTests : IDisposable
             AuditChainFixture.Start.AddDays(1),
             Guid.NewGuid(),
             "erased-user-1a2b3c4d",
-            replaceSubject: false);
+            new HashSet<string>());
         await _context.SaveChangesAsync();
 
         var verdict = await VerifyAsync();

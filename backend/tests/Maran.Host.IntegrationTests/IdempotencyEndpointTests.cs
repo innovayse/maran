@@ -275,7 +275,8 @@ public sealed class IdempotencyEndpointTests : IAsyncLifetime
         using var byFirst = await first.SendAsync(IdempotencyHost.Request(
             HttpMethod.Post, "/api/v1/accounts", "shared-key", IdempotencyHost.CreateBody("acme", planId)));
         using var bySecond = await second.SendAsync(IdempotencyHost.Request(
-            HttpMethod.Post, "/api/v1/accounts", "shared-key", IdempotencyHost.CreateBody("beta", planId)));
+            HttpMethod.Post, "/api/v1/accounts", "shared-key",
+            IdempotencyHost.CreateBody("beta", planId, "owner-beta@example.com")));
 
         Assert.Equal(HttpStatusCode.Created, byFirst.StatusCode);
         Assert.Equal(HttpStatusCode.Created, bySecond.StatusCode);

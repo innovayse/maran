@@ -31,6 +31,7 @@ import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiPagination from '../../components/ui/UiPagination.vue'
 import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
 import UiSearchInput from '../../components/ui/UiSearchInput.vue'
+import UiToolbar from '../../components/ui/UiToolbar.vue'
 import DnsZonesFilterSheet from '../../components/dns/DnsZonesFilterSheet.vue'
 import DnsZonesTable from '../../components/dns/DnsZonesTable.vue'
 import { useAccountChoice } from '../../composables/useAccountChoice'
@@ -70,6 +71,13 @@ const filtersOpen: Ref<boolean> = ref(false)
 
 /** The zone awaiting a delete confirmation, or `null` when none is. */
 const pending: Ref<DnsZone | null> = ref(null)
+
+/** The delete confirmation's consequence; a signed zone's also warns about the DS record at the registrar. */
+const deleteQuestion: ComputedRef<string> = computed(() => {
+  return pending.value !== null && pending.value.dnssecState !== 'off'
+    ? t('dns.zones.confirmDeleteSigned')
+    : t('dns.zones.confirmDelete')
+})
 
 /** Whether the list is narrowed by a search or a filter, so an empty answer means "no match". */
 const isNarrowed: ComputedRef<boolean> = computed(() => {
@@ -188,7 +196,7 @@ onMounted(() => {
 
     <UiCard v-else>
       <div class="flex flex-col gap-4">
-        <div class="flex flex-wrap items-end gap-3">
+        <UiToolbar>
           <UiSearchInput
             v-model="table.search.value"
             class="min-w-55 max-w-85 flex-1"
@@ -205,7 +213,7 @@ onMounted(() => {
             :active-label="t('common.list.filtersApplied', { n: table.activeFilterCount.value }, table.activeFilterCount.value)"
             @click="openFilters"
           />
-        </div>
+        </UiToolbar>
 
         <UiActiveFilter
           v-if="chips.length > 0"
@@ -270,7 +278,7 @@ onMounted(() => {
     <UiConfirm
       :open="pending !== null"
       :title="t('dns.zones.confirmDeleteTitle', { name: pending?.name ?? '' })"
-      :question="t('dns.zones.confirmDelete')"
+      :question="deleteQuestion"
       :confirm-label="t('dns.zones.confirmDeleteAction')"
       :cancel-label="t('common.cancel')"
       :close-label="t('common.close')"

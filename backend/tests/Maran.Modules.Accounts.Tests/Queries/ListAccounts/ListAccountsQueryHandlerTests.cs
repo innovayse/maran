@@ -166,7 +166,7 @@ public sealed class ListAccountsQueryHandlerTests
     {
         await using var dbContext = CreateDbContext();
         var suspended = NewAccount("paused", Epoch);
-        suspended.Suspend();
+        suspended.Suspend(SuspensionActor.Administrator);
         dbContext.Accounts.AddRange(suspended, NewAccount("running", Epoch));
         await dbContext.SaveChangesAsync();
 

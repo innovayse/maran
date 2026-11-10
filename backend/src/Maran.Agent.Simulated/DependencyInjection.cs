@@ -17,6 +17,7 @@ using Maran.Agent.Simulated.Services.SftpService;
 using Maran.Agent.Simulated.Services.SitesService;
 using Maran.Agent.Simulated.Services.SslService;
 using Maran.Agent.Simulated.Services.SystemService;
+using Maran.Agent.Simulated.Services.TransferService;
 using Maran.Agent.Simulated.State;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -82,6 +83,7 @@ public static class DependencyInjection
         services.AddSingleton<IAgentCronClient, SimulatedAgentCronClient>();
         services.AddSingleton<IAgentFirewallClient, SimulatedAgentFirewallClient>();
         services.AddSingleton<IAgentBackupClient, SimulatedAgentBackupClient>();
+        services.AddSingleton<IAgentTransferClient, SimulatedAgentTransferClient>();
 
         return services;
     }

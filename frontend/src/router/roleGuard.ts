@@ -1,5 +1,6 @@
 import type { NavigationGuard, RouteLocationRaw } from 'vue-router'
 import { useCallerRole } from '../composables/useCallerRole'
+import { useViewingAs } from '../composables/useViewingAs'
 
 /** Route name of the screen that tells a caller a page is not part of their area. */
 const NOT_AVAILABLE_ROUTE = 'not-available'
@@ -26,6 +27,9 @@ const RESELLER_HOME_ROUTE = 'reseller-overview'
  * overview. A reseller who lands on the server dashboard is sent to their own overview, because
  * that is their home.
  *
+ * `meta.viewAsRefused` turns away an operator who is viewing as a login from a screen made of
+ * endpoints a view-as session is refused (issue #513), with the same "not available" screen.
+ *
  * It errs permissive on one thing only: a visitor whose role is not known yet (not restored) passes
  * through and the server answers. A signed-in caller of ANY known role that the flag does not name
  * is refused, so a role added later never inherits a screen by default.
@@ -38,6 +42,7 @@ const RESELLER_HOME_ROUTE = 'reseller-overview'
 export const createRoleGuard = (): NavigationGuard => {
   return (to): boolean | RouteLocationRaw => {
     const { role, isAdmin, isManager, isReseller } = useCallerRole()
+    const viewingAs = useViewingAs()
 
     if (to.name === HOME_ROUTE && isReseller.value) {
       return { name: RESELLER_HOME_ROUTE, replace: true }
@@ -51,7 +56,8 @@ export const createRoleGuard = (): NavigationGuard => {
     const allowed =
       (to.meta.adminOnly !== true || isAdmin.value) &&
       (to.meta.managerOnly !== true || isManager.value) &&
-      (to.meta.resellerOnly !== true || isReseller.value)
+      (to.meta.resellerOnly !== true || isReseller.value) &&
+      (to.meta.viewAsRefused !== true || !viewingAs.value)
     if (allowed) {
       return true
     }

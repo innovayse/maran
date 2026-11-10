@@ -2,7 +2,15 @@ import { useAuthStore } from '../stores/auth'
 import { useLocaleStore } from '../stores/locale'
 import { contentDispositionFileName } from '../utils/contentDispositionFileName'
 import { decodeServerSentFrame } from '../utils/decodeServerSentFrame'
-import type { ApiClient, ApiDownload, ProblemDetails, RequestOptions, ServerSentEvent } from '../types/api'
+import type {
+  ApiClient,
+  ApiDownload,
+  ApiRelayAnswer,
+  ApiRelayOptions,
+  ProblemDetails,
+  RequestOptions,
+  ServerSentEvent,
+} from '../types/api'
 
 /**
  * Single low-level HTTP client composable for the panel API. Requests are
@@ -111,7 +119,7 @@ export class ApiError extends Error {
  * request cancellation via `AbortSignal`, and one silent retry after renewing
  * an expired access token. There is exactly one of this composable in the app;
  * feature API composables call it, and nothing else does.
- * @returns The {@link ApiClient} with `get`, `post`, `put`, `patch`, `delete`, `download`, `upload` and `stream`.
+ * @returns The {@link ApiClient} with `get`, `post`, `put`, `patch`, `delete`, `download`, `upload`, `stream` and `relay`.
  */
 export const useApi = (): ApiClient => {
   // The locale store is the single source of truth for the interface language;
@@ -160,10 +168,17 @@ export const useApi = (): ApiClient => {
    * Builds the headers every request carries.
    * @param contentType The media type of the body, or null for a request without one.
    * @param accept The media types the caller will take; JSON unless a download asks otherwise.
+   * @param extra Headers the caller declares; the headers this client owns win over them.
    * @returns The header map.
    */
-  const buildHeaders = (contentType: string | null, accept: string): Record<string, string> => {
+  const buildHeaders = (
+    contentType: string | null,
+    accept: string,
+    extra: Record<string, string> = {},
+  ): Record<string, string> => {
     const headers: Record<string, string> = {
+      // First, so that none of the headers the client owns below can be replaced by a caller's.
+      ...extra,
       Accept: accept,
       // Lets the backend pick which language to render `title`/`detail` in,
       // since the frontend never translates server-owned error text.
@@ -188,8 +203,8 @@ export const useApi = (): ApiClient => {
    * Performs one request, renewing the access token and replaying it once on a 401.
    * @param path Request path, relative to the app origin.
    * @param options Method, body and abort signal.
-   * @returns The raw response, already known to be successful.
-   * @throws {ApiError} When the response status is not in the 2xx range.
+   * @returns The raw response, known to be successful unless the options asked for failures to be passed on.
+   * @throws {ApiError} When the response status is not in the 2xx range and failures are not passed on.
    */
   const request = async (path: string, options: RequestOptions): Promise<Response> => {
     /**
@@ -200,7 +215,7 @@ export const useApi = (): ApiClient => {
     const send = (): Promise<Response> => {
       return fetch(path, {
         method: options.method,
-        headers: buildHeaders(contentTypeOf(options), options.accept ?? 'application/json'),
+        headers: buildHeaders(contentTypeOf(options), options.accept ?? 'application/json', options.headers),
         body: options.rawBody ?? (options.body === undefined ? undefined : JSON.stringify(options.body)),
         // Sends the refresh cookie on the paths scoped to receive it.
         credentials: 'include',
@@ -223,7 +238,7 @@ export const useApi = (): ApiClient => {
       response = await send()
     }
 
-    if (!response.ok) {
+    if (!response.ok && options.passFailure !== true) {
       await throwApiError(response)
     }
 
@@ -409,5 +424,35 @@ export const useApi = (): ApiClient => {
     }
   }
 
-  return { get, post, put, patch, delete: deleteResource, download, upload, stream }
+  /**
+   * Performs a request for another party and returns the server's answer as data.
+   *
+   * The body is parsed leniently: an empty or non-JSON body becomes `null`, because the party the
+   * answer goes to (a module's frame) is owed the status either way, and a proxy's HTML error page
+   * is not a reason to withhold it.
+   * @param path Request path, relative to the app origin.
+   * @param options Method, optional JSON body and the extra headers to declare.
+   * @returns The HTTP status and the parsed body.
+   */
+  const relay = async (path: string, options: ApiRelayOptions): Promise<ApiRelayAnswer> => {
+    const response = await request(path, {
+      method: options.method,
+      body: options.body,
+      headers: options.headers,
+      passFailure: true,
+    })
+    const text = await response.text()
+    let body: unknown = null
+    if (text.length > 0) {
+      try {
+        body = JSON.parse(text)
+      } catch {
+        // Not JSON (a proxy's error page): the status still travels, the body is withheld.
+        body = null
+      }
+    }
+    return { status: response.status, body }
+  }
+
+  return { get, post, put, patch, delete: deleteResource, download, upload, stream, relay }
 }

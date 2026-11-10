@@ -82,6 +82,78 @@ public sealed class DenyPortCommandHandlerTests
         Assert.Equal("tcp/30000-30099 from 0.0.0.0/0", Assert.Single(world.Audit.Entries).Subject);
     }
 
+    /// <summary>Removing one of two rules for an SSH port, the one that admits the caller, is refused.</summary>
+    [Fact]
+    public async Task Removing_the_rule_that_admits_the_caller_while_another_rule_remains_is_refused()
+    {
+        // The agent restores the unconditional accept only when the LAST rule goes, so with rule B
+        // left behind the port admits 192.0.2.0/24 and nobody else: the caller is cut off.
+        var world = new World();
+        world.Agent.RulesResult = Result<IReadOnlyList<AgentFirewallRule>>.Ok(
+        [
+            new AgentFirewallRule(22, null, AgentFirewallProtocol.Tcp, "198.51.100.1/32"),
+            new AgentFirewallRule(22, null, AgentFirewallProtocol.Tcp, "192.0.2.0/24"),
+        ]);
+
+        var result = await world.DenyAsync(22, AgentFirewallProtocol.Tcp, "198.51.100.1/32");
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("FirewallRuleLocksOutCaller", result.Error!.Code);
+        Assert.Equal(ErrorType.Conflict, result.Error!.Type);
+        Assert.Empty(world.Agent.Denies);
+        var entry = Assert.Single(world.Audit.Entries);
+        Assert.Equal(FirewallAuditActions.FirewallRuleDenied, entry.Action);
+        Assert.False(entry.Succeeded);
+        Assert.Single(world.Log.Messages);
+    }
+
+    /// <summary>The inverse control: removing the last rule for the port is allowed.</summary>
+    [Fact]
+    public async Task Removing_the_last_rule_for_an_ssh_port_is_sent_to_the_agent()
+    {
+        var world = new World();
+        world.Agent.RulesResult = Result<IReadOnlyList<AgentFirewallRule>>.Ok(
+            [new AgentFirewallRule(22, null, AgentFirewallProtocol.Tcp, "198.51.100.1/32")]);
+
+        var result = await world.DenyAsync(22, AgentFirewallProtocol.Tcp, "198.51.100.1/32");
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(world.Agent.Denies);
+    }
+
+    /// <summary>The inverse control: removing a rule that does not admit the caller, leaving one that does, is allowed.</summary>
+    [Fact]
+    public async Task Removing_a_rule_while_another_rule_still_admits_the_caller_is_sent_to_the_agent()
+    {
+        var world = new World();
+        world.Agent.RulesResult = Result<IReadOnlyList<AgentFirewallRule>>.Ok(
+        [
+            new AgentFirewallRule(22, null, AgentFirewallProtocol.Tcp, "198.51.100.0/24"),
+            new AgentFirewallRule(22, null, AgentFirewallProtocol.Tcp, "192.0.2.0/24"),
+        ]);
+
+        var result = await world.DenyAsync(22, AgentFirewallProtocol.Tcp, "192.0.2.0/24");
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(world.Agent.Denies);
+    }
+
+    /// <summary>A rule listing that fails stops the removal: the handler cannot tell, and does not guess.</summary>
+    [Fact]
+    public async Task A_rule_listing_that_fails_stops_the_removal()
+    {
+        var world = new World();
+        world.Agent.RulesResult = Result<IReadOnlyList<AgentFirewallRule>>.Fail(
+            Error.Of("AgentSystemFailure", ErrorType.Failure));
+
+        var result = await world.DenyAsync(22, AgentFirewallProtocol.Tcp, "198.51.100.1/32");
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentSystemFailure", result.Error!.Code);
+        Assert.Empty(world.Agent.Denies);
+        Assert.False(Assert.Single(world.Audit.Entries).Succeeded);
+    }
+
     /// <summary>The agent double, the journal and the handler under test.</summary>
     private sealed class World
     {
@@ -94,13 +166,17 @@ public sealed class DenyPortCommandHandlerTests
         /// <summary>The journal double.</summary>
         public RecordingAuditWriter Audit { get; } = new();
 
+        /// <summary>The operator log double.</summary>
+        public RecordingLogger<DenyPortCommandHandler> Log { get; } = new();
+
         /// <summary>Builds a handler over a host with two SSH ports and nginx on 8443.</summary>
         public World()
         {
             _handler = new DenyPortCommandHandler(
                 Agent,
                 FirewallTestContext.Options(),
-                new FirewallAuditJournal(Audit, new FakeCurrentUser()));
+                new FirewallAuditJournal(Audit, new FakeCurrentUser()),
+                Log);
         }
 
         /// <summary>Runs the handler once.</summary>

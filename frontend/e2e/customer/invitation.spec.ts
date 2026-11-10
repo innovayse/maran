@@ -1,7 +1,8 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedOut } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { setPersistedLocale } from '../fixtures/set-locale'
+import type { Page } from '@playwright/test'
 
 // Issue #202 item 5: the accept-invitation response carries `{ username }`, the login the
 // invitation created, and the success screen names it so the person knows what to sign in with.

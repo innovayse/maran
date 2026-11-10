@@ -1,10 +1,12 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { seededWhitelistNote, stubFirewall } from '../fixtures/stub-firewall-routes'
 import type { WhitelistEntry } from '../../src/types/firewall'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 const LICENSED: PanelModule[] = [
   { name: 'firewall', displayName: 'Firewall', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -13,7 +15,7 @@ const LICENSED: PanelModule[] = [
 // The row the installer seeds: the address the panel was installed from. Nothing on the wire marks
 // it as the panel's own, which is exactly why the note is the column that has to be rendered.
 const SEEDED: WhitelistEntry = {
-  id: '00000000-0000-0000-0000-0000000000w1',
+  id: '00000000-0000-0000-0000-0000000000a1',
   cidr: '198.51.100.0/24',
   note: seededWhitelistNote,
   createdAt: '2026-08-01T09:00:00+00:00',
@@ -37,6 +39,7 @@ const openScreen = async (
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubFirewall(page, { rules: [], bans: [], whitelist: entries })
   page.on('request', (request) => {
     if (request.method() === 'POST' && request.url().includes('/api/v1/firewall/whitelist')) {
@@ -154,7 +157,7 @@ test('removing an exemption asks first, and then names the row the panel gave ba
 /** Enough exemptions to push the shell's scroll container well past its own height. */
 const MANY: WhitelistEntry[] = Array.from({ length: 40 }, (_, index) => {
   return {
-    id: `00000000-0000-0000-0000-0000000${(index + 100).toString()}`,
+    id: `00000000-0000-0000-0000-000000000${(index + 100).toString()}`,
     cidr: `203.0.113.${index}/32`,
     note: `Row ${index}`,
     createdAt: '2026-08-01T09:00:00+00:00',

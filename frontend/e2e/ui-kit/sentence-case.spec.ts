@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
@@ -6,13 +6,16 @@ import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { ALERT_DELIVERY_OK, loaded, stubDashboard, SYNCHRONIZED_CLOCK } from '../fixtures/stub-dashboard-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubInvitation } from '../fixtures/stub-invitation-routes'
+import { DEFAULT_LAYOUT, installLiveStream, stubDashboardLayout } from '../fixtures/stub-live-dashboard-stream'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubPlans, THREE_PLANS } from '../fixtures/stub-plans-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubTasks, stubTaskStream } from '../fixtures/stub-tasks-routes'
 import type { Account, AccountDetail } from '../../src/types/account'
 import type { Dashboard } from '../../src/types/dashboard'
 import type { PanelModule } from '../../src/types/module'
 import type { PanelTask } from '../../src/types/panelTask'
+import type { Page } from '@playwright/test'
 
 /*
  * Issue #244: every label in the panel reads in sentence case. Field labels, table headers,
@@ -153,7 +156,11 @@ const stubEverything = async (page: Page, locale: (typeof LOCALES)[number]): Pro
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, MODULES)
+  await stubShellReads(page)
   await stubDashboard(page, DASHBOARD)
+  // The system status screen reads its widget layout and opens the live stream, which the stand-in keeps off the network.
+  await stubDashboardLayout(page, DEFAULT_LAYOUT)
+  await installLiveStream(page)
   // The badge prints the panel's own name for the status, so the answer is localized like the real one.
   await stubTasks(page, [{ ...TASK, statusName: COMPLETED[locale] }])
   await stubTaskStream(page, '')

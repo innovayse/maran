@@ -27,8 +27,8 @@ const NO_PAGER: &str = "--no-pager";
 /// run that wrote it.
 const INVOCATION_MATCH: &str = "_SYSTEMD_INVOCATION_ID=";
 
-/// Turns a failed run of `unit` into the failure the caller reports, carrying
-/// `report` — the service manager's own account of the failure — for an
+/// Turns a failed run of `unit`, which was asked to install `package`, into the
+/// failure the caller reports, carrying `report` — the service manager's own account of the failure — for an
 /// operator's log.
 ///
 /// The package manager runs in the installer's unit and not as the agent's
@@ -41,6 +41,8 @@ const INVOCATION_MATCH: &str = "_SYSTEMD_INVOCATION_ID=";
 /// - a source that answered with an HTTP error is
 ///   [`PhpOpError::PackageSourceRefused`];
 /// - a source nobody could reach is [`PhpOpError::PackageSourceUnreachable`];
+/// - a package none of the host's sources carries is
+///   [`PhpOpError::PackageNotAvailable`], naming `package`;
 /// - everything else is [`PhpOpError::PackageManager`].
 ///
 /// When the run cannot be read back — the service manager names no run, the
@@ -55,6 +57,7 @@ pub(crate) fn classify_install_failure(
     host: &dyn PhpHost,
     distro: &dyn DistroAdapter,
     unit: &str,
+    package: &str,
     report: String,
 ) -> PhpOpError {
     match read_package_failure(host, distro, unit) {
@@ -62,6 +65,10 @@ pub(crate) fn classify_install_failure(
         Ok(PackageFailure::SourceUnreachable) => {
             PhpOpError::PackageSourceUnreachable { stderr: report }
         }
+        Ok(PackageFailure::NotAvailable) => PhpOpError::PackageNotAvailable {
+            package: package.to_owned(),
+            stderr: report,
+        },
         Ok(PackageFailure::Local) => PhpOpError::PackageManager { stderr: report },
         Err(unread) => PhpOpError::PackageManager {
             stderr: format!("{report}; the run could not be classified: {unread}"),

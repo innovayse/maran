@@ -1,7 +1,10 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 import { stubSignedIn } from './stub-auth-routes'
 import { stubHealthy } from './stub-health-route'
+import { stubLandingReads } from './stub-landing-reads'
 import { stubModules } from './stub-modules-route'
+import { stubQuietScreens } from './stub-quiet-screens'
+import { stubShellReads } from './stub-shell-reads'
 import type { PanelModule } from '../../src/types/module'
 
 /**
@@ -28,26 +31,34 @@ export const FULL_CATALOGUE: PanelModule[] = [
 /**
  * Signs in as an administrator on a desktop with {@link FULL_CATALOGUE} and opens a path.
  *
- * Every `/api/v1` request no narrower stub answers gets an empty 404 problem, installed first so
- * any stub a spec adds afterwards wins Playwright's ordering. These specs are about the shell
- * (sidebar, breadcrumb, eyebrow), so a screen's own content may be a refusal; its heading and the
- * shell around it are drawn either way.
+ * The reads the shell makes on every screen and the landing page's own are answered with their quiet
+ * answers. Every other documented `GET` a screen makes is answered with the quietest body its
+ * contract allows ({@link stubQuietScreens}), installed first so any stub a spec adds afterwards
+ * wins Playwright's ordering. These specs are about the shell (sidebar, breadcrumb, eyebrow), so a
+ * screen's own content is empty rather than refused: no spec of the shell announces a 404 unless it
+ * installs that refusal itself, for the one route it is about, through `prepare`.
  * @param page The Playwright page under test.
  * @param path Where to open.
+ * @param catalogue The modules the panel reports; every module by default.
+ * @param prepare Installs the stubs a spec needs answered before the first navigation, such as a
+ * refusal for the one record it opens by address; it runs after the quiet answers and before the
+ * shell's own, so it wins over the former.
  * @returns Resolves once the main navigation is drawn.
  */
-export const openFullShell = async (page: Page, path = '/'): Promise<void> => {
+export const openFullShell = async (
+  page: Page,
+  path = '/',
+  catalogue: PanelModule[] = FULL_CATALOGUE,
+  prepare: (page: Page) => Promise<void> = async (): Promise<void> => {},
+): Promise<void> => {
   await page.setViewportSize({ width: 1440, height: 900 })
-  await page.route(/\/api\/v1\//, async (route) => {
-    await route.fulfill({
-      status: 404,
-      contentType: 'application/problem+json',
-      body: JSON.stringify({ title: 'Not found', status: 404 }),
-    })
-  })
+  await stubQuietScreens(page)
+  await prepare(page)
   await stubSignedIn(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
   await stubHealthy(page)
-  await stubModules(page, FULL_CATALOGUE)
+  await stubModules(page, catalogue)
   await page.goto(path)
   // The sidebar's own section rows, located without its translated name so any language opens.
   await expect(page.locator('nav [data-nav-section]').first()).toBeVisible()

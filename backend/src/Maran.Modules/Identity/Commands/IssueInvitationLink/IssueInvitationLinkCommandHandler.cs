@@ -140,8 +140,9 @@ public sealed class IssueInvitationLinkCommandHandler
 
         // The subject is the customer's login name — what was acted on — and nothing derived from the
         // token: not the link, not the token, not its digest.
-        await _journal.RecordIdentifiedAsync(
+        await _journal.RecordOnUserAsync(
             SignedInCallerPolicy.Require(_currentUser).UserId,
+            invitation.UserId,
             IdentityAuditActions.InvitationLinkIssued,
             invitation.Username,
             command.IpAddress,

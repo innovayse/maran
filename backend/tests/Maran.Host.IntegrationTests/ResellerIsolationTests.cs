@@ -81,7 +81,6 @@ public sealed class ResellerIsolationTests : IAsyncLifetime
             new AccountProbe(HttpMethod.Post, "/suspend", null),
             new AccountProbe(HttpMethod.Post, "/reactivate", null),
             new AccountProbe(HttpMethod.Put, "/plan", new { self.PlanId }),
-            new AccountProbe(HttpMethod.Put, "/owner-email", new { OwnerEmail = "probe@example.com" }),
             new AccountProbe(HttpMethod.Delete, string.Empty, null),
         };
 
@@ -116,11 +115,12 @@ public sealed class ResellerIsolationTests : IAsyncLifetime
             AccountAuditActions.AccountSuspended,
             AccountAuditActions.AccountReactivated,
             AccountAuditActions.AccountPlanChanged,
-            AccountAuditActions.AccountOwnerEmailChanged,
             AccountAuditActions.AccountDeleted);
 
-        // Five mutations, two targets, each sent at the foreign row and at a random identifier.
-        Assert.Equal(20, refusals.Count);
+        // The owner address is no probe here: it is the administrator's alone, so a reseller is told 403
+        // for any identifier before the account is looked up (AccountResellerPrivilegeEndpointTests).
+        // Four mutations, two targets, each sent at the foreign row and at a random identifier.
+        Assert.Equal(16, refusals.Count);
         Assert.All(refusals, entry =>
         {
             Assert.Equal(actor, entry.ActorUsername);

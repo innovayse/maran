@@ -1,11 +1,17 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from './fixtures/guarded-test'
 import { stubLogin, stubSignedIn, stubSignedOut, stubbedSignIn } from './fixtures/stub-auth-routes'
 import { stubModules } from './fixtures/stub-modules-route'
 import { stubHealthy } from './fixtures/stub-health-route'
+import { stubDashboard, WITHHELD_DASHBOARD } from './fixtures/stub-dashboard-route'
+import { stubMyAccountResources } from './fixtures/stub-account-resources-route'
+import { stubQuietOwnAccount } from './fixtures/stub-quiet-own-account'
+import { stubShellReads } from './fixtures/stub-shell-reads'
 import { stubSites, stubPhpVersions } from './fixtures/stub-sites-routes'
 import type { PanelModule } from '../src/types/module'
 import type { Site } from '../src/types/site'
+import type { AccountResourceSummary } from '../src/types/accountResourceSummary'
 import type { AuthenticatedUser } from '../src/types/auth'
+import type { Page } from '@playwright/test'
 
 /**
  * The customer area's end-to-end path, per Task 13 of the customer-area plan: an invitation link
@@ -49,6 +55,12 @@ const OWN_SITE: Site = {
   statusName: 'Enabled',
   createdAt: '2026-09-01T10:00:00Z',
   logRetentionDays: 14,
+}
+
+/** What the customer's own account holds, read by the sites list to know whether its plan limit is reached. */
+const OWN_RESOURCES: AccountResourceSummary = {
+  accountId: CUSTOMER.accountId ?? '',
+  resources: [{ kind: 'sites', count: { state: 'counted', used: 1 }, limit: { kind: 'unlimited' } }],
 }
 
 /**
@@ -97,9 +109,13 @@ test.describe('the customer area, end to end', () => {
     await stubLogin(page, {
       session: { ...(stubbedSignIn.session as NonNullable<typeof stubbedSignIn.session>), user: CUSTOMER },
     })
+    await stubShellReads(page)
+    await stubQuietOwnAccount(page, CUSTOMER.accountId ?? '')
     await stubModules(page, CUSTOMER_MODULES)
+    await stubDashboard(page, WITHHELD_DASHBOARD)
     await stubSites(page, [OWN_SITE])
     await stubPhpVersions(page, [])
+    await stubMyAccountResources(page, OWN_RESOURCES)
 
     await page.getByRole('textbox', { name: 'Username' }).fill(CUSTOMER.username)
     await page.getByRole('textbox', { name: 'Password' }).fill('correct horse battery staple')
@@ -136,13 +152,19 @@ test.describe('the customer area, end to end', () => {
 
   test('an administrator-only endpoint refuses a customer calling it directly, not merely a hidden menu', async ({
     page,
+    guard,
   }) => {
     // Review Focus 5 (task-13-brief Step 2): the assertion is against the endpoint a customer can
     // reach with the browser's own network stack — not against what the sidebar chooses to show,
     // which is advice only (rules/architecture.md, rules/security.md item 6).
     await stubSignedIn(page, CUSTOMER)
+    await stubShellReads(page)
+    await stubQuietOwnAccount(page, CUSTOMER.accountId ?? '')
     await stubModules(page, CUSTOMER_MODULES)
     await stubHealthy(page)
+    await stubDashboard(page, WITHHELD_DASHBOARD)
+    // The refusal is the subject of this test.
+    guard.allow(403, /\/api\/v1\/accounts$/)
 
     await page.route('**/api/v1/accounts', async (route) => {
       await route.fulfill({
@@ -159,7 +181,6 @@ test.describe('the customer area, end to end', () => {
     // global for `useApi.ts` inside the SPA's own bundle; this string runs in the browser as
     // test-only code, never bundled with the product, so the rule it protects does not apply here.
     const status = await page.evaluate(async () => {
-      // eslint-disable-next-line no-restricted-globals -- test-only code executed in the page, not part of the SPA bundle
       const response = await fetch('/api/v1/accounts')
       return response.status
     })

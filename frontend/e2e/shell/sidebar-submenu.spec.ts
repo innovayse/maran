@@ -1,9 +1,13 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubQuietScreens } from '../fixtures/stub-quiet-screens'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubInstallablePhpVersions, stubSites, stubPhpVersions } from '../fixtures/stub-sites-routes'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 // Sidebar submenus (issue #195): a module with several pages is a collapsible section whose
 // toggle carries aria-expanded, opens itself on a deep link, is keyboard-operable, and stays
@@ -29,9 +33,14 @@ const MODULES: PanelModule[] = [
  * @returns Resolves once navigation finished.
  */
 const open = async (page: Page, path: string): Promise<void> => {
+  // First, so every narrower stub below wins: the pages these specs walk to (accounts, the firewall
+  // lists) are not what they are about, and answer with the quietest body the contract allows.
+  await stubQuietScreens(page)
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, MODULES)
+  await stubShellReads(page)
+  await stubLandingReads(page)
   await stubSites(page, [])
   await stubPhpVersions(page, [])
   await stubInstallablePhpVersions(page, () => {return []})

@@ -92,6 +92,7 @@ create_directory_layout' \
     "/usr/local/maran:0:0:755" \
     "/etc/maran:0:${panel_gid}:750" \
     "/var/lib/maran:${panel_uid}:${panel_gid}:750" \
+    "/var/lib/maran/marketplace:${panel_uid}:${panel_gid}:700" \
     "/var/log/maran:0:${panel_gid}:750" \
     "/var/log/maran/panel:${panel_uid}:${panel_gid}:750" \
     "/var/log/maran/sites:0:0:750" \
@@ -115,8 +116,8 @@ create_directory_layout' \
   # anywhere. A count is not decoration on that axis: it is the only thing that observes the
   # list's SIZE, which is the property the assertions themselves cannot see. Raise it with the
   # list.
-  [ "$checked" -eq 16 ] \
-    || fail "the directory layout list checked ${checked} paths, not the 16 this list names (11 from step 40, the PHP socket directory from its tmpfiles snippet, and /run/maran-host with its three mount points). A path has been dropped from the list, and a check that is not in the list is not a check that failed — it is one that no longer exists."
+  [ "$checked" -eq 17 ] \
+    || fail "the directory layout list checked ${checked} paths, not the 17 this list names (12 from step 40, the PHP socket directory from its tmpfiles snippet, and /run/maran-host with its three mount points). A path has been dropped from the list, and a check that is not in the list is not a check that failed — it is one that no longer exists."
 
   # The scratch is a SIBLING of /var/lib/maran, never a child, and the reason is the whole
   # fix: the owner of a directory can rename an entry inside it aside and leave a symlink
@@ -361,6 +362,65 @@ assert_the_scratch_gate_refuses_a_directory_root_does_not_own() {
     || fail "step 40's assert_root_only_directory REFUSED a real root:root 0700 directory. A gate that refuses everything proves nothing about the four refusals above."
 
   echo "Step 40's assert_root_only_directory refused a symlink, a panel-owned directory, a group-readable one and a world-writable one, and accepted the real thing."
+}
+
+# assert_a_reinstall_keeps_a_killed_restores_rollback_dumps (issue #481): step 40 runs again on
+# every upgrade, and the bulk scratch holds, under backup/<id>/rollback/, the ONLY copy of the
+# databases a killed restore had already dropped. Step 40 used to `rm -rf` the scratch, which
+# deleted them during the very recovery the agent's warning sends the operator into.
+#
+# The dumps are planted, the REAL create_directory_layout is run (not the gate alone), and the
+# bytes must still be there afterwards. The inverse controls keep the keep-it rule from becoming
+# "never remove anything": a symbolic link planted at the path and a directory the panel uid owns
+# are each still removed and replaced by a real root-only directory, and the link's target is
+# untouched. Emptying ordinary stale scratch (the extracted archive dumps) is the agent's own
+# start-up reaper, covered by ops' reap_backup_scratch tests; UNOBSERVED HERE: this assertion
+# starts no agent, so it says nothing about that reaper running after the install.
+assert_a_reinstall_keeps_a_killed_restores_rollback_dumps() {
+  local scratch="/var/lib/maran-scratch" victim="/tmp/polygon-scratch-victim-481"
+  local dump="${scratch}/backup/killed-restore/rollback/shop.sql"
+
+  rm -rf -- "$scratch" "$victim"
+  install -d -o root -g root -m 0700 "$scratch" "${scratch}/backup/killed-restore/rollback"
+  printf 'CREATE TABLE only_copy (id int);\n' > "$dump"
+  run_user_step 'create_service_user >/dev/null
+create_directory_layout' \
+    || fail "step 40's create_directory_layout failed on a scratch holding a killed restore's rollback dump"
+  [ -f "$dump" ] && grep -Fq 'only_copy' "$dump" \
+    || fail "a re-run of step 40 destroyed ${dump}: the pre-restore database dumps of a killed restore are the only copy of that state (issue #481)"
+  assert_root_only_directory_with_mode_of "$scratch" 700
+
+  # Inverse control 1: a symlink at the path is unlinked, its target left alone, a real directory made.
+  rm -rf -- "$scratch" "$victim"
+  install -d -o root -g root -m 0700 "$victim"
+  : > "${victim}/keep"
+  ln -s "$victim" "$scratch"
+  run_user_step 'create_service_user >/dev/null
+create_directory_layout' \
+    || fail "step 40's create_directory_layout failed on a symbolic link planted at the scratch path"
+  [ ! -L "$scratch" ] && [ -d "$scratch" ] \
+    || fail "step 40 left the symbolic link at ${scratch}; the guarded removal no longer removes what an attacker can plant"
+  [ -e "${victim}/keep" ] || fail "removing the planted scratch link also removed its target's contents"
+
+  # Inverse control 2: a directory the panel uid owns (with contents) is removed, not kept.
+  rm -rf -- "$scratch" "$victim"
+  install -d -o "$POLYGON_SERVICE_USER" -g "$POLYGON_SERVICE_GROUP" -m 0700 "$scratch"
+  : > "${scratch}/planted"
+  run_user_step 'create_service_user >/dev/null
+create_directory_layout' \
+    || fail "step 40's create_directory_layout failed on a panel-owned scratch"
+  [ "$(stat -c '%u' "$scratch")" -eq 0 ] && [ ! -e "${scratch}/planted" ] \
+    || fail "step 40 kept a panel-owned ${scratch} and its contents; only a root-owned real directory may be kept"
+
+  rm -rf -- "$scratch" "$victim"
+  install -d -o root -g root -m 0700 "$scratch"
+  echo "A re-run of step 40 kept a killed restore's rollback dump, and still replaced a planted symlink and a panel-owned scratch."
+}
+
+# assert_root_only_directory_with_mode_of: `$1` is a real directory owned by uid 0 with octal mode `$2`.
+assert_root_only_directory_with_mode_of() {
+  [ ! -L "$1" ] && [ -d "$1" ] && [ "$(stat -c '%u' "$1")" -eq 0 ] && [ "$(stat -c '%a' "$1")" = "$2" ] \
+    || fail "$1 is not a real root-owned directory with mode $2 after step 40"
 }
 
 # assert_scratch_gate_refuses: hands the planted /var/lib/maran-scratch to the installer's

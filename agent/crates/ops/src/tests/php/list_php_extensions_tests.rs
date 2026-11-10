@@ -155,6 +155,29 @@ fn on_the_rhel_family_curl_is_not_packaged_and_the_rest_cannot_be_switched_off()
 }
 
 #[test]
+fn on_the_suse_family_every_extension_has_a_package_and_none_can_be_switched_off() {
+    // UNVERIFIED: read from the distribution's `php8-<extension>` package naming and from the
+    // absence of a `phpdismod`-style tool, not measured; confirm with `rpm -ql php8-gd` and
+    // `command -v phpdismod` in the pinned Leap image. Unlike the RHEL family, `curl` has a
+    // package of its own, so no entry is `NotPackaged`.
+    let suse = adapter_for(DistroFamily::Suse);
+    let host = FakePhpHost::with_installed_on(suse, &["8.3"]);
+    host.answer("-m", 0, MODULE_LISTING, "");
+
+    let listing = list_php_extensions(&host, suse, &version()).unwrap();
+
+    assert!(
+        listing
+            .iter()
+            .all(|item| item.availability == ExtensionAvailability::DisableNotSupported)
+    );
+    assert_eq!(
+        entry(&listing, "curl").availability,
+        ExtensionAvailability::DisableNotSupported
+    );
+}
+
+#[test]
 fn a_probe_that_exits_non_zero_is_a_failed_probe_and_never_an_empty_listing() {
     let host = FakePhpHost::with_installed(&["8.3"]);
     host.answer("-m", 255, "", "PHP Fatal error: bad ini");

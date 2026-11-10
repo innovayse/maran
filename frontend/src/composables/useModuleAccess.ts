@@ -28,7 +28,7 @@ export const useModuleAccess = (): ModuleAccess => {
    */
   const lockedModules: ComputedRef<PanelModule[]> = computed(() => {
     return store.modules.filter((module) => {
-      return module.state === 'locked'
+      return module.state === 'locked' || module.state === 'lapsed'
     })
   })
 

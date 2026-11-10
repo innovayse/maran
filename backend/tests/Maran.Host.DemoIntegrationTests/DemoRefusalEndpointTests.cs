@@ -110,7 +110,7 @@ public sealed class DemoRefusalEndpointTests : IClassFixture<SharedSeededDemo>
         Assert.Empty(capturing.Captured);
     }
 
-    /// <summary>The ACME client and the licence verifier are the demo's, not the modules' real ones.</summary>
+    /// <summary>The ACME client, the licence verifier and the licence service client are the demo's, not the modules' real ones.</summary>
     [Fact]
     public Task The_acme_client_and_the_licence_verifier_are_the_simulated_ones()
     {
@@ -120,6 +120,8 @@ public sealed class DemoRefusalEndpointTests : IClassFixture<SharedSeededDemo>
             scope.ServiceProvider.GetRequiredService<Maran.Modules.Ssl.Interfaces.IAcmeClient>());
         Assert.IsType<Maran.Host.Demo.Adapters.DemoLicenceSignatureVerifier>(
             scope.ServiceProvider.GetRequiredService<Maran.Modules.Licensing.Interfaces.ILicenceSignatureVerifier>());
+        Assert.IsType<Maran.Host.Demo.Adapters.DemoLeaseServiceClient>(
+            scope.ServiceProvider.GetRequiredService<Maran.Modules.Licensing.Interfaces.ILeaseServiceClient>());
         return Task.CompletedTask;
     }
 

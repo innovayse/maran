@@ -36,6 +36,13 @@ public static class DnsLimits
     /// <summary>The CAA flags value that marks a property critical.</summary>
     public const int CaaCriticalFlag = 128;
 
+    /// <summary>
+    /// The shortest time a withdrawal from DNSSEC signing must last before the zone may be returned to unsigned:
+    /// 48 hours. It covers the longest time to live a resolver may hold the registrar's DS record, which the
+    /// panel cannot see being removed, and it is enforced by the server for every caller.
+    /// </summary>
+    public static readonly TimeSpan DnssecWithdrawalMinimumWait = TimeSpan.FromHours(48);
+
     /// <summary>The CAA tags accepted.</summary>
     public static readonly IReadOnlyList<string> CaaTags = ["issue", "issuewild", "iodef"];
 }

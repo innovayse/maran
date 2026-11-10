@@ -36,12 +36,17 @@
       "CertificateIssue": "Վկայագրի տրամադրում",
       "CertificateRenewal": "Վկայագրի թարմացում",
       "AccountDeletion": "Հաշվի ջնջում",
+      "AccountImport": "Հաշվի ներմուծում",
       "AccountSuspension": "Հաշվի կասեցում",
       "AccountResumption": "Հաշվի վերականգնում",
       "BackupCreate": "Պահուստի ստեղծում",
       "BackupRestore": "Պահուստից վերականգնում",
       "PhpVersionInstall": "PHP տարբերակի տեղադրում",
-      "PhpExtensionChange": "PHP ընդլայնման փոփոխություն"
+      "PhpExtensionChange": "PHP ընդլայնման փոփոխություն",
+      "ModuleInstall": "Մոդուլի տեղադրում",
+      "ModuleUpdate": "Մոդուլի թարմացում",
+      "ModuleRemove": "Մոդուլի հեռացում",
+      "ModuleRollback": "Մոդուլի հետադարձ"
     },
     "pane": {
       "correlationId": "Հարցման նույնացուցիչ",

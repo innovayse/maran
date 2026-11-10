@@ -5,6 +5,7 @@
     "eslint.config.ts",
     "playwright.config.ts",
     "playwright.install.config.ts",
+    "playwright.real.config.ts",
     "playwright.demo.config.ts",
     "playwright.screens.config.ts"
   ],

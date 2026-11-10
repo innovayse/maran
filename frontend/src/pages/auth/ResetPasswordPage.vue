@@ -2,9 +2,11 @@
 /**
  * Sets a new password from a reset link.
  *
- * The token comes from the query string, because that is where the mail put it, and
- * it is the only credential this screen has — nothing here names the account, and
- * naming one would let a caller aim a token at somebody else's password.
+ * The token comes from the link's query string, because that is where the mail put it, but
+ * `main.ts` moves it into memory (`stores/linkToken.ts`) before the router installs, so it never
+ * stays in the address or in a request's Referer. It is the only credential this screen has —
+ * nothing here names the account, and naming one would let a caller aim a token at somebody
+ * else's password.
  *
  * The new-password field DOES offer to generate one: unlike the mail-settings
  * screen, a secret is being minted here rather than an existing one entered, and
@@ -26,17 +28,17 @@
  */
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiAuthHeading from '../../components/ui/UiAuthHeading.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiForm from '../../components/ui/UiForm.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
 import UiPasswordInput from '../../components/ui/UiPasswordInput.vue'
+import { useLinkTokenStore } from '../../stores/linkToken'
 import { usePasswordLinksStore } from '../../stores/passwordLinks'
 
 const { t } = useI18n()
-const route = useRoute()
+const linkTokenStore = useLinkTokenStore()
 const passwordLinksStore = usePasswordLinksStore()
 
 /** The password being set. */
@@ -51,9 +53,9 @@ const mismatch: Ref<string | null> = ref(null)
 /** True once the password has been changed. */
 const done: Ref<boolean> = ref(false)
 
-/** The token from the reset link, or the empty string when the link carried none. */
+/** The token from the reset link (moved out of the address into memory at boot, `main.ts`), or the empty string when the link carried none. */
 const token: ComputedRef<string> = computed(() => {
-  return typeof route.query.token === 'string' ? route.query.token : ''
+  return linkTokenStore.token
 })
 
 /**
@@ -83,6 +85,10 @@ const submit = async (): Promise<void> => {
 
   mismatch.value = null
   done.value = await passwordLinksStore.resetPassword({ token: token.value, newPassword: password.value })
+  if (done.value) {
+    // Spent: nothing on this screen needs it again.
+    linkTokenStore.discard()
+  }
 }
 </script>
 

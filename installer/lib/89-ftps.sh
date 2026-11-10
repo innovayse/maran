@@ -260,6 +260,8 @@ vsftpd_packages_for_family() {
   case "${MARAN_OS_FAMILY:-}" in
     debian) echo "vsftpd" ;;
     rhel)   echo "vsftpd" ;;
+    # No SUSE arm by design (decision 222): FTPS is not offered on this family, `step_ftps` returns
+    # before asking for a package, and the refusal below is the right answer to any other caller.
     *)
       echo "89-ftps.sh: unsupported OS family '${MARAN_OS_FAMILY:-}'" >&2
       exit 1
@@ -599,7 +601,26 @@ report_ftps_is_installed_and_off() {
        "ftps_on_a_real_host.rs."
 }
 
+# ftps_is_offered_on_family: 0 when this family packages vsftpd, 1 when FTPS is not offered.
+#
+# UNVERIFIED: vsftpd is not packaged for openSUSE Leap 16 (decision 222). Confirm with
+# `zypper search vsftpd` in the pinned Leap image; a hit would reopen the decision.
+ftps_is_offered_on_family() {
+  case "${MARAN_OS_FAMILY:-}" in
+    suse) return 1 ;;
+    *)    return 0 ;;
+  esac
+}
+
 step_ftps() {
+  if ! ftps_is_offered_on_family; then
+    # Nothing is touched: no mask, no package, no group, no directory, no unit. SFTP (step 86) is
+    # unaffected. The uninstaller treats every FTPS artefact as optional (`rm -f`, `|| true`), so a
+    # host that never had FTPS uninstalls cleanly.
+    echo "FTPS is not available on this OS family (vsftpd is not packaged for it); skipping."
+    echo "  SFTP is unaffected."
+    return 0
+  fi
   echo "Installing FTPS (vsftpd), switched off..."
   # The order is the security property. Nothing below moves above the mask.
   mask_packaged_vsftpd

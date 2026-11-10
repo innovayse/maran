@@ -1,3 +1,4 @@
+using Maran.Agent.Client.Errors;
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Mail.Domain.Policies;
 using Maran.Modules.Mail.Extensions;
@@ -32,9 +33,6 @@ namespace Maran.Modules.Mail.Commands.DeleteMailbox;
 /// </remarks>
 public sealed class DeleteMailboxCommandHandler
 {
-    /// <summary>The agent client's stable code for "the host does not hold this".</summary>
-    private const string AgentNotFoundCode = "AgentNotFound";
-
     /// <summary>The Mail module's database context, and this module's tenant boundary.</summary>
     private readonly MailDbContext _dbContext;
 
@@ -114,7 +112,7 @@ public sealed class DeleteMailboxCommandHandler
 
         var removed = await _agent.RemoveMailboxAsync(
             account.Username, mailbox.MailDomain.Name, mailbox.LocalPart, deleteData: true, cancellationToken);
-        if (!removed.IsSuccess && !string.Equals(removed.Error!.Code, AgentNotFoundCode, StringComparison.Ordinal))
+        if (!removed.IsSuccess && !string.Equals(removed.Error!.Code, AgentErrorCodes.NotFound, StringComparison.Ordinal))
         {
             return await FailAsync(command, address, removed.Error!, cancellationToken);
         }

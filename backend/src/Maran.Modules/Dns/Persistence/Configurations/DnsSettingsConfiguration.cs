@@ -34,6 +34,7 @@ public sealed class DnsSettingsConfiguration : IEntityTypeConfiguration<DnsSetti
         builder.Property(settings => settings.PublicIpv6).IsRequired().HasMaxLength(AddressMaxLength);
         builder.Property(settings => settings.DefaultTtl).IsRequired();
         builder.Property(settings => settings.Enabled).IsRequired();
+        builder.Property(settings => settings.DefaultTemplateId);
         builder.Property(settings => settings.UpdatedAt).IsRequired();
     }
 }

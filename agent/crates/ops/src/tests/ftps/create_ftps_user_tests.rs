@@ -198,6 +198,26 @@ fn creating_a_second_login_for_the_same_account_does_not_write_the_mount_unit_ag
     assert_eq!(host.login_names().len(), 2);
 }
 
+/// Issue #483: the mount point is the account's real home once the mount is up,
+/// so a second login must not apply the jail's `0755` to it.
+#[test]
+fn creating_a_second_login_leaves_the_accounts_home_at_its_own_mode() {
+    let host = FakeFtpsHost::for_account(ACCOUNT, 1001, 1001);
+
+    create_ftps_user_under_lock(&host, distro(), &request(ACCOUNT, "files", "pw-one"))
+        .expect("the first creation must succeed");
+    assert!(host.is_mounted(), "the first creation brought the mount up");
+    create_ftps_user_under_lock(&host, distro(), &request(ACCOUNT, "media", "pw-two"))
+        .expect("the second creation must succeed");
+
+    assert_eq!(
+        host.home_mode(),
+        0o750,
+        "a chmod of the mount point goes through the live mount onto the account's \
+         home, which other tenants must not be able to traverse"
+    );
+}
+
 #[test]
 fn creating_a_login_that_already_exists_reports_already_exists_and_does_not_reset_its_password() {
     let host = FakeFtpsHost::for_account(ACCOUNT, 1001, 1001).with_existing_login("alice_files");

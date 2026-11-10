@@ -68,10 +68,12 @@
 //! ([`BackupHost`]), one implementation that really touches the machine
 //! ([`ProcessBackupHost`]), one error enum ([`BackupError`]) that structurally
 //! cannot carry a tool's output or a customer's rows, and `model/` for the
-//! documents and the typed inputs and outputs. It has a second seam,
+//! documents and the typed inputs and outputs. It has two more seams,
 //! [`DatabaseCatalog`], because the databases an account owns are another
-//! area's knowledge and `ops::backup` does not import another `ops` area — the
-//! service layer composes the two.
+//! area's knowledge, and [`JailMounts`], because the file-transfer jails that
+//! must follow a replaced home belong to the SFTP and FTPS areas, and
+//! `ops::backup` does not import another `ops` area — the service layer
+//! composes them.
 
 pub mod archive;
 mod backup_error;
@@ -97,6 +99,7 @@ mod dump_statement_checker;
 mod finalise_restore;
 mod import_backup;
 mod import_scratch;
+mod jail_mounts;
 mod judge_staged_import;
 mod list_archive_members;
 mod list_backups;
@@ -132,6 +135,9 @@ mod replace_databases;
 #[cfg(test)]
 #[path = "../tests/backup/recording_backup_host.rs"]
 pub(crate) mod recording_backup_host;
+#[cfg(test)]
+#[path = "../tests/backup/recording_jail_mounts.rs"]
+pub(crate) mod recording_jail_mounts;
 mod recover_restores;
 #[cfg(test)]
 #[path = "../tests/backup/test_package.rs"]
@@ -181,6 +187,7 @@ pub use delete_backup::delete_backup;
 pub use executable_lookup::ExecutableLookup;
 pub use export_backup::export_backup;
 pub use import_backup::import_backup;
+pub use jail_mounts::JailMounts;
 pub use list_backups::list_backups;
 pub use load_dump_restricted::load_dump_restricted;
 pub use local_object_store_host::LocalObjectStoreHost;

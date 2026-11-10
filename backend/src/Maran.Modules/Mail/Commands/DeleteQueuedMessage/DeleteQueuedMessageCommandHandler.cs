@@ -1,3 +1,4 @@
+using Maran.Agent.Client.Errors;
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Mail.Resources;
 using Maran.Modules.Mail.Services;
@@ -17,13 +18,6 @@ namespace Maran.Modules.Mail.Commands.DeleteQueuedMessage;
 /// </remarks>
 public sealed class DeleteQueuedMessageCommandHandler
 {
-    /// <summary>The stable code <c>AgentErrorTranslator</c> produces for the agent's NOT_FOUND.</summary>
-    /// <remarks>
-    /// A private constant and not the agent client's generated resource class, which is that
-    /// project's internal detail; the string is the contract between the two projects.
-    /// </remarks>
-    private const string AgentNotFoundCode = "AgentNotFound";
-
     /// <summary>The agent, which owns the queue.</summary>
     private readonly IAgentMailClient _agent;
 
@@ -74,7 +68,7 @@ public sealed class DeleteQueuedMessageCommandHandler
     /// <returns>The error the caller is answered with.</returns>
     private static Error Translate(Error error)
     {
-        if (string.Equals(error.Code, AgentNotFoundCode, StringComparison.Ordinal))
+        if (string.Equals(error.Code, AgentErrorCodes.NotFound, StringComparison.Ordinal))
         {
             return Error.Of(nameof(ErrorMessages.MailQueueEntryNotFound), ErrorType.NotFound);
         }

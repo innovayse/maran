@@ -9,6 +9,14 @@
 // operator chooses), so the only transports here are the agent's own unix
 // socket and a file on an administrator's disk.
 //
+// The second half of this service (issue #197) is the first OUTBOUND client the
+// agent has: it opens an SSH connection to a host an administrator registered
+// as the source of a server migration, to read what that host serves. It is
+// bounded by what the administrator typed (one host, one port, one pinned host
+// key) and is described in docs/superpowers/notes/2026-11-07-server-migration-threat-note.md.
+// No rpc below takes a command, a path template or a flag: the remote command
+// set is a closed list inside the agent, with typed holes.
+//
 // This service only MOVES an artifact. Restoring it is the ordinary
 // BackupService.RestoreBackup, and an artifact that arrived through ImportBackup
 // is marked as imported in its sidecar so that a restore treats its database
@@ -96,6 +104,105 @@ service TransferService {
   // removed and nothing is published. Publishing is the final rename, so there
   // is no midpoint to protect.
   rpc ImportBackup(stream ImportBackupRequest) returns (ImportBackupResponse);
+
+  // Generates one ed25519 key pair for a remote source, in a scratch directory
+  // only the agent can read, and removes the scratch before it answers. The
+  // agent keeps nothing: the panel stores the private half encrypted and sends
+  // it back on every later call. No network is touched.
+  //
+  // AUDIT CLASS: MUTATING (a credential that can open a root shell elsewhere is
+  // minted).
+  // CANCELLATION: run to completion. It is a local, bounded step with nothing to
+  // reclaim: the scratch is removed on every path.
+  rpc GenerateSourceKey(GenerateSourceKeyRequest) returns (GenerateSourceKeyResponse);
+
+  // Reads the host keys a remote host offers and answers their fingerprints, so
+  // the administrator can compare one against the source's own console before
+  // anything is trusted. Nothing is authenticated and nothing is sent but the
+  // SSH handshake. The answer is only as good as the channel the administrator
+  // compares it over (trust on first use, stated as such).
+  //
+  // AUDIT CLASS: MUTATING (an outbound connection to an administrator-named host
+  // is the event the independent trail exists for).
+  // CANCELLATION: stop. Bounded by a short connect timeout; nothing to reclaim.
+  rpc ScanHostKey(ScanHostKeyRequest) returns (ScanHostKeyResponse);
+
+  // Connects to a registered source with the pinned host key and runs the fixed
+  // probes (identity, free space, system release, database server, web server,
+  // mail store). Read-only on the source. A host key that differs from the
+  // pinned one is refused with SOURCE_FAILURE_REASON_HOST_KEY_CHANGED.
+  //
+  // AUDIT CLASS: MUTATING (outbound connection).
+  // CANCELLATION: stop. Every probe is bounded by a deadline; the private key is
+  // removed from the scratch on every path.
+  rpc TestSource(TestSourceRequest) returns (TestSourceResponse);
+
+  // Reads the inventory of a registered source with a closed set of read-only
+  // commands and streams it account by account: ReadSourceInventoryProgress
+  // steps, SourceAccount messages, SourceWarning messages for anything the agent
+  // could not read or could not validate (skipped, never repaired), and exactly
+  // one terminal message: ReadSourceInventoryDone or an AgentError. A stream
+  // that ends without a terminal message is a truncation and MUST be treated as
+  // a failed read. Every name received is validated by the same types a
+  // hand-typed one passes through; a name that fails is a warning.
+  //
+  // AUDIT CLASS: MUTATING (outbound connection).
+  // CANCELLATION: stop. Nothing on either host changes; the private key is
+  // removed from the scratch when the stream ends or the client leaves.
+  rpc ReadSourceInventory(ReadSourceInventoryRequest) returns (stream ReadSourceInventoryResponse);
+
+  // Copies one account's home directory from a registered source into this
+  // host with rsync over the pinned SSH channel, in time-sliced runs, and
+  // streams the progress (issue #197, phase 2). Streams PullAccountFilesProgress
+  // messages and ends with exactly one terminal message: PullAccountFilesDone or
+  // an AgentError. A stream that ends without a terminal message is a truncation
+  // and MUST be treated as a failed pull.
+  //
+  // The receiver runs AS THE ACCOUNT (its uid and groups, inside the agent's
+  // fork-as-account discipline), into the account's own home, so a file the
+  // source names can only land where the account itself could write, and the
+  // copy sets no ownership. The private key it connects with lives, for one run
+  // at a time, in a 0700 directory owned by the account under the agent's tmpfs
+  // (decision D18, option a). Nothing is executed from the source and nothing is
+  // written to it (decision D15). setuid, setgid and the sticky bit are cleared
+  // from every received mode; devices, special files and links that leave the
+  // transferred tree are not copied.
+  //
+  // PHASES. INITIAL copies without deleting anything; FINAL, the delta at
+  // cut-over, also removes from the home what the source no longer has.
+  // Repeating either converges: a pull that is interrupted, paused (the panel
+  // closes the stream) or cancelled is resumed by calling it again.
+  //
+  // Each run of rsync is given a deadline; a run that reaches it is killed with
+  // its process group and the next run continues from the partial state, so a
+  // changed bandwidth limit takes effect at the next slice.
+  //
+  // AUDIT CLASS: MUTATING (an outbound connection, and a customer's home written).
+  // CANCELLATION: stop. A client that goes away or stops reading ends the pull at
+  // the next slice boundary (at most one slice deadline later); the partial state
+  // is kept deliberately so that the pull can be resumed, and the key directory is
+  // removed.
+  rpc PullAccountFiles(PullAccountFilesRequest) returns (stream PullAccountFilesResponse);
+
+  // Dumps one database of a registered source over the pinned SSH channel and
+  // loads the dump into an existing, empty database of an account on this host
+  // through the restricted single-database loader (issue #197, phase 2). Streams
+  // StreamRemoteDatabaseProgress messages and ends with exactly one terminal
+  // message: StreamRemoteDatabaseDone or an AgentError.
+  //
+  // The dump is written to a root-only file on the host's disk (bounded by
+  // max_bytes and the free-space floor), scanned, loaded as a temporary user that
+  // holds that one database only, and removed on every path. A dump the scanner
+  // refuses (a definer, a trigger, a routine, an event, a view, another
+  // database's name) is REFUSED with TRANSFER_FAILURE_REASON_LOAD_REFUSED and
+  // never loaded with more privilege. The database must exist, which the
+  // panel's own Databases module creates first.
+  //
+  // AUDIT CLASS: MUTATING (an outbound connection, and a database written).
+  // CANCELLATION: run to completion and reclaim. Loading a dump has no safe
+  // midpoint, so a client that goes away does not stop a load that has begun; the
+  // dump file and the temporary user are removed on every path.
+  rpc StreamRemoteDatabase(StreamRemoteDatabaseRequest) returns (stream StreamRemoteDatabaseResponse);
 }
 
 // ExportBackup request.
@@ -240,4 +347,481 @@ enum ImportRefusalReason {
   // fixed layout, an embedded manifest that disagrees with the signed one, a
   // missing dump, or a sealed artifact.
   IMPORT_REFUSAL_REASON_ARTIFACT_REFUSED = 9;
+}
+
+// How to reach one registered source. Every rpc of the second half carries it.
+message SourceEndpoint {
+  // DNS name or IP address of the source. Revalidated by the agent: loopback,
+  // link-local, unspecified, multicast and this host's own addresses are
+  // refused.
+  string host = 1;
+  // TCP port of the source's SSH daemon, 1..65535.
+  uint32 port = 2;
+  // The login on the source.
+  string user = 3;
+}
+
+// The credential and the pinned host key of one registered source. A SECRET:
+// held for the call only, never logged, never written anywhere but the scratch
+// directory the agent removes on every path.
+message SourceCredential {
+  // The private half of the key GenerateSourceKey minted, in the OpenSSH private
+  // key format, exactly as GenerateSourceKey returned it.
+  bytes private_key = 1;
+  // The pinned host key as one known_hosts key field pair, `<algorithm>
+  // <base64>` (for example `ssh-ed25519 AAAA...`), as ScanHostKey returned it
+  // and the administrator confirmed it. The agent writes its own known_hosts
+  // file from this and connects with StrictHostKeyChecking=yes.
+  string host_key = 2;
+}
+
+// Why a connection to a source failed, for the cases the panel tells the
+// operator apart. Set only together with `error`; unspecified otherwise,
+// including for failures of this host.
+enum SourceFailureReason {
+  // No reason: success, or a failure of this host.
+  SOURCE_FAILURE_REASON_UNSPECIFIED = 0;
+  // The source presented a host key other than the pinned one: a possible
+  // interception, or the source was reinstalled. Never retried.
+  SOURCE_FAILURE_REASON_HOST_KEY_CHANGED = 1;
+  // The source refused the key (not in authorized_keys, wrong user, or a
+  // restriction rejected the connection).
+  SOURCE_FAILURE_REASON_AUTH_REFUSED = 2;
+  // No SSH answer: refused, filtered, timed out or not resolvable.
+  SOURCE_FAILURE_REASON_UNREACHABLE = 3;
+  // The address is one this agent never connects to (loopback, link-local,
+  // unspecified, multicast, one of this host's own addresses).
+  SOURCE_FAILURE_REASON_ADDRESS_REFUSED = 4;
+}
+
+// GenerateSourceKey request. Carries nothing: the agent decides the key type.
+message GenerateSourceKeyRequest {}
+
+// GenerateSourceKey response.
+message GenerateSourceKeyResponse {
+  oneof result {
+    // A fresh key pair.
+    GeneratedSourceKey ok = 1;
+    // Nothing was generated.
+    maran.agent.v1.AgentError error = 2;
+  }
+}
+
+// One freshly generated ed25519 key pair.
+message GeneratedSourceKey {
+  // The public half in the authorized_keys form, `ssh-ed25519 <base64>`, with no
+  // comment and no option; the panel adds both when it shows the line.
+  string public_key = 1;
+  // The private half in the OpenSSH private key format. A SECRET: the panel
+  // encrypts it at rest and never returns it.
+  bytes private_key = 2;
+  // The fingerprint of the public half in the `SHA256:<base64>` form ssh prints.
+  string fingerprint = 3;
+}
+
+// ScanHostKey request.
+message ScanHostKeyRequest {
+  // Where to look. `user` is ignored (nothing is authenticated).
+  SourceEndpoint endpoint = 1;
+}
+
+// ScanHostKey response.
+message ScanHostKeyResponse {
+  oneof result {
+    // The keys the host offered.
+    ScannedHostKeys ok = 1;
+    // Nothing was read.
+    maran.agent.v1.AgentError error = 2;
+  }
+  // Why the scan failed, for the cases the panel tells apart.
+  SourceFailureReason failure_reason = 3;
+}
+
+// The host keys one source offered, at most one per algorithm.
+message ScannedHostKeys {
+  // In the agent's order of preference (ed25519, ecdsa, rsa).
+  repeated ScannedHostKey keys = 1;
+}
+
+// One host key a source offered.
+message ScannedHostKey {
+  // The algorithm name, `ssh-ed25519`, `ecdsa-sha2-nistp256` (or 384/521) or
+  // `ssh-rsa`.
+  string algorithm = 1;
+  // The key as the `<algorithm> <base64>` pair a known_hosts line carries.
+  string key = 2;
+  // The `SHA256:<base64>` fingerprint ssh prints for it.
+  string fingerprint = 3;
+}
+
+// TestSource request.
+message TestSourceRequest {
+  // The source.
+  SourceEndpoint endpoint = 1;
+  // How to authenticate, and the host key to require.
+  SourceCredential credential = 2;
+}
+
+// TestSource response.
+message TestSourceResponse {
+  oneof result {
+    // The probes ran.
+    TestedSource ok = 1;
+    // The connection or a probe failed.
+    maran.agent.v1.AgentError error = 2;
+  }
+  // Why the connection failed, for the cases the panel tells apart.
+  SourceFailureReason failure_reason = 3;
+}
+
+// What the fixed probes established about a source. Every field is an
+// observation, never an assumption: a probe that could not run leaves its field
+// at the unknown value (empty text, `false` with the matching `*_known` false).
+message TestedSource {
+  // The remote user is root (uid 0).
+  bool is_root = 1;
+  // Free space, in bytes, on the filesystem that holds the account homes, or 0
+  // with `disk_known` false when it could not be read.
+  uint64 home_free_bytes = 2;
+  // Total size, in bytes, of that filesystem.
+  uint64 home_total_bytes = 3;
+  // Whether the two disk figures were read.
+  bool disk_known = 4;
+  // The source's `PRETTY_NAME` from its os-release file, bounded and printable,
+  // or empty.
+  string system_release = 5;
+  // What kind of host the source is.
+  SourceKind kind = 6;
+  // The version string of the source's panel when `kind` is MARAN, or empty.
+  string maran_version = 7;
+  // The database server found on the source.
+  SourceDatabaseServer database_server = 8;
+  // The web server found on the source.
+  SourceWebServer web_server = 9;
+  // Whether a mail store (a Maildir tree or a mail daemon) was found. Mail is
+  // not migrated; the report warns.
+  bool mail_found = 10;
+}
+
+// What kind of host a source is.
+enum SourceKind {
+  // Not determined.
+  SOURCE_KIND_UNSPECIFIED = 0;
+  // A Linux host with no panel recognised (the generic adapter).
+  SOURCE_KIND_GENERIC_LINUX = 1;
+  // A host running a Maran panel (the Maran adapter).
+  SOURCE_KIND_MARAN = 2;
+}
+
+// The database server found on a source.
+enum SourceDatabaseServer {
+  // None found, or the probe could not run.
+  SOURCE_DATABASE_SERVER_UNSPECIFIED = 0;
+  // MariaDB.
+  SOURCE_DATABASE_SERVER_MARIADB = 1;
+  // MySQL.
+  SOURCE_DATABASE_SERVER_MYSQL = 2;
+}
+
+// The web server found on a source.
+enum SourceWebServer {
+  // None found, or the probe could not run.
+  SOURCE_WEB_SERVER_UNSPECIFIED = 0;
+  // nginx.
+  SOURCE_WEB_SERVER_NGINX = 1;
+  // Apache.
+  SOURCE_WEB_SERVER_APACHE = 2;
+}
+
+// ReadSourceInventory request.
+message ReadSourceInventoryRequest {
+  // The source.
+  SourceEndpoint endpoint = 1;
+  // How to authenticate, and the host key to require.
+  SourceCredential credential = 2;
+}
+
+// One message of the ReadSourceInventory stream.
+message ReadSourceInventoryResponse {
+  oneof result {
+    // A step the read has reached.
+    ReadSourceInventoryProgress progress = 1;
+    // One account found, complete.
+    SourceAccount account = 2;
+    // Something that could not be read or did not validate.
+    SourceWarning warning = 3;
+    // The terminal message of a complete read.
+    ReadSourceInventoryDone done = 4;
+    // The terminal message of a failed read.
+    maran.agent.v1.AgentError error = 5;
+  }
+  // Why the connection failed, set only together with `error`.
+  SourceFailureReason failure_reason = 6;
+}
+
+// A step of the inventory read.
+message ReadSourceInventoryProgress {
+  // The step, a closed set the panel renders from.
+  SourceInventoryStep step = 1;
+}
+
+// The steps of an inventory read, in the order they run.
+enum SourceInventoryStep {
+  // Not a step.
+  SOURCE_INVENTORY_STEP_UNSPECIFIED = 0;
+  // Reading the list of system accounts.
+  SOURCE_INVENTORY_STEP_ACCOUNTS = 1;
+  // Reading the web server's virtual hosts.
+  SOURCE_INVENTORY_STEP_SITES = 2;
+  // Reading the database server's databases.
+  SOURCE_INVENTORY_STEP_DATABASES = 3;
+  // Reading the accounts' crontabs.
+  SOURCE_INVENTORY_STEP_CRON = 4;
+  // Measuring the accounts' homes.
+  SOURCE_INVENTORY_STEP_DISK = 5;
+}
+
+// One hosting account found on a source.
+message SourceAccount {
+  // The system user name. Validated as an account name; a name that would not
+  // be one is a warning instead.
+  string name = 1;
+  // The home directory on the source (display only; never used as a path on
+  // this host).
+  string home = 2;
+  // The size of the home, in bytes, or 0 with `disk_known` false.
+  uint64 disk_bytes = 3;
+  // Whether `disk_bytes` was measured.
+  bool disk_known = 4;
+  // The sites whose document root lies in the account's home.
+  repeated SourceSite sites = 5;
+  // The databases the account owns (by name prefix or grant).
+  repeated SourceDatabase databases = 6;
+  // How many crontab entries the account has.
+  uint32 cron_entry_count = 7;
+  // How many mailboxes were found for the account's domains (not migrated).
+  uint32 mailbox_count = 8;
+}
+
+// One site found on a source.
+message SourceSite {
+  // The primary host name, validated as a domain.
+  string domain = 1;
+  // Other host names the virtual host answers to.
+  repeated string aliases = 2;
+  // What serves the site.
+  SourceSiteBackend backend = 3;
+  // The PHP version when `backend` is PHP, as `major.minor`, or empty.
+  string php_version = 4;
+  // The document root on the source (display only).
+  string document_root = 5;
+}
+
+// What serves a site found on a source.
+enum SourceSiteBackend {
+  // Not determined.
+  SOURCE_SITE_BACKEND_UNSPECIFIED = 0;
+  // Static files.
+  SOURCE_SITE_BACKEND_STATIC = 1;
+  // PHP.
+  SOURCE_SITE_BACKEND_PHP = 2;
+  // A reverse proxy to an upstream.
+  SOURCE_SITE_BACKEND_PROXY = 3;
+}
+
+// One database found on a source.
+message SourceDatabase {
+  // The database name, validated as a database name.
+  string name = 1;
+  // Its size in bytes, or 0 with `size_known` false.
+  uint64 size_bytes = 2;
+  // Whether `size_bytes` was measured.
+  bool size_known = 3;
+}
+
+// Something the read could not turn into a clean inventory entry.
+message SourceWarning {
+  // What kind of thing it concerns.
+  SourceWarningKind kind = 1;
+  // The subject, validated and printable (an account or domain name), or empty
+  // when it concerns the read as a whole. Never echoes unvalidated text.
+  string subject = 2;
+}
+
+// The warnings an inventory read can raise. A closed set: the panel renders
+// each from its own language table.
+enum SourceWarningKind {
+  // Not a warning.
+  SOURCE_WARNING_KIND_UNSPECIFIED = 0;
+  // A name did not validate and the entry was skipped.
+  SOURCE_WARNING_KIND_NAME_REFUSED = 1;
+  // A virtual host file could not be parsed and was skipped.
+  SOURCE_WARNING_KIND_SITE_UNREADABLE = 2;
+  // A crontab could not be read.
+  SOURCE_WARNING_KIND_CRON_UNREADABLE = 3;
+  // The databases could not be read (no database server, or access refused).
+  SOURCE_WARNING_KIND_DATABASES_UNREADABLE = 4;
+  // A home could not be measured.
+  SOURCE_WARNING_KIND_DISK_UNREADABLE = 5;
+  // A bound was hit (too many accounts, lines or bytes) and the read is
+  // incomplete.
+  SOURCE_WARNING_KIND_TRUNCATED = 6;
+  // Mail was found on the source and is not migrated.
+  SOURCE_WARNING_KIND_MAIL_NOT_MIGRATED = 7;
+}
+
+// The terminal ok of ReadSourceInventory.
+message ReadSourceInventoryDone {
+  // How many accounts were sent.
+  uint32 account_count = 1;
+  // How many warnings were sent.
+  uint32 warning_count = 2;
+}
+
+// The phase of a pull.
+enum PullPhase {
+  // Not a phase; refused.
+  PULL_PHASE_UNSPECIFIED = 0;
+  // The first copy of a live source: nothing is removed from the destination.
+  PULL_PHASE_INITIAL = 1;
+  // The delta at cut-over: the destination is made to equal the source, so
+  // files the source no longer has are removed.
+  PULL_PHASE_FINAL = 2;
+}
+
+// Why a pull or a dump failed, for the cases the panel tells apart and acts on
+// differently. Set only together with `error`; unspecified otherwise.
+enum TransferFailureReason {
+  // No reason: success, or a failure the panel does not tell apart.
+  TRANSFER_FAILURE_REASON_UNSPECIFIED = 0;
+  // This host has no room for the transfer (the free-space floor, or the
+  // filesystem is full).
+  TRANSFER_FAILURE_REASON_DISK_INSUFFICIENT = 1;
+  // rsync ended with a status that is a failure (an unreadable file on the
+  // source, a connection that dropped, a quota that was reached).
+  TRANSFER_FAILURE_REASON_PULL_FAILED = 2;
+  // The pull used up its time allowance without finishing.
+  TRANSFER_FAILURE_REASON_PULL_INCOMPLETE = 3;
+  // The dump command on the source ended with a failure status.
+  TRANSFER_FAILURE_REASON_DUMP_FAILED = 4;
+  // The dump is larger than the allowance the request stated.
+  TRANSFER_FAILURE_REASON_DUMP_TOO_LARGE = 5;
+  // The restricted loader's scan refused the dump (it holds something a
+  // single-database user could not run, such as a trigger, a routine or a view).
+  TRANSFER_FAILURE_REASON_LOAD_REFUSED = 6;
+  // The server refused a statement of the dump, or the load could not run.
+  TRANSFER_FAILURE_REASON_LOAD_FAILED = 7;
+}
+
+// PullAccountFiles request.
+message PullAccountFilesRequest {
+  // The source.
+  SourceEndpoint endpoint = 1;
+  // How to authenticate, and the host key to require.
+  SourceCredential credential = 2;
+  // System user name of the account on THIS host whose home receives the files.
+  // Revalidated by the agent; the account must already exist.
+  string account_username = 3;
+  // The account's home directory on the source, an absolute path. Revalidated as
+  // a remote path (an allow-listed alphabet, no `..`, no leading `-`).
+  string source_home = 4;
+  // Which phase this pull is.
+  PullPhase phase = 5;
+  // The most KiB per second to read, or 0 for no limit. Applies from the next
+  // slice when it changes between calls.
+  uint32 bandwidth_limit_kib = 6;
+  // How many bytes the panel expects to receive (the figure discovery measured),
+  // for the free-space check made before the first byte is written. 0 when
+  // unknown; the floor alone applies then.
+  uint64 expected_bytes = 7;
+}
+
+// One message of the PullAccountFiles stream.
+message PullAccountFilesResponse {
+  oneof result {
+    // A slice of the copy has ended and another will run.
+    PullAccountFilesProgress progress = 1;
+    // The terminal message of a complete pull.
+    PullAccountFilesDone done = 2;
+    // The terminal message of a failed pull.
+    maran.agent.v1.AgentError error = 3;
+  }
+  // Why the connection failed, set only together with `error`.
+  SourceFailureReason failure_reason = 4;
+  // Why the transfer failed, set only together with `error`.
+  TransferFailureReason transfer_failure_reason = 5;
+}
+
+// A pull is running.
+message PullAccountFilesProgress {
+  // How many rsync runs have ended so far, counting from 1.
+  uint32 slices_completed = 1;
+}
+
+// The terminal ok of PullAccountFiles.
+message PullAccountFilesDone {
+  // How many rsync runs the pull took.
+  uint32 slices = 1;
+  // The size of the source home as measured at the start of this pull, in bytes,
+  // or 0 with `source_bytes_known` false when it could not be read.
+  uint64 source_bytes = 2;
+  // Whether `source_bytes` was measured.
+  bool source_bytes_known = 3;
+}
+
+// StreamRemoteDatabase request.
+message StreamRemoteDatabaseRequest {
+  // The source.
+  SourceEndpoint endpoint = 1;
+  // How to authenticate, and the host key to require.
+  SourceCredential credential = 2;
+  // The database's name on the source. Revalidated as a remote database name
+  // (letters, digits and underscores, at most 64).
+  string source_database = 3;
+  // The existing database on THIS host the dump is loaded into, with the owning
+  // account's prefix. Revalidated as a database name of that account.
+  string account_username = 4;
+  // The database's name on this host, `<account>_<suffix>`. Revalidated.
+  string target_database = 5;
+  // The most bytes of dump to accept, or 0 for the agent's own ceiling. The
+  // smaller of the two applies.
+  uint64 max_bytes = 6;
+}
+
+// One message of the StreamRemoteDatabase stream.
+message StreamRemoteDatabaseResponse {
+  oneof result {
+    // A step the transfer has reached.
+    StreamRemoteDatabaseProgress progress = 1;
+    // The terminal message of a complete transfer.
+    StreamRemoteDatabaseDone done = 2;
+    // The terminal message of a failed transfer.
+    maran.agent.v1.AgentError error = 3;
+  }
+  // Why the connection failed, set only together with `error`.
+  SourceFailureReason failure_reason = 4;
+  // Why the transfer failed, set only together with `error`.
+  TransferFailureReason transfer_failure_reason = 5;
+}
+
+// The steps of a database transfer, in the order they run.
+enum DatabaseTransferStep {
+  // Not a step.
+  DATABASE_TRANSFER_STEP_UNSPECIFIED = 0;
+  // Dumping the database on the source into a file on this host.
+  DATABASE_TRANSFER_STEP_DUMPING = 1;
+  // Loading the dump through the restricted loader.
+  DATABASE_TRANSFER_STEP_LOADING = 2;
+}
+
+// A step of the database transfer.
+message StreamRemoteDatabaseProgress {
+  // The step.
+  DatabaseTransferStep step = 1;
+}
+
+// The terminal ok of StreamRemoteDatabase.
+message StreamRemoteDatabaseDone {
+  // How many bytes of dump were received and loaded.
+  uint64 dump_bytes = 1;
 }

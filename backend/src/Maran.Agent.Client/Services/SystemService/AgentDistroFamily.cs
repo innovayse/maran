@@ -13,4 +13,7 @@ public enum AgentDistroFamily
 
     /// <summary>Red Hat Enterprise Linux and its rebuilds (AlmaLinux, Rocky Linux).</summary>
     Rhel,
+
+    /// <summary>openSUSE Leap and SUSE Linux Enterprise Server (zypper, the nginx account, SELinux).</summary>
+    Suse,
 }

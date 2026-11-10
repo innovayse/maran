@@ -193,6 +193,18 @@ flate2 = { version = "=1.1.10" }
 # in `untrusted` for compatibility shims nothing here calls.
 aws-lc-rs = { version = "1.18.1", default-features = false, features = ["aws-lc-sys", "alloc"] }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+# Test-only: property tests for the validation types (plan 8, E4; owner decision D12). The
+# validators are the root agent's input boundary, and an example-based test shows that the cases
+# somebody thought of are refused; a property shows that no case a generator can reach is
+# accepted wrongly, which is what spec section 19 asks of the mitigation for a root process.
+# Pinned exactly (MIT OR Apache-2.0, no advisories on record, rust-version 1.85 against the
+# edition-2024 toolchain here). `default-features = false, features = ["std"]` drops `fork`
+# and `timeout` (a forking test runner, which pulls `rusty-fork` and `tempfile` into the test
+# binary), `bit-set` and the macro attribute: the properties run in-process, from a fixed seed
+# (`agent-core/src/tests/support/property_runs.rs`), and `std` is what the regex string
+# strategies and OS-seeded generation need. A dev-dependency of agent-core only, so it never
+# reaches the shipped binary.
+proptest = { version = "=1.11.0", default-features = false, features = ["std"] }
 
 [workspace.lints.rust]
 missing_docs = "warn"

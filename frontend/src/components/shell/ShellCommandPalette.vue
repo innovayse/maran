@@ -78,7 +78,8 @@ interface PaletteSection {
   note: string
 }
 
-const { t } = useI18n()
+const i18n = useI18n()
+const { t } = i18n
 const router = useRouter()
 const searchStore = useSearchStore()
 
@@ -120,11 +121,12 @@ const destinations: ComputedRef<readonly NavigationEntry[]> = computed(() => {
 })
 
 /**
- * Entries whose label contains the query, case-insensitively.
+ * Entries whose label or search words contain the query, case-insensitively.
  *
- * Matching is a plain substring over the label the backend supplied, not a fuzzy
- * score: a fuzzy match on a list this short surprises more often than it helps,
- * and the label is the only text the panel can honestly claim to know.
+ * Matching is a plain substring, not a fuzzy score: a fuzzy match on a list this short surprises
+ * more often than it helps. The label alone is not enough (issue #507): the tree words "Rules",
+ * "Scheduled tasks" and "Outgoing mail" hide the subjects an operator types ("firewall", "cron",
+ * "smtp"), so a page also carries the words it is known by, translated per language.
  */
 const matches: ComputedRef<readonly NavigationEntry[]> = computed(() => {
   const needle = query.value.trim().toLocaleLowerCase()
@@ -133,7 +135,7 @@ const matches: ComputedRef<readonly NavigationEntry[]> = computed(() => {
   }
 
   return destinations.value.filter((entry) => {
-    return entryLabel(entry).toLocaleLowerCase().includes(needle)
+    return entrySearchText(entry).includes(needle)
   })
 })
 
@@ -229,6 +231,16 @@ const statusText: ComputedRef<string> = computed(() => {
  */
 const entryLabel = (entry: NavigationEntry): string => {
   return navigationLabelText(entry.label, t)
+}
+
+/**
+ * Everything the query is matched against for an entry: its label and the words it is known by.
+ * @param entry The entry to describe.
+ * @returns The lower-cased label followed by the lower-cased search words, if the entry has any.
+ */
+const entrySearchText = (entry: NavigationEntry): string => {
+  const words = entry.searchTermsKey !== null && i18n.te(entry.searchTermsKey) ? t(entry.searchTermsKey) : ''
+  return `${entryLabel(entry)} ${words}`.toLocaleLowerCase()
 }
 
 /**

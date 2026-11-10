@@ -1,16 +1,18 @@
-import { test, type Page } from '@playwright/test'
 import {
   expectTableFastLoad,
   expectTableSlowFailure,
   expectTableSlowLoad,
   type TableLoadingScenario,
 } from '../fixtures/expect-table-loading'
+import { test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubTasks, stubTasksNotFound } from '../fixtures/stub-tasks-routes'
 import type { PanelModule } from '../../src/types/module'
 import type { PanelTask } from '../../src/types/panelTask'
+import type { Page } from '@playwright/test'
 
 // The tasks table while the listing is on the way (#243): drawn from its own column schema.
 
@@ -43,6 +45,7 @@ const signIn = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
 }
 
 /** How the tasks list screen is opened and answered. */
@@ -70,6 +73,7 @@ test('tasks list: a fast answer shows no placeholder', async ({ page }) => {
   await expectTableFastLoad(page, TASKS_LIST_SCENARIO)
 })
 
-test('tasks list: a slow failure is an alert, never a skeleton', async ({ page }) => {
+test('tasks list: a slow failure is an alert, never a skeleton', async ({ page, guard }) => {
+  guard.allow(404, /\/api\/v1\/tasks(\?.*)?$/)
   await expectTableSlowFailure(page, TASKS_LIST_SCENARIO)
 })

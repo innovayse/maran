@@ -35,6 +35,20 @@ public static class PanelUpdateLedgerPolicy
         return signals.RunningFresh || (signals.MarkerAge is { } age && age < MarkerGrace);
     }
 
+    /// <summary>Whether a release check the panel asked for is queued or running (issue #516).</summary>
+    /// <param name="checkMarkerAge">How long ago the check marker was created, or null when there is none.</param>
+    /// <returns>True when a check marker younger than <see cref="MarkerGrace"/> exists.</returns>
+    /// <remarks>
+    /// The check marker is removed by the root check unit itself when the check ends, successfully or not
+    /// (<c>ExecStopPost=</c>), so it exists exactly while the check is queued or running and no separate
+    /// running record is needed. The unit's own timeout is shorter than <see cref="MarkerGrace"/>: a marker
+    /// older than that is one the unit never took, and is not a check in flight.
+    /// </remarks>
+    public static bool IsCheckInProgress(TimeSpan? checkMarkerAge)
+    {
+        return checkMarkerAge is { } age && age < MarkerGrace;
+    }
+
     /// <summary>Decides what the reaper does with the open request, if there is one.</summary>
     /// <param name="signals">What the file system shows now.</param>
     /// <param name="ledgerAge">How long ago the ledger was written, or null when there is no ledger.</param>

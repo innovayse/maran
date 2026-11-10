@@ -27,8 +27,8 @@ public static class DemoGuardExtensions
     /// <param name="configuration">The configuration holding the <c>Demo</c> section.</param>
     /// <returns>The same collection, for chaining.</returns>
     /// <remarks>
-    /// <b>Must be called AFTER <c>AddPanelModules</c> AND <c>AddLicensingStartupCheck</c></b> (the latter
-    /// registers the Licensing module outside the module list). The replacements remove the module's own
+    /// <b>Must be called AFTER <c>AddPanelModules</c></b> (which registers the Licensing module with the
+    /// others). The replacements remove the module's own
     /// registration, and the last registration of a service wins, so called before either the module's would
     /// be added over them and the real mailer, the real ACME client, the real verifier and the licence
     /// file storage would be the ones resolved. <c>DemoCompositionTests</c> resolves each from the composed
@@ -63,6 +63,9 @@ public static class DemoGuardExtensions
                 provider => { return provider.GetRequiredService<CapturingMailer>(); }));
         services.Replace(ServiceDescriptor.Singleton<IAcmeClient, SimulatedAcmeClient>());
         services.Replace(ServiceDescriptor.Singleton<ILicenceSignatureVerifier, DemoLicenceSignatureVerifier>());
+
+        // No call to the licence service from a public demonstration: its lease renewal finds no service.
+        services.Replace(ServiceDescriptor.Singleton<ILeaseServiceClient, DemoLeaseServiceClient>());
 
         // No licence file IO in the demo: the installed licence is kept in memory.
         services.AddSingleton<DemoLicenceStore>();

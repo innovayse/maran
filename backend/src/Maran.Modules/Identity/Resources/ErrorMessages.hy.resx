@@ -243,4 +243,7 @@
   <data name="PersonalDataExportTooLarge">
     <value>Այս արտահանումը չափազանց շատ աուդիտի գրառում է պարունակում մեկ ֆայլի համար։</value>
   </data>
+  <data name="ReauthenticationFailed">
+    <value>Մուտքագրված գաղտնաբառը սխալ է։</value>
+  </data>
 </root>

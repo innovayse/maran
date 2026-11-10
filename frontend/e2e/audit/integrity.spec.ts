@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import {
   AUDIT_VERIFICATION_PATTERN,
   DEFAULT_CHAIN,
@@ -9,7 +9,9 @@ import {
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { AuditChainVerification } from '../../src/types/audit'
+import type { Page } from '@playwright/test'
 
 // The journal's tamper evidence (#145): the chain's counts, and a verification whose verdict is the
 // panel's. Both outcomes are driven, so a card that always said "intact" would fail here.
@@ -32,6 +34,7 @@ const openJournal = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
   await stubAudit(page, [])
 }
 
@@ -74,7 +77,9 @@ test('verifying a broken chain names where it broke and what did not match', asy
   await expect(page.getByText('The chain is intact')).toHaveCount(0)
 })
 
-test('a verification the panel refuses shows its sentence and claims no verdict', async ({ page }) => {
+test('a verification the panel refuses shows its sentence and claims no verdict', async ({ page, guard }) => {
+  // The refusal is the subject: the panel rate-limits the verification with a 429.
+  guard.allow(429, AUDIT_VERIFICATION_PATTERN)
   await openJournal(page)
   await page.route(AUDIT_VERIFICATION_PATTERN, async (route) => {
     await route.fulfill({

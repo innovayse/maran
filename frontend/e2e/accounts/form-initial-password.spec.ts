@@ -1,15 +1,20 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubCreateRefused, recordCreateRequests, submitCreate } from '../fixtures/stub-account-create'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubPlans, THE_PLAN } from '../fixtures/stub-plans-route'
 import { setPersistedLocale } from '../fixtures/set-locale'
+import type { Page } from '@playwright/test'
 
 // Issue #194: the owner's login is made by an invitation (the default) or by an initial password
 // the operator types or generates. The password is required in that mode, is sent only then, and
 // the panel says the owner must replace it at the first sign-in.
+
+/** The create request as the guard sees its URL: the stubbed refusal below answers it 400. */
+const CREATE_URL = /\/api\/v1\/accounts$/
 
 /**
  * Signs in as an administrator and opens the create form, in whatever language the page was seeded with.
@@ -20,6 +25,7 @@ const openForm = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
+  await stubShellReads(page)
   await stubAccounts(page, [])
   await stubPlans(page)
   // The create is refused so the page stays and the sent body can be read.
@@ -41,7 +47,9 @@ const openFilledForm = async (page: Page): Promise<void> => {
   await page.getByLabel('Owner email').fill('owner@alpha.example.com')
 }
 
-test('the invitation is the default: no password field and no password in the body', async ({ page }) => {
+test('the invitation is the default: no password field and no password in the body', async ({ page, guard }) => {
+  // The create is refused on purpose so the sent body can be read.
+  guard.allow(400, CREATE_URL)
   await openFilledForm(page)
 
   await expect(page.getByRole('radio', { name: 'Mail an invitation' })).toBeChecked()
@@ -65,7 +73,9 @@ test('choosing an initial password asks for one and says the owner must replace 
   expect(createRequests).toEqual([])
 })
 
-test('a generated password fills the field and is sent with the initial-password mode', async ({ page }) => {
+test('a generated password fills the field and is sent with the initial-password mode', async ({ page, guard }) => {
+  // The create is refused on purpose so the sent body can be read.
+  guard.allow(400, CREATE_URL)
   await openFilledForm(page)
   await page.getByRole('radio', { name: 'Set an initial password' }).check({ force: true })
 
@@ -77,7 +87,9 @@ test('a generated password fills the field and is sent with the initial-password
   expect(request.postDataJSON()).toMatchObject({ loginMode: 'initialPassword', initialPassword: generated })
 })
 
-test('a typed password is sent, and a refusal leaves it for the corrected resubmit', async ({ page }) => {
+test('a typed password is sent, and a refusal leaves it for the corrected resubmit', async ({ page, guard }) => {
+  // The create is refused on purpose so the sent body can be read.
+  guard.allow(400, CREATE_URL)
   await openFilledForm(page)
   await page.getByRole('radio', { name: 'Set an initial password' }).check({ force: true })
   await page.getByLabel('Initial password', { exact: true }).fill('Correct-Horse-9-Battery')

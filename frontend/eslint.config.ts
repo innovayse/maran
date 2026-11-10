@@ -136,6 +136,10 @@ export default tseslint.config(
         },
         { element: 'table', message: 'Use UiTable from src/components/ui/ instead of a raw <table> (rules/vue.md).' },
         { element: 'form', message: 'Use a src/components/ui/ form primitive instead of a raw <form> (rules/vue.md).' },
+        {
+          element: 'iframe',
+          message: 'Use UiSandboxFrame from src/components/ui/ instead of a raw <iframe>; it fixes the sandbox (rules/vue.md).',
+        },
       ],
 
       // --- APIs only in stores ---
@@ -246,6 +250,17 @@ export default tseslint.config(
   {
     name: 'app/use-api-may-call-fetch',
     files: ['src/composables/useApi.ts'],
+    rules: {
+      'no-restricted-globals': 'off',
+    },
+  },
+
+  // An e2e spec runs a snippet inside the browser page, as a person's own browser would make a request
+  // by hand, to observe what the SPA's session can reach. That code is test-only and never bundled with
+  // the product, so the rule that keeps the SPA's requests in `useApi.ts` has nothing to protect there.
+  {
+    name: 'app/e2e-page-snippets-may-call-fetch',
+    files: ['e2e/**/*.ts'],
     rules: {
       'no-restricted-globals': 'off',
     },

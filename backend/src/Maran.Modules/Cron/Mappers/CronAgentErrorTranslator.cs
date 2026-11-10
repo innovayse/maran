@@ -1,3 +1,4 @@
+using Maran.Agent.Client.Errors;
 using Maran.Modules.Cron.Resources;
 using Microsoft.Extensions.Logging;
 
@@ -74,9 +75,6 @@ namespace Maran.Modules.Cron.Mappers;
 /// </remarks>
 public static class CronAgentErrorTranslator
 {
-    /// <summary>The agent's code for an entry that is not in the crontab.</summary>
-    private const string AgentNotFoundCode = "AgentNotFound";
-
     /// <summary>The agent's code for an entry it refused to install a second time.</summary>
     private const string AgentAlreadyExistsCode = "AgentAlreadyExists";
 
@@ -149,7 +147,7 @@ public static class CronAgentErrorTranslator
     {
         return agentCode switch
         {
-            AgentNotFoundCode => Error.Of(nameof(ErrorMessages.CronEntryNotFound), ErrorType.NotFound),
+            AgentErrorCodes.NotFound => Error.Of(nameof(ErrorMessages.CronEntryNotFound), ErrorType.NotFound),
             AgentAlreadyExistsCode => Error.Of(nameof(ErrorMessages.CronEntryAlreadyExists), ErrorType.Conflict),
             AgentLimitReachedCode => Error.Of(nameof(ErrorMessages.CronEntryLimitReachedConcurrently), ErrorType.Conflict),
             AgentAccountSuspendedCode => Error.Of(nameof(ErrorMessages.CronEntrySuspended), ErrorType.Conflict),

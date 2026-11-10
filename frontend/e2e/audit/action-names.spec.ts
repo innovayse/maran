@@ -1,10 +1,12 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubAudit } from '../fixtures/stub-audit-routes'
 import type { AuditEvent } from '../../src/types/audit'
+import type { Page } from '@playwright/test'
 
 /**
  * The exact row the defect was measured on in a live browser: a Russian screen rendering the
@@ -20,6 +22,7 @@ const RESTORED: AuditEvent = {
   action: 'BackupRestored',
   actionName: 'Аккаунт восстановлен из резервной копии',
   subject: 'livecust',
+  subjectName: 'livecust',
   ipAddress: '127.0.0.1',
   succeeded: true,
   outcomeName: 'Succeeded',
@@ -37,6 +40,7 @@ const MARKETPLACE: AuditEvent = {
   action: 'SomeMarketplaceModuleAction',
   actionName: 'SomeMarketplaceModuleAction',
   subject: 'livecust',
+  subjectName: 'livecust',
   ipAddress: '127.0.0.1',
   succeeded: false,
   outcomeName: 'Failed',
@@ -54,6 +58,7 @@ const stubRussianJournal = async (page: Page, events: AuditEvent[]): Promise<voi
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
   await stubAudit(page, events)
 }
 

@@ -42,16 +42,18 @@ public static class InvalidModelStateRefusal
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        var parameter = context.ModelState
+        var failed = context.ModelState
             .Where(entry =>
             {
                 return entry.Value?.ValidationState == ModelValidationState.Invalid;
             })
             .Select(entry =>
             {
-                return entry.Key;
+                return (entry.Key, entry.Value);
             })
-            .FirstOrDefault() ?? string.Empty;
+            .FirstOrDefault();
+
+        var parameter = failed.Value is null ? string.Empty : FieldOf(failed.Key, failed.Value);
 
         throw ForParameter(parameter);
     }
@@ -67,5 +69,35 @@ public static class InvalidModelStateRefusal
         const string code = nameof(ValidationMessages.RequestParameterInvalid);
 
         return new ValidationException([new ValidationFailure(parameter, code) { ErrorCode = code }]);
+    }
+
+    /// <summary>
+    /// Names the field that failed. A JSON body that cannot be read fills model state under the NAME
+    /// OF THE ACTION'S PARAMETER (<c>command</c>), which is a developer's word and says nothing about
+    /// which field was wrong; the formatter's exception carries the JSON path of the value it could
+    /// not convert (<c>$.lockoutMinutes</c>), so that is what the failure names when it is there.
+    /// A query-string, route or form entry keeps its own key, which already is the field.
+    /// </summary>
+    /// <param name="key">The model-state key of the failed entry.</param>
+    /// <param name="entry">The failed entry, whose errors may carry the exception that failed it.</param>
+    /// <returns>The field's name as the caller wrote it.</returns>
+    private static string FieldOf(string key, ModelStateEntry entry)
+    {
+        foreach (var error in entry.Errors)
+        {
+            for (var exception = error.Exception; exception is not null; exception = exception.InnerException)
+            {
+                if (exception is System.Text.Json.JsonException { Path: { } path })
+                {
+                    var field = path.StartsWith("$.", StringComparison.Ordinal) ? path[2..] : path.TrimStart('$');
+                    if (field.Length > 0)
+                    {
+                        return field;
+                    }
+                }
+            }
+        }
+
+        return key;
     }
 }

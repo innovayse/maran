@@ -1,9 +1,12 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn, stubbedAdministrator } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubProfile } from '../fixtures/stub-profile-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { UserRole } from '../../src/types/auth'
+import type { Page } from '@playwright/test'
 
 /**
  * Signs a person in with the given role, answers their profile, and counts every request to the
@@ -20,6 +23,9 @@ const stubPanel = async (page: Page, role: UserRole): Promise<() => number> => {
   })
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
+  await stubLandingReads(page, role === 'customer' ? 'customer' : 'administrator')
+  // After the shell's quiet profile, so the profile this spec describes is the one answered.
   await stubProfile(page, {
     username: stubbedAdministrator.username,
     email: stubbedAdministrator.email,
@@ -65,7 +71,10 @@ test('an administrator reaches their profile from the account menu', async ({ pa
 
 test('a customer reaches their profile from the account menu and is offered their hosting account', async ({
   page,
+  guard,
 }) => {
+  // This spec's own-account stub answers "not found" (it exists to count the reads), and a customer's shell asks once.
+  guard.allow(404, /\/api\/v1\/accounts\/me(\?.*)?$/)
   await stubPanel(page, 'customer')
 
   await page.goto('/')

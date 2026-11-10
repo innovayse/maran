@@ -110,9 +110,11 @@ public sealed class AuthController : BaseApiController
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("refresh")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.SessionRefresh)]
     [ProducesResponseType(typeof(AuthenticatedSessionDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
     public async Task<IActionResult> RefreshAsync(CancellationToken cancellationToken)
     {
         var refreshToken = Request.Cookies[RefreshCookie.Name];
@@ -157,7 +159,9 @@ public sealed class AuthController : BaseApiController
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("logout")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.SessionRefresh)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
     public async Task<IActionResult> LogoutAsync(CancellationToken cancellationToken)
     {
         var refreshToken = Request.Cookies[RefreshCookie.Name];
@@ -383,7 +387,7 @@ public sealed class AuthController : BaseApiController
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("reset-password")]
     [AllowAnonymous]
-    [EnableRateLimiting(RateLimitPolicies.PasswordReset)]
+    [EnableRateLimiting(RateLimitPolicies.PasswordResetCompletion)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ResetPasswordAsync(

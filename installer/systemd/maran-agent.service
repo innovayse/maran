@@ -89,7 +89,7 @@ EnvironmentFile=/etc/maran/agent.env
 # The same call also finishes a restore that was killed between the two renames that
 # swap an account's home, which is the other half of F-2. Threat note:
 # docs/superpowers/notes/2026-09-09-restore-interruption-recovery-threat-note.md.
-ExecStart=/usr/local/maran/agent/maran-agent --allow-uid ${MARAN_AGENT_ALLOW_UID} --free-space-floor-mib ${MARAN_AGENT_FREE_SPACE_FLOOR_MIB}
+ExecStart=/usr/local/maran/agent/maran-agent --allow-uid ${MARAN_AGENT_ALLOW_UID} --free-space-floor-mib ${MARAN_AGENT_FREE_SPACE_FLOOR_MIB} --reserved-host-names=${MARAN_AGENT_RESERVED_HOST_NAMES}
 # The daemon's own search path, emptied deliberately, and AFTER EnvironmentFile= so
 # that a PATH= line added to /etc/maran/agent.env cannot win. systemd's compiled-in
 # default begins /usr/local/sbin:/usr/local/bin — the directories this product itself
@@ -127,9 +127,20 @@ RestartSec=2
 # restore between its first DROP DATABASE and its last load; no TimeoutStopSec
 # closes that, because a power cut does the same thing to it.
 #
-# KillMode is left at its default, control-group: the agent forks setuid children
-# to touch customer files, and they must die with it rather than keep writing into
-# a home whose daemon is gone.
+# KillMode=mixed, and NOT the default control-group (issue #476). The default sends
+# the stop SIGTERM to EVERY process in this unit's cgroup at once, so `useradd`,
+# `usermod`, `setquota`, `nginx -t`, `crontab`, `tar`, `mysqldump` and the forked setuid
+# children of an in-flight operation would die at the instant the agent starts draining,
+# fail half-way, and leave exactly the half-created state the drain exists to prevent.
+# `mixed` sends SIGTERM to the agent (the main process) ALONE, lets the drain finish the
+# operations whose programs are still running, and sends SIGKILL to everything left in the
+# cgroup only once TimeoutStopSec expires or the agent has exited. That keeps the property
+# the old comment here wanted: a forked setuid child never outlives the daemon, it is
+# killed with the rest of the cgroup, so nothing keeps writing into a home whose daemon
+# is gone. The 45s above covers the 30s drain (`shutdown::DRAIN_BUDGET`); an operation
+# that outruns it ends in the same SIGKILL as before, now for the programs as well as the
+# agent, and the same design decision stands for it.
+KillMode=mixed
 TimeoutStopSec=45
 
 # --- Hardening ------------------------------------------------------------------
@@ -414,15 +425,20 @@ SystemCallArchitectures=native
 # write them) can rewrite any service's limits or freeze it, a denial of service against the
 # whole host. It can also move a process it forked out of this unit's cgroup, where that
 # process survives `systemctl stop` and the
-# KillMode=control-group the TimeoutStopSec= paragraph relies on. On a host booted with cgroup v1
+# final SIGKILL of the cgroup (KillMode=mixed, above) that the TimeoutStopSec= paragraph relies on. On a host booted with cgroup v1
 # or the hybrid hierarchy it would also reach the root cgroup's release_agent, which the kernel
 # runs as full root outside every restriction in this file. That last point is the kernel's
 # documented behaviour and was not measured; every supported release defaults to cgroup v2.
 #
 # Nothing the agent does writes a cgroup. Its own code touches none, and `systemctl` asks PID 1,
-# which mounts the SFTP jails and reloads nginx and php-fpm from outside this namespace. An
-# earlier version of this file left the directive off on the guess that "per-account systemd
-# slices may need it"; no slice, scope or systemd-run exists anywhere in the agent. The read-only
+# which mounts the SFTP jails and reloads nginx and php-fpm from outside this namespace. The one
+# thing that creates a unit is a cron run-now (issues #158, #336): the agent starts `systemd-run`
+# through the adapter's binary, and the transient unit lands in the account's `user-<uid>.slice`.
+# That is also a request to PID 1, which builds the unit and its cgroup outside this namespace,
+# so the agent still writes no cgroup file; the account slice's ceilings are set the same way,
+# through `systemctl`. An earlier version of this file left the directive off on the guess that
+# "per-account systemd slices may need it", and said no slice, scope or systemd-run existed in the
+# agent; that was never a reason, and since run-now it is not true either. The read-only
 # mount holds against CAP_SYS_ADMIN (in the bounding set below), which could otherwise remount
 # it writable, only because the @system-service group below contains no
 # mount syscall (expanded on systemd 255; each family's systemd is to be checked the same way)

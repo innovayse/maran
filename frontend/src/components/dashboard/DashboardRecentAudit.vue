@@ -70,7 +70,7 @@ const localeStore = useLocaleStore()
              let the flex algorithm starve this column in the first place. -->
         <div class="min-w-0 flex-1 basis-40">
           <p class="m-0 text-sm font-semibold text-text-primary break-words">{{ entry.actionName }}</p>
-          <p v-if="entry.subject !== ''" class="m-0 text-xs text-text-muted break-words">{{ entry.subject }}</p>
+          <p v-if="entry.subjectName !== ''" class="m-0 text-xs text-text-muted break-words">{{ entry.subjectName }}</p>
           <!-- An entry written while an administrator was viewing as the actor names that administrator. -->
           <p v-if="entry.impersonatorUsername !== null" class="m-0 text-xs text-text-muted break-words">
             {{ t('app.audit.viewedBy', { name: entry.impersonatorUsername }) }}

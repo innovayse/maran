@@ -1,0 +1,2 @@
+{ type primary; file "{{ zone_file }}"; {% if let Some(key_directory) = key_directory %}key-directory "{{ key_directory }}"; dnssec-policy "{% if withdrawing %}insecure{% else %}maran-csk{% endif %}"; inline-signing yes; {% endif %}};
+{# A trailing comment keeps the final newline, which askama would otherwise drop. #}

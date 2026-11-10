@@ -40,6 +40,27 @@ pub trait ZoneHost: DnsHost {
         reload: &Reload<'_>,
     ) -> Result<(), DnsError>;
 
+    /// Writes the signing key file `contents` to `target` through the
+    /// config-write protocol at mode `0640`, then hands it to `group`.
+    ///
+    /// The mode is set on the temporary file before the rename, so the name never
+    /// points at a file that was wider than `0640`; the file is owned by root and
+    /// only its group is changed, so the daemon can read a key it must sign with
+    /// and no one else can. There is no validator: no program checks a key file,
+    /// and the bytes come from a validated key type (`write_unchecked_config`).
+    ///
+    /// The group is resolved BEFORE the write, so a host where it cannot be
+    /// resolved fails with no key on disk. Between the rename and the hand-over
+    /// the file is `root:root 0640`, readable by nobody else, so the window is
+    /// closed on the strict side. The hand-over does not follow a symlink.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DnsError::ConfigWrite`] when the group cannot be resolved, the
+    /// protocol fails mechanically, or the hand-over fails (in which case the file
+    /// is removed again). The error never carries `contents`.
+    fn write_key_file(&self, target: &Path, contents: &str, group: &str) -> Result<(), DnsError>;
+
     /// The names of the entries in `directory`, in no particular order. A
     /// directory that is not there is an empty list: no zone was ever written.
     ///

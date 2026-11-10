@@ -69,6 +69,7 @@ public sealed class MailServerControllerPolicyTests
             ["MailQueueController.DeleteAsync",
                 "MailQueueController.FlushAsync",
                 "MailQueueController.GetAllAsync",
+                "MailQueueController.GetCountAsync",
                 "MailServerController.DisableAsync",
                 "MailServerController.EnableAsync",
                 "MailServerController.GetAsync",

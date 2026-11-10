@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="RemoteServerNameRequired">
+    <value>Նշեք սերվերի անունը։</value>
+  </data>
+  <data name="RemoteServerNameMaxLength">
+    <value>Անունը չափազանց երկար է։</value>
+  </data>
+  <data name="RemoteServerHostRequired">
+    <value>Մուտքագրեք սերվերի հոսթի անունը կամ հասցեն։</value>
+  </data>
+  <data name="RemoteServerHostInvalid">
+    <value>Սա վավեր հոսթի անուն կամ IP հասցե չէ։</value>
+  </data>
+  <data name="RemoteServerPortInvalid">
+    <value>Պորտը պետք է լինի 1-ից 65535 թիվ։</value>
+  </data>
+  <data name="RemoteServerSshUserInvalid">
+    <value>Սա վավեր օգտատիրոջ անուն չէ։</value>
+  </data>
+  <data name="RemoteServerAllowedFromInvalid">
+    <value>Մուտքագրեք հասցեներ կամ տիրույթներ, օրինակ 203.0.113.7 կամ 203.0.113.0/24, ստորակետով բաժանված։</value>
+  </data>
+  <data name="FingerprintInvalid">
+    <value>Մատնահետքը ունի SHA256: և դրան հաջորդող 43 նիշ տեսքը։</value>
+  </data>
+  <data name="MigrationPullUrlInvalid">
+    <value>Մուտքագրեք մյուս վահանակի հասցեն որպես https://հոսթ կամ https://հոսթ:պորտ, առանց որևէ շարունակության։</value>
+  </data>
+  <data name="MigrationPullGrantInvalid">
+    <value>Մուտքագրեք թույլտվությունը ճիշտ այնպես, ինչպես այն ցույց տվեց մյուս վահանակը։</value>
+  </data>
+</root>

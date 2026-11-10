@@ -1,3 +1,4 @@
+using Maran.Agent.Client.Errors;
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Dns.Persistence;
 using Maran.Sdk.Events;
@@ -25,9 +26,6 @@ namespace Maran.Modules.Dns.IntegrationEvents.Handlers;
 /// </remarks>
 public sealed class AccountDeletingHandler
 {
-    /// <summary>The agent's code for a zone it does not serve, which removing treats as already done.</summary>
-    private const string AgentNotFoundCode = "AgentNotFound";
-
     /// <summary>The Dns module's database context.</summary>
     private readonly DnsDbContext _dbContext;
 
@@ -56,6 +54,7 @@ public sealed class AccountDeletingHandler
         var owned = await _dbContext.Zones
             .IgnoreQueryFilters()
             .Where(row => row.AccountId == message.AccountId)
+            .Include(row => row.SigningKeys)
             .ToListAsync(cancellationToken);
 #pragma warning restore RS0030
         if (owned.Count == 0)
@@ -66,7 +65,7 @@ public sealed class AccountDeletingHandler
         foreach (var zone in owned)
         {
             var removed = await _agent.DeleteZoneAsync(zone.Name, cancellationToken);
-            if (!removed.IsSuccess && !string.Equals(removed.Error!.Code, AgentNotFoundCode, StringComparison.Ordinal))
+            if (!removed.IsSuccess && !string.Equals(removed.Error!.Code, AgentErrorCodes.NotFound, StringComparison.Ordinal))
             {
                 throw new InvalidOperationException(
                     $"The name server refused to drop a zone of account {message.AccountId} ({removed.Error.Code}).");

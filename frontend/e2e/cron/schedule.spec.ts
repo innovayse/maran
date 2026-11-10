@@ -1,14 +1,16 @@
-import { expect, test, type Page } from '@playwright/test'
-import { stubAccounts } from '../fixtures/stub-accounts-route'
+import { expect, test } from '../fixtures/guarded-test'
+import { stubAccountNames, stubAccounts } from '../fixtures/stub-accounts-route'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubCronOptions } from '../fixtures/stub-cron-options-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubCronEntries, stubCronEnvironment } from '../fixtures/stub-cron-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { CronEntry, CronSchedule } from '../../src/types/cronEntry'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 const LICENSED: PanelModule[] = [
   { name: 'cron', displayName: 'Scheduled tasks', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -31,9 +33,12 @@ const COMMAND = '/usr/bin/php /home/alice/cleanup.php'
 const openCronPage = async (page: Page, entries: CronEntry[]): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubCronOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
+  // The screen names the account it acts for by reading it, which a language switch repeats.
+  await stubAccountNames(page, [ALICE])
   await stubCronEntries(page, entries)
   await stubCronEnvironment(page, [])
   await page.goto('/cron')

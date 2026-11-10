@@ -55,6 +55,7 @@ public sealed class GetPanelUpdateQueryHandler
             facts.Check?.CheckedAt,
             facts.PreviousVersion,
             PanelUpdateLedgerPolicy.IsInProgress(facts.Signals),
+            PanelUpdateLedgerPolicy.IsCheckInProgress(facts.CheckMarkerAge),
             facts.CanStart);
 
         return Task.FromResult(Result<PanelUpdateDto>.Ok(dto));

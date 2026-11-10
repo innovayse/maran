@@ -1,7 +1,8 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import {
   STATUSES_PATTERN,
   stubTaskStream,
@@ -12,6 +13,7 @@ import {
 } from '../fixtures/stub-tasks-routes'
 import type { PanelModule } from '../../src/types/module'
 import type { PanelTask } from '../../src/types/panelTask'
+import type { Page } from '@playwright/test'
 
 const LICENSED: PanelModule[] = [
   { name: 'tasks', displayName: 'Background tasks', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -38,6 +40,7 @@ test('the tasks screen shows the empty state when the panel reports no tasks', a
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubTasks(page, [])
 
   await page.goto('/tasks')
@@ -52,6 +55,7 @@ test('the tasks table shows what each task is, what it acts on and where it has 
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubTasks(page, [INSTALL])
   await stubTaskStream(page, '')
 
@@ -72,6 +76,7 @@ test('opening a task shows what its stream reports, not what the listing said', 
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubTasks(page, [INSTALL])
   await stubTaskStream(
     page,
@@ -100,6 +105,7 @@ test('a task that failed shows the code it failed with', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubTasks(page, [INSTALL])
   await stubTaskStream(
     page,
@@ -134,11 +140,14 @@ test('a task that failed shows the code it failed with', async ({ page }) => {
 // than showing an empty state, which would say something different and untrue.
 test('the tasks screen renders the panel’s refusal verbatim rather than an empty list', async ({
   page,
+  guard,
 }) => {
+  guard.allow(404, /\/api\/v1\/tasks(\?.*)?$/)
   const backendDetail = 'That resource is not available.'
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubTasksNotFound(page, backendDetail)
 
   await page.goto('/tasks')
@@ -156,6 +165,7 @@ test('a task kind is shown in the operator’s language, not as the name the pan
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubTasks(page, [{ ...INSTALL, kind: 'BackupCreate', subject: 'acme' }])
   await stubTaskStream(page, '')
 
@@ -173,6 +183,7 @@ test('a kind this bundle has no word for is shown as the panel sent it', async (
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubTasks(page, [INSTALL])
   await stubTaskStream(page, '')
 
@@ -222,6 +233,7 @@ const openTasks = async (page: Page, tasks: PanelTask[]): Promise<() => readonly
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubTaskStream(page, '')
   return await stubTasks(page, tasks)
 }
@@ -298,7 +310,8 @@ test('the failure notice is the panel count, and its action narrows the list to 
   await expect(page.getByRole('cell', { name: 'acme', exact: true })).toHaveCount(0)
 })
 
-test('an inverted window is refused by the panel and its sentence is shown', async ({ page }) => {
+test('an inverted window is refused by the panel and its sentence is shown', async ({ page, guard }) => {
+  guard.allow(400, /\/api\/v1\/tasks\?.*from=/)
   await openTasks(page, [INSTALL])
   await page.route(/\/api\/v1\/tasks\?.*from=/, async (route) => {
     await route.fulfill({

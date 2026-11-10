@@ -232,7 +232,7 @@ public sealed class AccountDeletingHandlerErasureTests : IDisposable
             AccountMembership.Own(Guid.NewGuid(), _stranger.Id, AccountB, ErasureHandlers.Now));
         context.AuditEvents.AddRange(
             ErasureJournal.Row(_owner.Id, "acme-owner", "acme-owner", OwnerAddress, OwnerAgent, accountId: AccountA),
-            ErasureJournal.Row(_admin.Id, "administrator", OwnerEmail),
+            ErasureJournal.Row(_admin.Id, "administrator", OwnerEmail, subjectUserId: _owner.Id),
             ErasureJournal.Row(_admin.Id, "administrator", "acme", accountId: AccountA, action: "AccountSuspended"),
             ErasureJournal.Row(_dual.Id, "dual-member", "site", accountId: AccountA),
             ErasureJournal.Row(_stranger.Id, "stranger", "stranger-site", accountId: AccountB),

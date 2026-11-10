@@ -1,13 +1,19 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { FULL_CATALOGUE, breadcrumbItems, mainNavigation, openSection } from '../fixtures/open-full-shell'
+import { stubMyAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
+import { stubMembershipOffers } from '../fixtures/stub-membership-offers-routes'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
 import { OWNER_PROFILE, stubProfile } from '../fixtures/stub-profile-route'
+import { stubSessions } from '../fixtures/stub-sessions-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubEmptyTasks } from '../fixtures/stub-tasks-routes'
 import type { MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
+import type { Page } from '@playwright/test'
 
 // Issue #312: the customer's menu is the same navigation tree as the operators', filtered by role.
 // Nine items, nothing that is the server's; pages not built yet are drawn disabled; the tasks page
@@ -55,9 +61,15 @@ const CUSTOMER_ITEMS = [
 const signIn = async (page: Page): Promise<void> => {
   await stubSignedIn(page, CUSTOMER)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubModules(page, FULL_CATALOGUE)
   await stubEmptyTasks(page)
+  await stubLandingReads(page, 'customer')
   await stubMyAccount(page, OWN_ACCOUNT)
+  // The screens the walks below open from the menu: the devices, and My account with its offers.
+  await stubSessions(page, [])
+  await stubMyAccountResources(page, { accountId: OWN_ACCOUNT.id, resources: [] })
+  await stubMembershipOffers(page, [])
   // The account's owner: the menu offers Sub-users, which only an owner manages.
   await stubProfile(page, OWNER_PROFILE)
   await page.goto('/')
@@ -127,7 +139,9 @@ test('an administrator bar keeps its own four tabs', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubModules(page, FULL_CATALOGUE)
+  await stubLandingReads(page, 'administrator')
   await page.goto('/')
 
   const bar = page.getByRole('navigation', { name: 'Sections' })

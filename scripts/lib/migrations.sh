@@ -14,6 +14,7 @@
 #   scripts/maran migrate check                                every module's model matches its migrations
 #   scripts/maran migrate status                               every migration on disk is applied to this database
 #   scripts/maran migrate guard [base-ref]                     no migration destroys a column the last release read
+#   scripts/maran migrate selftest                             the guard refuses what it must and accepts what it must
 #
 # `check` is the one that runs in CI. An entity edited without a migration is not an error anywhere
 # until a real database is involved, and then it surfaces as a confusing query failure rather than
@@ -45,25 +46,127 @@ root="$(cd "$(dirname "$0")/../.." && pwd)"
 #
 # Destroying and renaming are the same act here: a renamed column is, to the previous release, a
 # column that vanished. So `DropColumn`, `DropTable`, `RenameColumn` and `RenameTable` are all
-# refused. `AlterColumn` is refused too, because the widening cases are indistinguishable from the
-# narrowing ones by name alone and a narrowing is a silent data loss the previous release cannot
-# survive; a genuine widening is exactly the case the marker exists for.
+# refused, and so is every other call that takes away something the previous release may lean on:
+# `DropIndex` and `RenameIndex` (a dropped unique index is a uniqueness the old code still assumes),
+# `DropForeignKey`, `DropPrimaryKey`, `DropUniqueConstraint`, `DropCheckConstraint`, `DropSchema`,
+# `DropSequence` and `RenameSequence`. `AlterColumn` is refused unless the call itself PROVES a
+# widening: a longer `maxLength` against `oldMaxLength`, or `nullable: true` over a column that was
+# not nullable, with no tightening and no change of type beyond the length. Anything the call does
+# not prove (a changed type, a default, a tightened nullability) is read as a narrowing, because a
+# narrowing is a silent data loss the previous release cannot survive.
 #
 # THE MARKER. The rule asks one question — does any release that a customer might roll back to read
-# what this migration destroys? A migration that answers it says so in its own file:
+# what this migration destroys? A migration that answers it says so in its own file, and the answer
+# must NAME the migration (or commit) that introduced what is being destroyed, because that
+# reference is what the guard checks against the repository's published release tags (`v*`):
 #
-#   // contract-phase: PanelTasks.LegacyKind, expanded in 1.4, unread since 1.5
-#   // contract-phase: Plans.MaxFtpUsers, never shipped — no released version reads it
+#   // contract-phase: PanelTasks.LegacyKind; expand: 20260915101500_AddPanelTaskKind
+#   // contract-phase: Plans.MaxFtpUsers; never-shipped: 20260909160000_AddPlanMaxFtpUsers
 #
-# Both forms are the same assertion: a person has checked, and the answer is no. The second is the
-# honest one before 1.0, when there is no earlier release to be compatible with; it stops being
-# available the day one exists, and the check cannot tell the difference — the reviewer can.
+# `expand: <ref>` says a release has carried the expand phase, so this removal belongs to a later
+# one. The guard requires a published tag to contain the commit that added <ref>; with no such tag
+# the expand phase has not been released, the removal would ship WITH it, and a rollback would meet
+# a schema the previous release cannot read. `never-shipped: <ref>` says no release ever carried
+# what is removed, and the guard requires the opposite: NO published tag contains <ref>. <ref> is
+# a migration id (`yyyyMMddHHmmss_Name`) or a commit hash. A marker with no reference, a reference
+# that resolves to nothing, or one that contradicts the tags is refused with the sentence saying
+# which. It is the second form that stops being true the day a release exists, and the guard now
+# knows the difference instead of leaving it to the reviewer.
+#
+# A migration that is itself already inside a published tag is not read at all: it shipped, its
+# shape is what that release reads, and nobody can change it without rewriting a release. The
+# verdict says how many were skipped for that reason. A checkout without tags skips none, so a
+# shallow clone is stricter, never looser.
 #
 # It lives in the migration rather than in the pull request on purpose — the file outlives the PR,
 # and a reviewer reading the migration a year later can see that the removal was planned rather
 # than reconstruct it from a merged discussion.
+if [ "${1:-}" = "selftest" ]; then
+  exec bash "$root/scripts/lib/migrations-guard-selftest.sh"
+fi
+
 if [ "${1:-}" = "guard" ]; then
   shift
+
+  # guard_release_tags <commit>: the published release tags (v<digit>…) that contain the commit.
+  guard_release_tags() {
+    git -C "$root" tag --list 'v[0-9]*' --contains "$1" 2>/dev/null
+  }
+
+  # guard_adding_commit <file>: the commit that first added a tracked file, or nothing for a file
+  # git does not track. `--diff-filter=A` with `tail -1` is the OLDEST addition, which is the one a
+  # release tag can contain.
+  guard_adding_commit() {
+    git -C "$root" ls-files --error-unmatch -- "$1" >/dev/null 2>&1 || return 0
+    git -C "$root" log --diff-filter=A --format=%H -- "$1" | tail -n 1
+  }
+
+  # guard_is_released <file>: success when the file is tracked, unmodified, and the commit that
+  # added it is inside a published release tag, so it shipped and is out of scope.
+  guard_is_released() {
+    local added
+    git -C "$root" diff --quiet HEAD -- "$1" 2>/dev/null || return 1
+    added="$(guard_adding_commit "$1")"
+    [ -n "$added" ] || return 1
+    [ -n "$(guard_release_tags "$added")" ]
+  }
+
+  # guard_marker_block <file>: the `// contract-phase:` comment and the `//` lines that continue it.
+  # Only a line that BEGINS with the comment counts, so a doc comment that merely mentions the
+  # marker (`/// ... <c>// contract-phase:</c>`) is not one.
+  guard_marker_block() {
+    awk '
+      /^[[:space:]]*\/\/[[:space:]]*contract-phase:/ { on = 1 }
+      on { if ($0 ~ /^[[:space:]]*\/\//) { print } else { on = 0 } }
+    ' "$1"
+  }
+
+  # guard_reference_commit <ref>: prints the commit that introduced a migration id or hash.
+  # It prints `uncommitted` for a migration file git does not track, and nothing for a reference
+  # that resolves to no migration and no commit.
+  guard_reference_commit() {
+    local ref="$1" path commit
+    if grep -qE '^[0-9]{14}_[A-Za-z0-9_]+$' <<<"$ref"; then
+      path="$(find "$root/backend/src" -path "*/Persistence/Migrations/$ref.cs" -print -quit)"
+      [ -n "$path" ] || return 0
+      path="${path#"$root"/}"
+      commit="$(guard_adding_commit "$path")"
+      printf '%s\n' "${commit:-uncommitted}"
+      return 0
+    fi
+    git -C "$root" rev-parse --verify --quiet "$ref^{commit}" 2>/dev/null || true
+  }
+
+  # guard_marker_verdict <file>: nothing when the marker is acceptable, otherwise one sentence per
+  # problem. Called only for a file that carries a marker and a destructive statement.
+  guard_marker_verdict() {
+    local block refs kind ref commit tags
+    block="$(guard_marker_block "$1")"
+    refs="$(printf '%s\n' "$block" | sed -nE \
+      's/.*(^|[^A-Za-z-])(expand|never-shipped):[[:space:]]*([0-9]{14}_[A-Za-z0-9_]+|[0-9a-f]{7,40})([^A-Za-z0-9_].*)?$/\2 \3/p')"
+    if [ -z "$refs" ]; then
+      echo "the contract-phase marker names no expand phase: add \`expand: <migration id or commit>\` (the release that carried it has shipped) or \`never-shipped: <migration id or commit>\` (no release ever did)"
+      return 0
+    fi
+    while read -r kind ref; do
+      commit="$(guard_reference_commit "$ref")"
+      if [ -z "$commit" ]; then
+        echo "the $kind reference $ref resolves to no migration file and no commit in this repository"
+        continue
+      fi
+      if [ "$commit" = "uncommitted" ]; then
+        tags=""
+      else
+        tags="$(guard_release_tags "$commit" | tr '\n' ' ')"
+      fi
+      if [ "$kind" = "expand" ] && [ -z "$tags" ]; then
+        echo "the expand phase $ref is in no published release tag (v*): this removal would ship in the same release as the schema it removes, and a rollback would meet a schema the previous release cannot read"
+      fi
+      if [ "$kind" = "never-shipped" ] && [ -n "$tags" ]; then
+        echo "$ref is inside release tag(s) ${tags% }, so a release has shipped it: say \`expand: $ref\` instead, and the removal then belongs to a release after that one"
+      fi
+    done <<< "$refs"
+  }
 
   # What to compare against. In CI the useful base is the merge point with the default branch, so
   # the check sees the migrations THIS branch adds and not the whole history. Locally, with no such
@@ -134,14 +237,48 @@ if [ "${1:-}" = "guard" ]; then
   offending_files=0
   offending_statements=0
   read_count=0
+  released_count=0
   for file in $changed; do
     case "$file" in
       *.Designer.cs|*ModelSnapshot.cs) continue ;;
     esac
     [ -r "$root/$file" ] || continue
+    if guard_is_released "$file"; then
+      released_count=$((released_count + 1))
+      continue
+    fi
     read_count=$((read_count + 1))
 
     found="$(awk '
+      # field(text, regex): the value after the colon of the first match, or "".
+      function field(text, re,   piece) {
+        if (match(text, re)) {
+          piece = substr(text, RSTART, RLENGTH)
+          sub(/^[^:]*:[ ]*/, "", piece)
+          return piece
+        }
+        return ""
+      }
+
+      # provable_widening(call): true only when the call shows a longer maxLength or a nullability
+      # relaxed from false to true, and shows neither a shorter length, a tightened nullability nor
+      # a type that differs by more than its length digits.
+      function provable_widening(call,   mx, omx, nl, onl, ty, oty, grew, shrank, relaxed, tightened) {
+        mx  = field(call, "[^A-Za-z]maxLength:[ ]*[0-9]+")
+        omx = field(call, "[^A-Za-z]oldMaxLength:[ ]*[0-9]+")
+        nl  = field(call, "[^A-Za-z]nullable:[ ]*(true|false)")
+        onl = field(call, "[^A-Za-z]oldNullable:[ ]*(true|false)")
+        ty  = field(call, "[^A-Za-z]type:[ ]*\"[^\"]*\"")
+        oty = field(call, "[^A-Za-z]oldType:[ ]*\"[^\"]*\"")
+        grew      = (mx != "" && omx != "" && mx + 0 > omx + 0)
+        shrank    = (mx != "" && omx != "" && mx + 0 < omx + 0)
+        relaxed   = (nl == "true" && onl != "true")
+        tightened = (nl != "true" && onl == "true")
+        gsub(/[0-9]+/, "", ty)
+        gsub(/[0-9]+/, "", oty)
+        return (grew || relaxed) && !shrank && !tightened && (ty == oty)
+      }
+
       # Remember the indentation of the Up signature: the method ends at a closing brace in that
       # same column. Migrations are machine-written and consistently formatted, and matching the
       # column rather than counting braces keeps this readable.
@@ -152,10 +289,29 @@ if [ "${1:-}" = "guard" ]; then
         next
       }
       inside && $0 == closing { inside = 0; sql = 0; next }
-      inside && /migrationBuilder\.(DropColumn|DropTable|RenameColumn|RenameTable|AlterColumn)/ {
+      inside && /migrationBuilder\.(DropColumn|DropTable|RenameColumn|RenameTable|DropIndex|RenameIndex|DropForeignKey|DropPrimaryKey|DropUniqueConstraint|DropCheckConstraint|DropSchema|DropSequence|RenameSequence)/ {
         line = $0
         sub(/^[[:space:]]*/, "", line)
         print "    " line
+      }
+
+      # ALTERCOLUMN IS READ AS A WHOLE CALL, not a line: EF writes `maxLength:` and `oldMaxLength:`
+      # on separate lines, and only the pair says whether the column grew or shrank. The call is
+      # accepted only when it proves a widening and nothing narrower (see the header).
+      inside && /migrationBuilder\.AlterColumn/ {
+        alter = 1
+        alter_text = ""
+      }
+      alter {
+        alter_text = alter_text " " $0
+        if ($0 ~ /\);[[:space:]]*$/) {
+          alter = 0
+          if (!provable_widening(alter_text)) {
+            squeezed = alter_text
+            gsub(/[[:space:]]+/, " ", squeezed)
+            print "    " substr(squeezed, 2, 150) "  <- not a provable widening"
+          }
+        }
       }
 
       # RAW SQL NEEDS A LATCH, NOT A PATTERN. `migrationBuilder.Sql(` is matched by the typed
@@ -194,13 +350,23 @@ if [ "${1:-}" = "guard" ]; then
     ' "$root/$file")"
 
     [ -z "$found" ] && continue
-    grep -q "contract-phase:" "$root/$file" && continue
+
+    # A marker is not a free pass: it is read, and its reference is checked against the tags. A file
+    # with no marker at all is the plain finding; a file whose marker the tags contradict is the
+    # same finding with the sentence saying why the marker does not hold.
+    marker_problem=""
+    if [ -n "$(guard_marker_block "$root/$file")" ]; then
+      marker_problem="$(guard_marker_verdict "$root/$file")"
+      [ -z "$marker_problem" ] && continue
+      marker_problem="$(printf '%s\n' "$marker_problem" | sed 's/^/    marker refused: /')"
+    fi
 
     offending_files=$((offending_files + 1))
     offending_statements=$((offending_statements + $(printf '%s\n' "$found" | wc -l)))
     offences="$offences$file
 $found
-"
+${marker_problem:+$marker_problem
+}"
   done
 
   # A COUNT, NOT AN EXIT CODE. Every verdict below names what was read and how much of it, because
@@ -215,7 +381,9 @@ $found
     echo "Expand now, contract later: add the new shape, leave the old one in place, and delete it in a" >&2
     echo "release after the code that read it is gone. If this IS that later release, say so in the" >&2
     echo "migration file:" >&2
-    echo "    // contract-phase: <what is being removed>, expanded in <version>, unread since <version>" >&2
+    echo "    // contract-phase: <what is being removed>; expand: <migration id or commit of the expand phase>" >&2
+    echo "The expand phase must be inside a published release tag (v*); if no release ever carried what" >&2
+    echo "is removed, say \`never-shipped: <migration id or commit>\` and no tag may contain it." >&2
     exit 1
   fi
 
@@ -223,14 +391,16 @@ $found
   # ordinary state of the base branch and of any branch that touches no schema — and it is said in
   # those words so that it can never be read, in a log or a report, as "additive".
   if [ "$read_count" -eq 0 ]; then
-    echo "MIGRATIONS-NONE-TO-CHECK — 0 migrations in the change set; no additivity claim is made."
+    echo "MIGRATIONS-NONE-TO-CHECK — 0 migrations read ($released_count already inside a release tag, skipped); no additivity claim is made."
     exit 0
   fi
 
-  echo "MIGRATIONS-ADDITIVE — $read_count migration(s) read, 0 destructive statements."
-  echo "    Scanned Up() for DropColumn/DropTable/RenameColumn/RenameTable/AlterColumn and, inside"
-  echo "    migrationBuilder.Sql(...), for DELETE/TRUNCATE/DROP/ALTER COLUMN. UNOBSERVED HERE: an"
-  echo "    UPDATE ... SET that rewrites rows in place."
+  echo "MIGRATIONS-ADDITIVE — $read_count migration(s) read, 0 destructive statements ($released_count already inside a release tag, skipped)."
+  echo "    Scanned Up() for Drop*/Rename* of columns, tables, indexes, keys, constraints, schemas and"
+  echo "    sequences, for an AlterColumn that does not prove a widening and, inside"
+  echo "    migrationBuilder.Sql(...), for DELETE/TRUNCATE/DROP/ALTER COLUMN. Every contract-phase marker"
+  echo "    was checked against the release tags. UNOBSERVED HERE: an UPDATE ... SET that rewrites rows"
+  echo "    in place, and whether a tag was pushed to a remote (a local tag counts)."
   exit 0
 fi
 
@@ -309,7 +479,7 @@ PYBOM
 }
 
 usage() {
-  echo "usage: maran migrate {add <Module> <Name>|apply <Module>|list <Module>|check|status|guard [base-ref]}" >&2
+  echo "usage: maran migrate {add <Module> <Name>|apply <Module>|list <Module>|check|status|guard [base-ref]|selftest}" >&2
   exit 1
 }
 
@@ -438,7 +608,7 @@ if [ "$command_name" = "status" ]; then
 
     output="$(ef migrations list --project "$project_file" --context "${name}DbContext" -v 2>&1 || true)"
 
-    if printf '%s' "$output" | grep -qE "An error occurred using the connection|Failed to connect|password authentication failed|database \"[^\"]*\" does not exist"; then
+    if grep -qE "An error occurred using the connection|Failed to connect|password authentication failed|database \"[^\"]*\" does not exist" <<<"$output"; then
       echo "UNKNOWN — the database could not be reached, so nothing was checked:"
       printf '%s' "$output" | grep -E "Failed to connect|password authentication failed|does not exist" | head -2 | sed 's/^/    /'
       unknown=$((unknown + 1))
@@ -446,7 +616,7 @@ if [ "$command_name" = "status" ]; then
       continue
     fi
 
-    if ! printf '%s' "$output" | grep -q "Opening connection to database"; then
+    if ! grep -q "Opening connection to database" <<<"$output"; then
       echo "UNKNOWN — no evidence this run opened a connection at all:"
       printf '%s' "$output" | tail -2 | sed 's/^/    /'
       unknown=$((unknown + 1))
@@ -454,7 +624,7 @@ if [ "$command_name" = "status" ]; then
       continue
     fi
 
-    if printf '%s' "$output" | grep -q "(Pending)"; then
+    if grep -q "(Pending)" <<<"$output"; then
       echo "BEHIND — migrations exist that this database has never had:"
       printf '%s' "$output" | grep "(Pending)" | sed 's/^/    /'
       echo "    run: maran migrate apply $name"

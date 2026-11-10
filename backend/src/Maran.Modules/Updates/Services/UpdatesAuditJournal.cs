@@ -29,8 +29,11 @@ public sealed class UpdatesAuditJournal : ISystemAuditJournal
     /// <summary>This module's short name, from which its system actor name is built.</summary>
     public const string ModuleName = "updates";
 
-    /// <summary>The fixed subject of the request entry.</summary>
+    /// <summary>The fixed subject of the update request entry.</summary>
     private const string RequestSubject = "request=update";
+
+    /// <summary>The fixed subject of the check request entry (issue #516).</summary>
+    private const string CheckRequestSubject = "request=check";
 
     /// <summary>The panel's append-only journal.</summary>
     private readonly IAuditWriter _auditWriter;
@@ -59,6 +62,69 @@ public sealed class UpdatesAuditJournal : ISystemAuditJournal
         bool succeeded,
         CancellationToken cancellationToken)
     {
+        await WriteRequestAsync(
+            UpdatesAuditActions.PanelUpdateRequested,
+            RequestSubject,
+            ipAddress,
+            userAgent,
+            succeeded,
+            cancellationToken);
+    }
+
+    /// <summary>Records the administrator's request to check for updates (issue #516).</summary>
+    /// <param name="ipAddress">The caller's address.</param>
+    /// <param name="userAgent">The caller's user agent.</param>
+    /// <param name="succeeded">Whether the request was handed to the root check service.</param>
+    /// <param name="cancellationToken">Cancellation token for the write.</param>
+    /// <returns>Resolves once the entry is stored.</returns>
+    public async Task RecordCheckRequestAsync(
+        string ipAddress,
+        string userAgent,
+        bool succeeded,
+        CancellationToken cancellationToken)
+    {
+        await WriteRequestAsync(
+            UpdatesAuditActions.PanelUpdateCheckRequested,
+            CheckRequestSubject,
+            ipAddress,
+            userAgent,
+            succeeded,
+            cancellationToken);
+    }
+
+    /// <summary>Records something the panel did on its own initiative, with no signed-in caller.</summary>
+    /// <param name="action">The action name, one of <see cref="UpdatesAuditActions"/>.</param>
+    /// <param name="subject">What it concerned, as <c>from=..;to=..</c>.</param>
+    /// <param name="succeeded">Whether it took effect.</param>
+    /// <param name="cancellationToken">Cancellation token for the write.</param>
+    /// <returns>Resolves once the entry is stored.</returns>
+    public async Task RecordSystemAsync(
+        string action,
+        string subject,
+        bool succeeded,
+        CancellationToken cancellationToken)
+    {
+        await _auditWriter.WriteAsync(
+            SystemAuditEntry.Create(ModuleName, action, subject, succeeded),
+            cancellationToken);
+    }
+
+    /// <summary>Writes a request entry under the signed-in caller's name.</summary>
+    /// <param name="action">The action name, one of <see cref="UpdatesAuditActions"/>.</param>
+    /// <param name="subject">The fixed subject of the request.</param>
+    /// <param name="ipAddress">The caller's address.</param>
+    /// <param name="userAgent">The caller's user agent.</param>
+    /// <param name="succeeded">Whether the request was handed to root.</param>
+    /// <param name="cancellationToken">Cancellation token for the write.</param>
+    /// <returns>Resolves once the entry is stored.</returns>
+    private async Task WriteRequestAsync(
+        string action,
+        string subject,
+        string ipAddress,
+        string userAgent,
+        bool succeeded,
+        CancellationToken cancellationToken)
+    {
         Guid? userId = null;
         var username = string.Empty;
         switch (_currentUser.Caller)
@@ -80,28 +146,11 @@ public sealed class UpdatesAuditJournal : ISystemAuditJournal
             new AuditEntry(
                 userId,
                 username,
-                UpdatesAuditActions.PanelUpdateRequested,
-                RequestSubject,
+                action,
+                subject,
                 ipAddress,
                 userAgent,
                 succeeded),
-            cancellationToken);
-    }
-
-    /// <summary>Records something the panel did on its own initiative, with no signed-in caller.</summary>
-    /// <param name="action">The action name, one of <see cref="UpdatesAuditActions"/>.</param>
-    /// <param name="subject">What it concerned, as <c>from=..;to=..</c>.</param>
-    /// <param name="succeeded">Whether it took effect.</param>
-    /// <param name="cancellationToken">Cancellation token for the write.</param>
-    /// <returns>Resolves once the entry is stored.</returns>
-    public async Task RecordSystemAsync(
-        string action,
-        string subject,
-        bool succeeded,
-        CancellationToken cancellationToken)
-    {
-        await _auditWriter.WriteAsync(
-            SystemAuditEntry.Create(ModuleName, action, subject, succeeded),
             cancellationToken);
     }
 }

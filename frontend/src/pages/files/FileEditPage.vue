@@ -5,7 +5,7 @@
  * `<main>`: the landmark lives in the layout.
  *
  * Everything it shows comes from the editor store; it never touches the API layer (rules/vue.md).
- * The text is rendered by a plain textarea, never as markup. A file the server will not open
+ * The text is edited in a code editor (`UiCodeEditor`, CodeMirror loaded lazily), never rendered as markup. A file the server will not open
  * (too large, binary) shows the server's sentence and a download button instead of an editor.
  *
  * **Saving is optimistic.** The store sends the modification instant it loaded; if the file
@@ -23,11 +23,11 @@ import FileEditorToolbar from '../../components/files/FileEditorToolbar.vue'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
+import UiCodeEditor from '../../components/ui/UiCodeEditor.vue'
 import UiConfirm from '../../components/ui/UiConfirm.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
-import UiTextarea from '../../components/ui/UiTextarea.vue'
 import { useAccountChoice } from '../../composables/useAccountChoice'
 import { useUnsavedChangesGuard } from '../../composables/useUnsavedChangesGuard'
 import { useFileEditorStore } from '../../stores/fileEditor'
@@ -41,6 +41,12 @@ const { fixedAccountId } = useAccountChoice()
 
 /** Whether long lines stay on one line instead of wrapping. */
 const noWrap: Ref<boolean> = ref(false)
+
+/** Whether the Tab key indents; off by default so Tab never traps keyboard focus. */
+const tabIndents: Ref<boolean> = ref(false)
+
+/** The editor, to open its find panel and go-to-line prompt from the toolbar. */
+const editor: Ref<InstanceType<typeof UiCodeEditor> | null> = ref(null)
 
 /** The account whose file is edited: a customer's own, otherwise the one the URL names. */
 const accountId: ComputedRef<string> = computed(() => {
@@ -127,8 +133,34 @@ const reload = async (): Promise<void> => {
 }
 
 /**
- * Hands the textarea's new text to the store.
- * @param value The textarea's new text.
+ * Saves from the editor's own shortcut, under the same rules as the Save button.
+ * @returns Resolves once the request has settled; nothing is sent when saving is not allowed.
+ */
+const saveFromShortcut = async (): Promise<void> => {
+  if (store.canSave) {
+    await save()
+  }
+}
+
+/**
+ * Opens find and replace in the text.
+ * @returns Nothing.
+ */
+const find = (): void => {
+  editor.value?.openSearch()
+}
+
+/**
+ * Opens the go-to-line prompt in the text.
+ * @returns Nothing.
+ */
+const goToLine = (): void => {
+  editor.value?.openGoToLine()
+}
+
+/**
+ * Hands the editor's new text to the store.
+ * @param value The editor's new text.
  * @returns Nothing.
  */
 const edit = (value: string): void => {
@@ -184,6 +216,7 @@ watch([accountId, filePath], load)
 
           <FileEditorToolbar
             v-model:no-wrap="noWrap"
+            v-model:tab-indents="tabIndents"
             :account-id="accountId"
             :path="filePath"
             :can-save="store.canSave"
@@ -193,18 +226,23 @@ watch([accountId, filePath], load)
             :limit-bytes="store.options?.maxEditBytes ?? null"
             :over-limit="store.overLimit"
             :mode="store.mode"
+            :editor-ready="store.status === 'ready'"
             @save="save"
             @reload="reload"
+            @find="find"
+            @go-to-line="goToLine"
           />
 
-          <UiTextarea
+          <UiCodeEditor
+            ref="editor"
             :model-value="store.draft"
             :label="t('filesEditor.textLabel')"
-            :rows="24"
-            mono
+            :file-name="baseName(filePath)"
             :no-wrap="noWrap"
+            :tab-indents="tabIndents"
             :disabled="store.status !== 'ready'"
             @update:model-value="edit"
+            @save="saveFromShortcut"
           />
         </div>
       </UiCard>

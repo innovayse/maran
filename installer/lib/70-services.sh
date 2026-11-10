@@ -154,7 +154,7 @@ render_agent_unit() {
 
 # render_php_install_unit: renders the package-install template unit for this host's OS family.
 #
-# The two families name different package managers, and a systemd unit interpolates no shell
+# The families name different package managers, and a systemd unit interpolates no shell
 # variable, so the family's ExecStart= and Environment= lines are substituted here. Each is ONE fixed
 # argv: an absolute program, fixed options, and %i (the instance, which the agent writes as the
 # adapter's package name) as the last and only package argument. %i is a systemd specifier, not a
@@ -166,7 +166,7 @@ render_agent_unit() {
 # also sets DEBIAN_FRONTEND=noninteractive on purpose; the RHEL family has no equivalent, so its
 # environment placeholder becomes a comment rather than an empty line.
 #
-# A family other than debian or rhel is a refusal, never a default: a unit rendered for a package
+# A family other than debian, rhel or suse is a refusal, never a default: a unit rendered for a package
 # manager the host does not have would fail only when an operator first installs a PHP version.
 render_php_install_unit() {
   local out="$1" exec_start environment
@@ -178,6 +178,20 @@ render_php_install_unit() {
       ;;
     rhel)
       exec_start="ExecStart=/usr/bin/dnf install -y -- %i"
+      environment="# No debconf on this family, so no frontend variable to set."
+      ;;
+    suse)
+      # One fixed argv again. --non-interactive never prompts (a prompt in a unit would hang it) and
+      # --no-recommends installs the named package and what it requires, nothing suggested, which is
+      # also what the root installer's pkg_install does. zypper asks to be told that what follows `--`
+      # is no longer an option; %i is the package the agent names.
+      #
+      # UNVERIFIED: (1) that /usr/bin/zypper is the path, (2) that zypper accepts `--` before the
+      # package name, (3) that this argv is the one DistroAdapter::package_manager answers for the
+      # SUSE family (the agent's suse adapter and this line must agree). Confirm with
+      # `command -v zypper` and `zypper --non-interactive install --no-recommends -- bc; echo $?`
+      # in the pinned Leap image, and with `grep -rn zypper agent/crates/distro/src/suse`.
+      exec_start="ExecStart=/usr/bin/zypper --non-interactive install --no-recommends -- %i"
       environment="# No debconf on this family, so no frontend variable to set."
       ;;
     *)

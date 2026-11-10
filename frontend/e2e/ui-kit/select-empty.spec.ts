@@ -1,9 +1,10 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubPlans } from '../fixtures/stub-plans-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 
 // Issue #225: a chooser opened with no options says so in words instead of opening a blank box. The plan
 // chooser became a server-searched combobox in #196, so the line it shows is the combobox's own: with no
@@ -13,6 +14,7 @@ test('the plan chooser opened with no plans shows the empty message', async ({ p
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
+  await stubShellReads(page)
   await stubAccounts(page, [])
   await stubPlans(page, [])
 

@@ -373,6 +373,19 @@ pub enum BackupError {
         reason: DumpRefusal,
     },
 
+    /// The restored home is in place, but a file-transfer jail could not be
+    /// mounted onto it (issue #487).
+    ///
+    /// The customer's files are restored. What is wrong is the SFTP or FTPS
+    /// jail, which still shows the displaced home: a login there sees the old
+    /// tree, and what it uploads would be lost. The displaced tree is therefore
+    /// KEPT (at the restore's parking path, `AgentPaths`-built) rather than
+    /// removed, and the next start of the agent tries the refresh again and
+    /// removes it once the jail is right. Carries nothing the service manager
+    /// printed.
+    #[error("the restored home is in place but a file-transfer jail still shows the previous one")]
+    JailsNotRefreshed,
+
     /// The restore's staging tree could not be created, chowned or removed.
     #[error("the restore staging directory is unusable")]
     StagingUnusable,

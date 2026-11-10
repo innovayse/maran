@@ -37,6 +37,8 @@
 
 #[path = "fixtures/polygon_account.rs"]
 mod polygon_account;
+// Shared by the SFTP and FTPS suites; this one does not read the effective configuration.
+#[allow(dead_code)]
 #[path = "fixtures/polygon_sshd.rs"]
 mod polygon_sshd;
 // Shared by both SFTP suites; each uses only part of it, so the allow sits on
@@ -153,6 +155,59 @@ fn creating_a_login_builds_a_jail_useradd_did_not_touch_and_mounts_the_home_into
     assert!(planted.exists(), "the planted file must still be there");
 
     drop(login);
+}
+
+/// Issue #483: a SECOND login for an account runs the jail's setup again while
+/// the first login's bind mount is up, and a `chmod` of the mount point goes
+/// through the mount onto the account's real home. The home was `0750` and became
+/// `0755`, readable by every other tenant. Asserted on the real inode, after a
+/// real second creation, never on a fake that cannot follow a mount.
+#[test]
+#[ignore = "creates a real system account and a real bind mount: polygon only"]
+fn a_second_sftp_login_leaves_the_accounts_home_at_its_own_mode_and_group() {
+    PolygonSshd::require_polygon();
+    let account = PolygonAccount::create("polysftpmode");
+    let first = PolygonSftpLogin::create(&account);
+    let before = std::fs::metadata(account.home()).expect("the home exists");
+    assert_eq!(
+        before.mode() & 0o777,
+        0o750,
+        "the premise: the home is 0750 after the first login"
+    );
+    let jail = PolygonSftpLogin::jail_of(account.name());
+    assert!(
+        std::fs::metadata(jail.mount_point()).is_ok_and(|mounted| mounted.ino() == before.ino()),
+        "the premise: the first login's bind mount is up, so the jail's home IS the account's home"
+    );
+
+    let second_user = SftpUserName::for_account(account.name(), "second").expect("a valid name");
+    create_sftp_user(
+        &ProcessSftpHost::new(),
+        PolygonSftpLogin::distro(),
+        &SftpUserRequest {
+            account: account.name().clone(),
+            user: second_user.clone(),
+            password: Password::parse(PolygonSftpLogin::CUSTOMER_PASSWORD).expect("valid"),
+        },
+    )
+    .expect("a second login for the same account is created");
+
+    let after = std::fs::metadata(account.home()).expect("the home still exists");
+    assert_eq!(
+        (after.mode() & 0o777, after.uid(), after.gid()),
+        (0o750, before.uid(), before.gid()),
+        "creating a second login must not change the account's home: other tenants \
+         could otherwise traverse and read it"
+    );
+
+    delete_sftp_user(
+        &ProcessSftpHost::new(),
+        PolygonSftpLogin::distro(),
+        account.name(),
+        &second_user,
+    )
+    .expect("the second login is removed");
+    drop(first);
 }
 
 #[test]

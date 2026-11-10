@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using Grpc.Net.Client;
 using Maran.Agent.Client.Channels;
 using Maran.Agent.Client.Errors;
@@ -6,7 +5,6 @@ using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Resources;
 using Maran.Agent.V1;
 using Maran.SharedKernel.Results;
-using Maran.SharedKernel.Security;
 using Microsoft.Extensions.Logging;
 
 namespace Maran.Agent.Client.Services.BackupService;
@@ -49,6 +47,12 @@ public sealed class AgentBackupClient : IAgentBackupClient
     /// <summary>Where the agent's own diagnostic text goes, since <see cref="Error"/> carries only a code.</summary>
     private readonly ILogger<AgentBackupClient> _logger;
 
+    /// <summary>Reads the create stream into typed events.</summary>
+    private readonly BackupCreateStream _createStream;
+
+    /// <summary>Reads the restore stream into typed events.</summary>
+    private readonly BackupRestoreStream _restoreStream;
+
     /// <summary>Creates a client over an explicit transport seam (used by tests and by the other constructor).</summary>
     /// <param name="invoker">The transport that performs the actual calls.</param>
     /// <param name="logger">Sink for the agent's diagnostic text.</param>
@@ -56,6 +60,8 @@ public sealed class AgentBackupClient : IAgentBackupClient
     {
         _invoker = invoker;
         _logger = logger;
+        _createStream = new BackupCreateStream(invoker, logger);
+        _restoreStream = new BackupRestoreStream(invoker, logger);
     }
 
     /// <summary>Creates a client whose every call goes to the server the current agent target selects.</summary>
@@ -87,119 +93,12 @@ public sealed class AgentBackupClient : IAgentBackupClient
         CancellationToken cancellationToken)
     {
         return AgentStreamGuard.EndOnTransportFailureAsync(
-            CreateEventsAsync(accountUsername, backupId, destination, cancellationToken),
+            _createStream.EventsAsync(accountUsername, backupId, destination, cancellationToken),
             error =>
             {
-                return new BackupCreateEvent(
-                    BackupCreateEventKind.Failed,
-                    0,
-                    string.Empty,
-                    0,
-                    string.Empty,
-                    0,
-                    error.Code);
+                return BackupStreamEvents.CreateFailed(error.Code);
             },
             cancellationToken);
-    }
-
-    /// <summary>Streams the create events the agent states, without guarding against the transport failing.</summary>
-    /// <param name="accountUsername">System username of the account being backed up.</param>
-    /// <param name="backupId">Caller-assigned identifier for this backup.</param>
-    /// <param name="destination">Where to store the resulting artifact.</param>
-    /// <param name="cancellationToken">Cancellation for the stream.</param>
-    /// <returns>Progress events followed by exactly one terminal event.</returns>
-    private async IAsyncEnumerable<BackupCreateEvent> CreateEventsAsync(
-        string accountUsername,
-        string backupId,
-        AgentBackupDestination destination,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
-    {
-        var request = new CreateBackupRequest
-        {
-            AccountUsername = accountUsername,
-            BackupId = backupId,
-            Destination = ToWireDestination(destination, includeArchiveKey: true),
-        };
-
-        await foreach (var response in _invoker.CreateBackupAsync(request, cancellationToken))
-        {
-            // Checked here rather than left to the transport, so a caller that stopped watching gets
-            // "you stopped watching" and not "the outcome was never reported".
-            if (cancellationToken.IsCancellationRequested)
-            {
-                yield return CreateEvent(BackupCreateEventKind.Cancelled);
-                yield break;
-            }
-
-            if (response.ResultCase == CreateBackupResponse.ResultOneofCase.Progress)
-            {
-                yield return new BackupCreateEvent(
-                    BackupCreateEventKind.Progress,
-                    response.Progress.Percent,
-                    response.Progress.Stage,
-                    0,
-                    string.Empty,
-                    0,
-                    null);
-                continue;
-            }
-
-            if (response.ResultCase == CreateBackupResponse.ResultOneofCase.Ok)
-            {
-                // The contract (backup.proto, CreateBackupOk.encrypted) obliges a caller that sent a key and
-                // reads "not sealed" to treat the creation as failed: that agent predates sealing and left a
-                // plain archive on disk where a sealed one was asked for. Never recorded as a completed backup.
-                if (destination is AgentLocalBackupDestination { ArchiveKey: not null } && !response.Ok.Encrypted)
-                {
-                    yield return new BackupCreateEvent(
-                        BackupCreateEventKind.Failed,
-                        0,
-                        string.Empty,
-                        0,
-                        string.Empty,
-                        0,
-                        nameof(ErrorMessages.AgentInvalidResponse));
-                    yield break;
-                }
-
-                yield return new BackupCreateEvent(
-                    BackupCreateEventKind.Created,
-                    100,
-                    string.Empty,
-                    response.Ok.SizeBytes,
-                    response.Ok.Sha256,
-                    response.Ok.DatabaseCount,
-                    null);
-                yield break;
-            }
-
-            if (response.ResultCase == CreateBackupResponse.ResultOneofCase.Error)
-            {
-                yield return ToTerminalCreateEvent(response.Error, destination);
-                yield break;
-            }
-
-            // A message carrying no branch at all is neither progress nor an outcome.
-            yield return new BackupCreateEvent(
-                BackupCreateEventKind.Failed,
-                0,
-                string.Empty,
-                0,
-                string.Empty,
-                0,
-                nameof(ErrorMessages.AgentInvalidResponse));
-            yield break;
-        }
-
-        if (cancellationToken.IsCancellationRequested)
-        {
-            yield return CreateEvent(BackupCreateEventKind.Cancelled);
-            yield break;
-        }
-
-        // The stream ended without the agent stating an outcome. There may or may not be an artifact
-        // on the destination, so this is reported as a truncation and never as a completion.
-        yield return CreateEvent(BackupCreateEventKind.Truncated);
     }
 
     /// <inheritdoc/>
@@ -217,7 +116,7 @@ public sealed class AgentBackupClient : IAgentBackupClient
         CancellationToken cancellationToken)
     {
         return AgentStreamGuard.EndOnTransportFailureAsync(
-            RestoreEventsAsync(
+            _restoreStream.EventsAsync(
                 accountUsername,
                 backupId,
                 destination,
@@ -235,91 +134,6 @@ public sealed class AgentBackupClient : IAgentBackupClient
                     error);
             },
             cancellationToken);
-    }
-
-    /// <summary>Streams the restore events the agent states, without guarding against the transport failing.</summary>
-    /// <param name="accountUsername">System username of the account being restored into.</param>
-    /// <param name="backupId">Identifier of the backup to restore.</param>
-    /// <param name="destination">Where the artifact currently resides.</param>
-    /// <param name="expectedSha256">The digest the panel recorded when the artifact was created.</param>
-    /// <param name="allowedDatabases">Every database the panel still knows this account owns.</param>
-    /// <param name="scope">What the restore replaces.</param>
-    /// <param name="cancellationToken">Cancellation for the stream.</param>
-    /// <returns>Progress events followed by exactly one terminal event.</returns>
-    private async IAsyncEnumerable<BackupRestoreEvent> RestoreEventsAsync(
-        string accountUsername,
-        string backupId,
-        AgentBackupDestination destination,
-        string expectedSha256,
-        IReadOnlyList<string> allowedDatabases,
-        AgentRestoreScope scope,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
-    {
-        var request = new RestoreBackupRequest
-        {
-            AccountUsername = accountUsername,
-            BackupId = backupId,
-            Destination = ToWireDestination(destination, includeArchiveKey: true),
-            ExpectedSha256 = expectedSha256,
-            Scope = ToWireScope(scope),
-        };
-        request.AllowedDatabases.AddRange(allowedDatabases);
-
-        await foreach (var response in _invoker.RestoreBackupAsync(request, cancellationToken))
-        {
-            if (cancellationToken.IsCancellationRequested)
-            {
-                yield return RestoreEvent(BackupRestoreEventKind.Cancelled);
-                yield break;
-            }
-
-            if (response.ResultCase == RestoreBackupResponse.ResultOneofCase.Progress)
-            {
-                yield return new BackupRestoreEvent(
-                    BackupRestoreEventKind.Progress,
-                    response.Progress.Percent,
-                    response.Progress.Stage,
-                    null,
-                    null);
-                continue;
-            }
-
-            if (response.ResultCase == RestoreBackupResponse.ResultOneofCase.Ok)
-            {
-                yield return new BackupRestoreEvent(
-                    BackupRestoreEventKind.Restored,
-                    100,
-                    string.Empty,
-                    new AgentRestoreOutcome(
-                        response.Ok.FilesRestored,
-                        response.Ok.DatabasesRestored,
-                        response.Ok.DatabasesTotal),
-                    null);
-                yield break;
-            }
-
-            if (response.ResultCase == RestoreBackupResponse.ResultOneofCase.Error)
-            {
-                yield return ToTerminalRestoreEvent(response.Error, destination);
-                yield break;
-            }
-
-            yield return new BackupRestoreEvent(
-                BackupRestoreEventKind.Failed,
-                0,
-                string.Empty,
-                null,
-                Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure));
-            yield break;
-        }
-
-        if (cancellationToken.IsCancellationRequested)
-        {
-            yield return RestoreEvent(BackupRestoreEventKind.Cancelled);
-            yield break;
-        }
-
-        yield return RestoreEvent(BackupRestoreEventKind.Truncated);
     }
 
     /// <inheritdoc/>
@@ -344,9 +158,13 @@ public sealed class AgentBackupClient : IAgentBackupClient
 
         return response.ResultCase switch
         {
-            ListBackupsResponse.ResultOneofCase.Ok => ToSummariesResult(response.Ok),
+            ListBackupsResponse.ResultOneofCase.Ok => BackupListingMapper.ToSummariesResult(response.Ok),
             ListBackupsResponse.ResultOneofCase.Error => Result<IReadOnlyList<AgentBackupSummary>>.Fail(
-                AgentErrorTranslator.ToError(_logger, response.Error, nameof(ListAsync), SecretOf(destination))),
+                AgentErrorTranslator.ToError(
+                    _logger,
+                    response.Error,
+                    nameof(ListAsync),
+                    BackupDestinationMapper.SecretOf(destination))),
             _ => Result<IReadOnlyList<AgentBackupSummary>>.Fail(
                 Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
@@ -363,7 +181,7 @@ public sealed class AgentBackupClient : IAgentBackupClient
         {
             AccountUsername = accountUsername,
             BackupId = backupId,
-            Destination = ToWireDestination(destination, includeArchiveKey: true),
+            Destination = BackupDestinationMapper.ToWireDestination(destination, includeArchiveKey: true),
         };
         var response = await _invoker.VerifyBackupAsync(request, cancellationToken);
 
@@ -379,7 +197,7 @@ public sealed class AgentBackupClient : IAgentBackupClient
                     _logger,
                     response.Error,
                     nameof(VerifyBackupAsync),
-                    SecretOf(destination))),
+                    BackupDestinationMapper.SecretOf(destination))),
             _ => Result<AgentBackupVerification>.Fail(
                 Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
@@ -396,7 +214,7 @@ public sealed class AgentBackupClient : IAgentBackupClient
         {
             AccountUsername = accountUsername,
             BackupId = backupId,
-            Destination = ToWireDestination(destination, includeArchiveKey: false),
+            Destination = BackupDestinationMapper.ToWireDestination(destination, includeArchiveKey: false),
         };
         var response = await _invoker.DeleteBackupAsync(request, cancellationToken);
 
@@ -404,7 +222,11 @@ public sealed class AgentBackupClient : IAgentBackupClient
         {
             DeleteBackupResponse.ResultOneofCase.Ok => Result.Ok(),
             DeleteBackupResponse.ResultOneofCase.Error => Result.Fail(
-                AgentErrorTranslator.ToError(_logger, response.Error, nameof(DeleteAsync), SecretOf(destination))),
+                AgentErrorTranslator.ToError(
+                    _logger,
+                    response.Error,
+                    nameof(DeleteAsync),
+                    BackupDestinationMapper.SecretOf(destination))),
             _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
@@ -414,266 +236,24 @@ public sealed class AgentBackupClient : IAgentBackupClient
         AgentBackupDestination destination,
         CancellationToken cancellationToken)
     {
-        var request = new ProbeDestinationRequest { Destination = ToWireDestination(destination, includeArchiveKey: false) };
+        var request = new ProbeDestinationRequest
+        {
+            Destination = BackupDestinationMapper.ToWireDestination(destination, includeArchiveKey: false),
+        };
         var response = await _invoker.ProbeDestinationAsync(request, cancellationToken);
 
         return response.ResultCase switch
         {
             ProbeDestinationResponse.ResultOneofCase.Ok => ToVerdictResult(response.Ok),
             ProbeDestinationResponse.ResultOneofCase.Error => Result<AgentPublicReadVerdict>.Fail(
-                AgentErrorTranslator.ToError(_logger, response.Error, nameof(ProbeAsync), SecretOf(destination))),
+                AgentErrorTranslator.ToError(
+                    _logger,
+                    response.Error,
+                    nameof(ProbeAsync),
+                    BackupDestinationMapper.SecretOf(destination))),
             _ => Result<AgentPublicReadVerdict>.Fail(
                 Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
-    }
-
-    /// <summary>Builds a terminal create event with no payload, for the endings that carry none.</summary>
-    /// <param name="kind">Which ending this is.</param>
-    /// <returns>The event that closes the sequence.</returns>
-    private static BackupCreateEvent CreateEvent(BackupCreateEventKind kind)
-    {
-        return new BackupCreateEvent(kind, 0, string.Empty, 0, string.Empty, 0, null);
-    }
-
-    /// <summary>Builds a terminal restore event with no payload, for the endings that carry none.</summary>
-    /// <param name="kind">Which ending this is.</param>
-    /// <returns>The event that closes the sequence.</returns>
-    private static BackupRestoreEvent RestoreEvent(BackupRestoreEventKind kind)
-    {
-        return new BackupRestoreEvent(kind, 0, string.Empty, null, null);
-    }
-
-    /// <summary>Projects a panel destination onto the wire message, revealing the secrets it holds.</summary>
-    /// <param name="destination">The destination the caller named.</param>
-    /// <param name="includeArchiveKey">
-    /// True for the three calls that seal or open an archive, the only ones that carry a local destination's
-    /// archive key; false for every other call, which the agent would ignore the key on.
-    /// </param>
-    /// <returns>The wire message, which never leaves this project.</returns>
-    /// <remarks>
-    /// The two credentials are revealed here and nowhere else in this client, which is what makes
-    /// "where does the secret escape" a one-search question. The wire message is flat, so the
-    /// members of a case that has none of them are simply left at the wire's defaults — the agent
-    /// refuses a local destination that names anything, and a branch that blanked a field would be a
-    /// second place the shape of a local destination is decided.
-    /// </remarks>
-    private static BackupDestination ToWireDestination(AgentBackupDestination destination, bool includeArchiveKey)
-    {
-        if (destination is AgentS3BackupDestination s3)
-        {
-            return new BackupDestination
-            {
-                Kind = BackupDestinationKind.S3,
-                Path = s3.Path,
-                S3Bucket = s3.Bucket,
-                S3Region = s3.Region,
-                S3Endpoint = s3.Endpoint,
-                S3AccessKeyId = s3.AccessKeyId.Reveal(),
-                S3SecretAccessKey = s3.SecretAccessKey.Reveal(),
-                S3PathStyle = s3.PathStyle,
-            };
-        }
-
-        var local = new BackupDestination { Kind = BackupDestinationKind.Local };
-
-        // Only the three calls that seal or open an archive carry the key; the agent reads it from no
-        // other (backup.proto), and a field it would ignore is a field a caller believes in.
-        if (includeArchiveKey && destination is AgentLocalBackupDestination { ArchiveKey: { } archiveKey })
-        {
-            local.ArchiveKey = archiveKey.Reveal();
-        }
-
-        return local;
-    }
-
-    /// <summary>Projects a panel restore scope onto the wire message.</summary>
-    /// <param name="scope">What the restore replaces.</param>
-    /// <returns>
-    /// <c>null</c> for the whole account, which is the absent message an agent from before scopes
-    /// existed reads the same way; otherwise a message carrying the one name the scope holds.
-    /// </returns>
-    /// <remarks>
-    /// An unknown case is refused rather than collapsed to the whole account: a scope this client was
-    /// never taught is a bug, and sending the widest restore for it would replace more than was asked.
-    /// </remarks>
-    private static RestoreScope? ToWireScope(AgentRestoreScope scope)
-    {
-        ArgumentNullException.ThrowIfNull(scope);
-
-        return scope switch
-        {
-            AgentWholeRestoreScope => null,
-            AgentDatabaseRestoreScope database => new RestoreScope { DatabaseName = database.DatabaseName },
-            AgentSiteRestoreScope site => new RestoreScope { SiteDomain = site.Domain },
-            _ => throw new ArgumentOutOfRangeException(
-                nameof(scope), scope, "Unknown restore scope; the hierarchy is closed to three cases."),
-        };
-    }
-
-    /// <summary>Names the one secret a destination holds, so a translator can redact it from a quote.</summary>
-    /// <param name="destination">The destination the caller named.</param>
-    /// <returns>
-    /// The secret access key of an object store, the archive key of a local destination that carries
-    /// one, or <c>null</c> for a destination that holds neither.
-    /// </returns>
-    private static SensitiveString? SecretOf(AgentBackupDestination destination)
-    {
-        return destination switch
-        {
-            AgentS3BackupDestination s3 => s3.SecretAccessKey,
-            AgentLocalBackupDestination { ArchiveKey: { } archiveKey } => archiveKey,
-            _ => null,
-        };
-    }
-
-    /// <summary>Projects the wire listing onto the panel's summaries, refusing an entry the contract forbids.</summary>
-    /// <param name="ok">The success payload of <c>ListBackups</c>.</param>
-    /// <returns>
-    /// The summaries in the order the agent sent them, or an invalid-response failure when an entry
-    /// claims to be readable and carries no manifest.
-    /// </returns>
-    /// <remarks>
-    /// The unset-arm case fails for the same reason and by the same rule: proto3 lets a oneof carry
-    /// no arm at all, and an entry that says neither "here is what it holds" nor "here is why I
-    /// cannot say" is not an entry a caller can act on.
-    /// </remarks>
-    private static Result<IReadOnlyList<AgentBackupSummary>> ToSummariesResult(ListBackupsOk ok)
-    {
-        var summaries = new List<AgentBackupSummary>(ok.Backups.Count);
-        foreach (var backup in ok.Backups)
-        {
-            if (backup.StateCase == BackupInfo.StateOneofCase.Readable)
-            {
-                if (backup.Readable.Manifest is null)
-                {
-                    return Result<IReadOnlyList<AgentBackupSummary>>.Fail(
-                        Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure));
-                }
-
-                summaries.Add(new AgentBackupSummary(
-                    backup.BackupId,
-                    new AgentReadableBackup(
-                        ToManifest(backup.Readable.Manifest),
-                        backup.Readable.ArtifactBytes,
-                        backup.Readable.ArtifactSha256),
-                    null));
-                continue;
-            }
-
-            if (backup.StateCase == BackupInfo.StateOneofCase.Unreadable)
-            {
-                // A kind the wire left unspecified, or one a newer agent added, is a listing this
-                // build cannot describe truthfully: refused whole rather than given a reason the
-                // agent never gave.
-                var reason = ToUnreadableReason(backup.Unreadable);
-                if (reason is null)
-                {
-                    return Result<IReadOnlyList<AgentBackupSummary>>.Fail(
-                        Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure));
-                }
-
-                summaries.Add(new AgentBackupSummary(backup.BackupId, null, reason));
-                continue;
-            }
-
-            return Result<IReadOnlyList<AgentBackupSummary>>.Fail(
-                Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure));
-        }
-
-        return Result<IReadOnlyList<AgentBackupSummary>>.Ok(summaries);
-    }
-
-    /// <summary>Projects a wire manifest onto the panel's own.</summary>
-    /// <param name="manifest">The manifest the sidecar carried.</param>
-    /// <returns>The panel-side manifest, database lines included.</returns>
-    private static AgentBackupManifest ToManifest(BackupManifest manifest)
-    {
-        var databases = new List<AgentManifestDatabase>(manifest.Databases.Count);
-        foreach (var database in manifest.Databases)
-        {
-            databases.Add(new AgentManifestDatabase(database.Name, database.Bytes, database.Sha256));
-        }
-
-        return new AgentBackupManifest(
-            manifest.Version,
-            manifest.Account,
-            manifest.BackupId,
-            manifest.CreatedAtUnix,
-            manifest.HomeBytes,
-            databases,
-            manifest.AgentVersion);
-    }
-
-    /// <summary>Maps the wire's unreadable reason onto the panel's.</summary>
-    /// <param name="reason">The reason the agent reported.</param>
-    /// <returns>
-    /// The matching case, carrying the version only for an unknown version; <c>null</c> for the
-    /// wire's unspecified value and for a kind a newer agent added — never a guess at one of the three.
-    /// </returns>
-    private static AgentBackupUnreadableReason? ToUnreadableReason(UnreadableReason reason)
-    {
-        return reason.Kind switch
-        {
-            UnreadableKind.Corrupt => new AgentBackupCorrupt(),
-            UnreadableKind.UnknownVersion => new AgentBackupUnknownVersion(reason.Version),
-            UnreadableKind.NotARegularFile => new AgentBackupNotARegularFile(),
-            _ => null,
-        };
-    }
-
-    /// <summary>Turns the terminal error of a create stream into the event that ends the sequence.</summary>
-    /// <param name="error">The failure payload that closed the stream.</param>
-    /// <param name="destination">The destination this call named, for redacting its secret from the log.</param>
-    /// <returns>The dropped or idle ending where the agent named one, and a typed failure otherwise.</returns>
-    private BackupCreateEvent ToTerminalCreateEvent(AgentError error, AgentBackupDestination destination)
-    {
-        if (error.Code == ErrorCode.StreamDropped)
-        {
-            return CreateEvent(BackupCreateEventKind.Dropped);
-        }
-
-        if (error.Code == ErrorCode.StreamIdle)
-        {
-            return CreateEvent(BackupCreateEventKind.Idle);
-        }
-
-        return new BackupCreateEvent(
-            BackupCreateEventKind.Failed,
-            0,
-            string.Empty,
-            0,
-            string.Empty,
-            0,
-            AgentErrorTranslator.ToError(_logger, error, nameof(CreateAsync), SecretOf(destination)).Code);
-    }
-
-    /// <summary>Turns the terminal error of a restore stream into the event that ends the sequence.</summary>
-    /// <param name="error">The failure payload that closed the stream.</param>
-    /// <param name="destination">The destination this call named, for redacting its secret from the log.</param>
-    /// <returns>The dropped or idle ending where the agent named one, and a typed failure otherwise.</returns>
-    /// <remarks>
-    /// The rolled-back and not-rolled-back database lists ride on this error's text. They are logged
-    /// with it and not returned, because they are operator-facing detail naming a customer's database
-    /// objects; the panel records the failure code and the operator reads the log line beside it.
-    /// </remarks>
-    private BackupRestoreEvent ToTerminalRestoreEvent(AgentError error, AgentBackupDestination destination)
-    {
-        if (error.Code == ErrorCode.StreamDropped)
-        {
-            return RestoreEvent(BackupRestoreEventKind.Dropped);
-        }
-
-        if (error.Code == ErrorCode.StreamIdle)
-        {
-            return RestoreEvent(BackupRestoreEventKind.Idle);
-        }
-
-        return new BackupRestoreEvent(
-            BackupRestoreEventKind.Failed,
-            0,
-            string.Empty,
-            null,
-            AgentErrorTranslator.ToError(_logger, error, nameof(RestoreAsync), SecretOf(destination)));
     }
 
     /// <summary>Projects the probe's success payload onto a verdict, logging why nothing was established.</summary>

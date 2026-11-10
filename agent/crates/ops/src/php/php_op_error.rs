@@ -211,6 +211,38 @@ pub enum PhpOpError {
         stderr: String,
     },
 
+    /// The install unit's package manager ran and none of the host's package
+    /// sources carries the package — `Unable to locate package`, `No match for
+    /// argument` (`PackageFailure::NotAvailable`).
+    ///
+    /// Separate from [`Self::PackageManager`] because the host is working and
+    /// retrying changes nothing: the version is not offered by this
+    /// distribution release or by the repositories configured on it. The
+    /// installable list is built from the same question, so this is what a
+    /// package that left the sources between the list and the install ends as.
+    #[error("the host's package sources do not carry `{package}`: {stderr}")]
+    PackageNotAvailable {
+        /// The package the unit was asked to install, as the adapter spells it.
+        package: String,
+        /// The service manager's standard error and the unit name, as for
+        /// [`Self::PackageManager`], for an operator's log.
+        stderr: String,
+    },
+
+    /// What the host's package manager offers could not be read, so the list of
+    /// installable versions cannot be built.
+    ///
+    /// Never answered as an empty list: an empty list would tell an operator the
+    /// host offers no PHP at all, when the truth is that it could not be asked
+    /// (a package catalogue never built, a program that would not start, a line
+    /// of output the reader does not know).
+    #[error("could not read which PHP packages the host offers: {reason}")]
+    PackageCatalogueUnavailable {
+        /// Why the query gave no answer: an exit status or line number, or the
+        /// reason a program could not be started, never a byte it printed.
+        reason: String,
+    },
+
     /// The php-fpm service for this version could not be enabled or started.
     #[error("could not enable the php-fpm service: {stderr}")]
     ServiceEnable {

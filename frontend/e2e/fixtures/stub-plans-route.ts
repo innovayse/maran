@@ -341,7 +341,10 @@ export const stubManagedPlans = async (
         await route.fulfill({ status: 404, contentType: 'application/problem+json', body: JSON.stringify({ code: 'PlanNotFound', title: 'Not found', detail: 'No such plan.' }) })
         return
       }
-      const updated: ManagedPlan = { ...current, ...body, displayName: body.name }
+      // The request's `name` is the answer's `displayName`; spreading the request whole would put a
+      // field in the answer that the panel's plan never carries.
+      const { name, phpLimits, ...limits } = body
+      const updated: ManagedPlan = { ...current, ...limits, displayName: name, phpLimits: phpLimits ?? current.phpLimits }
       plans[index] = updated
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(updated) })
       return

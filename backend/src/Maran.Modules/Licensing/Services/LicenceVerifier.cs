@@ -104,6 +104,13 @@ public sealed class LicenceVerifier
             return LicenceStatus.Absent.Instance;
         }
 
+        // Before any parsing: with no key to verify against, every signature check would fail for a
+        // reason the operator cannot act on as "the licence is forged". Say what is true instead.
+        if (!_signatureVerifier.HasVerificationKey)
+        {
+            return Refused(LicenceRefusalReason.NoVerificationKey);
+        }
+
         try
         {
             using var document = JsonDocument.Parse(rawLicenceText);
@@ -138,7 +145,9 @@ public sealed class LicenceVerifier
 
             if (LicenceExpiryPolicy.IsExpired(licence, _clock))
             {
-                return Refused(LicenceRefusalReason.Expired);
+                // The signature held, so the modules it named are known to be genuine: carry the
+                // licence so the licence window can report them as lapsed rather than never covered.
+                return new LicenceStatus.Refused(LicenceRefusalReason.Expired, licence);
             }
 
             // Binding last, after the licence has been proved authentic and current. The order
@@ -202,6 +211,21 @@ public sealed class LicenceVerifier
             boundMachineId = serverElement.GetString();
         }
 
+        // `offline` is OPTIONAL and absent means false, so every licence issued before the field
+        // existed keeps its meaning. Present but not a boolean is malformed for the same reason a
+        // mistyped `server` is: reading an issuer's typo as "false" would silently demand a lease
+        // from a licence that was meant to need none, and reading it as "true" the reverse.
+        var isOffline = false;
+        if (payloadElement.TryGetProperty("offline", out var offlineElement))
+        {
+            if (offlineElement.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+            {
+                return null;
+            }
+
+            isOffline = offlineElement.GetBoolean();
+        }
+
         if (!payloadElement.TryGetProperty("expiry", out var expiryElement) || expiryElement.ValueKind != JsonValueKind.String)
         {
             return null;
@@ -239,7 +263,8 @@ public sealed class LicenceVerifier
             tierElement.GetString()!,
             modules,
             expiry,
-            boundMachineId);
+            boundMachineId,
+            isOffline);
     }
 
     /// <summary>Builds a <see cref="LicenceStatus.Refused"/> for the given reason.</summary>

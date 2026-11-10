@@ -1,5 +1,6 @@
 using Maran.Agent.Client.Services.AccountsService;
 using Maran.Modules.Accounts.Domain.Entities;
+using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Tests.TestSupport;
 
 namespace Maran.Modules.Accounts.Tests.Commands.ReactivateAccount;
@@ -27,7 +28,7 @@ public sealed class ReactivateAccountShellTests : IDisposable
     {
         var account = new Account(
             Guid.NewGuid(), "acme", "acme.example.com", Guid.NewGuid(), AccountSuspensionHarness.Now, shellAccess: shellAccess);
-        account.Suspend();
+        account.Suspend(SuspensionActor.Administrator);
         _harness.Context.Accounts.Add(account);
         await _harness.Context.SaveChangesAsync();
         return account;

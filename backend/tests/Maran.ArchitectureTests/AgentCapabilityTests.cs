@@ -17,11 +17,52 @@ namespace Maran.ArchitectureTests;
 /// </remarks>
 public sealed class AgentCapabilityTests
 {
-    /// <summary>Every composed module declares each part of the agent it depends on.</summary>
+    /// <summary>Every module the build ships declares each part of the agent it depends on.</summary>
+    /// <remarks>
+    /// Covers the modules outside <c>ModuleRegistry.All</c> as well, through the one list that names them
+    /// (<see cref="ModuleContractCensus.UnregisteredModules"/>): a module not yet composed that holds a
+    /// root-agent client would never be seen by a check over the registry alone (issue #472).
+    /// </remarks>
     [Fact]
     public void Every_module_declares_the_agent_it_uses()
     {
-        AgentCapabilityGuard.Verify(ModuleRegistry.All);
+        AgentCapabilityGuard.Verify(ModuleContractCensus.AllModules());
+    }
+
+    /// <summary>A module outside the registry that hides a capability is refused.</summary>
+    /// <remarks>
+    /// The planted violation for the set the census now covers: the shipped modules plus one that takes an
+    /// agent client and declares nothing. The refusal must name the planted module and ONLY it, which is the
+    /// accepting control for the real ones, and it proves the probe is run over the whole list and not over
+    /// the registry alone.
+    /// </remarks>
+    [Fact]
+    public void A_module_outside_the_registry_that_hides_a_capability_is_refused()
+    {
+        var shipped = ModuleContractCensus.AllModules();
+
+        var refused = Assert.Throws<InvalidOperationException>(() =>
+        {
+            AgentCapabilityGuard.Verify(shipped.Append(new UndeclaredAgentModule(null!)).ToList());
+        });
+
+        Assert.Contains("undeclared uses Sites", refused.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("licensing uses", refused.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>The census reaches Licensing, which the registry composes, and it declares its client.</summary>
+    /// <remarks>
+    /// The census's own positive control: a list that had silently emptied would pass the first test above.
+    /// Licensing is asked for by id, and its manifest must name the capability its identity source uses.
+    /// </remarks>
+    [Fact]
+    public void The_census_covers_Licensing_and_it_declares_the_monitor_capability()
+    {
+        var licensing = ModuleContractCensus.AllModules()
+            .Single(module => { return string.Equals(module.Manifest.Id, "licensing", StringComparison.Ordinal); });
+
+        Assert.Contains(licensing, ModuleRegistry.All);
+        Assert.Contains(AgentCapability.Monitor, licensing.Manifest.AgentCapabilities);
     }
 
     /// <summary>A module that takes an agent client without declaring it is refused.</summary>
@@ -87,7 +128,7 @@ public sealed class AgentCapabilityTests
     [Fact]
     public void No_module_declares_a_capability_it_does_not_use()
     {
-        var overstated = ModuleRegistry.All
+        var overstated = ModuleContractCensus.AllModules()
             .SelectMany(module =>
             {
                 var used = UsedCapabilities(module.GetType().Assembly);

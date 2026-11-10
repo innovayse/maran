@@ -29,6 +29,12 @@ pub fn parse(content: &str) -> Result<DistroInfo, DetectError> {
         }
     }
 
+    // Two SUSE ids (issue #59): `opensuse-leap` and `sles`, the pairs the installer's matrix admits
+    // (Leap 16.x, and SLES 16 claimed through it). Every other id that calls itself SUSE-like
+    // — `opensuse-tumbleweed`, `opensuse-microos`, `sled`, `sles_sap` — is NOT here, on purpose:
+    // the installer resolves a family from ID_LIKE and so would admit them, which is why preflight
+    // judges the concrete pair and this match refuses the rest (check 25 of `maran structure`).
+    //
     // All four EL vendors, and the list must stay equal to installer/lib/10-preflight.sh's
     // MARAN_SUPPORTED_MATRIX: the installer resolves the family from ID_LIKE and so admitted
     // Oracle Linux long before this match did, which meant the panel installed and the root daemon
@@ -45,6 +51,7 @@ pub fn parse(content: &str) -> Result<DistroInfo, DetectError> {
     let family = match id.as_str() {
         "ubuntu" | "debian" => DistroFamily::Debian,
         "almalinux" | "rocky" | "rhel" | "ol" => DistroFamily::Rhel,
+        "opensuse-leap" | "sles" => DistroFamily::Suse,
         _ => return Err(DetectError::Unsupported { id }),
     };
 

@@ -14,7 +14,7 @@ use maran_agent_core::utils::call_class::CallClass;
 use maran_distro::{PendingUpdatesFailure, UpdateClassification};
 
 use super::list_pending_updates;
-use crate::monitor::fake_monitor_host::{FakeMonitorHost, distro, rhel_distro};
+use crate::monitor::fake_monitor_host::{FakeMonitorHost, distro, rhel_distro, suse_distro};
 use crate::monitor::monitor_error::MonitorError;
 
 /// The simulated upgrade after `apt-get update` on an old image: 67 updates.
@@ -263,7 +263,7 @@ fn a_package_manager_that_cannot_start_is_an_error_and_not_an_empty_list() {
 /// carried through by name, and neither "not started" nor "no updates".
 #[test]
 fn a_run_killed_at_its_deadline_is_a_bound_and_not_an_empty_list() {
-    for adapter in [distro(), rhel_distro()] {
+    for adapter in [distro(), rhel_distro(), suse_distro()] {
         let host = FakeMonitorHost::from_ubuntu_captures().with_timed_out_service_manager();
 
         let result = list_pending_updates(&host, adapter);
@@ -272,7 +272,7 @@ fn a_run_killed_at_its_deadline_is_a_bound_and_not_an_empty_list() {
     }
 }
 
-/// The exact argv of both families, and the one class they run in. These are
+/// The exact argv of the Debian and RHEL families, and the one class they run in. These are
 /// the constants that keep the run a simulation (`-s`) and cache-only (`-C`),
 /// so an edit that drops either turns this red.
 #[test]
@@ -442,4 +442,134 @@ fn a_failed_first_rhel_reading_is_an_error_even_when_the_security_reading_answer
             reason: PendingUpdatesFailure::Unsuccessful { status: 1 }
         })
     );
+}
+
+/// The arguments of the SUSE family's first reading.
+const ZYPPER_FIRST_READING: [&str; 3] = ["--non-interactive", "--no-refresh", "list-updates"];
+
+/// The arguments of the SUSE family's second reading, which only checks that the patch metadata can
+/// be read.
+const ZYPPER_SECOND_READING: [&str; 5] = [
+    "--non-interactive",
+    "--no-refresh",
+    "list-patches",
+    "--category",
+    "security",
+];
+
+/// What `zypper list-updates` prints with two updates pending, CONSTRUCTED from `man zypper`.
+///
+/// Not a recording: no SUSE container exists in this phase, so the recording on a real Leap image is
+/// owed and the layout is UNVERIFIED. Confirm with
+/// `zypper --non-interactive --no-refresh list-updates`.
+const ZYPPER_WITH_UPDATES: &str = "\
+Loading repository data...
+Reading installed packages...
+S | Repository             | Name     | Current Version | Available Version | Arch
+--+------------------------+----------+-----------------+-------------------+-------
+v | Main Update Repository | curl     | 8.6.0-1.1       | 8.6.0-2.1         | x86_64
+v | Main Repository        | php8-fpm | 8.4.10-1.1      | 8.4.16-1.1        | x86_64
+";
+
+/// What `zypper list-updates` prints, with status 0, when nothing is pending. Constructed likewise.
+const ZYPPER_UP_TO_DATE: &str = "\
+Loading repository data...
+Reading installed packages...
+No updates found.
+";
+
+/// A SUSE-family host whose cache-only listing exited `status` printing `stdout`, and whose second
+/// reading exited `second_status`.
+///
+/// The host's other captures are the AlmaLinux ones the fake already holds; the family has no
+/// capture of its own, and these readings answer by their whole argument list.
+fn zypper_host_answering(status: i32, stdout: &str, second_status: i32) -> FakeMonitorHost {
+    FakeMonitorHost::from_alma_captures()
+        .with_exact_command_answer(&ZYPPER_FIRST_READING, status, stdout)
+        .with_exact_command_answer(&ZYPPER_SECOND_READING, second_status, "")
+}
+
+#[test]
+fn a_suse_host_with_pending_updates_lists_them_and_leaves_every_one_unmeasured() {
+    let host = zypper_host_answering(100, ZYPPER_WITH_UPDATES, 0);
+
+    let updates = list_pending_updates(&host, suse_distro()).unwrap();
+
+    assert_eq!(updates.len(), 2);
+    assert_eq!(updates[0].package_name, "curl");
+    assert_eq!(updates[1].package_name, "php8-fpm");
+    // The family cannot say which package a security patch concerns, so the verdict is never
+    // `Ordinary` for a row whose metadata was not read.
+    assert!(all_are(&updates, UpdateClassification::Unmeasured));
+}
+
+#[test]
+fn a_suse_host_with_nothing_to_upgrade_is_an_empty_list() {
+    let host = zypper_host_answering(0, ZYPPER_UP_TO_DATE, 0);
+
+    let updates = list_pending_updates(&host, suse_distro()).unwrap();
+
+    assert!(updates.is_empty());
+}
+
+/// A run that printed no table and no sentence has not said the host is up to date: it is an error
+/// and never an empty list, which is the false "up to date" the operation exists to prevent.
+#[test]
+fn a_suse_host_whose_listing_printed_nothing_is_an_error_and_not_an_empty_list() {
+    let host = zypper_host_answering(0, "", 0);
+
+    let result = list_pending_updates(&host, suse_distro());
+
+    assert!(result.is_err(), "{result:?}");
+}
+
+/// A repository zypper skipped (status 106) is a reading that failed, not a list.
+#[test]
+fn a_suse_host_whose_listing_skipped_a_repository_is_an_error_and_not_an_empty_list() {
+    let host = zypper_host_answering(106, ZYPPER_UP_TO_DATE, 0);
+
+    let result = list_pending_updates(&host, suse_distro());
+
+    assert!(result.is_err(), "{result:?}");
+}
+
+/// A second reading that failed leaves the first reading's rows as they were, unmeasured: the
+/// entries are still listed and none of them is turned into a verdict.
+#[test]
+fn a_failed_second_suse_reading_keeps_every_update_unmeasured() {
+    let host = zypper_host_answering(100, ZYPPER_WITH_UPDATES, 106);
+
+    let updates = list_pending_updates(&host, suse_distro()).unwrap();
+
+    assert_eq!(updates.len(), 2);
+    assert!(all_are(&updates, UpdateClassification::Unmeasured));
+}
+
+/// The exact argv of both SUSE readings and the one class they run in: cache-only, no operand.
+#[test]
+fn the_suse_runs_are_cache_only_and_in_the_query_class() {
+    let host = zypper_host_answering(0, ZYPPER_UP_TO_DATE, 0);
+
+    list_pending_updates(&host, suse_distro()).unwrap();
+
+    assert_eq!(
+        host.commands(),
+        vec![
+            vec![
+                String::from("/usr/bin/zypper"),
+                String::from("--non-interactive"),
+                String::from("--no-refresh"),
+                String::from("list-updates"),
+            ],
+            vec![
+                String::from("/usr/bin/zypper"),
+                String::from("--non-interactive"),
+                String::from("--no-refresh"),
+                String::from("list-patches"),
+                String::from("--category"),
+                String::from("security"),
+            ],
+        ]
+    );
+    assert_eq!(host.classes(), vec![CallClass::Query, CallClass::Query]);
 }

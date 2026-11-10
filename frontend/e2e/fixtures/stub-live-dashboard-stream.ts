@@ -186,6 +186,7 @@ export const ACTIVITY: LiveActivity = {
       action: 'SignInFailed',
       actionName: 'Sign-in failed',
       subject: 'admin',
+      subjectName: 'admin',
       ipAddress: '203.0.113.9',
       succeeded: false,
       outcomeName: 'Failed',
@@ -244,4 +245,17 @@ export const stubDashboardLayout = async (page: Page, initial: DashboardLayout):
   })
 
   return stub
+}
+
+/**
+ * Answers what an administrator's dashboard opens besides its one-shot read: the layout the panel
+ * holds (the panel's default) and a live stream that stays open without ever delivering a frame, so
+ * the one-shot figures remain what the screen shows. A spec about the stream itself installs its own
+ * stand-in and pushes frames; a spec about anything else only needs the reads answered.
+ * @param page The Playwright page the reads are answered on.
+ * @returns The recorder of layout saves.
+ */
+export const stubIdleLiveDashboard = async (page: Page): Promise<DashboardLayoutStub> => {
+  await installLiveStream(page)
+  return stubDashboardLayout(page, DEFAULT_LAYOUT)
 }

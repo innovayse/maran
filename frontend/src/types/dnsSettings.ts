@@ -50,7 +50,8 @@ export type DnsPolicyState = 'notObserved' | 'inForce' | 'notInForce'
 
 /**
  * Whether this server answers DNS queries, mirroring the backend's `DnsStatusDto`. The name server
- * is off until an administrator turns it on, because turning it on opens port 53 to the internet.
+ * is off until an administrator turns it on. Turning it on starts a daemon that listens on every address
+ * but does not open the firewall: the port is a separate step.
  * "Turned on", "running" and "listening" are three facts: the first is the setting, the other two
  * are read from the host.
  */
@@ -67,6 +68,8 @@ export interface DnsServerStatus {
   zoneCount: number
   /** Whether the panel could reach the agent to read the rest. */
   agentReachable: boolean
+  /** The port the name server answers on, for TCP and UDP; the number to open in the firewall. */
+  port: number
   /** Whether the running name server was seen to refuse recursion, so it cannot be abused as an open resolver. */
   recursionRefused: DnsPolicyState
   /** Whether the running name server was seen to rate-limit its responses, which blunts amplification attacks. */
@@ -98,14 +101,14 @@ export interface DnsSettingsApi {
   server: (signal?: AbortSignal) => Promise<DnsServerStatus>
 
   /**
-   * Turns the name server on, which opens port 53.
+   * Turns the name server on. The firewall is not touched.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The state after turning it on.
    */
   enableServer: (signal?: AbortSignal) => Promise<DnsServerStatus>
 
   /**
-   * Turns the name server off, which closes port 53. Zones are kept.
+   * Turns the name server off. The firewall is not touched. Zones are kept.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The state after turning it off.
    */

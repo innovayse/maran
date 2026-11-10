@@ -1,9 +1,11 @@
-import { expect, test, type Page } from '@playwright/test'
-import { DEFAULT_RETENTION, stubAudit, stubAuditRetention } from '../fixtures/stub-audit-routes'
+import { expect, test } from '../fixtures/guarded-test'
+import { AUDIT_RETENTION_PATTERN, DEFAULT_RETENTION, stubAudit, stubAuditRetention } from '../fixtures/stub-audit-routes'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { AuditRetention } from '../../src/types/audit'
+import type { Page } from '@playwright/test'
 
 // The journal's retention (#145): how long entries are kept. The bounds and the rule are the
 // panel's; the card shows the setting, sends a day count and renders the panel's refusals.
@@ -18,6 +20,7 @@ const openJournal = async (page: Page, retention: AuditRetention): Promise<() =>
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
   await stubAudit(page, [])
   return await stubAuditRetention(page, retention)
 }
@@ -65,7 +68,9 @@ test('switching a limit back to keep forever sends no day count', async ({ page 
   expect(saved()).toEqual([null])
 })
 
-test('a day count outside the panel’s bounds is refused in the panel’s words', async ({ page }) => {
+test('a day count outside the panel’s bounds is refused in the panel’s words', async ({ page, guard }) => {
+  // The refusal is the subject: the panel answers a day count outside its bounds with a 400.
+  guard.allow(400, AUDIT_RETENTION_PATTERN)
   const saved = await openJournal(page, DEFAULT_RETENTION)
 
   await page.goto('/settings/audit')

@@ -4,45 +4,41 @@ using Maran.Sdk.Contracts;
 namespace Maran.Host.Modules;
 
 /// <summary>
-/// The one place that decides whether a composed module is <see cref="ModuleState.Enabled"/> or
-/// <see cref="ModuleState.Locked"/>. <see cref="ModulesEndpoint"/> asks it for every module and
-/// nothing else computes a module's state, so a licence check that arrives later changes this
-/// file and not the contract.
+/// The one place that decides whether a composed module is <see cref="ModuleState.Enabled"/>,
+/// <see cref="ModuleState.Lapsed"/> or <see cref="ModuleState.Locked"/>. <see cref="ModulesEndpoint"/> asks
+/// it for every module and nothing else computes a module's state. The verdict it reads comes from the
+/// same licence window the request-time gate asks (<see cref="EntitlementVerdict"/>), so the menu and
+/// the boundary cannot disagree about what "locked" means: the menu is advice, the gate is the boundary.
 /// </summary>
 public static class ModuleStateResolver
 {
-    /// <summary>
-    /// Resolves the state of a module from the tier its manifest declares.
-    /// </summary>
+    /// <summary>Resolves the state of a module from its tier and the licence window's verdict for it.</summary>
     /// <remarks>
-    /// A module whose tier is <see cref="LicenceTier.Included"/> asks for no licence and is enabled.
-    /// A module sold as <see cref="LicenceTier.AddOn"/> or <see cref="LicenceTier.PlanGated"/> is
-    /// locked: no read-only window onto an installed licence exists in the Sdk yet (the Licensing
-    /// module is not composed into the registry, and a module may not reference it), so nothing can
-    /// yet say such a module is covered, and failing closed is the only answer that does not claim a
-    /// licence nobody checked. Every module the panel ships declares <c>Included</c>, so today
-    /// <see cref="ModuleState.Locked"/> is produced only by a marketplace module that declares a
-    /// paid tier; when the licence window lands, this method gains its parameter and the paid arms
-    /// read it.
+    /// A module whose tier is <see cref="LicenceTier.Included"/> asks for no licence and is enabled
+    /// whatever the verdict says. A module sold as <see cref="LicenceTier.AddOn"/> or
+    /// <see cref="LicenceTier.PlanGated"/> follows the verdict: covered is enabled, lapsed (it was
+    /// covered and the cover ended) is <see cref="ModuleState.Lapsed"/>, anything else is locked.
     /// </remarks>
     /// <param name="tier">The tier the module declares in its manifest.</param>
+    /// <param name="verdict">What the licence window says about the module.</param>
     /// <returns>The module's state.</returns>
-    public static ModuleState Of(LicenceTier tier)
+    public static ModuleState Of(LicenceTier tier, EntitlementVerdict verdict)
     {
         return tier switch
         {
             LicenceTier.Included => ModuleState.Enabled,
-            LicenceTier.AddOn => ModuleState.Locked,
-            LicenceTier.PlanGated => ModuleState.Locked,
+            LicenceTier.AddOn => OfPaid(verdict),
+            LicenceTier.PlanGated => OfPaid(verdict),
             _ => throw new ArgumentOutOfRangeException(nameof(tier), tier, "Unknown licence tier."),
         };
     }
 
     /// <summary>
-    /// Resolves the state of a module from its tier and from the state the runtime registry reports for
-    /// it. A module that is <see cref="ModuleLifecycleState.Degraded"/> (its lease lapsed) or
-    /// <see cref="ModuleLifecycleState.Failed"/> is not usable whatever its tier says, so it is
-    /// <see cref="ModuleState.Locked"/>; every other lifecycle state leaves the tier to decide.
+    /// Resolves the state of a module from its tier, the licence window's verdict, and the state the runtime
+    /// registry reports for it. A module that is <see cref="ModuleLifecycleState.Degraded"/> (its lease
+    /// lapsed) or <see cref="ModuleLifecycleState.Failed"/> is not usable whatever its tier says, so it
+    /// is <see cref="ModuleState.Locked"/>; every other lifecycle state leaves the tier and the verdict
+    /// to decide.
     /// </summary>
     /// <remarks>
     /// Presentation only, like the tier arm: a degraded module answers the licence response on every
@@ -51,11 +47,26 @@ public static class ModuleStateResolver
     /// </remarks>
     /// <param name="tier">The tier the module declares in its manifest.</param>
     /// <param name="lifecycle">The state the runtime registry reports for it.</param>
+    /// <param name="verdict">What the licence window says about the module.</param>
     /// <returns>The module's state.</returns>
-    public static ModuleState Of(LicenceTier tier, ModuleLifecycleState lifecycle)
+    public static ModuleState Of(LicenceTier tier, ModuleLifecycleState lifecycle, EntitlementVerdict verdict)
     {
         return lifecycle is ModuleLifecycleState.Degraded or ModuleLifecycleState.Failed
             ? ModuleState.Locked
-            : Of(tier);
+            : Of(tier, verdict);
+    }
+
+    /// <summary>The state of a paid module for a verdict.</summary>
+    /// <param name="verdict">What the licence window says about the module.</param>
+    /// <returns>Enabled, lapsed or locked.</returns>
+    private static ModuleState OfPaid(EntitlementVerdict verdict)
+    {
+        return verdict switch
+        {
+            EntitlementVerdict.Covered => ModuleState.Enabled,
+            EntitlementVerdict.Lapsed => ModuleState.Lapsed,
+            EntitlementVerdict.NotCovered => ModuleState.Locked,
+            _ => throw new ArgumentOutOfRangeException(nameof(verdict), verdict, "Unknown entitlement verdict."),
+        };
     }
 }

@@ -13,8 +13,9 @@
 #
 # THE SCORED TEXT IS WHAT THE INSTALLER INSTALLS. The units that carry placeholders are rendered by
 # sourcing installer/lib/70-services.sh and calling its own render_* functions, so this file holds
-# no second copy of the substitutions. The five units that carry none (maran-dns.service, maran-ftps.service,
-# maran-panel-backup.service, maran-update-security.service, maran-update-request.service) are installed as they stand and are scored as they stand. The one
+# no second copy of the substitutions. The six units that carry none (maran-dns.service, maran-ftps.service,
+# maran-panel-backup.service, maran-update-security.service, maran-update-request.service,
+# maran-update-check.service) are installed as they stand and are scored as they stand. The one
 # thing stubbed is quota_device_binds, which asks findmnt about THIS machine's /home: it answers "no
 # device", which is the installer's own answer on a host where none resolves, so the score does not
 # depend on the workstation's disk layout. Each BindPaths= line it would add can only be absent from
@@ -49,7 +50,7 @@ unit_source_dir="$root/installer/systemd"
 
 # The families the template unit is rendered for; every other unit is rendered once per family too,
 # which costs nothing and means no unit is scored on a render only one family ever sees.
-readonly UNITS_OS_FAMILIES="debian rhel"
+readonly UNITS_OS_FAMILIES="debian rhel suse"
 
 # units_blind_spots: stated after every verdict, FAILED included.
 units_blind_spots() {
@@ -104,7 +105,7 @@ units_render_all() {
       maran-api.service)           render_api_unit "$out/$name" ;;
       maran-agent.service)         render_agent_unit "$out/$name" ;;
       maran-php-install@.service)  render_php_install_unit "$out/maran-php-install@i.service" ;;
-      maran-dns.service|maran-ftps.service|maran-panel-backup.service|maran-update-security.service|maran-update-request.service) cp "$file" "$out/$name" ;;
+      maran-dns.service|maran-ftps.service|maran-panel-backup.service|maran-update-security.service|maran-update-request.service|maran-update-check.service) cp "$file" "$out/$name" ;;
       *) echo "installer/systemd/$name: scripts/lib/unit-security.sh does not know how the installer installs this unit" >&2; return 1 ;;
     esac
   done
@@ -196,7 +197,7 @@ units_write_ceilings() {
     echo "# measured with systemd $2"
     echo "# <unit><TAB><ceiling>: the highest 'systemd-analyze security --offline=yes' score the unit may have."
     echo "# Written by 'maran units --accept' from the units as the installer renders them; edit by re-measuring."
-    echo "# maran-php-install@.service is the worse of its Debian-family and RHEL-family renders."
+    echo "# maran-php-install@.service is the worst of its Debian-family, RHEL-family and SUSE-family renders."
     echo "# A ceiling above 9 is a unit shipped as weakly sandboxed as it is today, not a target."
     sort -k1,1 "$1"
   } > "$3"

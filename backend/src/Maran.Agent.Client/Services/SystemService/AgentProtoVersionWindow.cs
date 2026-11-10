@@ -98,6 +98,20 @@ namespace Maran.Agent.Client.Services.SystemService;
 /// <c>ERROR_CODE_ARCHIVE_UNOPENABLE</c> (issue #445). Both ends moved to it as the one-revision
 /// default: a revision-20 agent answers the new rpcs <c>UNIMPLEMENTED</c> and sends none of the new
 /// fields, which protobuf reads as the unset zero, so the panel would act on answers it never received.
+/// Revision 22 adds DNSSEC to the DNS service (issue #452): <c>PutZoneRequest.signing</c>,
+/// <c>GetZoneOk.signing</c> and <c>DnsDaemonStatus.dnssec_supported</c>, and both ends moved to it as the
+/// one-revision default: a revision-21 agent ignores <c>signing</c> and publishes a zone UNSIGNED while the
+/// registrar still holds its DS record, which makes every validating resolver refuse the domain, and it
+/// never states whether its daemon can sign at all, which protobuf reads as an unset false.
+/// Revision 24 adds the source rpcs of the transfer service (issue #197): <c>GenerateSourceKey</c>,
+/// <c>ScanHostKey</c>, <c>TestSource</c> and <c>ReadSourceInventory</c>. Both ends moved to it as the
+/// one-revision default: a
+/// revision-23 agent answers the four rpcs <c>UNIMPLEMENTED</c>, so a remote server could never be
+/// registered, tested or read against it.
+/// Revision 25 adds <c>DISTRO_FAMILY_SUSE</c> (issue #59), the wire value of the SUSE family. Both ends
+/// moved to it as the one-revision default: a revision-24 panel refuses a SUSE agent's handshake as an
+/// invalid response because it knows no such family, and a revision-24 agent never states it, so the
+/// panel reads a family the older revision cannot name.
 /// </para>
 /// <para>
 /// <b>Both ends are needed, and they move for different reasons.</b> An agent NEWER than
@@ -124,10 +138,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 public static class AgentProtoVersionWindow
 {
     /// <summary>The oldest agent contract revision this panel drives.</summary>
-    public const uint Minimum = 21;
+    public const uint Minimum = 26;
 
     /// <summary>The newest agent contract revision this panel drives: the one it was built against.</summary>
-    public const uint Maximum = 21;
+    public const uint Maximum = 26;
 
     /// <summary>
     /// The machine code a handshake outside the window fails with, so a caller outside this assembly

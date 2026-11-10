@@ -1,8 +1,10 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { ALERT_DELIVERY_OK, loaded, stubDashboard, SYNCHRONIZED_CLOCK, UNAVAILABLE } from '../fixtures/stub-dashboard-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import {
   stubInstallablePhpVersions,
   stubPhpVersions,
@@ -10,6 +12,7 @@ import {
 } from '../fixtures/stub-sites-routes'
 import type { Dashboard } from '../../src/types/dashboard'
 import type { PanelModule } from '../../src/types/module'
+import type { Locator, Page } from '@playwright/test'
 
 // Issue #157: the PHP versions screen shows where each version stands in its support lifecycle as a
 // word and a glyph (the word is the panel's, printed as received), counts the sites on each, and
@@ -77,6 +80,9 @@ const DASHBOARD: Dashboard = {
 const prepare = async (page: Page, versions: PhpVersionStub[]): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubShellReads(page)
+  // The landing screen's layout and stream; the dashboard read below replaces its default one-shot answer.
+  await stubLandingReads(page)
   await stubModules(page, MODULES)
   await stubDashboard(page, DASHBOARD)
   await stubPhpVersions(page, versions)

@@ -65,6 +65,9 @@ pub fn to_agent_error(error: &AccountError) -> AgentError {
         AccountError::IpcRemain { .. } => ErrorCode::SystemFailure,
         AccountError::SharedFilesRemain { .. } => ErrorCode::SystemFailure,
         AccountError::MailSpoolRemains { .. } => ErrorCode::SystemFailure,
+        // The visitor logs of the account's sites (issue #477), left in place by a refusal that
+        // stopped the deletion before `userdel`; retryable, name only.
+        AccountError::SiteLogsRemain { .. } => ErrorCode::SystemFailure,
         // An account's open-files drop-in (issue #194) that could not be written,
         // validated or removed. A refused write restored the previous file; a
         // refused removal stopped a deletion before `userdel`. Either way the

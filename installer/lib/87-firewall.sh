@@ -94,6 +94,7 @@ firewall_packages_for_family() {
   case "$MARAN_OS_FAMILY" in
     debian) echo "nftables" ;;
     rhel)   echo "nftables" ;;
+    suse)   echo "nftables" ;;
     *)
       echo "87-firewall.sh: unsupported OS family '${MARAN_OS_FAMILY}'" >&2
       exit 1
@@ -112,6 +113,10 @@ nftables_include_target() {
   case "$MARAN_OS_FAMILY" in
     debian) echo "/etc/nftables.conf" ;;
     rhel)   echo "/etc/sysconfig/nftables.conf" ;;
+    # UNVERIFIED: the upstream default is answered, matching suse_paths.rs in agent/crates/distro.
+    # Confirm with `systemctl cat nftables.service | grep ExecStart` and
+    # `rpm -ql nftables | grep conf` in the pinned openSUSE Leap 16 image.
+    suse)   echo "/etc/nftables.conf" ;;
     *)
       echo "87-firewall.sh: unsupported OS family '${MARAN_OS_FAMILY}'" >&2
       exit 1
@@ -628,6 +633,58 @@ EOF
   exit 1
 }
 
+# require_ssh_ports_in_loaded_ruleset: stops the install when the operator's SSH port is not
+# named by the table the kernel is enforcing, so firewalld is never taken away from a host whose
+# only remaining firewall would cut the operator's own session.
+#
+# Asked of the kernel (`nft list table inet maran`), not of the file this step rendered: the
+# question is what is IN FORCE. Every port of Firewall__SshPorts must appear as a whole word.
+# UNVERIFIED: how `nft list` spells the accepted ports (a bare number or a set); a whole-word
+# match is used for both. Confirm with `nft list table inet maran` in the pinned openSUSE Leap 16
+# image after step 87 on a host whose sshd listens on 22.
+require_ssh_ports_in_loaded_ruleset() {
+  local ssh_ports listing port
+  ssh_ports="$(panel_env_value Firewall__SshPorts)"
+  if [ -z "$ssh_ports" ]; then
+    echo "87-firewall.sh: Firewall__SshPorts is empty; refusing to disable firewalld without" >&2
+    echo "                knowing which port keeps your SSH session reachable." >&2
+    exit 1
+  fi
+  listing="$("$MARAN_NFT_BINARY" list table inet maran 2>/dev/null)" || listing=""
+  local -a ports=()
+  IFS=',' read -r -a ports <<< "$ssh_ports"
+  for port in "${ports[@]}"; do
+    port="${port//[[:space:]]/}"
+    if ! printf '%s\n' "$listing" | grep -qE "(^|[^0-9])${port}([^0-9]|$)"; then
+      echo "87-firewall.sh: SSH port ${port} is not named in the loaded 'table inet maran'." >&2
+      echo "                firewalld is left running: disabling it now could cut your session." >&2
+      exit 1
+    fi
+  done
+  echo "SSH port(s) ${ssh_ports} are open in the loaded ruleset; firewalld may be retired."
+}
+
+# mask_firewalld_unit: masks firewalld.service when the unit exists, so nothing (a package
+# update, a dependency, a later `systemctl start`) brings a second firewall back. Idempotent:
+# masking an already masked unit succeeds. Reports every outcome on the terminal.
+mask_firewalld_unit() {
+  local listing
+  listing="$(systemctl list-unit-files firewalld.service 2>/dev/null || true)"
+  case "$listing" in
+    *firewalld.service*)
+      if systemctl mask firewalld; then
+        echo "firewalld.service masked: the agent's nftables is the only firewall owner."
+      else
+        echo "87-firewall.sh: 'systemctl mask firewalld' failed; a second firewall could return." >&2
+        exit 1
+      fi
+      ;;
+    *)
+      echo "No firewalld unit on this host; nothing to mask."
+      ;;
+  esac
+}
+
 step_firewall() {
   echo "Installing the firewall (nftables)..."
 
@@ -667,7 +724,16 @@ step_firewall() {
   seed_firewall_files
   wire_firewall_includes
   start_firewall_service
+  # On the SUSE family the installer ensures ONE firewall owner (decision 220): SSH reachability
+  # is confirmed in the loaded ruleset first, then firewalld is disabled (above) and masked.
+  # Never before the agent's table is applied, which start_firewall_service has just confirmed.
+  if [ "$MARAN_OS_FAMILY" = "suse" ]; then
+    require_ssh_ports_in_loaded_ruleset
+  fi
   disable_firewalld
+  if [ "$MARAN_OS_FAMILY" = "suse" ]; then
+    mask_firewalld_unit
+  fi
   # And again, because disabling firewalld is the one thing here that can UNDO the line above:
   # firewalld rewrites the ruleset as it shuts down. Asked of the kernel rather than assumed.
   require_maran_table_loaded "firewalld has been disabled"

@@ -1,11 +1,15 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { setPersistedLocale } from '../fixtures/set-locale'
 
 test('status page states the operational sentence and nothing machine-readable', async ({ page }) => {
   await stubSignedIn(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
 
@@ -23,6 +27,8 @@ test('the operational sentence carries no English health token in a Russian inte
   // the defect is visible — in English `(ok)` reads as merely redundant.
   await setPersistedLocale(page, 'ru')
   await stubSignedIn(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
 

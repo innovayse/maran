@@ -27,6 +27,9 @@ public sealed class Zone
     /// <summary>The zone's records, owned by this entity and changed only through its methods.</summary>
     private readonly List<ZoneRecord> _records = [];
 
+    /// <summary>The zone's signing keys: none while the zone is off, exactly one otherwise.</summary>
+    private readonly List<ZoneSigningKey> _signingKeys = [];
+
     /// <summary>The row's identity, and the only identifier a request may name for a zone.</summary>
     public Guid Id { get; private set; }
 
@@ -45,10 +48,22 @@ public sealed class Zone
     /// <summary>The instant of the last change to the zone's content.</summary>
     public DateTimeOffset UpdatedAt { get; private set; }
 
+    /// <summary>Where the zone is in its DNSSEC life. Every zone starts <see cref="DnssecState.Off"/>.</summary>
+    public DnssecState DnssecState { get; private set; }
+
+    /// <summary>When the current withdrawal from signing began, or null while the zone is not being withdrawn.</summary>
+    public DateTimeOffset? DnssecWithdrawalStartedAt { get; private set; }
+
     /// <summary>The zone's records; empty until they are loaded.</summary>
     public IReadOnlyList<ZoneRecord> Records
     {
         get { return _records; }
+    }
+
+    /// <summary>The zone's signing keys; empty until they are loaded, and empty again once the zone is off.</summary>
+    public IReadOnlyList<ZoneSigningKey> SigningKeys
+    {
+        get { return _signingKeys; }
     }
 
     /// <summary>Creates the zone with its first serial and no records.</summary>
@@ -80,6 +95,48 @@ public sealed class Zone
         Name = string.Empty;
     }
 
+    /// <summary>
+    /// Adds the records a zone template expanded to, as the zone is created. They are weighed like any other
+    /// record, one after another, and arrive with the origin <see cref="RecordOrigin.Template"/>.
+    /// </summary>
+    /// <param name="drafts">The expanded drafts; each must already be shape-checked against this zone.</param>
+    /// <param name="maxRecords">The most records the zone may hold.</param>
+    /// <param name="now">The change instant, from the clock.</param>
+    /// <returns>
+    /// <see cref="RecordRuleVerdict.Accepted"/> when every draft was added and the serial moved once, else the
+    /// first rule a draft broke, and the zone unchanged.
+    /// </returns>
+    public RecordRuleVerdict AddTemplateRecords(IReadOnlyList<RecordDraft> drafts, int maxRecords, DateTimeOffset now)
+    {
+        if (CountAgainstLimit(_records) + drafts.Count > maxRecords)
+        {
+            return RecordRuleVerdict.ZoneFull;
+        }
+
+        var accepted = new List<ZoneRecord>();
+        foreach (var draft in drafts)
+        {
+            var normalized = RequireShape(draft);
+            var verdict = ZoneRecordRules.Check(_records.Concat(accepted).ToList(), normalized);
+            if (verdict != RecordRuleVerdict.Accepted)
+            {
+                return verdict;
+            }
+
+            accepted.Add(new ZoneRecord(Guid.NewGuid(), Id, normalized, RecordOrigin.Template, now));
+        }
+
+        if (accepted.Count == 0)
+        {
+            return RecordRuleVerdict.Accepted;
+        }
+
+        _records.AddRange(accepted);
+        Touch(now);
+
+        return RecordRuleVerdict.Accepted;
+    }
+
     /// <summary>Adds a customer record to the zone.</summary>
     /// <param name="recordId">The new row's identity.</param>
     /// <param name="draft">The record as stated; it is normalised here and must already be shape-checked.</param>
@@ -92,7 +149,7 @@ public sealed class Zone
     public RecordRuleVerdict AddRecord(Guid recordId, RecordDraft draft, int maxRecords, DateTimeOffset now)
     {
         var normalized = RequireShape(draft);
-        if (_records.Count >= maxRecords)
+        if (CountAgainstLimit(_records) >= maxRecords)
         {
             return RecordRuleVerdict.ZoneFull;
         }
@@ -109,7 +166,7 @@ public sealed class Zone
         return RecordRuleVerdict.Accepted;
     }
 
-    /// <summary>Replaces what a customer record says.</summary>
+    /// <summary>Replaces what a record the owner may edit says; a template record becomes the customer's.</summary>
     /// <param name="recordId">The record to change.</param>
     /// <param name="draft">The new content; normalised here and already shape-checked.</param>
     /// <param name="now">The change instant, from the clock.</param>
@@ -126,7 +183,7 @@ public sealed class Zone
             return RecordRuleVerdict.RecordNotFound;
         }
 
-        if (record.Origin != RecordOrigin.Customer)
+        if (!RecordOriginPolicy.IsOwnerEditable(record.Origin))
         {
             return RecordRuleVerdict.RecordNotEditable;
         }
@@ -146,7 +203,7 @@ public sealed class Zone
         return RecordRuleVerdict.Accepted;
     }
 
-    /// <summary>Removes a customer record.</summary>
+    /// <summary>Removes a record the owner may remove: the customer's own or one a template created.</summary>
     /// <param name="recordId">The record to remove.</param>
     /// <param name="now">The change instant, from the clock.</param>
     /// <returns>The verdict; the zone is unchanged unless it is <see cref="RecordRuleVerdict.Accepted"/>.</returns>
@@ -161,7 +218,7 @@ public sealed class Zone
             return RecordRuleVerdict.RecordNotFound;
         }
 
-        if (record.Origin != RecordOrigin.Customer)
+        if (!RecordOriginPolicy.IsOwnerEditable(record.Origin))
         {
             return RecordRuleVerdict.RecordNotEditable;
         }
@@ -173,8 +230,104 @@ public sealed class Zone
     }
 
     /// <summary>
-    /// Replaces ALL customer records in one step, as an import does. Records another facility manages are
-    /// kept, and every new record is weighed against them and against the ones already accepted.
+    /// Adds the TXT record that answers one DNS-01 challenge. It is the only record a zone takes on behalf of
+    /// the certificate facility, it does not count against the zone's record cap, and it is bounded instead by
+    /// <see cref="ChallengeRecordPolicy.MaxValuesPerName"/> values at one name.
+    /// </summary>
+    /// <param name="recordId">The new row's identity.</param>
+    /// <param name="draft">A TXT at a challenge name, with the digest as its value; normalised here.</param>
+    /// <param name="now">The change instant, from the clock.</param>
+    /// <returns>
+    /// <see cref="RecordRuleVerdict.Accepted"/> when the record was added and the serial moved, else the rule
+    /// that refused it and the zone unchanged.
+    /// </returns>
+    /// <remarks>
+    /// Exempt from the cap on purpose: a zone a customer filled to the limit must not make a certificate
+    /// impossible to issue. The caller is handed a draft the challenge policy accepted; anything else is a bug.
+    /// </remarks>
+    public RecordRuleVerdict AddChallengeRecord(Guid recordId, RecordDraft draft, DateTimeOffset now)
+    {
+        var normalized = RequireShape(draft);
+        if (normalized.Type != RecordType.Txt
+            || !ChallengeRecordPolicy.IsChallengeName(normalized.Name)
+            || !ChallengeRecordPolicy.IsValue(normalized.Value))
+        {
+            throw new ArgumentException("A challenge record is a TXT at a challenge name holding a digest.", nameof(draft));
+        }
+
+        var atName = _records.Count(existing =>
+        {
+            return existing.Origin == RecordOrigin.AcmeChallenge && existing.Name == normalized.Name;
+        });
+        if (atName >= ChallengeRecordPolicy.MaxValuesPerName)
+        {
+            return RecordRuleVerdict.ChallengeValuesFull;
+        }
+
+        var verdict = ZoneRecordRules.Check(_records, normalized);
+        if (verdict != RecordRuleVerdict.Accepted)
+        {
+            return verdict;
+        }
+
+        _records.Add(new ZoneRecord(recordId, Id, normalized, RecordOrigin.AcmeChallenge, now));
+        Touch(now);
+
+        return RecordRuleVerdict.Accepted;
+    }
+
+    /// <summary>Removes a challenge record, and only a challenge record.</summary>
+    /// <param name="recordId">The record to remove.</param>
+    /// <param name="now">The change instant, from the clock.</param>
+    /// <returns>
+    /// <see cref="RecordRuleVerdict.Accepted"/> when it was removed; <see cref="RecordRuleVerdict.RecordNotFound"/>
+    /// when the zone holds no such record; <see cref="RecordRuleVerdict.RecordNotEditable"/> when the record is
+    /// not a challenge record, which this door never removes.
+    /// </returns>
+    public RecordRuleVerdict RemoveChallengeRecord(Guid recordId, DateTimeOffset now)
+    {
+        var record = _records.SingleOrDefault(existing =>
+        {
+            return existing.Id == recordId;
+        });
+        if (record is null)
+        {
+            return RecordRuleVerdict.RecordNotFound;
+        }
+
+        if (record.Origin != RecordOrigin.AcmeChallenge)
+        {
+            return RecordRuleVerdict.RecordNotEditable;
+        }
+
+        _records.Remove(record);
+        Touch(now);
+
+        return RecordRuleVerdict.Accepted;
+    }
+
+    /// <summary>Removes the challenge records created before a cutoff, which no validation is still waiting on.</summary>
+    /// <param name="createdBefore">The cutoff; a record created at or after it is kept.</param>
+    /// <param name="now">The change instant, from the clock.</param>
+    /// <returns>How many records were removed; the serial moves only when it is more than zero.</returns>
+    public int RemoveStaleChallengeRecords(DateTimeOffset createdBefore, DateTimeOffset now)
+    {
+        var removed = _records.RemoveAll(existing =>
+        {
+            return existing.Origin == RecordOrigin.AcmeChallenge && existing.CreatedAt < createdBefore;
+        });
+        if (removed > 0)
+        {
+            Touch(now);
+        }
+
+        return removed;
+    }
+
+    /// <summary>
+    /// Replaces ALL the records the owner may edit in one step, as an import does, the template's among them.
+    /// Records another facility manages are kept, and every new record is weighed against them and against the
+    /// ones already accepted.
     /// </summary>
     /// <param name="drafts">The complete new customer record set.</param>
     /// <param name="maxRecords">The most records the zone may hold.</param>
@@ -187,9 +340,9 @@ public sealed class Zone
     {
         var kept = _records.Where(existing =>
         {
-            return existing.Origin != RecordOrigin.Customer;
+            return !RecordOriginPolicy.IsOwnerEditable(existing.Origin);
         }).ToList();
-        if (kept.Count + drafts.Count > maxRecords)
+        if (CountAgainstLimit(kept) + drafts.Count > maxRecords)
         {
             return RecordRuleVerdict.ZoneFull;
         }
@@ -209,7 +362,7 @@ public sealed class Zone
 
         _records.RemoveAll(existing =>
         {
-            return existing.Origin == RecordOrigin.Customer;
+            return RecordOriginPolicy.IsOwnerEditable(existing.Origin);
         });
         _records.AddRange(accepted);
         Touch(now);
@@ -227,6 +380,96 @@ public sealed class Zone
     {
         Serial = Math.Max(Serial, servedSerial);
         Touch(now);
+    }
+
+    /// <summary>Starts signing the zone with a freshly generated key.</summary>
+    /// <param name="keyId">The new key row's identity.</param>
+    /// <param name="key">The generated key.</param>
+    /// <param name="now">The change instant, from the clock.</param>
+    /// <returns>
+    /// <see cref="DnssecTransitionVerdict.Accepted"/> when the key was taken and the serial moved, else
+    /// <see cref="DnssecTransitionVerdict.NotOff"/> and the zone unchanged.
+    /// </returns>
+    public DnssecTransitionVerdict EnableSigning(Guid keyId, DnssecKeyMaterial key, DateTimeOffset now)
+    {
+        if (DnssecState != DnssecState.Off)
+        {
+            return DnssecTransitionVerdict.NotOff;
+        }
+
+        _signingKeys.Add(new ZoneSigningKey(keyId, Id, key, now));
+        DnssecState = DnssecState.Signing;
+        DnssecWithdrawalStartedAt = null;
+        Touch(now);
+
+        return DnssecTransitionVerdict.Accepted;
+    }
+
+    /// <summary>
+    /// Begins withdrawing the zone from signing: the daemon keeps the same key under its insecure policy while
+    /// the owner removes the DS record at the registrar.
+    /// </summary>
+    /// <param name="now">The change instant, from the clock.</param>
+    /// <returns>
+    /// <see cref="DnssecTransitionVerdict.Accepted"/> when the withdrawal began and the serial moved, else
+    /// <see cref="DnssecTransitionVerdict.NotSigning"/> and the zone unchanged.
+    /// </returns>
+    public DnssecTransitionVerdict BeginWithdrawal(DateTimeOffset now)
+    {
+        if (DnssecState != DnssecState.Signing)
+        {
+            return DnssecTransitionVerdict.NotSigning;
+        }
+
+        DnssecState = DnssecState.Withdrawing;
+        DnssecWithdrawalStartedAt = now;
+        Touch(now);
+
+        return DnssecTransitionVerdict.Accepted;
+    }
+
+    /// <summary>
+    /// Ends a withdrawal: the zone becomes unsigned and its key is deleted. Refused until the minimum wait since
+    /// the withdrawal began has passed, whoever asks.
+    /// </summary>
+    /// <param name="now">The instant, from the clock; the only time source the wait is measured against.</param>
+    /// <returns>
+    /// <see cref="DnssecTransitionVerdict.Accepted"/> when the zone is unsigned and the serial moved,
+    /// <see cref="DnssecTransitionVerdict.NotWithdrawing"/> or <see cref="DnssecTransitionVerdict.TooEarly"/>
+    /// when it is refused, and the zone unchanged.
+    /// </returns>
+    public DnssecTransitionVerdict FinishWithdrawal(DateTimeOffset now)
+    {
+        if (DnssecState != DnssecState.Withdrawing)
+        {
+            return DnssecTransitionVerdict.NotWithdrawing;
+        }
+
+        if (!DnssecWithdrawalPolicy.MayFinish(DnssecWithdrawalStartedAt, now))
+        {
+            return DnssecTransitionVerdict.TooEarly;
+        }
+
+        _signingKeys.Clear();
+        DnssecState = DnssecState.Off;
+        DnssecWithdrawalStartedAt = null;
+        Touch(now);
+
+        return DnssecTransitionVerdict.Accepted;
+    }
+
+    /// <summary>Counts the records the zone's record limit applies to: every one but a certificate validation record.</summary>
+    /// <param name="records">The records to count.</param>
+    /// <returns>
+    /// How many count against the limit. A challenge record is written by the certificate facility for a few
+    /// minutes and is not the customer's to budget, so a zone at its limit can still be validated.
+    /// </returns>
+    private static int CountAgainstLimit(IEnumerable<ZoneRecord> records)
+    {
+        return records.Count(record =>
+        {
+            return record.Origin != RecordOrigin.AcmeChallenge;
+        });
     }
 
     /// <summary>Normalises a draft and insists it is well-formed: validators ran at the boundary, so a bad one is a bug.</summary>

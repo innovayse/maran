@@ -1,7 +1,8 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from './fixtures/guarded-test'
 import { goLive, openLiveDashboard } from './fixtures/open-live-dashboard'
 import { loaded } from './fixtures/stub-dashboard-route'
 import { endStream, HELLO, pushFrame, reading, streamOpens, totals } from './fixtures/stub-live-dashboard-stream'
+import type { Page } from '@playwright/test'
 
 // Issue #199 (slice S1): the administrator's dashboard is live. One stream feeds the processor,
 // memory, disk and network widgets and the totals, services and activity widgets; the

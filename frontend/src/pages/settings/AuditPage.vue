@@ -50,6 +50,7 @@ import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiPagination from '../../components/ui/UiPagination.vue'
 import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
 import UiSearchInput from '../../components/ui/UiSearchInput.vue'
+import UiToolbar from '../../components/ui/UiToolbar.vue'
 import AuditExportMenu from '../../components/audit/AuditExportMenu.vue'
 import AuditFilterSheet from '../../components/audit/AuditFilterSheet.vue'
 import AuditIntegrityCard from '../../components/audit/AuditIntegrityCard.vue'
@@ -72,7 +73,9 @@ const auditFilters = useAuditFilters(() => {
   return auditStore.outcomes
 })
 const { picker: accountPicker, search: searchAccounts } = useAccountChoice()
-const { name: accountFilterName } = useAccountFilter()
+// The name is read only for an id the journal's own filter honours, so a hand-edited link never
+// makes the page ask the panel for an account the filter treats as absent.
+const { name: accountFilterName } = useAccountFilter(auditFilters.schema.account?.accepts)
 const { isReseller } = useCallerRole()
 
 /** Whose journal this page reads: a reseller its own part of it, anyone else the whole one. */
@@ -174,6 +177,8 @@ const clearAll = async (): Promise<void> => {
 }
 
 onMounted(async () => {
+  // Feedback belongs to the visit (issue #508): an export refusal from an earlier visit is not current.
+  auditStore.clearFeedback()
   await Promise.all([auditStore.loadActions(scope.value), auditStore.loadOutcomes(scope.value)])
 })
 </script>
@@ -196,7 +201,7 @@ onMounted(async () => {
 
     <UiCard class="min-w-0">
       <div class="flex flex-col gap-4">
-        <div class="flex flex-wrap items-end gap-3">
+        <UiToolbar>
           <UiSearchInput
             v-model="table.search.value"
             class="min-w-55 max-w-85 flex-1"
@@ -210,7 +215,7 @@ onMounted(async () => {
             :active-label="t('common.list.filtersApplied', { n: table.activeFilterCount.value }, table.activeFilterCount.value)"
             @click="openFilters"
           />
-        </div>
+        </UiToolbar>
 
         <UiActiveFilter
           v-if="chips.length > 0"

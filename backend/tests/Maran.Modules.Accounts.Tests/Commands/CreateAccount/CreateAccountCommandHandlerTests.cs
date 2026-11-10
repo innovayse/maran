@@ -208,12 +208,49 @@ public sealed class CreateAccountCommandHandlerTests
             CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal("AccountInitialPasswordInvalid", result.Error!.Code);
+        Assert.Equal("AccountInitialPasswordTooShort", result.Error!.Code);
         Assert.Equal(ErrorType.Validation, result.Error.Type);
         Assert.Equal(["acme"], policy.AskedFor);
         Assert.Empty(agent.Calls);
         Assert.Empty(await dbContext.Accounts.ToListAsync());
         Assert.Empty(bus.Invoked);
+    }
+
+    /// <summary>
+    /// Each rule the policy can name is answered with its own code, never with the sentence about
+    /// choosing a sign-in mode (issue #512): a too-short password must not read as "no method chosen".
+    /// </summary>
+    /// <param name="verdict">The rule the password breaks.</param>
+    /// <param name="code">The code the refusal must carry.</param>
+    [Theory]
+    [InlineData(InitialPasswordVerdict.TooShort, "AccountInitialPasswordTooShort")]
+    [InlineData(InitialPasswordVerdict.TooLong, "AccountInitialPasswordTooLong")]
+    [InlineData(InitialPasswordVerdict.SameAsUsername, "AccountInitialPasswordSameAsName")]
+    public async Task A_refused_initial_password_is_answered_with_the_code_of_the_rule_it_broke(
+        InitialPasswordVerdict verdict,
+        string code)
+    {
+        await using var dbContext = CreateDbContext();
+        var policy = new StubInitialPasswordPolicy("weak", verdict);
+        var handler = AccountHandlerFactory.Create(
+            dbContext, FakeCurrentUser.Admin(), new RecordingAgentAccountsClient(), passwordPolicy: policy);
+        var planId = await SeedPlanAsync(dbContext);
+
+        var result = await handler.HandleAsync(
+            new CreateAccountCommand(
+                "acme",
+                "acme.example.com",
+                planId,
+                "owner@example.com",
+                LoginMode: OwnerLoginMode.InitialPassword,
+                InitialPassword: new SensitiveString("weak"),
+                IpAddress: Ip,
+                UserAgent: Client),
+            CancellationToken.None);
+
+        Assert.Equal(code, result.Error!.Code);
+        Assert.NotEqual("AccountInitialPasswordInvalid", result.Error.Code);
+        Assert.Equal(ErrorType.Validation, result.Error.Type);
     }
 
     /// <summary>
@@ -262,6 +299,60 @@ public sealed class CreateAccountCommandHandlerTests
 
         Assert.True(result.IsSuccess);
         Assert.Empty(policy.AskedFor);
+    }
+
+    /// <summary>
+    /// An owner e-mail address another login already holds is refused with a typed conflict before the
+    /// agent is asked anything and before any row is written (issue #485): no account is left behind
+    /// without a login.
+    /// </summary>
+    /// <param name="conflict">The clash the directory reports.</param>
+    /// <param name="code">The code the creation must answer with.</param>
+    [Theory]
+    [InlineData(OwnerLoginConflict.EmailTaken, "AccountOwnerEmailTaken")]
+    [InlineData(OwnerLoginConflict.UsernameTaken, "AccountLoginNameTaken")]
+    public async Task An_owner_login_another_login_holds_is_refused_before_anything_is_provisioned(
+        OwnerLoginConflict conflict,
+        string code)
+    {
+        await using var dbContext = CreateDbContext();
+        var agent = new RecordingAgentAccountsClient();
+        var bus = new StubMessageBus();
+        var directory = new StubOwnerLoginDirectory(conflict);
+        var handler = AccountHandlerFactory.Create(
+            dbContext, FakeCurrentUser.Admin(), agent, bus: bus, ownerLogins: directory);
+        var planId = await SeedPlanAsync(dbContext);
+
+        var result = await handler.HandleAsync(
+            new CreateAccountCommand("acme", "acme.example.com", planId, "owner@example.com", IpAddress: Ip, UserAgent: Client),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(code, result.Error!.Code);
+        Assert.Equal(ErrorType.Conflict, result.Error.Type);
+        Assert.Equal([("acme", "owner@example.com")], directory.Asked);
+        Assert.Empty(agent.Calls);
+        Assert.Empty(await dbContext.Accounts.ToListAsync());
+        Assert.Empty(bus.Invoked);
+    }
+
+    /// <summary>The inverse control: with no clash the same command creates the account.</summary>
+    [Fact]
+    public async Task An_owner_login_nobody_holds_creates_the_account()
+    {
+        await using var dbContext = CreateDbContext();
+        var directory = new StubOwnerLoginDirectory();
+        var handler = AccountHandlerFactory.Create(
+            dbContext, FakeCurrentUser.Admin(), new RecordingAgentAccountsClient(), ownerLogins: directory);
+        var planId = await SeedPlanAsync(dbContext);
+
+        var result = await handler.HandleAsync(
+            new CreateAccountCommand("acme", "acme.example.com", planId, "owner@example.com", IpAddress: Ip, UserAgent: Client),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(directory.Asked);
+        Assert.Single(await dbContext.Accounts.ToListAsync());
     }
 
     /// <summary>Seeds one plan and returns its id.</summary>

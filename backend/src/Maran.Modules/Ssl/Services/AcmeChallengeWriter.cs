@@ -89,7 +89,7 @@ public sealed class AcmeChallengeWriter : IAcmeChallengeWriter
             PanelChallengeDirectory => ChallengeFailure(
                 await _ssl.WritePanelChallengeAsync(token, keyAuthorization, cancellationToken),
                 nameof(ErrorMessages.PanelChallengeWriteFailed)),
-            _ => throw new UnreachableException("AcmeChallengeTarget is closed to the two targets this module declares."),
+            _ => throw new UnreachableException("A DNS challenge is a record, answered by IAcmeDnsChallengeWriter and never by a file."),
         };
     }
 
@@ -111,7 +111,7 @@ public sealed class AcmeChallengeWriter : IAcmeChallengeWriter
             SiteDocumentRootChallenge site => await RemoveFromDocumentRootAsync(
                 site, domain, token, cancellationToken),
             PanelChallengeDirectory => await _ssl.RemovePanelChallengeAsync(token, cancellationToken),
-            _ => throw new UnreachableException("AcmeChallengeTarget is closed to the two targets this module declares."),
+            _ => throw new UnreachableException("A DNS challenge is a record, answered by IAcmeDnsChallengeWriter and never by a file."),
         };
     }
 

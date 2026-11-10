@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import type { AcmeDirectory, Certificate } from '../../src/types/certificate'
+import type { AcmeDirectory, Certificate, IssuanceOptions } from '../../src/types/certificate'
 import { pagedAnswer, type PagedRules } from './paged-answer'
 
 /**
@@ -51,8 +51,8 @@ const CERTIFICATE_PATTERN = '**/api/v1/certificates/*'
 export const stubCertificates = async (page: Page, installed: Certificate[]): Promise<void> => {
   await page.route(CERTIFICATES_PATTERN, async (route) => {
     if (route.request().method() === 'POST') {
-      const submitted = route.request().postDataJSON() as { domain: string }
-      const issued = certificateFor(submitted.domain, 'acme')
+      const submitted = route.request().postDataJSON() as { domain: string; wildcard?: boolean }
+      const issued = { ...certificateFor(submitted.domain, 'acme'), wildcard: submitted.wildcard === true }
       installed.push(issued)
       await route.fulfill({
         status: 201,
@@ -70,7 +70,16 @@ export const stubCertificates = async (page: Page, installed: Certificate[]): Pr
   })
 
   // Installed AFTER the collection pattern, because Playwright gives priority to the most
-  // recently registered route and these two are the narrower ones.
+  // recently registered route and these are the narrower ones. By default the panel offers no
+  // wildcard and says nothing about why; a spec that needs another answer calls
+  // {@link stubIssuanceOptions} afterwards.
+  await stubIssuanceOptions(page, {
+    domain: '',
+    wildcardAvailable: false,
+    wildcardUnavailableCode: null,
+    wildcardUnavailableMessage: null,
+  })
+
   await page.route(CUSTOM_PATTERN, async (route) => {
     const submitted = route.request().postDataJSON() as { domain: string }
     const uploaded = certificateFor(submitted.domain, 'custom')
@@ -112,6 +121,27 @@ export const stubCertificatesProblem = async (page: Page, detail: string): Promi
       status: 500,
       contentType: 'application/problem+json',
       body: JSON.stringify({ code: 'HostUnexpectedError', title: 'Unexpected error', detail }),
+    })
+  })
+}
+
+/** The endpoint that says which kinds of certificate can be issued for a domain. */
+const ISSUANCE_OPTIONS_PATTERN = '**/api/v1/certificates/issuance-options*'
+
+/**
+ * Fulfils `GET /api/v1/certificates/issuance-options` with the answer the panel is to give. Register
+ * it AFTER {@link stubCertificates}: Playwright gives priority to the most recently registered route.
+ * @param page The Playwright page whose network the route is installed on.
+ * @param options What the panel reports can be issued; the domain is filled from the request.
+ * @returns Resolves once the route is installed.
+ */
+export const stubIssuanceOptions = async (page: Page, options: IssuanceOptions): Promise<void> => {
+  await page.route(ISSUANCE_OPTIONS_PATTERN, async (route) => {
+    const domain = new URL(route.request().url()).searchParams.get('domain') ?? ''
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ...options, domain }),
     })
   })
 }
@@ -191,7 +221,8 @@ export const certificateFor = (
   source: Certificate['source'],
 ): Certificate => {
   return {
-    id: `${source}-certificate`,
+    // A certificate's id is a GUID on the wire; the guard checks the format, so the stub keeps it.
+    id: source === 'acme' ? 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' : 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
     siteId: CERTIFICATE_SITE_ID,
     domain,
     source,
@@ -201,5 +232,6 @@ export const certificateFor = (
     lastRenewalErrorCode: null,
     consecutiveRenewalFailures: 0,
     lastRenewalError: null,
+    wildcard: false,
   }
 }

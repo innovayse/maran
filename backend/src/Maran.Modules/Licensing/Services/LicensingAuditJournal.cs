@@ -1,5 +1,7 @@
 using System.Diagnostics;
+using System.Globalization;
 using Maran.Modules.Licensing.Domain.Enums;
+using Maran.Modules.Licensing.Models;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 using Maran.SharedKernel.Callers;
@@ -7,8 +9,10 @@ using Maran.SharedKernel.Callers;
 namespace Maran.Modules.Licensing.Services;
 
 /// <summary>
-/// Writes this module's audit entries: today, exactly one — that the installation's licence status
-/// was read.
+/// Writes this module's audit entries: that the installation's licence status was read, that a licence was
+/// installed, that a module's cover lapsed or recovered, and that the licence lease was renewed or failed to be.
+/// It is also the module's <see cref="ISystemAuditJournal"/>, the door the shared operator-alert path writes
+/// its entries through.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -50,8 +54,11 @@ namespace Maran.Modules.Licensing.Services;
 /// convention and is asserted, by this module's own tests, to never actually be called.
 /// </para>
 /// </remarks>
-public sealed class LicensingAuditJournal
+public sealed class LicensingAuditJournal : ISystemAuditJournal
 {
+    /// <summary>This module's short name, from which the actor of its unattended entries is built.</summary>
+    private const string ModuleName = "licensing";
+
     /// <summary>The panel's append-only journal.</summary>
     private readonly IAuditWriter _auditWriter;
 
@@ -85,6 +92,80 @@ public sealed class LicensingAuditJournal
         CancellationToken cancellationToken)
     {
         await RecordSuccessAsync(LicenceAuditActions.LicenceStatusRead, SubjectFor(status), ipAddress, userAgent, cancellationToken);
+    }
+
+    /// <summary>
+    /// Records that a module's licence cover lapsed or recovered, as the panel observed it with nobody
+    /// signed in.
+    /// </summary>
+    /// <param name="moduleId">The module's id.</param>
+    /// <param name="previous">The verdict at the previous reading, or null when the module was not observed before.</param>
+    /// <param name="current">The verdict now.</param>
+    /// <param name="transition">What the change is; <see cref="CoverageTransition.None"/> is never recorded.</param>
+    /// <param name="cancellationToken">Cancellation token for the write.</param>
+    /// <returns>Resolves once the entry is stored.</returns>
+    /// <remarks>
+    /// Written as the panel itself (<see cref="SystemAuditEntry"/>), not under whoever's request happened
+    /// to be in flight: a lapse is a fact about the installation, and an entry stamped with a customer's
+    /// account would show the whole server's licence to that customer. The subject is machine-readable
+    /// <c>module=...;from=...;to=...</c> and carries the module id and the two verdicts only, never the
+    /// licence's id, text, signature or the machine id.
+    /// </remarks>
+    public async Task RecordCoverageTransitionAsync(
+        string moduleId,
+        EntitlementVerdict? previous,
+        EntitlementVerdict current,
+        CoverageTransition transition,
+        CancellationToken cancellationToken)
+    {
+        var action = transition switch
+        {
+            CoverageTransition.Lapsed => LicenceAuditActions.ModuleLapsed,
+            CoverageTransition.Recovered => LicenceAuditActions.ModuleRecovered,
+            _ => throw new ArgumentOutOfRangeException(nameof(transition), transition, "Only a lapse or a recovery is journalled."),
+        };
+        var from = previous?.ToString() ?? "Unobserved";
+
+        await _auditWriter.WriteAsync(
+            SystemAuditEntry.Create(ModuleName, action, $"module={moduleId};from={from};to={current}", succeeded: true),
+            cancellationToken);
+    }
+
+    /// <summary>Records one pass of the lease renewal that stored a lease or failed to.</summary>
+    /// <param name="result">What the pass did; only <see cref="LeaseRenewalOutcome.Renewed"/> and the failures are recorded by the caller.</param>
+    /// <param name="consecutiveFailures">The length of the run of failed passes including this one; 0 for a success.</param>
+    /// <param name="cancellationToken">Cancellation token for the write.</param>
+    /// <returns>Resolves once the entry is stored.</returns>
+    /// <remarks>
+    /// Written as the panel itself (<see cref="SystemAuditEntry"/>): a renewal runs with nobody signed in and
+    /// is a fact about the whole server. The subject is machine-readable, English and never localized, and
+    /// carries the outcome word plus the new lease's end or the failure count, never the licence id, the lease
+    /// text, the signature or the machine id.
+    /// </remarks>
+    public async Task RecordLeaseRenewalAsync(
+        LeaseRenewalResult result,
+        int consecutiveFailures,
+        CancellationToken cancellationToken)
+    {
+        var renewed = result.Outcome == LeaseRenewalOutcome.Renewed;
+        var action = renewed ? LicenceAuditActions.LeaseRenewed : LicenceAuditActions.LeaseRenewalFailed;
+        var subject = renewed
+            ? $"outcome={result.Outcome};validUntil={result.ValidUntil!.Value.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture)}"
+            : $"outcome={result.Outcome};consecutiveFailures={consecutiveFailures.ToString(CultureInfo.InvariantCulture)}";
+
+        await RecordSystemAsync(action, subject, renewed, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task RecordSystemAsync(
+        string action,
+        string subject,
+        bool succeeded,
+        CancellationToken cancellationToken)
+    {
+        await _auditWriter.WriteAsync(
+            SystemAuditEntry.Create(ModuleName, action, subject, succeeded),
+            cancellationToken);
     }
 
     /// <summary>Records an operation that took effect.</summary>

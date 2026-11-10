@@ -26,6 +26,7 @@ import UiPagination from '../../components/ui/UiPagination.vue'
 import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
 import UiSearchInput from '../../components/ui/UiSearchInput.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
+import UiToolbar from '../../components/ui/UiToolbar.vue'
 import FirewallWhitelistForm from '../../components/firewall/FirewallWhitelistForm.vue'
 import FirewallWhitelistTable from '../../components/firewall/FirewallWhitelistTable.vue'
 import { useListLabels } from '../../composables/useListLabels'
@@ -145,14 +146,15 @@ onMounted(clearWhitelistError)
 
       <div class="flex flex-col gap-4">
         <!-- No search has anything to narrow before the first exemption exists. -->
-        <UiSearchInput
-          v-if="!answeredNothing || isNarrowed"
-          v-model="table.search.value"
-          class="min-w-55 max-w-85"
-          :label="t('firewall.whitelist.searchLabel')"
-          :placeholder="t('firewall.whitelist.searchPlaceholder')"
-          :clear-label="t('firewall.whitelist.searchClear')"
-        />
+        <UiToolbar v-if="!answeredNothing || isNarrowed">
+          <UiSearchInput
+            v-model="table.search.value"
+            class="min-w-55 max-w-85"
+            :label="t('firewall.whitelist.searchLabel')"
+            :placeholder="t('firewall.whitelist.searchPlaceholder')"
+            :clear-label="t('firewall.whitelist.searchClear')"
+          />
+        </UiToolbar>
 
         <UiLoadingRegion :state="table.loadingState.value">
           <template #error>

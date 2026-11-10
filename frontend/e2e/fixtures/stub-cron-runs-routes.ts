@@ -23,9 +23,22 @@ export const stubCronRuns = async (page: Page, run: CronRun, history: CronRunSum
       return
     }
     const outcome = new URL(route.request().url()).searchParams.get('outcome')
-    const items = history.filter((row) => {
-      return outcome === null || row.outcome === outcome
-    })
+    // A spec may seed the history with full runs; the list sends the summary, which has no output.
+    const items: CronRunSummary[] = history
+      .filter((row) => {
+        return outcome === null || row.outcome === outcome
+      })
+      .map((row) => {
+        return {
+          id: row.id,
+          entryId: row.entryId,
+          startedAt: row.startedAt,
+          durationMilliseconds: row.durationMilliseconds,
+          end: row.end,
+          outcome: row.outcome,
+          outcomeName: row.outcomeName,
+        }
+      })
     const body: Paged<CronRunSummary> = { items, total: items.length, page: 1, pageSize: 25 }
     await route.fulfill({ status: 200, json: body })
   })

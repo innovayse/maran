@@ -15,6 +15,9 @@
   <data name="PanelUpdateRunning">
     <value>Թարմացումն արդեն հերթագրված է կամ կատարվում է։</value>
   </data>
+  <data name="PanelUpdateCheckRunning">
+    <value>Թարմացումների ստուգումն արդեն հերթագրված է կամ կատարվում է։</value>
+  </data>
   <data name="PanelUpdateUnavailable">
     <value>Վահանակը հիմա չի կարող թարմացում սկսել այս սերվերում։</value>
   </data>

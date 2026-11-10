@@ -2,12 +2,12 @@
 
 use crate::db::db_error::DbError;
 use crate::db::db_host::DbHost;
-use crate::db::grant_pattern::grant_pattern_for;
 use crate::db::list_databases::database_exists;
 use crate::db::model::database_privilege_change::DatabasePrivilegeChange;
 use crate::db::user_database_grants::user_database_grants;
 use crate::db::user_exists::user_exists;
 use crate::db::user_host::USER_HOST;
+use maran_agent_core::validation::db::grant_pattern_for::grant_pattern_for;
 
 /// Makes `change.user`'s privileges on `change.database` exactly
 /// `change.privileges`.
@@ -43,7 +43,7 @@ use crate::db::user_host::USER_HOST;
 /// # Why the pattern is escaped
 ///
 /// A database-level `GRANT`'s name is a LIKE-style pattern, and every name here
-/// holds `_` (`grant_pattern.rs` explains the reach). Every statement names the
+/// holds `_` (`grant_pattern.rs` in `agent-core` explains the reach). Every statement names the
 /// database through `grant_pattern_for`, and the row compared against in the
 /// read is the escaped spelling; the unescaped spelling is a row a pre-escape
 /// agent wrote, which matches neighbouring databases, and step 4 removes it AFTER

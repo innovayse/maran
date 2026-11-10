@@ -44,6 +44,15 @@ public sealed class Account
     public AccountStatus Status { get; private set; }
 
     /// <summary>
+    /// Who suspended the account while <see cref="Status"/> is <see cref="AccountStatus.Suspended"/>,
+    /// and <c>null</c> while it is active. A suspended account whose value is <c>null</c> was
+    /// suspended before this column existed, or by a release that did not write it; its origin is
+    /// unknown and <see cref="IsReleasableBy"/> reads it as an administrator's, the stricter reading,
+    /// because the alternative lets a reseller undo an administrator's suspension (issue #493).
+    /// </summary>
+    public SuspensionActor? SuspendedBy { get; private set; }
+
+    /// <summary>
     /// The account's own contact address — see the type's remarks for why this is not the same
     /// datum as the login's address, and why both exist. <c>null</c> only for an account created
     /// before this column existed: nothing in the panel ever recorded that account's owner address
@@ -186,15 +195,40 @@ public sealed class Account
         OwnerEmail = ownerEmail;
     }
 
-    /// <summary>Marks the account suspended. Idempotent: suspending an already-suspended account is a no-op.</summary>
-    public void Suspend()
+    /// <summary>
+    /// Marks the account suspended and records who did it. Idempotent: suspending an already-suspended
+    /// account changes nothing, except that an administrator's suspension replaces a reseller's and is
+    /// never weakened back to one, so the strongest hold is the one that is kept.
+    /// </summary>
+    /// <param name="suspendedBy">Who is suspending the account.</param>
+    public void Suspend(SuspensionActor suspendedBy)
     {
         Status = AccountStatus.Suspended;
+
+        if (SuspendedBy != SuspensionActor.Administrator)
+        {
+            SuspendedBy = suspendedBy;
+        }
     }
 
-    /// <summary>Marks the account active. Idempotent: reactivating an already-active account is a no-op.</summary>
+    /// <summary>
+    /// Whether <paramref name="releasedBy"/> may lift the suspension: an administrator always may, a
+    /// reseller only a suspension a reseller placed, and anybody may "lift" an account that is not
+    /// suspended (reactivating an active account is the idempotent no-op).
+    /// </summary>
+    /// <param name="releasedBy">Who is asking to lift the suspension.</param>
+    /// <returns><c>true</c> when the suspension may be lifted by that actor.</returns>
+    public bool IsReleasableBy(SuspensionActor releasedBy)
+    {
+        return Status == AccountStatus.Active
+            || releasedBy == SuspensionActor.Administrator
+            || SuspendedBy == SuspensionActor.Reseller;
+    }
+
+    /// <summary>Marks the account active and forgets who suspended it. Idempotent: reactivating an already-active account is a no-op.</summary>
     public void Reactivate()
     {
         Status = AccountStatus.Active;
+        SuspendedBy = null;
     }
 }

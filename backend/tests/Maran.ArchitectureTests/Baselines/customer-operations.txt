@@ -34,6 +34,7 @@ GET api/v1/backups/attention	Backups	BackupsAuthorizationTests
 GET api/v1/backups/{id:guid}	Backups	BackupsAuthorizationTests
 GET api/v1/backups/{id:guid}/restore-choices	Backups	BackupsAuthorizationTests
 GET api/v1/certificates	Ssl	CertificatesAuthorizationTests
+GET api/v1/certificates/issuance-options	Ssl	CertificatesAuthorizationTests
 GET api/v1/cron-entries	Cron	CronAuthorizationTests
 GET api/v1/cron-entries/{entryId}/output	Cron	CronAuthorizationTests
 GET api/v1/cron-entries/{entryId}/runs	Cron	CronAuthorizationTests
@@ -47,7 +48,9 @@ GET api/v1/databases	Databases	DatabasesAuthorizationTests
 GET api/v1/databases/{id:guid}	Databases	DatabasesAuthorizationTests
 GET api/v1/dns-zones	Dns	DnsAuthorizationTests
 GET api/v1/dns-zones/record-types	Dns	-	returns the record types and bounds, no account's row
+GET api/v1/dns-zones/templates/choices	Dns	-	returns each template's id, name and default flag only; templates belong to no account and a customer never receives their records
 GET api/v1/dns-zones/{id:guid}	Dns	DnsAuthorizationTests
+GET api/v1/dns-zones/{zoneId:guid}/dnssec	Dns	DnsAuthorizationTests
 GET api/v1/dns-zones/{zoneId:guid}/records	Dns	DnsAuthorizationTests
 GET api/v1/files/content	Files	FilesAuthorizationTests
 GET api/v1/files/download	Files	FilesAuthorizationTests
@@ -113,6 +116,9 @@ POST api/v1/database-users/{id:guid}/password	Databases	DatabaseUsersAuthorizati
 POST api/v1/databases	Databases	DatabasesAuthorizationTests
 POST api/v1/databases/{id:guid}/password	Databases	DatabasesAuthorizationTests
 POST api/v1/dns-zones	Dns	DnsAuthorizationTests
+POST api/v1/dns-zones/{zoneId:guid}/dnssec/enable	Dns	DnsAuthorizationTests
+POST api/v1/dns-zones/{zoneId:guid}/dnssec/finish-withdrawal	Dns	DnsAuthorizationTests
+POST api/v1/dns-zones/{zoneId:guid}/dnssec/withdraw	Dns	DnsAuthorizationTests
 POST api/v1/dns-zones/{zoneId:guid}/records	Dns	DnsAuthorizationTests
 POST api/v1/files/archive	Files	FilesAuthorizationTests
 POST api/v1/files/copy	Files	FilesAuthorizationTests

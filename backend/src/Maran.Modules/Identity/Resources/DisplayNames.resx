@@ -288,6 +288,9 @@
   <data name="AuditActionPasswordResetRefused">
     <value>Password reset token refused</value>
   </data>
+  <data name="AuditActionCredentialTokensRetired">
+    <value>Invitation and reset tokens retired</value>
+  </data>
   <data name="AuditActionSecurityPolicySaved">
     <value>Security policy saved</value>
   </data>
@@ -326,6 +329,18 @@
   </data>
   <data name="AuditActionLicenceInstalled">
     <value>Licence installed</value>
+  </data>
+  <data name="AuditActionLicenceModuleLapsed">
+    <value>Licensed module lapsed</value>
+  </data>
+  <data name="AuditActionLicenceModuleRecovered">
+    <value>Licensed module covered again</value>
+  </data>
+  <data name="AuditActionLicenceLeaseRenewed">
+    <value>Licence lease renewed</value>
+  </data>
+  <data name="AuditActionLicenceLeaseRenewalFailed">
+    <value>Licence lease renewal failed</value>
   </data>
   <data name="AuditActionCustomerInvited">
     <value>Customer invited</value>
@@ -606,6 +621,9 @@
   <data name="AuditActionPanelUpdateRequested">
     <value>An administrator requested a panel update</value>
   </data>
+  <data name="AuditActionPanelUpdateCheckRequested">
+    <value>An administrator asked the panel to check for updates</value>
+  </data>
   <data name="AuditActionPanelUpdateRunApplied">
     <value>The requested panel update was installed</value>
   </data>
@@ -650,6 +668,30 @@
   </data>
   <data name="AuditActionModuleRestartRequested">
     <value>Panel restart requested to activate a module</value>
+  </data>
+  <data name="AuditActionReauthenticationFailed">
+    <value>Password re-entry refused</value>
+  </data>
+  <data name="AuditActionMarketplaceEnabled">
+    <value>Marketplace switched on</value>
+  </data>
+  <data name="AuditActionMarketplaceDisabled">
+    <value>Marketplace switched off</value>
+  </data>
+  <data name="AuditActionModuleInstallRequested">
+    <value>Module install requested from the marketplace</value>
+  </data>
+  <data name="AuditActionModuleUpdateRequested">
+    <value>Module update requested from the marketplace</value>
+  </data>
+  <data name="AuditActionModuleRemoveRequested">
+    <value>Module removal requested</value>
+  </data>
+  <data name="AuditActionModuleRollbackRequested">
+    <value>Module rollback requested</value>
+  </data>
+  <data name="AuditActionCatalogueVerificationFailed">
+    <value>Marketplace catalogue failed signature verification</value>
   </data>
   <data name="AuditActionDnsEnabled">
     <value>DNS server enabled</value>
@@ -734,5 +776,218 @@
   </data>
   <data name="AuditActionMailAutoresponderCleared">
     <value>Automatic reply removed</value>
+  </data>
+  <data name="AuditActionZoneTemplateSaved">
+    <value>DNS zone template saved</value>
+  </data>
+  <data name="AuditActionZoneTemplateDeleted">
+    <value>DNS zone template deleted</value>
+  </data>
+  <data name="AuditActionZoneTemplateDefaultChanged">
+    <value>Default DNS zone template changed</value>
+  </data>
+  <data name="AuditActionZoneSigningEnabled">
+    <value>DNSSEC signing enabled for a DNS zone</value>
+  </data>
+  <data name="AuditActionZoneSigningWithdrawalStarted">
+    <value>DNSSEC withdrawal started for a DNS zone</value>
+  </data>
+  <data name="AuditActionZoneSigningWithdrawn">
+    <value>DNSSEC withdrawn from a DNS zone</value>
+  </data>
+  <data name="AuditSubjectChainIntact">
+    <value>Chain intact, {0} rows checked</value>
+  </data>
+  <data name="AuditSubjectChainBroken">
+    <value>Chain broken ({0}) from row {1}, {2} rows checked</value>
+  </data>
+  <data name="AuditSubjectChainBrokenNoIndex">
+    <value>Chain broken ({0}), {1} rows checked</value>
+  </data>
+  <data name="AuditSubjectChainBreakRowHashMismatch">
+    <value>a row was changed</value>
+  </data>
+  <data name="AuditSubjectChainBreakCommitmentMismatch">
+    <value>erasable columns do not match their commitment</value>
+  </data>
+  <data name="AuditSubjectChainBreakIndexGap">
+    <value>a row is missing</value>
+  </data>
+  <data name="AuditSubjectChainBreakAnchorMismatch">
+    <value>the first row does not follow the last purge</value>
+  </data>
+  <data name="AuditSubjectChainBreakSaltMissing">
+    <value>a row has neither a salt nor an erasure mark</value>
+  </data>
+  <data name="AuditSubjectRetentionChange">
+    <value>From {0} to {1}</value>
+  </data>
+  <data name="AuditSubjectRetentionDays">
+    <value>{0} days</value>
+  </data>
+  <data name="AuditSubjectRetentionIndefinite">
+    <value>no limit</value>
+  </data>
+  <data name="AuditSubjectRetentionRun">
+    <value>Window {0}, cutoff {1}, {2} rows removed, up to chain index {3}</value>
+  </data>
+  <data name="AuditSubjectRetentionRunFailed">
+    <value>Window {0}, the run failed</value>
+  </data>
+  <data name="AuditSubjectNoCutoff">
+    <value>none</value>
+  </data>
+  <data name="AuditSubjectCutoff">
+    <value>{0:g} UTC</value>
+  </data>
+  <data name="AuditSubjectThresholds">
+    <value>Disk {0}, processor {1}, memory {2}</value>
+  </data>
+  <data name="AuditSubjectThresholdPercent">
+    <value>{0}%</value>
+  </data>
+  <data name="AuditSubjectThresholdOff">
+    <value>not watched</value>
+  </data>
+  <data name="AuditSubjectChange">
+    <value>{0} → {1}</value>
+  </data>
+  <data name="AuditSubjectLogLevelVerbose">
+    <value>Verbose</value>
+  </data>
+  <data name="AuditSubjectLogLevelDebug">
+    <value>Debug</value>
+  </data>
+  <data name="AuditSubjectLogLevelInformation">
+    <value>Information</value>
+  </data>
+  <data name="AuditSubjectLogLevelWarning">
+    <value>Warning</value>
+  </data>
+  <data name="AuditSubjectLogLevelError">
+    <value>Error</value>
+  </data>
+  <data name="AuditSubjectLogLevelFatal">
+    <value>Fatal</value>
+  </data>
+  <data name="AuditActionRemoteServerAdded">
+    <value>Remote server registered</value>
+  </data>
+  <data name="AuditActionRemoteServerHostKeyPinned">
+    <value>Remote server host key confirmed</value>
+  </data>
+  <data name="AuditActionRemoteServerTested">
+    <value>Remote server connection tested</value>
+  </data>
+  <data name="AuditActionRemoteServerEdited">
+    <value>Remote server changed</value>
+  </data>
+  <data name="AuditActionRemoteServerRemoved">
+    <value>Remote server removed</value>
+  </data>
+  <data name="AuditActionRemoteServerDiscovered">
+    <value>Remote server inventory read</value>
+  </data>
+  <data name="AuditActionRemoteServerHostKeysScanned">
+    <value>Remote server host keys scanned</value>
+  </data>
+  <data name="AuditActionAccountExported">
+    <value>Account exported</value>
+  </data>
+  <data name="AuditActionExportGrantIssued">
+    <value>Export download grant issued</value>
+  </data>
+  <data name="AuditActionExportGrantRevoked">
+    <value>Export download grant revoked</value>
+  </data>
+  <data name="AuditActionExportDownloaded">
+    <value>Export downloaded</value>
+  </data>
+  <data name="AuditActionExportGrantPulled">
+    <value>Export pulled with a grant</value>
+  </data>
+  <data name="AuditActionExportExpired">
+    <value>Export expired and removed</value>
+  </data>
+  <data name="AuditActionImportPullPreviewed">
+    <value>Package preview read from another panel</value>
+  </data>
+  <data name="AuditActionImportPulled">
+    <value>Package pulled from another panel</value>
+  </data>
+  <data name="AuditActionImportStaged">
+    <value>Import package staged</value>
+  </data>
+  <data name="AuditActionImportPlanned">
+    <value>Import dry run read</value>
+  </data>
+  <data name="AuditActionImportStarted">
+    <value>Import started</value>
+  </data>
+  <data name="AuditActionImportCompleted">
+    <value>Import completed</value>
+  </data>
+  <data name="AuditActionImportRolledBack">
+    <value>Import rolled back</value>
+  </data>
+  <data name="AuditActionImportRollbackIncomplete">
+    <value>Import rollback incomplete</value>
+  </data>
+  <data name="AuditActionImportDiscarded">
+    <value>Staged import discarded</value>
+  </data>
+  <data name="AuditActionMigrationJobCreated">
+    <value>Migration job created</value>
+  </data>
+  <data name="AuditActionMigrationJobMapped">
+    <value>Migration job mapping changed</value>
+  </data>
+  <data name="AuditActionMigrationJobPlanned">
+    <value>Migration job dry run read</value>
+  </data>
+  <data name="AuditActionMigrationJobLimitsChanged">
+    <value>Migration job limits changed</value>
+  </data>
+  <data name="AuditActionMigrationJobStarted">
+    <value>Migration job started</value>
+  </data>
+  <data name="AuditActionMigrationJobPaused">
+    <value>Migration job paused</value>
+  </data>
+  <data name="AuditActionMigrationJobResumed">
+    <value>Migration job resumed</value>
+  </data>
+  <data name="AuditActionMigrationJobCancelled">
+    <value>Migration job cancelled</value>
+  </data>
+  <data name="AuditActionMigrationJobCompleted">
+    <value>Migration job completed</value>
+  </data>
+  <data name="AuditActionMigrationAccountSynced">
+    <value>Migrated account synced</value>
+  </data>
+  <data name="AuditActionMigrationAccountCutOver">
+    <value>Migrated account cut over</value>
+  </data>
+  <data name="AuditActionMigrationAccountRolledBack">
+    <value>Migrated account rolled back</value>
+  </data>
+  <data name="AuditActionMigrationAccountRollbackIncomplete">
+    <value>Migrated account rollback incomplete</value>
+  </data>
+  <data name="AuditActionMigrationAccountCutOverFailed">
+    <value>Migrated account cut-over failed</value>
+  </data>
+  <data name="AuditActionMigrationAccountCancelled">
+    <value>Migrated account cancelled</value>
+  </data>
+  <data name="AuditActionMigrationAccountRetried">
+    <value>Migrated account retried</value>
+  </data>
+  <data name="AuditActionMigrationAccountSecretsClaimed">
+    <value>Migrated account credentials claimed</value>
+  </data>
+  <data name="AuditActionMigrationBackupTaken">
+    <value>Backup taken for a migration</value>
   </data>
 </root>

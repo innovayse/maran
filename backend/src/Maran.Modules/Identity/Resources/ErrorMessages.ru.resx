@@ -67,10 +67,10 @@
     <value>Ссылка настройки недействительна.</value>
   </data>
   <data name="TwoFactorAlreadyEnabled">
-    <value>Двухфакторная аутентификация уже включена.</value>
+    <value>Двухэтапная проверка уже включена.</value>
   </data>
   <data name="TwoFactorNotEnabled">
-    <value>Двухфакторная аутентификация не включена.</value>
+    <value>Двухэтапная проверка не включена.</value>
   </data>
   <data name="PasswordTooWeak">
     <value>Выберите пароль не короче {1} символов.</value>
@@ -242,5 +242,8 @@
   </data>
   <data name="PersonalDataExportTooLarge">
     <value>В этом экспорте слишком много записей аудита для одного файла.</value>
+  </data>
+  <data name="ReauthenticationFailed">
+    <value>Введённый пароль неверен.</value>
   </data>
 </root>

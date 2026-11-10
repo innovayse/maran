@@ -22,6 +22,13 @@ Spec: `docs/superpowers/specs/2026-08-29-maran-design.md`.
   a module whose declared dependencies reach past that list. One door to a root process, shared by
   every module in one process, is a door that has to be accounted for per module — most of all when
   the module was bought rather than written here (rules/security.md item 13).
+- **Code that arrives as a package reaches the panel through one seam.** `Maran.Sdk` holds the open
+  interfaces (`IModuleLoader`, `IModulePackageSource`, `IVerifiedModulePackageSource`,
+  `ILeaseRequestAuthorizer`); the loader behind them is a separately distributed C# component, and the
+  open build ships one that refuses every package (`NullModuleLoader`). The Marketplace module
+  (`Maran.Modules.Marketplace`: Core, administrators only, no agent capability) lists, downloads and
+  hands a package to that seam and loads nothing itself; like every module it references only
+  `Maran.Sdk` and `Maran.SharedKernel`, so it cannot reference `Maran.Packaging`.
 - **Handlers come from the module registry, not from a scan — and that is enforced by there being
   nothing to find.** `MessagingExtensions` names each module assembly explicitly. Wolverine still
   scans the entry assembly on its own and cannot be stopped from doing so
@@ -41,10 +48,11 @@ Spec: `docs/superpowers/specs/2026-08-29-maran-design.md`.
 - Config writes follow: render template → temp file beside the target → `fsync` file and directory → **atomic rename → validate** (`nginx -t` etc.) → reload → typed error + rollback on failure. The rename comes BEFORE the validation on purpose: the validating tool reads the config tree by path, and a `.tmpXXXXXX` file matches no `include` glob, so validating first parses the OLD tree and proves nothing about the new content. It is recoverable because nothing re-reads the file until the reload — a refusal restores the previous bytes — but the window is real: a kill between the rename and the validation leaves unvalidated content live with the in-memory rollback guard gone. Full statement and its consequences: rules/rust.md "Config writes: render → swap → validate". An earlier version of this bullet had the two steps the other way round.
 - Distro differences live only in the `distro` crate behind the `DistroAdapter` trait. `ops` code **MUST NOT** branch on distro names.
 - The agent never loads external/paid code. New operations ship compiled into the open agent and stay inert until a C# module drives them.
+- The agent opens outbound connections only to a host an administrator registered as a migration source (issue #197): the SSH client of `ops::transfer`, one host, one port, a host key pinned by the administrator, a closed set of read-only remote commands, and an address judged after resolution. It is the agent's first network client, a documented exception to rules/security.md item 10, and it listens on nothing.
 
 ## Supported systems, and what "supported" obliges
 
-Two families, and every one of these is a system the product must actually work on — not a
+Three families, and every one of these is a system the product must actually work on — not a
 best-effort target:
 
 | Family | Versions | PostgreSQL major |
@@ -54,6 +62,7 @@ best-effort target:
 | Debian | Debian 12, Debian 13 | not verified in this repository |
 | RHEL | AlmaLinux 9, Rocky Linux 9 | 13 (AlmaLinux 9 per installer/lib/30-postgresql.sh; Rocky 9 is not separately verified) |
 | RHEL | AlmaLinux 10, Rocky Linux 10 | not verified in this repository |
+| SUSE | openSUSE Leap 16.0, 16.1 (SLES 16.0 is claimed through Leap 16) | not verified in this repository (unverified until the first `leap16` polygon run; one PHP minor, no FTPS, no mail) |
 
 The panel's floor is PostgreSQL 13 (`MARAN_PG_MINIMUM_MAJOR` in `installer/lib/30-postgresql.sh`), so
 CI runs the whole backend suite on 13 as well as on 16 (rules/testing.md). Fill an unverified cell
@@ -108,7 +117,10 @@ developer never ran.
   what the last release reads; the removal ships a release later, after the code that read it is
   gone. A rename is a removal by another name and is refused with the rest. `maran migrate guard`
   reads the `Up` methods of the migrations a branch adds and fails CI, and the only way past it is a
-  `// contract-phase:` line in the migration saying why no release reads what it destroys.
+  `// contract-phase:` line in the migration that names the migration (or commit) which introduced
+  what it destroys: `expand: <ref>` when a published release tag (`v*`) contains it, so the removal
+  belongs to a later release, or `never-shipped: <ref>` when no tag does. The guard checks the
+  reference against the tags and refuses a marker the tags contradict.
 
 ## Repository top level
 
@@ -117,11 +129,14 @@ proto/agent/v1/        the API↔agent contract; both sides generate code from i
 backend/               C# modular monolith (rules/csharp.md)
 agent/                 Rust root daemon (rules/rust.md)
 frontend/              Vue 3 SPA (rules/vue.md)
+frontend/packages/     separate packages the SPA does not import: module-bridge, the client a module
+                       author's bundle uses to speak the frame contract (own package.json and lockfile)
 installer/             native production install: lib/ (numbered steps), systemd/, nginx/
 installer/cli/         the root-only `maran` break-glass command (status, admin-reset-password,
                        issue-panel-certificate,
                        collect-diagnostics, panel-backup (also `--scheduled`, the unattended run),
-                       panel-backup-schedule, panel-restore, update, rollback): a fixed-verb wrapper plus
+                       panel-backup-schedule, panel-restore, update (also `--security-only --scheduled`, the
+                       unattended security-patch run), update-schedule, rollback): a fixed-verb wrapper plus
                        lib/, installed by lib/66-cli.sh
                        to /usr/local/sbin; it adds no daemon, port or RPC and reaches the panel only
                        through `Maran.Host --cli` run as the service account
@@ -137,9 +152,19 @@ docs/                  design specs and implementation plans
 - A module is one shippable unit on the **backend** (its own project, own PostgreSQL schema, own
   `Manifest.cs` carrying id/version/licence tier). Its **frontend** is not a separate unit: every
   module's interface is written in the core SPA's flat structure and compiled into the single
-  bundle (rules/vue.md "Modules in the frontend").
+  bundle (rules/vue.md "Modules in the frontend"). The one exception is a module that arrives as an
+  installed package: its screen is an isolated, sandboxed frame the shell hosts, with a narrow
+  message contract and a server-enforced reach limited to the module's own endpoints (rules/vue.md
+  "Packaged modules", rules/security.md item 14). Never an import into the bundle.
 - Licence tiers are enforced **server-side on every request**. The SPA only hides what the licence
-  does not include; it is never the boundary.
+  does not include; it is never the boundary. The enforcement seam is one: the Licensing module
+  implements `ILicenceEntitlements` (`Maran.Sdk/Interfaces/`), the single rule behind the verdict
+  Covered, NotCovered or Lapsed. The controllers of a module whose tier is not `Included` carry
+  `[RequiresLicensedModule("<module id>")]` (`Maran.Sdk/Filters/`; an architecture test fails a
+  paid module's controller without it), the module catalogue reads the same window so the menu and
+  the boundary cannot disagree, and a paid module's background work asks the window directly. An
+  included module never asks, and nothing on the core path (sign-in, health, the licence screen's own
+  endpoints, backup, `maran`) is behind the gate: a licence or lease failure degrades paid modules only.
 - The agent never loads module code of any kind — paid operations ship compiled into the open agent
   and stay inert until a licensed C# module drives them.
 - Consequence to keep in mind when designing a module: its API must be complete enough that the UI

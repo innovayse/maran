@@ -9,7 +9,7 @@
       "hostLabel": "Mail server",
       "portLabel": "Port",
       "securityLabel": "Connection security",
-      "usernameLabel": "User name",
+      "usernameLabel": "Username",
       "passwordLabel": "Password",
       "passwordPlaceholder": "Leave empty to keep the saved one",
       "hasPassword": "A password is saved. Type one here only to replace it.",
@@ -24,7 +24,8 @@
       "testDescription": "Sends one message with the settings as they are saved, and reports what the mail server answered.",
       "testRecipientLabel": "Send the test to",
       "sendTest": "Send test message",
-      "testSent": "The mail server accepted the test message."
+      "testSent": "The mail server accepted the test message.",
+      "portInvalid": "Enter the port as a whole number, digits only."
     }
   }
 }

@@ -49,9 +49,16 @@ fn host_with_run(status: i32, output: &str) -> FakePhpHost {
     host
 }
 
+/// The package the unit was asked to install.
+const PACKAGE: &str = "php8.3-fpm";
+
+/// `dnf install` of a package no enabled repository carries.
+const DNF_PACKAGE_MISSING: &str =
+    include_str!("../../../../distro/tests/fixtures/package_manager/dnf_package_missing.txt");
+
 /// Classifies against the default (Debian) adapter.
 fn classify(host: &FakePhpHost) -> PhpOpError {
-    classify_install_failure(host, distro(), UNIT, "Job failed".to_owned())
+    classify_install_failure(host, distro(), UNIT, PACKAGE, "Job failed".to_owned())
 }
 
 #[test]
@@ -75,8 +82,82 @@ fn a_mirror_nobody_reached_is_an_unreachable_package_source() {
 }
 
 #[test]
-fn a_local_package_manager_failure_stays_a_package_manager_failure() {
+fn a_package_no_source_carries_is_not_available_and_names_the_package() {
     let host = host_with_run(100, APT_PACKAGE_MISSING);
+
+    match classify(&host) {
+        PhpOpError::PackageNotAvailable { package, stderr } => {
+            assert_eq!(package, PACKAGE);
+            assert_eq!(stderr, "Job failed");
+        }
+        other => panic!("expected PackageNotAvailable, got {other:?}"),
+    }
+}
+
+#[test]
+fn the_rhel_family_reads_no_match_for_argument_as_not_available() {
+    let host = host_with_run(1, DNF_PACKAGE_MISSING);
+
+    match classify_install_failure(
+        &host,
+        adapter_for(DistroFamily::Rhel),
+        UNIT,
+        PACKAGE,
+        "Job failed".to_owned(),
+    ) {
+        PhpOpError::PackageNotAvailable { .. } => {}
+        other => panic!("expected PackageNotAvailable, got {other:?}"),
+    }
+}
+
+/// `zypper install` of a package no repository carries, CONSTRUCTED from the tool's documented
+/// messages. Not a recording: no SUSE container exists in this phase, so the recording on a real
+/// Leap image is owed and the wording is UNVERIFIED. Confirm with
+/// `zypper --non-interactive install --no-recommends nosuchpackage`.
+const ZYPPER_PACKAGE_MISSING: &str =
+    "Loading repository data...\nReading installed packages...\nPackage 'php8.3-fpm' not found.\n";
+
+#[test]
+fn the_suse_family_reads_a_package_not_found_as_not_available() {
+    // zypper ends a missing package on status 104; the same words under a status zypper does not
+    // use for it (the next test) are the host's own failure.
+    let host = host_with_run(104, ZYPPER_PACKAGE_MISSING);
+
+    match classify_install_failure(
+        &host,
+        adapter_for(DistroFamily::Suse),
+        UNIT,
+        PACKAGE,
+        "Job failed".to_owned(),
+    ) {
+        PhpOpError::PackageNotAvailable { package, .. } => assert_eq!(package, PACKAGE),
+        other => panic!("expected PackageNotAvailable, got {other:?}"),
+    }
+}
+
+#[test]
+fn the_suse_family_does_not_read_a_package_manager_status_it_does_not_use() {
+    // Inverse control: status 1 is not one of zypper's own error statuses, so even the
+    // missing-package sentence does not make it "not available".
+    let host = host_with_run(1, ZYPPER_PACKAGE_MISSING);
+
+    match classify_install_failure(
+        &host,
+        adapter_for(DistroFamily::Suse),
+        UNIT,
+        PACKAGE,
+        "Job failed".to_owned(),
+    ) {
+        PhpOpError::PackageManager { stderr } => assert_eq!(stderr, "Job failed"),
+        other => panic!("expected PackageManager, got {other:?}"),
+    }
+}
+
+#[test]
+fn a_local_package_manager_failure_stays_a_package_manager_failure() {
+    // Inverse control: an exit status apt does not use is not read as apt's own
+    // output, so even the missing-package text does not make it "not available".
+    let host = host_with_run(1, APT_PACKAGE_MISSING);
 
     match classify(&host) {
         PhpOpError::PackageManager { stderr } => assert_eq!(stderr, "Job failed"),
@@ -93,6 +174,7 @@ fn the_family_s_own_reading_is_the_one_asked() {
         &host,
         adapter_for(DistroFamily::Rhel),
         UNIT,
+        PACKAGE,
         "Job failed".to_owned(),
     ) {
         PhpOpError::PackageSourceRefused { .. } => {}

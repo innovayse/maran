@@ -61,6 +61,7 @@
         "accountRequired": "Choose the account that will own the site.",
         "domainRequired": "Domain is required.",
         "domainInvalid": "Domain must be a valid hostname.",
+        "aliasInvalid": "Alias \"{alias}\" must be a valid hostname.",
         "aliasesLimit": "A site can have at most {max} additional hostnames.",
         "phpVersionRequired": "Choose an installed PHP version.",
         "proxyUpstreamRequired": "Upstream is required for a reverse-proxied site.",

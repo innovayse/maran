@@ -18,8 +18,8 @@
 
 use super::{
     CATALOGUE_PROBE_ARGUMENTS, PENDING_UPDATES_ARGUMENTS, classify_origins,
-    classify_package_failure, installable_php_versions, package_manager, read_catalogue_probe,
-    read_pending_updates, read_reboot_probe_run,
+    classify_package_failure, package_manager, read_catalogue_probe, read_pending_updates,
+    read_reboot_probe_run,
 };
 use crate::{PackageFailure, PendingUpdatesFailure, RebootProbeFailure, UpdateClassification};
 
@@ -52,12 +52,32 @@ fn a_mirror_that_does_not_resolve_is_an_unreachable_source() {
 }
 
 #[test]
-fn a_package_no_repository_carries_is_a_local_failure() {
+fn a_package_no_repository_carries_is_not_available() {
     // The mirror was reached and answered; the HOST's repository set is what
     // lacks the package, so blaming the mirror would send the operator away
     // from the configuration that has to change.
     assert_eq!(
         classify_package_failure(100, PACKAGE_MISSING),
+        PackageFailure::NotAvailable
+    );
+}
+
+#[test]
+fn a_missing_package_beside_a_fetch_failure_stays_the_sources_fault() {
+    // Inverse control: a source that failed may be the reason the package was
+    // not found, so the more specific source verdict wins.
+    let both = format!("{SOURCE_UNREACHABLE}{PACKAGE_MISSING}");
+
+    assert_eq!(
+        classify_package_failure(100, &both),
+        PackageFailure::SourceUnreachable
+    );
+}
+
+#[test]
+fn a_missing_package_under_a_status_apt_does_not_use_is_local() {
+    assert_eq!(
+        classify_package_failure(1, PACKAGE_MISSING),
         PackageFailure::Local
     );
 }
@@ -104,14 +124,6 @@ fn a_fetch_failure_for_a_reason_that_names_no_source_is_a_local_failure() {
 #[test]
 fn the_package_manager_is_apt_get() {
     assert_eq!(package_manager(), "/usr/bin/apt-get");
-}
-
-#[test]
-fn the_installable_php_versions_run_from_seven_four_to_eight_four_oldest_first() {
-    assert_eq!(
-        installable_php_versions(),
-        &["7.4", "8.0", "8.1", "8.2", "8.3", "8.4"]
-    );
 }
 
 /// `dist-upgrade` simulation after `apt-get update` on an image from April 2024:

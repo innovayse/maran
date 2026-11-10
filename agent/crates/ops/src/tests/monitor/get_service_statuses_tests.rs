@@ -6,7 +6,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::get_service_statuses;
-use crate::monitor::fake_monitor_host::{FakeMonitorHost, distro, rhel_distro};
+use crate::monitor::fake_monitor_host::{FakeMonitorHost, distro, rhel_distro, suse_distro};
 use crate::monitor::{MonitorError, ServiceState, ServiceStatus};
 use maran_agent_core::utils::bound_exceeded::BoundExceeded;
 use maran_agent_core::utils::call_class::CallClass;
@@ -165,6 +165,18 @@ fn the_rhel_family_reports_its_ssh_service_directly() {
     let host = FakeMonitorHost::from_ubuntu_captures().with_unit("sshd", RUNNING);
 
     let statuses = get_service_statuses(&host, rhel_distro()).expect("the service manager answers");
+
+    assert_eq!(state_of(&statuses, "sshd"), ServiceState::Running);
+}
+
+#[test]
+fn the_suse_family_reports_its_ssh_service_directly() {
+    // UNVERIFIED: the family is read to enable `sshd.service` directly, like the RHEL family
+    // and unlike the socket-activated Debian one; confirm with
+    // `systemctl is-enabled sshd.service sshd.socket` in the pinned Leap image.
+    let host = FakeMonitorHost::from_ubuntu_captures().with_unit("sshd", RUNNING);
+
+    let statuses = get_service_statuses(&host, suse_distro()).expect("the service manager answers");
 
     assert_eq!(state_of(&statuses, "sshd"), ServiceState::Running);
 }

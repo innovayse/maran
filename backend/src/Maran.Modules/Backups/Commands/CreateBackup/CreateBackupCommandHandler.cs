@@ -1,6 +1,7 @@
 using Maran.Modules.Backups.Common;
 using Maran.Modules.Backups.Domain.Entities;
 using Maran.Modules.Backups.Domain.Enums;
+using Maran.Modules.Backups.Domain.Policies;
 using Maran.Modules.Backups.Mappers;
 using Maran.Modules.Backups.Models;
 using Maran.Modules.Backups.Persistence;
@@ -110,8 +111,9 @@ public sealed class CreateBackupCommandHandler
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>
     /// The recorded backup — completed or failed, and the caller is told which by the row's status
-    /// rather than by an error — or <c>AccountNotFound</c> when the account is not one the caller
-    /// may back up.
+    /// rather than by an error — <c>AccountNotFound</c> when the account is not one the caller
+    /// may back up, or <c>BackupAllowanceReached</c> when the account already holds the most manual and
+    /// pre-restore backups it may (<see cref="AccountBackupAllowance"/>).
     /// </returns>
     /// <remarks>
     /// A run that the agent could not finish is deliberately NOT returned as a failed
@@ -141,6 +143,22 @@ public sealed class CreateBackupCommandHandler
                 cancellationToken);
 
             return Result<BackupDto>.Fail(Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound));
+        }
+
+        // The account's own allowance, before anything is written: every backup is a full copy in the
+        // host's shared backup root, outside the customer's quota, so an unbounded run of them is a
+        // way to fill the volume for every other tenant (issue #478). Refused rather than made room
+        // for - a manual backup is a copy the customer chose to keep.
+        var held = await _dbContext.Backups
+            .AsNoTracking()
+            .Where(row => row.AccountId == command.AccountId)
+            .ToListAsync(cancellationToken);
+        if (!AccountBackupAllowance.HasRoomForManualBackup(held))
+        {
+            await _journal.RecordFailureAsync(
+                BackupAuditActions.BackupCreated, account.Username, command.IpAddress, command.UserAgent, cancellationToken);
+
+            return Result<BackupDto>.Fail(Error.Of(nameof(ErrorMessages.BackupAllowanceReached), ErrorType.Conflict));
         }
 
         // Resolved before the row is written, so the row records the destination the run actually

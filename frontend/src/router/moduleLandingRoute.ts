@@ -73,6 +73,13 @@ const LANDING_ROUTES: Readonly<Record<string, string | typeof NO_LANDING_ROUTE>>
   // their own account.
   notifications: 'smtp-settings',
   backups: 'backups',
+  // The marketplace's one page, listed under Settings in the navigation tree; the module declares no
+  // menu or routes of its own, so this is also how a route is traced back to its module.
+  marketplace: 'marketplace',
+  // The Server migration module's entry opens on the remote servers a migration reads (issue #197); the
+  // account export and import (issue #127) are the other children of its submenu (`navigationTree.ts`).
+  // Keyed on the module's id, `servermigration`, which is what `GET /api/v1/modules` reports.
+  servermigration: 'remote-servers',
   // No page of its own by design: a certificate belongs to a site, so the SSL module's interface
   // is a tab on the site it protects. A sidebar entry for it would have to lead somewhere, and
   // every somewhere is worse than nowhere: a list of every certificate on the server is a screen

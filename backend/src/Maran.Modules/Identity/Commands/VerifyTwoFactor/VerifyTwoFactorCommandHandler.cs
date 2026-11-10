@@ -36,6 +36,12 @@ public sealed class VerifyTwoFactorCommandHandler
     /// <summary>Counts refusals per source address and announces an attack.</summary>
     private readonly BruteForceDetector _bruteForceDetector;
 
+    /// <summary>Counts a failed password or code against the login, serialised with every concurrent one.</summary>
+    private readonly IFailedLoginRecorder _failedLoginRecorder;
+
+    /// <summary>The panel's clock; the ambient one is a banned API (rules/csharp.md).</summary>
+    private readonly IClock _clock;
+
     /// <summary>The answer to a refused code, which says when the server's clock may be why.</summary>
     private readonly TwoFactorCodeRejection _rejection;
 
@@ -47,6 +53,8 @@ public sealed class VerifyTwoFactorCommandHandler
     /// <param name="authenticationCompleter">Checks sign-in eligibility and issues the session.</param>
     /// <param name="journal">Records the attempt.</param>
     /// <param name="bruteForceDetector">Counts refusals per source address.</param>
+    /// <param name="failedLoginRecorder">Counts a failed password or code against the login.</param>
+    /// <param name="clock">The panel's clock.</param>
     /// <param name="rejection">The answer to a refused code.</param>
     public VerifyTwoFactorCommandHandler(
         IdentityDbContext dbContext,
@@ -56,6 +64,8 @@ public sealed class VerifyTwoFactorCommandHandler
         AuthenticationCompleter authenticationCompleter,
         IdentityAuditJournal journal,
         BruteForceDetector bruteForceDetector,
+        IFailedLoginRecorder failedLoginRecorder,
+        IClock clock,
         TwoFactorCodeRejection rejection)
     {
         _dbContext = dbContext;
@@ -65,6 +75,8 @@ public sealed class VerifyTwoFactorCommandHandler
         _authenticationCompleter = authenticationCompleter;
         _journal = journal;
         _bruteForceDetector = bruteForceDetector;
+        _failedLoginRecorder = failedLoginRecorder;
+        _clock = clock;
         _rejection = rejection;
     }
 
@@ -79,6 +91,17 @@ public sealed class VerifyTwoFactorCommandHandler
     {
         var user = await _dbContext.Users.SingleOrDefaultAsync(u => u.Username == command.Username, cancellationToken);
 
+        // A locked account is refused before its password or code is looked at, with the same error a
+        // wrong password gets (see LoginCommandHandler for why the answer must not differ). Without
+        // this check the endpoint was a way round the per-account lockout: an attacker rotating
+        // source addresses guessed the password or the one-time code here, where nothing counted
+        // them per login (issue #463).
+        if (user is not null && user.IsLockedOut(_clock.UtcNow))
+        {
+            await _bruteForceDetector.RecordFailureAsync(command.IpAddress, cancellationToken);
+            return Result<AuthenticatedOutcome>.Fail(Error.Of(nameof(ErrorMessages.InvalidCredentialsUnauthorized), ErrorType.Unauthorized));
+        }
+
         // The password is re-checked here, not assumed from the first step: this endpoint is
         // reachable on its own, and treating it as "already half authenticated" would turn the
         // second factor into the ONLY factor for anyone who can call it directly.
@@ -87,6 +110,13 @@ public sealed class VerifyTwoFactorCommandHandler
             // Counted, because this endpoint takes a password and can be called on its own: an
             // attacker who guessed passwords here rather than at /login would be invisible to the
             // detector otherwise, which is a bypass of the whole ban path rather than a gap in it.
+            // Counted against the login as well as the address, because the address counter cannot
+            // see an attacker who rotates addresses.
+            if (user is not null)
+            {
+                await _failedLoginRecorder.RecordAsync(user, _clock.UtcNow, cancellationToken);
+            }
+
             await _bruteForceDetector.RecordFailureAsync(command.IpAddress, cancellationToken);
             return Result<AuthenticatedOutcome>.Fail(Error.Of(nameof(ErrorMessages.InvalidCredentialsUnauthorized), ErrorType.Unauthorized));
         }
@@ -101,13 +131,19 @@ public sealed class VerifyTwoFactorCommandHandler
         // suspended is refused here too, for the same reason (issue #326).
         if (!await _authenticationCompleter.MayCompleteAsync(user, cancellationToken))
         {
+            await _failedLoginRecorder.RecordAsync(user, _clock.UtcNow, cancellationToken);
             await _bruteForceDetector.RecordFailureAsync(command.IpAddress, cancellationToken);
             return Result<AuthenticatedOutcome>.Fail(Error.Of(nameof(ErrorMessages.InvalidCredentialsUnauthorized), ErrorType.Unauthorized));
         }
 
+        // A correct password on an account with no second factor gets the answer a wrong password
+        // gets: a distinct 409 told the caller the password was right (issue #463). It is counted
+        // like any other failed attempt, since this endpoint is not how such an account signs in.
         if (user.TotpSecret is not { } totpSecret)
         {
-            return Result<AuthenticatedOutcome>.Fail(Error.Of(nameof(ErrorMessages.TwoFactorNotEnabled), ErrorType.Conflict));
+            await _failedLoginRecorder.RecordAsync(user, _clock.UtcNow, cancellationToken);
+            await _bruteForceDetector.RecordFailureAsync(command.IpAddress, cancellationToken);
+            return Result<AuthenticatedOutcome>.Fail(Error.Of(nameof(ErrorMessages.InvalidCredentialsUnauthorized), ErrorType.Unauthorized));
         }
 
         var usedRecoveryCode = false;
@@ -121,6 +157,7 @@ public sealed class VerifyTwoFactorCommandHandler
         }
         else
         {
+            await _failedLoginRecorder.RecordAsync(user, _clock.UtcNow, cancellationToken);
             await WriteAuditAsync(user.Id, user.Username, IdentityAuditActions.LoginFailed, command, false, cancellationToken);
             await _bruteForceDetector.RecordFailureAsync(command.IpAddress, cancellationToken);
             return Result<AuthenticatedOutcome>.Fail(await _rejection.SignInErrorAsync(cancellationToken));

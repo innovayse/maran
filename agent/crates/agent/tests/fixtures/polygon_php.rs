@@ -26,7 +26,13 @@ const VALIDATE_ARGUMENT: &str = "-t";
 pub struct PolygonPhp;
 
 impl PolygonPhp {
-    /// The PHP version both polygon images install: `8.3` on Sury, `83` on Remi.
+    /// The PHP version the Debian and RHEL polygon images install: `8.3` on Sury, `83` on Remi.
+    ///
+    /// On the SUSE family this is a label and not the installed version: the family ships one
+    /// distribution minor (8.4, UNVERIFIED) under unversioned paths, so its adapter answers the
+    /// same binary, pool directory and unit for `8.3` as for `8.4`, and the suites that stat or
+    /// write those answers do the same thing there. Confirm with `php-fpm -v` in the pinned Leap
+    /// image.
     pub const VERSION: &'static str = "8.3";
 
     /// The validated version the polygon suites write pools for.

@@ -3,11 +3,8 @@ using Maran.Host.Cli;
 using Maran.Host.Cli.Extensions;
 using Maran.Host.Cli.Models;
 using Maran.Host.Configuration;
-using Maran.Host.Dashboard;
 using Maran.Host.Extensions;
-using Maran.Host.HealthChecks;
 using Maran.Host.Modules;
-using Maran.Host.Search;
 using Maran.Sdk;
 using Maran.SharedKernel;
 
@@ -75,7 +72,7 @@ public sealed class Program
         builder.Services.AddPanelSearch();
         builder.Services.AddPanelBackgroundWork();
         builder.Services.AddPanelSeeding();
-        builder.Services.AddLicensingStartupCheck(builder.Configuration);
+        builder.Services.AddLicensingStartupCheck();
         builder.Services.AddPanelCli();
         builder.Services.AddPanelOpenApi(cli);
 
@@ -86,6 +83,9 @@ public sealed class Program
         // this product applies schema changes — see Cli/Commands/MigrateCliCommand.cs for why.
         if (cli is not null)
         {
+            // The openapi verb serves nothing, yet the document must list the minimal endpoints too, and
+            // only a mapped endpoint is described: map them for that verb alone.
+            app.MapPanelOpenApiEndpoints(cli);
             return RunCli(app.Services, cli);
         }
 
@@ -118,15 +118,11 @@ public sealed class Program
         app.UseCsrfHeader();
         app.UsePanelAuthentication();
         app.UsePanelRateLimiting();
+        // After authentication, so the caller is known, and routing, so the endpoint is: a call the shell
+        // relays for a module's screen (X-Maran-Frame) must be to that module's own endpoint.
+        app.UseModuleFrameScope();
 
-        app.MapPanelHealth();
-        app.MapModuleCatalogue();
-        app.MapDashboard();
-        app.MapDashboardStream();
-        app.MapAttentionCount();
-        app.MapFirstRun();
-        app.MapSearch();
-        app.MapControllers();
+        app.MapPanelEndpoints();
 
         // Taken before Run: Run disposes the host's container when it returns, and the request is read after.
         var restart = app.Services.GetRequiredService<PanelRestartRequest>();

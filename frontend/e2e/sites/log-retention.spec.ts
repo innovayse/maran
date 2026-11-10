@@ -1,8 +1,9 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { expectNoHorizontalOverflow } from '../fixtures/measure-horizontal-extent'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import {
   DEFAULT_SITE_CHOICES,
@@ -13,6 +14,7 @@ import {
 } from '../fixtures/stub-sites-routes'
 import type { PanelModule } from '../../src/types/module'
 import type { Site, SiteChoices, SiteDetail } from '../../src/types/site'
+import type { Page } from '@playwright/test'
 
 const LICENSED_SITES: PanelModule[] = [
   { name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -69,6 +71,7 @@ const CHOICES: SiteChoices = {
 const stubRetention = async (page: Page, refusal: string | null): Promise<() => unknown[]> => {
   const bodies: unknown[] = []
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_SITES)
   await stubSites(page, [])
@@ -135,7 +138,8 @@ test('changing the retention sends the new number of days and says it was saved'
   await expect(page.getByRole('combobox', { name: 'Keep logs for' })).toContainText('3 days')
 })
 
-test('a refused retention shows the panels own message and keeps the pick', async ({ page }) => {
+test('a refused retention shows the panels own message and keeps the pick', async ({ page, guard }) => {
+  guard.allow(400, /\/api\/v1\/sites\/[^/]+\/log-retention$/)
   await stubRetention(page, 'Logs can be kept for 1 to 14 days.')
 
   await openLogs(page)

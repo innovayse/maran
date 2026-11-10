@@ -21,7 +21,13 @@ namespace Maran.Modules.Ssl.Commands.IssueCertificate;
 /// The caller's user agent, recorded in the audit journal. Established by the server and stamped by
 /// the action; never bound from the request.
 /// </param>
+/// <param name="Wildcard">
+/// Whether the certificate should also cover every name directly under the domain (<c>*.domain</c>).
+/// It is proven through the DNS zone this server serves for the domain, so it is refused when the account
+/// has no such zone. Last and defaulted, so a plain request is the one that omits it.
+/// </param>
 public sealed record IssueCertificateCommand(
     string Domain = "",
     [property: JsonIgnore][property: BindNever][BindNever] string IpAddress = "",
-    [property: JsonIgnore][property: BindNever][BindNever] string UserAgent = "");
+    [property: JsonIgnore][property: BindNever][BindNever] string UserAgent = "",
+    bool Wildcard = false);

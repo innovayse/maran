@@ -16,6 +16,7 @@ pub mod channel_progress_sink;
 pub mod channel_restore_sink;
 pub mod created_backup;
 pub mod db_host_catalog;
+pub mod file_transfer_jails;
 pub mod home_group;
 pub mod remote_destination_refused;
 pub mod reported_verify_backup;

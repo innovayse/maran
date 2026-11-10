@@ -93,6 +93,13 @@ message DnsDaemonStatus {
   // started at boot. A daemon that is running but not enabled disappears at the
   // next reboot, so the two are reported apart.
   bool enabled_at_boot = 6;
+  // True when the host's daemon build accepts a `dnssec-policy`, OBSERVED by
+  // asking the daemon's own configuration checker about a probe configuration
+  // that states one, never read off a version table. False hides DNSSEC from
+  // the panel: a zone cannot be signed here and the rendered configuration
+  // states no policy. A daemon that was not asked (not yet enabled) reports
+  // false (issue #452).
+  bool dnssec_supported = 7;
 }
 
 message EnableDnsRequest {}
@@ -217,6 +224,49 @@ message DnsZoneSoa {
   uint32 negative_ttl = 7;
 }
 
+// Whether a zone is signed, and in which phase. The panel keeps the truth and
+// sends it with EVERY PutZone, so a rebuilt host is made to serve exactly what
+// the registrar's DS record expects (issue #452).
+enum DnsSigningMode {
+  // The zone is not signed and carries no key material. A zone the daemon had
+  // signed before is returned to unsigned and its key files are removed. This
+  // is also what a caller that predates signing sends.
+  DNS_SIGNING_MODE_UNSIGNED = 0;
+  // The zone is signed with the key in `DnsSigning.key`, under the panel's
+  // single-key policy with no automatic rollover.
+  DNS_SIGNING_MODE_SIGNED = 1;
+  // The zone is being withdrawn from signing: the daemon follows its built-in
+  // `insecure` policy with the SAME key, so validating resolvers keep a
+  // consistent answer until the DS record is gone from the registrar. The key
+  // files stay until the panel sends UNSIGNED.
+  DNS_SIGNING_MODE_WITHDRAWING = 2;
+}
+
+// One ECDSA P-256 (algorithm 13) key that signs a zone as its single combined
+// signing key. The panel generates it and keeps it encrypted at rest; the agent
+// re-validates every field and recomputes the key tag from the public key.
+message DnsSigningKey {
+  // The public key as standard base64 of the 64 bytes `x || y` (the DNSKEY
+  // record's public key field for algorithm 13).
+  string public_key = 1;
+  // The private scalar as standard base64 of its 32 bytes. A SECRET: it is
+  // never logged, never echoed in an error and never part of an audit line.
+  string private_key = 2;
+  // The DNSKEY flags: 257 (a key-signing key, which a combined signing key is).
+  uint32 flags = 3;
+  // The RFC 4034 key tag the panel computed. The agent computes its own from
+  // the public key and refuses the request when the two differ.
+  uint32 key_tag = 4;
+}
+
+// The signing instruction of one zone.
+message DnsSigning {
+  // Which phase the zone is in.
+  DnsSigningMode mode = 1;
+  // The key. Required for SIGNED and WITHDRAWING, and refused for UNSIGNED.
+  DnsSigningKey key = 2;
+}
+
 message PutZoneRequest {
   // The zone apex, a fully qualified name without the trailing dot.
   string zone_name = 1;
@@ -226,6 +276,8 @@ message PutZoneRequest {
   repeated string nameservers = 3;
   // Every other record of the zone; a record absent from here is removed.
   repeated DnsRecord records = 4;
+  // Whether and how the zone is signed. Absent or UNSIGNED means unsigned.
+  DnsSigning signing = 5;
 }
 
 message PutZoneResponse {
@@ -277,6 +329,30 @@ message GetZoneOk {
   bool served = 1;
   // The serial the daemon serves; zero when it does not serve the zone.
   uint32 serial = 2;
+  // What the daemon does about signing this zone, read from the daemon's own
+  // zone configuration and signing state and never from what the panel last
+  // sent. Absent when the zone is not served.
+  DnsSigningObservation signing = 3;
+}
+
+// What was observed about the signing of one zone. Each fact is its own
+// three-valued answer: a daemon that could not be asked certifies nothing.
+message DnsSigningObservation {
+  // The mode the daemon's configuration for the zone states: SIGNED when it
+  // names the panel's policy, WITHDRAWING when it names the built-in
+  // `insecure` policy, UNSIGNED when it names none. Meaningful only when
+  // `mode_observed` is IN_FORCE.
+  DnsSigningMode mode = 1;
+  // IN_FORCE when `mode` was read from the daemon, NOT_OBSERVED when it could
+  // not be. Never NOT_IN_FORCE.
+  DnsPolicyObservation mode_observed = 2;
+  // The key tag of the key the daemon reports having signed the zone with;
+  // zero when none is reported. Meaningful only when `published_key_observed`
+  // is IN_FORCE.
+  uint32 published_key_tag = 3;
+  // IN_FORCE when the daemon reports a completed signing by `published_key_tag`,
+  // NOT_IN_FORCE when it reports none, NOT_OBSERVED when it could not be asked.
+  DnsPolicyObservation published_key_observed = 4;
 }
 
 message ListZonesRequest {}

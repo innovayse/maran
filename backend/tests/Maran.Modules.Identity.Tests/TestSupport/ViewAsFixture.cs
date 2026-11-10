@@ -26,6 +26,9 @@ public sealed class ViewAsFixture : IDisposable
     /// <summary>The account directory, answering only accounts added to it.</summary>
     public StubAccountDirectory Accounts { get; }
 
+    /// <summary>Which reseller owns which account right now, answering the view-as ownership check.</summary>
+    public StubAccountOwnership Ownership { get; }
+
     /// <summary>The reseller directory, answering only resellers added to it.</summary>
     public StubResellerDirectory Resellers { get; }
 
@@ -48,6 +51,7 @@ public sealed class ViewAsFixture : IDisposable
         Clock = new FakeClock(Now);
         Accounts = new StubAccountDirectory();
         Resellers = new StubResellerDirectory();
+        Ownership = new StubAccountOwnership();
         Audit = new RecordingAuditWriter();
     }
 
@@ -56,6 +60,13 @@ public sealed class ViewAsFixture : IDisposable
     public ViewAsStarter NewStarter()
     {
         return new ViewAsStarter(Context, Resellers, NewIssuer(), Journal, Clock);
+    }
+
+    /// <summary>Creates the per-request check of a view-as session over this fixture's ownership.</summary>
+    /// <returns>The verifier.</returns>
+    public ViewAsSessionVerifier NewVerifier()
+    {
+        return new ViewAsSessionVerifier(Context, Clock, Ownership);
     }
 
     /// <summary>Creates the reader of what a view-as session looks at.</summary>
@@ -101,6 +112,10 @@ public sealed class ViewAsFixture : IDisposable
     {
         var accountId = Guid.NewGuid();
         Accounts.Add(accountId, accountName, maxFtpUsers: 0, resellerId: resellerId);
+        if (resellerId is { } owningReseller)
+        {
+            Ownership.Own(accountId, owningReseller);
+        }
 
         var owner = new User(Guid.NewGuid(), $"{accountName}-owner", $"{accountName}@example.com", "hash", UserRole.Customer, Now);
         Context.Users.Add(owner);

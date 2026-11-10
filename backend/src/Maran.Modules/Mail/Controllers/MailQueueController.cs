@@ -1,6 +1,7 @@
 using Maran.Modules.Mail.Commands.DeleteQueuedMessage;
 using Maran.Modules.Mail.Commands.FlushMailQueue;
 using Maran.Modules.Mail.Common;
+using Maran.Modules.Mail.Queries.GetMailQueueCount;
 using Maran.Modules.Mail.Queries.ListMailQueue;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
@@ -38,19 +39,42 @@ public sealed class MailQueueController : BaseApiController
         _bus = bus;
     }
 
-    /// <summary>Lists the queued messages, bounded by the agent.</summary>
+    /// <summary>Reads one page of the queued messages, bounded by the agent.</summary>
+    /// <param name="query">Page, page size, search and sort, bound from the query string.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The entries, the total and whether the list is truncated.</returns>
+    /// <returns>The page, the queue's total and whether the list is truncated.</returns>
     [HttpGet]
     [ProducesResponseType(typeof(MailQueueDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    public async Task<IActionResult> GetAllAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAllAsync(
+        [FromQuery] ListMailQueueQuery query,
+        CancellationToken cancellationToken)
     {
-        var query = new ListMailQueueQuery();
-
         return ToActionResult(await _bus.InvokeAsync<Result<MailQueueDto>>(query, cancellationToken));
+    }
+
+    /// <summary>Reads how many messages the queue holds, the figure behind the navigation badge.</summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The count.</returns>
+    /// <remarks>
+    /// Cheap and bounded: the agent is asked for one entry and the answer is the queue's total. A queue
+    /// that could not be read is the agent's own typed failure and never a count of zero, so the
+    /// interface draws no badge instead of a false "nothing is waiting".
+    /// </remarks>
+    [HttpGet("count")]
+    [ProducesResponseType(typeof(MailQueueCountDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> GetCountAsync(CancellationToken cancellationToken)
+    {
+        var query = new GetMailQueueCountQuery();
+
+        return ToActionResult(await _bus.InvokeAsync<Result<MailQueueCountDto>>(query, cancellationToken));
     }
 
     /// <summary>Removes one queued message.</summary>

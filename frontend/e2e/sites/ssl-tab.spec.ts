@@ -1,18 +1,22 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubPhpVersions, stubSiteDetail, stubSites } from '../fixtures/stub-sites-routes'
 import {
   CERTIFICATE_SITE_ID,
   certificateFor,
+  stubAcmeDirectory,
   stubCertificates,
   stubCertificatesProblem,
   stubCustomCertificateRefusal,
+  stubIssuanceOptions,
 } from '../fixtures/stub-certificates-routes'
-import type { Certificate } from '../../src/types/certificate'
+import type { AcmeDirectory, Certificate } from '../../src/types/certificate'
 import type { PanelModule } from '../../src/types/module'
 import type { SiteDetail } from '../../src/types/site'
+import type { Page } from '@playwright/test'
 
 // These four tests used to assert "Certificates are not available on this server yet." — the
 // message the SPA's certificates composable produced because it was still a Task-14 seam that
@@ -43,6 +47,14 @@ const SITE: SiteDetail = {
   logRetentionDays: 14,
 }
 
+/** The ACME directory an administrator's tab reads beside the certificates. */
+const DIRECTORY: AcmeDirectory = {
+  url: 'https://acme-staging-v02.api.letsencrypt.org/directory',
+  host: 'acme-staging-v02.api.letsencrypt.org',
+  kind: 'staging',
+  kindName: 'Staging (test certificates)',
+}
+
 /**
  * Installs the shell, the site and the certificate endpoints.
  * @param page The Playwright page whose network the routes are installed on.
@@ -51,12 +63,14 @@ const SITE: SiteDetail = {
  */
 const stubSslTab = async (page: Page, installed: Certificate[] = []): Promise<void> => {
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_SITES)
   await stubSites(page, [])
   await stubSiteDetail(page, SITE)
   await stubPhpVersions(page, [])
   await stubCertificates(page, installed)
+  await stubAcmeDirectory(page, DIRECTORY)
 }
 
 /**
@@ -93,7 +107,9 @@ test('the SSL tab says no certificate is installed only when the panel answered 
 
 test('the SSL tab renders the panels own message when the certificates call fails', async ({
   page,
+  guard,
 }) => {
+  guard.allow(500, /\/api\/v1\/certificates(\?.*)?$/)
   const consoleErrors: string[] = []
   page.on('pageerror', (error) => {
     consoleErrors.push(error.message)
@@ -139,7 +155,7 @@ test('the certificate request names the site domain the panel addresses certific
   await openSsl(page)
   await page.getByRole('button', { name: 'Request a certificate' }).click()
 
-  expect((await issued).postDataJSON()).toEqual({ domain: SITE.domain })
+  expect((await issued).postDataJSON()).toEqual({ domain: SITE.domain, wildcard: false })
 })
 
 test('removing a certificate asks which one, then takes it off the screen', async ({ page }) => {
@@ -208,7 +224,9 @@ test('the upload form validates its own empty fields rather than the browser doi
 // check reported the text the operator had just sent as missing.
 test('a pem the panel refuses is shown under its own field and the pasted text is kept', async ({
   page,
+  guard,
 }) => {
+  guard.allow(400, /\/api\/v1\/certificates\/custom$/)
   const detail =
     'The certificate chain is not valid PEM: it must contain a block that begins with -----BEGIN CERTIFICATE-----.'
   await stubSslTab(page, [])
@@ -228,7 +246,8 @@ test('a pem the panel refuses is shown under its own field and the pasted text i
   await expect(page.getByText('The private key is required.')).toHaveCount(0)
 })
 
-test('a key that does not match the certificate is shown under the key field', async ({ page }) => {
+test('a key that does not match the certificate is shown under the key field', async ({ page, guard }) => {
+  guard.allow(400, /\/api\/v1\/certificates\/custom$/)
   const detail =
     'The private key does not belong to this certificate. Paste the key that was created together with the certificate request.'
   await stubSslTab(page, [])
@@ -243,4 +262,68 @@ test('a key that does not match the certificate is shown under the key field', a
   await expect(page.getByLabel('Private key (PEM)')).toHaveAccessibleDescription(detail)
   await expect(page.getByLabel('Certificate chain (PEM)')).not.toHaveAccessibleDescription(detail)
   await expect(page.getByLabel('Private key (PEM)')).toHaveValue('-----BEGIN PRIVATE KEY-----')
+})
+
+// Issue #161: a wildcard certificate is validated through the DNS zone the panel serves, so only the
+// panel knows whether the choice can work. The tab offers it only when the panel says so, and says
+// the panel's own reason when it does not.
+test('the wildcard choice is offered only when the panel says it can work, and then it is sent', async ({
+  page,
+}) => {
+  await stubSslTab(page, [])
+  await stubIssuanceOptions(page, {
+    domain: SITE.domain,
+    wildcardAvailable: true,
+    wildcardUnavailableCode: null,
+    wildcardUnavailableMessage: null,
+  })
+  const issued = page.waitForRequest((request) => {
+    return request.method() === 'POST' && request.url().endsWith('/api/v1/certificates')
+  })
+
+  await openSsl(page)
+  await page.getByRole('checkbox', { name: 'Also cover every name under this domain (wildcard)' }).check({ force: true })
+  await page.getByRole('button', { name: 'Request a certificate' }).click()
+
+  expect((await issued).postDataJSON()).toEqual({ domain: SITE.domain, wildcard: true })
+  await expect(page.getByText(`Wildcard: *.${SITE.domain}`)).toBeVisible()
+})
+
+test('the wildcard choice is absent and the panels reason is shown when the panel cannot do it', async ({
+  page,
+}) => {
+  const reason = 'This server does not serve the DNS zone of this domain.'
+  await stubSslTab(page, [])
+  await stubIssuanceOptions(page, {
+    domain: SITE.domain,
+    wildcardAvailable: false,
+    wildcardUnavailableCode: 'WildcardZoneNotServed',
+    wildcardUnavailableMessage: reason,
+  })
+
+  await openSsl(page)
+
+  await expect(page.getByText(reason)).toBeVisible()
+  await expect(page.getByRole('checkbox', { name: 'Also cover every name under this domain (wildcard)' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Request a certificate' })).toBeVisible()
+})
+
+test('a plain request stays plain when the wildcard choice was never ticked', async ({ page }) => {
+  await stubSslTab(page, [])
+  await stubIssuanceOptions(page, {
+    domain: SITE.domain,
+    wildcardAvailable: true,
+    wildcardUnavailableCode: null,
+    wildcardUnavailableMessage: null,
+  })
+  const issued = page.waitForRequest((request) => {
+    return request.method() === 'POST' && request.url().endsWith('/api/v1/certificates')
+  })
+
+  await openSsl(page)
+  await expect(page.getByRole('checkbox', { name: 'Also cover every name under this domain (wildcard)' })).toBeVisible()
+  await page.getByRole('button', { name: 'Request a certificate' }).click()
+
+  expect((await issued).postDataJSON()).toEqual({ domain: SITE.domain, wildcard: false })
+  await expect(page.getByText(`Wildcard: *.${SITE.domain}`)).toHaveCount(0)
 })

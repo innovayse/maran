@@ -1,9 +1,12 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubAudit } from '../fixtures/stub-audit-routes'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { AuditEvent } from '../../src/types/audit'
+import type { Page } from '@playwright/test'
 
 // The audit journal as a server page (#196): search, sort, filters and pages are the panel's.
 
@@ -15,6 +18,7 @@ const SIGN_IN: AuditEvent = {
   action: 'LoginSucceeded',
   actionName: 'Signed in',
   subject: 'admin',
+  subjectName: 'admin',
   ipAddress: '203.0.113.7',
   succeeded: true,
   outcomeName: 'Succeeded',
@@ -28,6 +32,7 @@ const REFUSED: AuditEvent = {
   action: 'LoginFailed',
   actionName: 'Sign-in refused',
   subject: 'mallory',
+  subjectName: 'mallory',
   ipAddress: '198.51.100.4',
   succeeded: false,
   outcomeName: 'Failed',
@@ -40,6 +45,7 @@ const AUGUST: AuditEvent = {
   actorUsername: 'zoe',
   impersonatorUsername: null,
   subject: 'zoe',
+  subjectName: 'zoe',
 }
 
 /**
@@ -52,6 +58,9 @@ const openJournal = async (page: Page, events: AuditEvent[]): Promise<() => read
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
+  // The filter sheet's account picker asks for the first accounts when it opens.
+  await stubAccounts(page, [])
   return await stubAudit(page, events)
 }
 
@@ -118,7 +127,9 @@ test('action, outcome and a date window applied in the sheet become chips and re
   await expect(page).toHaveURL(/\/settings\/audit$/)
 })
 
-test('an inverted window is refused by the panel and its sentence is shown', async ({ page }) => {
+test('an inverted window is refused by the panel and its sentence is shown', async ({ page, guard }) => {
+  // The refusal is the subject: the panel answers an inverted date window with a 400.
+  guard.allow(400, /\/api\/v1\/audit\?.*from=/)
   await openJournal(page, [SIGN_IN])
   await page.route(/\/api\/v1\/audit\?.*from=/, async (route) => {
     await route.fulfill({

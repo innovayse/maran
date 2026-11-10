@@ -23,6 +23,12 @@ defineProps<{
    * screen; the endpoint refuses everyone else.
    */
   canChangeOwner: boolean
+  /**
+   * Whether changing the owner's address is offered: an administrator only, because the address
+   * decides where the customer's next password reset goes (issue #482). Advice for the screen; the
+   * endpoint refuses everyone else.
+   */
+  canChangeOwnerEmail: boolean
 }>()
 
 /** Events emitted by {@link AccountActionsCard}; the page owns every dialog they open. */
@@ -81,7 +87,7 @@ const { t } = useI18n()
       <UiButton v-if="canChangeOwner" variant="secondary" @click="emit('editOwner')">
         {{ t('accounts.edit.ownerAction') }}
       </UiButton>
-      <UiButton variant="secondary" @click="emit('editOwnerEmail')">
+      <UiButton v-if="canChangeOwnerEmail" variant="secondary" @click="emit('editOwnerEmail')">
         {{ t('accounts.edit.ownerEmailAction') }}
       </UiButton>
     </div>

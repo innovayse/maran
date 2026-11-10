@@ -36,6 +36,9 @@ pub struct PostfixMainConfig {
     pub virtual_aliases_path: String,
     /// Absolute path of the sender-to-login table.
     pub sender_login_maps_path: String,
+    /// Absolute path of the table of system users allowed to submit mail with the
+    /// local `sendmail` and `postdrop` commands (issue #500).
+    pub local_submit_users_path: String,
     /// Absolute path of the Dovecot LMTP socket mail is delivered to.
     pub lmtp_socket: String,
     /// Absolute path of the Dovecot auth socket SASL asks.

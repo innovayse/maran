@@ -10,7 +10,8 @@ namespace Maran.Host.Resources;
 /// <see cref="RateLimiting.RateLimitedProblemWriter"/> for the rate limiter's rejection and for the dashboard
 /// stream's process-wide limit; and <c>HostForbidden</c>,
 /// <c>HostPasswordChangeRequired</c>, <c>HostTwoFactorSetupRequired</c> and <c>HostViewAsNotAllowed</c>, written for a policy refusal by
-/// <see cref="Authorization.ProblemDetailsAuthorizationResultWriter"/>. Each key equals the machine code placed in the
+/// <see cref="Authorization.ProblemDetailsAuthorizationResultWriter"/>; and <c>ModuleFrameOutOfScope</c>, written by
+/// <see cref="Middleware.ModuleFrameScopeMiddleware"/> for a framed call to an endpoint another module owns. Each key equals the machine code placed in the
 /// RFC 7807 payload exactly, so there is one identifier rather than a code plus a separate resource
 /// key that can drift apart.
 /// </summary>

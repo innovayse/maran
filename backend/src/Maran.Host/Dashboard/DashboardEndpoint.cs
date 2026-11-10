@@ -85,7 +85,9 @@ public static class DashboardEndpoint
             // the policy is named rather than left to the administrator-only fallback.
             .RequireAuthorization(RolePolicies.AnyAuthenticated)
             // A read the shell opens on: an operator viewing as a login lands here first (issue #334).
-            .WithMetadata(new ViewAsAccessAttribute(ViewAsAccess.Read));
+            .WithMetadata(new ViewAsAccessAttribute(ViewAsAccess.Read))
+            .Produces<DashboardDto>(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status401Unauthorized);
         return endpoints;
     }
 

@@ -35,12 +35,22 @@ public sealed class InstallLicenceCommandHandlerTests : IDisposable
         var options = Microsoft.Extensions.Options.Options.Create(new LicenceStorageOptions { LicenceFilePath = LicenceFilePath });
         var rawTextSource = new FileLicenceRawTextSource(options);
         var verifier = new LicenceVerifier(
-            new Ed25519LicenceSignatureVerifier(),
+            new Ed25519LicenceSignatureVerifier(TestKeys.TrustedKey),
             new FixedClock(FixedReferenceInstant),
             new FixedServerIdentitySource());
         var installWriter = writer ?? new FileLicenceWriter(options);
         var auditWriter = new RecordingAuditWriter();
         var journal = new LicensingAuditJournal(auditWriter, new FakeCurrentUser(isAdmin: true));
+
+        var serverIdentity = new FixedServerIdentitySource();
+        var clock = new FixedClock(FixedReferenceInstant);
+        var coverageSource = new LicenceCoverageSource(
+            rawTextSource,
+            verifier,
+            new FixedLeaseSource(LeaseReading.Absent.Instance),
+            serverIdentity,
+            clock);
+        var cache = new LicenceCoverageCache(coverageSource, clock);
 
         var handler = new InstallLicenceCommandHandler(
             rawTextSource,
@@ -48,7 +58,9 @@ public sealed class InstallLicenceCommandHandlerTests : IDisposable
             installWriter,
             new LicenceInstallLock(),
             LicensingTestContext.StatusText(),
-            journal);
+            journal,
+            coverageSource,
+            cache);
 
         return (handler, auditWriter);
     }

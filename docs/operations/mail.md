@@ -44,6 +44,14 @@ table. A refusal restores the previous files; when nothing was running before, i
 masks every daemon again, so a failed first enable leaves the host as the installer left it.
 Repeating it on a healthy stack writes nothing and restarts nothing.
 
+**From the panel.** While mail is off an administrator who opens Mail domains, Mailboxes or
+Forwarders and aliases is told so, in place of the create form, with a host name field and a Turn
+mail on button. That calls `POST /api/v1/mail-server/enable` with the host name typed and the
+starting values the panel states in `GET /api/v1/mail-server` (`startingValues`, which come from
+`MailDefaults`, so the SPA keeps no figure of its own). Customers and resellers never read that
+status: they keep the form, and a create is refused with "Ask the server administrator to enable
+it". The notice is advice; every mail operation re-checks that mail is on.
+
 `DisableMail` stops, disables and masks every unit. The configuration, the lookup tables and the
 mailboxes stay.
 
@@ -52,6 +60,28 @@ left off.
 
 Ports to open in the firewall once mail is on (the panel opens none): 25, 465, 587, 143 and 993,
 plus 110 and 995 when POP3 is switched on.
+
+## The mail queue
+
+The administrator's **Mail** section holds a **Mail queue** page (`/mail/queue`) over the host's
+queue. It is administrator-only: the queue holds every account's mail in flight, so a reseller or a
+customer is neither offered the item nor allowed the endpoints (`GET /api/v1/mail-queue`, `GET
+/api/v1/mail-queue/count`, `DELETE /api/v1/mail-queue/{id}`, `POST /api/v1/mail-queue/flush`; all
+refuse any other caller with 403).
+
+- **The list** is read from the agent in one bounded call (the newest 100 messages by default, at
+  most 500) and paged, searched and sorted by the panel: search matches the message id and the
+  sender, and the sorts are arrival time (newest first by default), sender, recipients and size.
+  When the queue holds more than the agent lists, the page says so and the search and the pages
+  cover the newest messages only. The sender is untrusted text and is drawn as text.
+- **Removing one message** asks for confirmation, then deletes it from the queue: it is never
+  delivered. **Retry deferred mail** asks for confirmation, then asks the mail transfer agent to try
+  every deferred message again now; messages that still cannot be delivered stay queued.
+- **The navigation badge** on the Mail queue item is the queue's total, read once a minute by an
+  administrator's session from `GET /api/v1/mail-queue/count`. The panel asks the agent for a single
+  entry and reads the total from the answer, so the cost does not grow with the queue. A queue the
+  panel could not read draws **no badge** (never a zero), and an empty queue draws none. Where the
+  administrator never turned mail on, the figure is a real zero without asking the agent.
 
 ## Release-dependent facts
 

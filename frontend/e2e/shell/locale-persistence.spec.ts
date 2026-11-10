@@ -1,7 +1,10 @@
-import { expect, test, type ConsoleMessage, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
+import type { ConsoleMessage, Locator, Page } from '@playwright/test'
 
 // The truth of the STORED locale, not just the visible one. Born from a live
 // finding: a tab showed Russian while `localStorage['maran.locale']` already
@@ -65,6 +68,8 @@ test('switching to Russian survives a hard reload in both the visible language a
   page,
 }) => {
   await stubSignedIn(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
 
@@ -102,6 +107,8 @@ test('a language chosen in a second tab reaches an already-open tab live, withou
   context,
 }) => {
   await stubSignedIn(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
 
@@ -112,6 +119,8 @@ test('a language chosen in a second tab reaches an already-open tab live, withou
   // the exact configuration the live anomaly was produced in.
   const second = await context.newPage()
   await stubSignedIn(second)
+  await stubShellReads(second)
+  await stubLandingReads(second)
   await stubHealthy(second)
   await stubEmptyModules(second)
   await second.goto('/')
@@ -140,6 +149,8 @@ test('a failed persist still switches the interface and is surfaced by the exact
   page,
 }) => {
   await stubSignedIn(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
 

@@ -1,10 +1,12 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubFirewall } from '../fixtures/stub-firewall-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { WhitelistEntry } from '../../src/types/firewall'
 import type { PanelModule } from '../../src/types/module'
+import type { Locator, Page } from '@playwright/test'
 
 // The whitelist is server-paged (#196): the page, its size, the search and the sort live in the
 // URL, the panel answers one page of exempt ranges and their total, and the SPA filters nothing.
@@ -38,6 +40,7 @@ const openWith = async (page: Page, whitelist: WhitelistEntry[]): Promise<void> 
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubFirewall(page, { rules: [], bans: [], whitelist })
 }
 

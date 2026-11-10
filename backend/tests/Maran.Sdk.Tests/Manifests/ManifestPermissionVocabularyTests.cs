@@ -6,7 +6,7 @@ namespace Maran.Sdk.Tests.Manifests;
 /// <summary>The vocabulary of permission names is the Sdk's policy constants, read from the classes themselves.</summary>
 public sealed class ManifestPermissionVocabularyTests
 {
-    /// <summary>Every role policy and every API-key policy the Sdk names is in the vocabulary.</summary>
+    /// <summary>Every role policy, every API-key policy and the export-grant policy the Sdk names is in the vocabulary.</summary>
     [Fact]
     public void Every_policy_the_Sdk_names_is_in_the_vocabulary()
     {
@@ -22,6 +22,7 @@ public sealed class ManifestPermissionVocabularyTests
             ApiKeyPolicyNames.AccountsRead,
             ApiKeyPolicyNames.AccountsWrite,
             ApiKeyPolicyNames.AccountsDelete,
+            MigrationGrantPolicyNames.Pull,
         ];
 
         foreach (var name in named)

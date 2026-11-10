@@ -11,7 +11,10 @@ compatibility_level = 2
 myhostname = mail.example.test
 myorigin = $myhostname
 mydestination =
-mynetworks = 127.0.0.0/8 [::1]/128
+# No network is trusted by address. Empty on purpose and written explicitly: left
+# unset, Postfix derives it from the host's interfaces, and loopback in it would
+# let any process of any customer relay without a login (issue #458).
+mynetworks =
 inet_interfaces = all
 inet_protocols = all
 relayhost =
@@ -56,11 +59,25 @@ smtpd_sasl_type = dovecot
 smtpd_sasl_path = /run/dovecot/maran-auth
 smtpd_sasl_auth_enable = no
 
-# Relaying. An unauthenticated peer may deliver only to a domain served here;
-# everything else needs a login, and only the submission services take one.
+# Relaying. These are the restrictions of the port 25 service, which takes no
+# login: it accepts mail for a domain served here and refuses everything else,
+# whoever the peer is and whatever address it connects from. Relaying needs a
+# login, and only the submission services (master.cf) take one and apply the
+# sender-to-login check. No restriction here names a network or a login.
 smtpd_helo_required = yes
-smtpd_relay_restrictions = permit_mynetworks, permit_sasl_authenticated, reject_unauth_destination
-smtpd_recipient_restrictions = reject_non_fqdn_recipient, permit_mynetworks, permit_sasl_authenticated, reject_unauth_destination
+smtpd_relay_restrictions = reject_unauth_destination
+smtpd_recipient_restrictions = reject_non_fqdn_recipient, reject_unauth_destination
+
+# Local submission. `sendmail` and `postdrop` (PHP's mail() runs the first) put
+# a message in the maildrop queue and `pickup` delivers it, and no smtpd
+# restriction sits on that road: no login, no sender-to-login check, no send
+# limit. So the road is closed to everybody but the users the table names: root,
+# the Postfix owner, and the system user of each account whose mail is enabled
+# (written by the mail data plane). An empty table admits nobody else, and a
+# user missing from it is refused by postdrop itself (issue #500). The table is
+# read by the submitting user's own uid, so it sits in this directory and not
+# under /etc/maran.
+authorized_submit_users = root, $mail_owner, lmdb:/etc/postfix/maran_local_submit_users
 
 # Spam filtering and DKIM signing. An unreachable filter defers the mail rather
 # than letting it through unsigned and unchecked.

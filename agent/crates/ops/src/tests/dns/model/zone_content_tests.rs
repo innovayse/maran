@@ -72,7 +72,7 @@ fn a_zone_needs_a_name_server() {
 
     let zone = ZoneContent::new(base.zone().clone(), base.soa().clone(), vec![], vec![]);
 
-    assert_eq!(zone, Err(ZoneContentFault::NoNameserver));
+    assert!(matches!(zone, Err(ZoneContentFault::NoNameserver)));
 }
 
 #[test]
@@ -84,12 +84,12 @@ fn nine_name_servers_and_a_repeated_one_are_refused() {
     let twice = vec![nameserver("ns1.example.net"), nameserver("ns1.example.net")];
 
     assert_eq!(
-        ZoneContent::new(base.zone().clone(), base.soa().clone(), nine, vec![]),
-        Err(ZoneContentFault::TooManyNameservers { max: 8 })
+        ZoneContent::new(base.zone().clone(), base.soa().clone(), nine, vec![]).err(),
+        Some(ZoneContentFault::TooManyNameservers { max: 8 })
     );
     assert_eq!(
-        ZoneContent::new(base.zone().clone(), base.soa().clone(), twice, vec![]),
-        Err(ZoneContentFault::DuplicateNameserver)
+        ZoneContent::new(base.zone().clone(), base.soa().clone(), twice, vec![]).err(),
+        Some(ZoneContentFault::DuplicateNameserver)
     );
 }
 
@@ -100,8 +100,8 @@ fn more_records_than_the_ceiling_are_refused() {
         .collect();
 
     assert_eq!(
-        build(records),
-        Err(ZoneContentFault::TooManyRecords {
+        build(records).err(),
+        Some(ZoneContentFault::TooManyRecords {
             max: ZoneLimits::MAX_RECORDS
         })
     );
@@ -115,8 +115,9 @@ fn a_name_that_overflows_once_the_zone_is_appended_is_refused() {
         build(vec![
             record("ok", 300, address("192.0.2.1")),
             record(&long, 300, address("192.0.2.1"))
-        ]),
-        Err(ZoneContentFault::RecordNameTooLong { index: 1 })
+        ])
+        .err(),
+        Some(ZoneContentFault::RecordNameTooLong { index: 1 })
     );
 }
 
@@ -125,8 +126,8 @@ fn an_ns_record_at_the_apex_is_refused_and_one_below_it_is_not() {
     let ns = RecordData::Ns(nameserver("ns.example.net"));
 
     assert_eq!(
-        build(vec![record("@", 300, ns.clone())]),
-        Err(ZoneContentFault::ApexNameserverRecord { index: 0 })
+        build(vec![record("@", 300, ns.clone())]).err(),
+        Some(ZoneContentFault::ApexNameserverRecord { index: 0 })
     );
     assert!(build(vec![record("sub", 300, ns)]).is_ok());
 }
@@ -134,8 +135,8 @@ fn an_ns_record_at_the_apex_is_refused_and_one_below_it_is_not() {
 #[test]
 fn a_cname_at_the_apex_is_refused() {
     assert_eq!(
-        build(vec![record("@", 300, cname("other.example.net"))]),
-        Err(ZoneContentFault::CnameAtApex { index: 0 })
+        build(vec![record("@", 300, cname("other.example.net"))]).err(),
+        Some(ZoneContentFault::CnameAtApex { index: 0 })
     );
 }
 
@@ -145,15 +146,17 @@ fn a_cname_beside_other_data_is_refused_in_either_order() {
         build(vec![
             record("www", 300, address("192.0.2.1")),
             record("www", 300, cname("a.example.net")),
-        ]),
-        Err(ZoneContentFault::CnameWithOtherData { index: 1 })
+        ])
+        .err(),
+        Some(ZoneContentFault::CnameWithOtherData { index: 1 })
     );
     assert_eq!(
         build(vec![
             record("www", 300, cname("a.example.net")),
             record("www", 300, txt("hello")),
-        ]),
-        Err(ZoneContentFault::CnameWithOtherData { index: 1 })
+        ])
+        .err(),
+        Some(ZoneContentFault::CnameWithOtherData { index: 1 })
     );
 }
 
@@ -163,8 +166,9 @@ fn two_cnames_at_one_name_are_refused() {
         build(vec![
             record("www", 300, cname("a.example.net")),
             record("www", 300, cname("b.example.net")),
-        ]),
-        Err(ZoneContentFault::CnameWithOtherData { index: 1 })
+        ])
+        .err(),
+        Some(ZoneContentFault::CnameWithOtherData { index: 1 })
     );
 }
 
@@ -174,8 +178,9 @@ fn a_set_with_two_ttls_is_refused() {
         build(vec![
             record("www", 300, address("192.0.2.1")),
             record("www", 600, address("192.0.2.2")),
-        ]),
-        Err(ZoneContentFault::MismatchedTtl { index: 1 })
+        ])
+        .err(),
+        Some(ZoneContentFault::MismatchedTtl { index: 1 })
     );
 }
 
@@ -196,7 +201,8 @@ fn a_repeated_record_is_refused() {
         build(vec![
             record("www", 300, address("192.0.2.1")),
             record("www", 300, address("192.0.2.1")),
-        ]),
-        Err(ZoneContentFault::DuplicateRecord { index: 1 })
+        ])
+        .err(),
+        Some(ZoneContentFault::DuplicateRecord { index: 1 })
     );
 }

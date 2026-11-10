@@ -36,4 +36,43 @@
   <data name="ModuleManifestInvalid">
     <value>Մոդուլի մանիֆեստը խախտում է մոդուլների պայմանագիրը։</value>
   </data>
+  <data name="ModulePackageNotAsAnnounced">
+    <value>Փաթեթը չի համապատասխանում այն ամենին, ինչ կատալոգը հայտարարել էր դրա մասին։</value>
+  </data>
+  <data name="MigrationSectionInvalid">
+    <value>Փաթեթի այս մասը հնարավոր չէ կարդալ, ուստի այն չի կարող ներմուծվել։</value>
+  </data>
+  <data name="MigrationTargetAccountMissing">
+    <value>Ներմուծման համար հաշիվը դեռ գոյություն չունի։ Ներմուծումը դադարեցվել է։</value>
+  </data>
+  <data name="MigrationNameTaken">
+    <value>Այս անունն արդեն օգտագործվում է այս սերվերում։ Հաշվի անունները պահպանվում են այնպես, ինչպես կան, և չեն վերանվանվում։</value>
+  </data>
+  <data name="MigrationDomainTaken">
+    <value>Այս դոմենն արդեն տեղակայված է այս սերվերում։</value>
+  </data>
+  <data name="MigrationPlanLimitExceeded">
+    <value>Փաթեթը պարունակում է ավելին, քան թույլ է տալիս ընտրված պլանը։</value>
+  </data>
+  <data name="MigrationPlanMissing">
+    <value>Ընտրված պլանը գոյություն չունի այս սերվերում։</value>
+  </data>
+  <data name="MigrationPhpVersionMissing">
+    <value>Այս կայքը պահանջում է PHP տարբերակ, որը տեղադրված չէ այս սերվերում։ Նախ տեղադրեք այն։</value>
+  </data>
+  <data name="MigrationCronImportedDisabled">
+    <value>Cron առաջադրանքները ներմուծվում են անջատված։ Միացրեք դրանք տեղափոխումից հետո, երբ այս սերվերը գործի։</value>
+  </data>
+  <data name="MigrationCertificateReissue">
+    <value>Նորից թողարկեք այս վկայականը, երբ անունը ցույց տա այս սերվերը։ Այն չի փոխանցվում։</value>
+  </data>
+  <data name="MigrationCertificateUpload">
+    <value>Նորից վերբեռնեք այս վկայականը։ Դրա բանալին չի լքում հին սերվերը, ուստի այն չի փոխանցվում։</value>
+  </data>
+  <data name="MigrationBackupIdTaken">
+    <value>Նույն նույնացուցիչով պահուստային պատճենն արդեն գոյություն ունի այս սերվերում։</value>
+  </data>
+  <data name="MigrationRollbackRefused">
+    <value>Հաշիվը չի ստեղծվել այս ներմուծմամբ, ուստի այն չի ջնջվել։</value>
+  </data>
 </root>

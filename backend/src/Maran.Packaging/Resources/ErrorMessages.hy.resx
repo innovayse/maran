@@ -84,6 +84,12 @@
   <data name="IpmSignatureMissing">
     <value>Փաթեթը ստորագրված չէ։</value>
   </data>
+  <data name="IpmSpaDocumentForbidden">
+    <value>Փաթեթի ինտերֆեյսի պանակում վեբ էջ կա։ Էջը կառուցում է հենց վահանակը, ուստի պանակում կարող են լինել միայն սկրիպտներ, ոճեր, պատկերներ և թարգմանություններ։</value>
+  </data>
+  <data name="IpmSpaEntryNotClassicScript">
+    <value>Փաթեթի ինտերֆեյսի մուտքը պետք է լինի սովորական սկրիպտ (.js ֆայլ)՝ ինտերֆեյսի պանակում անմիջապես։</value>
+  </data>
   <data name="IpmTooManyEntries">
     <value>Փաթեթում ավելի շատ գրառումներ կան, քան վահանակն ընդունում է։</value>
   </data>

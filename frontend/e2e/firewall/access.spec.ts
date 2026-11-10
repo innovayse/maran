@@ -1,10 +1,13 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubQuietOwnAccount } from '../fixtures/stub-quiet-own-account'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubFirewall, stubFirewallRefusal } from '../fixtures/stub-firewall-routes'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 const LICENSED: PanelModule[] = [
   { name: 'firewall', displayName: 'Firewall', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -20,6 +23,9 @@ const CUSTOMER: AuthenticatedUser = {
   role: 'customer',
   accountId: '22222222-2222-2222-2222-222222222222',
 }
+
+/** Every firewall endpoint, which is what the stubbed refusals below answer. */
+const FIREWALL_URL = /\/api\/v1\/firewall\//
 
 /**
  * The panel's own refusal, in the shape `FirewallRulesController` produces it: administrators only,
@@ -37,6 +43,8 @@ const openAsCustomer = async (page: Page, status: number): Promise<void> => {
   await stubSignedIn(page, CUSTOMER)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
+  await stubQuietOwnAccount(page, CUSTOMER.accountId ?? '')
   await stubFirewallRefusal(page, status, REFUSAL_DETAIL)
   await page.goto('/firewall')
 }
@@ -45,7 +53,8 @@ const openAsCustomer = async (page: Page, status: number): Promise<void> => {
 // screen before the firewall page mounts. The guard is advice, not the boundary — the panel still
 // refuses the request (403, a fact about the whole machine) — so the stubbed refusal stays in place
 // and these cases assert what a customer now sees instead of an administrator's screen around it.
-test('a customer reaching the firewall URL lands on the not-available screen', async ({ page }) => {
+test('a customer reaching the firewall URL lands on the not-available screen', async ({ page, guard }) => {
+  guard.allow(403, FIREWALL_URL)
   await openAsCustomer(page, 403)
 
   await expect(page).toHaveURL(/\/not-available$/)
@@ -58,7 +67,9 @@ test('a customer reaching the firewall URL lands on the not-available screen', a
 // controls: no table, and none of the three forms.
 test('a customer sent away from the firewall screen is offered no rules, no bans and no exemptions', async ({
   page,
+  guard,
 }) => {
+  guard.allow(403, FIREWALL_URL)
   await openAsCustomer(page, 403)
 
   await expect(page.getByRole('heading', { level: 1, name: 'Page not available' })).toBeVisible()
@@ -73,11 +84,14 @@ test('a customer sent away from the firewall screen is offered no rules, no bans
 // says is what the operator reads.
 test('a panel failure on the firewall screen is reported in the panel own words', async ({
   page,
+  guard,
 }) => {
+  guard.allow(500, FIREWALL_URL)
   const backendDetail = 'The host firewall is not answering. Try again in a moment.'
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubFirewallRefusal(page, 500, backendDetail)
 
   await page.goto('/firewall')
@@ -92,6 +106,7 @@ test('an administrator reaching the same URL gets the firewall screen', async ({
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubFirewall(page, { rules: [], bans: [], whitelist: [] })
 
   await page.goto('/firewall')

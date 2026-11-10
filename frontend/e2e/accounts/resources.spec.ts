@@ -1,14 +1,18 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubAccountResources, stubMyAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubPlans, THREE_PLANS } from '../fixtures/stub-plans-route'
 import { stubInvitation } from '../fixtures/stub-invitation-routes'
+import { stubMembershipOffers } from '../fixtures/stub-membership-offers-routes'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import type { AccountDetail, MyAccount } from '../../src/types/account'
 import type { AccountResourceSummary } from '../../src/types/accountResourceSummary'
 import type { AuthenticatedUser } from '../../src/types/auth'
+import type { Page } from '@playwright/test'
 
 // Issue #223: an account's page shows what the account holds against its plan, each resource a link
 // to its module's list narrowed to the account. Every state is its own case with no number in it: a count
@@ -75,6 +79,7 @@ const stubDetail = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
+  await stubShellReads(page)
   await stubInvitation(page, ACCOUNT.id, 'pending')
   await page.route(`**/api/v1/accounts/${ACCOUNT.id}`, async (route) => {
     if (route.request().method() !== 'GET') {
@@ -180,6 +185,9 @@ test('a customer sees their own summary on their account page', async ({ page })
   await stubSignedIn(page, CUSTOMER)
   await stubHealthy(page)
   await stubModules(page, [])
+  await stubShellReads(page)
+  // The page reads the membership offers addressed to the caller.
+  await stubMembershipOffers(page, [])
   await stubMyAccount(page, OWN_ACCOUNT)
   await stubMyAccountResources(page, { ...SUMMARY, accountId: OWN_ACCOUNT.id })
 
@@ -187,4 +195,78 @@ test('a customer sees their own summary on their account page', async ({ page })
 
   await expect(page.getByTestId('resource-sites')).toContainText('2 of 5')
   await expect(page.getByTestId('resource-cronEntries')).toContainText('Unavailable')
+})
+
+/**
+ * Stubs the account page with a summary that follows the plan: before the move the account is on
+ * limits of 5 sites, after an accepted move on limits of 25. A refused move changes nothing.
+ * @param page The Playwright page.
+ * @param refuse Whether the panel refuses the plan change.
+ * @returns Resolves once the routes are installed.
+ */
+const stubPlanChange = async (page: Page, refuse: boolean): Promise<void> => {
+  let moved = false
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
+  await stubShellReads(page)
+  await stubInvitation(page, ACCOUNT.id, 'pending')
+  await stubPlans(page, THREE_PLANS)
+  await page.route(`**/api/v1/accounts/${ACCOUNT.id}`, async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ACCOUNT) })
+  })
+  await page.route(`**/api/v1/accounts/${ACCOUNT.id}/plan`, async (route) => {
+    if (refuse) {
+      await route.fulfill({
+        status: 409,
+        contentType: 'application/problem+json',
+        body: JSON.stringify({ code: 'AccountPlanQuotaBelowUsage', title: 'Refused.', detail: 'Refused.' }),
+      })
+      return
+    }
+    moved = true
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ACCOUNT) })
+  })
+  await page.route(`**/api/v1/accounts/${ACCOUNT.id}/resource-summary`, async (route) => {
+    const maximum = moved ? 25 : 5
+    const summary: AccountResourceSummary = {
+      accountId: ACCOUNT.id,
+      resources: [{ kind: 'sites', count: { state: 'counted', used: 0 }, limit: { kind: 'limited', maximum } }],
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(summary) })
+  })
+}
+
+/**
+ * Opens the page, then chooses the second of the three plans in the Change plan dialog and sends it.
+ * @param page The Playwright page.
+ * @returns Resolves once the dialog's button has been pressed.
+ */
+const changePlanToOther = async (page: Page): Promise<void> => {
+  await page.goto(`/accounts/${ACCOUNT.id}`)
+  await expect(page.getByTestId('resource-sites')).toContainText('0 of 5')
+  await page.getByRole('button', { name: 'Change plan' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Change the plan of acme' })
+  await dialog.getByRole('combobox', { name: 'Plan', exact: true }).click()
+  await page.getByRole('option', { name: THREE_PLANS[1].displayName, exact: false }).click()
+  await dialog.getByRole('button', { name: 'Change plan' }).click()
+}
+
+test('after Change plan the Resources card shows the new plan limits without reopening the page (#494)', async ({ page }) => {
+  await stubPlanChange(page, false)
+
+  await changePlanToOther(page)
+
+  await expect(page.getByTestId('resource-sites')).toContainText('0 of 25')
+})
+
+test('a refused Change plan leaves the Resources card on the old limits (#494 control)', async ({ page, guard }) => {
+  // The refusal is the subject: the plan change answers 409.
+  guard.allow(409, new RegExp(`/api/v1/accounts/${ACCOUNT.id}/plan$`))
+  await stubPlanChange(page, true)
+
+  await changePlanToOther(page)
+
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await expect(page.getByTestId('resource-sites')).toContainText('0 of 5')
 })

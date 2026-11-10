@@ -107,6 +107,7 @@ public sealed class MailAuthorizationTests : IAsyncLifetime
             { "POST", "/api/v1/mail-server/disable" },
             { "PUT", "/api/v1/mail-server/settings" },
             { "GET", "/api/v1/mail-queue" },
+            { "GET", "/api/v1/mail-queue/count" },
             { "DELETE", "/api/v1/mail-queue/{queue}" },
             { "POST", "/api/v1/mail-queue/flush" },
         };
@@ -382,6 +383,24 @@ public sealed class MailAuthorizationTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         Assert.Equal("mail.example.com", body.RootElement.GetProperty("settings").GetProperty("hostname").GetString());
+    }
+
+    /// <summary>An administrator reading the mail queue count is answered with the figure.</summary>
+    [Fact]
+    public async Task An_administrator_reading_the_mail_queue_count_is_answered_with_the_figure()
+    {
+        // The inverse control for the role gate on the badge's route, read as a body: the figure is a
+        // number the badge draws, and the simulated host's empty queue is a loaded zero, not a refusal.
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        await SeedAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+
+        var response = await client.GetAsync("/api/v1/mail-queue/count");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(0, body.RootElement.GetProperty("count").GetInt32());
     }
 
     /// <summary>Every resource scoped customer route is covered by the idor fixture.</summary>

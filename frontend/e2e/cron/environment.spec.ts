@@ -1,13 +1,15 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubCronOptions } from '../fixtures/stub-cron-options-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubCronEntries, stubCronEnvironment } from '../fixtures/stub-cron-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { CronEnvironmentVariable } from '../../src/types/cronEnvironmentVariable'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 const LICENSED: PanelModule[] = [
   { name: 'cron', displayName: 'Scheduled tasks', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -30,6 +32,7 @@ const PATH_VARIABLE: CronEnvironmentVariable = { name: 'PATH', value: '/usr/loca
 const openCronPage = async (page: Page, variables: CronEnvironmentVariable[]): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubCronOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
@@ -104,4 +107,53 @@ test('the editor states that saving replaces the whole set', async ({ page }) =>
   await openCronPage(page, [PATH_VARIABLE])
 
   await expect(page.getByText('Saving replaces the whole set', { exact: false })).toBeVisible()
+})
+
+// Issue #501: every sibling form confirms a write; a saved environment (and an emptied one) said
+// nothing. The refused-write control proves the toast follows the panel's acceptance and is not
+// shown whenever the button is pressed.
+test('saving the environment says it was saved (#501)', async ({ page }) => {
+  await openCronPage(page, [])
+
+  await page.getByRole('button', { name: 'Add a variable' }).click()
+  await page.getByRole('textbox', { name: 'Name' }).fill('PWTEST')
+  await page.getByRole('textbox', { name: 'Value' }).fill('1')
+  await page.getByRole('button', { name: 'Save environment' }).click()
+
+  await expect(page.getByText('The environment was saved.')).toBeVisible()
+})
+
+test('saving an emptied environment says it was saved too (#501)', async ({ page }) => {
+  await openCronPage(page, [PATH_VARIABLE])
+
+  await page.getByRole('button', { name: 'Remove' }).click()
+  await page.getByRole('button', { name: 'Save environment' }).click()
+
+  await expect(page.getByText('The environment was saved.')).toBeVisible()
+})
+
+test('a refused environment write shows the panel sentence and no success message (#501 control)', async ({
+  page,
+  guard,
+}) => {
+  guard.allow(400, /\/api\/v1\/cron-environment(\?.*)?$/)
+  await openCronPage(page, [])
+  await page.route('**/api/v1/cron-environment**', async (route) => {
+    if (route.request().method() !== 'PUT') {
+      await route.fallback()
+      return
+    }
+    await route.fulfill({
+      status: 400,
+      contentType: 'application/problem+json',
+      body: JSON.stringify({ code: 'CronEnvironmentNameInvalid', title: 'Refused name.', detail: 'Refused name.' }),
+    })
+  })
+
+  await page.getByRole('button', { name: 'Add a variable' }).click()
+  await page.getByRole('textbox', { name: 'Name' }).fill('bad name')
+  await page.getByRole('button', { name: 'Save environment' }).click()
+
+  await expect(page.getByText('Refused name.')).toBeVisible()
+  await expect(page.getByText('The environment was saved.')).toHaveCount(0)
 })

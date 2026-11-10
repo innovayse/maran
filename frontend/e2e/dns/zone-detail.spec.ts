@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { CUSTOMER, EXAMPLE_ZONE, openDnsScreen } from '../fixtures/open-dns-screen'
 
 // One zone (issue #178): the overview, and the not-found
@@ -15,7 +15,8 @@ test('the overview names the zone, its owner, its record count and its serial', 
   await expect(page.getByText('Last changed')).toBeVisible()
 })
 
-test('a zone that does not exist for the caller is the not-found state, not an alert', async ({ page }) => {
+test('a zone that does not exist for the caller is the not-found state, not an alert', async ({ page, guard }) => {
+  guard.allow(404, /\/api\/v1\/dns-zones\/11111111-1111-1111-1111-111111111111$/)
   await openDnsScreen(page, { zones: [] }, CUSTOMER)
 
   // Another account's zone and a zone that never existed look the same: the panel answers 404.
@@ -38,7 +39,8 @@ test('an address that cannot name a zone is not found without a request for it',
   ).toBe(false)
 })
 
-test('a failed read shows the panel\'s reason', async ({ page }) => {
+test('a failed read shows the panel\'s reason', async ({ page, guard }) => {
+  guard.allow(503, /\/api\/v1\/dns-zones\/[^/]+$/)
   await openDnsScreen(page, {
     zones: [EXAMPLE_ZONE],
     refusals: { 'GET dns-zones/:id': { detail: 'The DNS module is switched off on this host.', status: 503 } },

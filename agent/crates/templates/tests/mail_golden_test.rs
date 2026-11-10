@@ -35,6 +35,7 @@ fn main_config() -> PostfixMainConfig {
         virtual_mailboxes_path: "/etc/maran/mail/virtual_mailboxes".to_owned(),
         virtual_aliases_path: "/etc/maran/mail/virtual_aliases".to_owned(),
         sender_login_maps_path: "/etc/maran/mail/sender_login_maps".to_owned(),
+        local_submit_users_path: "/etc/postfix/maran_local_submit_users".to_owned(),
         lmtp_socket: "/run/dovecot/maran-lmtp".to_owned(),
         sasl_socket: "/run/dovecot/maran-auth".to_owned(),
         milter_socket: "/run/rspamd/maran-milter.sock".to_owned(),
@@ -83,8 +84,121 @@ fn postfix_main_config_carries_the_map_type_it_was_given_and_never_hash() {
     config.map_type = "sentinelmap".to_owned();
     let rendered = config.render_config().unwrap();
 
-    assert_eq!(rendered.matches("sentinelmap:").count(), 4);
+    // Five tables: the three virtual maps, the sender-login map and the local-submit users.
+    assert_eq!(rendered.matches("sentinelmap:").count(), 5);
     assert!(!rendered.contains("hash:"));
+}
+
+/// The value of the last non-comment `name = value` line, the way Postfix reads it.
+fn parameter(rendered: &str, name: &str) -> Option<String> {
+    rendered
+        .lines()
+        .filter(|line| !line.starts_with('#'))
+        .filter_map(|line| line.split_once('='))
+        .filter(|(key, _)| key.trim() == name)
+        .map(|(_, value)| value.trim().to_owned())
+        .next_back()
+}
+
+#[test]
+fn port_25_trusts_no_network_and_relays_for_nobody() {
+    // Issue #458: loopback in mynetworks let any customer process relay to any
+    // recipient with any sender, skipping the login, the sender-login check and
+    // the send limit. Port 25 accepts mail for a served domain and nothing else.
+    let rendered = main_config().render_config().unwrap();
+
+    assert_eq!(parameter(&rendered, "mynetworks").as_deref(), Some(""));
+    assert!(
+        !rendered
+            .lines()
+            .filter(|line| !line.starts_with('#'))
+            .any(|line| line.contains("permit_"))
+    );
+    assert_eq!(
+        parameter(&rendered, "smtpd_relay_restrictions").as_deref(),
+        Some("reject_unauth_destination")
+    );
+    assert_eq!(
+        parameter(&rendered, "smtpd_recipient_restrictions").as_deref(),
+        Some("reject_non_fqdn_recipient, reject_unauth_destination")
+    );
+    assert_eq!(
+        parameter(&rendered, "smtpd_sasl_auth_enable").as_deref(),
+        Some("no")
+    );
+}
+
+#[test]
+fn local_submission_is_closed_to_every_user_but_the_ones_a_table_names() {
+    // Issue #500: sendmail and postdrop write into the maildrop queue and pickup
+    // delivers with no smtpd restriction, so any customer script could send to
+    // anyone with any sender, past the login, the sender-login check and the
+    // send limit. Postfix's own gate for that road is authorized_submit_users,
+    // whose default is everybody.
+    let rendered = main_config().render_config().unwrap();
+    let users = parameter(&rendered, "authorized_submit_users").unwrap();
+
+    assert_eq!(
+        users,
+        "root, $mail_owner, lmdb:/etc/postfix/maran_local_submit_users"
+    );
+    assert!(!users.contains("anyone"));
+    // The table is read by the customer's uid in postdrop: outside /etc/maran.
+    assert!(!users.contains("/etc/maran"));
+}
+
+#[test]
+fn the_local_submit_table_follows_the_path_it_is_given() {
+    // The accepting control of the test above: the line is built from the field,
+    // not a literal, so a family with another directory gets its own path.
+    let mut config = main_config();
+    config.local_submit_users_path = "/usr/local/etc/postfix/maran_local_submit_users".to_owned();
+    config.map_type = "hash".to_owned();
+    let rendered = config.render_config().unwrap();
+
+    assert_eq!(
+        parameter(&rendered, "authorized_submit_users").as_deref(),
+        Some("root, $mail_owner, hash:/usr/local/etc/postfix/maran_local_submit_users")
+    );
+}
+
+#[test]
+fn the_port_25_service_overrides_nothing_so_it_keeps_the_strict_defaults() {
+    // The accepting side of the control below: `smtp inet` must stay a bare line,
+    // because an `-o` under it could re-open what main.cf closed.
+    let rendered = PostfixMasterConfig {}.render_config().unwrap();
+    let mut lines = rendered
+        .lines()
+        .skip_while(|line| !line.starts_with("smtp       inet"));
+    assert!(lines.next().is_some());
+    assert!(!lines.next().is_some_and(|line| line.starts_with(' ')));
+}
+
+#[test]
+fn the_submission_services_take_a_login_and_bind_the_sender_to_it() {
+    // Inverse control of the refusals above: the one way to relay is still open,
+    // behind SASL and the sender-login check, on both submission services.
+    let rendered = PostfixMasterConfig {}.render_config().unwrap();
+    for service in ["submission inet", "smtps      inet"] {
+        let block: Vec<&str> = rendered
+            .lines()
+            .skip_while(|line| !line.starts_with(service))
+            .skip(1)
+            .take_while(|line| line.starts_with(' '))
+            .collect();
+        for required in [
+            "-o smtpd_sasl_auth_enable=yes",
+            "-o smtpd_sender_restrictions=reject_sender_login_mismatch",
+            "-o smtpd_relay_restrictions=permit_sasl_authenticated,reject",
+            "-o smtpd_recipient_restrictions=reject_non_fqdn_recipient,permit_sasl_authenticated,reject",
+        ] {
+            assert!(
+                block.iter().any(|line| line.trim() == required),
+                "{service} lacks {required}"
+            );
+        }
+        assert!(!block.iter().any(|line| line.contains("permit_mynetworks")));
+    }
 }
 
 #[test]

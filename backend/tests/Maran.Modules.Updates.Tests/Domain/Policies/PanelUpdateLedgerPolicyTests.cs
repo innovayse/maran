@@ -23,6 +23,21 @@ public sealed class PanelUpdateLedgerPolicyTests
         Assert.False(PanelUpdateLedgerPolicy.IsInProgress(new PanelUpdateSignals(PanelUpdateLedgerPolicy.MarkerGrace, false)));
     }
 
+    /// <summary>A check marker younger than the grace period is a check in flight (issue #516).</summary>
+    [Fact]
+    public void A_young_check_marker_is_a_check_in_flight()
+    {
+        Assert.True(PanelUpdateLedgerPolicy.IsCheckInProgress(TimeSpan.FromMinutes(1)));
+    }
+
+    /// <summary>No marker, or a check marker past its grace period, is not a check in flight: the button is offered again.</summary>
+    [Fact]
+    public void No_marker_or_a_stale_check_marker_is_not_a_check_in_flight()
+    {
+        Assert.False(PanelUpdateLedgerPolicy.IsCheckInProgress(null));
+        Assert.False(PanelUpdateLedgerPolicy.IsCheckInProgress(PanelUpdateLedgerPolicy.MarkerGrace));
+    }
+
     /// <summary>With no ledger there is nothing to reap, whatever the other signals say.</summary>
     [Fact]
     public void With_no_ledger_there_is_nothing_to_reap()

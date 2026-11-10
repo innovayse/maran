@@ -11,8 +11,14 @@
 use maran_agent_core::utils::call_class::CallClass;
 use maran_distro::{DistroFamily, adapter_for};
 
-use super::ProcessSiteHost;
+use std::os::unix::fs::PermissionsExt;
+
+use super::{AUTH_DIRECTORY_MODE, AUTH_FILE_MODE, ProcessSiteHost};
 use crate::safe_write::ConfigHost;
+use crate::sites::model::auth_file_placement::AuthFilePlacement;
+
+/// The bits the agent's unit (`RestrictSUIDSGID=true`) makes the kernel refuse in a `chmod`.
+const SPECIAL_BITS: u32 = 0o7000;
 
 /// The account name no host has, passed to `id` so it exits non-zero.
 const ABSENT_ACCOUNT: &str = "maran-no-such-account-for-a-test";
@@ -58,4 +64,81 @@ fn a_program_that_started_and_succeeded_returns_its_output() {
 
     assert_eq!(outcome.status, 0);
     assert_eq!(outcome.stdout.trim(), "0");
+}
+
+/// The name of the group the test process itself belongs to, which it may hand a directory to
+/// without any privilege.
+fn own_group_name(host: &ProcessSiteHost) -> String {
+    let id = adapter_for(DistroFamily::Debian).id_binary();
+    let outcome = host.run(&id, &["-gn"], CallClass::Query).unwrap();
+    assert_eq!(outcome.status, 0, "`id -gn` names the process's own group");
+    outcome.stdout.trim().to_owned()
+}
+
+/// The credential directory is given a mode the agent's sandbox lets it set (issue #498).
+///
+/// `RestrictSUIDSGID=true` makes the kernel answer EPERM to any `chmod` that carries a setuid,
+/// setgid or sticky bit, and the directory used to be `2750`: every password-protected site on
+/// a real host answered 500. The constants are the contract; the directory the preparation
+/// makes is what the host is left with, so both are read.
+#[test]
+fn the_credential_directory_is_made_without_a_special_bit() {
+    let host = ProcessSiteHost::new();
+    let distro = adapter_for(DistroFamily::Debian);
+    let getent = distro.getent_binary();
+    let group = own_group_name(&host);
+    let placement = AuthFilePlacement {
+        group: &group,
+        getent: &getent,
+    };
+    let parent = tempfile::tempdir().unwrap();
+    let directory = parent.path().join("auth");
+
+    host.prepare_auth_directory(&directory, &placement).unwrap();
+
+    assert_eq!(AUTH_DIRECTORY_MODE & SPECIAL_BITS, 0);
+    let mode = std::fs::metadata(&directory).unwrap().permissions().mode();
+    assert_eq!(mode & 0o7777, AUTH_DIRECTORY_MODE);
+}
+
+/// The inverse control: a directory an earlier agent or an operator left with a setgid bit is put
+/// right, and a mode the sandbox does accept is left as it is when the preparation is repeated.
+#[test]
+fn preparing_the_credential_directory_again_converges_on_the_same_mode() {
+    let host = ProcessSiteHost::new();
+    let distro = adapter_for(DistroFamily::Debian);
+    let getent = distro.getent_binary();
+    let group = own_group_name(&host);
+    let placement = AuthFilePlacement {
+        group: &group,
+        getent: &getent,
+    };
+    let parent = tempfile::tempdir().unwrap();
+    let directory = parent.path().join("auth");
+    std::fs::create_dir(&directory).unwrap();
+    std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o2755)).unwrap();
+
+    host.prepare_auth_directory(&directory, &placement).unwrap();
+    host.prepare_auth_directory(&directory, &placement).unwrap();
+
+    let mode = std::fs::metadata(&directory).unwrap().permissions().mode();
+    assert_eq!(mode & 0o7777, AUTH_DIRECTORY_MODE);
+}
+
+/// The file is readable without owning the directory's group, because nothing hands it the group
+/// any more; the directory's `0750` is what keeps everyone else out.
+#[test]
+fn the_credential_file_is_readable_by_the_web_server_through_the_directory_alone() {
+    assert_eq!(AUTH_FILE_MODE & SPECIAL_BITS, 0);
+    assert_ne!(
+        AUTH_FILE_MODE & 0o004,
+        0,
+        "the web server's workers read it as other"
+    );
+    assert_eq!(AUTH_FILE_MODE & 0o022, 0, "only root writes it");
+    assert_eq!(
+        AUTH_DIRECTORY_MODE & 0o007,
+        0,
+        "no one outside the group enters the directory"
+    );
 }

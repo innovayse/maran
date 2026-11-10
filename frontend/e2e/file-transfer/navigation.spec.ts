@@ -1,15 +1,19 @@
-import { expect, test, type Page } from '@playwright/test'
-import { stubAccounts } from '../fixtures/stub-accounts-route'
+import { expect, test } from '../fixtures/guarded-test'
+import { stubMyAccountResources } from '../fixtures/stub-account-resources-route'
+import { stubAccountNames, stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubFirewall } from '../fixtures/stub-firewall-routes'
 import { runningFtpsStatus, stubFtpUsers, stubFtpsServer } from '../fixtures/stub-ftp-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
 import { stubSftpUsers } from '../fixtures/stub-sftp-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account, MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 // The "Files and access" sidebar section (#195, regrouped by #311) holds one page per module (#196):
 // it lands on the SFTP logins, and with no cron module licensed its submenu holds exactly the SFTP
@@ -68,8 +72,12 @@ const signIn = async (page: Page, user?: AuthenticatedUser): Promise<void> => {
   await stubSignedIn(page, user)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
+  // Most tests open the landing page and leave it by the sidebar, so its own reads are answered too.
+  await stubLandingReads(page, user?.role === 'customer' ? 'customer' : 'administrator')
   await stubAccounts(page, [ALICE])
   await stubMyAccount(page, OWN_ACCOUNT)
+  await stubMyAccountResources(page, { accountId: OWN_ACCOUNT.id, resources: [] })
   await stubFirewall(page, { rules: [], bans: [], whitelist: [] })
   await stubFtpsServer(page, runningFtpsStatus)
   await stubSftpUsers(page, [])
@@ -163,6 +171,8 @@ for (const oldPath of ['/file-transfer', '/sftp-users']) {
 
 test('the old address keeps an account filter across the forward', async ({ page }) => {
   await signIn(page)
+  // The filtered list names the account it is narrowed to by reading it.
+  await stubAccountNames(page, [ALICE])
 
   await page.goto(`/file-transfer?account=${ALICE.id}`)
 

@@ -116,6 +116,26 @@ pub trait SftpHost: Send + Sync {
     /// its mode cannot be set.
     fn create_directory(&self, path: &Path, mode: u32) -> Result<(), SftpError>;
 
+    /// Creates the jail's mount point and, when the account's home is NOT
+    /// mounted over it, gives it `mode` (issue #483).
+    ///
+    /// Kept apart from [`Self::create_directory`] because the two differ in the
+    /// one way that matters: a `chmod` by path follows a live bind mount onto
+    /// its source, so applying the mount point's mode on a second login rewrote
+    /// the account's real home from `0750` to `0755`. This method sets a mode
+    /// only on a directory that is not the home.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SftpError::JailFailed`] when the directory cannot be created,
+    /// the home cannot be inspected, or the mode cannot be set.
+    fn ensure_mount_point(
+        &self,
+        mount_point: &Path,
+        home: &Path,
+        mode: u32,
+    ) -> Result<(), SftpError>;
+
     /// Writes `contents` to `target` through the config-write protocol:
     /// temporary file beside the target, `fsync`, atomic rename, `validator`,
     /// `reload`, and a restoration of the previous content if either refuses

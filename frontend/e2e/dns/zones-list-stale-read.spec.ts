@@ -1,6 +1,7 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { holdRoute } from '../fixtures/hold-route'
 import { EXAMPLE_ZONE, SHOP_ZONE, openDnsScreen } from '../fixtures/open-dns-screen'
+import type { Page } from '@playwright/test'
 
 // Every server-paged list store assigns its rows through the one latest-read-wins guard
 // (composables/useLatestRead.ts), so a slow older read cannot overwrite the rows of a newer one

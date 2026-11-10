@@ -79,4 +79,37 @@
   <data name="LicenceAdviceFingerprintMismatch" xml:space="preserve">
     <value>The installed licence was issued for a different server than this one. No modules included with the panel are affected. Use your licence's self-service transfer to move it to this server, or contact support if you believe this is wrong.</value>
   </data>
+  <data name="LicenceRefusalNoVerificationKey">
+    <value>This panel has no licence key</value>
+  </data>
+  <data name="LicenceAdviceNoVerificationKey" xml:space="preserve">
+    <value>This build of the panel carries no licence verification key, so no licence can be checked and none is accepted. No modules included with the panel are affected. Install a release build that carries the licence key.</value>
+  </data>
+  <data name="LicenceLeaseMissing" xml:space="preserve">
+    <value>No lease</value>
+  </data>
+  <data name="LicenceLeaseRefused" xml:space="preserve">
+    <value>Lease not trusted</value>
+  </data>
+  <data name="LicenceLeaseFresh" xml:space="preserve">
+    <value>Lease current</value>
+  </data>
+  <data name="LicenceLeaseRenewalOverdue" xml:space="preserve">
+    <value>Lease renewal overdue</value>
+  </data>
+  <data name="LicenceLeaseExpired" xml:space="preserve">
+    <value>Lease expired</value>
+  </data>
+  <data name="LicenceLeaseFutureDated" xml:space="preserve">
+    <value>Lease dated in the future</value>
+  </data>
+  <data name="LicenceLeaseWrongLicence" xml:space="preserve">
+    <value>Lease for another licence</value>
+  </data>
+  <data name="LicenceLeaseWrongMachine" xml:space="preserve">
+    <value>Lease for another server</value>
+  </data>
+  <data name="LicenceLeaseNotRequired" xml:space="preserve">
+    <value>No lease needed (offline licence)</value>
+  </data>
 </root>

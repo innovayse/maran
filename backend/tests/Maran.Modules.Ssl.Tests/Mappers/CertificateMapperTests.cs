@@ -32,4 +32,15 @@ public sealed class CertificateMapperTests
         Assert.Equal("The authority could not be reached.", dto.LastRenewalError);
         Assert.Equal(1, dto.ConsecutiveRenewalFailures);
     }
+
+    /// <summary>A wildcard certificate is reported as one and a plain one is not.</summary>
+    [Fact]
+    public void A_wildcard_certificate_is_reported_as_one_and_a_plain_one_is_not()
+    {
+        var wildcard = SslTestContext.Certificate(Guid.NewGuid(), "a.example.com", Now, isWildcard: true);
+        var plain = SslTestContext.Certificate(Guid.NewGuid(), "b.example.com", Now);
+
+        Assert.True(CertificateMapper.From(wildcard, null).Wildcard);
+        Assert.False(CertificateMapper.From(plain, null).Wildcard);
+    }
 }

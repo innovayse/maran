@@ -159,8 +159,9 @@ Written after the code of the loader, from what it does. Spike S1 (a real dump l
   REFUSED (`StoredProgram`), as is any `DEFINER` clause: each would be created owned by a user
   that no longer exists. Nothing is imported "without" them yet; whether that is wanted waits for
   the owner and for spike S1.
-- **What the scan does not do.** It does not look for `other_db`.`table` inside ordinary
-  statements; the temporary user's privileges do. It does not bound its own time (it reads a local
+- **What the scan does not do.** Since #457 it does look for `other_db`.`table` in every
+  statement (see the amendment at the end); the temporary user's privileges are still the
+  boundary. It does not bound its own time (it reads a local
   file). A user left behind by an agent killed between creating and dropping it has the prefix
   `maran_imp_` and no reaper finds it yet.
 - **The restore routes an imported artifact through it.** The sidecar's `imported` flag (the agent's
@@ -424,3 +425,218 @@ amended in the same change).
   restricted loader keys on it. `ImportBackup` itself loads no SQL.
 - **Open for a reviewer.** `ExportBackup` is in the mutating audit list as D12 says; if the owner approves
   the "disclosing" class of rules/rust.md draft 58b, it moves to that list.
+
+## Amendment: the temporary user's grant was a wildcard (#457)
+
+- **What was wrong.** `create_import_user` wrote `GRANT ALL PRIVILEGES ON \`<database>\`.*` with the
+  database name unescaped. The database name of a database-level `GRANT` is a pattern: `_` matches any
+  character and `%` any sequence. Names are `<account>_<suffix>` and an account name may hold `_`, so the
+  temporary user of an import for `acct_my_db` also held every privilege on `acctxmy_db`, another
+  tenant's database. The pre-scan did not look at qualified names, relying on that grant, so a hostile
+  dump (`INSERT INTO acct_my_db.t SELECT * FROM acctxmy_db.users;`, `DROP TABLE acctxmy_db.users;`) was
+  read, written and destroyed across tenants. The claim of section 2 ("a hostile dump cannot touch
+  another database") was false for such names.
+- **What changed.** (1) The grant name is written by `grant_pattern_for`, which now lives in `agent-core`
+  (`validation/db/grant_pattern.rs`) because `ops::db` and `ops::backup` both need it and areas never
+  import each other; every `GRANT` and `REVOKE` in `ops::db` (database creation, privilege changes, the
+  drop-database revocation, grant repair) already used it and now imports it from there, so there is one
+  writer of a grant pattern. It escapes `%` as well as `_`; no database name holds `%` today. (2) The
+  pre-scan refuses, in every statement and at any position, a name qualified by a database other than
+  the one loaded (`OtherDatabase`); numbers and `@variables` are not names, and the table of a
+  three-part name is not judged as a database.
+- **Why it is safe now.** The server confines the temporary user to the one database, and a dump that
+  names another database is refused before the server sees it: two independent controls. The real-host
+  case `the_temporary_import_user_cannot_reach_a_database_its_name_matches_as_a_pattern` plants a
+  database whose name the unescaped pattern matches, proves the user still writes its own database
+  (inverse control) and that read, write and drop on the neighbour are refused.
+- **Not verified.** The real-host case runs on the polygon only; a statement the scan reads as inert
+  (inside a literal or comment) is not a qualifier by design.
+
+## Amendment: the backend half as built (2026-11-09)
+
+Written by the same agent session that wrote the code, so it closes nothing. Where the code differs from a
+statement above, this section is the current one. **Nothing was built or run**; every statement is from reading
+the files, and the lead's gate result belongs here.
+
+**The module is `ServerMigration`, not `Migration`** (folder, project, namespace, schema `servermigration`,
+manifest id `servermigration`). The old name shadowed EF Core's `Migration` base class in every file under
+`Maran.Modules.*`. The schema was renamed inside the never-shipped initial migration, so no data moves.
+
+### What was built
+
+1. **Agent client** (`Maran.Agent.Client`): `ExportBackupAsync` (a typed event stream ending in exactly one
+   `AgentBackupExportDone` or `AgentBackupExportFailed`; a stream that ends without one is a failure) and
+   `ImportBackupAsync` (a refusal carries the agent's code and a `BackupImportRefusal` reason). The signing
+   key is revealed in one place, `BackupTransferMapper`. Both are passed straight through the resilient
+   decorator (no retry of a started stream).
+2. **Per-module sections**: Accounts, Sites, Databases, Sftp, Ftp and Cron each implement
+   `IAccountMigrationExporter` and `IAccountMigrationImporter` over a payload record of named fields. Nothing
+   a package carries is a password, hash, token or private key (see "What leaves", section 6): the exporters
+   read fields by name, and the importers create through each module's own commands.
+3. **The job-caller primitive** (`Maran.Host/Security`): `JobCallerAccessor` (an ambient scope object, the
+   Demo seed accessor's design), `JobAwareCurrentUser` and `JobCallerScopes`. The administrator is rebuilt
+   from the user row on every `BeginAsync` (`Identity/Services/AdministratorCallerSource`: role `Admin` and
+   `MayAuthenticate`), so a demoted or disabled initiator gets no scope. Messages carry the import id only.
+4. **The restricted-loader path**: the import stages through the agent (`ImportBackup` marks the artifact
+   imported), the Backups module records it as a `BackupKind.Migration` row under the SOURCE backup id after
+   the account exists, and `MigrationArtifactService.RestoreImportedAsync` runs the ordinary restore with the
+   databases the importers created as the allow-list. The panel sends nothing that switches the restricted
+   loader off.
+5. **Rollback** (`Accounts/Services/AccountMigrationRollback`): deletes through `DeleteAccountCommand` with
+   the final backup skipped, and refuses (answered as not found) an account whose `CreatedAt` precedes the
+   import's start. The orchestrator records the created account id on the row before doing anything else.
+6. **Grants**: `ExportGrant` (digest only, 256-bit token from `ExportGrantTokenHasher`, expiry, manifest read
+   limit 3, artifact consumed at the first byte, revocation, optional address range). Issue and revoke are
+   built and audited.
+
+### What is NOT built, and the consequence
+
+- **The pull endpoint and the receiving panel's pull client are not built.** A grant can be issued and
+  revoked but opens nothing yet: there is no route that accepts it, no limiter, and no outbound client with the
+  connected-address check of section 4. Sections 3 and 4 above therefore remain REQUIREMENTS for that work,
+  and the grant is a stored credential with no door. Moving a package by download and upload works.
+- **Export expiry is not enforced by a reaper.** `AccountExport.ExpiresAt` stops the panel serving the
+  package; the backup row and the artifact in the agent's root-only directory are removed only with the
+  account (a `Migration` backup is in no retention allow-list).
+- **A sealed backup destination cannot be exported** (the agent refuses with a validation failure). The panel
+  does not yet make an unsealed backup for a sealed destination.
+- **An uploaded package with bytes after its signed length** is refused after the agent has already published
+  the artifact; the stage has no panel record and is the agent's to reclaim.
+- **Not imported**: additional database users and their grants, certificates (metadata only, decision D2, and
+  no Ssl section is written), mail, DNS. A section no module can import is a warning in the dry run.
+- The SPA, the installer's nginx location for the upload (`client_max_body_size`, no request buffering), the
+  polygon check and the real-host suites are not part of this change.
+
+### Decisions applied from the recommended option (owner NOT yet approved)
+
+D1 (no rename: a taken account name is a conflict), D3 (database, SFTP and FTPS passwords are never in the
+package; the import generates new ones, holds them encrypted until claimed once), D5 (ECDSA P-384 / SHA-384,
+one key per server, mandatory typed fingerprint), D6 (administrators only; view-as refused on every action),
+D7 (the owner's invitation is made but not mailed: `AccountCreated.SuppressInvitationMail`, set only by an
+in-process caller, guarded against binding), D8b (cron entries are imported disabled), D10 (one module),
+D11 (the package is plaintext at rest until it expires, 7 days), D12 (`ExportBackup` is in the mutating audit
+list), D13 (the job-caller primitive).
+
+### What a reviewer must check in addition
+
+- `JobCallerAccessor`: a copy of the flow made inside a scope reads null after the scope is disposed
+  (`Work_that_copied_the_scope_stops_acting_when_the_scope_ends`), and no code outside `JobCallerScopes` calls
+  `Act`. Search: `grep -rn "\.Act(" backend/src --include=*.cs` (the Demo seed accessor is a different type).
+- `MigrationPackageReader` verifies the fingerprint, then the panel's signature, then the agent's, before any
+  artifact byte is forwarded, and the agent verifies again. The readers' inverse control is
+  `A_valid_package_is_accepted_and_the_stream_is_left_at_the_artifact`.
+- `AccountMigrationRollback` refuses an account older than the import (`MigrationRollbackRefused`).
+- The signing key is encrypted at rest (`MigrationSigningKeyConfiguration`), handed to the agent per call, and
+  appears in no DTO. `AccountImport.IssuedSecretsJson` is encrypted at rest and cleared by the claim.
+- Each exporter's section is built from named fields; a planted secret test per exporter is **outstanding**.
+
+### What the author could not verify
+
+- That ring's `EcdsaKeyPair::from_pkcs8` accepts the PKCS#8 document .NET's `ExportPkcs8PrivateKey` writes for
+  a P-384 key (the agent's tests use a ring-made key). If it does not, the first export fails with a
+  validation failure from the agent and the key format must change.
+- That Wolverine routes `AccountImportRequested` to `AccountImportRequestedHandler` without a durable queue
+  declaration; the message carries no secret, so a durable queue would be acceptable but is not claimed.
+- That the restore of a freshly created account (system user and databases made moments earlier) converges
+  with what the importers created (plan section 2.3, "Order matters"): no real-host run exists for it.
+- Every figure in `sdk-surface.txt` raised for this change was estimated and must be lowered by the test's hints.
+
+- **Second review: OUTSTANDING (#331).**
+
+## Amendment: the pull transport as built (2026-11-09)
+
+Written by the same agent session that wrote the code, so it closes nothing. **Nothing was built or run**; every
+statement is from reading the files. This section replaces "The pull endpoint and the receiving panel's pull client
+are not built" above, and records where the code lands against sections 3 and 4.
+
+### What was built
+
+1. **The source side.** `GET api/v1/migration-pull/head` and `.../package` (`MigrationPullController`), reached ONLY
+   with the `MigrationGrant` scheme and the `MigrationGrantPull` policy (`Maran.Host/Authorization/
+   MigrationGrantAuthenticationHandler`, `MigrationGrantPolicies`), written beside the API-key handler so a reviewer
+   reads one against the other. The token is read from `Authorization: Bearer` and from nothing else; a value of the
+   wrong length is refused before it is hashed; the digest is looked up and compared in constant time
+   (`MigrationGrantAuthenticator`). Every refusal, whatever the cause, is the same bodyless 401 with the same header.
+   Failures are counted per address by `MigrationGrantFailureLimiter` (its own singleton with the sign-in numbers, so a
+   wrong grant cannot lock out a reseller's API key behind the same address) and the endpoints carry the
+   `migration-pull` rate-limit policy. The principal carries a grant id and an export id and no user, role, account
+   or reseller claim; `HttpContextCurrentUser` reads it as `AnonymousCaller`, so every tenant filter shows it
+   nothing. The pull is audited as `ExportGrantPulled` with the actor `export-grant:<grant id>`, never the token.
+2. **Consumption.** `ExportGrantLedger` takes a `FOR UPDATE` lock on the grant row, applies the entity's own rule
+   (`ReadManifest`, `ConsumeArtifact`) and saves, in one transaction, so of any number of simultaneous requests with
+   one grant exactly one takes the artifact. The artifact read is taken BEFORE the first byte and kept if the stream
+   then fails, as section 3 requires; an expired export does not spend it. The head (up to three reads) is served by
+   writing the signed header and the agent's signed manifest and abandoning the agent's export (class "stop").
+3. **The receiving side.** `PreviewAccountPull` and `PullAccountImport` (`POST api/v1/account-imports/pull-preview`
+   and `/pull`, administrators only, view-as refused). The address is normalised by `PublicUrlRule` (https, a bare
+   origin, no user information, no path) and checked again inside `MigrationPullClient`, the one place a grant leaves
+   the process; the grant is a `SensitiveString` in the command; the request is one GET with the grant in the header.
+   `PullConnector`, the primary handler of the named client, resolves the name itself, drops every address that
+   `PullAddressPolicy` refuses (loopback, unspecified, link-local, multicast, broadcast, this server's own interface
+   addresses, IPv4-mapped forms unwrapped), connects to a LITERAL address from what is left, and judges the socket's
+   remote address once more; TLS validation is left at the handler's defaults and there is no setting that relaxes it;
+   redirects are not followed (any 3xx is a refusal); the headers must arrive within 60 s (the Host pipeline
+   `MigrationPullPipeline` is a timeout and never a retry, because a pull spends a single-use grant) and each read of
+   the body within 120 s (`PulledPackageStream`); the body as a whole is bounded by the signed length. The pulled
+   stream goes through the same `AccountImportStager` an upload goes through, so the two ways in cannot differ in
+   what they check (fingerprint, both signatures, signed length, trailing bytes, the agent's own verification).
+4. **Expiry (D11).** `AccountExportExpiryHandler`, triggered hourly by the Host's `AccountExportExpiryScheduler`,
+   removes the backup artifact and then the export record (and its grants) of every export past its seven days. A
+   failed removal keeps the record so the next pass tries again; each removal is journalled under the panel's own
+   name. The one new `IgnoreQueryFilters` is in `Backups/Services/MigrationArtifactService.DiscardExportAsync`,
+   which removes only a backup of the export kind (README count).
+5. **Sections.** The Ssl section carries certificate metadata only (domain, source, wildcard, end date); the dry run
+   says which to issue again and which to upload again, and the importer creates nothing (D2). The Databases section
+   now also carries the additional database users and their grants by name and privilege name; the dry run refuses a
+   grant that names a database the section does not hold or a privilege this build does not know, before anything is
+   created. A planted-secret test exists for the Accounts, Sites, Databases, Sftp, Ftp and Ssl exporters (a value
+   planted in every column the section does not name, with a positive control that serialising the row itself does
+   carry it); Cron reads through the module's bus, so its test holds the SHAPE of the section instead.
+6. **Installer.** Three nginx locations (`installer/nginx/maran.conf`): the package upload (`location =
+   /api/v1/account-imports`, `client_max_body_size` 256 GiB plus 4 MiB, request buffering off), the pull
+   (`/account-imports/pull`, a 4 h read timeout because the API answers only after it has fetched the whole package)
+   and the package downloads (response buffering off, so no second plaintext copy is spooled to the system disk). The
+   polygon assertion `assert_the_account_move_locations_carry_the_package_limits` reads the rendered file and has an
+   inverse control; it does not observe `nginx -T` or a real multi-gigabyte request.
+7. **Real host.** `agent/crates/agent/tests/transfer_on_a_real_host.rs` (four `#[ignore]` cases): the export of a real
+   backup is the artifact byte for byte, its manifest's digest is the one `sha256sum` computes, its signature verifies
+   under `openssl` and not under a flipped bit, another account's export is not found, and an import for an account
+   whose system user exists, or with a fingerprint nobody confirmed, is refused with nothing published. **Not
+   observed:** a completed import into a fresh install and the restore after it (needs a second install, the
+   issue's closing check).
+
+### What a reviewer must check in addition
+
+- `ExportGrantLedger` takes the lock BEFORE it reads the row (`select ... for update`, then the query), and the
+  transaction commits after the save; the concurrency of the artifact read is a property of PostgreSQL row locks and
+  is NOT exercised by any test here (the handler tests use a scripted ledger). A Host integration test with two
+  simultaneous requests is outstanding.
+- `HttpContextCurrentUser` maps the grant scheme to `AnonymousCaller`; nothing may later give that caller a tenant.
+- `PullConnector` never hands the host NAME to the OS to connect; its refusal type does not leave the class.
+- The grant's address restriction compares the address the Host's forwarded-headers handling reports; behind a
+  reverse proxy that does not forward the peer address, every caller is the proxy. The installer's nginx sets
+  `X-Forwarded-For`; whether the Host honours it only from the proxy was NOT re-checked here.
+- The pull request on the receiving panel is synchronous and long (up to the 4 h nginx read timeout); a browser that
+  gives up leaves the stream to finish or stall out and the grant spent.
+
+### What the author could not verify
+
+- That the whole backend builds: it was written without a compiler. Every Sdk surface figure in `sdk-surface.txt`
+  that this change raises (the `MigrationGrant*` types, `IMigrationGrantAuthenticator`, two claim constants, one
+  rate-limit name, `DiscardExportAsync`, `ImportPulled`, `ImportPullPreviewed`, `ExportExpired`, `ExportDownloaded`,
+  `TaskKinds.AccountImport`) is not edited here and must be lowered by the test's hints.
+- That a `ConnectCallback` throwing an `IOException` subclass reaches the caller as an `HttpRequestException` with
+  that exception somewhere in its chain on .NET 9 (the code walks the whole `InnerException` chain).
+- Whether the OpenAPI document and `scripts/api-contract-baseline.txt` need `--accept` for the new routes and
+  commands.
+- **The grant is spent on the first byte but the preview is not rate-limited per grant, only per address.** An
+  attacker holding a stolen unused grant can read the head three times and the package once, which is the stated
+  residual of section 3.
+
+### Owner decisions applied from the recommended option (owner NOT yet approved)
+
+D2 (certificates as metadata only), D11 (seven days, enforced by the hourly pass), and from the owner's list in the
+brief: the pull is an administrator-only act on both sides; private-range sources are allowed (open question 3 is
+answered "yes" in code and is still the owner's to confirm).
+
+- **Second review: OUTSTANDING (#331).**

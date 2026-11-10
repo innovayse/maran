@@ -36,7 +36,7 @@ pub fn write_unreloaded_config(
     file: &ConfigFile<'_>,
     validator: &Validator<'_>,
 ) -> Result<(), SafeWriteError> {
-    swap_set(host, std::slice::from_ref(file), validator, None)
+    swap_set(host, std::slice::from_ref(file), Some(validator), None)
 }
 
 #[cfg(test)]

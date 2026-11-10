@@ -1,6 +1,5 @@
 using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Tests.TestSupport;
-using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Accounts.Tests.Commands.SuspendAccount;
 
@@ -58,7 +57,7 @@ public sealed class SuspendAccountResellerTests : IDisposable
         Assert.Empty(_harness.Agent.Calls);
         Assert.Equal(
             AccountStatus.Active,
-            (await _harness.Seeder.Accounts.SingleAsync(row => row.Id == foreign.Id)).Status);
+            (await _harness.StoredAccountAsync(foreign.Id)).Status);
     }
 
     /// <summary>An account the administrator owns is not found for a reseller.</summary>
@@ -87,7 +86,7 @@ public sealed class SuspendAccountResellerTests : IDisposable
         Assert.Empty(_harness.Agent.Calls);
         Assert.Equal(
             AccountStatus.Active,
-            (await _harness.Seeder.Accounts.SingleAsync(row => row.Id == account.Id)).Status);
+            (await _harness.StoredAccountAsync(account.Id)).Status);
     }
 
     /// <summary>A reseller whose row is gone is refused as not found, never allowed to write.</summary>
@@ -120,5 +119,38 @@ public sealed class SuspendAccountResellerTests : IDisposable
         var failure = _harness.Audit.Entries[1];
         Assert.Equal("acme-reseller", failure.ActorUsername);
         Assert.False(failure.Succeeded);
+    }
+
+    /// <summary>A reseller's suspension is recorded as the reseller's (issue #493).</summary>
+    [Fact]
+    public async Task A_reseller_suspension_is_recorded_as_the_resellers()
+    {
+        await _harness.SeedResellerAsync(OwnReseller, "acme-reseller");
+        var account = await _harness.SeedAccountAsync("alpha", OwnReseller);
+
+        await _harness.SuspendAsync(account.Id);
+
+        Assert.Equal(
+            SuspensionActor.Reseller,
+            (await _harness.StoredAccountAsync(account.Id)).SuspendedBy);
+    }
+
+    /// <summary>
+    /// A reseller suspending an account an administrator already suspended does not turn the
+    /// administrator's hold into its own, which it could then lift.
+    /// </summary>
+    [Fact]
+    public async Task A_reseller_suspending_again_does_not_take_over_an_administrators_suspension()
+    {
+        await _harness.SeedResellerAsync(OwnReseller, "acme-reseller");
+        var account = await _harness.SeedAccountAsync(
+            "alpha", OwnReseller, suspended: true, suspendedBy: SuspensionActor.Administrator);
+
+        var result = await _harness.SuspendAsync(account.Id);
+
+        Assert.True(result.IsSuccess, result.Error?.Code);
+        Assert.Equal(
+            SuspensionActor.Administrator,
+            (await _harness.StoredAccountAsync(account.Id)).SuspendedBy);
     }
 }

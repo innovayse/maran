@@ -17,7 +17,7 @@ use super::{DistroFamily, adapter_for};
 
 #[test]
 fn every_family_gets_the_adapter_it_asked_for() {
-    for family in [DistroFamily::Debian, DistroFamily::Rhel] {
+    for family in [DistroFamily::Debian, DistroFamily::Rhel, DistroFamily::Suse] {
         assert_eq!(adapter_for(family).family(), family);
     }
 }
@@ -26,6 +26,7 @@ fn every_family_gets_the_adapter_it_asked_for() {
 fn the_families_disagree_about_where_a_php_pool_lives() {
     let debian = adapter_for(DistroFamily::Debian);
     let rhel = adapter_for(DistroFamily::Rhel);
+    let suse = adapter_for(DistroFamily::Suse);
 
     assert_eq!(
         debian.php_fpm_pool_directory("8.3"),
@@ -34,6 +35,19 @@ fn the_families_disagree_about_where_a_php_pool_lives() {
     assert_eq!(
         rhel.php_fpm_pool_directory("8.3"),
         "/etc/opt/remi/php83/php-fpm.d"
+    );
+    // The SUSE family carries the major only: it offers one minor, from its own repositories.
+    assert_eq!(
+        suse.php_fpm_pool_directory("8.4"),
+        "/etc/php8/fpm/php-fpm.d"
+    );
+    assert_ne!(
+        suse.php_fpm_pool_directory("8.4"),
+        rhel.php_fpm_pool_directory("8.4")
+    );
+    assert_ne!(
+        suse.php_fpm_pool_directory("8.4"),
+        debian.php_fpm_pool_directory("8.4")
     );
 }
 
@@ -54,6 +68,7 @@ fn the_web_server_runs_as_a_different_user_on_each_family() {
         "www-data"
     );
     assert_eq!(adapter_for(DistroFamily::Rhel).web_server_user(), "nginx");
+    assert_eq!(adapter_for(DistroFamily::Suse).web_server_user(), "nginx");
 }
 
 #[test]
@@ -66,14 +81,16 @@ fn the_web_server_belongs_to_a_different_group_on_each_family() {
         "www-data"
     );
     assert_eq!(adapter_for(DistroFamily::Rhel).web_server_group(), "nginx");
+    assert_eq!(adapter_for(DistroFamily::Suse).web_server_group(), "nginx");
 }
 
 /// Every adapter this crate can hand out, so a fact required of ALL of them is asserted
 /// against all of them rather than against whichever one the author had in mind.
-fn every_adapter() -> [&'static dyn crate::DistroAdapter; 2] {
+fn every_adapter() -> [&'static dyn crate::DistroAdapter; 3] {
     [
         adapter_for(DistroFamily::Debian),
         adapter_for(DistroFamily::Rhel),
+        adapter_for(DistroFamily::Suse),
     ]
 }
 
@@ -101,6 +118,10 @@ fn the_sftp_group_is_the_same_name_on_every_family_so_the_sshd_block_is_portable
         adapter_for(DistroFamily::Debian).sftp_group(),
         adapter_for(DistroFamily::Rhel).sftp_group()
     );
+    assert_eq!(
+        adapter_for(DistroFamily::Suse).sftp_group(),
+        adapter_for(DistroFamily::Rhel).sftp_group()
+    );
 }
 
 #[test]
@@ -109,6 +130,10 @@ fn both_families_restart_the_same_database_unit_because_both_ship_mariadb() {
     // ever ships MySQL proper instead, this is the one method that changes.
     assert_eq!(
         adapter_for(DistroFamily::Debian).mysql_service(),
+        adapter_for(DistroFamily::Rhel).mysql_service()
+    );
+    assert_eq!(
+        adapter_for(DistroFamily::Suse).mysql_service(),
         adapter_for(DistroFamily::Rhel).mysql_service()
     );
 }
@@ -139,4 +164,31 @@ fn every_family_writes_its_unit_files_where_an_administrator_puts_them() {
     for adapter in every_adapter() {
         assert_eq!(adapter.systemd_unit_directory(), "/etc/systemd/system");
     }
+}
+
+#[test]
+fn the_suse_family_offers_one_php_minor_under_the_unversioned_unit() {
+    // The family carries the distribution's own PHP only, so the unit does not name a version,
+    // unlike the RHEL family where it does (`php84-php-fpm`).
+    let suse = adapter_for(DistroFamily::Suse);
+
+    assert_eq!(suse.php_fpm_service("8.4"), "php-fpm");
+    assert_ne!(
+        suse.php_fpm_service("8.4"),
+        adapter_for(DistroFamily::Rhel).php_fpm_service("8.4")
+    );
+}
+
+#[test]
+fn the_families_disagree_about_which_package_manager_they_run() {
+    // The package manager is the plainest family difference there is, and the one the
+    // pending-updates read depends on: a wrong program is a read that never runs.
+    let debian = adapter_for(DistroFamily::Debian);
+    let rhel = adapter_for(DistroFamily::Rhel);
+    let suse = adapter_for(DistroFamily::Suse);
+
+    assert_eq!(suse.package_manager(), "/usr/bin/zypper");
+    assert_ne!(suse.package_manager(), rhel.package_manager());
+    assert_ne!(suse.package_manager(), debian.package_manager());
+    assert_eq!(suse.package_query_binary().as_str(), suse.package_manager());
 }

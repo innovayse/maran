@@ -26,7 +26,8 @@ use crate::monitor::monitor_host::MonitorHost;
 /// It reads [`FileTransferFacts::sshd_config_path`](maran_distro::FileTransferFacts::sshd_config_path) and asks
 /// [`SftpJailStatus::evaluate`] whether the exact block the installer writes —
 /// found between its own marker comments — still carries `Match Group
-/// <group>`, `ChrootDirectory %h`, `ForceCommand internal-sftp`,
+/// <group>`, `ChrootDirectory %h`, `AuthorizedKeysFile` (the panel's key
+/// directory, so a customer's own key is never read), `ForceCommand internal-sftp`,
 /// `AllowTcpForwarding no` and `X11Forwarding no`. See the doc comment on
 /// [`MonitorHost::read_sshd_config`] for why this reads the file rather than
 /// asking sshd for its effective configuration, and for exactly what a file

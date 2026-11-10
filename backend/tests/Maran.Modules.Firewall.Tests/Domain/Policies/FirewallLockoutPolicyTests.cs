@@ -168,6 +168,121 @@ public sealed class FirewallLockoutPolicyTests
         Assert.False(Judge(22, null, AgentFirewallProtocol.Tcp, "198.51.100.0/024").LocksOutCaller);
     }
 
+    /// <summary>Removing the rule that admits the caller, with another rule left for the port, locks the caller out.</summary>
+    [Fact]
+    public void Removing_the_rule_that_admits_the_caller_while_another_rule_remains_locks_the_caller_out()
+    {
+        var verdict = JudgeRemoval(22, "198.51.100.0/24", Rules(("198.51.100.0/24"), ("192.0.2.0/24")));
+
+        Assert.True(verdict.LocksOutCaller);
+        Assert.Equal(22, verdict.LostSshPort);
+    }
+
+    /// <summary>The inverse control: removing the last rule for the port restores the accept for everyone.</summary>
+    [Fact]
+    public void Removing_the_last_rule_for_the_port_is_harmless()
+    {
+        Assert.False(JudgeRemoval(22, "198.51.100.0/24", Rules("198.51.100.0/24")).LocksOutCaller);
+    }
+
+    /// <summary>The inverse control: a remaining rule that admits the caller keeps the removal harmless.</summary>
+    [Fact]
+    public void Removing_a_rule_while_a_remaining_rule_admits_the_caller_is_harmless()
+    {
+        Assert.False(JudgeRemoval(22, "192.0.2.0/24", Rules("198.51.100.0/24", "192.0.2.0/24")).LocksOutCaller);
+        Assert.False(JudgeRemoval(22, "192.0.2.0/24", Rules("0.0.0.0/0", "192.0.2.0/24")).LocksOutCaller);
+    }
+
+    /// <summary>A removal naming a rule the host does not hold changes nothing.</summary>
+    [Fact]
+    public void Removing_a_rule_the_host_does_not_hold_is_harmless()
+    {
+        Assert.False(JudgeRemoval(22, "203.0.113.0/24", Rules("198.51.100.0/24", "192.0.2.0/24")).LocksOutCaller);
+    }
+
+    /// <summary>The removed rule is matched by its canonical source, not by how it was typed.</summary>
+    [Fact]
+    public void The_removed_rule_is_matched_by_its_canonical_source()
+    {
+        Assert.True(JudgeRemoval(22, "198.51.100.0/024", Rules("198.51.100.0/24", "192.0.2.0/24")).LocksOutCaller);
+    }
+
+    /// <summary>An unreadable caller fails closed on a removal that leaves only restricted rules.</summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("unknown")]
+    public void An_unreadable_caller_is_refused_a_removal_that_leaves_restricted_rules(string caller)
+    {
+        Assert.True(JudgeRemoval(22, "198.51.100.0/24", Rules("198.51.100.0/24", "192.0.2.0/24"), caller)
+            .LocksOutCaller);
+    }
+
+    /// <summary>A removal of a UDP rule, a range, or a non-SSH port is never judged.</summary>
+    [Fact]
+    public void A_removal_that_is_not_a_tcp_single_port_rule_for_an_ssh_port_is_harmless()
+    {
+        var rules = Rules("198.51.100.0/24", "192.0.2.0/24");
+
+        Assert.False(FirewallLockoutPolicy.JudgeRemoval(
+            22, null, AgentFirewallProtocol.Udp, "198.51.100.0/24", rules, SshPorts, Caller).LocksOutCaller);
+        Assert.False(FirewallLockoutPolicy.JudgeRemoval(
+            22, 23, AgentFirewallProtocol.Tcp, "198.51.100.0/24", rules, SshPorts, Caller).LocksOutCaller);
+        Assert.False(FirewallLockoutPolicy.JudgeRemoval(
+            8080, null, AgentFirewallProtocol.Tcp, "198.51.100.0/24", rules, SshPorts, Caller).LocksOutCaller);
+    }
+
+    /// <summary>Rules for other protocols and ranges on the same number do not count as remaining rules.</summary>
+    [Fact]
+    public void Remaining_rules_that_are_not_tcp_single_port_rules_for_the_port_do_not_count()
+    {
+        var rules = new[]
+        {
+            new AgentFirewallRule(22, null, AgentFirewallProtocol.Tcp, "198.51.100.0/24"),
+            new AgentFirewallRule(22, null, AgentFirewallProtocol.Udp, "192.0.2.0/24"),
+            new AgentFirewallRule(20, 30, AgentFirewallProtocol.Tcp, "192.0.2.0/24"),
+        };
+
+        Assert.False(JudgeRemoval(22, "198.51.100.0/24", rules).LocksOutCaller);
+    }
+
+    /// <summary>Banning the caller's own address is detected in every spelling, and another address is not.</summary>
+    [Fact]
+    public void A_ban_of_the_callers_own_address_is_detected()
+    {
+        Assert.True(FirewallLockoutPolicy.BansCaller(System.Net.IPAddress.Parse("198.51.100.7"), Caller));
+        Assert.True(FirewallLockoutPolicy.BansCaller(
+            System.Net.IPAddress.Parse("198.51.100.7"), "::ffff:198.51.100.7"));
+        Assert.False(FirewallLockoutPolicy.BansCaller(System.Net.IPAddress.Parse("198.51.100.8"), Caller));
+        Assert.False(FirewallLockoutPolicy.BansCaller(System.Net.IPAddress.Parse("198.51.100.7"), ""));
+    }
+
+    /// <summary>Builds single-port TCP rules for port 22 from the given sources.</summary>
+    /// <param name="sources">The sources of the rules the host is running.</param>
+    /// <returns>The rules.</returns>
+    private static AgentFirewallRule[] Rules(params string[] sources)
+    {
+        return [.. sources.Select(source =>
+        {
+            return new AgentFirewallRule(22, null, AgentFirewallProtocol.Tcp, source);
+        })];
+    }
+
+    /// <summary>Judges the removal of one TCP rule for a port.</summary>
+    /// <param name="port">The port.</param>
+    /// <param name="sourceCidr">The removed rule's source.</param>
+    /// <param name="existing">The rules the host is running.</param>
+    /// <param name="caller">The request's address; the shared caller by default.</param>
+    /// <returns>The policy's verdict.</returns>
+    private static FirewallLockoutVerdict JudgeRemoval(
+        int port,
+        string sourceCidr,
+        IReadOnlyList<AgentFirewallRule> existing,
+        string caller = Caller)
+    {
+        return FirewallLockoutPolicy.JudgeRemoval(
+            port, null, AgentFirewallProtocol.Tcp, sourceCidr, existing, SshPorts, caller);
+    }
+
     /// <summary>Judges one allow with the host and caller these tests share.</summary>
     /// <param name="port">The allow's port or lower bound.</param>
     /// <param name="portTo">The allow's upper bound, or null.</param>

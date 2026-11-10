@@ -24,16 +24,6 @@ pub fn php_package(version: &str) -> String {
     format!("php{version}-fpm")
 }
 
-/// The PHP versions Sury publishes a php-fpm package for, oldest first.
-///
-/// Sury carries every release from 7.4 to 8.4 for the Debian releases the
-/// panel supports; the list is read by the installable-versions query and by
-/// the install, so a version is offered exactly when it can be installed.
-#[must_use]
-pub fn installable_php_versions() -> &'static [&'static str] {
-    &["7.4", "8.0", "8.1", "8.2", "8.3", "8.4"]
-}
-
 /// Absolute path of the package manager binary.
 ///
 /// Sury's repository is installed and driven through `apt-get`, the Debian
@@ -58,6 +48,10 @@ const APT_FAILURE_STATUS: i32 = 100;
 /// `tests/fixtures/package_manager/apt_source_{refused,unreachable}.txt`.
 const APT_FETCH_FAILURE: &str = "E: Failed to fetch ";
 
+/// What `apt-get install` prints for a name none of its configured sources
+/// carries. Recorded in `tests/fixtures/package_manager/apt_package_missing.txt`.
+const APT_PACKAGE_MISSING: &str = "E: Unable to locate package ";
+
 /// The reasons `apt-get` gives for a fetch that reached no source at all.
 ///
 /// Its HTTP method's own wording: an unresolvable name (`Temporary failure
@@ -81,9 +75,9 @@ const APT_UNREACHABLE_REASONS: [&str; 6] = [
 /// that opens with a three-digit HTTP status is a source that answered and
 /// refused; one naming a resolver or connection failure is a source nobody
 /// reached. A refusal anywhere in the run outweighs unreachable sources
-/// elsewhere in it (see [`PackageFailure::SourceRefused`]). Anything else —
-/// `Unable to locate package`, a dpkg failure, a held lock — is
-/// [`PackageFailure::Local`].
+/// elsewhere in it (see [`PackageFailure::SourceRefused`]). `Unable to locate
+/// package` with no fetch failure beside it is [`PackageFailure::NotAvailable`];
+/// anything else — a dpkg failure, a held lock — is [`PackageFailure::Local`].
 #[must_use]
 pub fn classify_package_failure(status: i32, output: &str) -> PackageFailure {
     if status != APT_FAILURE_STATUS {
@@ -105,6 +99,13 @@ pub fn classify_package_failure(status: i32, output: &str) -> PackageFailure {
         {
             verdict = PackageFailure::SourceUnreachable;
         }
+    }
+    if verdict == PackageFailure::Local
+        && output
+            .lines()
+            .any(|line| line.starts_with(APT_PACKAGE_MISSING))
+    {
+        return PackageFailure::NotAvailable;
     }
     verdict
 }

@@ -7,7 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::get_sftp_jail_status;
-use crate::monitor::fake_monitor_host::{FakeMonitorHost, distro, rhel_distro};
+use crate::monitor::fake_monitor_host::{FakeMonitorHost, distro, rhel_distro, suse_distro};
 use crate::monitor::{MonitorError, SftpJailStatus};
 
 /// The exact block `render_sshd_block` writes for the Debian-family adapter's
@@ -18,6 +18,7 @@ Port 22
 # BEGIN Maran SFTP \u{2014} managed by installer/lib/86-sftp.sh, do not edit between markers
 Match Group maran-sftp
     ChrootDirectory %h
+    AuthorizedKeysFile /etc/ssh/maran-sftp-keys/%u
     ForceCommand internal-sftp
     AllowTcpForwarding no
     X11Forwarding no
@@ -49,19 +50,19 @@ fn a_missing_block_reads_as_drifted() {
 /// file sshd actually reads. This asserts the VALUE the fake recorded, not
 /// merely that a read happened.
 ///
-/// Both families answer the identical literal (`/etc/ssh/sshd_config`) for
-/// `sshd_config_path` — confirmed by reading `debian_services::sshd_config_path`
-/// and `rhel_services::sshd_config_path` — so this test cannot distinguish
-/// "asked the adapter" from "happened to hard-code the one string every
-/// family returns". It is run against BOTH adapters for that reason: a
+/// Every family answers the identical literal (`/etc/ssh/sshd_config`) for
+/// `sshd_config_path` — confirmed by reading `debian_services::sshd_config_path`,
+/// `rhel_services::sshd_config_path` and `suse_services::sshd_config_path` — so this test
+/// cannot distinguish "asked the adapter" from "happened to hard-code the one string every
+/// family returns". It is run against EVERY adapter for that reason: a
 /// regression that swapped the call for a literal identical to the adapter's
 /// answer would still pass here. What closes that gap is the mutation testing
 /// recorded for this feature, which replaces the production call with a
 /// literal that DIVERGES from the adapter's answer — a literal that matched
 /// would prove nothing, since it is indistinguishable from asking correctly.
 #[test]
-fn the_operation_asks_for_the_path_the_adapter_names_on_both_families() {
-    for adapter in [distro(), rhel_distro()] {
+fn the_operation_asks_for_the_path_the_adapter_names_on_every_family() {
+    for adapter in [distro(), rhel_distro(), suse_distro()] {
         let host = FakeMonitorHost::from_ubuntu_captures();
 
         let _ = get_sftp_jail_status(&host, adapter);

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Toolbar harness</title>
+  </head>
+  <body>
+    <!--
+      Playwright-only mount point for `UiToolbar` (e2e/ui-kit/toolbar-alignment.spec.ts): one
+      toolbar holding every kind of control a screen puts on one — a button, a search field, a
+      switch, a checkbox, an icon button, a select and a filter trigger.
+
+      It mounts the components directly, without the router, the shell or authentication. The query
+      parameter `plant=1` adds one control that breaks the kit's height scale; it exists so the
+      spec can prove its measurement would notice a mismatch (the inverse control).
+
+      Registered as a Vite build entry (vite.config.ts) so `vite preview`, what the e2e run serves,
+      reaches it at the same path as `vite dev`.
+    -->
+    <div id="app" style="padding: 16px"></div>
+    <script type="module" src="./toolbar-harness.ts"></script>
+  </body>
+</html>

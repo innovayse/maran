@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubBackups } from '../fixtures/stub-backups-routes'
@@ -7,6 +7,7 @@ import { stubBackupSchedules } from '../fixtures/stub-backup-schedule-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
 
@@ -42,6 +43,7 @@ test('an operator reaches the schedule and the destinations by clicking, not by 
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubBackups(page, [])
   await stubBackupSchedules(page, {})

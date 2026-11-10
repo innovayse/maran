@@ -46,6 +46,12 @@ namespace Maran.Sdk.Events;
 /// False when the creator asked for the account to be left out of scheduled backups. Backups reads it;
 /// the default keeps an account in the schedule.
 /// </param>
+/// <param name="SuppressInvitationMail">
+/// True when the account is created by an import (issue #127): the owner's login and invitation token are
+/// made as usual, but the mail is not sent, because the owner must not be invited to a server that is not
+/// live yet. The administrator issues the link at cut-over (<c>IssueInvitationLink</c>). Identity reads it;
+/// no other subscriber needs it.
+/// </param>
 public sealed record AccountCreated(
     Guid AccountId,
     string Username,
@@ -53,4 +59,5 @@ public sealed record AccountCreated(
     string OwnerLanguage,
     OwnerLoginMode LoginMode = OwnerLoginMode.Invitation,
     SensitiveString? InitialPassword = null,
-    bool BackupEnabled = true);
+    bool BackupEnabled = true,
+    bool SuppressInvitationMail = false);

@@ -1,14 +1,18 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import { stubMyAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubAccountNames, stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubDatabases } from '../fixtures/stub-databases-routes'
 import type { Account, MyAccount } from '../../src/types/account'
+import type { AccountResourceSummary } from '../../src/types/accountResourceSummary'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { PanelModule } from '../../src/types/module'
 import type { Database } from '../../src/types/database'
+import type { Page } from '@playwright/test'
 
 // Issue #223: the account page links to this list as `?account=<id>`. The list then asks the panel
 // for that account's rows only, says so with a removable chip, and offers the way back; a customer's list is already
@@ -45,6 +49,12 @@ const OWN_ACCOUNT: MyAccount = {
     maxFtpUsers: 5,
     maxCronEntries: 5,
   },
+}
+
+/** The customer's own allowances: databases are unlimited, so the plan never withholds the create form. */
+const OWN_RESOURCES: AccountResourceSummary = {
+  accountId: OWN_ACCOUNT.id,
+  resources: [{ kind: 'databases', count: { state: 'counted', used: 0 }, limit: { kind: 'unlimited' } }],
 }
 
 const CUSTOMER: AuthenticatedUser = {
@@ -85,9 +95,11 @@ const openScreen = async (page: Page, user?: AuthenticatedUser): Promise<() => r
   await stubSignedIn(page, user)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE, BOB])
   await stubAccountNames(page, [ALICE, BOB])
   await stubMyAccount(page, OWN_ACCOUNT)
+  await stubMyAccountResources(page, OWN_RESOURCES)
   const requests = await stubDatabases(page, [SHOP, BLOG])
   return () => {
     return requests().map((url) => {

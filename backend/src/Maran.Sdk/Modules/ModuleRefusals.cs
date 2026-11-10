@@ -41,4 +41,11 @@ public static class ModuleRefusals
     /// <summary>The module's manifest breaks the module contract.</summary>
     public static readonly Error ManifestInvalid =
         Error.Of(nameof(ErrorMessages.ModuleManifestInvalid), ErrorType.Validation);
+
+    /// <summary>
+    /// The package's signed manifest disagrees with what the signed catalogue announced for it (another
+    /// module id, another version), so the bytes behind a catalogue entry are not the entry's.
+    /// </summary>
+    public static readonly Error PackageNotAsAnnounced =
+        Error.Of(nameof(ErrorMessages.ModulePackageNotAsAnnounced), ErrorType.Validation);
 }

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import {
   stubAccountMemberships,
   stubRefreshFollowsActiveAccount,
@@ -6,13 +6,16 @@ import {
 } from '../fixtures/stub-account-memberships-routes'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { FULL_CATALOGUE, mainNavigation, openSection } from '../fixtures/open-full-shell'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
 import { OWNER_PROFILE, stubProfile, type ProfileStub } from '../fixtures/stub-profile-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubEmptyTasks } from '../fixtures/stub-tasks-routes'
 import type { MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
+import type { Page } from '@playwright/test'
 
 // Issue #328: the customer's menu follows what the account's owner granted. A member is offered
 // what they hold and nothing of what they were not given, and never the Sub-users page, which only
@@ -66,6 +69,8 @@ const signIn = async (page: Page, profile: ProfileStub | (() => ProfileStub)): P
   await stubHealthy(page)
   await stubModules(page, FULL_CATALOGUE)
   await stubEmptyTasks(page)
+  await stubShellReads(page)
+  await stubLandingReads(page, 'customer')
   await stubMyAccount(page, OWN_ACCOUNT)
   await stubProfile(page, profile)
   await page.goto('/')
@@ -135,12 +140,16 @@ test('the owner is offered every item, Sub-users and scheduled tasks among them'
   await expect(mainNavigation(page).getByRole('link', { name: 'Sub-users', exact: true })).toBeVisible()
 })
 
-test('a profile the panel could not read offers everything rather than hiding the menu', async ({ page }) => {
+test('a profile the panel could not read offers everything rather than hiding the menu', async ({ page, guard }) => {
+  // The refusal is the point: the standing cannot be read, and the menu must still be offered.
+  guard.allow(503, /\/api\/v1\/profile(\?.*)?$/)
   await page.setViewportSize({ width: 1440, height: 900 })
   await stubSignedIn(page, CUSTOMER)
   await stubHealthy(page)
   await stubModules(page, FULL_CATALOGUE)
   await stubEmptyTasks(page)
+  await stubShellReads(page)
+  await stubLandingReads(page, 'customer')
   await stubMyAccount(page, OWN_ACCOUNT)
   await page.route(/\/api\/v1\/profile(\?.*)?$/, async (route) => {
     await route.fulfill({
@@ -172,6 +181,9 @@ test('switching the active account reads the standing again and the menu follows
   await stubHealthy(page)
   await stubModules(page, FULL_CATALOGUE)
   await stubEmptyTasks(page)
+  // Before the memberships and the profile below: the shell's quiet answers must not replace theirs.
+  await stubShellReads(page)
+  await stubLandingReads(page, 'customer')
   // The account read answers for whichever account is active, as the panel does.
   await stubMyAccount(page, (): MyAccount => {
     return { ...OWN_ACCOUNT, id: state.activeAccountId }

@@ -70,6 +70,8 @@
     <ProjectReference Include="..\Maran.Modules\Notifications\Maran.Modules.Notifications.csproj" />
     <ProjectReference Include="..\Maran.Modules\Backups\Maran.Modules.Backups.csproj" />
     <ProjectReference Include="..\Maran.Modules\Updates\Maran.Modules.Updates.csproj" />
+    <ProjectReference Include="..\Maran.Modules\ServerMigration\Maran.Modules.ServerMigration.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Marketplace\Maran.Modules.Marketplace.csproj" />
   </ItemGroup>
 
   <ItemGroup>

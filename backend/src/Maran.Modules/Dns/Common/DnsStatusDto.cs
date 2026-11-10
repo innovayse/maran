@@ -8,7 +8,11 @@ namespace Maran.Modules.Dns.Common;
 /// </summary>
 /// <param name="Enabled">What was asked: the stored intention.</param>
 /// <param name="Running">Whether the daemon's process is up, as the agent observed it.</param>
-/// <param name="Listening">Whether port 53 is bound, as the agent observed it.</param>
+/// <param name="Listening">Whether the name server's port is bound, as the agent observed it.</param>
+/// <param name="Port">
+/// The port the name server answers on, for TCP and UDP alike. Turning the server on does not open it in the
+/// firewall, so this is the number a screen asks the administrator to open there.
+/// </param>
 /// <param name="Version">
 /// The daemon's version when it is known, else an empty string: the agent does not report one, so it is empty
 /// today and a screen must treat empty as unknown.
@@ -27,5 +31,6 @@ public sealed record DnsStatusDto(
     string Version,
     int ZoneCount,
     bool AgentReachable,
+    int Port,
     DnsPolicyState RecursionRefused = DnsPolicyState.NotObserved,
     DnsPolicyState ResponseRateLimiting = DnsPolicyState.NotObserved);

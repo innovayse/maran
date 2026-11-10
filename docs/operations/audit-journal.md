@@ -24,6 +24,17 @@ OUTSTANDING and the branch must not merge to `main` until a reviewer has read it
 | `actor` | Entries whose actor used exactly this name, compared without regard to case. At most the actor-name column length, same alphabet as `action`. It matches the actor, not the operator of a view-as session. |
 | `account` | Entries recorded against this hosting account (an id). |
 
+### The subject is stored as a line and read as a sentence
+
+`GET /api/v1/audit` and the dashboard's recent entries answer each entry with `subject` (the stored
+text, which the export and `search` read) and `subjectName` (the same subject as an operator reads it,
+in the request's language). They differ only for the entries whose producer writes a machine line: the
+chain verdict (`AuditChainVerified`), the retention window and run (`AuditRetentionChanged`,
+`AuditRetentionRun`), the alert thresholds (`AlertThresholdsSaved`) and the log level
+(`PanelLogLevelChanged`). A line that does not have the shape its producer writes, and every other
+subject, comes back unchanged in `subjectName`. A sign-out (`LoggedOut`, `LoggedOutEverywhere`) records
+the login's name as its subject; rows written before that keep the id they stored.
+
 ### The account filter has a coverage gap
 
 An entry only carries an account when the panel could stamp one:

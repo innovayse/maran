@@ -85,6 +85,25 @@ const SUB_USER_RULES: PagedRules<SubUser> = {
 }
 
 /**
+ * Derives a stable identity in the UUID shape the contract demands from a login name, so every
+ * sub-user of a spec has its own id and the same name always has the same one.
+ * @param username The login name.
+ * @returns A version-4-shaped UUID.
+ */
+const subUserIdFor = (username: string): string => {
+  // Two 32-bit FNV-1a runs with different seeds give twelve hex digits, enough to tell a spec's few
+  // sub-users apart.
+  const run = (seed: number): string => {
+    let hash = seed
+    for (const character of username) {
+      hash = Math.imul(hash ^ (character.codePointAt(0) ?? 0), 0x01000193) >>> 0
+    }
+    return hash.toString(16).padStart(8, '0')
+  }
+  return `5b000000-0000-4000-8000-${run(0x811c9dc5)}${run(0x2545f491).slice(0, 4)}`
+}
+
+/**
  * Builds a sub-user row for a spec.
  * @param username The login name.
  * @param features The feature ids the person holds.
@@ -93,7 +112,7 @@ const SUB_USER_RULES: PagedRules<SubUser> = {
  */
 export const subUserRow = (username: string, features: AccountFeatureName[], state: SubUser['state'] = 'active'): SubUser => {
   return {
-    id: `00000000-0000-4000-8000-${username.padStart(12, '0').slice(-12)}`,
+    id: subUserIdFor(username),
     username,
     email: `${username}@example.com`,
     state,

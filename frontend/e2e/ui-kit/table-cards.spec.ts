@@ -1,12 +1,14 @@
-import { expect, test, type Page } from '@playwright/test'
 import { delayRoute } from '../fixtures/delay-route'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubPlans, THREE_PLANS } from '../fixtures/stub-plans-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 // Issue #217, point 1: below `sm` a `UiTable` draws each row as a card from the same column schema,
 // sorting stays reachable through a control derived from the sortable columns, and the loading
@@ -36,6 +38,7 @@ const stubList = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, MODULES)
+  await stubShellReads(page)
   await stubPlans(page, THREE_PLANS)
   await stubAccounts(page, [ACCOUNT])
 }

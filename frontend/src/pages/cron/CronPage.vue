@@ -180,10 +180,13 @@ const openHistory = async (entry: CronEntry): Promise<void> => {
 /**
  * Writes the crontab preamble the editor produced.
  * @param variables The complete new set.
- * @returns Resolves once the attempt has settled.
+ * @returns Resolves once the attempt has settled; an accepted write says so in the success toast,
+ * a refused one stays in the card's alert.
  */
 const saveEnvironment = async (variables: CronEnvironmentVariable[]): Promise<void> => {
-  await store.saveEnvironment(variables)
+  if (await store.saveEnvironment(variables)) {
+    notice.value = t('cron.environment.saved')
+  }
 }
 
 /**

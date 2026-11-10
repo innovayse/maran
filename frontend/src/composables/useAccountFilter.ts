@@ -50,8 +50,11 @@ export interface AccountFilter {
  * {@link AccountFilter.spec}, so both read the same key with the same rule.
  * @returns The current filter, whether it is active, the account's name, the strip's text, the action that clears it,
  * and the schema entry for a server-paged list.
+ * @param accepts Whether a value found in the URL is an account the page honours; a page that
+ * refuses a malformed id in its own filter schema passes the same rule here, so the name is never
+ * read for a value the page treats as absent. Every non-empty value when left out.
  */
-export const useAccountFilter = (): AccountFilter => {
+export const useAccountFilter = (accepts?: (value: string) => boolean): AccountFilter => {
   const route = useRoute()
   const router = useRouter()
   const { t } = useI18n()
@@ -60,7 +63,9 @@ export const useAccountFilter = (): AccountFilter => {
 
   const filter = computed((): AccountListFilter => {
     const account = route.query.account
-    return !isCustomer.value && typeof account === 'string' && account.length > 0 ? { accountId: account } : {}
+    return !isCustomer.value && typeof account === 'string' && account.length > 0 && (accepts?.(account) ?? true)
+      ? { accountId: account }
+      : {}
   })
 
   const isNarrowed = computed((): boolean => {
@@ -82,10 +87,11 @@ export const useAccountFilter = (): AccountFilter => {
   const spec: ListFilterSpec = {
     /**
      * Refuses the parameter for a customer, whose lists the server already scopes to one account.
-     * @returns True when the caller may narrow by account.
+     * @param value The `?account=` value.
+     * @returns True when the caller may narrow by this account.
      */
-    accepts: (): boolean => {
-      return !isCustomer.value
+    accepts: (value: string): boolean => {
+      return !isCustomer.value && (accepts?.(value) ?? true)
     },
   }
 

@@ -28,6 +28,8 @@ export interface FileEditorStub {
   held: Set<string>
   /** Lets every held upload finish. */
   releaseUploads: () => void
+  /** While set, a read of the file waits for it; makes the loading state observable (#456). */
+  readsHeld: Promise<void> | null
 }
 
 /** The limits the stubbed server reports; small enough for a spec to cross them. */
@@ -92,6 +94,7 @@ export const stubFileEditorRoutes = async (page: Page, initial: StubbedTextFile)
     existing: new Set<string>(),
     held: new Set<string>(),
     releaseUploads: release,
+    readsHeld: null,
   }
   let revision = 0
 
@@ -101,6 +104,7 @@ export const stubFileEditorRoutes = async (page: Page, initial: StubbedTextFile)
 
   await page.route(/\/api\/v1\/files\/content(\?.*)?$/, async (route) => {
     if (route.request().method() === 'GET') {
+      await stub.readsHeld
       if (Buffer.byteLength(stub.disk.content) > STUB_FILES_OPTIONS.maxEditBytes) {
         await refuse(route, 422, 'FilesNotEditable', 'This file is too large to edit here.')
         return

@@ -20,7 +20,7 @@ ipm.sig             the signature of ipm.json (always, once signed)
 lib/<Entry>.dll     the module assembly named by entryAssembly
 lib/<culture>/<Entry>.resources.dll     its satellite resource assemblies (ru, hy, ...)
 lib.enc             instead of lib/*: the encrypted library (reserved, see below)
-spa/entry.js        the interface bundle's entry, when the module has a screen (a stub, see below)
+spa/entry.js        the interface bundle's entry, a classic script, when the module has a screen (see below)
 spa/locales/<locale>.json     one file per translated locale; en is always present
 ```
 
@@ -118,16 +118,45 @@ These are `IpmLimits.Default`. A test may construct a smaller `IpmLimits`; a pan
 - Every refusal is a typed code with text in English, Russian and Armenian (`Maran.Packaging/Resources/ErrorMessages`),
   never an exception.
 
-## The `spa` folder (a stub)
+## The `spa` folder
 
-The layout is fixed: an entry script, an integrity string pinning it, and one JSON file of strings per locale. How the panel
-runs that script is an open decision (rules/vue.md forbids loading module JavaScript at run time; the design spec says the
-opposite) and is NOT settled by this page. The format carries the pieces either answer needs; the sample's `spa/entry.js`
-does nothing on purpose.
+A module with a screen of its own ships its interface here. The panel never loads that script into its own
+page: the screen runs in a sandboxed frame that the panel builds, and the script talks to the panel only
+through a message bridge.
 
-`spa.integrity` is `sha384-` followed by the base64 SHA-384 of the entry file (the Subresource Integrity form), and must
-equal the entry's pin in `files`. `spa.locales` always includes `en` and lists exactly the locales that have a
-`spa/locales/<locale>.json` entry. A package with no `spa` member has no `spa/` entry at all, and the reverse.
+**What the folder holds.** An entry script, an integrity string pinning it, static assets (`.js`, `.css`, `.json`,
+`.png`, `.jpg`, `.jpeg`, `.webp`, `.woff2`, `.svg`) and one JSON file of strings per locale.
+
+- **The entry is a classic script**: a `.js` file placed directly in `spa/` (`spa/entry.js`), loaded with a plain
+  `<script>` tag, never `type="module"`. A module author bundles to one classic script (for example an IIFE).
+  An entry that is not a `.js` file directly under `spa/` (`.mjs`, a nested file, anything else) is refused
+  (`IpmSpaEntryNotClassicScript`).
+- **No document is allowed under `spa/`.** A file ending in `.html` or `.htm`, anywhere in the folder, is refused
+  (`IpmSpaDocumentForbidden`), whether or not the manifest declares a bundle. The panel generates the one document the
+  script runs in; a package can never make the panel serve a page of its own.
+- `spa.integrity` is `sha384-` followed by the base64 SHA-384 of the entry file (the Subresource Integrity form), and must
+  equal the entry's pin in `files`. The generated document carries it on the script tag, so the browser checks the
+  very bytes the signature covered. `spa.locales` always includes `en` and lists exactly the locales that have a
+  `spa/locales/<locale>.json` entry. A package with no `spa` member has no `spa/` entry at all, and the reverse.
+
+**How the panel serves it.** An installed module that is active is framed from `/module-frames/{id}/{version}/`: the
+folder URL answers a document the panel generates (a page whose only content is the entry script with its integrity
+value, nothing inline), and every other path answers the matching file of the package, with a content type the panel
+decides from a fixed extension list and never one the package supplies. The panel shows a module's screen only for
+the version that is running; a module that is degraded or failed is not framed, and an unknown path is a plain 404.
+The address is built by the panel, never taken from the package.
+
+**What the frame can and cannot do.** It runs in an iframe with `sandbox="allow-scripts"` and an opaque origin: it has no
+access to the panel's page, cookies, storage or session, and the policy it is served under (`connect-src 'none'`)
+forbids every network request, so the script cannot call the API, a server or any other site itself. Its one way out
+is the bridge, a message channel the panel opens after a handshake. Over it the script can ask the panel to
+perform an API call (the panel makes it with the signed-in user's own session, and the server refuses any endpoint
+that does not belong to this module), to resize the frame, to move to another route the module declares, and to show
+a short plain-text notification; the panel tells it the interface language, the colour scheme, the user's role name
+and later changes to the first two. Nothing else crosses: no token, cookie or user record is ever sent into the frame.
+Because the frame cannot fetch, a script that wants its translations carries them inside the bundle, and the
+`spa/locales` files are the same strings the panel reads. The bridge's client for authors is the package
+`frontend/packages/module-bridge` (`connectToShell`); the sample's `spa/entry.js` implements the same protocol by hand.
 
 ## Encryption (reserved)
 
@@ -174,7 +203,7 @@ maran ipm selftest
 
 - `package` publishes the module deterministically (`Deterministic`, `ContinuousIntegrationBuild`, a path map), takes the
   manifest from the module itself through `Maran.Host --cli module-manifest <assembly>` — the manifest is never typed —
-  adds the pin of every entry and the interface stub, and writes an UNSIGNED `<id>-<version>.ipm`. Two builds of one
+  adds the pin of every entry and the interface bundle, and writes an UNSIGNED `<id>-<version>.ipm`. Two builds of one
   source are the same bytes.
 - `sign` adds `ipm.sig`. The key must be an ECDSA P-384 key; the release key is the same scheme and cannot be told apart
   here, so keeping the two apart is a matter of custody.
@@ -193,5 +222,5 @@ maran ipm selftest
 project of `Maran.sln` (the architecture tests reference it, so the solution build compiles it under the backend's own
 build settings, and not under `src/`'s production-only banned-API list). It declares `Kind = Packageable`, the `hello`
 schema with one table and one migration, one administrator-only endpoint (`GET api/v1/hello`), a `DisplayNames`
-resource triple, and the interface stub. It references the Sdk and the SharedKernel only; `SampleModuleContractTests`
+resource triple, and the interface bundle (a classic script that renders the module's answer). It references the Sdk and the SharedKernel only; `SampleModuleContractTests`
 holds it to the same module contract as the modules the panel composes.

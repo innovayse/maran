@@ -24,6 +24,7 @@ public static class CliExtensions
         services.AddSingleton<IpmReader>();
         services.AddSingleton<ICliCommand, MigrateCliCommand>();
         services.AddSingleton<ICliCommand, StatusCliCommand>();
+        services.AddSingleton<ICliCommand, LicenceStatusCliCommand>();
         services.AddSingleton<ICliCommand, AdminResetPasswordCliCommand>();
         services.AddSingleton<ICliCommand, IssuePanelCertificateCliCommand>();
         services.AddSingleton<ICliCommand, ReportUpdateCliCommand>();

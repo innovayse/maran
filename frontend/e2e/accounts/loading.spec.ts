@@ -1,17 +1,20 @@
-import { test, type Page } from '@playwright/test'
 import {
   expectTableFastLoad,
   expectTableSlowFailure,
   expectTableSlowLoad,
   type TableLoadingScenario,
 } from '../fixtures/expect-table-loading'
+import { test } from '../fixtures/guarded-test'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
+import { stubAccountStatuses } from '../fixtures/stub-account-statuses-route'
 import { stubAccounts, stubAccountsProblem } from '../fixtures/stub-accounts-route'
 import { stubPlans } from '../fixtures/stub-plans-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import type { Account } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 // The accounts table while its page is on the way (#243): drawn from its own column schema.
 
@@ -38,6 +41,7 @@ const signIn = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubPlans(page, [])
 }
 
@@ -49,6 +53,8 @@ const ACCOUNTS_LIST_SCENARIO: TableLoadingScenario = {
   },
   stubFailure: async (page) => {
     await signIn(page)
+    // The list page also asks which account states exist, whatever the list read answers.
+    await stubAccountStatuses(page)
     await stubAccountsProblem(page, 'The accounts could not be read.')
   },
   pattern: /\/api\/v1\/accounts(\?.*)?$/,
@@ -66,6 +72,8 @@ test('accounts list: a fast answer shows no placeholder', async ({ page }) => {
   await expectTableFastLoad(page, ACCOUNTS_LIST_SCENARIO)
 })
 
-test('accounts list: a slow failure is an alert, never a skeleton', async ({ page }) => {
+test('accounts list: a slow failure is an alert, never a skeleton', async ({ page, guard }) => {
+  // The refusal is the subject: the list read answers 500.
+  guard.allow(500, /\/api\/v1\/accounts(\?.*)?$/)
   await expectTableSlowFailure(page, ACCOUNTS_LIST_SCENARIO)
 })

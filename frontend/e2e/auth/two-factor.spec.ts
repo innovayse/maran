@@ -1,7 +1,10 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubLogin, stubSignedOut, stubbedTwoFactorSignIn } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
+import { stubEmptyTasks } from '../fixtures/stub-tasks-routes'
 
 /** What the backend answers a password-only sign-in with when the user has a second factor. */
 // A second factor is owed, and that is now the ABSENCE of the signed-in half rather
@@ -33,6 +36,10 @@ test('entering the authenticator code completes the sign-in', async ({ page }) =
   await stubHealthy(page)
   await stubEmptyModules(page)
   await stubLogin(page, TWO_FACTOR_OWED)
+  // The completed sign-in lands on the home screen, which asks for its own reads.
+  await stubShellReads(page)
+  await stubEmptyTasks(page)
+  await stubLandingReads(page)
   await page.route('**/api/v1/auth/two-factor', async (route) => {
     await route.fulfill({
       status: 200,
@@ -68,7 +75,9 @@ test('the field asks for a recovery code once the user says the authenticator is
   await expect(page.getByRole('textbox', { name: 'Recovery code' })).toBeVisible()
 })
 
-test('a wrong code shows the backend message and keeps the user on the code screen', async ({ page }) => {
+test('a wrong code shows the backend message and keeps the user on the code screen', async ({ page, guard }) => {
+  // The refusal is the subject of this test.
+  guard.allow(401, /\/api\/v1\/auth\/two-factor$/)
   await stubSignedOut(page)
   await stubHealthy(page)
   await stubEmptyModules(page)

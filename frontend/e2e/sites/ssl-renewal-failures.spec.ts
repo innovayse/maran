@@ -1,5 +1,5 @@
-import { expect, test, type Page } from '@playwright/test'
 import { expectNoSeriousViolations } from '../fixtures/expect-no-serious-violations'
+import { expect, test } from '../fixtures/guarded-test'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import {
@@ -11,11 +11,15 @@ import {
 } from '../fixtures/stub-certificates-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubMyAccount } from '../fixtures/stub-my-account-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubPhpVersions, stubSiteDetail, stubSites } from '../fixtures/stub-sites-routes'
+import type { MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { AcmeDirectory, Certificate } from '../../src/types/certificate'
 import type { PanelModule } from '../../src/types/module'
 import type { SiteDetail } from '../../src/types/site'
+import type { Page } from '@playwright/test'
 
 // Issue #161: the certificate card reports the last renewal attempt, how many attempts failed in a
 // row and the panel's own sentence for the failure, and an administrator sees which ACME directory
@@ -51,6 +55,24 @@ const CUSTOMER: AuthenticatedUser = {
   accountId: SITE.accountId,
 }
 
+/** The customer's own account, which the customer's shell reads on every screen. */
+const OWN_ACCOUNT: MyAccount = {
+  id: SITE.accountId,
+  name: 'olive',
+  primaryDomain: 'olive.example.com',
+  status: 'active',
+  statusName: 'Active',
+  plan: {
+    displayName: 'Starter',
+    diskQuotaMb: 1024,
+    maxSites: 5,
+    maxDatabases: 5,
+    maxSftpUsers: 5,
+    maxFtpUsers: 5,
+    maxCronEntries: 5,
+  },
+}
+
 const DIRECTORY: AcmeDirectory = {
   url: 'https://acme-staging-v02.api.letsencrypt.org/directory',
   host: 'acme-staging-v02.api.letsencrypt.org',
@@ -83,7 +105,8 @@ const healthy = (): Certificate => {
  * @param installed The certificates the panel reports for the site.
  * @param options Who signs in and how the directory read answers.
  * @param options.user The signed-in user; the administrator when omitted.
- * @param options.directory The directory to report, `'failing'` for a refused read, or none.
+ * @param options.directory The directory to report, or `'failing'` for a refused read; an administrator who
+ *   names none is shown the staging directory, and a customer is never asked.
  * @returns Resolves once the tab is on screen.
  */
 const openSsl = async (
@@ -92,16 +115,23 @@ const openSsl = async (
   options: { user?: AuthenticatedUser; directory?: AcmeDirectory | 'failing' } = {},
 ): Promise<void> => {
   await stubSignedIn(page, options.user)
+  await stubShellReads(page)
+  if (options.user !== undefined) {
+    // A customer's shell reads their own account; an administrator owns none.
+    await stubMyAccount(page, OWN_ACCOUNT)
+  }
   await stubHealthy(page)
   await stubModules(page, LICENSED_SITES)
   await stubSites(page, [])
   await stubSiteDetail(page, SITE)
   await stubPhpVersions(page, [])
   await stubCertificates(page, installed)
-  if (options.directory === 'failing') {
+  // The tab reads the directory for an administrator, so one is always answered for them.
+  const directory = options.directory ?? (options.user === undefined ? DIRECTORY : undefined)
+  if (directory === 'failing') {
     await stubAcmeDirectoryFailure(page)
-  } else if (options.directory !== undefined) {
-    await stubAcmeDirectory(page, options.directory)
+  } else if (directory !== undefined) {
+    await stubAcmeDirectory(page, directory)
   }
   await page.goto(`/sites/${SITE.id}`)
   await page.getByRole('button', { name: 'SSL' }).click()
@@ -160,7 +190,8 @@ test('a customer sees no directory line and the panel is never asked for it', as
   expect(asked).toEqual([])
 })
 
-test('a failing directory read shows nothing and the tab still works', async ({ page }) => {
+test('a failing directory read shows nothing and the tab still works', async ({ page, guard }) => {
+  guard.allow(500, /\/api\/v1\/certificates\/acme-directory$/)
   const errors: string[] = []
   page.on('pageerror', (error) => {
     errors.push(error.message)

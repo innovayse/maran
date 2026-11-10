@@ -8,7 +8,7 @@
  * **Removing a key ends the login's open sessions**, so the removal is always confirmed and the
  * confirmation says so. Adding a key never ends a session, and says nothing of the kind.
  */
-import { ref, useTemplateRef, type Ref } from 'vue'
+import { computed, ref, useTemplateRef, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../ui/UiAlert.vue'
 import UiConfirm from '../ui/UiConfirm.vue'
@@ -22,6 +22,7 @@ import SftpKeyList from './SftpKeyList.vue'
 import { useDebouncedSearch } from '../../composables/useDebouncedSearch'
 import { useListLabels } from '../../composables/useListLabels'
 import { useSftpKeysStore } from '../../stores/sftpKeys'
+import { SEARCH_TERM_MAX_LENGTH } from '../../utils/searchTermLimit'
 import type { AddSftpUserKeyRequest, SftpUser, SftpUserKey } from '../../types/sftpUser'
 
 /** How long typing must pause before the label search is sent, in milliseconds. */
@@ -52,10 +53,19 @@ const region = useTemplateRef<HTMLElement>('region')
 /** The key awaiting a removal confirmation, or `null` when none is. */
 const pendingRemoval: Ref<SftpUserKey | null> = ref(null)
 
-/** The label search box: its text is sent to the server once typing pauses. */
-const search = useDebouncedSearch((term: string): void => {
-  void store.searchKeys(term)
-}, SEARCH_DELAY_MS)
+/** The label search box: its text is sent to the server once typing pauses, unless it is too long. */
+const search = useDebouncedSearch(
+  (term: string): void => {
+    void store.searchKeys(term)
+  },
+  SEARCH_DELAY_MS,
+  true,
+)
+
+/** The message under the search box while its text is longer than the list accepts. */
+const searchError: ComputedRef<string | null> = computed(() => {
+  return search.tooLong.value ? t('common.list.searchTooLong', { max: SEARCH_TERM_MAX_LENGTH }) : null
+})
 
 /**
  * Names where focus goes when the removal confirmation closes: the removed key's button no longer
@@ -125,6 +135,7 @@ const confirm = async (): Promise<void> => {
         :label="t('sftp.keys.searchLabel')"
         :placeholder="t('sftp.keys.searchPlaceholder')"
         :clear-label="t('sftp.keys.searchClear')"
+        :error="searchError"
         @update:model-value="search.type"
       />
 

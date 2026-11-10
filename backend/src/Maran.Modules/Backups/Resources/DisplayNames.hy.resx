@@ -66,6 +66,9 @@
   <data name="BackupFailureAgentPackageSourceUnreachable">
     <value>Փաթեթների աղբյուրի հետ կապ հաստատել չհաջողվեց</value>
   </data>
+  <data name="BackupFailureAgentPackageNotAvailable">
+    <value>Սերվերին անհրաժեշտ փաթեթը նրա փաթեթների աղբյուրներում չկա</value>
+  </data>
   <data name="BackupFailureAgentBelowFreeSpaceFloor">
     <value>Սերվերում սկավառակի տեղը գրեթե սպառվել էր</value>
   </data>
@@ -119,6 +122,9 @@
   </data>
   <data name="BackupKindPreRestore">
     <value>Վերականգնումից առաջ</value>
+  </data>
+  <data name="BackupKindMigration">
+    <value>Այլ սերվեր տեղափոխելու համար</value>
   </data>
   <data name="BackupDestinationKindLocal">
     <value>Այս սերվերի սկավառակը</value>

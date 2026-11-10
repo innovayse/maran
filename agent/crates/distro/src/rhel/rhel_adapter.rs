@@ -19,6 +19,7 @@ use crate::key_value_server::KeyValueServer;
 use crate::mail_facts::MailFacts;
 use crate::package_facts::PackageFacts;
 use crate::package_failure::PackageFailure;
+use crate::package_query_failure::PackageQueryFailure;
 use crate::pending_update::PendingUpdate;
 use crate::pending_updates_failure::PendingUpdatesFailure;
 use crate::php_extension_facts::PhpExtensionFacts;
@@ -27,7 +28,9 @@ use crate::php_facts::PhpFacts;
 use crate::reboot_probe::RebootProbe;
 use crate::reboot_probe_failure::RebootProbeFailure;
 use crate::reboot_requirement::RebootRequirement;
-use crate::rhel::{rhel_packages, rhel_paths, rhel_php_extensions, rhel_services};
+use crate::rhel::{
+    rhel_package_candidates, rhel_packages, rhel_paths, rhel_php_extensions, rhel_services,
+};
 use crate::scheduling_facts::SchedulingFacts;
 use crate::service_manager_facts::ServiceManagerFacts;
 use crate::vsftpd_tls_version_keys::VsftpdTlsVersionKeys;
@@ -176,10 +179,6 @@ impl PhpFacts for RhelAdapter {
     fn php_package(&self, version: &str) -> String {
         rhel_packages::php_package(version)
     }
-
-    fn installable_php_versions(&self) -> &'static [&'static str] {
-        rhel_packages::installable_php_versions()
-    }
 }
 
 impl PhpExtensionFacts for RhelAdapter {
@@ -219,6 +218,24 @@ impl PackageFacts for RhelAdapter {
 
     fn package_query_binary(&self) -> AdapterBinary {
         rhel_services::package_query_binary()
+    }
+
+    fn package_candidate_binary(&self) -> AdapterBinary {
+        rhel_package_candidates::package_candidate_binary()
+    }
+
+    fn package_candidate_arguments(&self, packages: &[String]) -> Vec<String> {
+        rhel_package_candidates::package_candidate_arguments(packages)
+    }
+
+    fn read_package_candidates(
+        &self,
+        status: i32,
+        stdout: &str,
+        stderr: &str,
+        packages: &[String],
+    ) -> Result<Vec<String>, PackageQueryFailure> {
+        rhel_package_candidates::read_package_candidates(status, stdout, stderr, packages)
     }
 
     fn catalogue_probe(&self) -> Option<CatalogueProbe> {
@@ -300,6 +317,14 @@ impl DnsFacts for RhelAdapter {
     fn dns_zone_directory(&self) -> &'static str {
         rhel_services::dns_zone_directory()
     }
+
+    fn dns_signed_zone_directory(&self) -> &'static str {
+        rhel_services::dns_signed_zone_directory()
+    }
+
+    fn dns_key_directory(&self) -> &'static str {
+        rhel_services::dns_key_directory()
+    }
 }
 
 impl FileTransferFacts for RhelAdapter {
@@ -319,8 +344,20 @@ impl FileTransferFacts for RhelAdapter {
         rhel_services::vsftpd_tls_version_keys()
     }
 
+    fn rsync_binary(&self) -> AdapterBinary {
+        rhel_services::rsync_binary()
+    }
+
     fn ssh_keygen_binary(&self) -> AdapterBinary {
         rhel_services::ssh_keygen_binary()
+    }
+
+    fn ssh_binary(&self) -> AdapterBinary {
+        rhel_services::ssh_binary()
+    }
+
+    fn ssh_keyscan_binary(&self) -> AdapterBinary {
+        rhel_services::ssh_keyscan_binary()
     }
 
     fn ssh_service(&self) -> &'static str {

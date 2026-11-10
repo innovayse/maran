@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="RemoteServerNameRequired">
+    <value>Give the server a name.</value>
+  </data>
+  <data name="RemoteServerNameMaxLength">
+    <value>The name is too long.</value>
+  </data>
+  <data name="RemoteServerHostRequired">
+    <value>Enter the server's host name or address.</value>
+  </data>
+  <data name="RemoteServerHostInvalid">
+    <value>That is not a valid host name or IP address.</value>
+  </data>
+  <data name="RemoteServerPortInvalid">
+    <value>The port must be a number from 1 to 65535.</value>
+  </data>
+  <data name="RemoteServerSshUserInvalid">
+    <value>That is not a valid login name.</value>
+  </data>
+  <data name="RemoteServerAllowedFromInvalid">
+    <value>Enter addresses or ranges such as 203.0.113.7 or 203.0.113.0/24, separated by commas.</value>
+  </data>
+  <data name="FingerprintInvalid">
+    <value>A fingerprint looks like SHA256: followed by 43 characters.</value>
+  </data>
+  <data name="MigrationPullUrlInvalid">
+    <value>Enter the other panel's address as https://host or https://host:port, with nothing after it.</value>
+  </data>
+  <data name="MigrationPullGrantInvalid">
+    <value>Enter the grant exactly as the other panel showed it.</value>
+  </data>
+</root>

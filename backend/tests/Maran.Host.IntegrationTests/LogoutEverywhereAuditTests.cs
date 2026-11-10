@@ -79,7 +79,10 @@ public sealed class LogoutEverywhereAuditTests : IAsyncLifetime
             return candidate.Action == IdentityAuditActions.LoggedOutEverywhere;
         });
         Assert.Equal(userId, entry.ActorUserId);
-        Assert.Equal(userId.ToString(), entry.Subject);
+        // The subject reads as the person who signed out, never as their id (issue #509), and the entry
+        // carries the id so that erasing the login finds the row.
+        Assert.Equal("customer", entry.Subject);
+        Assert.Equal(userId, entry.SubjectUserId);
         Assert.True(entry.Succeeded);
     }
 

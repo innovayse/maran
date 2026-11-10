@@ -1,16 +1,18 @@
-import { FALLBACK_GROUP, NAVIGATION_TREE } from '../router/navigationTree'
+import { FALLBACK_GROUP, NAVIGATION_TREE, PACKAGED_GROUP } from '../router/navigationTree'
 import type { NavigationEntry } from '../types/navigation'
 import type { NavigationGroup } from '../types/navigationGroup'
 
 /**
  * Groups in the order they are drawn: the tree's own, then the fallback group for catalogue
- * modules the tree does not know, last so a known item is never pushed below an unknown one.
+ * modules the tree does not know, then the installed modules' group, last so a known item is never
+ * pushed below an unknown one.
  */
 const GROUP_ORDER: readonly string[] = [
   ...NAVIGATION_TREE.map((group): string => {
     return group.key
   }),
   FALLBACK_GROUP,
+  PACKAGED_GROUP,
 ]
 
 /**

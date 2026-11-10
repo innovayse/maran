@@ -2,13 +2,14 @@
 
 use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
 use maran_agent_core::validation::fleet::listen_address::ListenAddress;
+use maran_agent_core::validation::web::panel_host_names::PanelHostNames;
 use maran_agent_core::validation::web::port::Port;
 use maran_ops::firewall::RulesetPorts;
 
 use super::absolute_directory::absolute_directory;
 use super::agent_options::{
     ALLOW_UID_FLAG, AgentOptions, DEFAULT_SOCKET, FLEET_DIR_FLAG, FLEET_LISTEN_FLAG,
-    FREE_SPACE_FLOOR_FLAG, SOCKET_FLAG,
+    FREE_SPACE_FLOOR_FLAG, RESERVED_HOST_NAMES_FLAG, SOCKET_FLAG,
 };
 use super::fleet_options::FleetOptions;
 use super::node_identity_request::{GENERATE_NODE_IDENTITY_FLAG, NodeIdentityRequest};
@@ -40,6 +41,7 @@ pub const USAGE: &str = concat!(
     "\n",
     "Usage: maran-agent [--socket <path>] [--allow-uid <uid>] [--free-space-floor-mib <n>]\n",
     "                   [--fleet-listen <ip:port> --fleet-dir <dir>]\n",
+    "                   [--reserved-host-names=<name>[,<name>…]]\n",
     "       maran-agent --generate-node-identity <dir> --node-address <host-or-ip> [--replace]\n",
     "       maran-agent render-firewall-ruleset --ssh-port <port> [--ssh-port <port>]…\n",
     "                                          --panel-port <port>\n",
@@ -58,6 +60,11 @@ pub const USAGE: &str = concat!(
     "                      Off unless BOTH fleet flags are given. The port is 1024 or above.\n",
     "  --fleet-dir <dir>   Absolute path of the directory holding this node's key and\n",
     "                      certificate and the pinned panel certificate\n",
+    "  --reserved-host-names=<name>[,<name>…]\n",
+    "                      The host names the panel itself is served under. No site,\n",
+    "                      alias, certificate or zone may take one, or its www. form.\n",
+    "                      Written with '=' so that an empty value is still one argument.\n",
+    "                      Absent or empty reserves nothing beyond the fixed reserved set.\n",
     "  -h, --help          Print this text and exit\n",
     "\n",
     "Render subcommands print one file to standard output and exit. They start\n",
@@ -165,7 +172,8 @@ impl Invocation {
     /// not a number between 1 and 65535, [`OptionsError::InvalidFreeSpaceFloor`]
     /// when `--free-space-floor-mib` is not a whole number from 1 whose byte
     /// count fits, [`OptionsError::RepeatedFlag`] when `--panel-port`,
-    /// `--fleet-listen` or `--fleet-dir` is given twice,
+    /// `--fleet-listen`, `--fleet-dir` or `--reserved-host-names` is given twice,
+    /// [`OptionsError::InvalidReservedHostNames`] when a name in that list is not a host name,
     /// [`OptionsError::InvalidFleetListen`] and [`OptionsError::RelativePath`] for a fleet flag
     /// with a value that is refused, [`OptionsError::FleetFlagMissing`] when only one of the
     /// two fleet flags was given, and the errors of `--generate-node-identity` documented on
@@ -203,13 +211,31 @@ impl Invocation {
             socket_path: std::path::PathBuf::from(DEFAULT_SOCKET),
             allow_uid: default_uid,
             free_space_floor: FreeSpaceFloor::default_floor(),
+            panel_host_names: PanelHostNames::none(),
             fleet: None,
         };
+        let mut reserved_host_names_given = false;
         let mut fleet_listen = None;
         let mut fleet_directory = None;
 
         let mut remaining = arguments.iter();
         while let Some(argument) = remaining.next() {
+            // The one flag written `--flag=value`, so that an empty value is still one argument
+            // (see `RESERVED_HOST_NAMES_FLAG`).
+            if let Some(list) = argument
+                .strip_prefix(RESERVED_HOST_NAMES_FLAG)
+                .and_then(|rest| rest.strip_prefix('='))
+            {
+                if std::mem::replace(&mut reserved_host_names_given, true) {
+                    return Err(OptionsError::RepeatedFlag {
+                        flag: RESERVED_HOST_NAMES_FLAG,
+                    });
+                }
+                options.panel_host_names = PanelHostNames::parse_list(list)
+                    .map_err(|reason| OptionsError::InvalidReservedHostNames { reason })?;
+                continue;
+            }
+
             match argument.as_str() {
                 SOCKET_FLAG => {
                     let value = remaining

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { ALICE, BOB, CUSTOMER, EXAMPLE_ZONE, SHOP_ZONE, openDnsScreen } from '../fixtures/open-dns-screen'
 
 // The DNS zones list (issue #178) is server-paged like every list: the page, its size, the search,
@@ -97,7 +97,8 @@ test('the account filter narrows to one owner', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'example.com', exact: true })).toHaveCount(0)
 })
 
-test('the panel refusing the list is shown in its own words, with no table beside it', async ({ page }) => {
+test('the panel refusing the list is shown in its own words, with no table beside it', async ({ page, guard }) => {
+  guard.allow(503, /\/api\/v1\/dns-zones(\?.*)?$/)
   await openDnsScreen(page, {
     zones: [EXAMPLE_ZONE],
     refusals: { 'GET dns-zones': { detail: 'The DNS module is switched off on this host.', status: 503 } },
@@ -132,7 +133,8 @@ test('deleting a zone asks first, says what it does, and reads the list again', 
   await expect(page.getByRole('link', { name: 'shop.example.org' })).toBeVisible()
 })
 
-test('a refused delete keeps the zone and shows the panel\'s reason', async ({ page }) => {
+test('a refused delete keeps the zone and shows the panel\'s reason', async ({ page, guard }) => {
+  guard.allow(409, /\/api\/v1\/dns-zones\/[^/]+$/)
   await openDnsScreen(page, {
     zones: [EXAMPLE_ZONE],
     refusals: { 'DELETE dns-zones/:id': { detail: 'The zone is being applied. Try again in a moment.' } },

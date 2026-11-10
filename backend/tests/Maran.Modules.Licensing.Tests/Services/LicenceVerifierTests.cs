@@ -1,4 +1,5 @@
 using Maran.Modules.Licensing.Domain.Enums;
+using Maran.Modules.Licensing.Domain.ValueObjects;
 using Maran.Modules.Licensing.Services;
 using Maran.Modules.Licensing.Tests.TestSupport;
 
@@ -20,15 +21,52 @@ public sealed class LicenceVerifierTests
     /// <summary>A machine-id standing for some other server entirely.</summary>
     private const string AnotherHostMachineId = "fedcba9876543210fedcba9876543210";
 
-    /// <summary>Builds a verifier over the real (production-embedded) key and a clock reading the given instant.</summary>
+    /// <summary>Builds a verifier over the test key and a clock reading the given instant.</summary>
     /// <param name="now">The instant the verifier's clock reports.</param>
     /// <param name="hostMachineId">This host's machine-id, or null for "could not be read".</param>
     private static LicenceVerifier MakeVerifier(DateTimeOffset now, string? hostMachineId = null)
     {
         return new LicenceVerifier(
-            new Ed25519LicenceSignatureVerifier(),
+            new Ed25519LicenceSignatureVerifier(TestKeys.TrustedKey),
             new FixedClock(now),
             new FixedServerIdentitySource(hostMachineId));
+    }
+
+    // ---- Issue #470: a build with no key trusts nothing -------------------------------------------
+
+    /// <summary>A verifier holding no key refuses even a licence correctly signed with the test key.</summary>
+    /// <remarks>
+    /// The planted break: the old verifier embedded a key whose private half was public, so a licence
+    /// signed with it verified on every build. A verifier over <see cref="LicenceVerificationKey.None"/>
+    /// must refuse that same envelope, and say the key is missing rather than that the signature is bad.
+    /// </remarks>
+    [Fact]
+    public async Task A_verifier_with_no_key_refuses_a_correctly_signed_licence_as_NoVerificationKey()
+    {
+        var envelope = LicenceEnvelopeBuilder.Build(TestKeys.RealPrivateKeyHex);
+        var verifier = new LicenceVerifier(
+            new Ed25519LicenceSignatureVerifier(LicenceVerificationKey.None),
+            new FixedClock(FixedReferenceInstant),
+            new FixedServerIdentitySource());
+
+        var status = await verifier.VerifyAsync(envelope);
+
+        var refused = Assert.IsType<LicenceStatus.Refused>(status);
+        Assert.Equal(LicenceRefusalReason.NoVerificationKey, refused.Reason);
+    }
+
+    /// <summary>Inverse control: nothing installed still reads as Absent, key or no key.</summary>
+    [Fact]
+    public async Task A_verifier_with_no_key_still_reports_an_empty_installation_as_Absent()
+    {
+        var verifier = new LicenceVerifier(
+            new Ed25519LicenceSignatureVerifier(LicenceVerificationKey.None),
+            new FixedClock(FixedReferenceInstant),
+            new FixedServerIdentitySource());
+
+        var status = await verifier.VerifyAsync(null);
+
+        Assert.IsType<LicenceStatus.Absent>(status);
     }
 
     // ---- Mutant #1: signature verification always true --------------------------------------

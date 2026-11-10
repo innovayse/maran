@@ -67,4 +67,37 @@
   <data name="LicenceAdviceFingerprintMismatch" xml:space="preserve">
     <value>Установленная лицензия выпущена для другого сервера. Ни один из модулей, входящих в панель, не затронут. Воспользуйтесь функцией переноса лицензии в личном кабинете, либо обратитесь в поддержку, если считаете это ошибкой.</value>
   </data>
+  <data name="LicenceRefusalNoVerificationKey">
+    <value>В панели нет лицензионного ключа</value>
+  </data>
+  <data name="LicenceAdviceNoVerificationKey" xml:space="preserve">
+    <value>Эта сборка панели не содержит ключа для проверки лицензий, поэтому ни одну лицензию проверить и принять нельзя. Модули, входящие в состав панели, это не затрагивает. Установите релизную сборку, содержащую лицензионный ключ.</value>
+  </data>
+  <data name="LicenceLeaseMissing" xml:space="preserve">
+    <value>Аренды нет</value>
+  </data>
+  <data name="LicenceLeaseRefused" xml:space="preserve">
+    <value>Аренде нельзя доверять</value>
+  </data>
+  <data name="LicenceLeaseFresh" xml:space="preserve">
+    <value>Аренда действует</value>
+  </data>
+  <data name="LicenceLeaseRenewalOverdue" xml:space="preserve">
+    <value>Продление аренды задерживается</value>
+  </data>
+  <data name="LicenceLeaseExpired" xml:space="preserve">
+    <value>Срок аренды истёк</value>
+  </data>
+  <data name="LicenceLeaseFutureDated" xml:space="preserve">
+    <value>Аренда датирована будущим</value>
+  </data>
+  <data name="LicenceLeaseWrongLicence" xml:space="preserve">
+    <value>Аренда другой лицензии</value>
+  </data>
+  <data name="LicenceLeaseWrongMachine" xml:space="preserve">
+    <value>Аренда другого сервера</value>
+  </data>
+  <data name="LicenceLeaseNotRequired" xml:space="preserve">
+    <value>Аренда не нужна (офлайн-лицензия)</value>
+  </data>
 </root>

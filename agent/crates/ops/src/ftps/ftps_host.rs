@@ -290,6 +290,26 @@ pub trait FtpsHost: Send + Sync {
     /// or its mode cannot be set.
     fn create_directory(&self, path: &Path, mode: u32) -> Result<(), FtpsError>;
 
+    /// Creates the jail's mount point and, when the account's home is NOT
+    /// mounted over it, gives it `mode` (issue #483).
+    ///
+    /// Kept apart from [`Self::create_directory`] because a `chmod` by path
+    /// follows a live bind mount onto its source: applying the mount point's
+    /// mode on an account's second login rewrote the account's real home from
+    /// `0750` to `0755`. This method sets a mode only on a directory that is
+    /// not the home.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FtpsError::JailFailed`] when the directory cannot be created,
+    /// the home cannot be inspected, or the mode cannot be set.
+    fn ensure_mount_point(
+        &self,
+        mount_point: &Path,
+        home: &Path,
+        mode: u32,
+    ) -> Result<(), FtpsError>;
+
     /// Lists every FTPS login on this host that belongs to `account`.
     ///
     /// `passwd_database` is the path the `DistroAdapter` gives for the host's

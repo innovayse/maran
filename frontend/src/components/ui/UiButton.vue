@@ -64,6 +64,12 @@
  * **Motion.** A trailing `arrowRight` icon nudges 2px forward on hover (see `buttonClasses`), and
  * not when the button is disabled or the reader asked for reduced motion.
  *
+ * **A read-only session disables what writes** (issue #515). While an operator is viewing as another
+ * login, a `submit` button and a `destructive` one are drawn disabled, because those two are how the
+ * panel's screens save and remove; navigation and every other button stay live so the operator can
+ * still look around. Advice only: the panel refuses a write of such a session whatever the browser
+ * shows, so a write behind another button costs a refused request, never a change.
+ *
  * **Focus.** `shadow-focus` (`shadow-focus-danger` on a destructive button) on
  * `focus-visible` only, so it reaches keyboard users without outlining every
  * mouse click. It replaces the primary's glow while focused, which is the
@@ -71,6 +77,7 @@
  */
 import { computed, type ComputedRef } from 'vue'
 import { RouterLink, type RouteLocationRaw } from 'vue-router'
+import { useSessionReadOnly } from '../../composables/useSessionReadOnly'
 import { buttonClasses } from '../../utils/buttonClasses'
 
 /**
@@ -122,6 +129,17 @@ const emit = defineEmits<{
   (e: 'click', payload: MouseEvent): void
 }>()
 
+const readOnly = useSessionReadOnly()
+
+/**
+ * Whether the button is disabled: the caller said so, or the session is read-only and the button
+ * is one that writes. A link is never disabled (see "As a link").
+ */
+const isDisabled: ComputedRef<boolean> = computed(() => {
+  const writes = props.type === 'submit' || props.variant === 'destructive'
+  return props.disabled || (readOnly.value && writes)
+})
+
 /**
  * The button's complete class string, built from its variant and size by {@link buttonClasses}.
  * Each CSS property is set by exactly one of base, variant and size, so a caller never needs an
@@ -140,7 +158,7 @@ const classes: ComputedRef<string> = computed(() => {
  * @returns Nothing; re-emits synchronously.
  */
 const onClick = (event: MouseEvent): void => {
-  if (props.disabled && props.to === undefined) {
+  if (isDisabled.value && props.to === undefined) {
     return
   }
   emit('click', event)
@@ -157,7 +175,7 @@ const onClick = (event: MouseEvent): void => {
   <RouterLink v-if="to !== undefined" :to="to" :class="classes" @click="onClick">
     <slot />
   </RouterLink>
-  <button v-else :type="type" :disabled="disabled" :class="classes" @click="onClick">
+  <button v-else :type="type" :disabled="isDisabled" :class="classes" @click="onClick">
     <slot />
   </button>
 </template>

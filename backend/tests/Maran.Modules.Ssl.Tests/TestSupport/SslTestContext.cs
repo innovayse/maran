@@ -60,12 +60,14 @@ public static class SslTestContext
     /// <param name="notAfter">When it expires.</param>
     /// <param name="source">Where it came from.</param>
     /// <param name="siteId">The site it belongs to; a fresh identity when omitted.</param>
+    /// <param name="isWildcard">Whether it also covers <c>*.domain</c>.</param>
     public static Certificate Certificate(
         Guid accountId,
         string domain,
         DateTimeOffset notAfter,
         CertificateSource source = CertificateSource.Acme,
-        Guid? siteId = null)
+        Guid? siteId = null,
+        bool isWildcard = false)
     {
         return new Certificate(
             Guid.NewGuid(),
@@ -74,6 +76,7 @@ public static class SslTestContext
             domain,
             source,
             notAfter,
-            new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
+            new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            isWildcard);
     }
 }

@@ -1,8 +1,9 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { openFullShell } from '../fixtures/open-full-shell'
 import { feedEntry, feedState, stubNotificationFeed, type NotificationFeedState } from '../fixtures/stub-notification-routes'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubResellerSession } from '../fixtures/stub-reseller-session'
+import type { Locator, Page } from '@playwright/test'
 
 // Issue #164: the app bar's notification bell, for administrators. It shows how many entries the
 // signed-in administrator has not dismissed, opens the feed in a popover (a bottom sheet on a
@@ -139,7 +140,9 @@ test('dismissing all empties the feed and removes the badge', async ({ page }) =
   expect(state.dismissAllCalls).toBe(1)
 })
 
-test('a refused dismissal says why in the panel\'s words and keeps the entry', async ({ page }) => {
+test('a refused dismissal says why in the panel\'s words and keeps the entry', async ({ page, guard }) => {
+  // The refusal is the point: the panel answers the dismissal with a conflict.
+  guard.allow(409, /\/api\/v1\/notifications\/feed\/[^/]+\/dismiss$/)
   const state = feedState([FAILED_TASK])
   state.refuseDismissWith = 'The notification could not be dismissed right now.'
   await openWithFeed(page, state)
@@ -151,7 +154,9 @@ test('a refused dismissal says why in the panel\'s words and keeps the entry', a
   await expect(page.getByText(FAILED_TASK.title)).toBeVisible()
 })
 
-test('a feed that cannot be read says so and reads again on retry', async ({ page }) => {
+test('a feed that cannot be read says so and reads again on retry', async ({ page, guard }) => {
+  // The refusal is the point: the list is unavailable until the retry (the badge figure is a separate read).
+  guard.allow(503, /\/api\/v1\/notifications\/feed(\?.*)?$/)
   const state = feedState([FAILED_TASK])
   state.failListWith = 503
   await openWithFeed(page, state)
@@ -267,7 +272,7 @@ test('the administrator\'s shell does ask for the feed, so the observer above is
 })
 
 const LOCALES = [
-  { code: 'ru', name: 'Уведомления', unread: 'Уведомления, не скрыто: 3', empty: 'Уведомлений нет', dismissAll: 'Скрыть все' },
+  { code: 'ru', name: 'Уведомления', unread: 'Уведомления, нескрытых: 3', empty: 'Уведомлений нет', dismissAll: 'Скрыть все' },
   { code: 'hy', name: 'Ծանուցումներ', unread: 'Ծանուցումներ, չփակված՝ 3', empty: 'Ծանուցումներ չկան', dismissAll: 'Փակել բոլորը' },
 ] as const
 

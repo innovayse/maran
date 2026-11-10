@@ -1,0 +1,9 @@
+# SYNTHETIC FIXTURE: hand-written text, not captured from a real host.
+MAILTO=admin@example.com
+SHELL=/bin/bash
+
+# m h dom mon dow command
+*/5 * * * * /home/acme/bin/poll.sh
+0 3 * * 1-5 php /home/acme/artisan schedule:run
+@daily /home/acme/bin/backup.sh
+@reboot /home/acme/bin/start.sh

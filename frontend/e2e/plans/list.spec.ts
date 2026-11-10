@@ -1,10 +1,12 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { PLANS_PATTERN, stubManagedPlans } from '../fixtures/stub-plans-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { ManagedPlan } from '../../src/types/plan'
 import type { PanelModule } from '../../src/types/module'
+import type { Locator, Page } from '@playwright/test'
 
 // The plans screen as a server-paged list (#196): the URL is its state, and the panel searches,
 // sorts and pages it.
@@ -55,6 +57,7 @@ const openWith = async (page: Page, plans: ManagedPlan[]): Promise<() => readonl
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_ACCOUNTS)
+  await stubShellReads(page)
   await stubManagedPlans(page, plans)
   const seen: URL[] = []
   page.on('request', (request) => {

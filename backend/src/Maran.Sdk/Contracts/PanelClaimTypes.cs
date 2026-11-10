@@ -96,4 +96,16 @@ public static class PanelClaimTypes
     /// owns carries none. A JWT never carries it.
     /// </summary>
     public const string ApiKeyReseller = "key_reseller";
+
+    /// <summary>
+    /// The id of the export grant that authenticated the request. Written only by the migration grant handler, so
+    /// its presence says a grant, not a login, is the caller. A JWT never carries it.
+    /// </summary>
+    public const string MigrationGrantId = "grant";
+
+    /// <summary>
+    /// The export the grant opens, written beside <see cref="MigrationGrantId"/> and nowhere else. The pull
+    /// endpoints read it and never a route or query value, so a grant for one export cannot be aimed at another.
+    /// </summary>
+    public const string MigrationExportId = "grant_export";
 }

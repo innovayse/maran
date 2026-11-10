@@ -61,7 +61,28 @@ const page = (
   module: string | null,
   planFeature: AccountFeatureName | null = null,
 ): NavigationPageSpec => {
-  return { key, labelKey, availability, roles, module, planFeature, ownerOnly: false, badge: null }
+  return {
+    key,
+    labelKey,
+    availability,
+    roles,
+    module,
+    planFeature,
+    ownerOnly: false,
+    viewAsRefused: false,
+    badge: null,
+    searchTermsKey: null,
+  }
+}
+
+/**
+ * Gives a page the extra words the jump-to palette finds it by, beside its menu label.
+ * @param spec The page, as {@link page} built it.
+ * @param terms Name of the entry under `app.nav.searchTerms` holding the words.
+ * @returns The same page with its search words set.
+ */
+const findBy = (spec: NavigationPageSpec, terms: string): NavigationPageSpec => {
+  return { ...spec, searchTermsKey: `app.nav.searchTerms.${terms}` }
 }
 
 /** Administrators only: the host and the panel itself. */
@@ -90,7 +111,7 @@ const RESELLER: readonly NavigationRole[] = ['reseller']
  * `notifications` is the outgoing-mail page, which carries no module so that a licence cannot
  * switch off password-reset mail, and `idempotency` is a backend facility (the store behind the
  * Idempotency-Key header) with no screen at all, and `updates` serves the "Panel updates" page the Settings
- * section already links (issue #382). Any OTHER module the catalogue reports and the
+ * section already links (issue #382), and `licensing` serves the "Licence" page the same section links (issue #8). Any OTHER module the catalogue reports and the
  * tree does not name — a module newer than this bundle — still gets an entry, in the fallback group.
  */
 export const MODULES_WITHOUT_ITEM: ReadonlySet<string> = new Set([
@@ -99,10 +120,18 @@ export const MODULES_WITHOUT_ITEM: ReadonlySet<string> = new Set([
   'notifications',
   'idempotency',
   'updates',
+  'licensing',
 ])
 
 /** Group a catalogue module the tree does not know is drawn under. */
 export const FALLBACK_GROUP = 'panel'
+
+/**
+ * Group the entries of installed (packaged) modules are drawn under. Their entries do not come from
+ * this tree: the module declares them and the backend localizes them, so the tree can only name the
+ * group (`utils/packagedNavigation.ts` builds the entries).
+ */
+export const PACKAGED_GROUP = 'modules'
 
 /** The whole navigation, in drawing order. */
 export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
@@ -145,11 +174,17 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
         labelKey: 'app.nav.items.sites',
         icon: 'earth',
         children: [
-          page('sites-list', 'app.nav.children.sitesList', routed('sites'), ACCOUNT_HOLDERS, 'sites'),
+          findBy(
+            page('sites-list', 'app.nav.children.sitesList', routed('sites'), ACCOUNT_HOLDERS, 'sites'),
+            'sitesList',
+          ),
           page('site-domains', 'app.nav.children.siteDomains', planned(null), ACCOUNT_HOLDERS, null),
           page('site-certificates', 'app.nav.children.siteCertificates', planned(null), ACCOUNT_HOLDERS, null),
-          page('site-php', 'app.nav.children.sitePhp', routed('php-settings'), CUSTOMER, 'sites', 'php'),
-          page('php-versions', 'app.nav.phpVersions', routed('php-versions'), ADMIN, null),
+          findBy(
+            page('site-php', 'app.nav.children.sitePhp', routed('php-settings'), CUSTOMER, 'sites', 'php'),
+            'sitePhp',
+          ),
+          findBy(page('php-versions', 'app.nav.phpVersions', routed('php-versions'), ADMIN, null), 'phpVersions'),
         ],
       },
       {
@@ -163,7 +198,7 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
           // to resellers, whose context shows no DNS rows (issue #178).
           page('dns-zones', 'app.nav.children.dnsZones', routed('dns-zones'), ADMIN, 'dns', 'dns'),
           page('dns-my-zones', 'app.nav.children.dnsMyZones', routed('dns-zones'), CUSTOMER, 'dns', 'dns'),
-          page('dns-templates', 'app.nav.children.dnsTemplates', planned(178), ADMIN, 'dns'),
+          page('dns-templates', 'app.nav.children.dnsTemplates', routed('dns-templates'), ADMIN, 'dns'),
           page('dns-nameservers', 'app.nav.children.dnsNameservers', routed('dns-nameservers'), ADMIN, 'dns'),
         ],
       },
@@ -180,7 +215,7 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
           page('mail-spam-filter', 'app.nav.children.mailSpamFilter', planned(177), CUSTOMER, null, 'mail'),
           page('webmail', 'app.nav.children.webmail', planned(177), CUSTOMER, null, 'mail'),
           {
-            ...page('mail-queue', 'app.nav.children.mailQueue', planned(177), MANAGERS, null, 'mail'),
+            ...page('mail-queue', 'app.nav.children.mailQueue', routed('mail-queue'), ADMIN, 'mail'),
             badge: 'mailQueue',
           },
           page('mail-authentication', 'app.nav.children.mailAuthentication', planned(177), MANAGERS, null, 'mail'),
@@ -243,7 +278,7 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
             'fileTransfer',
           ),
           page('sftp-ssh-keys', 'app.nav.children.sshKeys', planned(135), CUSTOMER, null, 'fileTransfer'),
-          page('cron', 'cron.list.heading', routed('cron'), ACCOUNT_HOLDERS, 'cron', 'cron'),
+          findBy(page('cron', 'cron.list.heading', routed('cron'), ACCOUNT_HOLDERS, 'cron', 'cron'), 'cron'),
           page('file-manager', 'app.nav.children.fileManager', routed('file-manager'), ACCOUNT_HOLDERS, 'files', 'files'),
         ],
       },
@@ -295,10 +330,22 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
         labelKey: 'app.nav.items.security',
         icon: 'shieldCheck',
         children: [
-          page('firewall-rules', 'firewall.rules.heading', routed('firewall'), ADMIN, 'firewall'),
-          page('firewall-bans', 'firewall.bans.heading', routed('firewall-bans'), ADMIN, 'firewall'),
-          page('firewall-whitelist', 'firewall.whitelist.heading', routed('firewall-whitelist'), ADMIN, 'firewall'),
-          page('security-policy', 'app.nav.securityPolicy', routed('security-policy'), ADMIN, null),
+          findBy(
+            page('firewall-rules', 'firewall.rules.heading', routed('firewall'), ADMIN, 'firewall'),
+            'firewallRules',
+          ),
+          findBy(
+            page('firewall-bans', 'firewall.bans.heading', routed('firewall-bans'), ADMIN, 'firewall'),
+            'firewallBans',
+          ),
+          findBy(
+            page('firewall-whitelist', 'firewall.whitelist.heading', routed('firewall-whitelist'), ADMIN, 'firewall'),
+            'firewallWhitelist',
+          ),
+          findBy(
+            page('security-policy', 'app.nav.securityPolicy', routed('security-policy'), ADMIN, null),
+            'securityPolicy',
+          ),
           page('api-keys', 'app.nav.apiKeys', routed('api-keys'), ADMIN, 'identity'),
         ],
       },
@@ -325,7 +372,30 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
           page('monitoring-metrics', 'app.nav.children.monitoringMetrics', routed('monitoring'), ADMIN, 'monitoring'),
           page('monitoring-logs', 'app.nav.children.monitoringLogs', planned(null), ADMIN, null),
           { ...page('tasks', 'tasks.list.heading', routed('tasks'), ADMIN, 'tasks'), badge: 'failedTasks' },
-          page('audit', 'app.nav.auditJournal', routed('audit'), ADMIN, null),
+          findBy(page('audit', 'app.nav.auditJournal', routed('audit'), ADMIN, null), 'audit'),
+        ],
+      },
+    ],
+  },
+  {
+    // Moving accounts between servers (issues #127 and #197): the remote servers a migration reads, and
+    // the export and import of one account between two Maran servers. Administrators only, and refused
+    // while viewing as a login. One section, because they are one task seen from two ends.
+    key: 'migration',
+    nodes: [
+      {
+        kind: 'section',
+        key: 'migration',
+        labelKey: 'app.nav.items.migration',
+        icon: 'server',
+        children: [
+          { ...page('remote-servers', 'app.nav.children.remoteServers', routed('remote-servers'), ADMIN, 'servermigration'), viewAsRefused: true },
+          { ...page('migration-jobs', 'app.nav.children.migrationJobs', routed('migration-jobs'), ADMIN, 'servermigration'), viewAsRefused: true },
+          { ...page('account-export', 'app.nav.children.accountExport', routed('account-export'), ADMIN, 'servermigration'), viewAsRefused: true },
+          { ...page('account-import', 'app.nav.children.accountImport', routed('account-import'), ADMIN, 'servermigration'), viewAsRefused: true },
+          { ...page('account-exports', 'app.nav.children.accountExports', routed('account-exports'), ADMIN, 'servermigration'), viewAsRefused: true },
+          { ...page('account-imports', 'app.nav.children.accountImports', routed('account-imports'), ADMIN, 'servermigration'), viewAsRefused: true },
+          { ...page('export-grants', 'app.nav.children.exportGrants', routed('export-grants'), ADMIN, 'servermigration'), viewAsRefused: true },
         ],
       },
     ],
@@ -340,15 +410,23 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
         icon: 'settings',
         children: [
           page('settings-panel', 'app.nav.children.settingsPanel', planned(null), ADMIN, null),
-          page('panel-certificate', 'panelCertificate.heading', routed('panel-certificate'), ADMIN, null),
+          findBy(
+            page('panel-certificate', 'panelCertificate.heading', routed('panel-certificate'), ADMIN, null),
+            'panelCertificate',
+          ),
           page('panel-update', 'panelUpdate.heading', routed('panel-update'), ADMIN, null),
-          page('smtp-settings', 'app.smtp.heading', routed('smtp-settings'), ADMIN, null),
+          page('licence', 'licence.heading', routed('licence'), ADMIN, null),
+          // The module marketplace (issues #186, #187). It names its module, unlike the two items above:
+          // the module declares no menu or routes of its own (`Menu []`), so this item is its one door,
+          // and naming the module is what keeps the catalogue fallback from drawing a second one.
+          page('marketplace', 'marketplace.title', routed('marketplace'), ADMIN, 'marketplace'),
+          findBy(page('smtp-settings', 'app.smtp.heading', routed('smtp-settings'), ADMIN, null), 'smtp'),
           page('alert-settings', 'alertSettings.heading', routed('alert-settings'), ADMIN, null),
           page('settings-administrators', 'app.nav.children.settingsAdministrators', planned(null), ADMIN, null),
           page('settings-modules', 'app.nav.children.settingsModules', planned(null), ADMIN, null),
           page('profile', 'app.profile.heading', routed('profile'), RESELLER, null),
           page('settings-branding', 'branding.heading', routed('reseller-branding'), RESELLER, null),
-          page('settings-api-keys', 'app.nav.apiKeys', routed('reseller-api-keys'), RESELLER, null),
+          { ...page('settings-api-keys', 'app.nav.apiKeys', routed('reseller-api-keys'), RESELLER, null), viewAsRefused: true },
           page('two-factor', 'app.twoFactor.heading', routed('two-factor'), RESELLER, null),
         ],
       },
@@ -381,11 +459,22 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
         children: [
           // Profile and language live on the account page and in the account menu, so the schema's one
           // "Profile & language" item is the account page itself (issue #312).
-          page('account-overview', 'app.shell.menu.myAccount', routed('my-account'), CUSTOMER, null),
-          page('account-two-factor', 'app.twoFactor.heading', routed('two-factor'), CUSTOMER, null),
-          page('account-sessions', 'app.sessions.heading', routed('sessions'), CUSTOMER, null),
+          findBy(
+            page('account-overview', 'app.shell.menu.myAccount', routed('my-account'), CUSTOMER, null),
+            'accountOverview',
+          ),
+          findBy(
+            page('account-two-factor', 'app.twoFactor.heading', routed('two-factor'), CUSTOMER, null),
+            'accountTwoFactor',
+          ),
+          // Refused while an operator views as the login (issue #513): the endpoints behind it are the login's own.
+          { ...page('account-sessions', 'app.sessions.heading', routed('sessions'), CUSTOMER, null), viewAsRefused: true },
           // Only the owner manages the team: the endpoints refuse a member, so the menu does not offer it.
-          { ...page('account-sub-users', 'app.nav.children.subUsers', routed('sub-users'), CUSTOMER, null), ownerOnly: true },
+          {
+            ...page('account-sub-users', 'app.nav.children.subUsers', routed('sub-users'), CUSTOMER, null),
+            ownerOnly: true,
+            viewAsRefused: true,
+          },
         ],
       },
     ],

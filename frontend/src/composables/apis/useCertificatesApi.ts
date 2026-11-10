@@ -4,6 +4,7 @@ import type {
   Certificate,
   CertificatesApi,
   InstallCustomCertificateRequest,
+  IssuanceOptions,
   IssueCertificateRequest,
 } from '../../types/certificate'
 import type { Paged } from '../../types/list'
@@ -87,6 +88,17 @@ export const useCertificatesApi = (): CertificatesApi => {
   }
 
   /**
+   * Reads which kinds of certificate the panel can issue for one domain.
+   * @param domain The domain to ask about.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns What can be issued.
+   */
+  const issuanceOptions = (domain: string, signal?: AbortSignal): Promise<IssuanceOptions> => {
+    const params = new URLSearchParams({ domain })
+    return api.get<IssuanceOptions>(`${CERTIFICATES_PATH}/issuance-options?${params.toString()}`, signal)
+  }
+
+  /**
    * Reads which ACME directory the panel orders from. Administrators only.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The configured directory.
@@ -95,5 +107,5 @@ export const useCertificatesApi = (): CertificatesApi => {
     return api.get<AcmeDirectory>(`${CERTIFICATES_PATH}/acme-directory`, signal)
   }
 
-  return { list, issue, installCustom, remove, acmeDirectory }
+  return { list, issue, installCustom, remove, issuanceOptions, acmeDirectory }
 }

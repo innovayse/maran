@@ -447,9 +447,22 @@ two indistinct smudges.
 
 ## Rendering and the server runtime
 
-- `ssr: true`, nitro preset `node-server`. A page must render its `<h1>` and its body in the
-  server's HTML response; a section that only appears after hydration is invisible to a crawler and
-  to anyone whose JavaScript failed.
+- `ssr: true` and the site is **prerendered**: `nuxt generate` writes every page as static HTML, and
+  the production host (Apache, `public/.htaccess`) serves those files; no Node process answers a
+  page request there. The `node-server` preset stays configured only so the same build can also run
+  as the container image. Prerendering is not an optimisation to be reverted — the sitemap, the
+  canonical links, the language choice at `/` and the content database (a build artefact, read by
+  nothing at request time) all assume it.
+- A page must have its `<h1>` and its body in the HTML that prerendering writes; a section that
+  only appears after hydration is invisible to a crawler and to anyone whose JavaScript failed.
+- Every routed page must be reachable by the prerenderer. Its link crawler finds pages by following
+  links, so a page reachable only through a route it cannot see (a dotted release version, a
+  dynamic-route page not linked from a visited page) is listed in `nitro.prerender.routes`, derived
+  from the content tree rather than written by hand. A page left out is a 404 on the static host
+  for a URL the sitemap advertised.
+- Nothing may depend on a server running at request time: no server route, no `useFetch` to the
+  site's own server for page data. Build-time server routes (`/llms.txt`, the sitemap) are
+  prerendered into files.
 - `process.server` / `process.client` branches need a comment saying why the two sides differ.
 - The server runtime holds no secrets. Anything in `runtimeConfig.public` is published; anything
   that must not be published does not belong on this site at all.

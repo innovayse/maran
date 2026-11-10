@@ -1,13 +1,15 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccountNames, stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { fileEntry, stubFileEntries, stubFilesOptions } from '../fixtures/stub-file-browser-routes'
 import { stubFileOperations, type RecordedOperation } from '../fixtures/stub-file-operation-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { FileEntry } from '../../src/types/file'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 // The file manager's dialogs: create, rename, move, copy, permissions, compress, extract, trash and
 // permanent delete. Each is asked through the row menu or the bulk bar, and each sends exactly the
@@ -50,6 +52,7 @@ const openBrowser = async (
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_FILES)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubAccountNames(page, [ALICE])
   await stubFilesOptions(page)

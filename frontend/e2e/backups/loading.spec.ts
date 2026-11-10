@@ -1,10 +1,10 @@
-import { test, type Page } from '@playwright/test'
 import {
   expectTableFastLoad,
   expectTableSlowFailure,
   expectTableSlowLoad,
   type TableLoadingScenario,
 } from '../fixtures/expect-table-loading'
+import { test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import {
   stubBackupDestinations,
@@ -14,9 +14,11 @@ import { stubBackups, stubBackupsProblem } from '../fixtures/stub-backups-routes
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Backup } from '../../src/types/backup'
 import type { BackupDestination } from '../../src/types/backupDestination'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 // The backups table and the destinations screen while their reads are on the way (#243).
 
@@ -66,6 +68,7 @@ const signIn = async (page: Page): Promise<void> => {
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
 }
 
 /** How the backups list screen is opened and answered. */
@@ -93,7 +96,8 @@ test('backups list: a fast answer shows no placeholder', async ({ page }) => {
   await expectTableFastLoad(page, BACKUPS_LIST_SCENARIO)
 })
 
-test('backups list: a slow failure is an alert, never a skeleton', async ({ page }) => {
+test('backups list: a slow failure is an alert, never a skeleton', async ({ page, guard }) => {
+  guard.allow(500, /\/api\/v1\/backups(\?.*)?$/)
   await expectTableSlowFailure(page, BACKUPS_LIST_SCENARIO)
 })
 
@@ -122,6 +126,7 @@ test('destinations list: a fast answer shows no placeholder', async ({ page }) =
   await expectTableFastLoad(page, DESTINATIONS_LIST_SCENARIO)
 })
 
-test('destinations list: a slow failure is an alert, never a skeleton', async ({ page }) => {
+test('destinations list: a slow failure is an alert, never a skeleton', async ({ page, guard }) => {
+  guard.allow(403, /\/api\/v1\/backup-destinations(\?.*)?$/)
   await expectTableSlowFailure(page, DESTINATIONS_LIST_SCENARIO)
 })

@@ -1,19 +1,21 @@
-import { test, type Page } from '@playwright/test'
 import {
   expectTableFastLoad,
   expectTableSlowFailure,
   expectTableSlowLoad,
   type TableLoadingScenario,
 } from '../fixtures/expect-table-loading'
+import { test } from '../fixtures/guarded-test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubCronOptions } from '../fixtures/stub-cron-options-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubCronEntries, stubCronEntriesProblem, stubCronEnvironment } from '../fixtures/stub-cron-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { CronEntry } from '../../src/types/cronEntry'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 // The cron entries while an account's crontab is on the way (#243): drawn from the table's own
 // column schema.
@@ -48,6 +50,7 @@ const NIGHTLY: CronEntry = {
 const signIn = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubCronOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
@@ -79,6 +82,7 @@ test('cron entries: a fast answer shows no placeholder', async ({ page }) => {
   await expectTableFastLoad(page, CRON_ENTRIES_SCENARIO)
 })
 
-test('cron entries: a slow failure is an alert, never a skeleton', async ({ page }) => {
+test('cron entries: a slow failure is an alert, never a skeleton', async ({ page, guard }) => {
+  guard.allow(404, /\/api\/v1\/cron-entries(\?.*)?$/)
   await expectTableSlowFailure(page, CRON_ENTRIES_SCENARIO)
 })

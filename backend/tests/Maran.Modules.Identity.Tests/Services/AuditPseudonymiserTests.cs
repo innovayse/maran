@@ -4,6 +4,7 @@ using Maran.Modules.Identity.Domain.ValueObjects;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Services;
 using Maran.Modules.Identity.Tests.TestSupport;
+using Maran.Sdk.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Identity.Tests.Services;
@@ -90,23 +91,23 @@ public sealed class AuditPseudonymiserTests : IDisposable
         Assert.Single(rows.Select(row => { return row.ActorUsername; }).Distinct());
     }
 
-    /// <summary>A subject EQUAL to the person's name, address or id is replaced, whatever its case, and the living actor is untouched.</summary>
+    /// <summary>A row done to the person as a verified subject login loses the subject and keeps the living actor's columns.</summary>
     [Fact]
-    public async Task A_subject_equal_to_the_persons_name_address_or_id_is_replaced_and_the_living_actor_is_kept()
+    public async Task A_row_about_the_person_as_subject_login_loses_the_subject_and_keeps_the_living_actor()
     {
         _context.AuditEvents.AddRange(
-            ErasureJournal.Row(Bob, "bob", "ALICE"),
-            ErasureJournal.Row(Bob, "bob", "Alice@Example.Test"),
-            ErasureJournal.Row(Bob, "bob", Alice.ToString("D")));
+            ErasureJournal.Row(Bob, "bob", "alice", subjectUserId: Alice),
+            ErasureJournal.Row(Bob, "bob", AliceEmail, subjectUserId: Alice));
         await _context.SaveChangesAsync();
 
         var outcome = await Pseudonymiser().PseudonymiseUserAsync(Alice, [AliceEmail, "alice"], CancellationToken.None);
 
         var rows = await ErasureJournal.AllAsync(_context);
-        Assert.Equal(3, outcome.Rows);
+        Assert.Equal(2, outcome.Rows);
         Assert.All(rows, row =>
         {
             Assert.Equal(outcome.Pseudonym, row.Subject);
+            Assert.NotEqual(Alice, row.SubjectUserId);
             Assert.Equal(Bob, row.ActorUserId);
             Assert.Equal("bob", row.ActorUsername);
             Assert.Equal("203.0.113.7", row.IpAddress);
@@ -114,21 +115,57 @@ public sealed class AuditPseudonymiserTests : IDisposable
         });
     }
 
-    /// <summary>A subject that merely CONTAINS the name is kept: matching is equality, and the limit is stated.</summary>
+    /// <summary>
+    /// The attack of issue #464: rows that only TYPE a name (a refused sign-in, any case) or name it as
+    /// somebody else's subject text are untouched when a login with that name is erased; the inverse
+    /// control, the same erasure, still erases the login's own rows.
+    /// </summary>
     [Fact]
-    public async Task A_subject_that_only_mentions_the_name_is_kept()
+    public async Task Erasing_a_login_named_like_other_rows_text_leaves_those_rows_untouched_and_erases_its_own()
+    {
+        var sprayedFrom = ErasureJournal.Row(
+            null, "Root", "Root", "198.51.100.5", "sprayer/1", action: IdentityAuditActions.LoginFailed);
+        var textOnly = ErasureJournal.Row(Bob, "bob", "root");
+        var idAsText = ErasureJournal.Row(null, Alice.ToString("D"), Alice.ToString("D"), "198.51.100.6", "sprayer/2");
+        var own = ErasureJournal.Row(Alice, "root", "deploy-site", AliceAddress, AliceAgent);
+        var rowsBefore = new[] { sprayedFrom, textOnly, idAsText }.Select(ErasureJournal.TextOf).ToList();
+        _context.AuditEvents.AddRange(sprayedFrom, textOnly, idAsText, own);
+        await _context.SaveChangesAsync();
+
+        var outcome = await Pseudonymiser().PseudonymiseUserAsync(Alice, ["root", AliceEmail], CancellationToken.None);
+
+        var rows = await ErasureJournal.AllAsync(_context);
+        Assert.Equal(1, outcome.Rows);
+        foreach (var (id, before) in new[] { sprayedFrom, textOnly, idAsText }.Zip(rowsBefore))
+        {
+            var after = rows.Single(row => { return row.Id == id.Id; });
+            Assert.Equal(before, ErasureJournal.TextOf(after));
+            Assert.Null(after.ErasedAt);
+        }
+
+        var erased = rows.Single(row => { return row.Id == own.Id; });
+        Assert.Equal(outcome.Pseudonym, erased.ActorUsername);
+        Assert.Equal(string.Empty, erased.IpAddress);
+        Assert.Equal(string.Empty, erased.UserAgent);
+    }
+
+    /// <summary>On a row the person acted in, a subject equal to their name, address or id is replaced.</summary>
+    [Fact]
+    public async Task A_subject_equal_to_the_persons_own_name_on_a_row_they_acted_in_is_replaced()
     {
         _context.AuditEvents.AddRange(
-            ErasureJournal.Row(Bob, "bob", "Reset requested for alice@example.test"),
-            ErasureJournal.Row(Bob, "bob", "alice-two"));
+            ErasureJournal.Row(Alice, "alice", "ALICE"),
+            ErasureJournal.Row(Alice, "alice", "Alice@Example.Test"),
+            ErasureJournal.Row(Alice, "alice", Alice.ToString("D")),
+            ErasureJournal.Row(Alice, "alice", "somebody-else"));
         await _context.SaveChangesAsync();
 
         var outcome = await Pseudonymiser().PseudonymiseUserAsync(Alice, [AliceEmail, "alice"], CancellationToken.None);
 
         var rows = await ErasureJournal.AllAsync(_context);
-        Assert.Equal(0, outcome.Rows);
-        Assert.All(rows, row => { Assert.Null(row.ErasedAt); });
-        Assert.Contains(rows, row => { return row.Subject == "Reset requested for alice@example.test"; });
+        Assert.Equal(4, outcome.Rows);
+        Assert.Equal(3, rows.Count(row => { return row.Subject == outcome.Pseudonym; }));
+        Assert.Single(rows, row => { return row.Subject == "somebody-else"; });
     }
 
     /// <summary>A row where the person only WATCHED as an operator keeps the viewed person's actor columns and loses the operator.</summary>
@@ -179,8 +216,8 @@ public sealed class AuditPseudonymiserTests : IDisposable
         var needles = new[] { Alice.ToString("D"), "alice", AliceEmail, AliceAddress, AliceAgent };
         _context.AuditEvents.AddRange(
             ErasureJournal.Row(Alice, "alice", "deploy-site", AliceAddress, AliceAgent),
-            ErasureJournal.Row(Bob, "bob", AliceEmail),
-            ErasureJournal.Row(Bob, "bob", Alice.ToString("D")),
+            ErasureJournal.Row(Bob, "bob", AliceEmail, subjectUserId: Alice),
+            ErasureJournal.Row(Bob, "bob", Alice.ToString("D"), subjectUserId: Alice),
             ErasureJournal.Row(Bob, "bob", "site", AliceAddress, AliceAgent, new AuditImpersonator(Alice, "alice")));
         await _context.SaveChangesAsync();
         Assert.True(ErasureJournal.Mentions(await ErasureJournal.AllAsync(_context), needles));

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="LeaseRenewalFailedAlertSubject">
+    <value>The licence lease could not be renewed</value>
+  </data>
+  <data name="LeaseRenewalFailedAlertBody">
+    <value>The panel has failed to renew its licence lease {0} times in a row ({1}). The lease it holds keeps paid modules covered until it ends; after that they stop working until a renewal succeeds. Check that this server can reach the licence service, or contact the issuer of your licence.</value>
+  </data>
+  <data name="LeaseRenewalReasonUnreachable">
+    <value>the licence service could not be reached</value>
+  </data>
+  <data name="LeaseRenewalReasonRefused">
+    <value>the licence service refused to issue a lease</value>
+  </data>
+  <data name="LeaseRenewalReasonAnswerRejected">
+    <value>the licence service's answer was not a valid lease for this licence</value>
+  </data>
+  <data name="LeaseRenewalReasonNotNewer">
+    <value>the licence service returned a lease that does not extend the current one</value>
+  </data>
+  <data name="LeaseRenewalReasonWriteFailed">
+    <value>the lease could not be stored on this server</value>
+  </data>
+  <data name="LeaseRenewalRecoveredAlertSubject">
+    <value>The licence lease was renewed</value>
+  </data>
+  <data name="LeaseRenewalRecoveredAlertBody">
+    <value>The panel renewed its licence lease after repeated failures. Paid modules are covered again for the whole life of the new lease.</value>
+  </data>
+</root>

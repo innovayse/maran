@@ -1,13 +1,34 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubMyAccount } from '../fixtures/stub-my-account-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
+import type { MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { PanelModule } from '../../src/types/module'
 
 // Issue #202: the sidebar offers a customer their own area and nothing that is the server's. The
 // role is read from one place (`useCallerRole`), so this spec also guards that the sidebar did not
 // keep a copy of its own.
+
+const OWN_ACCOUNT: MyAccount = {
+  id: '11111111-1111-1111-1111-111111111111',
+  name: 'olive',
+  primaryDomain: 'olive.example.com',
+  status: 'active',
+  statusName: 'Active',
+  plan: {
+    displayName: 'Starter',
+    diskQuotaMb: 1024,
+    maxSites: 5,
+    maxDatabases: 5,
+    maxSftpUsers: 5,
+    maxFtpUsers: 5,
+    maxCronEntries: 5,
+  },
+}
 
 const CUSTOMER: AuthenticatedUser = {
   id: '00000000-0000-0000-0000-000000000099',
@@ -26,7 +47,10 @@ const CUSTOMER_MODULES: PanelModule[] = [
 test('a customer sidebar carries no administrator entries', async ({ page }) => {
   await stubSignedIn(page, CUSTOMER)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubModules(page, CUSTOMER_MODULES)
+  await stubMyAccount(page, OWN_ACCOUNT)
+  await stubLandingReads(page, 'customer')
 
   await page.goto('/')
 
@@ -41,7 +65,9 @@ test('a customer sidebar carries no administrator entries', async ({ page }) => 
 test('the not-available page has its own breadcrumb name', async ({ page }) => {
   await stubSignedIn(page, CUSTOMER)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubModules(page, CUSTOMER_MODULES)
+  await stubMyAccount(page, OWN_ACCOUNT)
 
   await page.goto('/not-available')
 
@@ -54,7 +80,9 @@ test('an administrator sidebar still offers the audit journal', async ({ page })
   // Positive control for the absences above.
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubModules(page, CUSTOMER_MODULES)
+  await stubLandingReads(page, 'administrator')
 
   await page.goto('/')
 

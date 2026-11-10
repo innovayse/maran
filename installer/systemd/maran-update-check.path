@@ -1,0 +1,32 @@
+# Starts maran-update-check.service when the panel asks for a release check (issue #516): the panel's
+# "Check for updates" button creates the marker file below and this unit notices it.
+#
+# The marker is the whole message. Its existence starts the service; its content is never read by
+# anything, and the service deletes it when the check has ended, whatever the check's outcome. Nothing
+# the panel sends reaches the command the service runs: that command is fixed in the service file.
+#
+# The directory is the one the panel's update request uses, /run/maran-update-request, built by
+# systemd-tmpfiles from maran-update-request.tmpfiles.conf as root:<panel group> 0770. It is on /run on
+# purpose: a tmpfs does not survive a reboot, so a marker left behind can never start a check at boot.
+# The directory is root-owned inside root-owned /run, so the panel's account can create and remove the
+# marker but cannot replace the directory.
+# docs/superpowers/notes/2026-11-09-panel-update-check-threat-note.md carries the argument.
+#
+# Installed root:root 0644 as it stands by installer/lib/69-update-request.sh. There is no placeholder.
+[Unit]
+Description=Maran release check requested from the panel
+
+[Path]
+# Exactly the marker, and nothing wider: a directory-changed trigger would start a check for any file
+# the panel's account dropped into the directory, and would also fire for the update request's marker.
+PathExists=/run/maran-update-request/check-requested
+Unit=maran-update-check.service
+# The directory must already exist (tmpfiles, then the installer step, build it); this unit never
+# creates one, so it cannot create it with the wrong owner.
+MakeDirectory=no
+# The loop stop for a marker the service cannot remove is the service's own start limit
+# (maran-update-check.service), not a directive here: the path unit's TriggerLimit directives need
+# systemd 253 and Ubuntu 22.04 ships 249.
+
+[Install]
+WantedBy=multi-user.target

@@ -29,6 +29,7 @@ internal static class LicenceEnvelopeBuilder
     /// entirely — which is what an unbound licence looks like on the wire, and is deliberately not
     /// the same as a claim present but empty.
     /// </param>
+    /// <param name="offline">Whether the licence is marked usable offline, or <see langword="null"/> to omit the claim.</param>
     /// <returns>The raw envelope text, ready to hand to <c>LicenceVerifier.VerifyAsync</c>.</returns>
     internal static string Build(
         string privateKeyHex,
@@ -37,7 +38,8 @@ internal static class LicenceEnvelopeBuilder
         string tier = "included",
         string[]? modules = null,
         DateTimeOffset? expiry = null,
-        string? server = null)
+        string? server = null,
+        bool? offline = null)
     {
         modules ??= ["databases", "sites"];
         var expiryValue = expiry ?? FixedReferenceInstant.AddDays(30);
@@ -57,6 +59,11 @@ internal static class LicenceEnvelopeBuilder
         if (server is not null)
         {
             payload["server"] = server;
+        }
+
+        if (offline is not null)
+        {
+            payload["offline"] = offline.Value;
         }
 
         var payloadJson = JsonSerializer.Serialize(payload);

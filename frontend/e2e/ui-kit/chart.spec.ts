@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 
 // `UiChart` (src/components/ui/UiChart.vue) has no consuming page yet — the monitoring screen
 // that will actually render it is a separate, later task carved out of the same plan, gated on

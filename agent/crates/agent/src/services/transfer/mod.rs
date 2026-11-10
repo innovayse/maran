@@ -1,14 +1,43 @@
-//! `TransferService`: moving one account's backup artifact between servers.
+//! `TransferService`: moving one account's backup artifact between servers, and
+//! registering and reading a remote server to migrate from (issue #197).
 
 pub mod accepted;
+pub mod channel_dump_sink;
 pub mod channel_export_sink;
 pub mod channel_import_source;
+pub mod channel_inventory_sink;
+pub mod channel_pull_sink;
 pub mod exported_backup;
 pub mod import_collector;
 pub mod import_failure;
+pub mod read_inventory;
 pub mod refusal_reason_of;
+pub mod reported_generated_source_key;
 pub mod reported_import;
+pub mod reported_scanned_host_keys;
+pub mod reported_tested_source;
+pub mod restricted_database_loader;
+pub mod run_source_call;
+pub mod settle_source_call;
+pub mod source_failure;
+pub mod source_failure_reason_of;
+pub mod terminal_of_dump;
 pub mod terminal_of_export;
+pub mod terminal_of_inventory;
+pub mod terminal_of_pull;
+pub mod to_wire_generated_source_key;
+pub mod to_wire_inventory_step;
+pub mod to_wire_scanned_host_keys;
+pub mod to_wire_source_account;
+pub mod to_wire_source_warning;
+pub mod to_wire_tested_source;
+pub mod transfer_failure_reason_of;
 pub mod transfer_service;
+pub mod transfer_status;
+pub mod validated_dump_request;
 pub mod validated_export;
 pub mod validated_import;
+pub mod validated_pull_request;
+pub mod validated_source_credential;
+pub mod validated_source_endpoint;
+pub mod validated_source_inputs;

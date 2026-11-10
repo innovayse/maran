@@ -34,6 +34,11 @@ namespace Maran.Modules.Identity.Commands.ChangePassword;
 /// is committed, so a failure between the two cannot leave the account with its old password and no
 /// sessions.
 /// </para>
+/// <para>
+/// <b>Every outstanding reset and invitation token is retired in the same save.</b> A token mailed
+/// before the change is a second way to set the password that the change did not know about; the
+/// owner who changes it to shut an intruder out must not leave that way open for the token's hour.
+/// </para>
 /// </remarks>
 public sealed class ChangePasswordCommandHandler
 {
@@ -46,8 +51,11 @@ public sealed class ChangePasswordCommandHandler
     /// <summary>Ends every session outside the caller's own sign-in.</summary>
     private readonly ISessionService _sessionService;
 
-    /// <summary>The operator's lockout threshold and window.</summary>
-    private readonly SecurityPolicyCache _policyCache;
+    /// <summary>Counts a wrong current password against the login, serialised with every concurrent one.</summary>
+    private readonly IFailedLoginRecorder _failedLoginRecorder;
+
+    /// <summary>Retires the reset and invitation tokens mailed before the password changed.</summary>
+    private readonly CredentialTokenRetirement _tokenRetirement;
 
     /// <summary>Records the change, and records a refusal.</summary>
     private readonly IdentityAuditJournal _journal;
@@ -59,21 +67,24 @@ public sealed class ChangePasswordCommandHandler
     /// <param name="dbContext">The module's database context.</param>
     /// <param name="passwordHasher">Verifies and hashes passwords.</param>
     /// <param name="sessionService">Ends the other sessions.</param>
-    /// <param name="policyCache">The operator's lockout policy.</param>
+    /// <param name="failedLoginRecorder">Counts a wrong current password against the login.</param>
+    /// <param name="tokenRetirement">Retires the outstanding reset and invitation tokens.</param>
     /// <param name="journal">Records the change or the refusal.</param>
     /// <param name="clock">The panel's clock.</param>
     public ChangePasswordCommandHandler(
         IdentityDbContext dbContext,
         IPasswordHasher passwordHasher,
         ISessionService sessionService,
-        SecurityPolicyCache policyCache,
+        IFailedLoginRecorder failedLoginRecorder,
+        CredentialTokenRetirement tokenRetirement,
         IdentityAuditJournal journal,
         IClock clock)
     {
         _dbContext = dbContext;
         _passwordHasher = passwordHasher;
         _sessionService = sessionService;
-        _policyCache = policyCache;
+        _failedLoginRecorder = failedLoginRecorder;
+        _tokenRetirement = tokenRetirement;
         _journal = journal;
         _clock = clock;
     }
@@ -103,9 +114,7 @@ public sealed class ChangePasswordCommandHandler
 
         if (!_passwordHasher.Verify(command.CurrentPassword, user.PasswordHash))
         {
-            var policy = await _policyCache.GetAsync(cancellationToken);
-            user.RecordFailedLogin(now, policy.MaxFailedLoginAttempts, policy.LockoutDuration());
-            await _dbContext.SaveChangesAsync(cancellationToken);
+            await _failedLoginRecorder.RecordAsync(user, now, cancellationToken);
 
             return await RefuseAsync(user, command, cancellationToken);
         }
@@ -119,6 +128,10 @@ public sealed class ChangePasswordCommandHandler
         }
 
         user.ChangePassword(_passwordHasher.Hash(command.NewPassword));
+
+        // A reset or invitation mail sent before this change would otherwise still set a password
+        // for the rest of its lifetime — to whoever can read that mailbox. Saved with the change.
+        var retired = await _tokenRetirement.RetireAsync(user.Id, now, cancellationToken);
 
         // The current password was just proven, which is what a failed-attempt count is a count of
         // the absence of.
@@ -139,6 +152,18 @@ public sealed class ChangePasswordCommandHandler
             command.UserAgent,
             succeeded: true,
             cancellationToken);
+
+        if (retired > 0)
+        {
+            await _journal.RecordIdentifiedAsync(
+                user.Id,
+                IdentityAuditActions.CredentialTokensRetired,
+                $"{user.Id}: {retired}",
+                command.IpAddress,
+                command.UserAgent,
+                succeeded: true,
+                cancellationToken);
+        }
 
         return Result.Ok();
     }

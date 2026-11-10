@@ -39,6 +39,15 @@
 # a UTC stamp appended when that name is taken; see OS_UPDATES_PREVIOUS below.
 readonly OS_UPDATES_DEBIAN_CONFIG="/etc/apt/apt.conf.d/52maran-os-security-updates"
 readonly OS_UPDATES_RHEL_CONFIG="/etc/dnf/automatic.conf"
+# The SUSE family writes FOUR files, because its distribution ships no unattended updater: the hold list
+# as a zypper locks file (the one this part treats as "the configuration", since the hold list is the
+# policy), a private zypp.conf that names it, and the service and timer that run `zypper patch`. UNVERIFIED
+# that libzypp honours ZYPP_CONF and the `locksfile.path` key and the locks-file grammar; the assertions
+# below ask zypper itself rather than trusting any of them (see os_updates_suse_extra_defects).
+readonly OS_UPDATES_SUSE_CONFIG="/etc/zypp/maran-unattended.locks"
+readonly OS_UPDATES_SUSE_ZYPP_CONF="/etc/zypp/maran-unattended-zypp.conf"
+readonly OS_UPDATES_SUSE_SERVICE="/etc/systemd/system/maran-os-security-updates.service"
+readonly OS_UPDATES_SUSE_TIMER="/etc/systemd/system/maran-os-security-updates.timer"
 
 # The line every file the step renders carries, in the file's own comment syntax. It is how the step
 # tells its own earlier render from a file it must keep a copy of before replacing.
@@ -91,7 +100,12 @@ os_updates_select_family() {
       OS_UPDATES_PREVIOUS="${OS_UPDATES_RHEL_CONFIG}.maran-previous"
       OS_UPDATES_TIMERS=(dnf-automatic-install.timer)
       ;;
-    *) fail "the OS security updates assertions know the families debian and rhel, and MARAN_OS_FAMILY is '${MARAN_OS_FAMILY:-unset}'. A family this part cannot name is a family it asserts nothing about" ;;
+    suse)
+      OS_UPDATES_CONFIG="$OS_UPDATES_SUSE_CONFIG"
+      OS_UPDATES_PREVIOUS="${OS_UPDATES_SUSE_CONFIG}.maran-previous"
+      OS_UPDATES_TIMERS=(maran-os-security-updates.timer)
+      ;;
+    *) fail "the OS security updates assertions know the families debian, rhel and suse, and MARAN_OS_FAMILY is '${MARAN_OS_FAMILY:-unset}'. A family this part cannot name is a family it asserts nothing about" ;;
   esac
 }
 
@@ -124,6 +138,11 @@ os_updates_package_installed() {
       return 1
       ;;
     rhel) rpm -q dnf-automatic >/dev/null 2>&1 ;;
+    # The SUSE family installs NOTHING for this step: zypper is the package manager itself and the
+    # mechanism is four files. So "the package is installed" is true of the host trivially, and the
+    # flag-off observation "the step installed no package" is vacuous on this family. The assertions
+    # say so in their output (UNOBSERVED HERE) instead of presenting a check that cannot fail.
+    suse) return 0 ;;
   esac
 }
 
@@ -173,6 +192,13 @@ os_updates_note_prior_state() {
   else
     OS_UPDATES_HAD_CONFIG=0
   fi
+  if [ "$MARAN_OS_FAMILY" = suse ]; then
+    for timer in "$OS_UPDATES_SUSE_ZYPP_CONF" "$OS_UPDATES_SUSE_SERVICE" "$OS_UPDATES_SUSE_TIMER"; do
+      if [ -e "$timer" ] || [ -L "$timer" ]; then
+        fail "${timer} is already in this image before the OS security updates assertions run. Something wrote it, and every 'the step wrote nothing' check below would be about that file's author"
+      fi
+    done
+  fi
   if os_updates_package_installed; then OS_UPDATES_HAD_PACKAGE=1; else OS_UPDATES_HAD_PACKAGE=0; fi
   OS_UPDATES_UNIT_LISTING="$(os_updates_systemd_listing)"
 }
@@ -196,6 +222,23 @@ os_updates_restore_prior_state() {
   for timer in "${OS_UPDATES_TIMERS[@]}"; do
     rm -f -- "${UNIT_STATE_DIRECTORY}/${timer}" "${UNIT_STATE_DIRECTORY}/${timer}.enabled"
   done
+  if [ "$MARAN_OS_FAMILY" = suse ]; then
+    rm -f -- "$OS_UPDATES_SUSE_ZYPP_CONF" "$OS_UPDATES_SUSE_SERVICE" "$OS_UPDATES_SUSE_TIMER" \
+      "${UNIT_STATE_DIRECTORY}/maran-os-security-updates.service" "${UNIT_STATE_DIRECTORY}/maran-os-security-updates.service.enabled"
+  fi
+}
+
+# os_updates_expected_listing: the names the step may leave under /etc/systemd/system after it ran with
+# the flag ON. On the Debian and RHEL families that is none (the distribution's own timers are the only
+# thing enabled), so it is the listing taken before. On the SUSE family it is that listing plus the two
+# names the step writes because the distribution ships no unattended updater.
+os_updates_expected_listing() {
+  if [ "$MARAN_OS_FAMILY" = suse ]; then
+    { printf '%s\n' "$OS_UPDATES_UNIT_LISTING"; printf '%s\n' maran-os-security-updates.service maran-os-security-updates.timer; } \
+      | grep . | sort
+  else
+    printf '%s\n' "$OS_UPDATES_UNIT_LISTING"
+  fi
 }
 
 # os_updates_effective_lines: a configuration file with its comments and blank lines removed and
@@ -245,7 +288,7 @@ os_updates_accepted_origins() {
 os_updates_hold_sorted() {
   case "$MARAN_OS_FAMILY" in
     debian) printf '%s\n' "${OS_UPDATES_APT_BLACKLIST_EXPECTED[@]}" | sort ;;
-    rhel) printf '%s\n' "${OS_UPDATES_HOLD_EXPECTED[@]}" | sort ;;
+    rhel|suse) printf '%s\n' "${OS_UPDATES_HOLD_EXPECTED[@]}" | sort ;;
   esac
 }
 
@@ -321,11 +364,126 @@ os_updates_rhel_defect() {
   return 0
 }
 
+# os_updates_suse_defect: prints the first reason the SUSE family's locks file at $1 is not the file the
+# design allows, and prints nothing when it is. It reads the file's TEXT with this script's own parser;
+# what zypper makes of it is os_updates_suse_extra_defects' question (the hold list asked of zypper).
+#
+# The grammar read is the one the installer writes (UNVERIFIED against libzypp: `type`, `match_type`,
+# `case_sensitive`, `solvable_name`, one entry per hold pattern). Exactly four keys are allowed, each
+# exactly once per pattern, and the set of `solvable_name` values must equal the hold list: a missing
+# pattern un-holds a package, an extra one holds something the policy never named, and a `*` locks
+# everything, which would make the unattended run a no-op that LOOKS healthy.
+os_updates_suse_defect() {
+  local effective names expected count wanted other
+  effective="$(os_updates_effective_lines "$1")"
+  other="$(grep -Ev '^(type: package|match_type: glob|case_sensitive: on|solvable_name: [a-z0-9][a-z0-9-]*\*?)$' <<<"$effective" || true)"
+  [ -z "$other" ] \
+    || { echo "carries a line the design does not allow (first: '$(head -1 <<<"$other")'), so a lock of another kind or an extra key is in the hold list"; return 0; }
+  names="$(sed -n 's/^solvable_name: //p' <<<"$effective" | sort)"
+  expected="$(os_updates_hold_sorted)"
+  [ "$names" = "$expected" ] \
+    || { echo "holds [$(tr '\n' ' ' <<<"$names")] and not the hold list [$(tr '\n' ' ' <<<"$expected")]"; return 0; }
+  count="$(grep -c . <<<"$names" || true)"
+  for wanted in 'type: package' 'match_type: glob' 'case_sensitive: on'; do
+    [ "$(grep -Fxc -- "$wanted" <<<"$effective" || true)" -eq "$count" ] \
+      || { echo "does not carry '${wanted}' exactly once per held pattern (${count} patterns)"; return 0; }
+  done
+  return 0
+}
+
+# os_updates_suse_extra_defects: what the SUSE family owes beyond its locks file, prints the first
+# reason and prints nothing when all hold. Four properties, each read from the artefact the system
+# reads and not from the template:
+#   1. the private zypp.conf names the locks file, once (the line zypper reads);
+#   2. the service runs ONE fixed argv under that configuration, and the timer is a plain daily timer;
+#   3. zypper itself, run under that configuration, LISTS the hold patterns and does not list an
+#      unlisted name (the positive control and its inverse);
+#   4. the resolver refuses to install a held package under the configuration and accepts the same
+#      request without it, and accepts an unlisted package under it (so the refusal is shown to come
+#      from the lock and not from a package that cannot be installed at all).
+# Property 4 needs the package index; when it cannot be refreshed it is reported as UNOBSERVED in
+# OS_UPDATES_SUSE_UNOBSERVED rather than skipped without a word.
+OS_UPDATES_SUSE_UNOBSERVED=""
+os_updates_suse_extra_defects() {
+  local conf_lines count listing service_lines timer_lines held="postgresql-server" unheld="tree" out status
+  OS_UPDATES_SUSE_UNOBSERVED=""
+
+  conf_lines="$(os_updates_effective_lines "$OS_UPDATES_SUSE_ZYPP_CONF")"
+  count="$(grep -Ec '^locksfile\.path ?= ?' <<<"$conf_lines" || true)"
+  [ "$count" -eq 1 ] \
+    || { echo "${OS_UPDATES_SUSE_ZYPP_CONF} has ${count} active locksfile.path lines, not exactly one"; return 0; }
+  [ "$(sed -n 's/^locksfile\.path *= *//p' <<<"$conf_lines" | head -1)" = "$OS_UPDATES_SUSE_CONFIG" ] \
+    || { echo "${OS_UPDATES_SUSE_ZYPP_CONF} points locksfile.path somewhere other than ${OS_UPDATES_SUSE_CONFIG}"; return 0; }
+  assert_file_is "$OS_UPDATES_SUSE_ZYPP_CONF" "0:0:644"
+
+  service_lines="$(os_updates_effective_lines "$OS_UPDATES_SUSE_SERVICE")"
+  [ "$(grep -c '^ExecStart=' <<<"$service_lines" || true)" -eq 1 ] \
+    || { echo "the service has not exactly one ExecStart="; return 0; }
+  grep -Fxq 'ExecStart=/usr/bin/zypper --non-interactive patch --category security' <<<"$service_lines" \
+    || { echo "the service's ExecStart is not 'zypper --non-interactive patch --category security'; the unattended run must apply security patches and nothing else"; return 0; }
+  grep -Fxq "Environment=ZYPP_CONF=${OS_UPDATES_SUSE_ZYPP_CONF}" <<<"$service_lines" \
+    || { echo "the service does not run under ZYPP_CONF=${OS_UPDATES_SUSE_ZYPP_CONF}, so the hold list never reaches the run"; return 0; }
+  if grep -Eq '^(ExecStartPre|ExecStartPost|ExecStop|ExecReload)=' <<<"$service_lines"; then
+    echo "the service carries an extra Exec hook"; return 0
+  fi
+  if grep -Eq 'reboot|zypper (dup|up|update|in|install)' <<<"$service_lines"; then
+    echo "the service reboots, or updates or installs beyond a security patch run"; return 0
+  fi
+  timer_lines="$(os_updates_effective_lines "$OS_UPDATES_SUSE_TIMER")"
+  grep -Fxq 'OnCalendar=daily' <<<"$timer_lines" \
+    || { echo "the timer is not OnCalendar=daily"; return 0; }
+  grep -Fxq 'WantedBy=timers.target' <<<"$timer_lines" \
+    || { echo "the timer is not wanted by timers.target, so enabling it does nothing at boot"; return 0; }
+  assert_file_is "$OS_UPDATES_SUSE_SERVICE" "0:0:644"
+  assert_file_is "$OS_UPDATES_SUSE_TIMER" "0:0:644"
+
+  # 3. zypper's own listing under the private configuration. 'nginx*' is on the hold list and 'curl*'
+  # is not: the listing is shown to say yes to the first and no to the second.
+  listing="$(ZYPP_CONF="$OS_UPDATES_SUSE_ZYPP_CONF" zypper --non-interactive locks 2>&1)" \
+    || { echo "'zypper locks' failed under ${OS_UPDATES_SUSE_ZYPP_CONF}: ${listing:0:200}"; return 0; }
+  grep -qF -- 'nginx*' <<<"$listing" \
+    || { echo "zypper's lock list under ${OS_UPDATES_SUSE_ZYPP_CONF} does not show nginx*, so libzypp did not read the hold list"; return 0; }
+  if grep -qF -- 'curl*' <<<"$listing"; then
+    echo "zypper's lock list shows curl*, which is not on the hold list, so the listing matches names it was not given"; return 0
+  fi
+  listing="$(env -u ZYPP_CONF zypper --non-interactive locks 2>&1 || true)"
+  if grep -qF -- 'nginx*' <<<"$listing"; then
+    echo "zypper shows nginx* as locked under the host's own configuration, so the lock comes from somewhere other than this step's private file and the held-back result below would not be this step's doing"; return 0
+  fi
+
+  # 4. The resolver's view. A held name is refused, the same name is accepted without the lock, an
+  # unheld name is accepted under it. `--dry-run` changes nothing. UNVERIFIED: that a locked package
+  # makes `install --dry-run` fail (zypper reports the lock as a conflict and exits non-zero), and
+  # that `postgresql-server` and `tree` exist in this family's repositories. Confirm in the pinned
+  # image with the three commands in the failure messages.
+  if ! zypper --non-interactive refresh >/dev/null 2>&1; then
+    OS_UPDATES_SUSE_UNOBSERVED="the repositories could not be refreshed in this build, so no package index was available to the resolver"
+    return 0
+  fi
+  status=0
+  out="$(env -u ZYPP_CONF zypper --non-interactive --no-refresh install --dry-run --no-recommends "$held" 2>&1)" || status=$?
+  if [ "$status" -ne 0 ]; then
+    echo "the positive control failed: 'zypper install --dry-run ${held}' under the host's own configuration exits ${status}, so a refusal under the hold list would prove nothing about the lock (${out:0:200})"; return 0
+  fi
+  status=0
+  out="$(ZYPP_CONF="$OS_UPDATES_SUSE_ZYPP_CONF" zypper --non-interactive --no-refresh install --dry-run --no-recommends "$held" 2>&1)" || status=$?
+  if [ "$status" -eq 0 ]; then
+    echo "'ZYPP_CONF=${OS_UPDATES_SUSE_ZYPP_CONF} zypper install --dry-run ${held}' SUCCEEDED, so ${held} (on the hold list as postgresql*) is not held back from the unattended run"; return 0
+  fi
+  status=0
+  out="$(ZYPP_CONF="$OS_UPDATES_SUSE_ZYPP_CONF" zypper --non-interactive --no-refresh install --dry-run --no-recommends "$unheld" 2>&1)" || status=$?
+  if [ "$status" -ne 0 ]; then
+    echo "the inverse control failed: 'ZYPP_CONF=${OS_UPDATES_SUSE_ZYPP_CONF} zypper install --dry-run ${unheld}' exits ${status} though ${unheld} is on no hold list, so the refusal above is not shown to come from the lock (${out:0:200})"; return 0
+  fi
+  return 0
+}
+
 # os_updates_text_defect: the family's text checker on the file at $1.
 os_updates_text_defect() {
   case "$MARAN_OS_FAMILY" in
     debian) os_updates_debian_defect "$1" ;;
     rhel) os_updates_rhel_defect "$1" ;;
+    suse) os_updates_suse_defect "$1" ;;
   esac
 }
 
@@ -419,6 +577,23 @@ os_updates_prove_the_text_checker_refuses() {
       'nginx dropped from the hold list|s/\^nginx/^ngin/'
       'php dropped from the hold list|s/\^php/^ph/'
       'AllowUnauthenticated appended|$aAPT::Get::AllowUnauthenticated "true";'
+    )
+  elif [ "$MARAN_OS_FAMILY" = suse ]; then
+    expected_count=11
+    # Two inverse controls: a comment that names a lock of everything and a lock of another kind.
+    # Neither is one.
+    sed '$a// solvable_name: *' "$OS_UPDATES_CONFIG" > "${work}/commented-slash"
+    sed '$a# type: repository' "$OS_UPDATES_CONFIG" > "${work}/commented-hash"
+    refusals=(
+      'nginx dropped from the hold list|s/nginx\*/nginxx/'
+      'php dropped from the hold list|s/php\*/phpx/'
+      'vsftpd dropped from the hold list|s/vsftpd\*/vsftpdx/'
+      'a lock of every package appended|$asolvable_name: *'
+      'match_type changed to regex|s/match_type: glob/match_type: regex/'
+      'case_sensitive switched off|s/case_sensitive: on/case_sensitive: off/'
+      'a lock of another type appended|$atype: repository'
+      'a stray key appended|$aautoupdate: yes'
+      'every type line removed|/^type: package/d'
     )
   else
     expected_count=10

@@ -86,6 +86,29 @@ fn the_postfix_maps_are_written_in_the_type_the_host_names() {
 }
 
 #[test]
+fn local_submission_is_limited_to_the_users_of_a_table_beside_main_cf() {
+    // Issue #500: sendmail and postdrop bypass every smtpd restriction, so who
+    // may use them is decided by a table postdrop reads as the customer's uid.
+    // Both families name it in their own Postfix directory, never under
+    // /etc/maran, and the line lists root and the Postfix owner explicitly.
+    for (family, version_id) in [
+        (DistroFamily::Debian, VERSION_ID),
+        (DistroFamily::Rhel, "10.0"),
+    ] {
+        let stages = stages_for(family, version_id, false);
+        let main = text_of(stage_of(&stages, MailDaemon::Postfix), "main.cf");
+
+        assert!(
+            main.contains(
+                "authorized_submit_users = root, $mail_owner, lmdb:/etc/postfix/maran_local_submit_users\n"
+            ),
+            "{family:?}"
+        );
+        assert!(!main.contains("static:anyone"));
+    }
+}
+
+#[test]
 fn the_hostname_and_the_message_size_reach_postfix() {
     let stages = stages_for(DistroFamily::Debian, VERSION_ID, false);
     let main = text_of(stage_of(&stages, MailDaemon::Postfix), "main.cf");

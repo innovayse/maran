@@ -1,4 +1,4 @@
-//! The php-fpm side of a family: pool directory, unit, binary, package and installable versions.
+//! The php-fpm side of a family: pool directory, unit, binary, package.
 //!
 //! A supertrait of [`DistroAdapter`](crate::adapter::DistroAdapter); split out by concern
 //! so the one adapter seam stays under the file-size trigger (rules/rust.md "Distro adapter").
@@ -7,7 +7,7 @@ use maran_agent_core::validation::web::php_version::PhpVersion;
 
 use crate::adapter_binary::AdapterBinary;
 
-/// The php-fpm side of a family: pool directory, unit, binary, package and installable versions.
+/// The php-fpm side of a family: pool directory, unit, binary, package.
 pub trait PhpFacts: Send + Sync {
     /// Directory the php-fpm pool files for `version` live in.
     ///
@@ -43,15 +43,4 @@ pub trait PhpFacts: Send + Sync {
     /// Remi's PHP packages use. Getting this wrong installs nothing and the
     /// version-specific pool directory never appears.
     fn php_package(&self, version: &str) -> String;
-
-    /// The PHP versions this family's repository publishes a php-fpm package
-    /// for, oldest first.
-    ///
-    /// Sury (Debian family) and Remi (RHEL family) each publish their own
-    /// range, and a version missing from it has no package to install, so the
-    /// answer is the family's and not the panel's. The agent offers the
-    /// intersection of this set and its own closed supported set, which is
-    /// what the installable-versions query reports and what an install is
-    /// checked against.
-    fn installable_php_versions(&self) -> &'static [&'static str];
 }

@@ -1,4 +1,4 @@
-import { expect, test, type ConsoleMessage } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubHealthy } from '../fixtures/stub-health-route'
@@ -18,6 +18,7 @@ import type { AuthenticatedUser } from '../../src/types/auth'
 import type { MyAccount } from '../../src/types/account'
 import type { AccountResourceSummary } from '../../src/types/accountResourceSummary'
 import type { PanelModule } from '../../src/types/module'
+import type { ConsoleMessage } from '@playwright/test'
 
 // Issues #201 and #202: a customer walks every screen of their own area and the browser stays
 // quiet. No console error, no 4xx from `/api/v1/tasks` (the badge reads it on every screen), and no

@@ -1,11 +1,11 @@
 using Maran.Modules.Identity.Domain.Entities;
+using Maran.Modules.Identity.Domain.Policies;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Events;
 using Maran.SharedKernel.Security;
 using Maran.SharedKernel.Utilities.Tokens;
-using Npgsql;
 using Wolverine;
 
 namespace Maran.Modules.Identity.IntegrationEvents.Handlers;
@@ -55,6 +55,14 @@ namespace Maran.Modules.Identity.IntegrationEvents.Handlers;
 /// <see cref="OwnerLoginMode.Invitation"/> is never silently ignored and a missing one with
 /// <see cref="OwnerLoginMode.InitialPassword"/> never falls through to a passwordless invitation: either
 /// would leave the creator believing in a login the panel did not make.
+/// </para>
+/// <para>
+/// <b>Only the owner-membership index is a repeat.</b> Of the unique indexes a save can break, just
+/// <c>UX_AccountMemberships_AccountId_Owner</c> means a concurrent delivery already made this login
+/// (<see cref="ConcurrentOwnerLoginPolicy"/>). <c>IX_Users_Email</c> and <c>IX_Users_Username</c> mean
+/// another login holds the value; that is rethrown and answered as <c>AccountLoginIssuanceFailed</c>. The
+/// Accounts module asks <see cref="Maran.Sdk.Interfaces.IOwnerLoginDirectory"/> first and refuses with a
+/// typed code before provisioning, so this is the backstop for a clash that appears in between.
 /// </para>
 /// <para>
 /// <b>Thrown here reaches the API caller as a typed failure, not a generic one.</b>
@@ -202,9 +210,11 @@ public sealed class AccountCreatedHandler
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
         catch (DbUpdateException exception) when (
-            exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+            ConcurrentOwnerLoginPolicy.IsConcurrentDuplicate(exception.InnerException))
         {
-            // A concurrent delivery of AccountCreated won the race between the check above and this
+            // Only the owner-membership index means this (any other unique violation — the e-mail
+            // address or the name already held by another login — is rethrown, so the creator is told
+            // the login was not made instead of reading a success). A concurrent delivery of AccountCreated won the race between the check above and this
             // insert, and its row already owns the login and the live token — UX_AccountMemberships_AccountId_Owner
             // is what actually stopped the second row, not the check. Nothing this call added exists
             // (SaveChanges rolled the whole batch back), there is no orphaned token to clean up, and
@@ -230,9 +240,11 @@ public sealed class AccountCreatedHandler
             succeeded: true,
             cancellationToken);
 
-        if (token is null)
+        if (token is null || message.SuppressInvitationMail)
         {
-            // The initial-password branch sends nothing: the creator hands the password over.
+            // The initial-password branch sends nothing: the creator hands the password over. An imported
+            // account sends nothing either: the owner is invited when the administrator issues the link at
+            // cut-over, never to a server that is not live yet (issue #127).
             return;
         }
 
@@ -282,7 +294,7 @@ public sealed class AccountCreatedHandler
         string username,
         CancellationToken cancellationToken)
     {
-        if (!await _passwordPolicy.AcceptsAsync(password, username, cancellationToken))
+        if (await _passwordPolicy.JudgeAsync(password, username, cancellationToken) != InitialPasswordVerdict.Accepted)
         {
             throw new InvalidOperationException(
                 "The initial password does not meet the panel's password policy; no login was issued.");

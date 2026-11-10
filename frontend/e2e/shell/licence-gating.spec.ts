@@ -1,8 +1,12 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubModules, stubModulesUnavailable } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
+import { stubPlans } from '../fixtures/stub-plans-route'
+import { stubSessions } from '../fixtures/stub-sessions-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 
 // Both halves of licence gating are exercised here: the navigation (a locked
 // module stays visible but marked, an enabled one links to its own page) and
@@ -12,10 +16,12 @@ import { stubSignedIn } from '../fixtures/stub-auth-routes'
 
 test('navigation shows an enabled module and marks a disabled module as locked', async ({ page }) => {
   await stubSignedIn(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
   await stubHealthy(page)
   await stubModules(page, [
     { name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
-    { name: 'backups', displayName: 'Backups', kindDisplayName: 'Core', tier: 'business', state: 'locked' },
+    { name: 'backups', displayName: 'Backups', kindDisplayName: 'Core', tier: 'planGated', state: 'locked' },
   ])
 
   await page.goto('/')
@@ -39,11 +45,12 @@ test('visiting the upgrade page for a locked module names the module and its lic
   page,
 }) => {
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   // `tierDisplayName` is the tier in the backend's own words; the SPA owns no list of tiers, so a
   // catalogue without it makes the page say nothing about the tier (e2e/upgrade/tier-name.spec.ts).
   await stubModules(page, [
-    { name: 'backups', kindDisplayName: 'Core', tier: 'business', tierDisplayName: 'Business', state: 'locked' },
+    { name: 'backups', kindDisplayName: 'Core', tier: 'planGated', tierDisplayName: 'Business', state: 'locked' },
   ])
 
   await page.goto('/upgrade/backups')
@@ -54,8 +61,8 @@ test('visiting the upgrade page for a locked module names the module and its lic
   await expect(page.locator('body')).not.toContainText('"backups"')
   // `exact: true`, and the reason is the whole of what this line asserts. `getByText` matches a
   // SUBSTRING, CASE-INSENSITIVELY, unless told otherwise — so the defect this line exists to catch,
-  // the wire constant `business` reaching the screen where `tierDisplayName` belongs, rendered
-  // "Licence tier: business." and matched the loose form perfectly. The line read as a locale check
+  // the wire constant `planGated` reaching the screen where `tierDisplayName` belongs, rendered
+  // "Licence tier: planGated." and matched the loose form perfectly. The line read as a locale check
   // and could not see a locale defect (rules/testing.md: a check must be able to observe what it
   // reports on). Exact matching is case-sensitive and reads the element's whole text, which is the
   // sentence `UiEmptyState` renders in its own `<p>`.
@@ -66,8 +73,9 @@ test('deep link to a gated route whose module the licence does not cover lands o
   page,
 }) => {
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
-  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'business', state: 'locked' }])
+  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'planGated', state: 'locked' }])
 
   await page.goto('/accounts')
 
@@ -78,8 +86,9 @@ test('deep link to a gated route whose module the licence does not cover lands o
 
 test('deep link to a gated child route of an unlicensed module is redirected too', async ({ page }) => {
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
-  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'business', state: 'locked' }])
+  await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'planGated', state: 'locked' }])
 
   await page.goto('/accounts/new')
 
@@ -88,8 +97,10 @@ test('deep link to a gated child route of an unlicensed module is redirected too
 
 test('a gated route the licence covers is reachable and renders its own page', async ({ page }) => {
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
+  await stubPlans(page)
   await stubAccounts(page, [])
 
   await page.goto('/accounts')
@@ -100,6 +111,7 @@ test('a gated route the licence covers is reachable and renders its own page', a
 
 test('an unknown module the panel never reported is treated as unlicensed by the guard', async ({ page }) => {
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, [])
 
@@ -112,8 +124,11 @@ test('navigating from the sidebar into an enabled module reaches its page rather
   page,
 }) => {
   await stubSignedIn(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
   await stubHealthy(page)
   await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
+  await stubPlans(page)
   await stubAccounts(page, [])
 
   await page.goto('/')
@@ -132,7 +147,10 @@ test('a licensed module whose screen exists is not sent to the upgrade wall', as
   // where a module's screen lives is now stated in the SPA's own router map. Since issue #311 the
   // identity module's screen is the signed-in person's own, reached from the account menu.
   await stubSignedIn(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
   await stubHealthy(page)
+  await stubSessions(page, [])
   await stubModules(page, [
     { name: 'identity', displayName: 'Users and access', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
     { name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -162,6 +180,8 @@ test('a licensed module whose interface lives inside another screen gets no side
   // protects. There is nowhere for a sidebar entry to lead, and the entry it used to have led to
   // an upgrade wall for a feature that exists, works, and was serving the operator's traffic.
   await stubSignedIn(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
   await stubHealthy(page)
   await stubModules(page, [
     { name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -185,9 +205,11 @@ test('a module the licence does not permit still shows inside its section and le
   // Security section with the security policy, which needs no module, so the section stays a
   // submenu and the firewall's pages are drawn in it, locked.
   await stubSignedIn(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
   await stubHealthy(page)
   await stubModules(page, [
-    { name: 'firewall', displayName: 'Firewall', kindDisplayName: 'Core', tier: 'business', state: 'locked' },
+    { name: 'firewall', displayName: 'Firewall', kindDisplayName: 'Core', tier: 'planGated', state: 'locked' },
   ])
 
   await page.goto('/')
@@ -204,14 +226,18 @@ test('a module the licence does not permit still shows inside its section and le
   )
 })
 
-test('a gated route stays reachable when the module catalogue could not be loaded', async ({ page }) => {
+test('a gated route stays reachable when the module catalogue could not be loaded', async ({ page, guard }) => {
   // The SPA's licence gate is cosmetic; the backend checks the licence on every request. So when
   // the catalogue call fails the guard must step aside, not refuse. It used to refuse: an empty
   // catalogue and an unloadable one were the same state, so one 500 sent EVERY gated route to the
   // upgrade wall and told a fully licensed operator to buy back what they already own.
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
+  // The refusal is the subject: the catalogue read fails and the route guard must step aside.
+  guard.allow(500, /\/api\/v1\/modules$/)
   await stubModulesUnavailable(page)
+  await stubPlans(page)
   await stubAccounts(page, [])
 
   await page.goto('/accounts')

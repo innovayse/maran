@@ -1,0 +1,16 @@
+{
+  "app": {
+    "modules": {
+      "frameTitle": "{module} screen",
+      "loading": "Loading {module}",
+      "retry": "Try again",
+      "unavailable": {
+        "title": "{module} is unavailable",
+        "timeout": "The module did not start in time.",
+        "loadError": "The module could not be loaded.",
+        "violations": "The module was stopped because it sent messages the panel does not accept.",
+        "hint": "The rest of the panel is not affected. You can try again, or ask whoever administers this server to check the module."
+      }
+    }
+  }
+}

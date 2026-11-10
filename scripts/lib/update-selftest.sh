@@ -127,7 +127,7 @@ expect_refuse() {
   case "$RUN_OUT" in
     *"command not found"*) selftest_failed "${label}: the refusal is a missing command, not a check: ${RUN_OUT}" ;;
   esac
-  if [ -n "$pattern" ] && ! printf '%s' "$RUN_OUT" | grep -qiE -- "$pattern"; then
+  if [ -n "$pattern" ] && ! grep -qiE -- "$pattern" <<<"$RUN_OUT"; then
     selftest_failed "${label} was refused for another reason than expected (wanted /${pattern}/): ${RUN_OUT}"
   fi
   selftest_pass "${label} REFUSED (expected)"
@@ -142,7 +142,7 @@ expect_returns_refusal() {
   run_returning "$@"
   [ "$RUN_RETURNED" -eq 1 ] || selftest_failed "${label}: the function ended the command (cli_fail) instead of returning: ${RUN_OUT}"
   [ "$RUN_STATUS" -ne 0 ] || selftest_failed "${label} was ACCEPTED - the check behind it is decoration."
-  if [ -n "$pattern" ] && ! printf '%s' "$RUN_OUT" | grep -qiE -- "$pattern"; then
+  if [ -n "$pattern" ] && ! grep -qiE -- "$pattern" <<<"$RUN_OUT"; then
     selftest_failed "${label} was refused for another reason than expected (wanted /${pattern}/): ${RUN_OUT}"
   fi
   selftest_pass "${label} REFUSED by a returned status (expected)"

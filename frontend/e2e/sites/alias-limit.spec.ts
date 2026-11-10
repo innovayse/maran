@@ -1,12 +1,14 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubPhpVersions, stubSiteLimits, stubSites } from '../fixtures/stub-sites-routes'
 import type { Account } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
 import type { SiteLimits } from '../../src/types/site'
+import type { Page } from '@playwright/test'
 
 const LICENSED_SITES: PanelModule[] = [
   { name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -32,6 +34,7 @@ const OWNER: Account = {
  */
 const stubForm = async (page: Page, limits: SiteLimits | null): Promise<void> => {
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_SITES)
   await stubAccounts(page, [OWNER])
@@ -89,7 +92,9 @@ test('the site form refuses one alias over the server limit and disables creatin
 
 // rules/security.md: a check in the browser is advice and must err permissive. A server that
 // cannot state its limit leaves the form open; the server's own refusal is what decides.
-test('the site form stays permissive when the server limit cannot be read', async ({ page }) => {
+test('the site form stays permissive when the server limit cannot be read', async ({ page, guard }) => {
+  // The refusal is the point: a server that cannot state its limit answers 500.
+  guard.allow(500, /\/api\/v1\/sites\/limits$/)
   await stubForm(page, null)
   await openForm(page)
 

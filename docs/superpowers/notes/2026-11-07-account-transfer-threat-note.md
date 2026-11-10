@@ -66,3 +66,45 @@ port, daemon or outbound call.
 - Behaviour against a live agent: the quota and runtime push is covered by the recording double only.
 - The end-to-end view-as revocation against the composed panel is covered by the endpoint test added
   with this change; no browser run was made.
+
+## 3. Amendment (issue #460): the window between the revocation and the save
+
+**What was wrong.** Section 1 said the subscriber revokes the former reseller's view-as sessions
+"BEFORE the row is written" and treated the revocation as the control. It was not enough: the revocation
+ran before the agent quota push and before `SaveChangesAsync`, and nothing ran after the commit. Until
+the save the reseller still owned the account, so it could start a fresh view-as session after the
+revocation query ran; that session is bound to the account by its own row (`ActiveAccountId`), was never
+re-checked against the account's owner, and so survived the move for the 15-minute view-as lifetime as
+the owner login's customer token. The claim that the former reseller does not "keep operating a customer
+it no longer owns" was false for that window.
+
+**What changed.**
+
+1. `ViewAsSessionVerifier` (the bearer handler's per-request check of every view-as token) now also asks
+   whether the operator is still entitled: an administrator always; a reseller only while
+   `IAccountOwnership.IsOwnedByResellerAsync(session.ActiveAccountId, operator.ResellerId)` is true,
+   with the reseller read from the operator's own login row, never from the token. Any other operator
+   role, a missing operator row, or a reseller session with no account is refused.
+2. `IAccountOwnership` is a new Sdk window, implemented by the Accounts module (`AccountOwnership`). It
+   applies no caller scope, because the bearer handler has no principal yet and the fail-closed filters
+   would answer nothing; it takes both ids from the asker's own session row and returns one boolean.
+   This is the 36th deliberate `IgnoreQueryFilters` (rules/README.md).
+3. `TransferAccountCommandHandler` no longer invokes anything before the push and the save. After the
+   save it announces `AccountOwnerChanged` (renamed from `AccountOwnerChanging`) through
+   `AccountOwnerChangeAnnouncer`, and the Identity subscriber ends the rows. A subscriber's failure is
+   logged and does not undo the committed move; the subscriber is now tidying, not the control.
+
+**Why it is safe now.** The control is read at USE time, not written at START time: from the instant the
+ownership row commits, every request of every view-as session the former reseller holds, including one
+started a microsecond before the commit and one whose insert lands after the revocation query, fails
+authentication with 401. There is no interval in which a session is both live and unchecked, so no
+revocation has to win a race. The pre-commit revocation, which could abort a move, is gone; a failed
+agent push or save leaves the account and its sessions exactly as they were.
+
+**What the author could not verify.** The PostgreSQL integration tests drive the half-done state with an
+agent double that opens the session during the quota push; they do not exercise two real processes. The
+check costs two small reads per view-as request (the operator row and one `AnyAsync`); not measured.
+
+**Second review: OUTSTANDING (#331)** - must not merge to main. A reviewer must read
+`ViewAsSessionVerifier.OperatorMayStillViewAsync` and `AccountOwnership`, and confirm the `act` claim's
+user id cannot be forged (it is signed and cross-checked against the session row's origin).

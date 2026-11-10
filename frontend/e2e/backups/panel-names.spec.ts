@@ -1,9 +1,10 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { stubBackups } from '../fixtures/stub-backups-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import type { Account } from '../../src/types/account'
 import type { Backup } from '../../src/types/backup'
@@ -55,6 +56,7 @@ test('the history prints the status and the reason under the names the rows carr
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubBackups(page, [BACKUP])
 

@@ -16,6 +16,7 @@ using Maran.Agent.Client.Services.SftpService;
 using Maran.Agent.Client.Services.SitesService;
 using Maran.Agent.Client.Services.SslService;
 using Maran.Agent.Client.Services.SystemService;
+using Maran.Agent.Client.Services.TransferService;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -144,6 +145,13 @@ public static class DependencyInjection
                 return new AgentDnsClient(
                     provider.GetRequiredService<IAgentChannels>(),
                     provider.GetRequiredService<ILogger<AgentDnsClient>>());
+            });
+        services.AddSingleton<IAgentTransferClient>(
+            provider =>
+            {
+                return new AgentTransferClient(
+                    provider.GetRequiredService<IAgentChannels>(),
+                    provider.GetRequiredService<ILogger<AgentTransferClient>>());
             });
         services.AddSingleton<IAgentSystemClient>(
             provider =>

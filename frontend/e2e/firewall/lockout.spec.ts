@@ -1,10 +1,12 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubFirewall } from '../fixtures/stub-firewall-routes'
 import type { FirewallRule } from '../../src/types/firewall'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 const LICENSED: PanelModule[] = [
   { name: 'firewall', displayName: 'Firewall', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -35,6 +37,7 @@ const openScreen = async (page: Page, rules: FirewallRule[]): Promise<string[]> 
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubFirewall(page, { rules, bans: [], whitelist: [] })
   page.on('request', (request) => {
     const method = request.method()
@@ -171,7 +174,9 @@ test('adding a rule open to every source is sent without a confirmation', async 
 // and keeps the form filled so the operator can widen the range and send it again.
 test('a rule the panel refuses as a lock-out shows the server text and keeps the form filled', async ({
   page,
+  guard,
 }) => {
+  guard.allow(409, /\/api\/v1\/firewall\/rules$/)
   const refusal = 'Refused by the server: this rule would cut you off from SSH.'
   const changes = await openScreen(page, [])
   await page.route('**/api/v1/firewall/rules', async (route) => {

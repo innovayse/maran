@@ -4,6 +4,7 @@ using System.Text.Json;
 using Maran.Agent.Client.Interfaces;
 using Maran.Host.IntegrationTests.Fixtures;
 using Maran.Modules.Accounts.Domain.Entities;
+using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
@@ -228,7 +229,7 @@ public sealed class AccountEditEndpointTests : IAsyncLifetime
         using (var scope = factory.Services.CreateScope())
         {
             var accounts = scope.ServiceProvider.GetRequiredService<AccountsDbContext>();
-            (await accounts.Accounts.IgnoreQueryFilters().SingleAsync(account => account.Id == accountId)).Suspend();
+            (await accounts.Accounts.IgnoreQueryFilters().SingleAsync(account => account.Id == accountId)).Suspend(SuspensionActor.Administrator);
             await accounts.SaveChangesAsync();
         }
 

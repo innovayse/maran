@@ -15,6 +15,9 @@
   <data name="PanelUpdateRunning">
     <value>Обновление уже поставлено в очередь или выполняется.</value>
   </data>
+  <data name="PanelUpdateCheckRunning">
+    <value>Проверка обновлений уже поставлена в очередь или выполняется.</value>
+  </data>
   <data name="PanelUpdateUnavailable">
     <value>Панель сейчас не может запустить обновление на этом сервере.</value>
   </data>

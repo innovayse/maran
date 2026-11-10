@@ -4,6 +4,7 @@ use std::convert::Infallible;
 use std::sync::Arc;
 
 use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
+use maran_agent_core::validation::web::panel_host_names::PanelHostNames;
 use maran_ops::ssl::{self, CertificateMaterial, PanelChallengeHost, SslHost};
 use tonic::{Request, Response, Status};
 
@@ -58,6 +59,9 @@ pub struct SslServiceImpl<H, C> {
     /// and the service manager. A service never branches on a distribution
     /// itself (rules/rust.md "Distro adapter"); it passes this on.
     distro: &'static dyn maran_distro::DistroAdapter,
+    /// The names the panel itself is served under, which no tenant's site may carry and
+    /// so no tenant's certificate may be installed for.
+    panel_host_names: PanelHostNames,
 }
 
 impl<H: SslHost + 'static, C: PanelChallengeHost + 'static> SslServiceImpl<H, C> {
@@ -68,12 +72,14 @@ impl<H: SslHost + 'static, C: PanelChallengeHost + 'static> SslServiceImpl<H, C>
         challenges: C,
         floor: FreeSpaceFloor,
         distro: &'static dyn maran_distro::DistroAdapter,
+        panel_host_names: PanelHostNames,
     ) -> Self {
         Self {
             host: Arc::new(host),
             challenges: Arc::new(challenges),
             floor,
             distro,
+            panel_host_names,
         }
     }
 }
@@ -92,6 +98,7 @@ impl<H: SslHost + 'static, C: PanelChallengeHost + 'static> SslService for SslSe
             &request.account_username,
             &request.domain,
             request.site.as_ref(),
+            &self.panel_host_names,
         ) {
             Ok(site) => {
                 audit.account(&site.account);
@@ -182,6 +189,7 @@ impl<H: SslHost + 'static, C: PanelChallengeHost + 'static> SslService for SslSe
             &request.account_username,
             &request.domain,
             request.site.as_ref(),
+            &self.panel_host_names,
         ) {
             Ok(site) => {
                 audit.account(&site.account);

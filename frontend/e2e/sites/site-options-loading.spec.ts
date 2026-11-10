@@ -1,12 +1,14 @@
-import { expect, test, type Page } from '@playwright/test'
 import { delayRoute } from '../fixtures/delay-route'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { OPTIONS_SITE_ID, SITE_OPTIONS_PATTERN, stubSiteOptions } from '../fixtures/stub-site-options-routes'
 import { stubPhpVersions, stubSiteDetail, stubSites } from '../fixtures/stub-sites-routes'
 import type { PanelModule } from '../../src/types/module'
 import type { SiteDetail } from '../../src/types/site'
+import type { Page } from '@playwright/test'
 
 // The Options tab while its read is on the way (#243): a slow answer holds the form's place under one
 // polite status, and a refusal is an alert with the server's own words, never a skeleton. The shared
@@ -45,6 +47,7 @@ const REFUSAL = 'The server agent is not answering.'
  */
 const stubShell = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_SITES)
   await stubSites(page, [])
@@ -68,7 +71,8 @@ test('options tab: a slow answer shows a placeholder under one status, then the 
   await expect(page.locator('[data-skeleton]')).toHaveCount(0)
 })
 
-test('options tab: a slow refusal is an alert with the server words, never a skeleton', async ({ page }) => {
+test('options tab: a slow refusal is an alert with the server words, never a skeleton', async ({ page, guard }) => {
+  guard.allow(503, /\/api\/v1\/sites\/[^/]+\/options$/)
   await stubShell(page)
   await page.route(SITE_OPTIONS_PATTERN, async (route) => {
     await route.fulfill({

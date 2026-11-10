@@ -25,6 +25,12 @@ public sealed class RecordingDnsAgent : IAgentDnsClient
     /// <summary>How many times the daemon was switched off.</summary>
     public int DisableCalls { get; private set; }
 
+    /// <summary>Whether the daemon reports that it can sign zones. A test turns it off to describe an older build.</summary>
+    public bool DnssecSupported { get; set; } = true;
+
+    /// <summary>What the daemon reports about the signing of a zone it serves; null for an answer with no observation.</summary>
+    public DnsSigningObservedDto? Observation { get; set; }
+
     /// <summary>When set, the next call of any kind fails with it, and the field clears.</summary>
     public Error? FailNext { get; set; }
 
@@ -111,7 +117,7 @@ public sealed class RecordingDnsAgent : IAgentDnsClient
         }
 
         return Task.FromResult(_served.TryGetValue(zoneName, out var served)
-            ? Result<DnsZoneServedDto>.Ok(served)
+            ? Result<DnsZoneServedDto>.Ok(served with { Signing = Observation })
             : Result<DnsZoneServedDto>.Fail(Error.Of("AgentNotFound", ErrorType.NotFound)));
     }
 
@@ -130,9 +136,10 @@ public sealed class RecordingDnsAgent : IAgentDnsClient
 
     /// <summary>The state of a daemon that is up.</summary>
     /// <returns>Running and answering on port 53.</returns>
-    private static DnsDaemonStatusDto Running()
+    private DnsDaemonStatusDto Running()
     {
-        return new DnsDaemonStatusDto(true, true, true, DnsPolicyState.InForce, DnsPolicyState.InForce);
+        return new DnsDaemonStatusDto(
+            true, true, true, DnsPolicyState.InForce, DnsPolicyState.InForce, DnssecSupported);
     }
 
     /// <summary>The state of a daemon that is down.</summary>

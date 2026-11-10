@@ -288,13 +288,18 @@ COPY installer/lib/67-panel-backup.sh /tmp/maran-installer/lib/67-panel-backup.s
 COPY installer/systemd/maran-panel-backup.service /tmp/maran-installer/systemd/maran-panel-backup.service
 COPY installer/systemd/maran-panel-backup.timer /tmp/maran-installer/systemd/maran-panel-backup.timer
 COPY installer/panel-backup.conf.example /tmp/maran-installer/panel-backup.conf.example
-# The panel's update-request units and the step that installs them (issue #382). The assertions in
+# The panel's update-request units (and the release-check pair, issue #516) and the step that installs them
+# (issue #382). The assertions in
 # docker/polygon/asserts/parts/update-request-units.sh read these files' text and render the step's
 # tmpfiles snippet; absent, the part aborts by name. maran-api.service is copied above.
 COPY installer/lib/69-update-request.sh /tmp/maran-installer/lib/69-update-request.sh
 COPY installer/lib/69-update-schedule.sh /tmp/maran-installer/lib/69-update-schedule.sh
+COPY installer/systemd/maran-update-security.service /tmp/maran-installer/systemd/maran-update-security.service
+COPY installer/systemd/maran-update-security.timer /tmp/maran-installer/systemd/maran-update-security.timer
 COPY installer/systemd/maran-update-request.service /tmp/maran-installer/systemd/maran-update-request.service
 COPY installer/systemd/maran-update-request.path /tmp/maran-installer/systemd/maran-update-request.path
+COPY installer/systemd/maran-update-check.service /tmp/maran-installer/systemd/maran-update-check.service
+COPY installer/systemd/maran-update-check.path /tmp/maran-installer/systemd/maran-update-check.path
 COPY installer/systemd/maran-update-request.tmpfiles.conf /tmp/maran-installer/systemd/maran-update-request.tmpfiles.conf
 
 # Step 68, the opt-in unattended OS security updates (issue #163). The step is RUN twice by
@@ -367,6 +372,11 @@ RUN chmod 755 /usr/bin/timedatectl
 COPY docker/polygon/asserts/pam-witness.c /tmp/maran-polygon/pam-witness.c
 COPY agent/crates/distro/src/debian/debian_services.rs /tmp/maran-agent/crates/distro/src/debian/debian_services.rs
 COPY agent/crates/distro/src/rhel/rhel_services.rs /tmp/maran-agent/crates/distro/src/rhel/rhel_services.rs
+# The SUSE adapter's three source files the assert script also compares (the DNS names, the account-program
+# paths, the FTPS group). READ on every image, because the comparisons cover every family's adapter.
+COPY agent/crates/distro/src/suse/suse_services.rs /tmp/maran-agent/crates/distro/src/suse/suse_services.rs
+COPY agent/crates/distro/src/suse/suse_dns_services.rs /tmp/maran-agent/crates/distro/src/suse/suse_dns_services.rs
+COPY agent/crates/distro/src/suse/suse_account_programs.rs /tmp/maran-agent/crates/distro/src/suse/suse_account_programs.rs
 COPY agent/crates/agent-core/src/agent_paths.rs /tmp/maran-agent/crates/agent-core/src/agent_paths.rs
 COPY agent/crates/templates/templates/vsftpd/vsftpd.conf.j2 /tmp/maran-agent/crates/templates/templates/vsftpd/vsftpd.conf.j2
 COPY agent/crates/ops/src/ftps/enable_ftps.rs /tmp/maran-agent/crates/ops/src/ftps/enable_ftps.rs
@@ -393,6 +403,8 @@ COPY installer/lib/81-site-logs.sh /tmp/maran-installer/lib/81-site-logs.sh
 # here: a policy no logrotate has parsed is a file, not a retention policy.
 COPY installer/lib/41-log-retention.sh /tmp/maran-installer/lib/41-log-retention.sh
 COPY installer/logrotate/maran-install /tmp/maran-installer/logrotate/maran-install
+# The two nginx rotation policies parts/nginx-log-rotation.sh parses with the real logrotate (issue #490).
+COPY installer/logrotate/maran-sites /tmp/maran-installer/logrotate/maran-sites
 RUN dnf install -y --nodocs logrotate && dnf clean all
 # 88-cron.sh is COPY'd again further down for the cron suite's own reasons; it is needed HERE,
 # before the assert script runs, because the census reads it too. The same duplication

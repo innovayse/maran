@@ -1,9 +1,12 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { openSection } from '../fixtures/open-full-shell'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 // Issue #209: the collapsed rail and jump-to listed the entries in catalogue order while the
 // expanded sidebar drew them by group, and two entries were named for their module rather than
@@ -29,6 +32,8 @@ const open = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, MODULES)
+  await stubShellReads(page)
+  await stubLandingReads(page)
   await page.goto('/')
   await expect(page.getByRole('navigation', { name: 'Main navigation' })).toBeVisible()
 }

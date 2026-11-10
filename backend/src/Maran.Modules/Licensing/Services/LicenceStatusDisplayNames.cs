@@ -31,6 +31,9 @@ public sealed class LicenceStatusDisplayNames
     /// <summary>Prefix of the resx key holding the wire <c>State</c> field's short display label.</summary>
     private const string StateKeyPrefix = "LicenceState";
 
+    /// <summary>Prefix of the resource keys naming a lease's standing, completed by the standing's name.</summary>
+    private const string LeaseKeyPrefix = "LicenceLease";
+
     /// <summary>This module's display-name resources for the current culture.</summary>
     private readonly IStringLocalizer<DisplayNames> _displayNames;
 
@@ -111,5 +114,13 @@ public sealed class LicenceStatusDisplayNames
     public string ReasonNameFor(LicenceRefusalReason reason)
     {
         return _displayNames[RefusalKeyPrefix + reason];
+    }
+
+    /// <summary>The short, localized label of a lease's standing.</summary>
+    /// <param name="standing">The standing.</param>
+    /// <returns>The label in the request's culture.</returns>
+    public string LeaseNameFor(LeaseStandingKind standing)
+    {
+        return _displayNames[LeaseKeyPrefix + standing];
     }
 }

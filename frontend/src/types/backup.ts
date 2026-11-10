@@ -14,12 +14,11 @@ export type BackupStatus = 'running' | 'completed' | 'failed'
  * Why a backup was taken, mirroring the backend's `BackupKind` and likewise a camelCase name on
  * the wire.
  *
- * All four values are declared because the backend declares all four and may send any of them at
- * any time. Only `manual` is produced today — schedules, the final backup before an account is
- * deleted, and the safety copy taken before a restore are all later work — but a screen that met
- * one of the others and rendered nothing would be worse than one that names it.
+ * Every value is declared because the backend declares each one and may send any of them at any
+ * time; `migration` is the artifact an account move (#127) takes. A screen that met one of them and
+ * rendered nothing would be worse than one that names it.
  */
-export type BackupKind = 'manual' | 'scheduled' | 'preDeletion' | 'preRestore'
+export type BackupKind = 'manual' | 'scheduled' | 'preDeletion' | 'preRestore' | 'migration'
 
 /**
  * Whether a backup's artifact has been re-read after the run and found sound, mirroring the

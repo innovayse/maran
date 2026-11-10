@@ -38,7 +38,7 @@ namespace Maran.Host.Modules;
 /// Whether the module may be used right now, decided in one place by
 /// <see cref="ModuleStateResolver"/>. <see cref="ModuleState.Locked"/> renders the module's entries
 /// as locked and leads them to the upgrade page rather than hiding the product's existence.
-/// Serialized as its member name (<c>"enabled"</c>, <c>"locked"</c>) by the panel-wide
+/// Serialized as its member name (<c>"enabled"</c>, <c>"lapsed"</c>, <c>"locked"</c>) by the panel-wide
 /// <see cref="System.Text.Json.Serialization.JsonStringEnumConverter"/>. A module the panel did not
 /// compose is not in the list at all, so there is no third value.
 /// </param>
@@ -80,6 +80,36 @@ namespace Maran.Host.Modules;
 /// for a module whose screens live inside another module's.
 /// </param>
 /// <param name="Routes">The screen routes the module contributes, with titles localized in the request's culture.</param>
+/// <param name="ValidUntil">
+/// When the licence's cover of the module ends (or ended, for a lapsed module), from the licence window; null
+/// for an included module, which is covered by no licence, and for a module nothing covers.
+/// </param>
+/// <param name="Version">
+/// The version of the module composed into this panel, the manifest's semantic version. It is the version
+/// the module's frame is served for, so a screen can never be from another release than the running module.
+/// </param>
+/// <param name="Lifecycle">
+/// Where the module stands (<see cref="ModuleLifecycleState"/>): <c>"active"</c> unless the loader reports
+/// it <c>"degraded"</c> or <c>"failed"</c>. A module that is installed but not yet composed is not in the
+/// list at all, so <c>"installed"</c> and <c>"removed"</c> do not occur here. Serialized as its member name
+/// by the panel-wide <see cref="System.Text.Json.Serialization.JsonStringEnumConverter"/>. Distinct from
+/// <paramref name="State"/>, which is the licence's verdict; a screen is framed only when the module is
+/// active.
+/// </param>
+/// <param name="IsPackaged">
+/// Whether the module arrived as a package rather than shipping with the panel. Presentation only: a
+/// packaged module's screen runs in a sandboxed frame, a shipped module's in the shell itself.
+/// </param>
+/// <param name="Spa">
+/// How the shell reaches the module's screen (<see cref="ModuleSpaDto"/>), or null when the module is not
+/// framed: it shipped with the panel, is not active, or holds no screen bundle for the running version.
+/// </param>
+/// <param name="FailureDisplay">
+/// The sentence an operator reads for a degraded or failed module, resolved server-side in the request's
+/// culture from the loader's coded cause, for the reason <paramref name="DisplayName"/> is resolved here.
+/// Null for a module that is active, and for one whose cause the loader did not state; never exception
+/// text, a path or tool output.
+/// </param>
 public sealed record ModuleDto(
     string Name,
     LicenceTier Tier,
@@ -92,4 +122,10 @@ public sealed record ModuleDto(
     string KindDisplayName,
     IReadOnlyList<string> Permissions,
     IReadOnlyList<ModuleMenuItemDto> Menu,
-    IReadOnlyList<ModuleRouteDto> Routes);
+    IReadOnlyList<ModuleRouteDto> Routes,
+    string Version,
+    ModuleLifecycleState Lifecycle,
+    bool IsPackaged,
+    ModuleSpaDto? Spa,
+    string? FailureDisplay,
+    DateTimeOffset? ValidUntil);

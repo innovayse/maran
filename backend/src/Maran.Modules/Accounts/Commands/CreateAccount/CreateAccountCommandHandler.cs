@@ -109,6 +109,9 @@ public sealed class CreateAccountCommandHandler
     /// <summary>Judges an initial password by the panel's password policy, which Identity owns.</summary>
     private readonly IInitialPasswordPolicy _passwordPolicy;
 
+    /// <summary>Tells whether the owner's login name and e-mail address are free.</summary>
+    private readonly IOwnerLoginDirectory _ownerLogins;
+
     /// <summary>The injected time source; never the ambient clock (rules/csharp.md).</summary>
     private readonly IClock _clock;
 
@@ -134,6 +137,7 @@ public sealed class CreateAccountCommandHandler
     /// <param name="runtimeLimits">Puts the account's runtime ceilings on its slice and its open-files ceiling on the host.</param>
     /// <param name="overrides">Holds the ceilings the creator stated to the plan and to who is creating.</param>
     /// <param name="passwordPolicy">Judges an initial password by the panel's password policy.</param>
+    /// <param name="ownerLogins">Tells whether the owner's login name and e-mail address are free.</param>
     /// <param name="clock">The injected time source used to stamp the new account's creation time.</param>
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="bus">The bus <see cref="AccountCreated"/> is invoked on.</param>
@@ -149,6 +153,7 @@ public sealed class CreateAccountCommandHandler
         AccountRuntimeLimitsEnforcer runtimeLimits,
         AccountLimitOverrideResolver overrides,
         IInitialPasswordPolicy passwordPolicy,
+        IOwnerLoginDirectory ownerLogins,
         IClock clock,
         AccountAuditJournal journal,
         IMessageBus bus,
@@ -164,6 +169,7 @@ public sealed class CreateAccountCommandHandler
         _runtimeLimits = runtimeLimits;
         _overrides = overrides;
         _passwordPolicy = passwordPolicy;
+        _ownerLogins = ownerLogins;
         _clock = clock;
         _journal = journal;
         _bus = bus;
@@ -180,8 +186,13 @@ public sealed class CreateAccountCommandHandler
     /// The created account, <c>AccountNameTaken</c>/<c>AccountDomainTaken</c>/<c>PlanNotFound</c>,
     /// <c>ResellerSuspended</c>, <c>ResellerNotFound</c>, <c>PlanOwnerMismatch</c>,
     /// <c>ResellerAccountLimitReached</c> or <c>ResellerDiskPoolExceeded</c> for a reseller's account,
+    /// <c>AccountShellAccessAdministratorOnly</c>/<c>AccountInitialPasswordAdministratorOnly</c> when a reseller
+    /// asks for a login shell or states the owner's first password (issue #488),
     /// <c>AccountLimitAbovePlan</c> when a reseller states a process ceiling above its plan's,
-    /// <c>AccountInitialPasswordInvalid</c> when the initial password fails the panel's password policy,
+    /// <c>AccountInitialPasswordTooShort</c>/<c>AccountInitialPasswordTooLong</c>/<c>AccountInitialPasswordSameAsName</c>
+    /// naming the rule the initial password breaks in the panel's password policy,
+    /// <c>AccountOwnerEmailTaken</c>/<c>AccountLoginNameTaken</c> when another login already holds the owner's
+    /// e-mail address or the account's name as a login name (nothing is provisioned),
     /// the agent's own typed failure when the system user could not be provisioned, or
     /// <c>AccountLoginIssuanceFailed</c> when the account was created but its owner's login was not
     /// — see the remarks on the invocation below for why creating the account again is not the
@@ -202,6 +213,12 @@ public sealed class CreateAccountCommandHandler
         }
 
         var ownerId = owner.Value;
+
+        var administratorOnly = RefuseAdministratorOnlyOptions(command);
+        if (administratorOnly is not null)
+        {
+            return await FailAsync(command, administratorOnly, cancellationToken);
+        }
 
         if (await _claims.IsNameTakenAsync(command.Name, cancellationToken))
         {
@@ -229,13 +246,28 @@ public sealed class CreateAccountCommandHandler
 
         // Judged before anything exists on the host: the login is issued after the account, so a weak
         // password found there would leave an account nobody can sign in to (issue #194).
-        if (command.InitialPassword is not null
-            && !await _passwordPolicy.AcceptsAsync(command.InitialPassword, command.Name, cancellationToken))
+        if (command.InitialPassword is not null)
         {
-            return await FailAsync(
-                command,
-                Error.Of(nameof(ErrorMessages.AccountInitialPasswordInvalid), ErrorType.Validation),
-                cancellationToken);
+            var verdict = await _passwordPolicy.JudgeAsync(command.InitialPassword, command.Name, cancellationToken);
+            if (verdict != InitialPasswordVerdict.Accepted)
+            {
+                return await FailAsync(
+                    command,
+                    Error.Of(InitialPasswordRefusalCode(verdict), ErrorType.Validation),
+                    cancellationToken);
+            }
+        }
+
+        // Also before anything exists on the host: the owner's login is made after the account, and a
+        // name or an e-mail address another login holds would leave an account with no way in.
+        var loginConflict = await _ownerLogins.FindConflictAsync(command.Name, command.OwnerEmail, cancellationToken);
+        if (loginConflict != OwnerLoginConflict.None)
+        {
+            var code = loginConflict == OwnerLoginConflict.EmailTaken
+                ? nameof(ErrorMessages.AccountOwnerEmailTaken)
+                : nameof(ErrorMessages.AccountLoginNameTaken);
+
+            return await FailAsync(command, Error.Of(code, ErrorType.Conflict), cancellationToken);
         }
 
         var refusal = await _allocation.AdmitAccountAsync(ownerId, plan, cancellationToken)
@@ -326,7 +358,8 @@ public sealed class CreateAccountCommandHandler
                     account.OwnerLanguage,
                     command.LoginMode,
                     command.InitialPassword,
-                    command.BackupEnabled),
+                    command.BackupEnabled,
+                    command.SuppressInvitationMail),
                 cancellationToken);
         }
         catch (Exception exception)
@@ -383,6 +416,59 @@ public sealed class CreateAccountCommandHandler
             AccountAuditActions.AccountCreated, command.Name, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result<AccountDto>.Fail(error);
+    }
+
+    /// <summary>
+    /// Refuses the two options that hand the creator a way into the customer's account: a login shell,
+    /// and a first password the creator chose. Both are the administrator's alone; a reseller, or an
+    /// integration holding a reseller's API key, creates an account the customer alone can sign in to.
+    /// </summary>
+    /// <remarks>
+    /// Decided from the caller's identity here and not from the request, so a body cannot talk its way
+    /// past it, and before anything is provisioned so a refusal leaves nothing on the host. A reseller
+    /// is not trusted with either by default: a shell is a way to run code as the account on a server
+    /// shared with every other tenant, and a password the reseller knows is a way to sign in as the
+    /// customer. The reseller's remaining way to give the owner a login is the invitation, which keeps
+    /// the password with the owner alone (issue #488).
+    /// </remarks>
+    /// <param name="command">The creation being judged.</param>
+    /// <returns>
+    /// <c>null</c> when the caller is not a reseller, or asks for neither option;
+    /// <c>AccountShellAccessAdministratorOnly</c> or <c>AccountInitialPasswordAdministratorOnly</c> otherwise.
+    /// </returns>
+    private Error? RefuseAdministratorOnlyOptions(CreateAccountCommand command)
+    {
+        if (_scope.CallerResellerId is null)
+        {
+            return null;
+        }
+
+        if (command.ShellAccess)
+        {
+            return Error.Of(nameof(ErrorMessages.AccountShellAccessAdministratorOnly), ErrorType.Forbidden);
+        }
+
+        if (command.LoginMode != OwnerLoginMode.Invitation || command.InitialPassword is not null)
+        {
+            return Error.Of(nameof(ErrorMessages.AccountInitialPasswordAdministratorOnly), ErrorType.Forbidden);
+        }
+
+        return null;
+    }
+
+    /// <summary>Names the error code for the rule an initial password broke.</summary>
+    /// <param name="verdict">The policy's verdict; never <see cref="InitialPasswordVerdict.Accepted"/>.</param>
+    /// <returns>The code of the sentence that tells the administrator which rule to fix.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">The verdict is not a refusal; a caller bug, never user input.</exception>
+    private static string InitialPasswordRefusalCode(InitialPasswordVerdict verdict)
+    {
+        return verdict switch
+        {
+            InitialPasswordVerdict.TooShort => nameof(ErrorMessages.AccountInitialPasswordTooShort),
+            InitialPasswordVerdict.TooLong => nameof(ErrorMessages.AccountInitialPasswordTooLong),
+            InitialPasswordVerdict.SameAsUsername => nameof(ErrorMessages.AccountInitialPasswordSameAsName),
+            _ => throw new ArgumentOutOfRangeException(nameof(verdict), verdict, "Only a refusal has a code."),
+        };
     }
 
     /// <summary>Converts a plan's disk allowance to the bytes the agent's quota call expects.</summary>

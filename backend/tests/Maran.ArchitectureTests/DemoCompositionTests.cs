@@ -34,6 +34,12 @@ public sealed class DemoCompositionTests
     /// <summary>The calls the demo replaces on purpose: the real agent's registration and its decoration.</summary>
     private static readonly string[] ReplacedCalls = ["AddAgentClient", "AddResilientAgentClients"];
 
+    /// <summary>
+    /// The calls only the Host makes because only the Host runs the <c>openapi</c> verb: the demo has no
+    /// command line, so it never writes the panel's API document.
+    /// </summary>
+    private static readonly string[] HostCliOnlyCalls = ["MapPanelOpenApiEndpoints"];
+
     /// <summary>The calls only the demonstration makes.</summary>
     private static readonly string[] DemoOnlyCalls =
         ["AddSimulatedAgent", "AddDemoGuard", "AddDemoWorld", "UseClientPseudonym", "UseDemoWriteGuard"];
@@ -48,7 +54,7 @@ public sealed class DemoCompositionTests
         var host = CallsIn(ReadProgram("Maran.Host"));
         var demo = CallsIn(ReadProgram("Maran.Host.Demo"));
 
-        Assert.Empty(MissingFrom(host, demo, ReplacedCalls));
+        Assert.Empty(MissingFrom(host, demo, [.. ReplacedCalls, .. HostCliOnlyCalls]));
     }
 
     /// <summary>The demo registers its own agent and guard, and registers the real agent's pair nowhere.</summary>

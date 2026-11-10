@@ -1,0 +1,5 @@
+# SYNTHETIC FIXTURE: hand-written text, not captured from a real host.
+not a cron line at all
+* * * * *
+@bogus /home/acme/bin/x.sh
+17 4 * * * /home/acme/bin/real.sh

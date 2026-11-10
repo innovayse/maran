@@ -69,4 +69,37 @@
   <data name="MailAliasKindCatchAll">
     <value>Catch-all</value>
   </data>
+  <data name="MailMenuQueue">
+    <value>Mail queue</value>
+  </data>
+  <data name="MailRouteQueue">
+    <value>Mail queue</value>
+  </data>
+  <data name="MailQueueNameActive">
+    <value>Being delivered</value>
+  </data>
+  <data name="MailQueueNameDeferred">
+    <value>Waiting to retry</value>
+  </data>
+  <data name="MailQueueNameHeld">
+    <value>Held</value>
+  </data>
+  <data name="MailQueueNameIncoming">
+    <value>Arriving</value>
+  </data>
+  <data name="MailDeferralNone">
+    <value>Not deferred</value>
+  </data>
+  <data name="MailDeferralNetwork">
+    <value>Network problem</value>
+  </data>
+  <data name="MailDeferralRemoteRefused">
+    <value>Refused by the recipient's server</value>
+  </data>
+  <data name="MailDeferralLocalError">
+    <value>Error on this server</value>
+  </data>
+  <data name="MailDeferralOther">
+    <value>Other reason</value>
+  </data>
 </root>

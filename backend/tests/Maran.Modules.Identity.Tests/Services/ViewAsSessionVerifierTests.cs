@@ -1,6 +1,5 @@
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
-using Maran.Modules.Identity.Services;
 using Maran.Modules.Identity.Tests.TestSupport;
 using Microsoft.EntityFrameworkCore;
 
@@ -41,7 +40,7 @@ public sealed class ViewAsSessionVerifierTests : IDisposable
 
     private Task<bool> IsLiveAsync(Session viewAs, Guid viewedUserId, Guid actorUserId, Guid actorSessionId)
     {
-        return new ViewAsSessionVerifier(_fixture.Context, _fixture.Clock)
+        return _fixture.NewVerifier()
             .IsLiveAsync(viewAs.Id, viewedUserId, actorUserId, actorSessionId, CancellationToken.None);
     }
 
@@ -114,7 +113,7 @@ public sealed class ViewAsSessionVerifierTests : IDisposable
     {
         var (admin, adminSession, _, _) = await SeedAsync();
 
-        var verifier = new ViewAsSessionVerifier(_fixture.Context, _fixture.Clock);
+        var verifier = _fixture.NewVerifier();
         Assert.Null(await verifier.FindLiveAsync(adminSession.Id, CancellationToken.None));
         Assert.False(await verifier.IsLiveAsync(adminSession.Id, admin.Id, admin.Id, adminSession.Id, CancellationToken.None));
     }
@@ -210,5 +209,37 @@ public sealed class ViewAsSessionVerifierTests : IDisposable
         await _fixture.Context.SaveChangesAsync();
 
         Assert.False(await IsLiveAsync(viewAs, owner.Id, login.Id, session.Id));
+    }
+
+    /// <summary>
+    /// A reseller's view of an account stops being live the moment the account is another owner's, even
+    /// though the session row was never revoked (issue #460). The first assertion is the accepting control:
+    /// the same session is live while the reseller still owns the account.
+    /// </summary>
+    [Fact]
+    public async Task A_resellers_view_is_not_live_once_the_reseller_no_longer_owns_the_account()
+    {
+        var (resellerId, login, session) = await _fixture.SeedResellerOperatorAsync();
+        var (accountId, owner) = await _fixture.SeedAccountAsync("acme", resellerId);
+        var viewAs = await _fixture.AddViewAsSessionAsync(login, session, owner, accountId);
+        Assert.True(await IsLiveAsync(viewAs, owner.Id, login.Id, session.Id));
+
+        _fixture.Ownership.HandToAdministrator(accountId);
+
+        Assert.False(await IsLiveAsync(viewAs, owner.Id, login.Id, session.Id));
+    }
+
+    /// <summary>An administrator's view of an account is live whoever owns the account.</summary>
+    [Fact]
+    public async Task An_administrators_view_is_live_whoever_owns_the_account()
+    {
+        var (admin, adminSession) = await _fixture.SeedAdminAsync();
+        var (resellerId, _) = await _fixture.SeedResellerAsync();
+        var (accountId, owner) = await _fixture.SeedAccountAsync("acme", resellerId);
+        var viewAs = await _fixture.AddViewAsSessionAsync(admin, adminSession, owner, accountId);
+
+        _fixture.Ownership.HandToAdministrator(accountId);
+
+        Assert.True(await IsLiveAsync(viewAs, owner.Id, admin.Id, adminSession.Id));
     }
 }

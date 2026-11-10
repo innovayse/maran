@@ -15,7 +15,16 @@ namespace Maran.Modules.Identity.Common;
 /// <c>AuditActionDisplayNames</c>. Falls back to the machine name for an action this build carries
 /// no entry for, such as one a marketplace module recorded.
 /// </param>
-/// <param name="Subject">What it was attempted on.</param>
+/// <param name="Subject">
+/// What it was attempted on, as the row stores it. Kept on the wire beside <paramref name="SubjectName"/>
+/// for the same reason as <paramref name="Action"/>: it is what an administrator searches by and quotes.
+/// </param>
+/// <param name="SubjectName">
+/// The subject as an operator reads it, resolved for the request's culture by
+/// <c>AuditSubjectDisplayNames</c>: a localized sentence for an entry whose stored subject is a machine
+/// line (a chain verdict, a retention run, a threshold change), and the stored subject itself for every
+/// other entry.
+/// </param>
 /// <param name="IpAddress">Where it came from.</param>
 /// <param name="Succeeded">Whether it worked.</param>
 /// <param name="OutcomeName">
@@ -33,6 +42,7 @@ public sealed record AuditEventDto(
     string Action,
     string ActionName,
     string Subject,
+    string SubjectName,
     string IpAddress,
     bool Succeeded,
     string OutcomeName,

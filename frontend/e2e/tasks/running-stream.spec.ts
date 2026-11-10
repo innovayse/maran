@@ -1,10 +1,14 @@
-import { expect, test, type Locator, type Page, type Request } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import { ONE_SHOT, stubDashboard } from '../fixtures/stub-dashboard-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubIdleLiveDashboard } from '../fixtures/stub-live-dashboard-stream'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { RUNNING_STREAM_PATTERN, TASK_STREAM_PATTERN, stubTasks } from '../fixtures/stub-tasks-routes'
 import type { PanelModule } from '../../src/types/module'
 import type { PanelTask } from '../../src/types/panelTask'
+import type { Locator, Page, Request } from '@playwright/test'
 
 const LICENSED: PanelModule[] = [
   { name: 'tasks', displayName: 'Background tasks', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -107,7 +111,11 @@ const stubShell = async (page: Page): Promise<Traffic> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubTasks(page, RUNNING)
+  // The screen every test here opens is the dashboard, which reads its figures and opens its own stream.
+  await stubDashboard(page, ONE_SHOT)
+  await stubIdleLiveDashboard(page)
   return observeTraffic(page)
 }
 
@@ -156,7 +164,15 @@ test('switching the language reopens the running-tasks stream in the new languag
   await page.getByRole('menuitemradio', { name: 'Русский', exact: true }).click()
   await russianTray
 
-  expect(traffic.tray).toHaveLength(2)
+  // The stub's stream ends as soon as its body is sent, so a reconnect in English may have slipped in
+  // before the switch on a slow machine. What the switch owes is one reopening in the new language
+  // and nothing in the old one after it; two connections are never open at once.
+  const languages = traffic.tray.map((request): string => {
+    return (request.headers()['accept-language'] ?? '').slice(0, 2)
+  })
+  expect(languages[0]).toBe('en')
+  expect(languages.filter((language): boolean => {return language === 'ru'})).toHaveLength(1)
+  expect(languages.slice(languages.indexOf('ru')).every((language): boolean => {return language === 'ru'})).toBe(true)
   expect(traffic.maxOpenTrays).toBe(1)
 })
 

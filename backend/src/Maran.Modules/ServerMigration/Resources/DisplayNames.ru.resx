@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="ServerMigrationModuleDisplayName">
+    <value>Миграция</value>
+  </data>
+  <data name="ServerMigrationMenuRemoteServers">
+    <value>Удалённые серверы</value>
+  </data>
+  <data name="ServerMigrationRouteRemoteServers">
+    <value>Удалённые серверы</value>
+  </data>
+  <data name="DiscoveryWarningNameRefused">
+    <value>Имя на источнике не принимается панелью, поэтому оно пропущено.</value>
+  </data>
+  <data name="DiscoveryWarningSiteUnreadable">
+    <value>Не удалось прочитать конфигурацию веб-сервера для сайта.</value>
+  </data>
+  <data name="DiscoveryWarningCronUnreadable">
+    <value>Не удалось прочитать запланированные задания.</value>
+  </data>
+  <data name="DiscoveryWarningDatabasesUnreadable">
+    <value>Не удалось прочитать список баз данных.</value>
+  </data>
+  <data name="DiscoveryWarningDiskUnreadable">
+    <value>Не удалось измерить занятое место на диске.</value>
+  </data>
+  <data name="DiscoveryWarningTruncated">
+    <value>Список достиг предела и обрывается здесь. Часть элементов не показана.</value>
+  </data>
+  <data name="DiscoveryWarningMailNotMigrated">
+    <value>Почта учитывается, но не переносится. Почтовые ящики остаются на источнике.</value>
+  </data>
+  <data name="RemoteServerStateHostKeyUnconfirmed">
+    <value>Ключ хоста не подтверждён</value>
+  </data>
+  <data name="RemoteServerStatePinned">
+    <value>Ключ хоста подтверждён</value>
+  </data>
+  <data name="RemoteServerStateReady">
+    <value>Готов</value>
+  </data>
+  <data name="RemoteServerStateHostKeyChanged">
+    <value>Ключ хоста изменился</value>
+  </data>
+  <data name="RemoteServerStateAuthRefused">
+    <value>Ключ отклонён</value>
+  </data>
+  <data name="RemoteServerStateUnreachable">
+    <value>Недоступен</value>
+  </data>
+  <data name="RemoteSourceKindGenericLinux">
+    <value>Сервер Linux</value>
+  </data>
+  <data name="RemoteSourceKindMaran">
+    <value>Сервер с панелью Maran</value>
+  </data>
+  <data name="RemoteFailureKindHostKeyChanged">
+    <value>Ключ хоста сервера изменился</value>
+  </data>
+  <data name="RemoteFailureKindAuthRefused">
+    <value>Сервер отклонил ключ</value>
+  </data>
+  <data name="RemoteFailureKindUnreachable">
+    <value>Сервер недоступен</value>
+  </data>
+  <data name="RemoteFailureKindAddressRefused">
+    <value>Адрес не допускается</value>
+  </data>
+  <data name="DiscoveredSiteBackendUnknown">
+    <value>Неизвестно</value>
+  </data>
+  <data name="DiscoveredSiteBackendStatic">
+    <value>Статические файлы</value>
+  </data>
+  <data name="DiscoveredSiteBackendPhp">
+    <value>PHP</value>
+  </data>
+  <data name="DiscoveredSiteBackendProxy">
+    <value>Проксируется на другой процесс</value>
+  </data>
+  <data name="ServerMigrationMenuJobs">
+    <value>Миграции серверов</value>
+  </data>
+  <data name="ServerMigrationRouteJobs">
+    <value>Миграции серверов</value>
+  </data>
+  <data name="MigrationJobStateDraft">
+    <value>Черновик</value>
+  </data>
+  <data name="MigrationJobStateRunning">
+    <value>Выполняется</value>
+  </data>
+  <data name="MigrationJobStatePaused">
+    <value>На паузе</value>
+  </data>
+  <data name="MigrationJobStateCompleted">
+    <value>Завершена</value>
+  </data>
+  <data name="MigrationJobStateCancelled">
+    <value>Отменена</value>
+  </data>
+  <data name="MigrationAccountStatePending">
+    <value>Ожидает</value>
+  </data>
+  <data name="MigrationAccountStateRunning">
+    <value>Выполняется</value>
+  </data>
+  <data name="MigrationAccountStateSynced">
+    <value>Синхронизирован, ждёт переключения</value>
+  </data>
+  <data name="MigrationAccountStateCuttingOver">
+    <value>Переключается</value>
+  </data>
+  <data name="MigrationAccountStateCompleted">
+    <value>Завершена</value>
+  </data>
+  <data name="MigrationAccountStatePaused">
+    <value>На паузе</value>
+  </data>
+  <data name="MigrationAccountStateFailed">
+    <value>Ошибка</value>
+  </data>
+  <data name="MigrationAccountStateCancelled">
+    <value>Отменена</value>
+  </data>
+  <data name="MigrationAccountStateRolledBack">
+    <value>Откат выполнен</value>
+  </data>
+  <data name="MigrationAccountStateRolledBackIncomplete">
+    <value>Откат не завершён</value>
+  </data>
+  <data name="AccountImportStateStaged">
+    <value>Ожидает запуска</value>
+  </data>
+  <data name="AccountImportStateRunning">
+    <value>Выполняется</value>
+  </data>
+  <data name="AccountImportStateCompleted">
+    <value>Завершён</value>
+  </data>
+  <data name="AccountImportStateRolledBack">
+    <value>Откатан</value>
+  </data>
+  <data name="AccountImportStateRolledBackIncomplete">
+    <value>Откатан не полностью</value>
+  </data>
+  <data name="AccountImportStateDiscarded">
+    <value>Отменён</value>
+  </data>
+  <data name="ExportGrantStateLive">
+    <value>Действует</value>
+  </data>
+  <data name="ExportGrantStateUsed">
+    <value>Использован</value>
+  </data>
+  <data name="ExportGrantStateRevoked">
+    <value>Отозван</value>
+  </data>
+  <data name="ExportGrantStateExpired">
+    <value>Истёк</value>
+  </data>
+</root>

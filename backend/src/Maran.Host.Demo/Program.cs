@@ -3,13 +3,9 @@ using Maran.Host.Cli;
 using Maran.Host.Cli.Extensions;
 using Maran.Host.Cli.Models;
 using Maran.Host.Configuration;
-using Maran.Host.Dashboard;
 using Maran.Host.Demo.Cli;
 using Maran.Host.Demo.Extensions;
 using Maran.Host.Extensions;
-using Maran.Host.HealthChecks;
-using Maran.Host.Modules;
-using Maran.Host.Search;
 using Maran.Sdk;
 using Maran.SharedKernel;
 
@@ -68,7 +64,7 @@ public sealed class Program
         builder.Services.AddPanelSearch();
         builder.Services.AddPanelBackgroundWork();
         builder.Services.AddPanelSeeding();
-        builder.Services.AddLicensingStartupCheck(builder.Configuration);
+        builder.Services.AddLicensingStartupCheck();
         builder.Services.AddDemoGuard(builder.Configuration);
         builder.Services.AddPanelCli();
         builder.Services.AddDemoWorld(builder.Configuration);
@@ -99,15 +95,11 @@ public sealed class Program
         app.UsePanelAuthentication();
         app.UseDemoWriteGuard();
         app.UsePanelRateLimiting();
+        // As in the Host, after authentication and routing: a call relayed for a packaged module's screen
+        // must be to that module's own endpoint. The demo composes no packaged module, so it never fires.
+        app.UseModuleFrameScope();
 
-        app.MapPanelHealth();
-        app.MapModuleCatalogue();
-        app.MapDashboard();
-        app.MapDashboardStream();
-        app.MapAttentionCount();
-        app.MapFirstRun();
-        app.MapSearch();
-        app.MapControllers();
+        app.MapPanelEndpoints();
 
         app.Run();
         return 0;

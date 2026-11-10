@@ -374,3 +374,54 @@ through — those are not the same person.
 
 The verdict for all twenty-eight notes is tabulated in
 `docs/superpowers/notes/2026-09-22-second-review-packet.md`.
+
+---
+
+## Amendment 2026-11-09: the Referer carried the token the format had cut out (issue #465)
+
+**What was wrong.** The note claimed the `maran_no_query` format makes the panel vhost "structurally
+unable to log a query string". It was not: the format still wrote `"$http_referer"`, and the vhost sent
+`Referrer-Policy: same-origin`, under which a browser names the FULL address of the page, query string
+included, as the `Referer` of every same-origin request the page makes. A password-reset link
+(`/reset-password?token=...`) or an invitation link (`/accept-invitation?token=...`) opened in a browser
+therefore put its live token into `/var/log/maran/nginx-access.log` through the Referer of the API
+calls the page issues (the router guard's setup-state and session-refresh calls run before any form is
+submitted). Anyone able to read that log (the `maran` service account, root) could take over the login
+the token belongs to until it was used or expired. The polygon assertion had no Referer case, so
+nothing observed it.
+
+**What changed, in three layers.**
+
+1. `installer/nginx/maran.conf`: the vhost sends `Referrer-Policy: no-referrer`, so a compliant
+   browser sends no Referer; and the `maran_no_query` format logs a literal `"-"` where
+   `"$http_referer"` was, so a client that ignores the policy still cannot write a query string into
+   the log through that header.
+2. The SPA moves the token out of the address before anything can send it: `main.ts` calls
+   `useLinkTokenStore().adopt(window.location, window.history)` after Pinia and BEFORE the router
+   installs (the router's first navigation already calls the API). `adopt` keeps the token in memory
+   and rewrites the address with `history.replaceState`, so no history entry holds it either.
+   `index.html` also carries `<meta name="referrer" content="no-referrer">` for any copy of the SPA
+   not served by this vhost.
+3. The polygon assertion `assert_the_panel_vhost_can_never_log_a_query_string` gained: a census line
+   that the vhost declares exactly `Referrer-Policy "no-referrer" always` and that no log format
+   names `$http_referer`; and a Referer carrying its own throwaway secret on the second probe request,
+   with the same inverse control as the query-string case (the format-less vhost must log it, the
+   shipped one must not). A Playwright spec (`e2e/auth/link-token-leaves-the-address.spec.ts`) holds
+   the SPA half: after loading a link the address has no query, no request names the token in its URL
+   or Referer, and the spend still posts the token.
+
+**Why it is safe now.** The token has no route to a log through the vhost: the header is off, the log
+field is a constant, and the page does not carry it in its address. Each layer is observed by a check
+that fails when it is removed.
+
+**Cost.** A reload of a reset or invitation page no longer carries the token (it lives in memory
+only), so the person opens the mail's link again; the alternative, session storage, would outlive the
+screen that needs it. Anything that relied on the same-origin Referer in the access log loses that
+field.
+
+**Not covered.** The ERROR log still records `request: "<raw request line>"` for a request that
+errors, as stated above; the token is no longer in any request line the page makes, because the page's
+own address no longer holds it, but the first request that loads the page (`GET /reset-password?token=`)
+is logged by the error log if it errors. The access log drops that query (`$maran_request_path`).
+
+Second review: OUTSTANDING (#331).

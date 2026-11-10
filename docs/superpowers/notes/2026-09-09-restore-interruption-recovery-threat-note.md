@@ -270,3 +270,77 @@ through — those are not the same person.
 
 The verdict for all twenty-eight notes is tabulated in
 `docs/superpowers/notes/2026-09-22-second-review-packet.md`.
+
+---
+
+## Correction, 2026-11-09 — the installer still deleted the scratch (issue #481)
+
+**What was wrong.** The "removing `ExecStartPre=` does not regress the reason it existed" claim above
+held for the unit and not for the installer: `installer/lib/40-user.sh` ran `rm -rf --
+/var/lib/maran-scratch` unconditionally, and step 40 runs again on every upgrade. Re-running
+`install.sh` after a killed restore therefore deleted `backup/<id>/rollback/`, the only copy of the
+databases the restore had already dropped, with no log line; re-running it while a backup or restore
+was in flight deleted that operation's live scratch under the serving agent.
+
+**What changed.** Step 40 now uses `remove_unless_root_only_directory` for the scratch, as it already
+did for the restore staging root, the SFTP jails base and the FTPS jails base: a real directory owned
+by uid 0 is kept, anything else (a symlink, a directory another uid owns) is removed, and
+`install -d` plus `assert_root_only_directory` then re-state owner and mode. Emptying the scratch is
+the agent's start-up reaper alone (`ops::backup::reap_backup_scratch`, run before the socket is
+bound), which keeps the rollback sets and logs them (reviewer check 4 above).
+
+**Why it is safe now.** The removal existed to defeat a planted symlink or a foreign-owned directory
+at the path. An unprivileged uid cannot create a root-owned real directory in `/var/lib`
+(root:root 0755), so keeping that one state hands an attacker nothing, and the gate after it still
+refuses a wrong owner or mode. Stale ordinary scratch is no longer removed by the installer; it is
+reaped by the agent at its next start, which step 70 performs.
+
+**Tests.** `assert_a_reinstall_keeps_a_killed_restores_rollback_dumps`
+(`docker/polygon/asserts/parts/directory-layout.sh`) plants a rollback dump, runs the real
+`create_directory_layout`, and requires the dump to survive; its inverse controls require a planted
+symlink (target untouched) and a panel-owned directory with contents to be replaced. UNOBSERVED
+HERE: that assertion starts no agent; the reaper's behaviour is covered by
+`ops/src/tests/backup/reap_backup_scratch_tests.rs`.
+
+Second review: OUTSTANDING (#331).
+
+## Amendment 2026-11-09: the file-transfer jails follow the restored home (#487)
+
+**What was wrong.** An account with an SFTP or FTPS login holds a systemd bind mount of its real home inside
+each jail. A bind mount follows the inode it was made from. `swap_home` renames `/home/<account>` aside and a
+different directory into its place, so after a whole-account restore each jail still showed the displaced
+home; `finalise_restore` then emptied that tree. The customer saw their files vanish over SFTP/FTPS, and
+every file they uploaded afterwards went into a tree nothing serves, until the unit was restarted or the host
+rebooted. The same sequence runs in `recover_restores` (an interrupted swap finished at start). An integrity
+and availability defect of the customer's own data, not a cross-tenant one.
+
+**What changed.**
+
+- A new seam, `ops::backup::JailMounts` (the area imports no other area; the service layer composes it, as it
+  does `DatabaseCatalog`). `services/backup/file_transfer_jails.rs` implements it by calling
+  `ops::sftp::refresh_account_jail` and `ops::ftps::refresh_account_jail`, which restart the account's
+  `.mount` unit when it has one (no unit, no login, nothing to do) after bringing the unit to its current
+  render. Both protocols are always attempted.
+- Step 8 (`finalise_restore`) mounts the jails onto the new home AFTER the ownership and mode are re-applied
+  and BEFORE the parked tree is removed. If a jail cannot follow, the parked tree is KEPT, the marker stays,
+  and the restore reports `BackupError::JailsNotRefreshed`: the files are restored, but a transfer login would
+  read and write the wrong tree, so the restore is not reported as clean.
+- `recover_restores` does the same at start, in the outcomes that leave the restored home in place
+  (`Interrupted`/`StagingOnly` finished forward, and `Swapped`); if a jail cannot follow, the parked tree and
+  the marker are kept and the account is counted in `refused`, so the next start retries. It now runs on the
+  blocking pool, because it waits on the service manager.
+- The mount unit template gained `LazyUnmount=yes`. A session still inside a jail keeps a plain unmount
+  busy; with the option the restart detaches the old mount and binds the new one.
+
+**Why it is safe.** No new rpc, no new privilege and no caller-supplied value: the unit name is derived from
+the validated `AccountName` (`AccountJail`/`FtpsJail`), the program is the distro adapter's service manager,
+and the unit name follows `--`. The refresh runs under the account's lock (held by the restore) and takes none.
+
+**Stated limit.** A transfer session that was already open at the instant of the restore keeps seeing the
+displaced tree (it is detached, not killed) until it disconnects; what it writes in that window is lost with
+that tree. Ending those sessions is not done here: a uid-wide signal would also kill the account's PHP workers
+and cron jobs, and the per-login SFTP session cull has no FTPS counterpart. **Not verified:** a real
+`systemctl restart` of a `.mount` unit under a booted systemd (the polygon's `systemctl` is a stand-in that
+unmounts and mounts as the unit says, and applies the lazy unmount only when the unit asks for it).
+
+**Second review: OUTSTANDING (#331).**

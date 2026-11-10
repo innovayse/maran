@@ -1,5 +1,5 @@
-import { expect, test, type Page } from '@playwright/test'
 import { Buffer } from 'node:buffer'
+import { expect, test } from '../fixtures/guarded-test'
 import { FULL_CATALOGUE, mainNavigation, openSection } from '../fixtures/open-full-shell'
 import {
   NO_BRANDING,
@@ -10,12 +10,14 @@ import {
 } from '../fixtures/stub-branding-routes'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
 import { RESELLER_MODULES, stubResellerSession } from '../fixtures/stub-reseller-session'
 import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { MyAccount } from '../../src/types/account'
+import type { Page } from '@playwright/test'
 
 // Issue #367: a reseller sets a name, a logo and an accent colour, and its customers' shell wears
 // them. The panel stores and validates every value; the SPA sends what was typed and renders what the
@@ -87,7 +89,8 @@ test('a reseller that empties every field sends nothing set, which puts the pane
   expect(script.saved).toEqual([NO_BRANDING])
 })
 
-test('a value the panel refuses is shown in the panel sentence and the form keeps what was typed', async ({ page }) => {
+test('a value the panel refuses is shown in the panel sentence and the form keeps what was typed', async ({ page, guard }) => {
+  guard.allow(400, /\/api\/v1\/reseller\/branding$/)
   const refusal = 'This colour is too light: white text on it would be hard to read. Choose a darker colour.'
   await openBrandingPage(page, { saved: [], refusal })
 
@@ -106,6 +109,8 @@ test("a customer's shell wears the branding of its reseller", async ({ page }) =
   await stubShellReads(page)
   await stubModules(page, FULL_CATALOGUE)
   await stubMyAccount(page, OWN_ACCOUNT)
+  // The customer lands on the dashboard, which the panel answers with the withheld shape.
+  await stubLandingReads(page, 'customer')
   await stubShellBranding(page, { displayName: 'Alpha Hosting', accentColor: '#2468dc', logo: TINY_PNG })
 
   await page.goto('/')
@@ -127,6 +132,8 @@ test("a customer whose reseller set nothing sees the panel's own name and colour
   await stubShellReads(page)
   await stubModules(page, FULL_CATALOGUE)
   await stubMyAccount(page, OWN_ACCOUNT)
+  // The customer lands on the dashboard, which the panel answers with the withheld shape.
+  await stubLandingReads(page, 'customer')
   const asked = await stubShellBranding(page, NO_BRANDING)
 
   await page.goto('/')

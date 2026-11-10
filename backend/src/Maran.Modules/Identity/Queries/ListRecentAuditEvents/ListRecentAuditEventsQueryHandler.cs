@@ -26,15 +26,24 @@ public sealed class ListRecentAuditEventsQueryHandler
     /// <summary>Names an audit outcome as an administrator reads it, in the request's culture.</summary>
     private readonly AuditOutcomeDisplayNames _outcomeNames;
 
+    /// <summary>Spells each row's subject as an operator reads it, in the request's culture.</summary>
+    private readonly AuditSubjectDisplayNames _subjectNames;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The module's database context.</param>
     /// <param name="actionNames">Names an audit action for the request's culture.</param>
     /// <param name="outcomeNames">Names an audit outcome for the request's culture.</param>
-    public ListRecentAuditEventsQueryHandler(IdentityDbContext dbContext, AuditActionDisplayNames actionNames, AuditOutcomeDisplayNames outcomeNames)
+    /// <param name="subjectNames">Spells an audit subject for the request's culture.</param>
+    public ListRecentAuditEventsQueryHandler(
+        IdentityDbContext dbContext,
+        AuditActionDisplayNames actionNames,
+        AuditOutcomeDisplayNames outcomeNames,
+        AuditSubjectDisplayNames subjectNames)
     {
         _dbContext = dbContext;
         _actionNames = actionNames;
         _outcomeNames = outcomeNames;
+        _subjectNames = subjectNames;
     }
 
     /// <summary>Returns the most recent entries, newest first.</summary>
@@ -54,7 +63,11 @@ public sealed class ListRecentAuditEventsQueryHandler
         IReadOnlyList<AuditEventDto> projected = events
             .Select(auditEvent =>
             {
-                return AuditEventMapper.From(auditEvent, _actionNames.Of(auditEvent.Action), _outcomeNames.Of(auditEvent.Succeeded));
+                return AuditEventMapper.From(
+                    auditEvent,
+                    _actionNames.Of(auditEvent.Action),
+                    _outcomeNames.Of(auditEvent.Succeeded),
+                    _subjectNames.Of(auditEvent.Action, auditEvent.Subject));
             })
             .ToList();
 

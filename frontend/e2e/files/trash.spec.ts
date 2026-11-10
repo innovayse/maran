@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { expectNoHorizontalOverflow } from '../fixtures/measure-horizontal-extent'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubAccountNames, stubAccounts } from '../fixtures/stub-accounts-route'
@@ -12,9 +12,11 @@ import {
 } from '../fixtures/stub-file-operation-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { TrashEntry } from '../../src/types/file'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 // The trash: what the account moved there, restored by trash id, emptied for good after a question.
 
@@ -50,6 +52,7 @@ const openTrash = async (
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_FILES)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubAccountNames(page, [ALICE])
   await stubFilesOptions(page)

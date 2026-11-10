@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubFirewall } from '../fixtures/stub-firewall-routes'
@@ -6,10 +6,12 @@ import { runningFtpsStatus, stubFtpUsers, stubFtpsServer } from '../fixtures/stu
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubSftpUsers } from '../fixtures/stub-sftp-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { FtpUser } from '../../src/types/ftpUser'
 import type { PanelModule } from '../../src/types/module'
 import type { SftpUser } from '../../src/types/sftpUser'
+import type { Page } from '@playwright/test'
 
 // One module, one page (#196). SFTP and FTPS logins are different system users answered by
 // different modules; each page reads its own module's endpoint and shows nothing of the other's. A
@@ -62,6 +64,7 @@ const signIn = async (page: Page): Promise<{ sftp: () => readonly URL[]; ftp: ()
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubFirewall(page, { rules: [], bans: [], whitelist: [] })
   await stubFtpsServer(page, runningFtpsStatus)

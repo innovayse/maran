@@ -1,10 +1,19 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import { stubAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubBackupDestinations } from '../fixtures/stub-backup-destination-routes'
+import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { stubBackupSchedules } from '../fixtures/stub-backup-schedule-routes'
 import { stubBackups } from '../fixtures/stub-backups-routes'
-import { certificateFor, CERTIFICATE_SITE_ID, stubCertificates } from '../fixtures/stub-certificates-routes'
+import {
+  certificateFor,
+  CERTIFICATE_SITE_ID,
+  stubAcmeDirectory,
+  stubCertificates,
+  stubIssuanceOptions,
+} from '../fixtures/stub-certificates-routes'
+import { stubCronOptions } from '../fixtures/stub-cron-options-route'
 import { stubCronEntries, stubCronEnvironment } from '../fixtures/stub-cron-routes'
 import { ALERT_DELIVERY_OK, loaded, stubDashboard, SYNCHRONIZED_CLOCK } from '../fixtures/stub-dashboard-route'
 import { stubDatabaseGrants } from '../fixtures/stub-database-grant-routes'
@@ -12,16 +21,20 @@ import { stubDatabases } from '../fixtures/stub-databases-routes'
 import { stubFirewall } from '../fixtures/stub-firewall-routes'
 import { runningFtpsStatus, stubFtpUsers, stubFtpsServer } from '../fixtures/stub-ftp-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubInvitation } from '../fixtures/stub-invitation-routes'
+import { stubIdleLiveDashboard } from '../fixtures/stub-live-dashboard-stream'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubMonitoring, stubbedBucket } from '../fixtures/stub-monitoring-routes'
 import { MANAGED_PLANS, stubManagedPlans, stubPlans, THREE_PLANS } from '../fixtures/stub-plans-route'
 import { expectTablesAsCards, type CardActions } from '../fixtures/expect-table-cards'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubSftpUsers } from '../fixtures/stub-sftp-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import {
   stubOpenSiteLogStream,
   stubPhpVersions,
   stubSiteDetail,
+  stubSiteLimits,
   stubSites,
 } from '../fixtures/stub-sites-routes'
 import { stubTasks, stubTaskStream, taskEndFrame, taskFrame } from '../fixtures/stub-tasks-routes'
@@ -40,6 +53,8 @@ import type { PanelModule } from '../../src/types/module'
 import type { PanelTask } from '../../src/types/panelTask'
 import type { SftpUser } from '../../src/types/sftpUser'
 import type { Site, SiteDetail } from '../../src/types/site'
+import type { SiteTraffic } from '../../src/types/siteTraffic'
+import type { Page } from '@playwright/test'
 
 /*
  * Acceptance criterion of issue #82: "no horizontal scroll at 390 px on any screen, in all three
@@ -131,12 +146,23 @@ const SITE: Site = {
   logRetentionDays: 14,
 }
 
+// The detail answer carries no owner name (it is the list row's field), so it is spelled out
+// rather than spread from the row, which the contract check would refuse as an unknown field.
 const SITE_DETAIL: SiteDetail = {
-  ...SITE,
+  id: SITE.id,
+  accountId: SITE.accountId,
+  domain: SITE.domain,
   aliases: ['www.' + LONG_DOMAIN, 'cdn-assets-for-the-storefront.acme-industrial-holdings.example.com'],
+  backendType: SITE.backendType,
+  backendTypeName: SITE.backendTypeName,
+  phpVersion: SITE.phpVersion,
   proxyUpstream: '',
   documentRoot: '/home/acme-industrial-holdings/sites/' + LONG_DOMAIN + '/public',
   hasCertificate: true,
+  status: SITE.status,
+  statusName: SITE.statusName,
+  createdAt: SITE.createdAt,
+  logRetentionDays: SITE.logRetentionDays,
 }
 
 /** The services the dashboard and the monitoring screen both report. */
@@ -177,6 +203,7 @@ const DASHBOARD: Dashboard = {
       action: 'AccountCreated',
       actionName: 'Account created',
       subject: LONG_ACCOUNT,
+      subjectName: LONG_ACCOUNT,
       ipAddress: '2001:0db8:85a3:0000:0000:8a2e:0370:7334',
       succeeded: true,
       outcomeName: 'Succeeded',
@@ -189,6 +216,7 @@ const DASHBOARD: Dashboard = {
       action: 'SignInFailed',
       actionName: 'Sign-in failed',
       subject: 'admin',
+      subjectName: 'admin',
       ipAddress: '203.0.113.9',
       succeeded: false,
       outcomeName: 'Failed',
@@ -469,10 +497,12 @@ const stubPanel = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, MODULES)
+  await stubShellReads(page)
   await stubTasks(page, TASKS)
   // The running task is watched by the shell's badge; without this its stream would leave the page.
   await stubTaskStream(page, taskFrame(TASKS[0]) + taskEndFrame('completed'))
   await stubDashboard(page, DASHBOARD)
+  await stubIdleLiveDashboard(page)
 
   await stubPlans(page, THREE_PLANS)
   await stubManagedPlans(page, [
@@ -489,15 +519,49 @@ const stubPanel = async (page: Page): Promise<void> => {
     }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ACCOUNT) })
   })
+  await stubAccountResources(page, { accountId: ACCOUNT.id, resources: [] })
+  await stubInvitation(page, ACCOUNT.id, 'pending')
 
   await stubSites(page, [SITE])
   await stubSiteDetail(page, SITE_DETAIL)
+  // The detail screen reads the site's traffic for its tab; no traffic recorded yet is the ordinary first state.
+  await page.route('**/api/v1/sites/*/traffic*', async (route) => {
+    const days = Number(new URL(route.request().url()).searchParams.get('days'))
+    const empty: SiteTraffic = {
+      days,
+      from: '2026-09-01',
+      to: '2026-09-07',
+      hasData: false,
+      totals: { requests: 0, bytes: 0 },
+      perDay: [],
+      statusCodes: [],
+      topPaths: [],
+      incompleteSince: null,
+      updatedAt: null,
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(empty) })
+  })
   await stubPhpVersions(page, [
     { version: '8.2', defaultStatus: 'notDefault' },
     { version: '8.3', defaultStatus: 'default' },
   ])
+  await stubSiteLimits(page, { maximumAliases: 20 })
   await stubOpenSiteLogStream(page)
   await stubCertificates(page, [certificateFor(LONG_DOMAIN, 'acme')])
+  // The SSL tab asks which kinds of certificate may be issued and, for an administrator, which ACME
+  // directory the panel uses; both are installed after the certificate routes, which they must win over.
+  await stubIssuanceOptions(page, {
+    domain: LONG_DOMAIN,
+    wildcardAvailable: false,
+    wildcardUnavailableCode: 'DnsZoneNotServed',
+    wildcardUnavailableMessage: 'This panel does not serve the DNS zone of the domain.',
+  })
+  await stubAcmeDirectory(page, {
+    url: 'https://acme-v02.api.letsencrypt.org/directory',
+    host: 'acme-v02.api.letsencrypt.org',
+    kind: 'production',
+    kindName: 'Production',
+  })
 
   await stubDatabases(page, [DATABASE])
   await stubDatabaseGrants(page, GRANT_REPORT)
@@ -506,6 +570,7 @@ const stubPanel = async (page: Page): Promise<void> => {
   await stubFtpUsers(page, [FTP_USER])
   await stubFtpsServer(page, runningFtpsStatus)
 
+  await stubCronOptions(page)
   await stubCronEntries(page, [CRON_ENTRY])
   await stubCronEnvironment(page, [
     { name: 'MAILTO_ADDRESS_FOR_FAILURES', value: 'operations@' + LONG_DOMAIN },
@@ -513,6 +578,7 @@ const stubPanel = async (page: Page): Promise<void> => {
 
   await stubFirewall(page, { rules: RULES, bans: BANS, whitelist: WHITELIST })
 
+  await stubBackupOptions(page)
   await stubBackups(page, BACKUPS)
   await stubBackupSchedules(page, { host: BACKUP_SCHEDULE })
   await stubBackupDestinations(page, DESTINATIONS)

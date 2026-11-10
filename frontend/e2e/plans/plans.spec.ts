@@ -1,4 +1,6 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import { openLiveDashboard } from '../fixtures/open-live-dashboard'
+import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
@@ -10,7 +12,9 @@ import {
   type PlanRefusals,
   type PlanRequests,
 } from '../fixtures/stub-plans-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 /** Catalogue every spec here starts from: the accounts module licensed, which is what owns plans. */
 const LICENSED_ACCOUNTS: PanelModule[] = [
@@ -21,6 +25,9 @@ const LICENSED_ACCOUNTS: PanelModule[] = [
 const STARTER = MANAGED_PLANS[0]
 /** Business has nobody on it, so deleting it is allowed. */
 const BUSINESS = MANAGED_PLANS[1]
+
+/** One plan by id, which the stub refuses on purpose in the specs that announce it. */
+const PLAN_URL_PATTERN = /\/api\/v1\/plans\/[0-9a-f-]{36}$/
 
 /**
  * Installs the shell and the plan endpoints, then opens a path.
@@ -37,6 +44,7 @@ const open = async (
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_ACCOUNTS)
+  await stubShellReads(page)
   const requests = await stubManagedPlans(page, undefined, refusals)
   await page.goto(path)
   return requests
@@ -106,7 +114,10 @@ test('the list shows every plan with its limits as numbers, and "None" where a p
 test('the sidebar offers Plans inside the Accounts submenu and it leads to the screen', async ({
   page,
 }) => {
-  await open(page, '/')
+  // The dashboard is where a signed-in administrator lands, so it is opened with its own reads
+  // answered; the plans stubs follow, before the click that needs them.
+  await openLiveDashboard(page, { modules: LICENSED_ACCOUNTS })
+  await stubManagedPlans(page)
 
   const nav = page.getByRole('navigation', { name: 'Main navigation' })
   // Plans is a child of Accounts (issue #195): the section is closed away from its pages.
@@ -122,6 +133,7 @@ test('an empty panel says there are no plans and offers to define the first', as
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_ACCOUNTS)
+  await stubShellReads(page)
   await stubManagedPlans(page, [])
   await page.goto('/plans')
 
@@ -195,7 +207,9 @@ test('a valid plan is posted as typed and shows up in the list', async ({ page }
 
 test('a refused create renders the server sentence verbatim and keeps what was typed', async ({
   page,
+  guard,
 }) => {
+  guard.allow(409, PLANS_PATTERN)
   const detail = 'Another plan already has this name.'
   await open(page, '/plans/new', { create: detail })
 
@@ -264,7 +278,9 @@ test('editing a plan with accounts on it says the edit reaches them, and warns w
 
 test('a refused quota cut renders the server sentence verbatim and changes nothing on screen', async ({
   page,
+  guard,
 }) => {
+  guard.allow(409, PLAN_URL_PATTERN)
   const detail =
     'The plan was not changed: an account on it already uses more disk than the new quota allows.'
   const requests = await open(page, `/plans/${STARTER.id}`, { update: detail })
@@ -277,7 +293,8 @@ test('a refused quota cut renders the server sentence verbatim and changes nothi
   expect(requests.updated).toHaveLength(1)
 })
 
-test('an unknown plan id says the plan was not found', async ({ page }) => {
+test('an unknown plan id says the plan was not found', async ({ page, guard }) => {
+  guard.allow(404, PLAN_URL_PATTERN)
   await open(page, '/plans/99999999-9999-9999-9999-999999999999')
 
   await expect(page.getByText('Plan not found')).toBeVisible()
@@ -311,6 +328,8 @@ test('a plan accounts are on cannot be deleted: the button is disabled, the reas
   page,
 }) => {
   const requests = await open(page, '/plans')
+  // The way out of the dialog is the accounts list narrowed to this plan, which reads its own list.
+  await stubAccounts(page, [])
 
   await page.getByRole('button', { name: 'Delete Starter' }).click()
   const dialog = page.getByRole('dialog', { name: 'Delete plan Starter' })
@@ -330,10 +349,13 @@ test('a plan accounts are on cannot be deleted: the button is disabled, the reas
 
 test('a customer who opens the screen reads the server refusal in place of the list', async ({
   page,
+  guard,
 }) => {
+  guard.allow(403, PLANS_PATTERN)
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_ACCOUNTS)
+  await stubShellReads(page)
   const refusal = 'You do not have permission to manage plans.'
   await page.route(PLANS_PATTERN, async (route) => {
     await route.fulfill({

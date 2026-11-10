@@ -1,5 +1,6 @@
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
+using Maran.Modules.Identity.Services;
 using Maran.Sdk.Contracts;
 using Npgsql;
 
@@ -25,8 +26,13 @@ namespace Maran.Modules.Identity.IntegrationEvents.Handlers;
 /// id, not by its name.
 /// </para>
 /// <para>
-/// <b>It writes no audit entry of its own.</b> The Accounts module journals the change, with the
-/// administrator who asked and from where; a second entry here would record the same act twice.
+/// <b>The invitation and reset tokens mailed to the address being left are retired in the same
+/// save</b>, for the reason <see cref="AccountLoginEmailChangeRequestedHandler"/> gives: the old
+/// mailbox must not keep a key to the reseller's login.
+/// </para>
+/// <para>
+/// <b>The change itself is journaled by the Accounts module</b>, with the administrator who asked and
+/// from where; this handler writes only the entry for the tokens it retired.
 /// </para>
 /// </remarks>
 public sealed class ResellerLoginChangeRequestedHandler
@@ -34,11 +40,30 @@ public sealed class ResellerLoginChangeRequestedHandler
     /// <summary>The Identity module's database context.</summary>
     private readonly IdentityDbContext _dbContext;
 
+    /// <summary>Retires the invitation and reset tokens mailed to the address being left.</summary>
+    private readonly CredentialTokenRetirement _tokenRetirement;
+
+    /// <summary>Records the retirement of those tokens.</summary>
+    private readonly IdentityAuditJournal _journal;
+
+    /// <summary>The panel's clock; the ambient one is a banned API (rules/csharp.md).</summary>
+    private readonly IClock _clock;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Identity module's database context.</param>
-    public ResellerLoginChangeRequestedHandler(IdentityDbContext dbContext)
+    /// <param name="tokenRetirement">Retires the tokens mailed to the old address.</param>
+    /// <param name="journal">Records the retirement.</param>
+    /// <param name="clock">The panel's clock.</param>
+    public ResellerLoginChangeRequestedHandler(
+        IdentityDbContext dbContext,
+        CredentialTokenRetirement tokenRetirement,
+        IdentityAuditJournal journal,
+        IClock clock)
     {
         _dbContext = dbContext;
+        _tokenRetirement = tokenRetirement;
+        _journal = journal;
+        _clock = clock;
     }
 
     /// <summary>Moves the reseller's login to the new name and address, or refuses.</summary>
@@ -73,6 +98,13 @@ public sealed class ResellerLoginChangeRequestedHandler
             return Result.Fail(Error.Of(nameof(ErrorMessages.EmailTaken), ErrorType.Conflict));
         }
 
+        // Only a real move retires anything: keeping the address leaves its mail where it was sent.
+        var retired = 0;
+        if (!string.Equals(login.Email, message.Email, StringComparison.Ordinal))
+        {
+            retired = await _tokenRetirement.RetireAsync(login.Id, _clock.UtcNow, cancellationToken);
+        }
+
         login.Rename(message.Username);
         login.ChangeEmail(message.Email);
         try
@@ -90,6 +122,12 @@ public sealed class ResellerLoginChangeRequestedHandler
                 ? nameof(ErrorMessages.UsernameTaken)
                 : nameof(ErrorMessages.EmailTaken);
             return Result.Fail(Error.Of(code, ErrorType.Conflict));
+        }
+
+        if (retired > 0)
+        {
+            await _journal.RecordSystemAsync(
+                IdentityAuditActions.CredentialTokensRetired, $"{login.Id}: {retired}", succeeded: true, cancellationToken);
         }
 
         return Result.Ok();

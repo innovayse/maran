@@ -16,7 +16,7 @@ use crate::proto::ManagedService;
 
 #[test]
 fn each_position_names_the_service_the_adapter_puts_there() {
-    for family in [DistroFamily::Debian, DistroFamily::Rhel] {
+    for family in [DistroFamily::Debian, DistroFamily::Rhel, DistroFamily::Suse] {
         let adapter = adapter_for(family);
         let units = adapter.managed_units();
 

@@ -4,6 +4,9 @@
  * switch, and the size counter against the server's limit. State in, events out; the page wires it
  * to the editor store.
  *
+ * Find and go to line are buttons as well as keyboard shortcuts of the editor: a phone has no
+ * Ctrl+F. The Tab switch is off by default so Tab keeps moving focus (no keyboard trap).
+ *
  * The counter turns to the danger colour when the text is over the limit, and the message beside
  * it says what to do, so colour is never the only carrier. A saved file shows a polite "Saved"
  * status that the next keystroke retires.
@@ -36,6 +39,8 @@ const props = defineProps<{
   overLimit: boolean
   /** The file's permission bits, shown read-only. */
   mode: string
+  /** Whether the file has loaded, so find and go to line have a text to act on. */
+  editorReady: boolean
 }>()
 
 /** Events emitted by {@link FileEditorToolbar}. */
@@ -44,10 +49,17 @@ const emit = defineEmits<{
   (e: 'save'): void
   /** The person asks to read the file again from disk. */
   (e: 'reload'): void
+  /** The person asks to open find and replace in the text. */
+  (e: 'find'): void
+  /** The person asks to jump to a line. */
+  (e: 'goToLine'): void
 }>()
 
 /** Whether long lines stay on one line (`v-model` target). */
 const noWrap = defineModel<boolean>('noWrap', { required: true })
+
+/** Whether the Tab key indents instead of moving focus on (`v-model` target). */
+const tabIndents = defineModel<boolean>('tabIndents', { required: true })
 
 const { t } = useI18n()
 
@@ -74,7 +86,14 @@ const overLimitText: ComputedRef<string | null> = computed(() => {
       }}</UiButton>
       <UiButton variant="secondary" :disabled="saving" @click="emit('reload')">{{ t('filesEditor.reload') }}</UiButton>
       <FileDownloadButton :account-id="accountId" :path="path" :name="baseName(path)" />
+      <UiButton variant="secondary" :disabled="!editorReady" @click="emit('find')">{{ t('filesEditor.find') }}</UiButton>
+      <UiButton variant="secondary" :disabled="!editorReady" @click="emit('goToLine')">{{
+        t('filesEditor.goToLine')
+      }}</UiButton>
+    </div>
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
       <UiSwitch v-model="noWrap" :label="t('filesEditor.noWrap')" />
+      <UiSwitch v-model="tabIndents" :label="t('filesEditor.tabIndents')" />
       <span v-if="justSaved" role="status" class="text-sm text-text-secondary">{{ t('filesEditor.saved') }}</span>
     </div>
     <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">

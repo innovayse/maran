@@ -19,18 +19,17 @@ export const storedSmtpSettings: SmtpSettings = {
 
 /** The protection modes the panel lists, in the order it lists them, named as it names them in English. */
 export const smtpSecurityModes: SmtpSecurityChoice[] = [
-  { security: 'none', securityName: 'No encryption' },
   { security: 'startTls', securityName: 'STARTTLS (upgrade the connection)' },
   { security: 'implicitTls', securityName: 'Implicit TLS (encrypted from the start)' },
+  { security: 'none', securityName: 'No encryption' },
 ]
 
 /**
  * Fulfils `GET /api/v1/notifications/smtp` with a chosen answer, and
  * `GET /api/v1/notifications/smtp/security-modes` with the modes the panel lists.
  *
- * The body is typed loosely on purpose: one spec answers with a field the real
- * DTO does not have, to prove the screen renders nothing it was not written to
- * render.
+ * The body is typed loosely so a spec can state a deliberately odd answer, but the guarded
+ * lane refuses any body that disagrees with `SmtpSettingsDto`, so pass a contract-shaped one.
  * @param page The Playwright page whose network the route is installed on.
  * @param body The settings the panel reports.
  * @returns Resolves once the route is installed.

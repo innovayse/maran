@@ -48,6 +48,9 @@ no `ssh`, `ssh-keyscan` or `rsync` allow-list entry in the distro crate (`file_t
 only `vsftpd` and the sshd facts), no `Transfer` value in `AgentCapability`, no `Migration` module. The
 agent today makes no outbound connection.
 
+*Amended 2026-11-09:* that was true on 2026-11-07. The tree now holds phase 1 (see "Amendment: phase 1 as
+built" at the end); the lines above describe what the note was written against and are kept as written.
+
 ## Rules this change touches, and what they say today
 
 - **rules/security.md item 10 (surface).** "No new outbound calls ... requires a spec change first, not
@@ -258,6 +261,9 @@ API key is refused, view-as is `Refused`, and each new code is in the Sdk kind c
 | D19 | The DNS helper uses the system resolver, only for domains in the job, documented as the one DNS-query exception. |
 | D20 | Concurrency 1 to 8, default 2; bandwidth per job. |
 
+*Amended 2026-11-09:* none of the rows is approved yet; the rows phase 1 applied from the recommended
+option, and the ones it did not reach, are listed under "Amendment: phase 1 as built".
+
 Also needing the owner before code: the spec amendment (outbound SSH to registered hosts, the agent's
 first network client) and the edits to rules/security.md item 10, rules/architecture.md (Agent) and
 rules/rust.md "Process execution".
@@ -284,3 +290,250 @@ rules/rust.md "Process execution".
 - A security section: what is stored (an encrypted per-source key, a pinned fingerprint), what is never
   requested (a root password), and how to remove the key from the source afterwards.
 - CHANGELOG entry text for #197.
+
+## Amendment: phase 1 as built (2026-11-09)
+
+This section is added to the note; nothing above was rewritten, except the two dated pointers. Where the
+code differs from a statement above, this section is the current one. It was written by the same agent
+session that wrote the code, so, as the note says of itself, it closes nothing.
+
+### What phase 1 builds
+
+The registry of remote servers and the read-only discovery of what a generic Linux source serves, and
+nothing that moves data. Administrator only. In order of the issue:
+
+1. **A key per source.** The agent generates an ed25519 pair (`ssh-keygen -t ed25519` into a root-only
+   scratch directory, both halves read, the directory removed on every path) and hands both halves back to
+   the panel once over its local socket. The panel keeps the private half encrypted at rest and shows the
+   administrator the public key as an `authorized_keys` line. The agent keeps neither half.
+2. **A host key the administrator confirms.** `ssh-keyscan` reads the keys the source offers; the agent
+   computes each SHA256 fingerprint itself from the decoded key (no extra spawn). The administrator picks one and
+   retypes it as a step of its own; the backend compares it, case-sensitive, to the stored candidates and
+   pins it. Re-scanning replaces the candidates and never pins.
+3. **A connection test.** Through the pinned channel the agent runs the constant probes (effective user,
+   the filesystem that holds `/home`, os-release, database server, web server, mail store, Maran version)
+   and answers with typed facts. A changed host key is a typed failure that flips the server to
+   `HostKeyChanged`; so are a refused key, an unreachable host and a refused address.
+4. **A read-only inventory.** Accounts, their sites (nginx and Apache), databases, cron entry counts, mailbox
+   counts and disk usage, streamed account by account and stored by the panel as discovered rows. Mail is
+   counted, never read, and an account whose mail is found carries the warning `MAIL_NOT_MIGRATED` (D16).
+
+Where it lives:
+
+- Agent: `proto/agent/v1/transfer.proto` (the four rpcs and their messages; `PROTO_VERSION` 24);
+  `agent/crates/ops/src/transfer/` (the connection half, the closed `RemoteCommand` enum, `ssh_argv.rs`,
+  `choose_source_address.rs`, `write_known_hosts.rs`) and `transfer/inventory/` (the parsers of untrusted
+  text); `agent/crates/agent/src/services/transfer/` (the four rpcs, all in the audit list of mutating rpcs,
+  `ReadSourceInventory` with cancellation class "stop"); the validated types `RemoteHost`, `HostKey`,
+  `HostKeyFingerprint`, `SourceUserName`, `SourcePrivateKey` and `RemotePath` in `agent-core`;
+  `AgentPaths::TRANSFER_SCRATCH_DIRECTORY` (`/run/maran/transfer-scratch`); `CallClass::SourceRead` (900 s);
+  `ssh`, `ssh-keyscan` and `ssh-keygen` on the distro allow-list for both families.
+- Panel: the `ServerMigration` module (schema `servermigration`, administrator only, capability `Transfer`; named `Migration` when this was written) and
+  `Maran.Agent.Client`'s `TransferService` folder with `ResilientAgentTransferClient`; REST under
+  `api/v1/remote-servers`; the SPA pages under `/migration/remote-servers`.
+- Installer: the OpenSSH client package on both families (`openssh-client` on the Debian family,
+  `openssh` and `openssh-clients` on the RHEL family), proved present by `assert_agent_tooling`. The agent
+  unit needed no new directory: the scratch directory is a child of `/run/maran`, which `RuntimeDirectory=maran`
+  creates and `ReadWritePaths=` already lists, and `RestrictAddressFamilies=` already admits `AF_INET` and
+  `AF_INET6`.
+
+### Owner decisions applied
+
+Every one is the plan's recommended option and **none is approved**. If the owner chooses otherwise, this
+note and the code are amended together.
+
+| # | Applied in phase 1 |
+|---|---|
+| D1 | No rename: a taken name is a conflict to be reported by the dry run, which is not built yet. Phase 1 stores names as discovered. |
+| D6 | Administrators only: customers and resellers get 404, API keys are refused, view-as is `Refused`. |
+| D10 | One `Migration` module. |
+| D14 | No root-password flow. The operator pastes our public key; the UI gives the line and says the key cannot be limited to read-only. |
+| D15 | Never a write to a generic source. Phase 1 writes nothing to any source. |
+| D16 | Mail is not migrated: the inventory counts mailboxes and warns. |
+| D18 | **Not reached.** There is no rsync and no receiver in phase 1, so the question of where the key sits while a receiver runs as the account uid does not arise yet. Section 2 still stands: this note does not call the default safe, and the question returns with the transfer engine. |
+| D19 | **Deferred.** The DNS helper is not built. |
+| D17, D20 | Deferred with the Maran adapter and the transfer engine. |
+
+Resolved by this build: the key is generated on the target and the private half never leaves the panel's
+database except per call to the agent; there is no root password anywhere; the three binaries are
+allow-listed per family from `distro`. Registering a source on a **private address is allowed and stated**
+(open question 3): the policy refuses loopback, link-local, unspecified, multicast and this host's own
+addresses, judged on the resolved address, and nothing else.
+
+### The agent resolves the registered host's name
+
+A registered host given as a DNS name is resolved by the agent, with the system resolver, once per call, and
+the connection is made to the resolved literal under a fixed `HostKeyAlias` and never to the name again. That
+resolution is an outbound DNS query made by the root agent to the host's configured resolvers, bounded by
+the resolver's own timeouts and not by the agent. It is made only for the one host an administrator
+registered, on an administrator's act. A name that resolves to even one refused address is refused whole.
+The query tells the resolver which name the administrator registered; that is the cost of accepting names
+and not only literals, and the alternative (literals only) was not chosen.
+
+### What the review must additionally check
+
+13. Every `ssh` run carries the pinned options of section 3 through `ssh_argv.rs`, which is the only
+    builder; the key file is `0600` in a `0700` root directory that the operation checks (owner and mode)
+    before it writes, and `TransferScratch` removes it on every path including a failed spawn.
+14. The private key reaches no log, audit line, error value, DTO or response. A `SourcePrivateKey` is a
+    `SecretString`; the panel's `AgentSourceCredential` prints `[redacted]`; a test serialises every DTO of
+    the registry against a planted sentinel with a positive control.
+15. `RemoteCommand` has 17 variants, every one read-only, every hole a `RemotePath` or `SourceUserName`; the
+    grammar of a hole excludes every shell metacharacter, and each hole is also single-quoted.
+16. The inventory parsers are bounded (accounts 5000, 1 MiB and 20 000 lines per output, line length,
+    include depth 4 with a visited set); the hostile fixtures are in
+    `agent/crates/ops/tests/fixtures/transfer/synthetic_inventory/`. They are **hand-written, not captured**:
+    no source host was available, so no parser has met the output of a real nginx, Apache or MariaDB.
+17. Every name that becomes a discovered row passed the ordinary validator; one that did not is a
+    `NAME_REFUSED` warning and is skipped.
+18. The address policy runs on the resolved address, fails closed when this host's own addresses cannot be
+    listed, and the connection is to the literal.
+19. The `Transfer` capability is declared by `Migration` and by no other module (item 13 of
+    rules/security.md).
+
+### What phase 1 does not build, and why
+
+Everything below depends on the #127 BACKEND, which is not in the tree. Only the #127 agent half is
+(`ExportBackup` and `ImportBackup` in `transfer.proto`); the Migration importers, the per-account grants, the
+job-caller primitive and the restricted-loader import path are absent. Nothing here is stubbed or faked,
+and no dead code stands in for it:
+
+- mapping, plan, IP assignment and dry run;
+- the parallel two-phase transfer engine with rsync, streamed dumps, pause, resume, retry and cancel, and its
+  concurrency and bandwidth limits (D20);
+- the verification and comparison report, the DNS helper (D19) and cut-over;
+- the Maran adapter (a source that is a Maran panel, D17) and the polygon source container.
+
+Sections 1, 6, 7, 8 and 9 of this note describe that deferred work and remain requirements for it. Section 1
+applies to phase 1 as to the inventory only. The phase 1 build touches no customer file and no database.
+
+### What the author of this amendment could not verify
+
+- **Nothing was built or run when this was written.** The code was produced under a coding phase that forbids
+  builds, tests and lints; the lead's gate runs them. The statements above come from reading the files, and this
+  line is amended with the gate's result.
+- `ssh` and `ssh-keyscan` option behaviour (`HostKeyAlgorithms` with an RSA key through its SHA-2 signature
+  names, `UpdateHostKeys=no`, `ClearAllForwardings`, `-n -T`) on OpenSSH 8.7, 8.9, 9.2 and the releases the
+  matrix lists with unverified cells; and whether `ssh-keyscan` offers all three algorithms on each.
+- The RHEL and SUSE package names (`openssh-clients` and `openssh` for the RHEL family, which was read from
+  each package's file list and not installed here; the SUSE names `openssh-clients` and `openssh-common`
+  are a guess marked UNVERIFIED in the installer).
+- How the system resolver behaves under the agent unit's hardening (`getaddrinfo` through
+  `RestrictAddressFamilies=` and the system-call filter) on each family.
+- That the parsers' tolerance matches real vhost files: nothing was captured from a real source.
+
+### Open questions for the owner, unchanged and still open
+
+The five questions above are unanswered; phase 1 proceeds on the recommended answer to 3 (private addresses
+allowed), 4 (the limit is stated, not engineered away) and 1 (the root agent is the SSH client), and the
+naming of question 5 stayed `TransferService`. Each is a decision for the owner, and the code changes with
+his answer.
+
+## Amendment: the #127 backend half is now in the tree (2026-11-09)
+
+Written by the same agent session that wrote the code; it closes nothing and nothing was built or run.
+
+- **The module was renamed `ServerMigration`** (namespace, folder, schema `servermigration`, manifest id
+  `servermigration`) because the old name shadowed EF Core's `Migration` base class. Every statement above
+  that says `Migration` module means this module.
+- **What phase 2 can now use**, all described in `2026-11-07-account-move-threat-note.md` under "the backend
+  half as built": the per-module `IAccountMigrationExporter`/`IAccountMigrationImporter` pairs (Accounts, Sites,
+  Databases, Sftp, Ftp, Cron) with their ordering contract; the job-caller primitive (`IJobCallerScopes`,
+  rebuilt from the user row on every step); the import path through the agent's restricted loader (the
+  artifact is marked imported by `ImportBackup`, and `IMigrationArtifactService.RestoreImportedAsync` restores
+  it); and the rollback that refuses an account older than the job (`IAccountMigrationRollback`).
+- **Still absent, and still this note's requirements for phase 2**: the pull endpoint and per-account grant
+  transport (grants exist as rows and can be issued and revoked, but no route accepts one), the transfer engine
+  (rsync, streamed dumps, pause, resume, retry, cancel), the verification report, the DNS helper, the Maran
+  adapter and the polygon source container.
+- **Review item 6 above** (dumps load only through the restricted loader, no superuser fallback) now has a
+  panel-side half to read: `MigrationArtifactService` records the artifact as imported-by-the-agent and sends the
+  ordinary restore request; it passes nothing that selects a loader.
+
+## Amendment: phase 2 as built, the transfer engine (2026-11-09)
+
+Written by the same agent session that wrote the code; it closes nothing, and nothing was built or run. The
+sections above remain the requirements; this one says what the code does about them.
+
+### What phase 2 builds
+
+Agent (`PROTO_VERSION` 26): two rpcs on `TransferService`, both audited as mutating.
+
+- `PullAccountFiles` (server-streaming): `rsync` over the pinned SSH channel into one account's home, in
+  time-sliced runs. Initial phase never deletes; final phase (`--delete`) is the delta at cut-over.
+- `StreamRemoteDatabase` (server-streaming): the remote `mysqldump` (variant 18 of the closed `RemoteCommand`
+  enum, hole `RemoteDatabaseName`) is written to a root-only file on the disk, bounded in bytes and time, and
+  loaded through the existing restricted loader (`ops::backup::load_dump_restricted`, composed in the service
+  crate because areas never import each other). A dump the scanner refuses is refused; there is no superuser
+  fallback.
+
+Panel: `MigrationJob` and `MigrationJobAccount` (mapping, dry run, parallel two-phase engine, pause, resume,
+retry, cancel, limits, cut-over, comparison report, DNS helper, summary file) and the SPA under
+`/migration/jobs`. A source that is a Maran panel is moved by the #127 package path instead (pull, import, same
+rollback).
+
+### Owner decisions applied (recommended option; none approved)
+
+| # | Applied in phase 2 |
+|---|---|
+| D1 | No rename: a taken name, a taken domain and a database that cannot keep its name are conflicts of the dry run. |
+| D15 | Nothing is written to a generic source: `PullAccountFiles` is a read, and the closed command set gained one more read. |
+| D16 | Mail stays unmigrated; the dry run warns. Cron entries are only counted by discovery, so they are warned about, not carried. |
+| D17 | A Maran source uses one pull grant per account, entered per account on the job screen. |
+| D18 (a) | The receiver runs as the account's uid; the key sits in a `0700` directory owned by that uid under `TRANSFER_RECEIVER_DIRECTORY`, removed on every path. |
+| D19 | The DNS helper resolves only the domains of the job, with the system resolver, A and AAAA only. |
+| D20 | Concurrency 1 to 8, default 2, bandwidth per job, both re-read while running. |
+
+### How D18 (a) was reconciled with `fork_as_account`
+
+`fork_as_account` kills its child after two minutes, and a copy takes hours. `rsync` therefore runs in slices of
+100 seconds: each slice is one `fork_as_account_for_bytes` whose child runs `rsync` through `run_unthreaded`
+under a 100 second deadline and brings back at most two bytes (ended with status N, or reached its deadline). A
+killed slice keeps its partial files (`--partial`) and the next slice continues; a changed bandwidth limit, a
+pause and a cancel all take effect at a slice boundary. The pull is cancellation class "stop" with the partial
+state kept on purpose.
+
+### Findings a reviewer must weigh (additional review items)
+
+20. **The key is readable by the account's own processes for the length of a slice.** It is in a directory the
+    account owns. The account is newly created and serves nothing before the cut-over, but a hostile source's
+    files, once copied, are the account's own and could include a process the account starts; the note's earlier
+    statement that the default is not safe still stands, and this is the stated cost of choosing it.
+21. **`rsync` builds the remote command itself.** The closed enum covers every command the agent composes; the
+    `rsync --server --sender ...` line is composed by `rsync` from fixed flags, the validated `RemotePath` and
+    the `--rsh` transport (`rsync_transport`, built from `ssh_client_options`, the same pinned options as every
+    other call, minus `-n`). It is the one remote command string this agent does not render itself.
+22. **Remote-side `rsync` must exist on the source.** A missing one is a failing status, reported as a pull
+    failure; the agent cannot tell it apart from other failures because it reads no `rsync` output.
+23. **Failure classification of a pull is by exit status only.** Status 11 is reported as "no room"; 24
+    (vanished files) is success. The connection reasons (changed host key, refused key, unreachable) come from
+    the read-only size probe that runs first over the same pinned channel, not from `rsync`.
+24. **The dump file lives on disk** (`BULK_SCRATCH_ROOT/transfer-dumps`, `0600`, root-only chain), bounded by
+    the request and the free-space floor, removed on every path; a stalled agent restart leaves it for the
+    unit's scratch emptying.
+25. **Restricted loader fidelity.** A source database with triggers, routines, events or views is refused
+    (`MigrationDumpRefused`); the dump command passes `--skip-triggers` so triggers do not make every database
+    fail, but views and routines still do. This is the plan's D4 consequence.
+26. **Verification is limited and says so.** The report states that the final `rsync` converged and what the
+    source home measured; it holds no second measurement of the home on this server. Sites are fetched from
+    the panel's own web server on the loopback address with the domain in the `Host` header (the address is a
+    constant, the DNS of the domain is never consulted).
+27. **Pause and cancel are stoppable only at boundaries.** The importers (several modules creating one
+    account) run to completion once started, so a pause takes effect after them; a half-created account
+    (a restart in the middle) is rolled back and started over, not resumed.
+28. **Concurrency gate is process-local.** The scheduler's gate and the registry of workers are in memory; an
+    account the database calls running with no worker (the panel restarted) is recovered by pause then resume.
+
+### What the author could not verify
+
+- Nothing was built or run: not the agent, not the panel, not the SPA, not the polygon image.
+- That `/run/maran-host` is traversable by an account's uid inside the agent's mount namespace on every family
+  (read from the unit: `BindPaths=` makes the mount point `0755`), and that `CAP_CHOWN` suffices for the hand-over.
+- `rsync`'s handling of `--chmod=a-s,a-t`, `--safe-links` and `--max-size=64G` across the versions the matrix
+  ships (3.1 to 3.4), and that its `--rsh` splitting accepts the generated option list.
+- That `mysqldump` and `mariadb-dump` on every source accept `--skip-triggers --hex-blob
+  --default-character-set=utf8mb4`.
+- The EF migration, its designer and the model snapshot were written by hand.
+- Website documentation is the owner's to write.
+
+Second review: OUTSTANDING (#331)

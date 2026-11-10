@@ -48,6 +48,11 @@ pub(crate) struct FakeDnsHost {
     disable_succeeds: bool,
     /// Whether TCP port 53 accepts once the unit runs.
     port_53_accepts: bool,
+    /// Whether the checker accepts a probe configuration stating a
+    /// `dnssec-policy`.
+    probe_accepted: bool,
+    /// The text of every probe configuration the host was asked to check.
+    probes: Mutex<Vec<String>>,
     /// A configuration a neighbour writes right after this one is swapped in.
     neighbour_writes_after_the_swap: Mutex<Option<String>>,
     /// The fake's virtual monotonic clock, advanced only by [`DnsHost::pause`].
@@ -72,6 +77,8 @@ impl FakeDnsHost {
             enable_succeeds: true,
             disable_succeeds: true,
             port_53_accepts: true,
+            probe_accepted: true,
+            probes: Mutex::new(Vec::new()),
             neighbour_writes_after_the_swap: Mutex::new(None),
             clock: Mutex::new(Duration::ZERO),
             pauses: Mutex::new(Vec::new()),
@@ -127,6 +134,13 @@ impl FakeDnsHost {
         self
     }
 
+    /// A host whose checker refuses a configuration stating a `dnssec-policy`, as a
+    /// build without the statement does.
+    pub(crate) fn with_dnssec_unsupported(mut self) -> Self {
+        self.probe_accepted = false;
+        self
+    }
+
     /// A host on which another operation writes `config` right after this one's
     /// swap.
     pub(crate) fn with_neighbour_write_after_the_swap(self, config: &str) -> Self {
@@ -142,6 +156,11 @@ impl FakeDnsHost {
     /// Every configuration ever written through the protocol, in order.
     pub(crate) fn written_configs(&self) -> Vec<String> {
         self.written.lock().unwrap().clone()
+    }
+
+    /// The text of every probe configuration the host was asked to check.
+    pub(crate) fn probes(&self) -> Vec<String> {
+        self.probes.lock().unwrap().clone()
     }
 
     /// Every program run, in order.
@@ -287,6 +306,25 @@ impl DnsHost for FakeDnsHost {
             });
         }
         Ok(())
+    }
+
+    fn probe_config(
+        &self,
+        _target: &Path,
+        contents: &str,
+        validator: &Validator<'_>,
+    ) -> Result<(), DnsError> {
+        self.probes.lock().unwrap().push(contents.to_owned());
+        let mut checked = vec![validator.program.as_str().to_owned()];
+        checked.extend(validator.arguments.iter().map(|a| (*a).to_owned()));
+        self.spawns.lock().unwrap().push(checked);
+        if self.probe_accepted {
+            Ok(())
+        } else {
+            Err(DnsError::ConfigRejected {
+                output: "unknown option 'dnssec-policy'".to_owned(),
+            })
+        }
     }
 
     fn remove_file(&self, _path: &Path) -> Result<(), DnsError> {

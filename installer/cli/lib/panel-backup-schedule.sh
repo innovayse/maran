@@ -58,6 +58,9 @@ cli_pbsched_install_unit_file() {
   mv -f -- "$CLI_PBSCHED_TEMP" "$dest"
   CLI_PBSCHED_TEMP=""
   # A file written by install/mv carries the staging context, not the one policy gives its path.
+  # Keyed on the program being present, not on the OS family, so every SELinux family (the RHEL family
+  # and the SUSE family, whose Leap 16 enforces SELinux by default; UNVERIFIED, confirm with
+  # `getenforce` in the pinned Leap image) takes this branch and a host without it skips it.
   if command -v restorecon >/dev/null 2>&1; then
     restorecon -- "$dest" || true
   fi

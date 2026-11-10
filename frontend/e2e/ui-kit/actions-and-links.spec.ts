@@ -1,17 +1,20 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
+import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { stubBackups } from '../fixtures/stub-backups-routes'
 import { stubFirewall } from '../fixtures/stub-firewall-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubSftpUsers } from '../fixtures/stub-sftp-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubPhpVersions, stubSiteDetail, stubSites } from '../fixtures/stub-sites-routes'
 import type { Account } from '../../src/types/account'
 import type { Backup } from '../../src/types/backup'
 import type { Ban, WhitelistEntry } from '../../src/types/firewall'
 import type { PanelModule } from '../../src/types/module'
 import type { SiteDetail } from '../../src/types/site'
+import type { Locator, Page } from '@playwright/test'
 
 // Issue #218, points 6-10: a confirmation's button names its action, a create form empties after an
 // accepted create, a way back looks like a link, a backup's reason is called what it is, and the
@@ -95,6 +98,7 @@ const signIn = async (page: Page, modules: PanelModule[]): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, modules)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
 }
 
@@ -168,6 +172,7 @@ test('an accepted backup and an accepted ban each empty their form', async ({ pa
     { name: 'firewall', displayName: 'Firewall', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
   ])
   await stubBackups(page, [])
+  await stubBackupOptions(page)
   await stubFirewall(page, { rules: [], bans: [], whitelist: [] })
 
   await page.goto('/backups')
@@ -205,6 +210,7 @@ for (const width of [1440, 390]) {
 test('a backup an operator took by hand reads "Manual" in the history', async ({ page }) => {
   await signIn(page, [{ name: 'backups', displayName: 'Backups', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
   await stubBackups(page, [{ ...MANUAL_BACKUP }])
+  await stubBackupOptions(page)
   await page.goto('/backups')
 
   const row = page.getByRole('row').filter({ hasText: ALICE.name })
@@ -213,7 +219,7 @@ test('a backup an operator took by hand reads "Manual" in the history', async ({
 })
 
 test('the upgrade screen names a module by its display name, never by its id', async ({ page }) => {
-  await signIn(page, [{ name: 'mail', displayName: 'Mail', kindDisplayName: 'Core', tier: 'business', state: 'locked' }])
+  await signIn(page, [{ name: 'mail', displayName: 'Mail', kindDisplayName: 'Core', tier: 'planGated', state: 'locked' }])
   await page.goto('/upgrade/mail')
 
   await expect(page.getByText('The "Mail" module is not included in your current licence.')).toBeVisible()

@@ -33,6 +33,7 @@ import { FALLBACK_GROUP } from '../../router/navigationTree'
 import { locateNavigation } from '../../utils/locateNavigation'
 import { PAGE_HEADING_KEY } from '../../utils/pageHeadingKey'
 import { navigationLabelText } from '../../utils/navigationLabelText'
+import { routeTitleText } from '../../utils/routeTitleText'
 import type { NavigationEntry } from '../../types/navigation'
 import type { PageHeading } from '../../types/pageHeading'
 
@@ -76,7 +77,7 @@ const crumbs: ComputedRef<Crumb[]> = computed(() => {
   const location = locateNavigation(route, navigationRole.value)
   const trail: Crumb[] = [{ key: 'group', text: t(`app.nav.groups.${location?.groupKey ?? FALLBACK_GROUP}`) }]
   if (location === null) {
-    return [...trail, { key: 'leaf', text: t(route.meta.title ?? 'app.title') }]
+    return [...trail, { key: 'leaf', text: routeTitleText(route.meta, t) }]
   }
 
   // The entry is named as the sidebar names it. Until the catalogue has arrived it is not drawn,
@@ -123,7 +124,7 @@ const entryLabel = (entry: NavigationEntry): string => {
  * @returns The leaf's text, or `null` while the record is loading.
  */
 const leafText = (): string | null => {
-  const title = t(route.meta.title ?? 'app.title')
+  const title = routeTitleText(route.meta, t)
   const heading = pageHeading?.value ?? null
   if (route.meta.titledByRecord !== true || heading === null) {
     return title

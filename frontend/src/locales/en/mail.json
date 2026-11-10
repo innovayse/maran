@@ -201,6 +201,51 @@
       "confirmRemoveTitle": "Remove {name}",
       "confirmRemove": "Remove this address? Mail sent to it is refused afterwards.",
       "confirmRemoveAction": "Remove address"
+    },
+    "queue": {
+      "heading": "Mail queue",
+      "subtitle": "Messages the server is holding to deliver. Remove one that should never be sent, or retry the deferred ones now.",
+      "flush": "Retry deferred mail",
+      "emptyTitle": "The mail queue is empty",
+      "emptyDescription": "Nothing is waiting to be delivered.",
+      "noResultsTitle": "No messages match",
+      "noResultsDescription": "Change the search or clear it to see the whole queue.",
+      "tableCaption": "Messages in the mail queue",
+      "searchLabel": "Search the queue",
+      "searchPlaceholder": "Search by sender or message id…",
+      "searchClear": "Clear the search",
+      "truncated": "Messages in the queue: {total}. Only the newest ones the server lists can be searched and paged.",
+      "columns": {
+        "message": "Message",
+        "sender": "Sender",
+        "queue": "Queue",
+        "recipients": "Recipients",
+        "size": "Size",
+        "arrivedAt": "Arrived",
+        "reason": "Why it waits"
+      },
+      "rowActions": "Actions for message {id}",
+      "rowRemove": "Remove from the queue",
+      "confirmRemoveTitle": "Remove message {id}",
+      "confirmRemove": "Remove this message from the queue? It is deleted and never delivered.",
+      "confirmRemoveAction": "Remove message",
+      "removed": "Message {id} was removed.",
+      "confirmFlushTitle": "Retry deferred mail",
+      "confirmFlush": "Try every deferred message again now? Messages that still cannot be delivered stay in the queue.",
+      "confirmFlushAction": "Retry now",
+      "flushed": "Deferred mail is being retried."
+    },
+    "server": {
+      "off": {
+        "heading": "Mail is turned off on this server",
+        "description": "Nothing can be added to Mail while the server is off. As the administrator you turn it on here; customers and resellers cannot.",
+        "hostname": "Mail server host name",
+        "hostnamePlaceholder": "mail.example.com",
+        "hostnameRequired": "Enter the host name the mail server presents.",
+        "hint": "The host name is also the name the server's certificate is for. The other settings start from the server's defaults.",
+        "submit": "Turn mail on"
+      },
+      "enabled": "Mail is turned on."
     }
   }
 }

@@ -34,4 +34,7 @@
   <data name="LicenceInstallFingerprintMismatch" xml:space="preserve">
     <value>The submitted licence was issued for a different server than this one. Nothing was installed and the previous licence, if any, is unchanged. Use your licence's self-service transfer to move it to this server, or contact support if you believe this is wrong.</value>
   </data>
+  <data name="LicenceInstallNoVerificationKey" xml:space="preserve">
+    <value>This build of the panel carries no licence verification key, so no licence can be checked. Nothing was installed and the previous licence, if any, is unchanged. Install a release build that carries the licence key, then submit the licence again.</value>
+  </data>
 </root>

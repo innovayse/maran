@@ -47,6 +47,32 @@ public sealed class RateLimitOptions
     [Range(1, 86_400)]
     public int PasswordResetWindowSeconds { get; set; } = 900;
 
+    /// <summary>Refresh and logout requests allowed from one address within <see cref="SessionRefreshWindowSeconds"/>.</summary>
+    /// <remarks>
+    /// Sized for the SPA's real use, not for guessing: one refresh per signed-out page load and one per
+    /// expired access token. Sixty a minute leaves room for several people behind one address, and
+    /// bounds an anonymous caller to a database lookup per second.
+    /// </remarks>
+    [Range(1, 10_000)]
+    public int SessionRefreshMaxRequests { get; set; } = 60;
+
+    /// <summary>Length of the fixed window refresh and logout requests are counted over, in seconds.</summary>
+    [Range(1, 86_400)]
+    public int SessionRefreshWindowSeconds { get; set; } = 60;
+
+    /// <summary>Password-reset completions allowed from one address within <see cref="PasswordResetCompletionWindowSeconds"/>.</summary>
+    /// <remarks>
+    /// Its own number and its own bucket (<c>RateLimitPolicies.PasswordResetCompletion</c>), distinct
+    /// from <see cref="PasswordResetMaxRequests"/>: completing a reset sends no mail, so the budget is
+    /// sized for a person mistyping a new password a few times, not for a mail bomb.
+    /// </remarks>
+    [Range(1, 1000)]
+    public int PasswordResetCompletionMaxRequests { get; set; } = 10;
+
+    /// <summary>Length of the window password-reset completions are counted over, in seconds.</summary>
+    [Range(1, 86_400)]
+    public int PasswordResetCompletionWindowSeconds { get; set; } = 900;
+
     /// <summary>Invitation-acceptance attempts allowed from one address within <see cref="InvitationWindowSeconds"/>.</summary>
     /// <remarks>
     /// A separate number from <see cref="PasswordResetMaxRequests"/> on purpose (see
@@ -75,6 +101,18 @@ public sealed class RateLimitOptions
     /// <summary>Length of the window invitation sending is counted over, in seconds.</summary>
     [Range(1, 86_400)]
     public int InvitationSendWindowSeconds { get; set; } = 3600;
+
+    /// <summary>Requests a client address may make to the endpoints an export grant reaches within <see cref="MigrationPullWindowSeconds"/>.</summary>
+    /// <remarks>
+    /// Its own number and its own bucket (<c>RateLimitPolicies.MigrationPull</c>). A pull is a handful of requests
+    /// (up to three reads of the manifest and one of the package), so the figure is small.
+    /// </remarks>
+    [Range(1, 1_000)]
+    public int MigrationPullMaxRequests { get; set; } = 20;
+
+    /// <summary>Length of the window pull requests are counted over, in seconds.</summary>
+    [Range(1, 86_400)]
+    public int MigrationPullWindowSeconds { get; set; } = 60;
 
     /// <summary>Requests allowed per authenticated account (or IP, when anonymous) within <see cref="ApiWindowSeconds"/>.</summary>
     [Range(1, 100_000)]
@@ -154,6 +192,22 @@ public sealed class RateLimitOptions
     /// <summary>The window <see cref="AuditExportMaxRequests"/> is counted over, in seconds.</summary>
     [Range(1, 86_400)]
     public int AuditExportWindowSeconds { get; set; } = 3600;
+
+    /// <summary>
+    /// Update checks allowed for one signed-in administrator within <see cref="UpdateCheckWindowSeconds"/>
+    /// (<c>UpdateCheckRateLimitPolicy</c>, issue #516).
+    /// </summary>
+    /// <remarks>
+    /// Ten an hour: each accepted request makes the server contact the release host as root, a person
+    /// presses the button a few times a day at most, and the number bounds how often a stolen
+    /// administrator session can cause that fetch.
+    /// </remarks>
+    [Range(1, 1_000)]
+    public int UpdateCheckMaxRequests { get; set; } = 10;
+
+    /// <summary>The window <see cref="UpdateCheckMaxRequests"/> is counted over, in seconds.</summary>
+    [Range(1, 86_400)]
+    public int UpdateCheckWindowSeconds { get; set; } = 3600;
 
     /// <summary>
     /// Global-search requests allowed for one signed-in user within <see cref="SearchWindowSeconds"/>

@@ -1,0 +1,26 @@
+{
+  "app": {
+    "codeEditor": {
+      "find": "Որոնել",
+      "replaceWith": "Փոխարինել",
+      "next": "հաջորդը",
+      "previous": "նախորդը",
+      "all": "բոլորը",
+      "matchCase": "մեծատառ-փոքրատառով",
+      "regexp": "կանոնավոր արտահայտություն",
+      "byWord": "ամբողջ բառով",
+      "replace": "փոխարինել",
+      "replaceAll": "փոխարինել բոլորը",
+      "close": "փակել",
+      "goToLine": "Անցնել տողին",
+      "go": "անցնել",
+      "currentMatch": "ընթացիկ համընկնումը",
+      "onLine": "տողում",
+      "replacedMatches": "փոխարինվել է $ համընկնում",
+      "replacedMatchOnLine": "փոխարինվել է համընկնումը $ տողում",
+      "selectionDeleted": "Ընտրվածը ջնջվեց",
+      "controlCharacter": "Կառավարող նիշ",
+      "tabHint": "Այստեղ Tab-ը նահանջ է դնում։ Սեղմեք Escape, ապա Tab՝ հաջորդ տարր անցնելու համար։"
+    }
+  }
+}

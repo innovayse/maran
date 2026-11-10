@@ -1,6 +1,6 @@
 using Maran.Modules.Dns.Common;
 using Maran.Modules.Dns.Domain.Entities;
-using Maran.Modules.Dns.Domain.Enums;
+using Maran.Modules.Dns.Domain.Policies;
 using Maran.Modules.Dns.Resources;
 using Microsoft.Extensions.Localization;
 
@@ -29,7 +29,7 @@ public static class ZoneRecordMapper
             record.Tag,
             record.Origin,
             names[$"DnsOrigin{record.Origin}"].Value,
-            record.Origin == RecordOrigin.Customer,
+            RecordOriginPolicy.IsOwnerEditable(record.Origin),
             record.CreatedAt);
     }
 }

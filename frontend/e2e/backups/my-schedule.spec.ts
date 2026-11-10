@@ -1,7 +1,8 @@
-import { expect, test, type ConsoleMessage, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { FULL_CATALOGUE, mainNavigation, openSection } from '../fixtures/open-full-shell'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
+import { stubDashboard, WITHHELD_DASHBOARD } from '../fixtures/stub-dashboard-route'
 import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
@@ -15,6 +16,7 @@ import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { BackupSchedule } from '../../src/types/backupSchedule'
+import type { ConsoleMessage, Page } from '@playwright/test'
 
 // Issue #147: a customer sets their own backup schedule. The page names no account and no
 // destination (the server takes the account from the login), offers only the customer's shorter lists,
@@ -82,6 +84,7 @@ const signInAsCustomer = async (page: Page): Promise<void> => {
 // The customer reaches the page by the menu, not by typing the address.
 test('the customer opens their own schedule from the Backups menu', async ({ page }) => {
   await signInAsCustomer(page)
+  await stubDashboard(page, WITHHELD_DASHBOARD)
   await stubMyBackupSchedule(page, null)
 
   await page.goto('/')
@@ -168,7 +171,8 @@ test('saving sends exactly the schedule members, and no account, destination or 
 
 // The backend owns the text of a server outcome and the SPA renders it verbatim; the CODE is for
 // behaviour only, and here the behaviour is which field is marked invalid.
-test('a refused retention count shows the backend sentence on that field', async ({ page }) => {
+test('a refused retention count shows the backend sentence on that field', async ({ page, guard }) => {
+  guard.allow(400, /\/api\/v1\/me\/backup-schedule$/)
   await signInAsCustomer(page)
   await stubMyBackupSchedule(page, OWN_SCHEDULE)
   await stubMyBackupScheduleRefusal(page, 'BackupScheduleCustomerRetainTooHigh', 'You can keep at most 7 backups.')

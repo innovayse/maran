@@ -1,7 +1,8 @@
-import { expect, test, type ConsoleMessage, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSetupState, stubSignedOut } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import type { ConsoleMessage, Page } from '@playwright/test'
 
 // Issue #204, item 5: a signed-out page load asks `/auth/refresh` once, and with no refresh cookie
 // the backend answers 204 rather than 401 — so the sign-in screen opens with a quiet console.
@@ -62,7 +63,10 @@ for (const path of ['/login', '/forgot-password', '/reset-password?token=abc', '
 
 test('a refused refresh cookie still lands on the sign-in screen and is seen by the console probe', async ({
   page,
+  guard,
 }) => {
+  // The refusal is the subject of this test.
+  guard.allow(401, /\/api\/v1\/auth\/refresh$/)
   // The inverse control: a cookie that was sent and refused still answers 401, and the probe above
   // must be able to see the console error that 401 produces — otherwise its empty list proves nothing.
   const consoleErrors = collectConsoleErrors(page)

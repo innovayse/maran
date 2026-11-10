@@ -37,6 +37,11 @@ pg_available_major() {
   case "$MARAN_OS_FAMILY" in
     debian) apt-cache show postgresql 2>/dev/null | awk '/^Version:/{print $2; exit}' ;;
     rhel)   dnf info postgresql-server 2>/dev/null | awk '/^Version/{print $3; exit}' ;;
+    # UNVERIFIED: that the meta package `postgresql-server` exists and `zypper info` prints a
+    # `Version        : 17.5-...` line. Confirm with
+    # `zypper --non-interactive --no-refresh info postgresql-server` in the pinned Leap image.
+    suse)   zypper --non-interactive --no-refresh info postgresql-server 2>/dev/null \
+              | awk '/^Version/{print $3; exit}' ;;
   esac | sed 's/[^0-9].*//'
 }
 
@@ -128,6 +133,39 @@ pg_install() {
         postgresql-setup --initdb
       fi
       ;;
+    suse)
+      # The distribution offers versioned servers (`postgresql17-server`, `postgresql18-server`)
+      # and a meta package `postgresql-server` that points at the default major, so no module
+      # stream or third-party repository is involved. The floor is checked BEFORE installing,
+      # from the package metadata, because there is no second major to switch to here.
+      local available
+      available="$(pg_available_major)"
+      if [ -n "$available" ] && [ "$available" -lt "$MARAN_PG_MINIMUM_MAJOR" ]; then
+        echo "30-postgresql.sh: this host would install PostgreSQL ${available}, below the required" >&2
+        echo "  minimum of ${MARAN_PG_MINIMUM_MAJOR}; the distribution offers no newer default here." >&2
+        exit 1
+      fi
+      pkg_install postgresql-server
+      # The package does not initialise a cluster (UNVERIFIED), the unit does so on its FIRST start,
+      # and this step edits postgresql.conf before it enables the service. So the cluster is
+      # created by one start, then the server is stopped again, and the edit below happens on a
+      # stopped server exactly as on the other families. Idempotent: skipped once PG_VERSION exists.
+      #
+      # UNVERIFIED: that the unit initialises /var/lib/pgsql/data on first start and that the data
+      # directory is /var/lib/pgsql/data. Confirm in the pinned Leap image with
+      # `systemctl start postgresql; ls /var/lib/pgsql/data/PG_VERSION; systemctl cat postgresql`
+      # (look for an initdb ExecStartPre). If the unit does not initialise, the check below refuses
+      # with a message instead of letting the next step fail on a missing postgresql.conf.
+      if [ ! -s /var/lib/pgsql/data/PG_VERSION ]; then
+        systemctl start "$(pg_service_name)"
+        systemctl stop "$(pg_service_name)"
+      fi
+      if [ ! -s /var/lib/pgsql/data/PG_VERSION ]; then
+        echo "30-postgresql.sh: starting postgresql.service did not create /var/lib/pgsql/data." >&2
+        echo "  Initialise the cluster by hand (see the distribution's PostgreSQL documentation) and re-run." >&2
+        exit 1
+      fi
+      ;;
     *)
       echo "30-postgresql.sh: unsupported OS family '${MARAN_OS_FAMILY}'" >&2
       exit 1
@@ -139,6 +177,9 @@ pg_service_name() {
   case "$MARAN_OS_FAMILY" in
     debian) echo "postgresql" ;;
     rhel) echo "postgresql" ;;
+    # UNVERIFIED: unit name `postgresql.service`. Confirm with
+    # `systemctl list-unit-files 'postgresql*'` in the pinned Leap image after installing the package.
+    suse) echo "postgresql" ;;
   esac
 }
 
@@ -165,6 +206,11 @@ pg_conf_path() {
     rhel)
       echo "/var/lib/pgsql/data/postgresql.conf"
       ;;
+    # UNVERIFIED: the config lives inside the data directory, as on the RHEL family. Confirm with
+    # `runuser -u postgres -- psql -tAc 'SHOW config_file'` in the pinned Leap image.
+    suse)
+      echo "/var/lib/pgsql/data/postgresql.conf"
+      ;;
   esac
 }
 
@@ -175,6 +221,13 @@ pg_hba_path() {
       find /etc/postgresql -maxdepth 3 -name pg_hba.conf 2>/dev/null | sort -V | tail -1
       ;;
     rhel)
+      echo "/var/lib/pgsql/data/pg_hba.conf"
+      ;;
+    # UNVERIFIED: same directory as postgresql.conf. Confirm with
+    # `runuser -u postgres -- psql -tAc 'SHOW hba_file'` in the pinned Leap image. The panel connects
+    # through /var/run/postgresql (60-config.sh); confirm the socket exists there with
+    # `runuser -u postgres -- psql -tAc 'SHOW unix_socket_directories'`.
+    suse)
       echo "/var/lib/pgsql/data/pg_hba.conf"
       ;;
   esac

@@ -227,4 +227,18 @@ public sealed class CertificateTests
 
         Assert.Null(certificate.ExpiryAlertedAt);
     }
+
+    /// <summary>A certificate is plain unless it was recorded as a wildcard, and a renewal keeps whichever it was.</summary>
+    [Fact]
+    public void A_certificate_is_plain_unless_recorded_as_a_wildcard_and_a_renewal_keeps_the_choice()
+    {
+        var plain = SslTestContext.Certificate(Guid.NewGuid(), "a.example.com", Now.AddDays(5));
+        var wildcard = SslTestContext.Certificate(Guid.NewGuid(), "b.example.com", Now.AddDays(5), isWildcard: true);
+
+        plain.Renewed(Now.AddDays(90), Now);
+        wildcard.Renewed(Now.AddDays(90), Now);
+
+        Assert.False(plain.IsWildcard);
+        Assert.True(wildcard.IsWildcard);
+    }
 }

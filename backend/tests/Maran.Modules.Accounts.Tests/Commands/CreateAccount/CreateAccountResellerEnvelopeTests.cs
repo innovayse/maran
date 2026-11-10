@@ -1,5 +1,6 @@
 using Maran.Modules.Accounts.Commands.CreateAccount;
 using Maran.Modules.Accounts.Common;
+using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
@@ -104,7 +105,7 @@ public sealed class CreateAccountResellerEnvelopeTests : IDisposable
     {
         var world = Build(maxAccounts: 1);
         var admin = world.ContextFor(FakeCurrentUser.Admin());
-        (await admin.Accounts.SingleAsync(a => a.Id == world.AccountA.Id)).Suspend();
+        (await admin.Accounts.SingleAsync(a => a.Id == world.AccountA.Id)).Suspend(SuspensionActor.Administrator);
         await admin.SaveChangesAsync();
 
         var result = await CreateAsync(world, "second");

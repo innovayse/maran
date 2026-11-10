@@ -2,6 +2,7 @@ using Maran.Host.Modules;
 using Maran.Host.Tests.Modules.Fixtures;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
+using Maran.SharedKernel.Results;
 
 namespace Maran.Host.Tests.Modules;
 
@@ -76,6 +77,35 @@ public sealed class RuntimeModuleRegistryTests
         Assert.Equal(ModuleRegistry.All.Count + 1, listed.Count);
         Assert.Equal(("firewall", ModuleLifecycleState.Failed), (listed[^1].Id, listed[^1].State));
         Assert.Equal(ModuleLifecycleState.Active, listed.First(module => { return module.Id == "firewall"; }).State);
+    }
+
+    /// <summary>The cause the loader reports for a degraded module travels with its state; an active module has none.</summary>
+    [Fact]
+    public async Task The_cause_the_loader_reports_for_a_degraded_module_travels_with_its_state()
+    {
+        var cause = Error.Of("SomeCause", ErrorType.Forbidden);
+        var loader = new StubModuleLoader(
+            new LoadedModuleInfo("firewall", "1.0.0", ModuleLifecycleState.Degraded, "test", cause));
+
+        var listed = await RegistryOf(Compose("firewall"), loader).ListAsync(CancellationToken.None);
+
+        Assert.Equal(cause, listed.Single(module => { return module.Id == "firewall"; }).Failure);
+        Assert.All(
+            listed.Where(module => { return module.Id != "firewall"; }),
+            module => { Assert.Null(module.Failure); });
+    }
+
+    /// <summary>Only a composed packaged module is packaged; a shipped one is not.</summary>
+    [Fact]
+    public void Only_a_composed_packaged_module_is_packaged()
+    {
+        var composition = Compose("firewall");
+        var registry = RegistryOf(composition, new StubModuleLoader());
+
+        Assert.True(registry.IsPackaged(composition.Packaged.Single()));
+        Assert.All(
+            composition.Composed.Where(module => { return !composition.Packaged.Contains(module); }),
+            module => { Assert.False(registry.IsPackaged(module)); });
     }
 
     /// <summary>The registry exposes the composed modules for the catalogue to read.</summary>

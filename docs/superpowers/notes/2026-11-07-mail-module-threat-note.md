@@ -214,6 +214,83 @@ wording change first (D3); this note is not that amendment.
 - Whether the in-flight working tree changes the facts above: this note read the tree with uncommitted
   modifications present (`PROTO_VERSION` is 20 there; the plan's revision arithmetic assumes that).
 
+## Amendment 2026-11-09 (issue #458): port 25 trusted loopback
+
+**What was wrong.** The rendered `main.cf` set `mynetworks = 127.0.0.0/8 [::1]/128` and listed
+`permit_mynetworks` in `smtpd_relay_restrictions` and `smtpd_recipient_restrictions`. The `smtp inet`
+service (port 25) overrides none of them, so any process on the host, such as a customer's PHP site, cron
+job or uploaded script, could open `127.0.0.1:25` or `[::1]:25` and send to any recipient on the internet
+with any envelope sender and From, with no login. Concern 2 above says relay is possible only after SASL
+on 587/465 and that the sender-login check and the per-mailbox send limit bind every relayed message; for
+loopback the rendered configuration did not do that, and every account became an unauthenticated,
+forgeable, unmetered relay under the operator's IP reputation.
+
+**What changed.** No trust by network address. `mynetworks` is written explicitly empty (left unset,
+Postfix derives it from the interfaces). `permit_mynetworks` and `permit_sasl_authenticated` are gone from
+the two restriction lists of the port 25 service, which takes no login (`smtpd_sasl_auth_enable = no`):
+it now runs `reject_unauth_destination` and `reject_non_fqdn_recipient` only, so it accepts mail for a
+served virtual domain and refuses every other recipient, whatever address the peer connects from. Relaying
+exists only on `submission` and `smtps`, which already require TLS, SASL, `reject_sender_login_mismatch`
+and `permit_sasl_authenticated,reject`; the send limit keys on that authenticated mailbox.
+
+**The panel's own mail.** The panel keeps no network exemption. Its outgoing mail uses the existing SMTP
+settings (Notifications): point them at `127.0.0.1:587` with STARTTLS and the credentials of a mailbox
+that owns the sender address. Port 25 on this host no longer relays for the panel, so a panel configured
+for `127.0.0.1:25` without credentials stops delivering to external recipients until it is changed.
+
+**Why it is safe now.** There is no input to the relay decision that a local process can supply without a
+mailbox credential: the only relaying services demand one, and the rendered golden, a test that fails on
+the old template and a test that the submission services still take a login and bind the sender (the
+accepting control) pin both halves.
+
+**Residual, not closed by this change (OUTSTANDING).** The local submission path is separate from SMTP:
+a process that runs `/usr/sbin/sendmail` or `postdrop` (PHP's `mail()` does, the pool keeps it enabled)
+writes into the `maildrop` queue and `pickup` delivers it with no smtpd restriction at all. That path
+skips SASL, the sender-login check and the send limit too. Closing it means either removing `pickup` (and
+with it PHP `mail()` for customers) or giving local submission an authenticated, metered route; that is a
+product decision the owner has not taken and it is tracked separately. Not verified here: a real Postfix
+refusing a loopback relay attempt, because no polygon suite for mail exists yet (the assertions are on
+the rendered files). UNOBSERVED HERE: the daemon's own answer (`postconf -n`, an SMTP exchange).
+
+Second review: OUTSTANDING (#331).
+
+## Amendment 2026-11-09 (issue #500): local submission
+
+**What was wrong.** The residual named under the #458 amendment. A process that runs `/usr/sbin/sendmail`
+or `postdrop` (PHP's `mail()` does) writes into the `maildrop` queue and `pickup` delivers it, and no smtpd
+restriction sits on that road. Postfix's `authorized_submit_users` defaults to everybody, so any customer
+script could send to any recipient with any envelope sender, with no login, no `reject_sender_login_mismatch`
+and no per-mailbox hourly limit.
+
+**What changed.** `main.cf` now sets `authorized_submit_users = root, $mail_owner, <map type>:<postfix
+directory>/maran_local_submit_users`. `postdrop` (which `sendmail` also goes through) refuses a user the
+list does not name. The table is seeded EMPTY by `seed_mail_maps` and never rewritten once it exists, so
+the state of an enabled host is closed: only root and the Postfix owner may submit locally, and no
+customer process can until the mail data plane lists that account's system user. The data plane replaces
+the table whole, as it does the other lookup tables. The table sits in Postfix's own configuration
+directory and not under `/etc/maran` because `postdrop` reads it as the submitting customer's own uid, and
+`/etc/maran` is `root:maran 0750`. Nothing about the port 25 or submission services changed (#458 stays).
+
+**Why it is safe now.** There is no way for an account the operator has not enabled to put a message into
+the queue: the gate is Postfix's own, evaluated by the setgid helper before it writes. The rendered golden,
+a test that the line lists no `anyone` and no `/etc/maran` path, a test that the path follows the field and
+the map type (the accepting control), a test that both families name the table in their own Postfix
+directory, and the seed test (the table is created empty on a host that has none, and a populated one is
+never touched) pin it.
+
+**Residual, not closed by this change (OUTSTANDING).** For an account the data plane DOES list, a local
+submission still carries no per-mailbox identity: the envelope sender is whatever `sendmail -f` or the
+script chose, and nothing counts it against the account's hourly send limit. Postfix has no sender-to-user
+map for the maildrop road, and the send limit itself is not rendered anywhere yet (the data plane owns it).
+Closing it needs one of: a submit helper that speaks SMTP to the submission service as the account's
+mailbox (so the existing login, sender check and limit apply), or a milter that sees the submitting uid.
+Both are new components and a product decision, tracked separately. UNOBSERVED HERE: Postfix's own refusal
+by `postdrop` (`postconf -n`, a real `sendmail` as a customer uid) and the effect of the table being
+unreadable to a customer uid (it fails closed: a user the lookup cannot find is refused). No polygon suite
+for mail exists, so the assertions are on the rendered files and the plan.
+
+Second review: OUTSTANDING (#331).
+
 ## Website docs needed (for the owner)
 
 Operator guide (enable, ports to open, PTR and port-25 egress, DNS records, DKIM rotation, the master

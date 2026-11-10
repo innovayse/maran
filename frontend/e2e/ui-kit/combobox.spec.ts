@@ -1,10 +1,12 @@
-import { expect, test, type Page, type Request } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubDatabases } from '../fixtures/stub-databases-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
+import type { Page, Request } from '@playwright/test'
 
 // Issue #196: account pickers search the panel instead of offering the first hundred accounts held
 // in the browser. `UiCombobox` is exercised on the database create form, the simplest screen that
@@ -52,6 +54,7 @@ const openScreen = async (page: Page): Promise<() => readonly URL[]> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, [{ name: 'databases', displayName: 'Databases', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
+  await stubShellReads(page)
   await stubAccounts(page, ACCOUNTS)
   await stubDatabases(page, [])
   await page.goto('/databases')

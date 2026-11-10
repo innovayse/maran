@@ -114,7 +114,7 @@ fn the_rhel_family_reports_exactly_the_four_units_the_panel_manages() {
 /// `sh` is in the table for the same reason and not because the agent spawns it
 /// — it never does — but because the path is written into a crontab line, where
 /// a wrong one is a cron entry that silently never runs.
-const EXPECTED_BINARIES: [(&str, &str); 26] = [
+const EXPECTED_BINARIES: [(&str, &str); 30] = [
     ("useradd", "/usr/sbin/useradd"),
     ("usermod", "/usr/sbin/usermod"),
     ("pkill", "/usr/bin/pkill"),
@@ -126,6 +126,9 @@ const EXPECTED_BINARIES: [(&str, &str); 26] = [
     ("userdel", "/usr/sbin/userdel"),
     ("chpasswd", "/usr/sbin/chpasswd"),
     ("ssh-keygen", "/usr/bin/ssh-keygen"),
+    ("ssh", "/usr/bin/ssh"),
+    ("ssh-keyscan", "/usr/bin/ssh-keyscan"),
+    ("rsync", "/usr/bin/rsync"),
     ("setquota", "/usr/sbin/setquota"),
     ("quota", "/usr/bin/quota"),
     ("quotaon", "/usr/sbin/quotaon"),
@@ -141,10 +144,11 @@ const EXPECTED_BINARIES: [(&str, &str); 26] = [
     ("database_dump", "/usr/bin/mariadb-dump"),
     ("getent", "/usr/bin/getent"),
     ("package_query", "/usr/bin/dnf"),
+    ("package_candidate", "/usr/bin/dnf"),
 ];
 
 /// The adapter's answer for each tool, in the order of [`EXPECTED_BINARIES`].
-fn actual_binaries() -> [String; 26] {
+fn actual_binaries() -> [String; 30] {
     [
         RhelAdapter.useradd_binary().to_string(),
         RhelAdapter.usermod_binary().to_string(),
@@ -157,6 +161,9 @@ fn actual_binaries() -> [String; 26] {
         RhelAdapter.userdel_binary().to_string(),
         RhelAdapter.chpasswd_binary().to_string(),
         RhelAdapter.ssh_keygen_binary().to_string(),
+        RhelAdapter.ssh_binary().to_string(),
+        RhelAdapter.ssh_keyscan_binary().to_string(),
+        RhelAdapter.rsync_binary().to_string(),
         RhelAdapter.setquota_binary().to_string(),
         RhelAdapter.quota_binary().to_string(),
         RhelAdapter.quotaon_binary().to_string(),
@@ -172,6 +179,7 @@ fn actual_binaries() -> [String; 26] {
         RhelAdapter.database_dump_binary().to_string(),
         RhelAdapter.getent_binary().to_string(),
         RhelAdapter.package_query_binary().to_string(),
+        RhelAdapter.package_candidate_binary().to_string(),
     ]
 }
 
@@ -205,6 +213,36 @@ fn no_tool_is_named_by_something_path_would_resolve() {
              so the environment and not this crate would be choosing the program",
         );
     }
+}
+
+/// The RHEL family spawns the OpenSSH client from the path its `openssh-clients` package installs it at.
+#[test]
+fn the_rhel_family_names_the_ssh_client_where_the_package_puts_it() {
+    assert_eq!(RhelAdapter.ssh_binary(), "/usr/bin/ssh");
+}
+
+/// The RHEL family spawns `ssh-keyscan` from the path its `openssh-clients` package installs it at.
+#[test]
+fn the_rhel_family_names_ssh_keyscan_where_the_package_puts_it() {
+    assert_eq!(RhelAdapter.ssh_keyscan_binary(), "/usr/bin/ssh-keyscan");
+}
+
+/// The three programs a migration source is reached with are three different files.
+///
+/// The inverse control for the two tests above: each is satisfied by an adapter
+/// that answers the same path for all three, which would make a connection run
+/// the key generator or a scan run the client.
+#[test]
+fn the_rhel_family_names_the_three_ssh_programs_apart() {
+    let all = [
+        RhelAdapter.ssh_binary().to_string(),
+        RhelAdapter.ssh_keyscan_binary().to_string(),
+        RhelAdapter.ssh_keygen_binary().to_string(),
+    ];
+
+    assert_ne!(all[0], all[1]);
+    assert_ne!(all[0], all[2]);
+    assert_ne!(all[1], all[2]);
 }
 
 /// The adapter traits' own sources (every concern trait `DistroAdapter` composes),
@@ -277,6 +315,7 @@ fn every_executable() -> Vec<(&'static str, AdapterBinary)> {
         ("passwd", RhelAdapter.passwd_binary()),
         ("getent", RhelAdapter.getent_binary()),
         ("package_query", RhelAdapter.package_query_binary()),
+        ("package_candidate", RhelAdapter.package_candidate_binary()),
         ("setquota", RhelAdapter.setquota_binary()),
         ("quota", RhelAdapter.quota_binary()),
         ("quotaon", RhelAdapter.quotaon_binary()),
@@ -286,6 +325,9 @@ fn every_executable() -> Vec<(&'static str, AdapterBinary)> {
         ("chgrp", RhelAdapter.chgrp_binary()),
         ("chpasswd", RhelAdapter.chpasswd_binary()),
         ("ssh-keygen", RhelAdapter.ssh_keygen_binary()),
+        ("ssh", RhelAdapter.ssh_binary()),
+        ("ssh_keyscan", RhelAdapter.ssh_keyscan_binary()),
+        ("rsync", RhelAdapter.rsync_binary()),
         ("crontab", RhelAdapter.crontab_binary()),
         ("nft", RhelAdapter.nft_binary()),
         ("postfix", RhelAdapter.postfix_binary()),
@@ -523,4 +565,34 @@ fn the_rhel_family_runs_the_dns_daemon_as_its_own_user_and_group() {
 fn the_rhel_family_keeps_zone_files_below_the_dns_state_directory() {
     assert_eq!(RhelAdapter.dns_state_directory(), "/var/named/maran");
     assert_eq!(RhelAdapter.dns_zone_directory(), "/var/named/maran/zones");
+}
+
+/// Signed zones and their keys sit in two directories of their own below the state directory, apart from the read-only plain zone directory and from each other.
+#[test]
+fn the_rhel_family_keeps_signed_zones_and_keys_in_their_own_directories() {
+    assert_eq!(
+        RhelAdapter.dns_signed_zone_directory(),
+        "/var/named/maran/signed-zones"
+    );
+    assert_eq!(RhelAdapter.dns_key_directory(), "/var/named/maran/keys");
+
+    let directories = [
+        RhelAdapter.dns_zone_directory(),
+        RhelAdapter.dns_signed_zone_directory(),
+        RhelAdapter.dns_key_directory(),
+    ];
+    for (index, directory) in directories.iter().enumerate() {
+        assert!(directory.starts_with(RhelAdapter.dns_state_directory()));
+        for other in &directories[index + 1..] {
+            assert!(
+                !other.starts_with(directory) && !directory.starts_with(other),
+                "{directory} and {other} must not nest"
+            );
+        }
+    }
+}
+
+#[test]
+fn the_rhel_family_names_rsync_at_its_documented_path() {
+    assert_eq!(RhelAdapter.rsync_binary(), "/usr/bin/rsync");
 }

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
@@ -8,8 +8,10 @@ import {
   stubbedBucket,
   stubMonitoring,
 } from '../fixtures/stub-monitoring-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { AccountDiskUsage, ChartRange, MetricBucket, ServiceStatus } from '../../src/types/monitoring'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 const LICENSED: PanelModule[] = [
   { name: 'monitoring', displayName: 'Monitoring', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -89,6 +91,7 @@ const openMonitoring = async (page: Page, accounts: AccountDiskUsage[] = ACCOUNT
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubMonitoring(page, BUCKETS, SERVICES, accounts)
   await page.goto('/monitoring')
   // A generous timeout for the FIRST paint only: on the dev server a cold module graph occasionally

@@ -6,6 +6,7 @@ use crate::backup::archive::checksum_file::checksum_file;
 use crate::backup::archive::encrypt_artifact::encrypt_artifact;
 use crate::backup::model::backup_summary::BackupSummary;
 use crate::backup::recording_backup_host::{LIST_PROGRAM, RecordingBackupHost};
+use crate::backup::recording_jail_mounts::RecordingJailMounts;
 
 use super::super::*;
 use super::restore_fixture::{
@@ -61,6 +62,7 @@ fn run_keyed(
         &RestoreScope::Whole,
         expected_sha256,
         key,
+        &RecordingJailMounts::new(),
         &mut sink(),
     )
 }

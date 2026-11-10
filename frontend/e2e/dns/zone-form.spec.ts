@@ -1,5 +1,6 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { ALICE, CUSTOMER, openDnsScreen } from '../fixtures/open-dns-screen'
+import { WEB_AND_MAIL_TEMPLATE, WEB_TEMPLATE, openDnsTemplatesScreen } from '../fixtures/stub-dns-templates-routes'
 
 // The create-zone form (issue #178). Its checks are advice that saves a round trip; the server
 // decides which names an account may create (a name one of its sites claims) and its refusal is
@@ -30,7 +31,7 @@ test('an administrator creates a zone for an account and lands on the new zone',
   const created = state.requests.find((request) => {
     return request.method === 'POST'
   })
-  expect(created?.body).toEqual({ accountId: ALICE.id, name: 'example.com' })
+  expect(created?.body).toEqual({ accountId: ALICE.id, name: 'example.com', templateId: null })
 })
 
 test('a customer creates a zone without choosing an account', async ({ page }) => {
@@ -46,7 +47,7 @@ test('a customer creates a zone without choosing an account', async ({ page }) =
   const created = state.requests.find((request) => {
     return request.method === 'POST'
   })
-  expect(created?.body).toEqual({ accountId: ALICE.id, name: 'alice.example.com' })
+  expect(created?.body).toEqual({ accountId: ALICE.id, name: 'alice.example.com', templateId: null })
 })
 
 test('a name that cannot be a zone is refused without asking the server', async ({ page }) => {
@@ -81,7 +82,8 @@ test('the administrator must choose an account before the form asks the server',
   expect(creates(state.requests)).toBe(0)
 })
 
-test('the server\'s refusal is shown above the form in its own words and the form stays', async ({ page }) => {
+test('the server\'s refusal is shown above the form in its own words and the form stays', async ({ page, guard }) => {
+  guard.allow(409, /\/api\/v1\/dns-zones$/)
   await openDnsScreen(
     page,
     {
@@ -108,4 +110,78 @@ test('cancel returns to the list without sending anything', async ({ page }) => 
 
   await expect(page).toHaveURL(/\/dns\/zones$/)
   expect(creates(state.requests)).toBe(0)
+})
+
+// The template a zone starts from (issue #452). The choices come from the panel (names only, never
+// records), the default one is preselected, and "empty zone" is always offered.
+
+test('the default template is preselected and its identity is sent with the new zone', async ({ page }) => {
+  const { dns } = await openDnsTemplatesScreen(page, { templates: [WEB_TEMPLATE, WEB_AND_MAIL_TEMPLATE] }, { zones: [] }, CUSTOMER)
+
+  await page.goto('/dns/zones/new')
+
+  const select = page.getByRole('combobox', { name: 'Start from' })
+  await expect(select).toContainText('web')
+  await page.getByRole('textbox', { name: 'Domain name' }).fill('alice.example.com')
+  await page.getByRole('button', { name: 'Create zone' }).click()
+
+  await expect(page).toHaveURL(/\/dns\/zones\/99999999/)
+  const created = dns.requests.find((request) => {
+    return request.method === 'POST'
+  })
+  expect(created?.body).toEqual({ accountId: ALICE.id, name: 'alice.example.com', templateId: WEB_TEMPLATE.id })
+})
+
+test('choosing another template sends that template, and the empty zone sends none', async ({ page }) => {
+  const { dns } = await openDnsTemplatesScreen(page, { templates: [WEB_TEMPLATE, WEB_AND_MAIL_TEMPLATE] }, { zones: [] }, CUSTOMER)
+
+  await page.goto('/dns/zones/new')
+  await expect(page.getByRole('combobox', { name: 'Start from' })).toContainText('web')
+  await page.getByRole('combobox', { name: 'Start from' }).click()
+  await page.getByRole('option', { name: 'web and mail' }).click()
+  await page.getByRole('textbox', { name: 'Domain name' }).fill('alice.example.com')
+  await page.getByRole('button', { name: 'Create zone' }).click()
+  await expect(page).toHaveURL(/\/dns\/zones\/99999999/)
+
+  await page.goto('/dns/zones/new')
+  await page.getByRole('combobox', { name: 'Start from' }).click()
+  await page.getByRole('option', { name: 'Empty zone' }).click()
+  await page.getByRole('textbox', { name: 'Domain name' }).fill('alice.example.org')
+  await page.getByRole('button', { name: 'Create zone' }).click()
+  await expect(page).toHaveURL(/\/dns\/zones\/99999999/)
+
+  const bodies = dns.requests
+    .filter((request) => {
+      return request.method === 'POST'
+    })
+    .map((request) => {
+      return (request.body as { templateId: string | null }).templateId
+    })
+  expect(bodies).toEqual([WEB_AND_MAIL_TEMPLATE.id, null])
+})
+
+test('with no default template the form starts from an empty zone', async ({ page }) => {
+  await openDnsTemplatesScreen(page, { templates: [{ ...WEB_AND_MAIL_TEMPLATE, isDefault: false }] }, { zones: [] }, CUSTOMER)
+
+  await page.goto('/dns/zones/new')
+
+  await expect(page.getByRole('combobox', { name: 'Start from' })).toContainText('Empty zone')
+})
+
+test('the panel refusing the template is shown above the form and the form stays', async ({ page, guard }) => {
+  guard.allow(404, /\/api\/v1\/dns-zones$/)
+  await openDnsTemplatesScreen(
+    page,
+    { templates: [WEB_TEMPLATE] },
+    { zones: [], refusals: { 'POST dns-zones': { detail: 'The template no longer exists.', status: 404 } } },
+    CUSTOMER,
+  )
+
+  await page.goto('/dns/zones/new')
+  await expect(page.getByRole('combobox', { name: 'Start from' })).toContainText('web')
+  await page.getByRole('textbox', { name: 'Domain name' }).fill('alice.example.com')
+  await page.getByRole('button', { name: 'Create zone' }).click()
+
+  await expect(page.getByText('The template no longer exists.')).toBeVisible()
+  await expect(page).toHaveURL(/\/dns\/zones\/new$/)
 })

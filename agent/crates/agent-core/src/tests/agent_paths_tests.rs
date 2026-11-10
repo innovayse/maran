@@ -43,6 +43,17 @@ fn two_accounts_never_share_a_limits_file() {
 }
 
 #[test]
+fn the_local_submit_users_table_sits_in_postfixs_own_directory() {
+    // Issue #500: postdrop reads this table as the customer's uid, so it cannot
+    // live under /etc/maran, which a customer cannot enter.
+    assert_eq!(
+        AgentPaths::mail_local_submit_users_path("/etc/postfix"),
+        Path::new("/etc/postfix/maran_local_submit_users")
+    );
+    assert!(!AgentPaths::mail_local_submit_users_path("/etc/postfix").starts_with("/etc/maran"));
+}
+
+#[test]
 fn the_cron_directory_sits_inside_the_accounts_own_home() {
     assert_eq!(
         AgentPaths::account_cron_dir(&account()),
@@ -232,6 +243,49 @@ fn the_small_and_the_bulk_scratch_are_two_different_places() {
         Path::new(AgentPaths::BULK_SCRATCH_ROOT),
         AgentPaths::agent_scratch_dir()
     );
+}
+
+#[test]
+fn the_transfer_scratch_is_on_the_tmpfs_below_the_agents_runtime_directory() {
+    // A migration source's private key must not reach a disk: the directory is
+    // under /run (a tmpfs, emptied by a reboot) and inside the tree the unit's
+    // RuntimeDirectory= and ReadWritePaths= already cover, so no unit entry is
+    // needed for it.
+    let scratch = Path::new(AgentPaths::TRANSFER_SCRATCH_DIRECTORY);
+
+    assert!(scratch.is_absolute());
+    assert!(scratch.starts_with("/run/maran"));
+    assert_ne!(scratch, Path::new("/run/maran"));
+}
+
+#[test]
+fn the_transfer_scratch_is_a_place_of_its_own_and_not_one_the_other_scratches_share() {
+    // The inverse control for the test above: it is also satisfied by the key
+    // landing in the crontab staging directory or on the disk-backed bulk root,
+    // where another operation's cleanup would sweep it or a disk would keep it.
+    let scratch = Path::new(AgentPaths::TRANSFER_SCRATCH_DIRECTORY);
+
+    assert!(!scratch.starts_with(AgentPaths::agent_scratch_dir()));
+    assert!(!scratch.starts_with(AgentPaths::BULK_SCRATCH_ROOT));
+    assert!(!scratch.starts_with(AgentPaths::ACCOUNT_HOME_ROOT));
+    assert!(!scratch.starts_with("/var/lib/maran/"));
+}
+
+#[test]
+fn the_transfer_receiver_directory_is_a_sibling_of_the_scratch_and_never_inside_it() {
+    // The receiver runs as the account, which cannot enter the root-only scratch,
+    // so its key lives in a directory the account can traverse. Inside the scratch
+    // it would be unreachable; on the disk-backed roots it would be kept.
+    let receivers = Path::new(AgentPaths::TRANSFER_RECEIVER_DIRECTORY);
+
+    // Not under /run/maran, whose unit mode (0750) an account cannot traverse;
+    // under the mount-point directory the unit's BindPaths= makes.
+    assert!(receivers.starts_with("/run/maran-host"));
+    assert!(!receivers.starts_with("/run/maran/"));
+    assert!(!receivers.starts_with(AgentPaths::TRANSFER_SCRATCH_DIRECTORY));
+    assert!(!Path::new(AgentPaths::TRANSFER_SCRATCH_DIRECTORY).starts_with(receivers));
+    assert!(!receivers.starts_with(AgentPaths::BULK_SCRATCH_ROOT));
+    assert!(!receivers.starts_with(AgentPaths::ACCOUNT_HOME_ROOT));
 }
 
 #[test]

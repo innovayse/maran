@@ -68,6 +68,13 @@ public sealed class ResellerAgentAccountsClient : IAgentAccountsClient
     /// <summary>Whether the accounts' logins are locked, which a suspension sets and a resumption clears.</summary>
     private volatile AccountLoginPasswordState _loginState = AccountLoginPasswordState.Usable;
 
+    /// <summary>
+    /// Run while a quota push is in flight, before it answers, or <c>null</c> for none. A test uses it to do
+    /// something at the one moment an ownership change is half-done: the agent has been told, the row is
+    /// not yet written (issue #460).
+    /// </summary>
+    public Func<Task>? DuringQuotaPush { get; set; }
+
     /// <summary>Every account name the panel asked this agent to create.</summary>
     public IReadOnlyList<string> Created
     {
@@ -159,7 +166,7 @@ public sealed class ResellerAgentAccountsClient : IAgentAccountsClient
     }
 
     /// <inheritdoc />
-    public Task<Result> SetQuotaAsync(
+    public async Task<Result> SetQuotaAsync(
         string username,
         ulong quotaBytes,
         ulong? inodeLimit,
@@ -167,7 +174,12 @@ public sealed class ResellerAgentAccountsClient : IAgentAccountsClient
     {
         _quotas.Enqueue((username, quotaBytes));
 
-        return Task.FromResult(Result.Ok());
+        if (DuringQuotaPush is { } during)
+        {
+            await during();
+        }
+
+        return Result.Ok();
     }
 
     /// <inheritdoc />

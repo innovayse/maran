@@ -48,6 +48,9 @@
   <data name="AgentPackageSourceUnreachable">
     <value>No package repository your server installs from could be reached, so nothing was installed. This is usually a temporary network problem; please try again in a few minutes, and contact support if it keeps happening.</value>
   </data>
+  <data name="AgentPackageNotAvailable">
+    <value>None of the package repositories configured on your server carries the software you asked to install, so nothing was installed. This server's operating system release does not offer it; choose a version from the list the page shows, or ask your administrator to add a repository that provides it.</value>
+  </data>
   <data name="AgentUnavailable">
     <value>Your server is not answering right now, so this request could not be confirmed. Please try again in a minute, and contact support if it keeps happening.</value>
   </data>

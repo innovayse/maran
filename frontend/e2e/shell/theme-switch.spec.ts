@@ -1,7 +1,10 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
+import type { Locator, Page } from '@playwright/test'
 
 // Issue #217, point 3: one labelled theme control — the mode in force with its icon, named
 // "Theme: <mode>" — opening a menu of Light, Dark and System, the same in the app bar on the
@@ -20,6 +23,8 @@ const openShell = async (page: Page, stored: string): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
   await page.goto('/')
 }
 

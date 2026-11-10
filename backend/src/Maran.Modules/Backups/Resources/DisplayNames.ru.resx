@@ -66,6 +66,9 @@
   <data name="BackupFailureAgentPackageSourceUnreachable">
     <value>Не удалось связаться с источником пакетов</value>
   </data>
+  <data name="BackupFailureAgentPackageNotAvailable">
+    <value>Нужный серверу пакет не предлагается его источниками пакетов</value>
+  </data>
   <data name="BackupFailureAgentBelowFreeSpaceFloor">
     <value>На сервере почти закончилось место на диске</value>
   </data>
@@ -119,6 +122,9 @@
   </data>
   <data name="BackupKindPreRestore">
     <value>Перед восстановлением</value>
+  </data>
+  <data name="BackupKindMigration">
+    <value>Для переноса на другой сервер</value>
   </data>
   <data name="BackupDestinationKindLocal">
     <value>Диск этого сервера</value>

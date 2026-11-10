@@ -17,9 +17,12 @@ public static class IpmEntryNameRule
     /// <summary>The most folders and the file name together a path may have.</summary>
     private const int MaxSegments = 16;
 
-    /// <summary>One path segment: the allow-list above.</summary>
+    /// <summary>
+    /// One path segment: the allow-list above. Anchored with <c>\z</c>, the true end of the input:
+    /// <c>$</c> also matches before a final line feed, so a name ending in one would pass.
+    /// </summary>
     private static readonly Regex Segment = new(
-        "^[A-Za-z0-9._-]+$",
+        @"^[A-Za-z0-9._-]+\z",
         RegexOptions.CultureInvariant,
         TimeSpan.FromSeconds(1));
 

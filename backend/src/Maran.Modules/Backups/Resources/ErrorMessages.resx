@@ -42,6 +42,9 @@
   <data name="PreRestoreBackupFailed">
     <value>The account was not restored: a backup of it as it is now could not be made first, so nothing was changed.</value>
   </data>
+  <data name="BackupAllowanceReached">
+    <value>This account already holds the most backups it may keep by hand. Nothing was created; delete an older backup first.</value>
+  </data>
   <data name="BackupNotRestorable">
     <value>This backup cannot be restored: it did not finish successfully.</value>
   </data>
@@ -167,5 +170,8 @@
   </data>
   <data name="RestoreScopeNotInBackup">
     <value>This backup does not hold the database or site you chose (it may have been created after the backup was taken), or the backup file is no longer on the server. Nothing was changed.</value>
+  </data>
+  <data name="MigrationBackupFailed">
+    <value>The backup to move could not be made, so the account was not exported.</value>
   </data>
 </root>

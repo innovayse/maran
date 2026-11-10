@@ -1,3 +1,5 @@
+using Maran.Modules.Dns.Domain.Enums;
+
 namespace Maran.Modules.Dns.Common;
 
 /// <summary>One DNS zone as a screen shows it.</summary>
@@ -13,6 +15,14 @@ namespace Maran.Modules.Dns.Common;
 /// The name servers the zone names, which the owner delegates the domain to at the registrar. Empty while the
 /// administrator has stated none.
 /// </param>
+/// <param name="SkippedTemplateRecords">
+/// The records of the zone's template that were left out because a setting they need is not stated; empty
+/// for every zone read after its creation, and for a zone created without a template.
+/// </param>
+/// <param name="DnssecState">
+/// Where the zone is in its DNSSEC life, so a list or a confirmation can warn about a zone whose registrar
+/// may hold a DS record for it.
+/// </param>
 public sealed record ZoneDto(
     Guid Id,
     Guid AccountId,
@@ -22,4 +32,6 @@ public sealed record ZoneDto(
     int RecordCount,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    IReadOnlyList<string> Nameservers);
+    IReadOnlyList<string> Nameservers,
+    IReadOnlyList<SkippedTemplateRecordDto> SkippedTemplateRecords,
+    DnssecState DnssecState);

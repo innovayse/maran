@@ -46,7 +46,11 @@ public sealed class PanelSecurityOperationFilter : IOperationFilter
         }
 
         var schemes = policy.AuthenticationSchemes;
-        if (schemes.Count == 0 || schemes.Contains(JwtBearerDefaults.AuthenticationScheme))
+        // An export grant travels as a bearer value in the same header, so the document states it as the bearer
+        // scheme; which token an endpoint accepts is its policy's business, not the document's.
+        if (schemes.Count == 0
+            || schemes.Contains(JwtBearerDefaults.AuthenticationScheme)
+            || schemes.Contains(MigrationGrantDefaults.Scheme))
         {
             operation.Security.Add(Requirement(OpenApiDocumentNames.BearerScheme));
         }

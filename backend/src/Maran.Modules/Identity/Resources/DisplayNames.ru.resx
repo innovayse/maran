@@ -28,7 +28,7 @@
     <value>Выход выполнен на всех устройствах</value>
   </data>
   <data name="AuditActionSessionRevoked">
-    <value>Сессия отозвана</value>
+    <value>Сеанс отозван</value>
   </data>
   <data name="AuditActionRefreshTokenReuseDetected">
     <value>Обнаружено повторное использование токена обновления</value>
@@ -37,10 +37,10 @@
     <value>Переключение активного аккаунта</value>
   </data>
   <data name="AuditActionTwoFactorEnabled">
-    <value>Двухфакторная проверка включена</value>
+    <value>Двухэтапная проверка включена</value>
   </data>
   <data name="AuditActionTwoFactorDisabled">
-    <value>Двухфакторная проверка отключена</value>
+    <value>Двухэтапная проверка отключена</value>
   </data>
   <data name="AuditActionRecoveryCodeUsed">
     <value>Использован код восстановления</value>
@@ -136,7 +136,7 @@
     <value>Сужены права доступа к базам данных</value>
   </data>
   <data name="AuditActionAccountHomeGroupsRepaired">
-    <value>Восстановлены группы домашних каталогов учётных записей</value>
+    <value>Восстановлены группы домашних каталогов аккаунтов</value>
   </data>
   <data name="AuditActionPlanCreated">
     <value>Тариф создан</value>
@@ -289,6 +289,9 @@
   <data name="AuditActionPasswordResetRefused">
     <value>Отклонён токен сброса пароля</value>
   </data>
+  <data name="AuditActionCredentialTokensRetired">
+    <value>Отозваны токены приглашения и сброса пароля</value>
+  </data>
   <data name="AuditActionSecurityPolicySaved">
     <value>Сохранена политика безопасности</value>
   </data>
@@ -320,13 +323,25 @@
     <value>Изменена настройка шифрования резервных копий</value>
   </data>
   <data name="AuditActionBackupOptedOut">
-    <value>Учётная запись исключена из резервного копирования по расписанию</value>
+    <value>Аккаунт исключён из резервного копирования по расписанию</value>
   </data>
   <data name="AuditActionLicenceStatusRead">
     <value>Прочитан статус лицензии</value>
   </data>
   <data name="AuditActionLicenceInstalled">
     <value>Установлена лицензия</value>
+  </data>
+  <data name="AuditActionLicenceModuleLapsed">
+    <value>Срок действия лицензии модуля истёк</value>
+  </data>
+  <data name="AuditActionLicenceModuleRecovered">
+    <value>Модуль снова покрыт лицензией</value>
+  </data>
+  <data name="AuditActionLicenceLeaseRenewed">
+    <value>Аренда лицензии продлена</value>
+  </data>
+  <data name="AuditActionLicenceLeaseRenewalFailed">
+    <value>Не удалось продлить аренду лицензии</value>
   </data>
   <data name="AuditActionCustomerInvited">
     <value>Клиент приглашён</value>
@@ -607,6 +622,9 @@
   <data name="AuditActionPanelUpdateRequested">
     <value>Администратор запросил обновление панели</value>
   </data>
+  <data name="AuditActionPanelUpdateCheckRequested">
+    <value>Администратор запросил проверку обновлений панели</value>
+  </data>
   <data name="AuditActionPanelUpdateRunApplied">
     <value>Запрошенное обновление панели установлено</value>
   </data>
@@ -651,6 +669,30 @@
   </data>
   <data name="AuditActionModuleRestartRequested">
     <value>Запрошен перезапуск панели для запуска модуля</value>
+  </data>
+  <data name="AuditActionReauthenticationFailed">
+    <value>Повторный ввод пароля отклонён</value>
+  </data>
+  <data name="AuditActionMarketplaceEnabled">
+    <value>Маркетплейс включён</value>
+  </data>
+  <data name="AuditActionMarketplaceDisabled">
+    <value>Маркетплейс выключен</value>
+  </data>
+  <data name="AuditActionModuleInstallRequested">
+    <value>Запрошена установка модуля из маркетплейса</value>
+  </data>
+  <data name="AuditActionModuleUpdateRequested">
+    <value>Запрошено обновление модуля из маркетплейса</value>
+  </data>
+  <data name="AuditActionModuleRemoveRequested">
+    <value>Запрошено удаление модуля</value>
+  </data>
+  <data name="AuditActionModuleRollbackRequested">
+    <value>Запрошен откат модуля</value>
+  </data>
+  <data name="AuditActionCatalogueVerificationFailed">
+    <value>Каталог маркетплейса не прошёл проверку подписи</value>
   </data>
   <data name="AuditActionDnsEnabled">
     <value>Сервер DNS включён</value>
@@ -735,5 +777,218 @@
   </data>
   <data name="AuditActionMailAutoresponderCleared">
     <value>Автоответ удалён</value>
+  </data>
+  <data name="AuditActionZoneTemplateSaved">
+    <value>Шаблон DNS-зоны сохранён</value>
+  </data>
+  <data name="AuditActionZoneTemplateDeleted">
+    <value>Шаблон DNS-зоны удалён</value>
+  </data>
+  <data name="AuditActionZoneTemplateDefaultChanged">
+    <value>Шаблон DNS-зоны по умолчанию изменён</value>
+  </data>
+  <data name="AuditActionZoneSigningEnabled">
+    <value>Подписание DNSSEC включено для DNS-зоны</value>
+  </data>
+  <data name="AuditActionZoneSigningWithdrawalStarted">
+    <value>Начат вывод DNS-зоны из подписания DNSSEC</value>
+  </data>
+  <data name="AuditActionZoneSigningWithdrawn">
+    <value>DNS-зона выведена из подписания DNSSEC</value>
+  </data>
+  <data name="AuditSubjectChainIntact">
+    <value>Цепочка цела, проверено строк: {0}</value>
+  </data>
+  <data name="AuditSubjectChainBroken">
+    <value>Цепочка нарушена ({0}), начиная со строки {1}, проверено строк: {2}</value>
+  </data>
+  <data name="AuditSubjectChainBrokenNoIndex">
+    <value>Цепочка нарушена ({0}), проверено строк: {1}</value>
+  </data>
+  <data name="AuditSubjectChainBreakRowHashMismatch">
+    <value>строка была изменена</value>
+  </data>
+  <data name="AuditSubjectChainBreakCommitmentMismatch">
+    <value>стираемые поля не совпадают с обязательством</value>
+  </data>
+  <data name="AuditSubjectChainBreakIndexGap">
+    <value>пропущена строка</value>
+  </data>
+  <data name="AuditSubjectChainBreakAnchorMismatch">
+    <value>первая строка не следует за последней очисткой</value>
+  </data>
+  <data name="AuditSubjectChainBreakSaltMissing">
+    <value>у строки нет ни соли, ни отметки о стирании</value>
+  </data>
+  <data name="AuditSubjectRetentionChange">
+    <value>С {0} на {1}</value>
+  </data>
+  <data name="AuditSubjectRetentionDays">
+    <value>{0} дн.</value>
+  </data>
+  <data name="AuditSubjectRetentionIndefinite">
+    <value>без ограничения</value>
+  </data>
+  <data name="AuditSubjectRetentionRun">
+    <value>Срок {0}, граница {1}, удалено строк: {2}, до индекса цепочки {3}</value>
+  </data>
+  <data name="AuditSubjectRetentionRunFailed">
+    <value>Срок {0}, запуск не завершён</value>
+  </data>
+  <data name="AuditSubjectNoCutoff">
+    <value>нет</value>
+  </data>
+  <data name="AuditSubjectCutoff">
+    <value>{0:g} UTC</value>
+  </data>
+  <data name="AuditSubjectThresholds">
+    <value>Диск {0}, процессор {1}, память {2}</value>
+  </data>
+  <data name="AuditSubjectThresholdPercent">
+    <value>{0}%</value>
+  </data>
+  <data name="AuditSubjectThresholdOff">
+    <value>не отслеживается</value>
+  </data>
+  <data name="AuditSubjectChange">
+    <value>{0} → {1}</value>
+  </data>
+  <data name="AuditSubjectLogLevelVerbose">
+    <value>Подробный</value>
+  </data>
+  <data name="AuditSubjectLogLevelDebug">
+    <value>Отладка</value>
+  </data>
+  <data name="AuditSubjectLogLevelInformation">
+    <value>Информация</value>
+  </data>
+  <data name="AuditSubjectLogLevelWarning">
+    <value>Предупреждение</value>
+  </data>
+  <data name="AuditSubjectLogLevelError">
+    <value>Ошибка</value>
+  </data>
+  <data name="AuditSubjectLogLevelFatal">
+    <value>Критический</value>
+  </data>
+  <data name="AuditActionRemoteServerAdded">
+    <value>Удалённый сервер зарегистрирован</value>
+  </data>
+  <data name="AuditActionRemoteServerHostKeyPinned">
+    <value>Ключ хоста удалённого сервера подтверждён</value>
+  </data>
+  <data name="AuditActionRemoteServerTested">
+    <value>Подключение к удалённому серверу проверено</value>
+  </data>
+  <data name="AuditActionRemoteServerEdited">
+    <value>Удалённый сервер изменён</value>
+  </data>
+  <data name="AuditActionRemoteServerRemoved">
+    <value>Удалённый сервер удалён</value>
+  </data>
+  <data name="AuditActionRemoteServerDiscovered">
+    <value>Содержимое удалённого сервера прочитано</value>
+  </data>
+  <data name="AuditActionRemoteServerHostKeysScanned">
+    <value>Ключи хоста удалённого сервера прочитаны</value>
+  </data>
+  <data name="AuditActionAccountExported">
+    <value>Аккаунт экспортирован</value>
+  </data>
+  <data name="AuditActionExportGrantIssued">
+    <value>Выдано разрешение на загрузку экспорта</value>
+  </data>
+  <data name="AuditActionExportGrantRevoked">
+    <value>Разрешение на загрузку экспорта отозвано</value>
+  </data>
+  <data name="AuditActionExportDownloaded">
+    <value>Экспорт загружен</value>
+  </data>
+  <data name="AuditActionExportGrantPulled">
+    <value>Экспорт получен по разрешению</value>
+  </data>
+  <data name="AuditActionExportExpired">
+    <value>Срок хранения экспорта истёк, он удалён</value>
+  </data>
+  <data name="AuditActionImportPullPreviewed">
+    <value>Предпросмотр пакета с другой панели прочитан</value>
+  </data>
+  <data name="AuditActionImportPulled">
+    <value>Пакет получен с другой панели</value>
+  </data>
+  <data name="AuditActionImportStaged">
+    <value>Пакет импорта подготовлен</value>
+  </data>
+  <data name="AuditActionImportPlanned">
+    <value>Пробный запуск импорта прочитан</value>
+  </data>
+  <data name="AuditActionImportStarted">
+    <value>Импорт начат</value>
+  </data>
+  <data name="AuditActionImportCompleted">
+    <value>Импорт завершён</value>
+  </data>
+  <data name="AuditActionImportRolledBack">
+    <value>Импорт отменён с откатом</value>
+  </data>
+  <data name="AuditActionImportRollbackIncomplete">
+    <value>Откат импорта не завершён</value>
+  </data>
+  <data name="AuditActionImportDiscarded">
+    <value>Подготовленный импорт отброшен</value>
+  </data>
+  <data name="AuditActionMigrationJobCreated">
+    <value>Задание миграции создано</value>
+  </data>
+  <data name="AuditActionMigrationJobMapped">
+    <value>Сопоставление задания миграции изменено</value>
+  </data>
+  <data name="AuditActionMigrationJobPlanned">
+    <value>Пробный запуск задания миграции прочитан</value>
+  </data>
+  <data name="AuditActionMigrationJobLimitsChanged">
+    <value>Лимиты задания миграции изменены</value>
+  </data>
+  <data name="AuditActionMigrationJobStarted">
+    <value>Задание миграции запущено</value>
+  </data>
+  <data name="AuditActionMigrationJobPaused">
+    <value>Задание миграции приостановлено</value>
+  </data>
+  <data name="AuditActionMigrationJobResumed">
+    <value>Задание миграции возобновлено</value>
+  </data>
+  <data name="AuditActionMigrationJobCancelled">
+    <value>Задание миграции отменено</value>
+  </data>
+  <data name="AuditActionMigrationJobCompleted">
+    <value>Задание миграции завершено</value>
+  </data>
+  <data name="AuditActionMigrationAccountSynced">
+    <value>Мигрируемый аккаунт синхронизирован</value>
+  </data>
+  <data name="AuditActionMigrationAccountCutOver">
+    <value>Мигрируемый аккаунт переключён</value>
+  </data>
+  <data name="AuditActionMigrationAccountRolledBack">
+    <value>Мигрируемый аккаунт откачен</value>
+  </data>
+  <data name="AuditActionMigrationAccountRollbackIncomplete">
+    <value>Откат мигрируемого аккаунта не завершён</value>
+  </data>
+  <data name="AuditActionMigrationAccountCutOverFailed">
+    <value>Переключение мигрируемого аккаунта не удалось</value>
+  </data>
+  <data name="AuditActionMigrationAccountCancelled">
+    <value>Миграция аккаунта отменена</value>
+  </data>
+  <data name="AuditActionMigrationAccountRetried">
+    <value>Миграция аккаунта повторена</value>
+  </data>
+  <data name="AuditActionMigrationAccountSecretsClaimed">
+    <value>Учётные данные мигрированного аккаунта получены</value>
+  </data>
+  <data name="AuditActionMigrationBackupTaken">
+    <value>Резервная копия для миграции создана</value>
   </data>
 </root>

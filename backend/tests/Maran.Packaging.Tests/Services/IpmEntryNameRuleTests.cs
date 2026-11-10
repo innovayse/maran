@@ -44,9 +44,23 @@ public sealed class IpmEntryNameRuleTests
     [InlineData("lib/caf\u00e9.dll")]
     [InlineData("lib/a\u0000.dll")]
     [InlineData("lib/a\nb.dll")]
+    [InlineData("lib/a.dll\n")]
+    [InlineData("ipm.json\n")]
+    [InlineData("lib\n/a.dll")]
     public void A_name_outside_the_allow_list_is_refused(string name)
     {
         RefusalAssert.Is("IpmEntryNameInvalid", IpmEntryNameRule.Judge(name));
+    }
+
+    /// <summary>The accepting control of the trailing-line-feed refusal: the same names without it pass.</summary>
+    /// <param name="name">A name that must be accepted.</param>
+    [Theory]
+    [InlineData("lib/a.dll")]
+    [InlineData("ipm.json")]
+    public void The_same_name_without_a_trailing_line_feed_is_accepted(string name)
+    {
+        Assert.Null(IpmEntryNameRule.Judge(name));
+        RefusalAssert.Is("IpmEntryNameInvalid", IpmEntryNameRule.Judge(name + "\n"));
     }
 
     /// <summary>Null, an over-long name and an over-deep path are refused.</summary>

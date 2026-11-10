@@ -35,6 +35,14 @@ set -euo pipefail
 # creates it — and the polygon images assert them equal.
 readonly MARAN_SFTP_GROUP="maran-sftp"
 
+# The group name `DistroAdapter::ftps_group()` returns on every family, which
+# `89-ftps.sh` creates as MARAN_FTPS_GROUP. It is named here as well because the sshd
+# block below denies it (issue #484) and this step runs BEFORE 89 - and, in the polygon
+# images, without it. A third copy of one string, kept honest by the polygon images:
+# `assert_sshd_confines_every_jailed_login` creates a user in 89-ftps.sh's group and
+# requires sshd to resolve this denial for it.
+readonly MARAN_SSHD_FTPS_GROUP="maran-ftps"
+
 # The base directory holding one root-owned jail per account, matching
 # `AgentPaths::SFTP_JAIL_ROOT`. root:root 0700: only root ever traverses it from
 # the outside, and every path component of a chroot must be root-owned and not
@@ -69,6 +77,10 @@ readonly MARAN_SSHD_END_MARKER="# END Maran SFTP"
 sshd_service_name() {
   case "${MARAN_OS_FAMILY:-}" in
     rhel) echo "sshd" ;;
+    # UNVERIFIED: the SUSE family names the unit `sshd`, matching suse_services.rs in
+    # agent/crates/distro. Confirm with `rpm -ql openssh-server | grep service` in the pinned
+    # openSUSE Leap 16 image.
+    suse) echo "sshd" ;;
     *)    echo "ssh" ;;
   esac
 }
@@ -93,6 +105,10 @@ sshd_service_name() {
 sshd_packages_for_family() {
   case "${MARAN_OS_FAMILY:-}" in
     debian|rhel) echo "openssh-server" ;;
+    # UNVERIFIED: the package is `openssh-server` on openSUSE Leap 16 and its main config is
+    # /etc/ssh/sshd_config (vendor defaults may live under /usr/etc/ssh). Confirm with
+    # `rpm -qf /usr/sbin/sshd` and `rpm -ql openssh-server | grep sshd_config` in the pinned image.
+    suse) echo "openssh-server" ;;
     *)
       echo "86-sftp.sh: unsupported OS family '${MARAN_OS_FAMILY:-}'" >&2
       exit 1
@@ -158,20 +174,36 @@ ensure_keys_directory() {
 
 # render_sshd_block: the block itself, on stdout.
 #
-# `ChrootDirectory %h` rather than a literal path: %h is the login's passwd home,
-# which the agent sets to that account's jail, so this one block serves every
-# account and there is no per-account sshd edit and no config rewrite on account
-# creation. `internal-sftp` is the in-process subsystem, so a chroot with no shell
-# and no binaries in it still works. Forwarding is off because an SFTP login is a
-# file transfer credential, and a customer who can forward ports through it has a
-# tunnel into the server's private network — including the panel's own
-# unix-socket-only PostgreSQL.
+# It confines BOTH file-transfer logins this product creates, in two `Match` blocks
+# between the one pair of markers, so that installing it and uninstalling it are one
+# edit of one block.
 #
-# `AuthorizedKeysFile` points the group's public-key logins at the root-owned
-# file the agent writes per login (issue #135), and ONLY there: a key a customer
-# drops into their home is never read. `%u` is the login name, so one line
-# serves every login. `Match` accepts this keyword on every OpenSSH the supported
-# families ship.
+# SFTP (`Match Group maran-sftp`): `ChrootDirectory %h` rather than a literal path: %h
+# is the login's passwd home, which the agent sets to that account's jail, so this one
+# block serves every account and there is no per-account sshd edit and no config
+# rewrite on account creation. `internal-sftp` is the in-process subsystem, so a chroot
+# with no shell and no binaries in it still works.
+#
+# `AuthorizedKeysFile` points the group's public-key logins at the root-owned file the
+# agent writes per login (issue #135), and ONLY there: a key a customer drops into
+# their home is never read. `%u` is the login name, so one line serves every login.
+# `Match` accepts this keyword on every OpenSSH the supported families ship.
+#
+# FTPS (`Match Group maran-ftps`, issue #484): an FTPS login is a system user with a
+# real password, a `nologin` shell and the account's uid, and sshd authenticates ANY
+# local user with a valid password. A `nologin` shell stops a command, not a
+# `direct-tcpip` channel, so without this block the FTPS credential was also an ssh
+# login that could forward ports and was a second, unthrottled place to guess it.
+# `DenyGroups` makes sshd refuse the login before any credential is looked at, which is
+# the control; the forwarding lines repeat the SFTP block's as a floor, so that the day
+# the denial is lifted by an operator's own edit nothing else about the login opens up.
+#
+# EVERY jailed login gets the same floor: no TCP forwarding (a customer who can
+# forward ports through a login has a tunnel into the server's private network,
+# including the panel's own unix-socket-only PostgreSQL), no unix-socket forwarding
+# (which reaches every socket the account's uid may open, MariaDB's among them, and is
+# NOT switched off by AllowTcpForwarding), no agent or X11 forwarding, no tunnel
+# device, no terminal and no `~/.ssh/rc`.
 render_sshd_block() {
   cat <<EOF
 ${MARAN_SSHD_BEGIN_MARKER}
@@ -181,6 +213,20 @@ Match Group ${MARAN_SFTP_GROUP}
     ForceCommand internal-sftp
     AllowTcpForwarding no
     X11Forwarding no
+    AllowAgentForwarding no
+    AllowStreamLocalForwarding no
+    PermitTunnel no
+    PermitTTY no
+    PermitUserRC no
+Match Group ${MARAN_SSHD_FTPS_GROUP}
+    DenyGroups ${MARAN_SSHD_FTPS_GROUP}
+    AllowTcpForwarding no
+    X11Forwarding no
+    AllowAgentForwarding no
+    AllowStreamLocalForwarding no
+    PermitTunnel no
+    PermitTTY no
+    PermitUserRC no
 ${MARAN_SSHD_END_MARKER}
 EOF
 }

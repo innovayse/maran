@@ -24,4 +24,21 @@ pub trait SiteLogHost: Send + Sync {
         &self,
         account: &AccountName,
     ) -> Result<Box<dyn SiteLogDirectory>, SitesOpError>;
+
+    /// [`SiteLogHost::open_directory`], except that a directory that does not
+    /// exist is `None` and not an error.
+    ///
+    /// For the removal of a deleted site's logs, where an account that never
+    /// served a request has no directory and "nothing to remove" is the converged
+    /// answer. Every other refusal (a symlink, a directory root does not own) is
+    /// still an error: an absent directory is the only thing read as nothing.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SitesOpError::LogUnreadable`] as [`SiteLogHost::open_directory`]
+    /// does, for anything but a missing directory.
+    fn open_directory_if_present(
+        &self,
+        account: &AccountName,
+    ) -> Result<Option<Box<dyn SiteLogDirectory>>, SitesOpError>;
 }

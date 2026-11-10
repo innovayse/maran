@@ -229,7 +229,7 @@ acr_differs() {
     return 0
   fi
   for axis in $axes; do
-    printf '%s\n' "$out" | grep -qE "^differs: [a-z]+: ${axis} x" || missing="${missing} ${axis}"
+    grep -qE "^differs: [a-z]+: ${axis} x" <<<"$out" || missing="${missing} ${axis}"
   done
   acr_expect "$label (names:${missing:- all of} ${axes})" "${missing:-named}" named
   [ -z "$missing" ] || printf '%s\n' "$out" | sed 's/^/      /' >&2

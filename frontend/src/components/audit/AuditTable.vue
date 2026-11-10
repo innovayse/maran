@@ -6,11 +6,12 @@
  * **A failure is told by its text, never by its colour alone.** The outcome column prints the panel's
  * word for it (`outcomeName`); a reader who cannot tell red from green loses nothing.
  *
- * **Machine text is mono and never uppercased.** The instant, the address, the subject and the
- * action constant are values an administrator copies into a ticket or greps a log by, so they are
- * set in the mono face (the `mono` and `date` column kinds) and keep their own case. An identifier
- * never wraps; the localized action name is prose (`text`) and wraps at word boundaries. The table
- * scrolls inside its own container at 390px.
+ * **Machine text is mono and never uppercased.** The instant, the address and the action constant
+ * are values an administrator copies into a ticket or greps a log by, so they are set in the mono
+ * face (the `mono` and `date` column kinds) and keep their own case. An identifier never wraps in a
+ * table (and breaks in a card, where nothing can scroll); the localized action name and a subject
+ * the backend spells out as a sentence (`subjectName`, such as a chain verdict) are prose and wrap. The
+ * table scrolls inside its own container at 390px.
  */
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -67,6 +68,16 @@ const actionLabel = (event: AuditEvent): string | null => {
 }
 
 /**
+ * Whether the subject is the stored identifier itself (the backend answers a sentence only for an
+ * entry whose stored subject is a machine line).
+ * @param event The journal row the cell is drawn for.
+ * @returns True when `subjectName` is the stored subject unchanged.
+ */
+const subjectIsIdentifier = (event: AuditEvent): boolean => {
+  return event.subjectName === event.subject
+}
+
+/**
  * Passes a heading's sort up.
  * @param field The server's sort field.
  * @returns Nothing.
@@ -107,14 +118,21 @@ const sortBy = (field: string): void => {
       <div>
         <span v-if="actionLabel(row) !== null" class="block wrap-anywhere">{{ actionLabel(row) }}</span>
         <span
-          class="block font-mono whitespace-nowrap"
+          class="block font-mono"
           :class="actionLabel(row) !== null ? 'mt-0.5 text-xs text-text-muted' : ''"
         >
           {{ row.action }}
         </span>
       </div>
     </template>
-    <template #cell-subject="{ row }">{{ row.subject }}</template>
+    <template #cell-subject="{ row }">
+      <!-- The column is a mono one, so the cell keeps an identifier on one line in a table (it scrolls
+           inside its container) and lets it break in a card at 390px, where there is no column to
+           widen. The backend spells a sentence only for a machine line; that one is prose, so it
+           takes the line back and wraps. -->
+      <template v-if="subjectIsIdentifier(row)">{{ row.subjectName }}</template>
+      <span v-else class="block max-w-md font-sans whitespace-normal wrap-anywhere">{{ row.subjectName }}</span>
+    </template>
     <template #cell-address="{ row }">{{ row.ipAddress }}</template>
     <template #cell-outcome="{ row }">
       <UiBadge :variant="row.succeeded ? 'success' : 'danger'">

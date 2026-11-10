@@ -33,6 +33,12 @@ os_updates_assert_nothing_written() {
   fi
   [ "$(os_updates_systemd_listing)" = "$OS_UPDATES_UNIT_LISTING" ] \
     || fail "step 68 (${run}) changed /etc/systemd/system. The step owns no unit"
+  if [ "$MARAN_OS_FAMILY" = suse ]; then
+    for record in "$OS_UPDATES_SUSE_ZYPP_CONF" "$OS_UPDATES_SUSE_SERVICE" "$OS_UPDATES_SUSE_TIMER"; do
+      [ ! -e "$record" ] && [ ! -L "$record" ] \
+        || fail "step 68 (${run}) wrote ${record}. Without the opt-in it must write nothing"
+    done
+  fi
 }
 
 # os_updates_assert_timers_enabled: every timer of this family was asked to be enabled, as far as
@@ -125,6 +131,9 @@ assert_the_os_security_updates_step_changes_nothing_without_the_flag() {
   os_updates_restore_prior_state
   echo "Step 68 with MARAN_OS_SECURITY_UPDATES unset and with it 'no' printed '${OS_UPDATES_SKIP_SENTENCE}', and with 'maybe' refused; none of the three changed ${OS_UPDATES_CONFIG}, kept a copy, installed the package, asked for a timer to be enabled or added a name under /etc/systemd/system."
   echo "UNOBSERVED HERE: this image boots no systemd, so 'no timer enabled' means the polygon's systemctl was never asked to enable one; whether the distribution ships its own timers enabled is its own state and is not read."
+  if [ "$MARAN_OS_FAMILY" = suse ]; then
+    echo "UNOBSERVED HERE: 'the step installed no package' on the SUSE family. The step installs none with the flag on either (zypper is the mechanism), so that observation cannot fail here; what is observed instead is that none of the four files the step writes exists."
+  fi
 }
 
 # assert_the_os_security_updates_step_writes_the_exact_configuration_when_asked: step 68 run with
@@ -188,8 +197,13 @@ assert_the_os_security_updates_step_writes_the_exact_configuration_when_asked() 
   leftover="$(find "${OS_UPDATES_CONFIG%/*}" -maxdepth 1 -name "${OS_UPDATES_CONFIG##*/}*" ! -name "${OS_UPDATES_CONFIG##*/}" ! -name '*.maran-previous*' 2>/dev/null | head -1 || true)"
   [ -z "$leftover" ] \
     || fail "${leftover} was left beside ${OS_UPDATES_CONFIG} by step 68. The write is a temporary file renamed over the target, and nothing may remain of it"
-  [ "$(os_updates_systemd_listing)" = "$OS_UPDATES_UNIT_LISTING" ] \
-    || fail "step 68 changed /etc/systemd/system. It owns no unit: the distribution's timers are the only thing it enables"
+  [ "$(os_updates_systemd_listing)" = "$(os_updates_expected_listing)" ] \
+    || fail "step 68 changed /etc/systemd/system beyond what this family's step writes (expected: $(os_updates_expected_listing | tr '\n' ' '); found: $(os_updates_systemd_listing | tr '\n' ' ')). Where it owns no unit, the distribution's timers are the only thing it enables"
+  if [ "$MARAN_OS_FAMILY" = suse ]; then
+    defect="$(os_updates_suse_extra_defects)"
+    [ -z "$defect" ] \
+      || fail "the SUSE family's unattended-update files are wrong after step 68: ${defect}. The locks file is the hold list, the private zypp.conf is how zypper is told to read it, and the service is the root job that applies security patches with nobody reading the list"
+  fi
 
   # A second run converges on the same bytes and the same owner and mode.
   output="$(run_os_updates_step yes 2>&1)" \
@@ -252,6 +266,14 @@ assert_the_os_security_updates_step_writes_the_exact_configuration_when_asked() 
   rm -f -- "$first"
   os_updates_restore_prior_state
   echo "Step 68 with the flag on left ${OS_UPDATES_CONFIG} root:root 0644 and a regular file, passing the family's text checker (refused all $((OS_UPDATES_PLANTED_COUNT - 2)) planted breaks and accepted the 2 commented-out inverse controls), with no leftover beside it and no new name under /etc/systemd/system. A second run and a run over an edited render converged on identical bytes with no copy kept; a file that was not the step's was kept at ${OS_UPDATES_PREVIOUS} (root, 0600) before it was replaced, and a second such file did not overwrite the first copy."
+  if [ "$MARAN_OS_FAMILY" = suse ]; then
+    echo "Held back, observed through zypper and not through the file: 'zypper locks' under the private configuration lists nginx* and does not list curl*, and the resolver (install --dry-run) refuses a held package under it, accepts the same package under the host's own configuration, and accepts an unheld package under the private one."
+    if [ -n "$OS_UPDATES_SUSE_UNOBSERVED" ]; then
+      echo "UNOBSERVED HERE: the resolver half of that (the positive control, the refusal and the inverse control): ${OS_UPDATES_SUSE_UNOBSERVED}."
+    fi
+    echo "UNOBSERVED HERE: that the installed package set is unchanged by the flag. This family installs no package for the step (zypper is the mechanism), so the 'no package installed' observation above is vacuous here and is not claimed."
+    echo "UNOBSERVED HERE: that systemd gives the service the ZYPP_CONF the unit file names. The polygon's systemctl answers 'show --property=Environment' from the unit file's text, which cannot see a drop-in that overrides it; a real manager's merged answer is read by the install polygon only if it switches the flag on, which it does not."
+  fi
   if [ "$MARAN_OS_FAMILY" = debian ]; then
     echo "apt-config dump agrees: no Allowed-Origins entry, exactly one Origins-Pattern, a Package-Blacklist equal to the hold list, Automatic-Reboot \"false\"; and with the file moved aside the same reader sees the distribution's own origins, so its answer is not a blind one."
   fi

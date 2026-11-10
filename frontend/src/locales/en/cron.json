@@ -82,6 +82,7 @@
       "remove": "Remove",
       "removeRow": "Remove the variable {name}",
       "save": "Save environment",
+      "saved": "The environment was saved.",
       "reservedHint": "{name} is managed by the server and cannot be set here — it will be refused.",
       "reservedNote": "Rename or remove the highlighted variables before saving.",
       "replaceWarning": "Saving replaces the whole set: a variable removed from this list is removed from the crontab, and saving an empty list clears them all."

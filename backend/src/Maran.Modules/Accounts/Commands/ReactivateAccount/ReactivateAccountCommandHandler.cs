@@ -158,6 +158,7 @@ public sealed class ReactivateAccountCommandHandler
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <returns>
     /// The account in its new state, <c>ResellerSuspended</c> when the caller is a suspended reseller,
+    /// <c>AccountSuspendedByAdministrator</c> when a reseller asks to lift an administrator's suspension,
     /// or a typed failure. An account another reseller owns is <c>AccountNotFound</c>.
     /// </returns>
     public async Task<Result<AccountDto>> HandleAsync(
@@ -179,6 +180,20 @@ public sealed class ReactivateAccountCommandHandler
                 command,
                 command.AccountId.ToString(),
                 Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound),
+                Guid.Empty,
+                cancellationToken);
+        }
+
+        // A reseller may lift only a suspension a reseller placed (issue #493): an administrator who
+        // suspended the account, for abuse say, is not overridden by the reseller who owns it. Refused
+        // before anything is touched, journaled as a failed reactivation, and answered with its own
+        // code so the reseller is told whose decision this is rather than that something broke.
+        if (!account.IsReleasableBy(_scope.Actor))
+        {
+            return await FailAsync(
+                command,
+                account.Name,
+                Error.Of(nameof(ErrorMessages.AccountSuspendedByAdministrator), ErrorType.Forbidden),
                 Guid.Empty,
                 cancellationToken);
         }

@@ -34,7 +34,7 @@ const { t } = useI18n()
       <UiDescriptionItem :term="t('resellers.detail.statusLabel')">
         <ResellerStatusBadge v-if="reseller !== null" :status="reseller.status" :label="reseller.statusName" />
       </UiDescriptionItem>
-      <UiDescriptionItem :term="t('resellers.form.fields.language')">{{ reseller?.language }}</UiDescriptionItem>
+      <UiDescriptionItem :term="t('resellers.form.fields.language')">{{ reseller?.languageName }}</UiDescriptionItem>
       <UiDescriptionItem :term="t('resellers.detail.createdAtLabel')" mono>
         {{ reseller === null ? '' : formatDate(reseller.createdAt, locale) }}
       </UiDescriptionItem>

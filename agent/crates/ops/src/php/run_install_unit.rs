@@ -70,8 +70,8 @@ fn describe_failure(unit: &str, start_stderr: &str) -> String {
 /// # Errors
 ///
 /// Returns [`PhpOpError::PackageSourceRefused`],
-/// [`PhpOpError::PackageSourceUnreachable`] or [`PhpOpError::PackageManager`]
-/// as `classify_install_failure` decides when the unit's run failed, and
+/// [`PhpOpError::PackageSourceUnreachable`], [`PhpOpError::PackageNotAvailable`] or
+/// [`PhpOpError::PackageManager`] as `classify_install_failure` decides when the unit's run failed, and
 /// [`PhpOpError::PackageManager`] when the service manager cannot be started.
 /// Returns [`PhpOpError::Bound`] when the service manager outlived its deadline
 /// and was killed: the unit lives in the service manager and may still finish,
@@ -110,6 +110,7 @@ pub(crate) fn run_install_unit(
             host,
             distro,
             &unit,
+            package,
             describe_failure(&unit, &outcome.stderr),
         ));
     }

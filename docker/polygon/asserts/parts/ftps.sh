@@ -600,7 +600,7 @@ assert_the_installer_and_the_agent_spell_the_ftps_names_the_same() {
   # families answer it independently and a drift on either is a family whose logins are added to a
   # group the PAM stack does not test.
   local services_file
-  for services_file in "$AGENT_DEBIAN_SERVICES" "$AGENT_RHEL_SERVICES"; do
+  for services_file in "$AGENT_DEBIAN_SERVICES" "$AGENT_RHEL_SERVICES" "$AGENT_SUSE_SERVICES"; do
     value="$(agent_string_after 'fn ftps_group()' "$services_file")"
     [ -n "$value" ] \
       || fail "no string literal could be read out of ftps_group() in ${services_file} — this comparison had nothing to compare, which is a failure to observe and not an agreement (rules/testing.md)"

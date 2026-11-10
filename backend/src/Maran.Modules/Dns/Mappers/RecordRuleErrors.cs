@@ -24,6 +24,8 @@ public static class RecordRuleErrors
             RecordRuleVerdict.RecordNotFound => Error.Of(nameof(ErrorMessages.RecordNotFound), ErrorType.NotFound),
             RecordRuleVerdict.RecordNotEditable =>
                 Error.Of(nameof(ErrorMessages.RecordNotEditable), ErrorType.Conflict),
+            RecordRuleVerdict.ChallengeValuesFull =>
+                Error.Of(nameof(ErrorMessages.DnsChallengeValuesFull), ErrorType.Conflict),
             _ => throw new ArgumentOutOfRangeException(nameof(verdict), verdict, "An accepted change has no error."),
         };
     }

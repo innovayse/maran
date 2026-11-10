@@ -63,13 +63,28 @@ export interface DnsRecordForm {
    * @param record The record to edit, or `null` for a new one.
    * @returns Nothing.
    */
-  reset: (record: DnsRecordRequest | null) => void
+  reset: (record: DnsRecordFormSource | null) => void
   /**
    * Builds the request the panel takes from the inputs.
    * @returns The record, with a number or a tag only for the inputs the type takes; `null` while
    * the chosen type is not one the panel's catalogue lists.
    */
   toRequest: () => DnsRecordRequest | null
+}
+
+/**
+ * What the form fills from: a record, or a template's record, whose TTL may be absent and then
+ * follows the name server settings.
+ */
+export type DnsRecordFormSource = Omit<DnsRecordRequest, 'ttl'> & { ttl: number | null }
+
+/** What a caller can ask of the form beyond the panel's catalogue. */
+export interface DnsRecordFormOptions {
+  /**
+   * Whether the TTL may be left empty. A zone's record always has one; a template's record may
+   * leave it out, and the zone then takes the default TTL of the name server settings.
+   */
+  ttlOptional?: boolean
 }
 
 /** The messages of a form nothing was submitted from: every input is fine until a submit proves otherwise. */
@@ -116,9 +131,13 @@ const toNumber = (text: string): number => {
  * The mirror is advice that saves a round trip: the server validates everything again and its
  * localized refusal is shown as it was sent.
  * @param catalog The reference data, or `null` while it has not arrived (the form stays permissive).
+ * @param options Whether the TTL may be left empty.
  * @returns The form state and its validation.
  */
-export const useDnsRecordForm = (catalog: Ref<DnsRecordCatalog | null>): DnsRecordForm => {
+export const useDnsRecordForm = (
+  catalog: Ref<DnsRecordCatalog | null>,
+  options: DnsRecordFormOptions = {},
+): DnsRecordForm => {
   const { t } = useI18n()
 
   /** The owner name relative to the zone, as typed. */
@@ -220,6 +239,9 @@ export const useDnsRecordForm = (catalog: Ref<DnsRecordCatalog | null>): DnsReco
    * @returns The message, or `null` when it passes.
    */
   const ttlError = (): string | null => {
+    if (options.ttlOptional === true && ttl.value.trim() === '') {
+      return null
+    }
     const seconds = toNumber(ttl.value)
     if (Number.isNaN(seconds)) {
       return t('dns.record.errors.ttlInvalid')
@@ -293,11 +315,13 @@ export const useDnsRecordForm = (catalog: Ref<DnsRecordCatalog | null>): DnsReco
    * @param record The record to edit, or `null` for a new one.
    * @returns Nothing.
    */
-  const reset = (record: DnsRecordRequest | null): void => {
+  const reset = (record: DnsRecordFormSource | null): void => {
     submitted.value = false
     name.value = record?.name ?? ''
     type.value = record?.type ?? catalog.value?.types[0]?.type ?? ''
-    ttl.value = String(record?.ttl ?? catalog.value?.defaultTtl ?? '')
+    // An optional TTL starts empty, since empty is its own meaning (the settings' default).
+    const startingTtl = options.ttlOptional === true ? '' : String(catalog.value?.defaultTtl ?? '')
+    ttl.value = record === null || record.ttl === null ? startingTtl : String(record.ttl)
     value.value = record?.value ?? ''
     // `fields` reads `type`, which was just set, so each input is shown only when the type takes it.
     priority.value = asText(record?.priority, fields.value.includes('priority'))

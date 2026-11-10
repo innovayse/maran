@@ -4,7 +4,7 @@ use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_distro::DistroAdapter;
 
 use crate::php::PhpHost;
-use crate::sites::{SiteIdentity, SitesOpError, delete_site};
+use crate::sites::{SiteIdentity, SiteLogHost, SitesOpError, delete_site, remove_site_logs};
 use crate::ssl::purge_certificate::purge_certificate;
 use crate::ssl::ssl_host::SslHost;
 
@@ -43,22 +43,46 @@ use crate::ssl::ssl_host::SslHost;
 /// `delete_site` to hold a certificate host in order to delete a site that may
 /// never have had a certificate.
 ///
+/// # The site's visitor logs go with it (issue #477)
+///
+/// After the material, the site's access and error logs and their rotated
+/// generations are removed ([`remove_site_logs`]). They are named by the account
+/// and the domain, which the panel recycles, and the log tail and the traffic
+/// summary open them whatever their age: left behind, they handed the previous
+/// tenant's visitor addresses and request targets to the next holder of the same
+/// pair. Unlike the key, a failure here IS reported: the logs are personal data
+/// the deletion promises to erase, so the caller must hear that it did not
+/// finish. The retry converges, because a repeat finds the vhost gone
+/// ([`SitesOpError::NotFound`]) and still removes the logs before answering it.
+///
 /// # Errors
 ///
-/// Returns whatever [`delete_site`] refused with, and nothing else: a failure to
-/// remove the material is reported to the operator's log by
-/// [`purge_certificate`] and not to the caller, because a site whose vhost is
-/// gone IS deleted and failing here would leave the caller retrying an
-/// operation that has already succeeded.
+/// Returns whatever [`delete_site`] refused with, and [`SitesOpError::LogUnreadable`]
+/// when the site's logs could not be removed (the vhost is gone by then, and a retry
+/// finishes the removal). A failure to remove the certificate material is reported
+/// to the operator's log by [`purge_certificate`] and not to the caller, because a
+/// site whose vhost is gone IS deleted and failing here would leave the caller
+/// retrying an operation that has already succeeded.
 pub fn delete_site_with_certificate(
     host: &dyn SslHost,
     php_host: &dyn PhpHost,
+    log_host: &dyn SiteLogHost,
     distro: &'static dyn DistroAdapter,
     site: &SiteIdentity,
     retired: Option<&PhpVersion>,
 ) -> Result<(), SitesOpError> {
-    delete_site(host, php_host, distro, site, retired)?;
-    purge_certificate(host, distro, &site.domain);
+    match delete_site(host, php_host, distro, site, retired) {
+        Ok(()) => purge_certificate(host, distro, &site.domain),
+        // A site already gone is the converged retry, and the retry of a deletion whose
+        // log removal failed: the logs are swept before the answer is given.
+        Err(SitesOpError::NotFound { domain }) => {
+            remove_site_logs(log_host, &site.account, &site.domain)?;
+            return Err(SitesOpError::NotFound { domain });
+        }
+        Err(other) => return Err(other),
+    }
+
+    remove_site_logs(log_host, &site.account, &site.domain)?;
 
     Ok(())
 }

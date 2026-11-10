@@ -1,7 +1,8 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from './fixtures/guarded-test'
 import { openLiveDashboard } from './fixtures/open-live-dashboard'
 import { DEFAULT_LAYOUT } from './fixtures/stub-live-dashboard-stream'
 import type { DashboardLayoutEntry } from '../src/types/dashboardLayout'
+import type { Page } from '@playwright/test'
 
 // Issue #199 (slice S1): a person arranges their own dashboard in the customise sheet: switch each
 // widget and shortcut on or off, move it up or down. The layout lives on the panel per person
@@ -149,8 +150,10 @@ test.describe('customising the dashboard', () => {
     expect(layout.saved[0].widgets.at(-1)).toEqual({ key: 'mailQueue', hidden: false })
   })
 
-  test('a layout the panel refuses keeps the sheet open with the panel\'s reason', async ({ page }) => {
+  test('a layout the panel refuses keeps the sheet open with the panel\'s reason', async ({ page, guard }) => {
     await openLiveDashboard(page)
+    // The refusal of the save is the subject of this test.
+    guard.allow(400, /\/api\/v1\/me\/dashboard-layout$/)
     await page.route(/\/api\/v1\/me\/dashboard-layout(\?.*)?$/, async (route) => {
       if (route.request().method() === 'PUT') {
         await route.fulfill({
@@ -173,8 +176,10 @@ test.describe('customising the dashboard', () => {
     await expect(sheet.getByRole('switch', { name: 'Network' })).not.toBeChecked()
   })
 
-  test('a layout that cannot be read still shows every widget, and offers no customise control', async ({ page }) => {
+  test('a layout that cannot be read still shows every widget, and offers no customise control', async ({ page, guard }) => {
     await openLiveDashboard(page)
+    // The unreadable layout is the subject of this test.
+    guard.allow(503, /\/api\/v1\/me\/dashboard-layout$/)
     await page.route(/\/api\/v1\/me\/dashboard-layout(\?.*)?$/, async (route) => {
       await route.fulfill({ status: 503, contentType: 'application/problem+json', body: JSON.stringify({ title: 'Unavailable', status: 503 }) })
     })

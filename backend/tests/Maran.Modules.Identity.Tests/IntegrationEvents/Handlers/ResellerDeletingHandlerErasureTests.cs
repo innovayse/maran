@@ -117,7 +117,7 @@ public sealed class ResellerDeletingHandlerErasureTests : IDisposable
         Assert.Empty(_audit.Written);
     }
 
-    /// <summary>Stores the reseller's login, the administrator, and two journal rows naming the login.</summary>
+    /// <summary>Stores the reseller's login, the administrator, and two journal rows about the login: its own, and the administrator's about it (carrying the login it is about).</summary>
     /// <returns>Resolves once everything is stored.</returns>
     private async Task SeedAsync()
     {
@@ -125,7 +125,7 @@ public sealed class ResellerDeletingHandlerErasureTests : IDisposable
         _context.Users.AddRange(_login, _admin);
         _context.AuditEvents.AddRange(
             ErasureJournal.Row(_login.Id, "northwind", "reseller-site", ResellerAddress, ResellerAgent),
-            ErasureJournal.Row(_admin.Id, "administrator", "ops@northwind.test"));
+            ErasureJournal.Row(_admin.Id, "administrator", "ops@northwind.test", subjectUserId: _login.Id));
         await _context.SaveChangesAsync();
     }
 }

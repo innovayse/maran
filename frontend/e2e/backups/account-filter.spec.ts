@@ -1,15 +1,17 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccountNames, stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
 import { stubBackups } from '../fixtures/stub-backups-routes'
 import type { Account, MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { PanelModule } from '../../src/types/module'
 import type { Backup } from '../../src/types/backup'
+import type { Page } from '@playwright/test'
 
 // Issue #223: the account page links to this list as `?account=<id>`. The list then asks the panel
 // for that account's rows only, says so as a chip, and offers the way back; a customer's list is already
@@ -92,6 +94,7 @@ const openScreen = async (page: Page, user?: AuthenticatedUser): Promise<() => r
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE, BOB])
   await stubAccountNames(page, [ALICE, BOB])
   await stubMyAccount(page, OWN_ACCOUNT)

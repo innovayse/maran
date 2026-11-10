@@ -22,6 +22,7 @@ public static class ErasureJournal
     /// <param name="impersonator">The operator viewing as the actor, or <c>null</c>.</param>
     /// <param name="accountId">The account the row carries, or <c>null</c>.</param>
     /// <param name="action">The action column.</param>
+    /// <param name="subjectUserId">The verified login the row is about, or <c>null</c> for a row whose subject is only text.</param>
     /// <returns>An unsealed row stamped at <see cref="ErasureHandlers.Now"/>.</returns>
     public static AuditEvent Row(
         Guid? actorUserId,
@@ -31,7 +32,8 @@ public static class ErasureJournal
         string userAgent = "agent/1.0",
         AuditImpersonator? impersonator = null,
         Guid? accountId = null,
-        string action = IdentityAuditActions.LoginSucceeded)
+        string action = IdentityAuditActions.LoginSucceeded,
+        Guid? subjectUserId = null)
     {
         return new AuditEvent(
             Guid.NewGuid(),
@@ -45,7 +47,8 @@ public static class ErasureJournal
             succeeded: true,
             correlationId: null,
             impersonator,
-            accountId);
+            accountId,
+            subjectUserId);
     }
 
     /// <summary>Reads every journal row from the store, as the next request would see it.</summary>
@@ -70,7 +73,8 @@ public static class ErasureJournal
             row.UserAgent,
             row.AccountId?.ToString("D", CultureInfo.InvariantCulture) ?? string.Empty,
             row.Impersonator?.OperatorId.ToString("D", CultureInfo.InvariantCulture) ?? string.Empty,
-            row.Impersonator?.Username ?? string.Empty);
+            row.Impersonator?.Username ?? string.Empty,
+            row.SubjectUserId?.ToString("D", CultureInfo.InvariantCulture) ?? string.Empty);
     }
 
     /// <summary>Whether any needle appears, in any identifying column, of any row.</summary>

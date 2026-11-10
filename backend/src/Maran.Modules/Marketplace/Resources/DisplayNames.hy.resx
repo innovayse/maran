@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="MarketplaceModuleDisplayName">
+    <value>Մարկետփլեյս</value>
+  </data>
+  <data name="SentItemPanelVersion">
+    <value>Այս վահանակի տարբերակը։</value>
+  </data>
+  <data name="SentItemChannel">
+    <value>Ձեր օգտագործած թողարկումների ալիքը, օրինակ՝ stable։</value>
+  </data>
+  <data name="SentItemLanguage">
+    <value>Վահանակի ինտերֆեյսի լեզուն։</value>
+  </data>
+  <data name="SentItemLeaseCredential">
+    <value>Ձեր լիցենզիայի տվյալները՝ միայն մոդուլը տեղադրելու իրավունքը ստուգելիս կամ դրա ներբեռնումը պահանջելիս։ Կատալոգը դիտելիս դրանք երբեք չեն ուղարկվում։</value>
+  </data>
+  <data name="SentItemInstalledModules">
+    <value>Թարմացումները ստուգելիս՝ յուրաքանչյուր տեղադրված մոդուլի իդենտիֆիկատորը, տարբերակը և մատնահետքը։</value>
+  </data>
+  <data name="SentItemNothingElse">
+    <value>Ուրիշ ոչինչ՝ ոչ հոսթի անուն, ոչ հաշիվներ, կայքեր, օգտատերեր կամ հաճախորդների տվյալներ։ Ինչպես ցանկացած վեբ հարցում, այն մարկետփլեյսին ցույց է տալիս այս սերվերի ցանցային հասցեն։</value>
+  </data>
+  <data name="EntitlementNotRequired">
+    <value>Ներառված է</value>
+  </data>
+  <data name="EntitlementEntitled">
+    <value>Լիցենզիան առկա է</value>
+  </data>
+  <data name="EntitlementNotPurchased">
+    <value>Չի ձեռք բերվել</value>
+  </data>
+  <data name="EntitlementLeaseExpired">
+    <value>Լիցենզիայի ժամկետը լրացել է</value>
+  </data>
+  <data name="EntitlementUnknown">
+    <value>Անհայտ</value>
+  </data>
+  <data name="MarketplaceTierIncluded">
+    <value>Ներառված է</value>
+  </data>
+  <data name="MarketplaceTierAddOn">
+    <value>Հավելում</value>
+  </data>
+  <data name="MarketplaceTierPlanGated">
+    <value>Սակագնի հնարավորություն</value>
+  </data>
+</root>

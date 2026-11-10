@@ -44,6 +44,7 @@
 #   maran test rust         the Rust workspace only
 #   maran test backend      the backend solution only
 #   maran test spa          the SPA's Playwright suite only
+#   maran test e2e-real     the real-stack browser lane against a running panel (e2e-real.sh)
 #   maran test [stack] --accept   record the current totals as the baseline (then commit it)
 #   maran test backend --shard i/N --out DIR   run shard i of N of the main part (test-shards.sh)
 #   maran test backend --combine DIR           the verdict over every shard in DIR (test-shards.sh)
@@ -64,6 +65,15 @@ usage() {
   echo "       maran test spa --shards-selftest" >&2
   exit 2
 }
+
+# The real-stack lane is not a stack of this harness: it has no baseline row (it needs a running
+# panel, so the everyday suite and its per-spec-file baseline can never collect it) and its verdict
+# is its own. `maran test e2e-real` is the spelling issue #519 asks for; `maran e2e-real` is the
+# same command.
+if [ "${1:-}" = "e2e-real" ]; then
+  shift
+  exec bash "$root/scripts/lib/e2e-real.sh" "$@"
+fi
 
 which_stacks="all"
 accept=0

@@ -340,3 +340,24 @@ owner of an ancestor of a chroot can rename a level aside. It is argued in
 `docs/superpowers/notes/2026-09-07-installer-privileged-steps-threat-note.md`, section
 "relocating the SFTP jail base". Every argument in this note about the jail itself still holds;
 only the path is wrong. The uninstaller's refusal described at the end now guards the new path.
+
+---
+
+## Amendment 2026-11-09: a second login no longer rewrites the account's home, and the jailed logins lose every forwarding path (#483, #484)
+
+**#483.** `create_sftp_user` ran `ensure_account_jail` for every login and `chmod`ed the jail's `home` mount
+point by path. Once the first login's bind mount was up, that `chmod` went through the mount and changed the
+account's real home from `0750` to `0755`, so other tenants could read it. The mount point is now handled by
+`SftpHost::ensure_mount_point` (shared `ops::logins::ensure_mount_point`), which applies a mode only when the
+directory is not the account's home (same inode), and the jail directory itself is the only thing `chmod`ed by
+path. The argument "the mount point's mode is invisible while mounted" in the sections above holds for
+reading, not for setting; this is the correction. The full account of the mechanism is in the amendment of
+the same date in `2026-09-09-ftps-threat-note.md`.
+
+**#484.** The `Match Group maran-sftp` block had `AllowTcpForwarding no` and `X11Forwarding no` and nothing
+else, so unix-socket forwarding (`AllowStreamLocalForwarding`, default `yes`, independent of
+`AllowTcpForwarding`), agent forwarding, tunnel devices, ttys and `~/.ssh/rc` were left at their defaults for
+the SFTP logins. They are now off. The FTPS group, whose logins are system users sshd could authenticate,
+is denied in the same managed block. Details and the reviewer's checklist: the same amendment in the FTPS note.
+
+**Second review: OUTSTANDING (#331).**

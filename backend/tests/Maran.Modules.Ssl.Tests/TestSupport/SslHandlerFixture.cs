@@ -66,6 +66,15 @@ public sealed class SslHandlerFixture : IDisposable
     /// <summary>The expiry alert double, which records what it was asked and what it raised.</summary>
     public RecordingSslAlertMailer Alerts { get; } = new();
 
+    /// <summary>The plan: every feature is included until a test removes one.</summary>
+    public StubAccountFeatureDirectory Features { get; } = new();
+
+    /// <summary>The DNS module's door, answering that the domain's zone is served until a test says otherwise.</summary>
+    public RecordingDnsChallengeRecords DnsChallenges { get; } = new();
+
+    /// <summary>The answer to "can a wildcard be ordered here": the plan and the DNS door above, composed as the module composes them.</summary>
+    public WildcardAvailabilityCheck Wildcards { get; }
+
     /// <summary>The fixed clock every handler is given.</summary>
     public FakeClock Clock { get; } = new(Now);
 
@@ -120,6 +129,7 @@ public sealed class SslHandlerFixture : IDisposable
         AgentSites = new RecordingAgentSitesClient(reloadFailure);
         Journal = new CertificateAuditJournal(Audit, currentUser);
         Installer = new CertificateInstaller(Agent, Sites);
+        Wildcards = new WildcardAvailabilityCheck(Features, new AcmeDnsChallengeWriter([DnsChallenges]));
     }
 
     /// <summary>Finds the snapshot this fixture built for one domain.</summary>

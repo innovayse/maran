@@ -157,6 +157,45 @@ public sealed class BackupTests
         Assert.False(failed.MayBeRetentionPruned());
     }
 
+    /// <summary>The pre-restore pass takes a completed pre-restore copy and nothing else (issue #479).</summary>
+    [Fact]
+    public void The_safety_copy_pass_may_take_a_completed_pre_restore_copy_and_nothing_else()
+    {
+        Assert.All(
+            Enum.GetValues<BackupKind>(),
+            kind =>
+            {
+                Assert.Equal(kind is BackupKind.PreRestore, CompletedOfKind(kind).MayBeSafetyCopyPruned());
+            });
+
+        var running = new Backup(Guid.NewGuid(), Guid.NewGuid(), destinationId: null, BackupKind.PreRestore, Finished);
+        Assert.False(running.MayBeSafetyCopyPruned());
+
+        var failed = new Backup(Guid.NewGuid(), Guid.NewGuid(), destinationId: null, BackupKind.PreRestore, Finished);
+        failed.Failed("BackupTruncated", Finished);
+        Assert.False(failed.MayBeSafetyCopyPruned());
+    }
+
+    /// <summary>Only a running or completed manual or pre-restore backup counts against the allowance (issue #478).</summary>
+    [Fact]
+    public void Only_a_running_or_completed_manual_or_pre_restore_backup_counts_against_the_allowance()
+    {
+        Assert.All(
+            Enum.GetValues<BackupKind>(),
+            kind =>
+            {
+                Assert.Equal(
+                    kind is BackupKind.Manual or BackupKind.PreRestore,
+                    CompletedOfKind(kind).CountsAgainstAllowance());
+            });
+
+        Assert.True(Running().CountsAgainstAllowance());
+
+        var failed = Running();
+        failed.Failed("BackupTruncated", Finished);
+        Assert.False(failed.CountsAgainstAllowance());
+    }
+
     /// <summary>A backup names no deleted account until the cascade stamps one on it.</summary>
     [Fact]
     public void A_backup_names_no_deleted_account_until_it_is_stamped()

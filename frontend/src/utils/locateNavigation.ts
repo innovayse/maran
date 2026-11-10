@@ -1,6 +1,6 @@
 import type { RouteLocationNormalizedLoaded } from 'vue-router'
 import { moduleOfLandingRoute } from '../router/moduleLandingRoute'
-import { FALLBACK_GROUP, NAVIGATION_TREE } from '../router/navigationTree'
+import { FALLBACK_GROUP, NAVIGATION_TREE, PACKAGED_GROUP } from '../router/navigationTree'
 import type { NavigationLocation, NavigationPageSpec, NavigationRole } from '../types/navigation'
 
 /**
@@ -63,6 +63,13 @@ const destinationOf = (routeName: string, role: NavigationRole): Omit<Navigation
  * @returns Its location, or `null` for a screen outside the navigation (a 404, the upgrade page).
  */
 export const locateNavigation = (route: RouteLocationNormalizedLoaded, role: NavigationRole): NavigationLocation | null => {
+  // A packaged module's screen is placed by the entry the module's menu gave it
+  // (`meta.packagedEntry`), under the group of installed modules; the static tree cannot know it. A
+  // screen the module's menu does not list sits in the same group as a leaf with no entry above it.
+  if (route.meta.packaged !== undefined) {
+    const entryKey = route.meta.packagedEntry
+    return { groupKey: PACKAGED_GROUP, entryKey: entryKey ?? '', child: null, leaf: entryKey === undefined }
+  }
   const routeName = typeof route.name === 'string' ? route.name : ''
   const direct = destinationOf(routeName, role)
   const parent = route.meta.navigationParent

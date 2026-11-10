@@ -241,6 +241,72 @@ public sealed class BanAddressCommandHandlerTests
         Assert.False(entry.Succeeded);
     }
 
+    /// <summary>Banning the address the request came from is refused, whatever spelling it uses.</summary>
+    [Theory]
+    [InlineData("198.51.100.1", "198.51.100.1")]
+    [InlineData("::ffff:198.51.100.1", "198.51.100.1")]
+    [InlineData("198.51.100.1", "::ffff:198.51.100.1")]
+    [InlineData("2001:db8::5", "2001:db8::5")]
+    public async Task Banning_the_address_the_request_came_from_is_refused(string address, string caller)
+    {
+        // The bans table hooks ahead of the ruleset, so this ban would drop the administrator's own
+        // SSH and panel traffic and no accept could bring it back.
+        var world = new World();
+
+        var result = await world.BanAsync(address, durationMinutes: 60, caller);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("BanAddressIsCaller", result.Error!.Code);
+        Assert.Equal(ErrorType.Conflict, result.Error!.Type);
+        Assert.Empty(world.Agent.Bans);
+        Assert.Empty(await world.EpisodesAsync());
+        Assert.False(Assert.Single(world.Audit.Entries).Succeeded);
+    }
+
+    /// <summary>The inverse control: an unreadable caller and a different caller are both allowed to ban.</summary>
+    [Theory]
+    [InlineData("198.51.100.2")]
+    [InlineData("")]
+    [InlineData("unknown")]
+    public async Task Banning_another_address_is_allowed_whoever_the_caller_is(string caller)
+    {
+        var world = new World();
+
+        var result = await world.BanAsync("203.0.113.7", durationMinutes: 60, caller);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(world.Agent.Bans);
+    }
+
+    /// <summary>Banning an address inside a whitelisted range is refused.</summary>
+    [Fact]
+    public async Task Banning_a_whitelisted_address_is_refused()
+    {
+        var world = new World();
+        world.Whitelist("203.0.113.0/24");
+
+        var result = await world.BanAsync("203.0.113.7", durationMinutes: 60);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("BanAddressWhitelisted", result.Error!.Code);
+        Assert.Equal(ErrorType.Conflict, result.Error!.Type);
+        Assert.Empty(world.Agent.Bans);
+        Assert.Empty(await world.EpisodesAsync());
+    }
+
+    /// <summary>The inverse control: an address outside every whitelisted range is still banned.</summary>
+    [Fact]
+    public async Task Banning_an_address_outside_the_whitelist_is_allowed()
+    {
+        var world = new World();
+        world.Whitelist("203.0.113.0/24");
+
+        var result = await world.BanAsync("203.0.114.7", durationMinutes: 60);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(world.Agent.Bans);
+    }
+
     /// <summary>The store, the agent double, the journal and the handler under test.</summary>
     private sealed class World
     {
@@ -256,18 +322,29 @@ public sealed class BanAddressCommandHandlerTests
         /// <summary>Runs the handler once, on its own context, the way a request does.</summary>
         /// <param name="address">The address the caller asked to ban.</param>
         /// <param name="durationMinutes">How long for, or null for permanent.</param>
-        public async Task<Result> BanAsync(string address, int? durationMinutes)
+        /// <param name="caller">The address the request arrived from.</param>
+        public async Task<Result> BanAsync(string address, int? durationMinutes, string caller = "198.51.100.1")
         {
             using var context = FirewallTestContext.Create(_store);
             var handler = new BanAddressCommandHandler(
                 context,
                 Agent,
                 new FakeClock(Now),
-                new FirewallAuditJournal(Audit, new FakeCurrentUser()));
+                new FirewallAuditJournal(Audit, new FakeCurrentUser()),
+                new WhitelistGuard(context));
 
             return await handler.HandleAsync(
-                new BanAddressCommand(address, durationMinutes, "198.51.100.1", "curl"),
+                new BanAddressCommand(address, durationMinutes, caller, "curl"),
                 CancellationToken.None);
+        }
+
+        /// <summary>Puts a whitelist row in the store, the way an earlier request would have.</summary>
+        /// <param name="cidr">The exempt range.</param>
+        public void Whitelist(string cidr)
+        {
+            using var context = FirewallTestContext.Create(_store);
+            context.WhitelistEntries.Add(new WhitelistEntry(Guid.NewGuid(), cidr, "office", Now));
+            context.SaveChanges();
         }
 
         /// <summary>Puts an episode in the store, the way an earlier request would have.</summary>

@@ -1,9 +1,19 @@
-import { expect, test, type Page } from '@playwright/test'
 import { expectTablesAsCards } from '../fixtures/expect-table-cards'
-import { openFullShell } from '../fixtures/open-full-shell'
+import { expect, test } from '../fixtures/guarded-test'
+import { FULL_CATALOGUE } from '../fixtures/open-full-shell'
 import { setPersistedLocale } from '../fixtures/set-locale'
-import { pendingUpdateRequests, stubPendingUpdates, type StubbedPendingUpdate, type StubbedUpdateNotices } from '../fixtures/stub-monitoring-routes'
+import { stubSignedIn } from '../fixtures/stub-auth-routes'
+import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubModules } from '../fixtures/stub-modules-route'
+import {
+  pendingUpdateRequests,
+  stubMonitoring,
+  stubPendingUpdates,
+  type StubbedPendingUpdate,
+  type StubbedUpdateNotices,
+} from '../fixtures/stub-monitoring-routes'
 import { stubShellReads } from '../fixtures/stub-shell-reads'
+import type { Page } from '@playwright/test'
 
 // Issue #324: Servers > Updates lists the packages the operating system could update, read from
 // the package cache. The screen is a server page like every other list, an unreadable cache shows
@@ -20,12 +30,43 @@ const UPDATES: StubbedPendingUpdate[] = [
 /** The backend's sentence for an agent that could not read the package cache. */
 const CACHE_UNREADABLE = 'The package cache on this server could not be read.'
 
+/** The list and the count reads, which the stub fails together when it is given a cache failure. */
+const UPDATES_READS_PATTERN = /\/api\/v1\/monitoring\/updates(\/count)?(\?.*)?$/
+
+/** The reboot-required read, which a spec fails on its own through the notices. */
+const REBOOT_REQUIRED_PATTERN = /\/api\/v1\/monitoring\/updates\/reboot-required$/
+
 /** The section toggle's and the page's wording per language, for the click path. */
 const LANGUAGES = [
   { locale: 'en', heading: 'Updates', empty: 'Nothing to update', columns: ['Package', 'Installed', 'Available', 'Source', 'Type'], security: 'Security', notice: '2 security updates waiting', reboot: 'A reboot is required to finish applying updates.' },
   { locale: 'ru', heading: 'Обновления', empty: 'Обновлять нечего', columns: ['Пакет', 'Установлена', 'Доступна', 'Источник', 'Тип'], security: 'Безопасность', notice: 'Ожидают 2 обновления безопасности', reboot: 'Для завершения установки обновлений требуется перезагрузка.' },
   { locale: 'hy', heading: 'Թարմացումներ', empty: 'Թարմացնելու բան չկա', columns: ['Փաթեթ', 'Տեղադրված', 'Հասանելի', 'Աղբյուր', 'Տեսակ'], security: 'Անվտանգություն', notice: 'Սպասվում է 2 անվտանգության թարմացում', reboot: 'Թարմացումների կիրառումն ավարտելու համար անհրաժեշտ է վերագործարկում։' },
 ] as const
+
+/**
+ * Signs in as an administrator on a desktop and answers every read the shell and the Updates
+ * screen make. The monitoring screen is answered too, because the click path starts on it: a
+ * catch-all refusal for the reads nothing stubbed would be an unannounced 404 for the guard.
+ * @param page The Playwright page under test.
+ * @param updates Every update the stub knows.
+ * @param failure The problem `detail` the list and count answer with instead of the data, or `null`.
+ * @param notices The security count and the reboot-required answer.
+ * @returns Resolves once the routes are installed.
+ */
+const stubUpdatesScreen = async (
+  page: Page,
+  updates: StubbedPendingUpdate[],
+  failure: string | null = null,
+  notices: StubbedUpdateNotices = {},
+): Promise<void> => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubModules(page, FULL_CATALOGUE)
+  await stubShellReads(page)
+  await stubMonitoring(page, { lastDay: [], lastWeek: [] }, [], [])
+  await stubPendingUpdates(page, updates, failure, notices)
+}
 
 /**
  * Opens the shell as an administrator with the updates reads stubbed, then walks to the page by
@@ -42,9 +83,10 @@ const openUpdates = async (
   options: { locale?: 'en' | 'ru' | 'hy'; failure?: string | null; notices?: StubbedUpdateNotices } = {},
 ): Promise<void> => {
   await setPersistedLocale(page, options.locale ?? 'en')
-  await openFullShell(page)
-  await stubShellReads(page)
-  await stubPendingUpdates(page, updates, options.failure ?? null, options.notices ?? {})
+  await stubUpdatesScreen(page, updates, options.failure ?? null, options.notices ?? {})
+  await page.goto('/monitoring')
+  // The sidebar's own section rows, located without their translated names so any language opens.
+  await expect(page.locator('nav [data-nav-section]').first()).toBeVisible()
 
   // The sidebar is found as the complementary landmark's navigation: its accessible name is
   // translated, so a name-based lookup would only work in English. The section's own link also
@@ -162,7 +204,8 @@ test('a successful read with no update says there is nothing to update', async (
 // no table either. This is the defect the typed error exists to prevent: an unreadable package cache
 // must not look like a server that is up to date. Breakable: a store that turned a failure into an
 // empty page shows "Nothing to update" here.
-test('a failed read shows the backend message and never says nothing to update', async ({ page }) => {
+test('a failed read shows the backend message and never says nothing to update', async ({ page, guard }) => {
+  guard.allow(500, UPDATES_READS_PATTERN)
   await openUpdates(page, UPDATES, { failure: CACHE_UNREADABLE })
 
   await expect(page.getByRole('status').filter({ hasText: CACHE_UNREADABLE })).toBeVisible()
@@ -208,9 +251,7 @@ for (const language of LANGUAGES) {
 for (const locale of ['en', 'ru', 'hy'] as const) {
   test(`the Updates table is drawn as cards at 390px in ${locale}`, async ({ page }) => {
     await setPersistedLocale(page, locale)
-    await openFullShell(page)
-    await stubShellReads(page)
-    await stubPendingUpdates(page, UPDATES)
+    await stubUpdatesScreen(page, UPDATES)
     await page.setViewportSize({ width: 390, height: 844 })
     await page.goto('/servers/updates')
 
@@ -307,9 +348,7 @@ test('a classification filter that matches nothing says no packages match, not t
 // centred dialog ends well above the bottom edge.
 test('at 390px the filters open as a bottom sheet and narrow the Updates list through the panel', async ({ page }) => {
   await setPersistedLocale(page, 'en')
-  await openFullShell(page)
-  await stubShellReads(page)
-  await stubPendingUpdates(page, UPDATES)
+  await stubUpdatesScreen(page, UPDATES)
   await page.setViewportSize({ width: 390, height: 844 })
   // The drawer replaces the sidebar at this width, so the page is opened directly, like the card layout spec below.
   await page.goto('/servers/updates')
@@ -360,7 +399,10 @@ test('a required reboot is announced above the Updates list', async ({ page }) =
 })
 
 for (const reboot of [false, null, 'failure'] as const) {
-  test(`a reboot answer of ${String(reboot)} draws no reboot notice`, async ({ page }) => {
+  test(`a reboot answer of ${String(reboot)} draws no reboot notice`, async ({ page, guard }) => {
+    if (reboot === 'failure') {
+      guard.allow(500, REBOOT_REQUIRED_PATTERN)
+    }
     // The security notice is the positive control: the summary region rendered, so the absent
     // reboot notice is the answer's doing and not a summary that never drew.
     await openUpdates(page, UPDATES, { notices: { securityCount: 1, reboot } })
@@ -374,7 +416,8 @@ for (const reboot of [false, null, 'failure'] as const) {
 
 // The proposition: when the count read fails the security summary is absent: a count the panel could not
 // give is not zero. Breakable: a store that kept a stale or zero count shows the "none" sentence.
-test('a failed list read draws no security summary beside the backend message', async ({ page }) => {
+test('a failed list read draws no security summary beside the backend message', async ({ page, guard }) => {
+  guard.allow(500, UPDATES_READS_PATTERN)
   await openUpdates(page, UPDATES, { failure: CACHE_UNREADABLE, notices: { securityCount: 3, reboot: true } })
 
   await expect(page.getByRole('status').filter({ hasText: CACHE_UNREADABLE })).toBeVisible()
@@ -415,9 +458,7 @@ test('a kind the panel names but the SPA knows no tone for is drawn with the pan
 // from the URL value shows "Type: bogus" or a dotted key.
 test('an unknown classification in the URL draws no chip and no raw key', async ({ page }) => {
   await setPersistedLocale(page, 'en')
-  await openFullShell(page)
-  await stubShellReads(page)
-  await stubPendingUpdates(page, UPDATES)
+  await stubUpdatesScreen(page, UPDATES)
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/servers/updates?classification=bogus')
 
@@ -430,9 +471,7 @@ test('an unknown classification in the URL draws no chip and no raw key', async 
 // The proposition: a listed kind in the URL shows its chip with the panel's name.
 test('a listed classification in the URL shows a chip named by the panel', async ({ page }) => {
   await setPersistedLocale(page, 'en')
-  await openFullShell(page)
-  await stubShellReads(page)
-  await stubPendingUpdates(page, UPDATES)
+  await stubUpdatesScreen(page, UPDATES)
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/servers/updates?classification=security')
 

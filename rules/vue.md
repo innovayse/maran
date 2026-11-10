@@ -12,7 +12,7 @@ Required configuration, at minimum:
 - **Arrow-only functions:** `func-style: ["error", "expression"]` plus
   `no-restricted-syntax: ["error", {selector: "FunctionDeclaration", message: "Use a const arrow function (rules/vue.md)"}, {selector: "FunctionExpression", message: "Use an arrow function (rules/vue.md)"}]`.
 - **No raw HTML:** `vue/no-v-html: "error"`, and `no-restricted-properties` / `no-restricted-syntax` blocking `innerHTML` and `outerHTML` assignment.
-- **UI kit only:** `vue/no-restricted-html-elements` set to error for `button`, `input`, `select`, `textarea`, `table`, `form` — configured to apply everywhere EXCEPT `src/components/ui/**`, which overrides it off.
+- **UI kit only:** `vue/no-restricted-html-elements` set to error for `button`, `input`, `select`, `textarea`, `table`, `form`, `iframe` — configured to apply everywhere EXCEPT `src/components/ui/**`, which overrides it off.
 - **APIs only in stores:** `no-restricted-imports` with patterns `**/composables/useApi*` and `**/composables/apis/*` erroring across **all of `src/**`** (not just `.vue` — a util or another composable must not reach the API layer either), lifted only in `src/stores/**`, `src/composables/apis/**` and `src/composables/useApi.ts`. Plus `no-restricted-globals` for `fetch`/`XMLHttpRequest`, and a `no-restricted-syntax` selector blocking `window.fetch`, `globalThis.fetch` and `self.fetch`, which the globals rule does not catch.
 - **Docs:** `jsdoc/require-jsdoc` (error) covering arrow functions, function expressions, methods and class declarations with `publicOnly: false`; `jsdoc/require-param`, `jsdoc/require-returns`, `jsdoc/check-param-names`, `jsdoc/require-description` — all error. Test files (`**/*.spec.ts`) override these off.
 - **Type hygiene:** `@typescript-eslint/no-explicit-any`, `no-non-null-assertion`, `consistent-type-imports` (enforcing `import type`), `explicit-function-return-type` (error, `allowExpressions: false`) — plus `@typescript-eslint/no-floating-promises` and `no-misused-promises` from the type-checked preset.
@@ -39,8 +39,10 @@ Required configuration, at minimum:
 ## Modules in the frontend: one bundle, licence-gated
 
 Every module's interface — free and paid alike — is written in the flat structure above and compiled
-into the single SPA bundle. There is no runtime loading of module JavaScript, no module federation,
-and no per-module frontend build. Why this and not dynamic loading:
+into the single SPA bundle. There is no runtime loading of module JavaScript into the SPA's own
+realm, no module federation, and no per-module frontend build. (A package's screen runs in an
+isolated frame, which is not loading into this realm; see "Packaged modules" below.) Why this and not
+dynamic loading:
 
 - **Security.** Injecting a downloaded bundle into the admin SPA would run third-party code inside
   the administrator's session, with its cookies and CSRF context — the exact thing our root agent
@@ -61,9 +63,46 @@ What licence gating means in practice:
 - Feature code must not assume its module is enabled: any entry point (menu item, deep link, saved
   bookmark) passes through the same guard.
 
-Third-party modules from outside Innovayse are out of scope for now. When they arrive, they get an
-isolated page (own origin/iframe with a narrow postMessage contract), never an import into this
-bundle — decided so nobody reaches for federation later "just this once".
+### Packaged modules: an isolated frame, never an import
+
+The rule above holds for every module that ships with the panel. A module that arrives as an
+installed package (`.ipm`, issue #185) has no code in this bundle, and its screen is never imported
+into it: the shell shows it in a sandboxed frame. Decided so nobody reaches for federation or a
+dynamic `import()` later "just this once".
+
+- **The frame is an opaque origin.** `components/ui/UiSandboxFrame.vue` is the only `<iframe>` in
+  the SPA (`vue/no-restricted-html-elements` refuses it everywhere else) and fixes `sandbox` to
+  `allow-scripts` inside itself: never `allow-same-origin`, no top navigation, no popups, no forms,
+  `referrerpolicy="no-referrer"`. The frame reads none of the shell's cookies, storage or DOM, and an
+  uncaught error in it cannot reach the shell. A caller cannot widen the sandbox: it is not a prop.
+- **The frame document is the panel's, the entry script is the package's.** The panel serves the
+  document from `/module-frames/{id}/{version}/` (generated, never read from the package) with a
+  CSP of `connect-src 'none'`, so the frame has no network of its own; the package's entry is a
+  classic script pinned by a Subresource Integrity string from the signed manifest.
+- **One narrow contract, brokered by the shell.** `types/moduleBridge.ts` is the versioned message
+  union; the handshake is `ready` carrying a per-mount nonce, then a `MessageChannel` port. The shell
+  validates every message in both directions, drops and counts what is unknown, malformed, oversized
+  or too frequent, and unmounts the frame after three violations or ten silent seconds
+  (`ModuleUnavailable`, with a retry). Nothing is sent into the frame except language, theme, role
+  name, its route and the answers to its own calls: no token, cookie, CSRF value or user object.
+- **The shell calls the API for the frame, and the server decides what the frame may reach.** A
+  frame's `api` message becomes a request the shell makes with its own session through
+  `stores/moduleBridge.ts` (API composables still live in stores only), carrying `X-Maran-Frame:
+  <moduleId>`. The SPA only checks that the path is under `/api/v1/`; the backend refuses a framed
+  call to any endpoint the named module does not own (`ModuleFrameOutOfScope`, 403), so the check is
+  advice here and law there (rules/security.md item 14).
+- **Menu and routes come from the catalogue, not from this bundle.** `GET /api/v1/modules` carries a
+  packaged module's backend-localized `menu[]` and `routes[]`; `router/registerPackagedModuleRoutes.ts`
+  adds `/m/<id>/…` routes under `DefaultLayout` with `meta.module`, so `moduleAccessGuard` and the
+  upgrade page behave as for any module, and removes them when the catalogue drops the module.
+  `router/navigationTree.ts` stays the one source of every menu: packaged items are merged into a
+  "Modules" group by `utils/packagedNavigation.ts`, with an icon from the closed vocabulary. There is no
+  per-package entry in `moduleLandingRoute.ts`.
+- **A module installed but not yet composed has no route.** Activation is at the next start, so the
+  catalogue lists the module's menu and routes only once it is active.
+
+Third-party modules from outside Innovayse are still out of scope for now; when they arrive they use
+this same frame, and the contract above is what they are held to.
 
 ## Types
 
@@ -220,6 +259,8 @@ async function remove(): Promise<void> { ... }
   - `UiTableCell` takes `tone` (`primary`, `secondary`, `muted`) and `mono`. **A cell's colour comes only from `tone`**, never from a `text-text-*` class on the cell or its content: the cell used to bake in a colour and a caller's class won or lost by stylesheet order. A table scrolls inside its own container and never squashes: cells keep a minimum width, headings and badges do not wrap.
   - `UiMeter` takes `tone` (`capacity`, the default, warns as the allowance fills; `progress` colours by `status`, `running`, `success` or `danger`, because for a task a full bar is the good outcome) and `showValue` (on by default so a bar is never an unlabelled stripe; turn it off only where the surrounding markup prints the figure).
   - `UiSearchInput` is a plain `searchbox` unless it drives a listbox elsewhere: then pass `inputRole="combobox"` with `ariaControls`, `ariaExpanded` and `ariaActivedescendant`, because an `aria-*` written on the tag lands on the wrapper.
+  - `UiInput`, `UiSearchInput` and `UiDateInput` share one error state: pass `error` (an already-translated sentence) and the field gets `border-danger`, `aria-invalid` and a message that `aria-describedby` names. A list search longer than the server's limit uses it through `useDebouncedSearch(..., refuseLongTerm)`, which holds the term back instead of sending a request the server will refuse.
+  - `UiToolbar` is the one row of controls above a listing (search, filter trigger, toggle, refresh): `items-center` on one line, never a page's own `flex items-end` row. Controls share the kit's one height scale (`--d-control`), a `UiSearchInput` or `UiSelect` inside it hides its label visually (still its accessible name), and a switch or checkbox row takes the control height there. A control that does not match is fixed in the kit, not with a height class at the call site.
   - `UiAvatar` (`name`, `size`: `sm` or `md`) is the one initials disc; the letters come from `utils/initialsOf`, so no screen derives initials itself. It is decorative: the name is printed beside it. `UiIconTile` (`name` or the default slot, `size`: `sm`, `md`, `lg`) is the one accent icon square, also decorative; **it must not sit on `--s3`** (`--act` on the wash there is 4.40:1), where the neutral `bg-surface-3` square is used instead. `UiAuthHeading` (`title`, `subtitle`) is the title of a signed-out page, an `h2`.
 - **No raw HTML strings, ever**: `v-html`, `innerHTML`, and building markup from strings are forbidden — they are an XSS hole in a panel that renders customer-supplied names, domains and log lines.
 

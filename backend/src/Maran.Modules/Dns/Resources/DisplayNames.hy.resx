@@ -66,4 +66,40 @@
   <data name="DnsOriginAcmeChallenge">
     <value>Սերտիֆիկատի ստուգում</value>
   </data>
+  <data name="DnsTemplateVariableApex">
+    <value>Գոտու սեփական դոմենային անունը, օրինակ՝ example.com։</value>
+  </data>
+  <data name="DnsTemplateVariableIpv4">
+    <value>Սերվերի հանրային IPv4 հասցեն՝ անվանային սերվերի կարգավորումներից։</value>
+  </data>
+  <data name="DnsTemplateVariableIpv6">
+    <value>Սերվերի հանրային IPv6 հասցեն՝ անվանային սերվերի կարգավորումներից։</value>
+  </data>
+  <data name="DnsTemplateVariableNs1">
+    <value>Առաջին անվանային սերվերը՝ անվանային սերվերի կարգավորումներից։</value>
+  </data>
+  <data name="DnsTemplateVariableNs2">
+    <value>Երկրորդ անվանային սերվերը՝ անվանային սերվերի կարգավորումներից։</value>
+  </data>
+  <data name="DnsTemplateVariableHostmaster">
+    <value>Hostmaster փոստարկղը կետերով գրված ձևով՝ անվանային սերվերի կարգավորումներից։</value>
+  </data>
+  <data name="DnsTemplateSkippedApex">
+    <value>Այս գրառման համար անհրաժեշտ է գոտու դոմենային անունը։</value>
+  </data>
+  <data name="DnsTemplateSkippedIpv4">
+    <value>Բաց է թողնվել, քանի որ անվանային սերվերի կարգավորումներում հանրային IPv4 հասցե նշված չէ։</value>
+  </data>
+  <data name="DnsTemplateSkippedIpv6">
+    <value>Բաց է թողնվել, քանի որ անվանային սերվերի կարգավորումներում հանրային IPv6 հասցե նշված չէ։</value>
+  </data>
+  <data name="DnsTemplateSkippedNs1">
+    <value>Բաց է թողնվել, քանի որ անվանային սերվերի կարգավորումներում առաջին անվանային սերվերը նշված չէ։</value>
+  </data>
+  <data name="DnsTemplateSkippedNs2">
+    <value>Բաց է թողնվել, քանի որ անվանային սերվերի կարգավորումներում երկրորդ անվանային սերվերը նշված չէ։</value>
+  </data>
+  <data name="DnsTemplateSkippedHostmaster">
+    <value>Բաց է թողնվել, քանի որ անվանային սերվերի կարգավորումներում hostmaster փոստարկղը նշված չէ։</value>
+  </data>
 </root>

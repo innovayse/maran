@@ -72,7 +72,8 @@ public sealed class LicenceStatusDisplayNamesTests
         Assert.Contains("Expired", reasons);
         Assert.Contains("ProductMismatch", reasons);
         Assert.Contains("FingerprintMismatch", reasons);
-        Assert.Equal(5, reasons.Count);
+        Assert.Contains("NoVerificationKey", reasons);
+        Assert.Equal(6, reasons.Count);
     }
 
     /// <summary>Absent and Valid each carry their own sentence, not a machine identifier.</summary>

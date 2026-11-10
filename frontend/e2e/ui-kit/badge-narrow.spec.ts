@@ -1,9 +1,10 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubDatabaseGrants } from '../fixtures/stub-database-grant-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { GrantRepairReport } from '../../src/types/grantRepair'
 import type { PanelModule } from '../../src/types/module'
 
@@ -34,6 +35,7 @@ for (const locale of ['en', 'hy'] as const) {
     await stubSignedIn(page)
     await stubHealthy(page)
     await stubModules(page, LICENSED)
+    await stubShellReads(page)
     await stubDatabaseGrants(page, REPORT)
     await page.goto('/databases/grant-repair')
 

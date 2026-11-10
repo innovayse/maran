@@ -123,7 +123,7 @@ public sealed class SuspendResellerCommandHandlerTests : IDisposable
         var plan = Plan.Define(Guid.NewGuid(), "Basic", 1_000, 1, 1, 1, 0, 0, 1, resellerId: _reseller.Id);
         var running = OwnedAccount("running", plan);
         var paused = OwnedAccount("paused", plan);
-        paused.Suspend();
+        paused.Suspend(SuspensionActor.Administrator);
         _dbContext.Plans.Add(plan);
         _dbContext.Accounts.AddRange(running, paused);
         await _dbContext.SaveChangesAsync();

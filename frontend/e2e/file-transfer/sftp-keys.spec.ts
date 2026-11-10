@@ -1,5 +1,5 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
 import { expectNoSeriousViolations } from '../fixtures/expect-no-serious-violations'
+import { expect, test } from '../fixtures/guarded-test'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubAccountNames, stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
@@ -13,9 +13,11 @@ import {
   type SftpKeyRefusals,
   type SftpKeyStubReads,
 } from '../fixtures/stub-sftp-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account, MyAccount } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
 import type { SftpUser, SftpUserKey } from '../../src/types/sftpUser'
+import type { Locator, Page } from '@playwright/test'
 
 // The public keys of an SFTP login (#135): a dialog opened from the row's menu that lists one server
 // page of keys, adds a key, and removes one after a confirmation that says open sessions end.
@@ -101,7 +103,8 @@ const catalogue = (count: number): SftpUserKey[] => {
       label: `Key ${number}`,
       algorithm: 'ssh-ed25519',
       fingerprint: `SHA256:Fingerprint${number}Padding0123456789abcdefghijklmn`,
-      createdAt: `2026-08-${number}T10:00:00Z`,
+      // A real calendar day per row: a day number past the month would be no date-time at all.
+      createdAt: new Date(Date.UTC(2026, 7, index + 1, 10)).toISOString(),
     }
   })
 }
@@ -117,6 +120,7 @@ const openWith = async (page: Page, keys: SftpUserKey[], refusals: SftpKeyRefusa
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubAccountNames(page, [ALICE])
   await stubMyAccount(page, OWN_ACCOUNT)
@@ -216,7 +220,8 @@ test('the form refuses an empty label and a malformed key before sending anythin
 
 // rules/vue.md: the backend owns the text of a refusal and the SPA renders it as received. The form
 // keeps what was typed, because the person will correct it rather than retype it.
-test('a refused key shows the backend sentence verbatim and keeps the typed values', async ({ page }) => {
+test('a refused key shows the backend sentence verbatim and keeps the typed values', async ({ page, guard }) => {
+  guard.allow(400, /\/api\/v1\/sftp-users\/[^/]+\/keys$/)
   const detail = 'This login already holds the maximum of 32 keys.'
   const reads = await openWith(page, [], { add: detail })
   const dialog = await openKeysDialog(page)
@@ -303,7 +308,8 @@ test('after a confirmed removal focus stays inside the keys dialog', async ({ pa
     .toBe(true)
 })
 
-test('a refused removal shows the backend sentence verbatim and keeps the key', async ({ page }) => {
+test('a refused removal shows the backend sentence verbatim and keeps the key', async ({ page, guard }) => {
+  guard.allow(409, /\/api\/v1\/sftp-users\/[^/]+\/keys\/[^/]+$/)
   const detail = 'The open sessions of this login could not be ended. Nothing was changed.'
   await openWith(page, [LAPTOP], { remove: detail })
   const dialog = await openKeysDialog(page)

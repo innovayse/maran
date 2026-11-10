@@ -26,6 +26,11 @@ readonly PHP_INSTALL_UNIT_FILE="maran-php-install@.service"
 # fixed argv: an absolute program, fixed options, the `--` that ends option parsing, and %i (never %I) as the only package argument.
 readonly PHP_INSTALL_EXEC_DEBIAN="ExecStart=/usr/bin/apt-get install -y --no-remove -- %i"
 readonly PHP_INSTALL_EXEC_RHEL="ExecStart=/usr/bin/dnf install -y -- %i"
+# UNVERIFIED: that zypper accepts `--` before the package and that /usr/bin/zypper is its path (the
+# installer's render says so too, and the agent's SUSE adapter must agree). Confirm with
+# `command -v zypper` and `zypper --non-interactive install --no-recommends -- bc; echo $?` in the
+# pinned Leap image. `--non-interactive` is what keeps a prompt from hanging a unit with no stdin.
+readonly PHP_INSTALL_EXEC_SUSE="ExecStart=/usr/bin/zypper --non-interactive install --no-recommends -- %i"
 
 
 # render_php_install_unit_for: runs step 70's own render_php_install_unit for the named family in a
@@ -62,6 +67,7 @@ php_install_unit_defect() {
   case "$family" in
     debian) expected_exec="$PHP_INSTALL_EXEC_DEBIAN" ;;
     rhel) expected_exec="$PHP_INSTALL_EXEC_RHEL" ;;
+    suse) expected_exec="$PHP_INSTALL_EXEC_SUSE" ;;
     *) echo "family '${family}' is not one this check knows"; return 0 ;;
   esac
 
@@ -81,6 +87,9 @@ php_install_unit_defect() {
   fi
   if eff_grep -q -- '--allowerasing'; then
     echo "passes --allowerasing, which lets dnf remove other packages"; return 0
+  fi
+  if eff_grep -q -- '--force-resolution'; then
+    echo "passes --force-resolution, which lets zypper remove or downgrade other packages to satisfy the request"; return 0
   fi
   if eff_grep -q '^EnvironmentFile='; then
     echo "reads an EnvironmentFile=, so the agent's environment (or anyone's) reaches a root package manager"
@@ -145,7 +154,7 @@ assert_the_php_install_unit_is_the_one_fixed_oneshot_the_design_allows() {
   local work family defect name control planted_count
   work="$(mktemp -d)"
 
-  for family in debian rhel; do
+  for family in debian rhel suse; do
     render_php_install_unit_for "$family" "${work}/${family}.service" \
       || fail "step 70's render_php_install_unit refused the ${family} family, which the installer supports"
     [ -s "${work}/${family}.service" ] \
@@ -177,6 +186,12 @@ the -- terminator dropped|debian|s/ -- %i/ %i/
 the -- terminator dropped|rhel|s/ -- %i/ %i/
 a shell wrapped around the package manager|debian|s#^ExecStart=.*#ExecStart=/bin/sh -c "apt-get install -y %i"#
 --allowerasing added|rhel|s/dnf install -y /dnf install -y --allowerasing /
+the -- terminator dropped|suse|s/ -- %i/ %i/
+--non-interactive dropped, so a prompt could hang the unit|suse|s/ --non-interactive//
+--no-recommends dropped, so suggested packages are installed|suse|s/ --no-recommends//
+--force-resolution added|suse|s/ install / install --force-resolution /
+a shell wrapped around the package manager|suse|s#^ExecStart=.*#ExecStart=/bin/sh -c "zypper install %i"#
+specifier %i spelled %I|suse|s/%i/%I/
 an EnvironmentFile= added|debian|s#^UMask=0022#UMask=0022\nEnvironmentFile=/etc/maran/agent.env#
 an [Install] section added|debian|s#^Type=oneshot#Type=oneshot\n[Install]\nWantedBy=multi-user.target#
 TimeoutStartSec removed|debian|/^TimeoutStartSec=/d
@@ -188,12 +203,13 @@ PATH line removed|debian|/^Environment=PATH=/d
 UMask 0027|debian|s/^UMask=0022/UMask=0027/
 DEBIAN_FRONTEND removed|debian|/^Environment=DEBIAN_FRONTEND=/d
 DEBIAN_FRONTEND on the RHEL family|rhel|s/^# No debconf.*/Environment=DEBIAN_FRONTEND=noninteractive/
+DEBIAN_FRONTEND on the SUSE family|suse|s/^# No debconf.*/Environment=DEBIAN_FRONTEND=noninteractive/
 CONTROLS
-  [ "$planted_count" -eq 17 ] \
-    || fail "the php install unit checker ran ${planted_count} planted controls, not the 17 it carries. A control dropped from the list is a check that no longer exists."
+  [ "$planted_count" -eq 24 ] \
+    || fail "the php install unit checker ran ${planted_count} planted controls, not the 24 it carries. A control dropped from the list is a check that no longer exists."
 
   rm -rf "$work"
-  echo "The package-install unit renders for both families as one fixed argv taking %i alone, a oneshot with no [Install],"
+  echo "The package-install unit renders for all three families as one fixed argv taking %i alone, a oneshot with no [Install],"
   echo "a finite timeout, the rate limit off, and a stated PATH, UMask and frontend; the checker refused all ${planted_count} planted defects."
 }
 

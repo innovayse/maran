@@ -1,9 +1,13 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn, stubbedAdministrator } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubProfile } from '../fixtures/stub-profile-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubSteeredAdministrator } from '../fixtures/stub-password-reset-routes'
+import { stubSessions } from '../fixtures/stub-sessions-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
+import type { Page } from '@playwright/test'
 
 test('an administrator steered into enrolment lands there from any URL, with no navigation', async ({
   page,
@@ -41,6 +45,8 @@ test('the navigation this spec looks for is really there when nobody is steered'
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
+  await stubSessions(page, [])
 
   await page.goto('/settings/sessions')
 
@@ -107,6 +113,7 @@ test('the steered enrolment screen says the administrator requires it', async ({
   // Control: the shell's own copy of the page, which nobody is forced onto, carries no such sentence.
   await page.unroute('**/api/v1/auth/refresh')
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubProfile(page, {
     username: stubbedAdministrator.username,
     email: stubbedAdministrator.email,
@@ -131,6 +138,9 @@ test('signing out of the steered enrolment screen returns to the sign-in screen'
 
 test('Continue after the recovery codes enters the panel', async ({ page }) => {
   await holdOnEnrolment(page)
+  // Only the panel behind the Continue button asks for these; the enrolment screen asks for none.
+  await stubShellReads(page)
+  await stubLandingReads(page)
 
   await page.goto('/two-factor-setup')
   // Before the codes there is nothing to continue to.

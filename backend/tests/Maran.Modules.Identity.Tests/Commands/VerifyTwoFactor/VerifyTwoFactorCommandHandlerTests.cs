@@ -1,6 +1,7 @@
 using Maran.Modules.Identity.Commands.VerifyTwoFactor;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.Domain.ValueObjects;
 using Maran.Modules.Identity.Options;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Services;
@@ -92,6 +93,8 @@ public sealed class VerifyTwoFactorCommandHandlerTests : IDisposable
                 _clock),
             new IdentityAuditJournal(_audit, new StubCurrentUser()),
             NewDetector(),
+            new UnlockedFailedLoginRecorder(_context, TestSecurityPolicyCache.Over(_context)),
+            _clock,
             new TwoFactorCodeRejection(_clockStatus));
     }
 
@@ -185,5 +188,82 @@ public sealed class VerifyTwoFactorCommandHandlerTests : IDisposable
         Assert.False(result.IsSuccess);
         Assert.Equal("InvalidTwoFactorCodeClockUnsynchronizedUnauthorized", result.Error!.Code);
         Assert.Empty(await _context.Sessions.ToListAsync());
+    }
+
+    /// <summary>Reads the stored failure count of the seeded login.</summary>
+    private async Task<User> ReloadAsync()
+    {
+        return await _context.Users.AsNoTracking().SingleAsync();
+    }
+
+    /// <summary>A wrong code counts against the login, so address rotation cannot bypass the lockout (issue #463).</summary>
+    [Fact]
+    public async Task A_wrong_code_counts_against_the_login()
+    {
+        await SeedTotpUserAsync();
+
+        await NewHandler().HandleAsync(Attempt("000000"), CancellationToken.None);
+
+        Assert.Equal(1, (await ReloadAsync()).FailedLoginAttempts);
+    }
+
+    /// <summary>A wrong password counts against the login here as it does at sign-in.</summary>
+    [Fact]
+    public async Task A_wrong_password_counts_against_the_login()
+    {
+        await SeedTotpUserAsync();
+
+        await NewHandler().HandleAsync(Attempt(CurrentCode(), password: "wrong"), CancellationToken.None);
+
+        Assert.Equal(1, (await ReloadAsync()).FailedLoginAttempts);
+    }
+
+    /// <summary>Wrong codes up to the threshold lock the login, and a correct attempt is then refused.</summary>
+    [Fact]
+    public async Task Wrong_codes_up_to_the_threshold_lock_the_login_and_a_correct_attempt_is_then_refused()
+    {
+        await SeedTotpUserAsync();
+        var threshold = SecurityPolicySnapshot.Default.MaxFailedLoginAttempts;
+        for (var attempt = 0; attempt < threshold; attempt++)
+        {
+            await NewHandler().HandleAsync(Attempt("000000"), CancellationToken.None);
+        }
+
+        var locked = await NewHandler().HandleAsync(Attempt(CurrentCode()), CancellationToken.None);
+
+        Assert.True((await ReloadAsync()).IsLockedOut(Now));
+        Assert.Equal("InvalidCredentialsUnauthorized", locked.Error!.Code);
+        Assert.Empty(await _context.Sessions.ToListAsync());
+    }
+
+    /// <summary>The inverse control: one fewer wrong code than the threshold leaves the login able to sign in.</summary>
+    [Fact]
+    public async Task One_wrong_code_fewer_than_the_threshold_does_not_lock_the_login()
+    {
+        await SeedTotpUserAsync();
+        for (var attempt = 0; attempt < SecurityPolicySnapshot.Default.MaxFailedLoginAttempts - 1; attempt++)
+        {
+            await NewHandler().HandleAsync(Attempt("000000"), CancellationToken.None);
+        }
+
+        var result = await NewHandler().HandleAsync(Attempt(CurrentCode()), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    /// <summary>A correct password on a login with no second factor is a 401 like a wrong one, not a 409 that confirms it.</summary>
+    [Fact]
+    public async Task A_correct_password_on_a_login_without_two_factor_is_refused_like_a_wrong_password()
+    {
+        var user = new User(Guid.NewGuid(), "owner-one", "owner@example.com", _hasher.Hash(Password), UserRole.Customer, Now);
+        _context.Users.Add(user);
+        _context.AccountMemberships.Add(AccountMembership.Own(Guid.NewGuid(), user.Id, Guid.NewGuid(), Now));
+        await _context.SaveChangesAsync();
+
+        var noFactor = await NewHandler().HandleAsync(Attempt("000000"), CancellationToken.None);
+        var wrongPassword = await NewHandler().HandleAsync(Attempt("000000", password: "wrong"), CancellationToken.None);
+
+        Assert.Equal(wrongPassword.Error, noFactor.Error);
+        Assert.Equal(2, (await ReloadAsync()).FailedLoginAttempts);
     }
 }

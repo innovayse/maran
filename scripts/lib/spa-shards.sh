@@ -289,14 +289,14 @@ selftest_case() {
   local name="$1" dir="$2" expect="$3" needle="$4" output status=0
   output="$(SPA_SHARDS_BASELINE="$dir/baseline" bash "$root/scripts/lib/spa-shards.sh" --combine "$dir" 2>&1)" || status=$?
   if [ "$expect" = OK ]; then
-    if ! printf '%s\n' "$output" | grep -q '^TEST VERDICT: OK' || [ "$status" -ne 0 ]; then
+    if ! grep -q '^TEST VERDICT: OK' <<<"$output" || [ "$status" -ne 0 ]; then
       echo "SELF-TEST FAILED: $name — the healthy plant was not accepted (status $status)." >&2
       printf '%s\n' "$output" >&2
       return 1
     fi
   else
-    if printf '%s\n' "$output" | grep -q '^TEST VERDICT: OK' || [ "$status" -eq 0 ] ||
-       ! printf '%s\n' "$output" | grep -qF "$needle"; then
+    if grep -q '^TEST VERDICT: OK' <<<"$output" || [ "$status" -eq 0 ] ||
+       ! grep -qF "$needle" <<<"$output"; then
       echo "SELF-TEST FAILED: $name — expected a failure naming '$needle' (status $status)." >&2
       printf '%s\n' "$output" >&2
       return 1
@@ -376,7 +376,7 @@ selftest_run() {
 
   # The real tree: enumeration is non-empty, excludes the install stage, and the real partition has
   # no empty shard at the counts the workflow uses.
-  if ! spa_enumerate >"$base/real" || [ ! -s "$base/real" ] || cut -f2 "$base/real" | grep -q '^install/'; then
+  if ! spa_enumerate >"$base/real" || [ ! -s "$base/real" ] || grep -q '^install/' <<<"$(cut -f2 "$base/real")"; then
     echo "SELF-TEST FAILED: the real enumeration is empty or contains the install stage." >&2
     return 1
   fi

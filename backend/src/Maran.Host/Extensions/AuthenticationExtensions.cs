@@ -66,15 +66,23 @@ public static class AuthenticationExtensions
             // as the default, and only a policy that names this scheme (ApiKeyPolicies) ever runs it.
             .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(
                 ApiKeyDefaults.Scheme,
+                configureOptions: null)
+
+            // The same for the single-use export grant of an account move (issue #127): a scheme, not the
+            // default, reached only by a policy that names it (MigrationGrantPolicies).
+            .AddScheme<AuthenticationSchemeOptions, MigrationGrantAuthenticationHandler>(
+                MigrationGrantDefaults.Scheme,
                 configureOptions: null);
 
         // Singleton: the failed-attempt counts of every client address outlive any one request.
         services.AddSingleton<ApiKeyFailureLimiter>();
+        services.AddSingleton<MigrationGrantFailureLimiter>();
 
         services.AddAuthorization(options =>
         {
             RolePolicies.Configure(options);
             ApiKeyPolicies.Configure(options);
+            MigrationGrantPolicies.Configure(options);
         });
 
         // A policy refusal gets a localized RFC 7807 body instead of an empty 403; every other

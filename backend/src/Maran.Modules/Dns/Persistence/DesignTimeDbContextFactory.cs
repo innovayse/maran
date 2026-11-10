@@ -33,7 +33,7 @@ public sealed class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<Dns
 
         var optionsBuilder = new DbContextOptionsBuilder<DnsDbContext>();
         optionsBuilder.UseNpgsql(BuildConnectionString(configuration));
-        return new DnsDbContext(optionsBuilder.Options, new DesignTimeCurrentUser());
+        return new DnsDbContext(optionsBuilder.Options, new DesignTimeCurrentUser(), new DesignTimeEncryptionService());
     }
 
     /// <summary>

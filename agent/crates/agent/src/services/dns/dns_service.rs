@@ -1,10 +1,10 @@
 //! `DnsService`: this panel's own authoritative name server.
 
-use std::path::Path;
 use std::sync::Arc;
 
 use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
-use maran_ops::dns::{self, ZoneHost, ZoneReading};
+use maran_agent_core::validation::web::panel_host_names::PanelHostNames;
+use maran_ops::dns::{self, ZoneDescription, ZoneDirectories, ZoneHost};
 use tonic::{Request, Response, Status};
 
 use crate::audit::audit_slot::AuditSlot;
@@ -19,6 +19,7 @@ use crate::proto::{
 };
 use crate::services::dns::dns_status::to_agent_error;
 use crate::services::dns::to_wire_dns_status::to_wire_dns_status;
+use crate::services::dns::to_wire_zone_signing::to_wire_zone_signing;
 use crate::services::dns::validated_zone::validated_zone;
 use crate::services::dns::validated_zone_name::validated_zone_name;
 use crate::services::wire::run_blocking::run_blocking;
@@ -45,6 +46,8 @@ pub struct DnsServiceImpl<H> {
     distro: &'static dyn maran_distro::DistroAdapter,
     /// The free-space floor a zone write is refused below.
     floor: FreeSpaceFloor,
+    /// The names the panel itself is served under, which no zone may be named.
+    panel_host_names: PanelHostNames,
 }
 
 impl<H: ZoneHost + 'static> DnsServiceImpl<H> {
@@ -54,11 +57,13 @@ impl<H: ZoneHost + 'static> DnsServiceImpl<H> {
         host: H,
         distro: &'static dyn maran_distro::DistroAdapter,
         floor: FreeSpaceFloor,
+        panel_host_names: PanelHostNames,
     ) -> Self {
         Self {
             host: Arc::new(host),
             distro,
             floor,
+            panel_host_names,
         }
     }
 }
@@ -154,14 +159,14 @@ impl<H: ZoneHost + 'static> DnsService for DnsServiceImpl<H> {
         let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
 
-        let result = match validated_zone(&request) {
+        let result = match validated_zone(&request, &self.panel_host_names) {
             Ok(content) => {
                 let (host, distro, floor) = (Arc::clone(&self.host), self.distro, self.floor);
                 run_blocking("dns zone operation", to_agent_error, move || {
                     dns::put_zone(
                         host.as_ref(),
                         distro,
-                        Path::new(distro.dns_zone_directory()),
+                        &ZoneDirectories::of(distro),
                         &floor,
                         &content,
                     )
@@ -200,12 +205,7 @@ impl<H: ZoneHost + 'static> DnsService for DnsServiceImpl<H> {
             Ok(zone) => {
                 let (host, distro) = (Arc::clone(&self.host), self.distro);
                 run_blocking("dns zone operation", to_agent_error, move || {
-                    dns::delete_zone(
-                        host.as_ref(),
-                        distro,
-                        Path::new(distro.dns_zone_directory()),
-                        &zone,
-                    )
+                    dns::delete_zone(host.as_ref(), distro, &ZoneDirectories::of(distro), &zone)
                 })
                 .await
             }
@@ -225,7 +225,8 @@ impl<H: ZoneHost + 'static> DnsService for DnsServiceImpl<H> {
         }))
     }
 
-    /// Reports what the daemon serves for one zone, asked of the daemon.
+    /// Reports what the daemon serves for one zone and how it signs it, asked of
+    /// the daemon.
     async fn get_zone(
         &self,
         request: Request<GetZoneRequest>,
@@ -236,7 +237,7 @@ impl<H: ZoneHost + 'static> DnsService for DnsServiceImpl<H> {
             Ok(zone) => {
                 let (host, distro) = (Arc::clone(&self.host), self.distro);
                 run_blocking("dns zone status", to_agent_error, move || {
-                    dns::get_zone(host.as_ref(), distro, &zone)
+                    dns::describe_zone(host.as_ref(), distro, &zone)
                 })
                 .await
             }
@@ -244,13 +245,17 @@ impl<H: ZoneHost + 'static> DnsService for DnsServiceImpl<H> {
         };
 
         let result = match result {
-            Ok(ZoneReading::Served { serial }) => get_zone_response::Result::Ok(GetZoneOk {
-                served: true,
-                serial,
-            }),
-            Ok(ZoneReading::NotServed) => get_zone_response::Result::Ok(GetZoneOk {
+            Ok(ZoneDescription::Served { serial, signing }) => {
+                get_zone_response::Result::Ok(GetZoneOk {
+                    served: true,
+                    serial,
+                    signing: Some(to_wire_zone_signing(&signing)),
+                })
+            }
+            Ok(ZoneDescription::NotServed) => get_zone_response::Result::Ok(GetZoneOk {
                 served: false,
                 serial: 0,
+                signing: None,
             }),
             Err(error) => get_zone_response::Result::Error(error),
         };
@@ -267,11 +272,7 @@ impl<H: ZoneHost + 'static> DnsService for DnsServiceImpl<H> {
     ) -> Result<Response<ListZonesResponse>, Status> {
         let (host, distro) = (Arc::clone(&self.host), self.distro);
         let result = run_blocking("dns zone listing", to_agent_error, move || {
-            dns::list_zones(
-                host.as_ref(),
-                distro,
-                Path::new(distro.dns_zone_directory()),
-            )
+            dns::list_zones(host.as_ref(), distro, &ZoneDirectories::of(distro))
         })
         .await;
 

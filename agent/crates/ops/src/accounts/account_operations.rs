@@ -34,6 +34,7 @@ use crate::accounts::remove_account_at_jobs::remove_account_at_jobs;
 use crate::accounts::remove_account_mail_spool::remove_account_mail_spool;
 use crate::accounts::remove_account_open_files_limit::remove_account_open_files_limit;
 use crate::accounts::remove_account_shared_files::remove_account_shared_files;
+use crate::accounts::remove_account_site_logs::remove_account_site_logs;
 use crate::accounts::remove_account_sysv_ipc::remove_account_sysv_ipc;
 use crate::accounts::{
     AccountError, AccountSuspensionState, AccountUsage, CreatedAccount, StoredPassword, SystemHost,
@@ -147,6 +148,14 @@ pub struct AccountOperations<H: SystemHost> {
     /// [`remove_account_mail_spool`] bound to the distro adapter.
     mail_spool_step: SharedFilesStep,
 
+    /// The step that removes the account's site-log directory during a deletion
+    /// (issue #477).
+    ///
+    /// A field for the same reason as `shared_files_step`: it walks root's log
+    /// tree with descriptors, which [`SystemHost`] cannot express. Production
+    /// always holds [`remove_account_site_logs`].
+    site_logs_step: SharedFilesStep,
+
     /// The free-space floor a creation is refused below (issue #148).
     floor: FreeSpaceFloor,
 }
@@ -166,6 +175,7 @@ impl<H: SystemHost> AccountOperations<H> {
             floor,
             shared_files_step: Box::new(remove_account_shared_files),
             mail_spool_step: Box::new(move |account| remove_account_mail_spool(distro, account)),
+            site_logs_step: Box::new(remove_account_site_logs),
         }
     }
 
@@ -186,6 +196,16 @@ impl<H: SystemHost> AccountOperations<H> {
     #[cfg(test)]
     fn with_mail_spool_step(mut self, step: SharedFilesStep) -> Self {
         self.mail_spool_step = step;
+        self
+    }
+
+    /// Replaces the site-logs step of a deletion, for a unit test.
+    ///
+    /// Test-only: production code cannot reach it, so the step a real deletion
+    /// runs is always [`remove_account_site_logs`].
+    #[cfg(test)]
+    fn with_site_logs_step(mut self, step: SharedFilesStep) -> Self {
+        self.site_logs_step = step;
         self
     }
 
@@ -1011,6 +1031,14 @@ impl<H: SystemHost> AccountOperations<H> {
         // whoever `useradd` gives the name next. A no-op that touches nothing on
         // an account that never had one.
         remove_account_open_files_limit(&self.host, &account)?;
+
+        // The visitor logs of the account's sites (issue #477), named by the account and
+        // the domain. A directory that outlived the account would hand the previous
+        // tenant's visitor addresses and request targets to whoever is given the same
+        // account name and domain next, through the log tail. The sites went first
+        // (their own deletion removes each site's files), so what is left here is the
+        // directory and whatever a site's deletion could not have known about.
+        (self.site_logs_step)(&account)?;
 
         // Resolved again, immediately before the irreversible step, and the ids are
         // compared with the first resolution. The lock above excludes every

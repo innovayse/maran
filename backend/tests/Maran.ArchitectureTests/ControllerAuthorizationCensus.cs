@@ -57,16 +57,13 @@ public static class ControllerAuthorizationCensus
     };
 
     /// <summary>
-    /// Every controller type of every module the Host composes, plus the Licensing module's, which the
-    /// registry deliberately omits (no screen yet) but whose assembly is an application part of the Host,
-    /// so its controller is routed all the same.
+    /// Every controller type of every module the Host composes (the Licensing module's among them).
     /// </summary>
     /// <returns>The concrete controllers, ordered by full name.</returns>
     public static List<Type> ComposedControllers()
     {
         return ModuleRegistry.All
             .Select(module => { return module.GetType().Assembly; })
-            .Append(typeof(Maran.Modules.Licensing.LicensingModule).Assembly)
             .Distinct()
             .SelectMany(assembly => { return assembly.GetTypes(); })
             .Where(IsController)
@@ -228,7 +225,7 @@ public static class ControllerAuthorizationCensus
         var problems = new List<string>();
         foreach (var item in data)
         {
-            if (IsApiKeyOptIn(item))
+            if (IsApiKeyOptIn(item) || IsMigrationGrantOptIn(item))
             {
                 continue;
             }
@@ -267,5 +264,18 @@ public static class ControllerAuthorizationCensus
             && string.Equals(item.AuthenticationSchemes, ApiKeyDefaults.Scheme, StringComparison.Ordinal)
             && item.Policy is not null
             && ApiKeyOptInPolicies.Contains(item.Policy, StringComparer.Ordinal);
+    }
+
+    /// <summary>Whether an authorize declaration is the one way an endpoint admits a single-use export grant (issue #127).</summary>
+    /// <param name="item">One <c>[Authorize]</c> attribute's data.</param>
+    /// <returns>
+    /// <c>true</c> when it names the <c>MigrationGrant</c> scheme, no roles, and the grant's pull policy: that pair,
+    /// and nothing else, is how a grant is admitted.
+    /// </returns>
+    private static bool IsMigrationGrantOptIn(IAuthorizeData item)
+    {
+        return string.IsNullOrWhiteSpace(item.Roles)
+            && string.Equals(item.AuthenticationSchemes, MigrationGrantDefaults.Scheme, StringComparison.Ordinal)
+            && string.Equals(item.Policy, MigrationGrantPolicyNames.Pull, StringComparison.Ordinal);
     }
 }

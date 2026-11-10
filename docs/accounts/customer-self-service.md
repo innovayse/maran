@@ -16,6 +16,7 @@ integration test file. This page restates the rows added with the isolation test
 | Save the caller's dashboard layout | `PUT api/v1/me/dashboard-layout` | none | Refused | none: changes only the caller's own saved layout |
 | Read the account's PHP settings | `GET api/v1/php-settings` | PHP | Read | `PhpSettingsTenantIsolationEndpointTests` |
 | Change the account's PHP settings | `PUT api/v1/php-settings` | PHP | Refused | `PhpSettingsTenantIsolationEndpointTests` |
+| Read which certificate kinds a domain can have | `GET api/v1/certificates/issuance-options` | SSL | Read | `CertificatesAuthorizationTests` |
 
 Notes:
 

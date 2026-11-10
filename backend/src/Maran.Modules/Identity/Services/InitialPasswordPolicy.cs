@@ -1,4 +1,5 @@
 using Maran.Modules.Identity.Domain.Policies;
+using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 using Maran.SharedKernel.Security;
 
@@ -29,13 +30,26 @@ public sealed class InitialPasswordPolicy : IInitialPasswordPolicy
     }
 
     /// <inheritdoc />
-    public async Task<bool> AcceptsAsync(SensitiveString password, string username, CancellationToken cancellationToken)
+    public async Task<InitialPasswordVerdict> JudgeAsync(
+        SensitiveString password,
+        string username,
+        CancellationToken cancellationToken)
     {
         var policy = await _policyCache.GetAsync(cancellationToken);
         var revealed = password.Reveal();
 
-        return PasswordPolicy.IsWithinMaximumLength(revealed)
-            && PasswordPolicy.MeetsMinimumLength(revealed, policy.MinimumPasswordLength)
-            && PasswordPolicy.DiffersFromUsername(revealed, username);
+        if (!PasswordPolicy.IsWithinMaximumLength(revealed))
+        {
+            return InitialPasswordVerdict.TooLong;
+        }
+
+        if (!PasswordPolicy.MeetsMinimumLength(revealed, policy.MinimumPasswordLength))
+        {
+            return InitialPasswordVerdict.TooShort;
+        }
+
+        return PasswordPolicy.DiffersFromUsername(revealed, username)
+            ? InitialPasswordVerdict.Accepted
+            : InitialPasswordVerdict.SameAsUsername;
     }
 }

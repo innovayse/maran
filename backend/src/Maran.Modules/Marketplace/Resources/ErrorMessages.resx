@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="MarketplaceDisabled">
+    <value>The marketplace is switched off. An administrator can switch it on from the Marketplace page.</value>
+  </data>
+  <data name="MarketplaceHostNotConfigured">
+    <value>The marketplace address is not set up correctly on this server, so the marketplace cannot be reached. Ask the person who installed the panel to check the marketplace setting.</value>
+  </data>
+  <data name="MarketplaceUnreachable">
+    <value>The marketplace could not be reached. Modules that are already installed keep running. Please try again later.</value>
+  </data>
+  <data name="CatalogueUnsigned">
+    <value>The marketplace answer could not be verified, so it was not used. Nothing was installed or changed.</value>
+  </data>
+  <data name="CatalogueStale">
+    <value>The marketplace answer is too old to be trusted, so it was not used. Please check again in a few minutes.</value>
+  </data>
+  <data name="CatalogueKeyMissing">
+    <value>This server has no marketplace verification key, so marketplace answers cannot be checked and nothing can be installed from it. Ask the person who installed the panel to restore it.</value>
+  </data>
+  <data name="LeaseRequired">
+    <value>This module needs an active licence on this server. Install or renew the licence, then try again.</value>
+  </data>
+  <data name="EntitlementMissing">
+    <value>Your licence does not include this module. You can get it from your Innovayse account, then try again.</value>
+  </data>
+  <data name="IncompatiblePanel">
+    <value>This version of the module does not work with the version of the panel installed on this server.</value>
+  </data>
+  <data name="PackageRevoked">
+    <value>This version of the module has been withdrawn by its publisher and cannot be installed.</value>
+  </data>
+  <data name="GrantHostRefused">
+    <value>The marketplace sent a download address that this panel does not trust, so nothing was downloaded.</value>
+  </data>
+  <data name="DownloadSizeMismatch">
+    <value>The downloaded package is not the size the marketplace announced, so it was discarded. Nothing was installed.</value>
+  </data>
+  <data name="DownloadDigestMismatch">
+    <value>The downloaded package does not match the fingerprint the marketplace announced, so it was discarded. Nothing was installed.</value>
+  </data>
+  <data name="ModuleNotInCatalogue">
+    <value>This module is not in the marketplace catalogue.</value>
+  </data>
+  <data name="ModuleNotInstalled">
+    <value>This module is not installed.</value>
+  </data>
+  <data name="ModuleOperationInProgress">
+    <value>Another operation on this module is still running. Wait for it to finish, then try again.</value>
+  </data>
+  <data name="ModuleVersionNotInstallable">
+    <value>This version of the module cannot be installed. Choose a newer version.</value>
+  </data>
+  <data name="InstallNotAcknowledged">
+    <value>Confirm that you have read what this module is allowed to do before installing it.</value>
+  </data>
+  <data name="MarketplaceResponseInvalid">
+    <value>The marketplace sent an answer this panel could not understand, so it was not used.</value>
+  </data>
+  <data name="MarketplaceResponseTooLarge">
+    <value>The marketplace sent more data than this panel accepts, so the answer was discarded.</value>
+  </data>
+  <data name="MarketplaceRedirectRefused">
+    <value>The marketplace tried to send this panel to another address, which is not allowed, so the request was stopped.</value>
+  </data>
+  <data name="MarketplaceRequestRefused">
+    <value>The marketplace refused the request. Nothing was installed or changed.</value>
+  </data>
+  <data name="MarketplaceStorageUnavailable">
+    <value>The folder where downloaded packages are kept cannot be written to, so nothing was downloaded. Check the marketplace folder on the server.</value>
+  </data>
+  <data name="ModuleAlreadyInstalled">
+    <value>This module is already installed at this version. To change it, update it or remove it first.</value>
+  </data>
+  <data name="ModuleHasNoPreviousVersion">
+    <value>This module has no earlier version to go back to.</value>
+  </data>
+  <data name="ModuleOperationFailed">
+    <value>The operation did not finish. The version that was running is still running. Please try again.</value>
+  </data>
+  <data name="ModuleIdInvalid">
+    <value>The module name is not valid. Use lower case letters and digits, starting with a letter.</value>
+  </data>
+  <data name="ModuleVersionInvalid">
+    <value>The version is not valid. Use a version number made of three numbers separated by dots.</value>
+  </data>
+  <data name="MarketplaceChannelInvalid">
+    <value>The release channel is not valid. Use lower case letters, digits and hyphens, starting with a letter.</value>
+  </data>
+  <data name="MarketplaceSearchInvalid">
+    <value>The search text is too long or contains characters that are not allowed.</value>
+  </data>
+  <data name="MarketplaceCursorInvalid">
+    <value>The page marker is too long or contains characters that are not allowed.</value>
+  </data>
+</root>

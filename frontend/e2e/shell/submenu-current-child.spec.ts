@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { mainNavigation, openFullShell, openSection } from '../fixtures/open-full-shell'
 
 // Issue #209, point 1: siblings share a path prefix (`/backups` and `/backups/schedule`), so the

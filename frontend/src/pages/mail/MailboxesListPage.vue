@@ -34,12 +34,14 @@ import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiPagination from '../../components/ui/UiPagination.vue'
 import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
 import UiSearchInput from '../../components/ui/UiSearchInput.vue'
+import UiToolbar from '../../components/ui/UiToolbar.vue'
 import MailboxCreateForm from '../../components/mail/MailboxCreateForm.vue'
 import MailboxEditDialog from '../../components/mail/MailboxEditDialog.vue'
 import MailboxPasswordDialog from '../../components/mail/MailboxPasswordDialog.vue'
 import MailboxRemoveConfirm from '../../components/mail/MailboxRemoveConfirm.vue'
 import MailboxesFilterSheet from '../../components/mail/MailboxesFilterSheet.vue'
 import MailboxesTable from '../../components/mail/MailboxesTable.vue'
+import MailServerGate from '../../components/mail/MailServerGate.vue'
 import { useAccountChoice } from '../../composables/useAccountChoice'
 import { useAccountFilter } from '../../composables/useAccountFilter'
 import { useCallerRole } from '../../composables/useCallerRole'
@@ -204,6 +206,14 @@ const closeFilters = (): void => {
 }
 
 /**
+ * Says that mail was turned on from the gate above the form.
+ * @returns Nothing.
+ */
+const serverEnabled = (): void => {
+  notice.value = t('mail.server.enabled')
+}
+
+/**
  * Hides the success toast.
  * @returns Nothing.
  */
@@ -227,15 +237,16 @@ onMounted(() => {
     </UiAlert>
 
     <UiAlert v-if="planLimitReason !== null" variant="info">{{ planLimitReason }}</UiAlert>
-    <MailboxCreateForm
-      v-if="!planLimitReached"
-      ref="form"
-      :domain-picker="createDomainPicker"
-      :limits="choicesStore.choices?.limits ?? null"
-      :submitting="store.creating"
-      @search-domains="searchCreateDomains"
-      @submit="create"
-    />
+    <MailServerGate v-if="!planLimitReached" @enabled="serverEnabled">
+      <MailboxCreateForm
+        ref="form"
+        :domain-picker="createDomainPicker"
+        :limits="choicesStore.choices?.limits ?? null"
+        :submitting="store.creating"
+        @search-domains="searchCreateDomains"
+        @submit="create"
+      />
+    </MailServerGate>
 
     <UiEmptyState
       v-if="answeredNothing && !isNarrowed"
@@ -247,7 +258,7 @@ onMounted(() => {
 
     <UiCard v-else>
       <div class="flex flex-col gap-4">
-        <div class="flex flex-wrap items-end gap-3">
+        <UiToolbar>
           <UiSearchInput
             v-model="table.search.value"
             class="min-w-55 max-w-85 flex-1"
@@ -261,7 +272,7 @@ onMounted(() => {
             :active-label="t('common.list.filtersApplied', { n: table.activeFilterCount.value }, table.activeFilterCount.value)"
             @click="openFilters"
           />
-        </div>
+        </UiToolbar>
 
         <UiActiveFilter
           v-if="chips.length > 0"

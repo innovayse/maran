@@ -1,4 +1,3 @@
-using System.Text;
 using Maran.Modules.Updates.Domain.Enums;
 using Maran.Modules.Updates.Options;
 using Microsoft.Extensions.Options;
@@ -16,12 +15,8 @@ namespace Maran.Modules.Updates.Services;
 /// argument that could become one.
 /// </para>
 /// <para>
-/// <b>Created exclusively.</b> <see cref="FileMode.CreateNew"/> fails when anything is already at the
-/// name, so two simultaneous requests cannot both succeed and a planted link is never followed.
-/// </para>
-/// <para>
-/// <b>No path leaves this type.</b> A failure is reported as a <see cref="PanelUpdateMarkerOutcome"/>,
-/// never as an exception message, because that message names the path (rules/security.md item 8).
+/// <b>Created exclusively, and no path leaves this type.</b> Both are <see cref="RequestMarkerFile"/>'s,
+/// the code this marker and the check marker share.
 /// </para>
 /// </remarks>
 public sealed class PanelUpdateRequestMarker
@@ -43,34 +38,13 @@ public sealed class PanelUpdateRequestMarker
     /// <returns>Whether it was created, was already there, or could not be created.</returns>
     public PanelUpdateMarkerOutcome TryCreate()
     {
-        try
-        {
-            using var stream = new FileStream(_options.MarkerPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-            stream.Write(Encoding.ASCII.GetBytes(Content));
-            return PanelUpdateMarkerOutcome.Created;
-        }
-        catch (IOException) when (File.Exists(_options.MarkerPath) || Directory.Exists(_options.MarkerPath))
-        {
-            return PanelUpdateMarkerOutcome.AlreadyPending;
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            return PanelUpdateMarkerOutcome.Failed;
-        }
+        return RequestMarkerFile.TryCreate(_options.MarkerPath, Content);
     }
 
     /// <summary>Withdraws the marker, for a request root never picked up.</summary>
     /// <returns>True when nothing is left at the marker's name afterwards.</returns>
     public bool TryRemove()
     {
-        try
-        {
-            File.Delete(_options.MarkerPath);
-            return !File.Exists(_options.MarkerPath);
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            return false;
-        }
+        return RequestMarkerFile.TryRemove(_options.MarkerPath);
     }
 }

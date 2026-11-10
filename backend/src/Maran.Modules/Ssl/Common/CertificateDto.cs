@@ -26,6 +26,10 @@ namespace Maran.Modules.Ssl.Common;
 /// there is no failure. A code the panel has no sentence for reads as a generic one, never as the code.
 /// </param>
 /// <param name="ConsecutiveRenewalFailures">How many renewal attempts have failed in a row.</param>
+/// <param name="Wildcard">
+/// Whether the certificate also covers every name directly under the domain. Renewal proves it the way it
+/// was ordered, through the DNS zone this server serves for the domain.
+/// </param>
 public sealed record CertificateDto(
     Guid Id,
     Guid SiteId,
@@ -36,4 +40,5 @@ public sealed record CertificateDto(
     DateTimeOffset? LastRenewalAttemptAt,
     string? LastRenewalErrorCode,
     string? LastRenewalError,
-    int ConsecutiveRenewalFailures);
+    int ConsecutiveRenewalFailures,
+    bool Wildcard);

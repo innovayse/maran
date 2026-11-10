@@ -14,13 +14,21 @@ public sealed class LogoutEverywhereCommandHandler
     /// <summary>Records the sign-out.</summary>
     private readonly IdentityAuditJournal _journal;
 
+    /// <summary>Reads the name the sign-out entry is about.</summary>
+    private readonly LoginNameReader _loginNames;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="sessionService">Revokes the sessions.</param>
     /// <param name="journal">Records the sign-out.</param>
-    public LogoutEverywhereCommandHandler(ISessionService sessionService, IdentityAuditJournal journal)
+    /// <param name="loginNames">Reads the name the sign-out entry is about.</param>
+    public LogoutEverywhereCommandHandler(
+        ISessionService sessionService,
+        IdentityAuditJournal journal,
+        LoginNameReader loginNames)
     {
         _sessionService = sessionService;
         _journal = journal;
+        _loginNames = loginNames;
     }
 
     /// <summary>Revokes every live session the user has, including the one making the request.</summary>
@@ -31,10 +39,13 @@ public sealed class LogoutEverywhereCommandHandler
     {
         await _sessionService.RevokeAllAsync(command.UserId, SessionRevocationReason.LogoutAll, cancellationToken);
 
-        await _journal.RecordIdentifiedAsync(
+        // The subject is the login's name, as a sign-in's is, and the entry carries the login's id so
+        // that erasing the login finds it: a name in a subject column is personal data.
+        await _journal.RecordOnUserAsync(
+            command.UserId,
             command.UserId,
             IdentityAuditActions.LoggedOutEverywhere,
-            command.UserId.ToString(),
+            await _loginNames.ReadAsync(command.UserId, cancellationToken),
             command.IpAddress,
             command.UserAgent,
             succeeded: true,

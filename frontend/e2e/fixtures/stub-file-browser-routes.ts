@@ -1,9 +1,12 @@
 import type { Page } from '@playwright/test'
 import { pagedAnswer, type PagedRules } from './paged-answer'
-import type { FileEntry, FilesOptions } from '../../src/types/file'
+import type { FileEntry, FileInfo, FilesOptions } from '../../src/types/file'
 
 /** The listing endpoint, with or without a query. */
 const ENTRIES_PATTERN = /\/api\/v1\/files\/entries(\?.*)?$/
+
+/** The one-entry endpoint the properties and permissions dialogs read. */
+const INFO_PATTERN = /\/api\/v1\/files\/entries\/info(\?.*)?$/
 
 /** The limits endpoint. */
 const OPTIONS_PATTERN = /\/api\/v1\/files\/options(\?.*)?$/
@@ -67,6 +70,8 @@ const RULES: PagedRules<FileEntry> = {
  * way the server's path rule would, so a spec can watch the SPA send a path as typed.
  * @param page The Playwright page whose network the route is installed on.
  * @param tree The entries of each folder, by the folder's path ('' is the home).
+ * It also answers `GET /api/v1/files/entries/info` for any entry of the tree, with a numeric owner
+ * and group as the agent reports them, because the permissions and properties dialogs read it.
  * @returns A function reporting every listing request so far, oldest first.
  */
 export const stubFileEntries = async (
@@ -99,6 +104,20 @@ export const stubFileEntries = async (
       contentType: 'application/json',
       body: JSON.stringify(pagedAnswer(rows, url.toString(), RULES)),
     })
+  })
+  await page.route(INFO_PATTERN, async (route) => {
+    const path = new URL(route.request().url()).searchParams.get('path') ?? ''
+    const entry = Object.values(tree)
+      .flat()
+      .find((candidate) => {
+        return candidate.path === path
+      })
+    if (entry === undefined) {
+      await route.fallback()
+      return
+    }
+    const info: FileInfo = { ...entry, owner: '1001', group: '1001' }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(info) })
   })
   return () => {
     return requests

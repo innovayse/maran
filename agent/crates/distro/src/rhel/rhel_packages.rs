@@ -25,16 +25,6 @@ pub fn php_package(version: &str) -> String {
     format!("php{}-php-fpm", version.replace('.', ""))
 }
 
-/// The PHP versions Remi publishes a php-fpm package for, oldest first.
-///
-/// Remi carries every release from 7.4 to 8.4 for the RHEL releases the panel
-/// supports; the list is read by the installable-versions query and by the
-/// install, so a version is offered exactly when it can be installed.
-#[must_use]
-pub fn installable_php_versions() -> &'static [&'static str] {
-    &["7.4", "8.0", "8.1", "8.2", "8.3", "8.4"]
-}
-
 /// Absolute path of the package manager binary.
 ///
 /// Remi's repository is installed and driven through `dnf`, the RHEL
@@ -69,14 +59,20 @@ const DNF_UNREACHABLE_ERRORS: [&str; 4] = [
     "Curl error (28):",
 ];
 
+/// What `dnf install` prints for a name none of its enabled repositories
+/// carries, at the start of a line. Recorded in
+/// `tests/fixtures/package_manager/dnf_package_missing.txt`.
+const DNF_PACKAGE_MISSING: &str = "No match for argument: ";
+
 /// Reads a failed `dnf install` run: its exit `status` and its combined
 /// `output`.
 ///
 /// A `Status code: NNN` anywhere in the run is a source that answered and
 /// refused, and outweighs unreachable sources elsewhere in it (see
 /// [`PackageFailure::SourceRefused`]); a libcurl resolve, connect or timeout
-/// error is a source nobody reached. Anything else — `No match for argument`,
-/// a transaction check, a scriptlet failure, a held lock — is
+/// error is a source nobody reached. `No match for argument` with no source
+/// fault beside it is [`PackageFailure::NotAvailable`]; anything else — a
+/// transaction check, a scriptlet failure, a held lock — is
 /// [`PackageFailure::Local`].
 #[must_use]
 pub fn classify_package_failure(status: i32, output: &str) -> PackageFailure {
@@ -98,6 +94,13 @@ pub fn classify_package_failure(status: i32, output: &str) -> PackageFailure {
         {
             verdict = PackageFailure::SourceUnreachable;
         }
+    }
+    if verdict == PackageFailure::Local
+        && output
+            .lines()
+            .any(|line| line.starts_with(DNF_PACKAGE_MISSING))
+    {
+        return PackageFailure::NotAvailable;
     }
     verdict
 }

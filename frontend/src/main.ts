@@ -4,6 +4,7 @@ import { createAppI18n } from './i18n'
 import { createAppPinia } from './pinia'
 import { useDocumentTitle } from './composables/useDocumentTitle'
 import { createAppRouter } from './router'
+import { useLinkTokenStore } from './stores/linkToken'
 import { useLocaleStore } from './stores/locale'
 import { useThemeStore } from './stores/theme'
 import './assets/css/main.css'
@@ -14,6 +15,12 @@ import './assets/css/main.css'
 const app = createApp(App)
 
 app.use(createAppPinia())
+
+// A mailed link's one-time token (password reset, invitation) is moved out of the address into
+// memory BEFORE the router installs: the router's first navigation already makes API calls, and
+// every request a page makes names the page's address as its Referer.
+useLinkTokenStore().adopt(window.location, window.history)
+
 const router = createAppRouter()
 app.use(router)
 

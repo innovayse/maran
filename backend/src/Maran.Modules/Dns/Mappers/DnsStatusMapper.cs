@@ -1,5 +1,6 @@
 using Maran.Agent.Client.Services.DnsService;
 using Maran.Modules.Dns.Common;
+using Maran.Modules.Dns.Domain.Policies;
 
 namespace Maran.Modules.Dns.Mappers;
 
@@ -20,6 +21,7 @@ public static class DnsStatusMapper
             string.Empty,
             zoneCount,
             AgentReachable: true,
+            DnsServerPort.Number,
             observed.RecursionRefused,
             observed.ResponseRateLimiting);
     }
@@ -30,6 +32,7 @@ public static class DnsStatusMapper
     public static DnsStatusDto Unreachable(bool enabled)
     {
         return new DnsStatusDto(
-            enabled, Running: false, Listening: false, Version: string.Empty, ZoneCount: 0, AgentReachable: false);
+            enabled, Running: false, Listening: false, Version: string.Empty, ZoneCount: 0, AgentReachable: false,
+            Port: DnsServerPort.Number);
     }
 }

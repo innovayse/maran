@@ -30,8 +30,10 @@ The SPA's confirmation dialog stays, but its text no longer claims to be the onl
   "the agent is fail-open by design" for SSH (see below). A scripted caller, an API client or a
   mistyped CIDR confirmed through a dialog could still install the rule that cut the operator off,
   and there is no remote recovery from a lost SSH path.
-- After: the panel itself refuses the one operation that can cost the operator their way in, from
-  the host's actual ruleset, whatever client sent it.
+- After: the panel itself refuses the operations that can cost the operator their way in, from
+  the host's actual ruleset, whatever client sent it: an allow that replaces the SSH accept with a
+  range excluding the caller, a removal that leaves only rules excluding the caller, and a ban of
+  the caller's own address.
 - Nothing becomes reachable and nothing becomes privileged: the change only adds a refusal in front
   of an existing call. The worst failure of the guard is a wrongly REFUSED allow (an annoyance with
   a stated way out) or a wrongly PERMITTED one (the state before this change).
@@ -50,9 +52,13 @@ and `agent/crates/ops/src/firewall/model/ruleset_state.rs` (`render`):
    TCP and names a SINGLE port (`rule.ports.upper().is_none()`); a range, whatever its lower
    bound, is an ordinary allow and leaves that port's unconditional accept exactly where it was.
    A UDP rule for the same number likewise never displaces it.
-4. **A removal can never close anything.** Removing the last rule for an SSH port brings the
-   unconditional accept back (fail-open), so the only operation that can cost the operator their
-   way in is an allow.
+4. **A removal closes an SSH port whenever other rules for it remain.** (Corrected by issue #459;
+   this item used to claim a removal can never close anything, which was false.) Removing the LAST
+   rule for an SSH port brings the unconditional accept back (fail-open), but while one or more
+   rules remain the port admits only the remaining sources, so removing the rule that admits the
+   operator cuts them off. Verified on a real kernel by
+   `removing_one_of_two_ssh_rules_leaves_the_port_open_to_the_other_source_only`
+   (`agent/crates/agent/tests/firewall_on_a_real_host.rs`).
 5. **Adding a rule to a port that already has rules only widens it**: the admitted set becomes the
    union. So the single dangerous shape is: a TCP allow for ONE port that is an SSH port, whose
    source is not "everyone", when no operator rule for that port exists yet.
@@ -172,3 +178,45 @@ treats the caller as outside the range and refuses (fail closed: see below).
 The note is the first file of this change. The policy, the handler change, the three message
 files, the Sdk census row, the tests, the dialog text and the operations doc follow it, and the
 second review stays OUTSTANDING after all of them.
+
+## Amendment: removals and bans (issue #459)
+
+**What was wrong.** The note's item 4 and its "After" paragraph claimed that a removal can never
+close anything. It can: with two rules on an SSH port, `DenyPortCommandHandler` forwarded the
+removal of the operator's rule unguarded and the agent (`RulesetState::without`, `render`) restored
+the unconditional accept only when the last rule went. A manual ban was equally unguarded
+(`BanAddressCommandHandler` refused only loopback), although the bans table is hooked at priority
+-5, ahead of the ruleset at priority 0, so a ban drops SSH and the panel port whatever the accepts
+say. That ordering is deliberate and is NOT changed: a ban an accept could override would not be a
+ban (pinned by `a_ban_is_dropped_ahead_of_the_rules_survives_a_re_apply_and_expires_on_its_own`).
+The protection therefore has to be panel-side, in the handlers.
+
+**What changed.**
+- `FirewallLockoutPolicy.JudgeRemoval` judges the ruleset that would RESULT from a removal: for a TCP
+  single-port rule on an SSH port that the host holds, with other rules for that port remaining, the
+  removal is refused (`FirewallRuleLocksOutCaller`, 409) unless a remaining source admits the caller.
+  Removing the last rule (the accept returns), a rule not held, a UDP rule, a range or a non-SSH port
+  is harmless. An unreadable caller fails closed, as for an allow. `DenyPortCommandHandler` lists the
+  rules first; a failing listing stops the removal. Journalled as a failed `FirewallRuleDenied`.
+- `FirewallLockoutPolicy.BansCaller` and `BanAddressCommandHandler`: a ban of the address the request
+  arrived from (IPv4-mapped spellings unwrapped) is refused with `BanAddressIsCaller` (409); a ban of
+  an address inside any whitelist range is refused with `BanAddressWhitelisted` (409), the way out
+  being to remove the range first. This reverses the earlier position that an administrator may
+  deliberately ban a whitelisted address. An unreadable caller is not refused for a ban (it cannot be
+  compared, and a console session would otherwise be unable to ban at all).
+- All three texts exist in en, ru and hy; the Sdk census records the kinds.
+
+**Why it is safe now.** The verdict reads the host's rules from the agent, the SSH ports from
+`FirewallOptions` and the caller's address from the connection, none from the request body. The panel
+port needs no guard against rule changes (unconditional, no rule closes it) and is protected against a
+self-ban by `BanAddressIsCaller`. No port, daemon, rpc or outbound call is added.
+
+**Stated limits.** The listing and the removal are two agent calls, so two administrators can still
+race. The compared address is the HTTP request's, not the SSH client's. A removal is refused even when
+the caller was already outside every remaining rule (the literal resulting-ruleset rule); the way out
+is to allow a range containing the caller first. A ban of the SSH client's address when it differs
+from the browser's address is not detected.
+
+**Second review: OUTSTANDING (#331).** A reviewer must check `JudgeRemoval`'s canonical-source
+matching against what the agent's listing prints, that `BanAddressCommandHandler` refuses before the
+agent is called, and the polygon test above (not run on a real host by the author).

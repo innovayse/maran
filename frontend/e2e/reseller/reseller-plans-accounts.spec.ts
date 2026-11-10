@@ -1,6 +1,8 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import { installNetworkGuard } from '../fixtures/network-guard'
 import { mainNavigation, openSection } from '../fixtures/open-full-shell'
 import { setPersistedLocale } from '../fixtures/set-locale'
+import { stubAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
@@ -18,6 +20,7 @@ import { ACME_HOSTING, stubResellers } from '../fixtures/stub-resellers-routes'
 import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { ManagedPlan } from '../../src/types/plan'
+import type { Page } from '@playwright/test'
 
 // Issue #179: a reseller defines plans and creates accounts inside its envelope, and sees only its
 // own. The plan form says what the envelope allows (hints, advice only), a refusal the panel sends
@@ -185,7 +188,9 @@ test('a reseller plan is posted as typed, with only the features its envelope al
 
 test('a plan the envelope refuses shows the panel sentence verbatim and keeps what was typed', async ({
   page,
+  guard,
 }) => {
+  guard.allow(409, /\/api\/v1\/plans$/)
   const detail = 'A plan may give an account at most 20480 MB of disk under your envelope.'
   await installReseller(page, { create: detail })
   await page.goto('/')
@@ -234,6 +239,8 @@ test('a reseller creates an account on its own plan and the owner is not asked f
   await page.route(`**/api/v1/accounts/${ALPHA.id}`, async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ALPHA) })
   })
+  // The detail page the form lands on reads what the new account holds against its plan.
+  await stubAccountResources(page, { accountId: ALPHA.id, resources: [] })
   await page.goto('/')
   await openFromSidebar(page, 'New account')
 
@@ -268,7 +275,9 @@ test('a reseller creates an account on its own plan and the owner is not asked f
 
 test('an account the envelope refuses shows the panel sentence verbatim and stays on the form', async ({
   page,
+  guard,
 }) => {
+  guard.allow(409, /\/api\/v1\/accounts$/)
   const detail = 'You have reached the account limit of your envelope (20 accounts).'
   await installReseller(page)
   await stubPlans(page, [{ id: AGENCY.id, displayName: 'Agency', diskQuotaMb: 10240, maxSites: 10 }])
@@ -357,6 +366,8 @@ test('the reseller plan and account forms have no horizontal scroll at 390 px in
   for (const locale of ['en', 'ru', 'hy'] as const) {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } })
     const page = await context.newPage()
+    // This page is not the fixture's, so it is guarded here: the same findings, asserted per language below.
+    const guard = await installNetworkGuard(page, 'stubbed')
     await setPersistedLocale(page, locale)
     await installReseller(page)
     await stubAccounts(page, [])
@@ -381,6 +392,7 @@ test('the reseller plan and account forms have no horizontal scroll at 390 px in
     })
     expect(widths.document, `${locale}: the plan form scrolls sideways`).toBeLessThanOrEqual(widths.viewport)
     expect(widths.main, `${locale}: the plan form overflows its panel`).toBeLessThanOrEqual(widths.mainBox)
+    expect(await guard.problems(), `${locale}: the page asked for, or was given, something it should not have`).toEqual([])
     await context.close()
   }
 })

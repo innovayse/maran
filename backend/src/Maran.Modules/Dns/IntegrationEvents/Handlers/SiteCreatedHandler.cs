@@ -4,6 +4,7 @@ using Maran.Modules.Dns.Domain.Entities;
 using Maran.Modules.Dns.Domain.Enums;
 using Maran.Modules.Dns.Domain.Policies;
 using Maran.Modules.Dns.Persistence;
+using Maran.Modules.Dns.Resources;
 using Maran.Sdk.Events;
 using Maran.Sdk.Interfaces;
 using Microsoft.Extensions.Logging;
@@ -36,6 +37,12 @@ namespace Maran.Modules.Dns.IntegrationEvents.Handlers;
 /// <b>The zone is the site's primary domain, as it is stored.</b> Nothing here knows where the registrable
 /// domain ends (the module carries no public-suffix list), so a site on <c>shop.example.com</c> gets the zone
 /// <c>shop.example.com</c>; a customer who wants the zone above it creates that one by hand.
+/// </para>
+/// <para>
+/// <b>The zone is made from the default template when the administrator chose one</b>
+/// (<see cref="DnsSettings.DefaultTemplateId"/>). A template that cannot be applied, because it was removed from
+/// the database, can no longer expand into valid records or holds more than a zone may, never costs the site
+/// its zone: the empty zone is created instead and the failure is logged as a warning.
 /// </para>
 /// <para>
 /// <b>A site's deletion does not remove the zone</b>, so there is no counterpart to this handler: mail and
@@ -77,6 +84,13 @@ public sealed class SiteCreatedHandler
             LogLevel.Warning,
             new EventId(4, nameof(SiteCreatedHandler)),
             "The zone of site {SiteId} was not created: {Code}");
+
+    /// <summary>Pre-compiled log delegate for a default template that could not be applied.</summary>
+    private static readonly Action<ILogger, Guid, string, Exception?> LogTemplateFailed =
+        LoggerMessage.Define<Guid, string>(
+            LogLevel.Warning,
+            new EventId(5, nameof(SiteCreatedHandler)),
+            "The default zone template could not be applied to site {SiteId} ({Code}); an empty zone is created instead");
 
     /// <summary>The Dns module's database context, read for the settings and the account's own zones.</summary>
     private readonly DnsDbContext _dbContext;
@@ -161,10 +175,27 @@ public sealed class SiteCreatedHandler
         }
 
         var created = await _bus.InvokeAsync<Result<ZoneDto>>(
-            new CreateZoneCommand(account.Id, name), cancellationToken);
+            new CreateZoneCommand(account.Id, name, TemplateId: settings.DefaultTemplateId), cancellationToken);
+        if (!created.IsSuccess && settings.DefaultTemplateId is not null && IsTemplateFailure(created.Error!.Code))
+        {
+            LogTemplateFailed(_logger, message.SiteId, created.Error.Code, null);
+            created = await _bus.InvokeAsync<Result<ZoneDto>>(
+                new CreateZoneCommand(account.Id, name), cancellationToken);
+        }
+
         if (!created.IsSuccess)
         {
             LogRefused(_logger, message.SiteId, created.Error!.Code, null);
         }
+    }
+
+    /// <summary>Tells whether a refused creation was the template's fault and not the zone's.</summary>
+    /// <param name="code">The refusal's error code.</param>
+    /// <returns>True for a template that is missing, invalid or larger than a zone may be.</returns>
+    private static bool IsTemplateFailure(string code)
+    {
+        return code is nameof(ErrorMessages.ZoneTemplateNotFound)
+            or nameof(ErrorMessages.ZoneTemplateInvalid)
+            or nameof(ErrorMessages.ZoneTemplateTooManyRecords);
     }
 }

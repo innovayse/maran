@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using Maran.Packaging.Interfaces;
 using Maran.Packaging.Resources;
+using Maran.SharedKernel.Utilities.Signatures;
 
 namespace Maran.Packaging.Services;
 
@@ -18,9 +19,6 @@ namespace Maran.Packaging.Services;
 /// </remarks>
 public sealed class IpmSignatureVerifier : IIpmSignatureVerifier
 {
-    /// <summary>The longest DER signature that can be valid for P-384 (two 48-byte integers and their framing is 104 bytes).</summary>
-    private const int MaxSignatureBytes = 104;
-
     /// <summary>The key as SubjectPublicKeyInfo.</summary>
     private readonly byte[] _publicKey;
 
@@ -40,7 +38,7 @@ public sealed class IpmSignatureVerifier : IIpmSignatureVerifier
 
         try
         {
-            if (!IpmP384Key.Is(publicKey))
+            if (!EcdsaP384Signature.IsP384(publicKey))
             {
                 return Invalid();
             }
@@ -60,36 +58,17 @@ public sealed class IpmSignatureVerifier : IIpmSignatureVerifier
     {
         ArgumentNullException.ThrowIfNull(pem);
 
-        try
-        {
-            using var key = ECDsa.Create();
-            key.ImportFromPem(pem);
-            return FromKey(key);
-        }
-        catch (Exception ex) when (ex is CryptographicException or ArgumentException)
-        {
-            return Invalid();
-        }
+        var publicKey = EcdsaP384Signature.TryReadPem(pem);
+
+        return publicKey is null
+            ? Invalid()
+            : Result<IpmSignatureVerifier>.Ok(new IpmSignatureVerifier(publicKey));
     }
 
     /// <inheritdoc />
     public bool Verify(ReadOnlySpan<byte> data, ReadOnlySpan<byte> signature)
     {
-        if (signature.IsEmpty || signature.Length > MaxSignatureBytes)
-        {
-            return false;
-        }
-
-        try
-        {
-            using var key = ECDsa.Create();
-            key.ImportSubjectPublicKeyInfo(_publicKey, out _);
-            return key.VerifyData(data, signature, HashAlgorithmName.SHA384, DSASignatureFormat.Rfc3279DerSequence);
-        }
-        catch (CryptographicException)
-        {
-            return false;
-        }
+        return EcdsaP384Signature.Verify(_publicKey, data, signature);
     }
 
     /// <summary>The refusal for a key that cannot be used.</summary>

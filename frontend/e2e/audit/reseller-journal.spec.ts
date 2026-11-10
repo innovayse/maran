@@ -1,13 +1,15 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { mainNavigation } from '../fixtures/open-full-shell'
 import { stubAccountNames, stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubResellerAudit } from '../fixtures/stub-audit-routes'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubResellerSession } from '../fixtures/stub-reseller-session'
 import type { Account } from '../../src/types/account'
 import type { AuditEvent } from '../../src/types/audit'
+import type { Page } from '@playwright/test'
 
 // Issue #370: a reseller reads its own part of the audit journal, the entries about its accounts and
 // its own login. The panel decides which entries those are (the backend tests hold that); what is
@@ -37,6 +39,7 @@ const OWN_LOGIN: AuditEvent = {
   action: 'LoginSucceeded',
   actionName: 'Signed in',
   subject: 'acmehosting',
+  subjectName: 'acmehosting',
   ipAddress: '203.0.113.7',
   succeeded: true,
   outcomeName: 'Succeeded',
@@ -50,6 +53,7 @@ const ALICE_REFUSED: AuditEvent = {
   action: 'LoginFailed',
   actionName: 'Sign-in refused',
   subject: 'alice',
+  subjectName: 'alice',
   ipAddress: '198.51.100.4',
   succeeded: false,
   outcomeName: 'Failed',
@@ -61,6 +65,7 @@ const BOB_SIGN_IN: AuditEvent = {
   occurredAt: '2026-09-08T08:00:00+00:00',
   actorUsername: 'bob',
   subject: 'bob',
+  subjectName: 'bob',
   ipAddress: '192.0.2.99',
 }
 
@@ -170,7 +175,9 @@ test('the account picked in the sheet narrows the reseller journal and names it 
   expect(administrator()).toEqual([])
 })
 
-test('an account the panel does not know to the reseller is shown as the panel refuses it', async ({ page }) => {
+test('an account the panel does not know to the reseller is shown as the panel refuses it', async ({ page, guard }) => {
+  // The refusal is the subject: the reseller's journal answers an account outside its own with a 404.
+  guard.allow(404, /\/api\/v1\/audit\/reseller\?.*account=/)
   await openJournal(page)
   await page.route(/\/api\/v1\/audit\/reseller\?.*account=/, async (route) => {
     await route.fulfill({
@@ -190,6 +197,7 @@ test('an administrator opening the reseller journal address lands on the not-ava
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
   await stubResellerAudit(page, [OWN_LOGIN])
 
   await page.goto('/reseller/audit')

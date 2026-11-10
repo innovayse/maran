@@ -59,6 +59,16 @@ const VUE_IMPORT = /import\s+(\w+)\s+from\s+'([^']+\.vue)'/g
  */
 const ROUTE_COMPONENT = /\bcomponent:\s*(\w+)\b/g
 
+/**
+ * The second source of route records: the installed packages' routes are added to the router at run
+ * time, each rendering one shared page. That file imports the page lazily, so it is read for its
+ * `import('….vue')` calls, which the router file's own scan never sees.
+ */
+const PACKAGED_ROUTES_FILE = join(FRONTEND_ROOT, 'src', 'router', 'registerPackagedModuleRoutes.ts')
+
+/** A lazy `import('….vue')` of a component in the packaged-module route registrar. */
+const LAZY_VUE_IMPORT = /\bimport\(\s*'([^']+\.vue)'\s*\)/g
+
 /** The function that builds the sidebar's entries, which names the upgrade route a locked one leads to. */
 const NAVIGATION_FILE = join(FRONTEND_ROOT, 'src', 'utils', 'buildNavigation.ts')
 
@@ -99,6 +109,7 @@ const DELIBERATELY_UNLINKED = new Map([
   ['accept-invitation', 'its URL arrives in the invitation mail; nothing in the SPA links it on purpose'],
   ['two-factor-setup', 'the auth guard steers an obliged administrator here; the router documents that nothing links it'],
   ['file-editor', 'opened from a file row of the file browser, which pushes with the account and the path of the file'],
+  ['change-password', 'the auth guard sends a login still holding its first password here from any URL (issue #514); nothing links to it'],
   ['not-found', 'the catch-all: a page nothing should ever link to'],
   ['not-available', 'the role and module guards redirect a customer here; a page nothing should link to'],
 ])
@@ -247,6 +258,21 @@ const main = () => {
       continue
     }
     routed.add(path)
+  }
+
+  // The pages the run-time registrar of packaged-module routes renders. Only a page counts: it also
+  // imports the shell layout lazily, which is a layout and no page.
+  let packagedPages = 0
+  for (const match of readFileSync(PACKAGED_ROUTES_FILE, 'utf8').matchAll(LAZY_VUE_IMPORT)) {
+    const path = resolve(dirname(PACKAGED_ROUTES_FILE), match[1])
+    if (path.endsWith(PAGE_SUFFIX)) {
+      routed.add(path)
+      packagedPages++
+    }
+  }
+  // Vacuity guard: a registrar whose import spelling changed would silently route nothing.
+  if (packagedPages === 0) {
+    problems.push('src/router/registerPackagedModuleRoutes.ts: no lazy page import found — the registrar scan measured nothing')
   }
 
   const pages = pageFiles(PAGES_ROOT)

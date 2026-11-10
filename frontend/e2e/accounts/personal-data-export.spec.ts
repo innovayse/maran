@@ -1,12 +1,15 @@
 import { readFile } from 'node:fs/promises'
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubInvitation } from '../fixtures/stub-invitation-routes'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubAccountResources } from '../fixtures/stub-account-resources-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { RESELLER_MODULES, stubResellerSession } from '../fixtures/stub-reseller-session'
 import { ACME_HOSTING } from '../fixtures/stub-resellers-routes'
 import type { Account } from '../../src/types/account'
+import type { Page } from '@playwright/test'
 
 // The personal-data export of one account (#146): an administrator downloads everything the panel
 // holds about the account and its team from the account's page. What the file holds is the panel's;
@@ -44,6 +47,15 @@ const stubAccount = async (page: Page): Promise<void> => {
 }
 
 /**
+ * Answers the account's resource summary, which every role's account page reads.
+ * @param page The Playwright page whose network the route is installed on.
+ * @returns Resolves once the route is installed.
+ */
+const stubSummary = async (page: Page): Promise<void> => {
+  await stubAccountResources(page, { accountId: ACCOUNT.id, resources: [] })
+}
+
+/**
  * Signs an administrator in and installs the account's page reads.
  * @param page The Playwright page whose network the routes are installed on.
  * @returns Resolves once the stubs are installed.
@@ -52,6 +64,8 @@ const openAsAdministrator = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
+  await stubShellReads(page)
+  await stubSummary(page)
   await stubInvitation(page, ACCOUNT.id, 'pending')
   await stubAccount(page)
 }
@@ -80,7 +94,9 @@ test('the administrator downloads the account’s personal data from its page', 
   await expect(page.getByText('Done', { exact: true })).toBeVisible()
 })
 
-test('a refused export shows the panel’s sentence and saves no file', async ({ page }) => {
+test('a refused export shows the panel’s sentence and saves no file', async ({ page, guard }) => {
+  // The refusal is the subject: the export answers 404 with the panel's own sentence.
+  guard.allow(404, new RegExp(`/api/v1/privacy/accounts/${ACCOUNT.id}/export$`))
   await openAsAdministrator(page)
   await page.route(`**/api/v1/privacy/accounts/${ACCOUNT.id}/export`, async (route) => {
     await route.fulfill({
@@ -103,6 +119,7 @@ test('a refused export shows the panel’s sentence and saves no file', async ({
 
 test('a reseller opening the account is not offered the export', async ({ page }) => {
   await stubResellerSession(page, ACME_HOSTING, RESELLER_MODULES)
+  await stubSummary(page)
   await stubAccount(page)
 
   await page.goto(`/accounts/${ACCOUNT.id}`)

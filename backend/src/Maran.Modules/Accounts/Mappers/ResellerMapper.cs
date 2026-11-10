@@ -72,6 +72,7 @@ public static class ResellerMapper
             usage.PlanCount,
             usage.DiskAllocatedMb,
             reseller.Language,
+            OwnerLanguageMapper.NameOf(reseller.Language, displayNames),
             ToEnvelopeDto(reseller.Envelope));
     }
 

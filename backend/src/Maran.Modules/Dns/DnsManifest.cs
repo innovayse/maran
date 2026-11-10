@@ -21,8 +21,10 @@ public static class DnsManifest
     /// <para>
     /// <see cref="AgentCapability.Dns"/> and NOTHING else, which an administrator reads before installing
     /// and <c>AgentCapabilityGuard</c> refuses to compose past. In particular NOT
-    /// <see cref="AgentCapability.Firewall"/>: the agent's own enable operation opens port 53 as part of
-    /// switching the name server on, so this module never reaches the firewall. And NOT
+    /// <see cref="AgentCapability.Firewall"/>: switching the name server on or off never touches the
+    /// firewall, so this module never reaches it. Port 53 is opened and closed by the administrator, as a
+    /// separate step on the Firewall screen; the DNS screen only shows whether the panel firewall lets it
+    /// through and links to that step. And NOT
     /// <see cref="AgentCapability.Ssl"/> or <see cref="AgentCapability.Sites"/>: whether a site claims a
     /// host name is asked through <c>ISiteHostnameDirectory</c>, which hands back a boolean and no site.
     /// </para>

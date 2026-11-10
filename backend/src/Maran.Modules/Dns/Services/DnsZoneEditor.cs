@@ -65,36 +65,32 @@ public sealed class DnsZoneEditor
     /// </returns>
     public async Task<Result<ZoneEdit>> OpenAsync(Guid zoneId, CancellationToken cancellationToken)
     {
-        var visible = await _dbContext.Zones.AsNoTracking().AnyAsync(zone => zone.Id == zoneId, cancellationToken);
-        if (!visible)
-        {
-            return Result<ZoneEdit>.Fail(Error.Of(nameof(ErrorMessages.ZoneNotFound), ErrorType.NotFound));
-        }
+        return await OpenCoreAsync(_dbContext.Zones, zoneId, cancellationToken);
+    }
 
-        var transaction = await _lock.TakeAsync(zoneId, cancellationToken);
+    /// <summary>Opens an edit of one zone on behalf of a facility that has no signed-in user, scoped to the account it names.</summary>
+    /// <param name="accountId">The account that must own the zone.</param>
+    /// <param name="zoneId">The zone.</param>
+    /// <param name="cancellationToken">Cancels the operation.</param>
+    /// <returns>
+    /// The open edit, or <c>ZoneNotFound</c> for a zone that does not exist or belongs to another account (the
+    /// two are one answer), or the not-enabled refusals of <see cref="OpenAsync"/>.
+    /// </returns>
+    /// <remarks>
+    /// Unattended work (a certificate renewal at night) has an anonymous caller, for whom the tenant filter
+    /// shows no zone at all. The filter is therefore lifted here and replaced, on the same line, by the account
+    /// the caller names, so a zone of any other account is as invisible as it is to a customer.
+    /// </remarks>
+    public async Task<Result<ZoneEdit>> OpenForAccountAsync(
+        Guid accountId,
+        Guid zoneId,
+        CancellationToken cancellationToken)
+    {
+#pragma warning disable RS0030 // no principal: the account the facility names scopes the zone instead of the tenant filter
+        var owned = _dbContext.Zones.IgnoreQueryFilters().Where(zone => zone.AccountId == accountId);
+#pragma warning restore RS0030
 
-        var zone = await _dbContext.Zones
-            .Include(row => row.Records)
-            .SingleOrDefaultAsync(row => row.Id == zoneId, cancellationToken);
-        var settings = await _dbContext.DnsSettings
-            .SingleOrDefaultAsync(row => row.Id == DnsSettings.SingletonId, cancellationToken);
-
-        if (zone is null)
-        {
-            return await RefuseAsync(transaction, nameof(ErrorMessages.ZoneNotFound), ErrorType.NotFound);
-        }
-
-        if (settings is null || !settings.Enabled)
-        {
-            return await RefuseAsync(transaction, nameof(ErrorMessages.DnsNotEnabled), ErrorType.Conflict);
-        }
-
-        if (!settings.IsComplete)
-        {
-            return await RefuseAsync(transaction, nameof(ErrorMessages.DnsSettingsIncomplete), ErrorType.Conflict);
-        }
-
-        return Result<ZoneEdit>.Ok(new ZoneEdit(zone, settings, transaction));
+        return await OpenCoreAsync(owned, zoneId, cancellationToken);
     }
 
     /// <summary>Publishes the changed zone to the agent and, when it is served, saves it.</summary>
@@ -131,6 +127,49 @@ public sealed class DnsZoneEditor
         }
 
         return Result.Ok();
+    }
+
+    /// <summary>Opens an edit of one zone among <paramref name="zones"/>: the shared body of the two ways in.</summary>
+    /// <param name="zones">The zones the caller may reach: the tenant-filtered set, or one account's zones.</param>
+    /// <param name="zoneId">The zone.</param>
+    /// <param name="cancellationToken">Cancels the operation.</param>
+    /// <returns>The open edit, or the refusal described on <see cref="OpenAsync"/>.</returns>
+    private async Task<Result<ZoneEdit>> OpenCoreAsync(
+        IQueryable<Zone> zones,
+        Guid zoneId,
+        CancellationToken cancellationToken)
+    {
+        var visible = await zones.AsNoTracking().AnyAsync(zone => zone.Id == zoneId, cancellationToken);
+        if (!visible)
+        {
+            return Result<ZoneEdit>.Fail(Error.Of(nameof(ErrorMessages.ZoneNotFound), ErrorType.NotFound));
+        }
+
+        var transaction = await _lock.TakeAsync(zoneId, cancellationToken);
+
+        var zone = await zones
+            .Include(row => row.Records)
+            .Include(row => row.SigningKeys)
+            .SingleOrDefaultAsync(row => row.Id == zoneId, cancellationToken);
+        var settings = await _dbContext.DnsSettings
+            .SingleOrDefaultAsync(row => row.Id == DnsSettings.SingletonId, cancellationToken);
+
+        if (zone is null)
+        {
+            return await RefuseAsync(transaction, nameof(ErrorMessages.ZoneNotFound), ErrorType.NotFound);
+        }
+
+        if (settings is null || !settings.Enabled)
+        {
+            return await RefuseAsync(transaction, nameof(ErrorMessages.DnsNotEnabled), ErrorType.Conflict);
+        }
+
+        if (!settings.IsComplete)
+        {
+            return await RefuseAsync(transaction, nameof(ErrorMessages.DnsSettingsIncomplete), ErrorType.Conflict);
+        }
+
+        return Result<ZoneEdit>.Ok(new ZoneEdit(zone, settings, transaction));
     }
 
     /// <summary>Releases the lock taken for an edit that is refused and answers with the refusal.</summary>

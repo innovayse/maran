@@ -27,7 +27,8 @@ public static class MailManifest
     /// <para>
     /// <see cref="ModuleKind.Packageable"/>: hosted mail is an optional server feature, not part of the core.
     /// <see cref="Manifest.SchemaName"/> is the <c>mail</c> schema. The three lists are open to everyone, and
-    /// the account's plan feature switches them off per account (<see cref="AccountFeature.Mail"/>). The
+    /// the account's plan feature switches them off per account (<see cref="AccountFeature.Mail"/>); the queue
+    /// is the host's, so its entry is for administrators only (issue #320). The
     /// manifest names exactly the screens the SPA router has: the administrator's server page is not listed
     /// until it exists (a menu entry or route the router lacks is a dead link).
     /// </para>
@@ -65,6 +66,13 @@ public static class MailManifest
                 LabelKey: "MailMenuAliases",
                 Order: 30,
                 Audience: ModuleAudience.Everyone),
+            new ModuleMenuItem(
+                Key: "mail-queue",
+                RouteName: "mail-queue",
+                IconKey: ModuleIconKeys.Mail,
+                LabelKey: "MailMenuQueue",
+                Order: 40,
+                Audience: ModuleAudience.AdministratorOnly),
         ],
         Routes: [
             new ModuleRoute(
@@ -81,6 +89,11 @@ public static class MailManifest
                 Name: "mail-aliases",
                 Path: "/mail/aliases",
                 TitleKey: "MailRouteAliases",
+                RequiresModule: null),
+            new ModuleRoute(
+                Name: "mail-queue",
+                Path: "/mail/queue",
+                TitleKey: "MailRouteQueue",
                 RequiresModule: null),
         ],
         Audience: ModuleAudience.Everyone);

@@ -142,10 +142,11 @@ const aliasesError: ComputedRef<string | null> = computed(() => {
   if (!submitted.value) {
     return null
   }
-  const offending = aliases.value.some((alias) => {
+  // The first bad line is named, so a long list does not leave the person hunting for it.
+  const offending = aliases.value.find((alias) => {
     return alias.length > MAX_HOST_LENGTH || !HOSTNAME_PATTERN.test(alias)
   })
-  return offending ? t('sites.form.errors.domainInvalid') : null
+  return offending === undefined ? null : t('sites.form.errors.aliasInvalid', { alias: offending })
 })
 
 /** Validation message for the PHP version, or `null` when the backend does not need one. */

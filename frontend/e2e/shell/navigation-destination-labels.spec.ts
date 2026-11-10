@@ -1,6 +1,7 @@
-import { expect, test, type Locator } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { mainNavigation, openFullShell, openSection } from '../fixtures/open-full-shell'
 import { setPersistedLocale } from '../fixtures/set-locale'
+import type { Locator } from '@playwright/test'
 
 // Issue #209, point 3: every navigation label names the screen it opens. "Notifications" opened
 // "Outgoing mail" and "Users and access" opened "Signed-in devices" (no user management there),
@@ -69,7 +70,7 @@ const labelLines = async (link: Locator): Promise<number> => {
 }
 
 for (const locale of ['en', 'ru', 'hy'] as const) {
-  test(`the renamed entries fit one line of the 216px sidebar in ${locale}`, async ({ page }) => {
+  test(`the renamed entries fit one line of the 240px sidebar in ${locale}`, async ({ page }) => {
     await setPersistedLocale(page, locale)
     await openFullShell(page)
     // The landmark's name is translated too, so the sidebar is found by its section rows.

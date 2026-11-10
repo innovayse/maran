@@ -67,6 +67,9 @@ rec_s3_start() {
 
   case "$family" in
     debian) pkg_command='export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && apt-get install -y -qq --no-install-recommends python3' ;;
+    # UNVERIFIED: the package name `python3` on this family. Confirm with
+    # `zypper --non-interactive search -x python3` in the pinned image.
+    suse) pkg_command='zypper --non-interactive install --no-recommends python3' ;;
     *) pkg_command='dnf install -y -q python3' ;;
   esac
   docker exec "$name" bash -c "$pkg_command" >"${REC_WORK}/s3-install.log" 2>&1 \
@@ -102,6 +105,14 @@ rec_s3_trust() {
   case "$family" in
     debian)
       docker cp "${REC_WORK}/s3.crt" "${container}:/usr/local/share/ca-certificates/polygon-s3.crt" >/dev/null
+      docker exec "$container" update-ca-certificates >/dev/null 2>&1 || true
+      ;;
+    suse)
+      # UNVERIFIED: SUSE keeps private anchors in /etc/pki/trust/anchors and rebuilds the store with
+      # its own update-ca-certificates. Confirm with `update-ca-certificates --help` in the pinned
+      # image. The reachability check that follows this function is the observation: without the
+      # trust store taking the certificate the same request fails at the handshake.
+      docker cp "${REC_WORK}/s3.crt" "${container}:/etc/pki/trust/anchors/polygon-s3.crt" >/dev/null
       docker exec "$container" update-ca-certificates >/dev/null 2>&1 || true
       ;;
     *)

@@ -71,6 +71,29 @@ pub trait DnsHost: Send + Sync {
         reload: &Reload<'_>,
     ) -> Result<(), DnsError>;
 
+    /// Writes `contents` to `target` as a THROWAWAY file, has `validator` read it
+    /// at that path, and removes it again whatever the verdict.
+    ///
+    /// For asking the daemon's own checker a question about text that is not
+    /// meant to be loaded (issue #452: does this build accept a `dnssec-policy`).
+    /// The write goes through the config-write protocol, without a reload, so the
+    /// probe is made the way every other file is. A leftover from an interrupted
+    /// earlier probe is overwritten and then removed.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DnsError::ConfigRejected`] when the validator exited non-zero,
+    /// [`DnsError::SpawnFailed`] when it could not be started,
+    /// [`DnsError::Bound`] when it outran its deadline and
+    /// [`DnsError::ConfigWrite`] for the protocol's mechanical failures. In every
+    /// case the file is gone.
+    fn probe_config(
+        &self,
+        target: &Path,
+        contents: &str,
+        validator: &Validator<'_>,
+    ) -> Result<(), DnsError>;
+
     /// Removes the file at `path`. Idempotent: a file that is not there is
     /// success, because a rollback retried after a lost response must converge.
     ///

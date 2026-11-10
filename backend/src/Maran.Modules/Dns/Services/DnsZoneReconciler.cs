@@ -1,3 +1,4 @@
+using Maran.Agent.Client.Errors;
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Dns.Domain.Entities;
 using Maran.Modules.Dns.Interfaces;
@@ -20,6 +21,11 @@ namespace Maran.Modules.Dns.Services;
 /// restored database, a lost zone directory or a zone file removed by hand leaves the opposite. Nothing else
 /// notices. This pass compares the two by serial, which is what changes with every edit, and makes the host
 /// match the row.
+/// </para>
+/// <para>
+/// <b>A signed zone is published signed.</b> The key travels with every publication
+/// (<see cref="ZoneDefinitionMapper"/>), so a host that was rebuilt serves the zone with the key the registrar's
+/// DS record names. Publishing it unsigned would fail validation for every validating resolver.
 /// </para>
 /// <para>
 /// <b>The row always wins, and the serial still only increases.</b> A zone the daemon serves at a serial
@@ -64,9 +70,6 @@ public sealed class DnsZoneReconciler : BackgroundService
 
     /// <summary>How long between attempts.</summary>
     public static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(30);
-
-    /// <summary>The agent's code for a zone it does not serve, which is an answer and not a failure.</summary>
-    private const string AgentNotFoundCode = "AgentNotFound";
 
     /// <summary>Pre-compiled log delegate for a completed pass.</summary>
     private static readonly Action<ILogger, int, int, int, int, int, Exception?> LogReconciled =
@@ -260,7 +263,7 @@ public sealed class DnsZoneReconciler : BackgroundService
                 {
                     servedSerial = read.Value.Serial;
                 }
-                else if (!string.Equals(read.Error!.Code, AgentNotFoundCode, StringComparison.Ordinal))
+                else if (!string.Equals(read.Error!.Code, AgentErrorCodes.NotFound, StringComparison.Ordinal))
                 {
                     LogZoneFailed(_logger, row.Name, read.Error.Code, null);
                     tally.Failed++;
@@ -280,6 +283,7 @@ public sealed class DnsZoneReconciler : BackgroundService
             var zone = await dbContext.Zones
                 .IgnoreQueryFilters()
                 .Include(candidate => candidate.Records)
+                .Include(candidate => candidate.SigningKeys)
                 .SingleOrDefaultAsync(candidate => candidate.Id == row.Id, cancellationToken);
 #pragma warning restore RS0030
             if (zone is null || zone.Serial != row.Serial)
@@ -360,7 +364,7 @@ public sealed class DnsZoneReconciler : BackgroundService
             }
 
             var removed = await agent.DeleteZoneAsync(name, cancellationToken);
-            if (removed.IsSuccess || string.Equals(removed.Error!.Code, AgentNotFoundCode, StringComparison.Ordinal))
+            if (removed.IsSuccess || string.Equals(removed.Error!.Code, AgentErrorCodes.NotFound, StringComparison.Ordinal))
             {
                 await transaction.CommitAsync(cancellationToken);
                 tally.Removed++;

@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import { stubMyAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubFirewall } from '../fixtures/stub-firewall-routes'
@@ -14,10 +15,12 @@ import {
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account, MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { FtpsStatus } from '../../src/types/ftpsStatus'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 const LICENSED: PanelModule[] = [
   { name: 'sftp', displayName: 'File transfer', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -75,6 +78,7 @@ const signIn = async (page: Page, status: FtpsStatus = runningFtpsStatus): Promi
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubFirewall(page, { rules: [], bans: [], whitelist: [] })
   await stubFtpsServer(page, status)
@@ -173,7 +177,9 @@ test('a customer who may not read the status keeps a usable form that posts thei
   await stubSignedIn(page, CUSTOMER)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubMyAccount(page, OWN_ACCOUNT)
+  await stubMyAccountResources(page, { accountId: OWN_ACCOUNT.id, resources: [] })
   await stubFtpsServerForbidden(page)
   await stubFtpUsers(page, [])
   await page.goto('/file-transfer/ftps')
@@ -195,7 +201,8 @@ test('a customer who may not read the status keeps a usable form that posts thei
 // The refusal case. When the agent refuses because the account is busy, the wire carries nothing
 // that distinguishes it from a host failure — so the screen renders the server's sentence and
 // invents no verdict of its own.
-test('a refused create renders the backend own sentence and no verdict of its own', async ({ page }) => {
+test('a refused create renders the backend own sentence and no verdict of its own', async ({ page, guard }) => {
+  guard.allow(409, /\/api\/v1\/ftp-users$/)
   const backendDetail = 'The account is busy with another operation. Try again in a moment.'
   await signIn(page)
   await stubCreateFtpUserProblem(page, backendDetail)
