@@ -67,7 +67,7 @@ assert_nginx_log_rotation_reloads_and_never_signals_usr1() {
   signals_usr1 "$debian" && signals_usr1 "$rhel" \
     || { rm -rf "$scratch"; fail "the planted distribution stanzas do not signal USR1, so rewriting them proves nothing"; }
 
-  local file
+  local file parsed=0
   for file in "$debian" "$rhel"; do
     bash -c 'set -euo pipefail
 eval "$(sed -n "/^make_distro_nginx_logrotate_reload()/,/^}/p" "$1")"
@@ -79,9 +79,22 @@ make_distro_nginx_logrotate_reload "$2"' _ "$NGINX_STEP" "$file" \
     grep -Fq 'nginx -s reload' "$file" || { rm -rf "$scratch"; fail "the rewritten distribution stanza (${file##*/}) does not reload nginx"; }
     grep -Fq '/var/log/nginx/*.log {' "$file" && grep -Fq 'create 0640' "$file" \
       || { rm -rf "$scratch"; fail "the rewrite of ${file##*/} lost the distribution's glob or its create line"; }
-    out="$(logrotate --debug --state "$state" "$file" 2>&1)" \
-      || { rm -rf "$scratch"; fail "logrotate refused the rewritten distribution stanza (${file##*/}): ${out}"; }
+    # The real logrotate parses only THIS image's family's stanza: the other family's names its own
+    # account (nginx on RHEL, www-data on Debian), which this image does not have, and logrotate refuses
+    # an unknown user before it reads anything else. The rewrite itself is checked on both above.
+    if [ "${file##*/}" = "${MARAN_OS_FAMILY}-nginx" ]; then
+      out="$(logrotate --debug --state "$state" "$file" 2>&1)" \
+        || { rm -rf "$scratch"; fail "logrotate refused the rewritten distribution stanza (${file##*/}): ${out}"; }
+      parsed=$((parsed + 1))
+    fi
   done
+  case "${MARAN_OS_FAMILY:-}" in
+    debian|rhel)
+      [ "$parsed" -eq 1 ] \
+        || { rm -rf "$scratch"; fail "no rewritten stanza matched MARAN_OS_FAMILY='${MARAN_OS_FAMILY}', so the real logrotate parsed none of them"; } ;;
+    *)
+      echo "UNOBSERVED HERE: no planted distribution stanza has the shape of the '${MARAN_OS_FAMILY:-unset}' family, so the real logrotate parsed neither rewrite on this image." ;;
+  esac
   grep -Fq 'run-parts /etc/logrotate.d/httpd-prerotate' "$debian" \
     || { rm -rf "$scratch"; fail "the rewrite damaged the Debian stanza's prerotate script"; }
 

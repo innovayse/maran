@@ -45,6 +45,6 @@ export const credentialsFor = (role: RealRole): RealCredentials => {
 export const uniqueName = (prefix: string): string => {
   // Letters and digits only: the shortest rule any of the panel's name validators accepts.
   const stamp = Date.now().toString(36)
-  const salt = Math.floor(Math.random() * 1296).toString(36)
+  const salt = (crypto.getRandomValues(new Uint16Array(1))[0] ?? 0).toString(36)
   return `${prefix}${stamp}${salt}`.toLowerCase()
 }

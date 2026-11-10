@@ -12,7 +12,7 @@ const PHP_FILE = '<?php\n$name = "maran"; // greeting\necho strlen($name) + 42;\
 test('A .php file is highlighted, a .txt file with the same text is not', async ({ page }) => {
   await openFileEditor(page, { path: 'www/index.php', content: PHP_FILE })
   const box = page.getByRole('textbox', { name: 'File contents' })
-  await expectEditorText(box, PHP_FILE.replace(/\n$/, '\n'))
+  await expectEditorText(box, PHP_FILE)
 
   await expect(box.locator('.tok-keyword').first()).toBeVisible()
   await expect(box.locator('.tok-string').first()).toBeVisible()

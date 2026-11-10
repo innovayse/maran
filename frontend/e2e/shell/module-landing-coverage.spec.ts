@@ -76,7 +76,11 @@ const LOCALE_DIR = join(REPO_ROOT, 'frontend', 'src', 'locales', 'en')
  */
 const mergeInto = (target: Record<string, unknown>, source: Record<string, unknown>): void => {
   for (const [key, value] of Object.entries(source)) {
-    const existing = target[key]
+    // A locale file is data: a key that would reach the object prototype is never merged.
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+      continue
+    }
+    const existing = Object.hasOwn(target, key) ? target[key] : undefined
     if (typeof value === 'object' && value !== null && typeof existing === 'object' && existing !== null) {
       mergeInto(existing as Record<string, unknown>, value as Record<string, unknown>)
     } else {
