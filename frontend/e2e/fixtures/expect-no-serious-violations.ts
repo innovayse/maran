@@ -31,6 +31,18 @@ const WCAG_TAGS: readonly string[] = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'
  * @returns One line per refused violation; empty when there is none.
  */
 export const seriousViolations = async (page: Page): Promise<string[]> => {
+  // A transition that has been asked for starts on the NEXT frame (Vue applies its enter class, then
+  // the active class a frame later), so an empty animation list read in the same frame as the click
+  // that opened a dialog says nothing yet. Two frames pass first; then the list must be empty.
+  await page.evaluate(() => {
+    return new Promise<void>((resolve) => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          resolve()
+        })
+      })
+    })
+  })
   await page.waitForFunction(() => {return document.getAnimations().length === 0})
   const results = await new AxeBuilder({ page }).withTags([...WCAG_TAGS]).analyze()
   // Vacuity guard on the axis that can go blind: a scan that checked no rule at all would report
