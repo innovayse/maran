@@ -1111,7 +1111,7 @@ $(nginx -t 2>&1)"
 # assertion; if its stock file has a port-80 server part 2 proves it is disabled, and if it has none the
 # render is a no-op, which part 1 proves is harmless).
 assert_the_packaged_default_port_80_server_is_disabled_and_restorable() {
-  local work conf="/etc/nginx/nginx.conf" copy rendered active_before
+  local work conf="/etc/nginx/nginx.conf" copy rendered active_before remaining
   local prefix="# maran-disabled: "
   prepare_host_for_the_nginx_step
   work="$(mktemp -d)"
@@ -1182,10 +1182,17 @@ $(cat "$rendered")"
     || { cp -p "$copy" "$conf"; fail "step 80's disable_packaged_port80_server_in_nginx_conf refused this image's nginx.conf."; }
   nginx -t >/dev/null 2>&1 || { cp -p "$copy" "$conf"; fail "nginx rejects ${conf} after the packaged port-80 server was disabled:
 $(nginx -t 2>&1)"; }
-  if nginx -T 2>/dev/null | sed 's/#.*//' | grep -Eq 'listen[[:space:]]+(\[::\]:|[0-9.*]+:)?80([[:space:];])'; then
+  # Only nginx.conf's own text is inspected: conf.d/maran-port80.conf (the panel's ACME block) legitimately
+  # listens on 80 while nginx is the site web server. `nginx -T` opens each file with a
+  # `# configuration file <path>:` line, so the section is cut out by that header. The diagnostic is
+  # taken BEFORE the original is put back, so it shows what the disabled file left, not the restored one.
+  remaining="$(nginx -T 2>/dev/null | awk -v conf="$conf" '
+    /^# configuration file / { inconf = ($0 == "# configuration file " conf ":"); next }
+    inconf { print }' | sed 's/#.*//' | grep -E 'listen[[:space:]]+(\[::\]:|[0-9.*]+:)?80([[:space:];])' || true)"
+  if [ -n "$remaining" ]; then
     cp -p "$copy" "$conf"; rm -f "${conf}.maran-previous"
-    fail "nginx still has a listener on port 80 after step 80 disabled the packaged server:
-$(nginx -T 2>/dev/null | sed 's/#.*//' | grep -E 'listen')"
+    fail "nginx.conf still has a listener on port 80 after step 80 disabled the packaged server:
+${remaining}"
   fi
   if [ -n "$active_before" ]; then
     cmp -s "${conf}.maran-previous" "$copy" \
