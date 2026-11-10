@@ -12,7 +12,6 @@ import type {
   SitesApi,
 } from '../../types/site'
 import type {
-  InstallablePhpVersion,
   PhpExtension,
   PhpVersion,
   SetPhpExtensionRequest,
@@ -151,18 +150,6 @@ export const useSitesApi = (): SitesApi => {
   }
 
   /**
-   * Lists the PHP versions this server can install, installed ones flagged.
-   *
-   * The install picker selects from this rather than from a list written into the SPA: what the
-   * host can install is the agent's to report. Administrator-only on the server.
-   * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The installable versions, newest first.
-   */
-  const listInstallablePhpVersions = (signal?: AbortSignal): Promise<InstallablePhpVersion[]> => {
-    return api.get<InstallablePhpVersion[]>(`${SITES_PATH}/php-versions/installable`, signal)
-  }
-
-  /**
    * Reads the bounds a site's form must respect.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The limits, as the server states them.
@@ -178,23 +165,6 @@ export const useSitesApi = (): SitesApi => {
    */
   const getChoices = (signal?: AbortSignal): Promise<SiteChoices> => {
     return api.get<SiteChoices>(`${SITES_PATH}/choices`, signal)
-  }
-
-  /**
-   * Asks the server to install a PHP version, and answers the versions it has afterwards.
-   *
-   * Administrator-only on the server, and the SPA does not pretend otherwise: a customer who
-   * reaches this gets a refusal from the panel, which is where the decision belongs
-   * (rules/security.md — a check in the browser is advice).
-   *
-   * The request does not resolve until the install finishes, which on a slow mirror is minutes.
-   * Its progress is on the tasks screen, because the panel records a task for it.
-   * @param version The version to install, e.g. `8.4`.
-   * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The versions installed on this server after the attempt.
-   */
-  const installPhpVersion = (version: string, signal?: AbortSignal): Promise<PhpVersion[]> => {
-    return api.post<PhpVersion[]>(`${SITES_PATH}/php-versions/install`, { version }, signal)
   }
 
   /**
@@ -351,10 +321,8 @@ export const useSitesApi = (): SitesApi => {
     disable,
     remove,
     listPhpVersions,
-    listInstallablePhpVersions,
     getLimits,
     getChoices,
-    installPhpVersion,
     listPhpExtensions,
     setPhpExtension,
     tailLog,

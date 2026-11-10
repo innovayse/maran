@@ -110,6 +110,8 @@ const DELIBERATELY_UNLINKED = new Map([
   ['two-factor-setup', 'the auth guard steers an obliged administrator here; the router documents that nothing links it'],
   ['file-editor', 'opened from a file row of the file browser, which pushes with the account and the path of the file'],
   ['change-password', 'the auth guard sends a login still holding its first password here from any URL (issue #514); nothing links to it'],
+  ['stack-setup', 'the stack guard holds an administrator here while no site web server is installed (issue #517); nothing links to it'],
+  ['stack-pending', 'the stack guard holds every other role here while no site web server is installed (issue #517); nothing links to it'],
   ['not-found', 'the catch-all: a page nothing should ever link to'],
   ['not-available', 'the role and module guards redirect a customer here; a page nothing should link to'],
 ])

@@ -9,6 +9,7 @@ use crate::ssl::generate_self_signed::generate_self_signed;
 use crate::ssl::install_certificate::install_certificate;
 use crate::ssl::self_signed_marker::self_signed_marker;
 use crate::ssl::ssl_op_error::SslOpError;
+use maran_distro::SiteWebServer;
 
 /// A host with `example.com` created and nothing installed on it.
 fn host_with_site() -> FakeSslHost {
@@ -29,7 +30,9 @@ fn a_site_with_no_certificate_gets_the_placeholder_installed() {
     let certificate = SiteCertificate::for_domain(&input.domain);
     assert!(host.stored(certificate.key_path()).is_some());
     let vhost = host
-        .config(&SitePaths::for_site(&input.account, &input.domain).config_path)
+        .config(
+            &SitePaths::for_site(&input.account, &input.domain, SiteWebServer::Nginx).config_path,
+        )
         .unwrap();
     // The point of the placeholder: nginx will not start a TLS block whose
     // `ssl_certificate` is missing, so the site can only be configured for

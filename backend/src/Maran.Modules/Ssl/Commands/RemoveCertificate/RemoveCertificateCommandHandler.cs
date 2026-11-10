@@ -1,4 +1,5 @@
 using Maran.Agent.Client.Interfaces;
+using Maran.Agent.Client.Services.SitesService;
 using Maran.Modules.Ssl.Mappers;
 using Maran.Modules.Ssl.Persistence;
 using Maran.Modules.Ssl.Resources;
@@ -43,24 +44,30 @@ public sealed class RemoveCertificateCommandHandler
     /// <summary>This module's audit journal.</summary>
     private readonly CertificateAuditJournal _journal;
 
+    /// <summary>What the app store has installed, which names the web server whose vhost is rewritten.</summary>
+    private readonly IStackStatus _stack;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Ssl module's database context.</param>
     /// <param name="sites">The window onto the sites this caller owns.</param>
     /// <param name="accounts">The owning account's system user name.</param>
     /// <param name="agent">The agent client that removes the material and rewrites the vhost.</param>
     /// <param name="journal">This module's audit journal.</param>
+    /// <param name="stack">What the app store has installed, which names the web server the vhost is rendered for.</param>
     public RemoveCertificateCommandHandler(
         SslDbContext dbContext,
         ISiteDirectory sites,
         IAccountDirectory accounts,
         IAgentSslClient agent,
-        CertificateAuditJournal journal)
+        CertificateAuditJournal journal,
+        IStackStatus stack)
     {
         _dbContext = dbContext;
         _sites = sites;
         _accounts = accounts;
         _agent = agent;
         _journal = journal;
+        _stack = stack;
     }
 
     /// <summary>Removes one of the caller's certificates.</summary>
@@ -97,7 +104,7 @@ public sealed class RemoveCertificateCommandHandler
         var removed = await _agent.RemoveCertificateAsync(
             account.Username,
             certificate.Domain,
-            SiteDescriptorMapper.From(site, hasCertificate: false),
+            SiteDescriptorMapper.From(site, hasCertificate: false, SiteWebServerMapper.Require(_stack)),
             cancellationToken);
         if (!removed.IsSuccess)
         {

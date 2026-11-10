@@ -7,7 +7,7 @@
 //! The polygon image carries the installer's panel vhost only for the length of
 //! a build-time assertion, so nothing is serving it when a suite starts. This
 //! fixture therefore renders **the production template itself**
-//! (`installer/nginx/maran.conf`, embedded at compile time) with the same four
+//! (`installer/nginx/maran.conf` and the port-80 block `installer/nginx/maran-port80.conf`, embedded at compile time) with the same four
 //! substitutions `installer/lib/80-nginx.sh` makes, and puts the result in the
 //! agent's own include directory, which the real nginx reads. The TLS server
 //! block, the port-80 challenge block, the certificate and key paths and the
@@ -40,6 +40,14 @@ use maran_distro::DistroAdapter;
 const PANEL_VHOST_TEMPLATE: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../../installer/nginx/maran.conf"
+));
+
+/// The panel's port-80 challenge block, byte for byte as it is shipped: a file of its own beside
+/// the vhost (the agent takes it out of nginx's tree while Apache owns port 80), rendered into the
+/// same polygon file here because both are one panel to the tests.
+const PANEL_PORT80_TEMPLATE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../installer/nginx/maran-port80.conf"
 ));
 
 /// The file name the rendered vhost is given inside the agent's include
@@ -351,7 +359,8 @@ impl PolygonPanelHost {
     /// substitute: the installer gained a substitution the fixture lacks, and
     /// nginx would otherwise refuse the tree with a less direct message.
     fn rendered_vhost(&self) -> String {
-        let rendered = PANEL_VHOST_TEMPLATE
+        let rendered = [PANEL_VHOST_TEMPLATE, PANEL_PORT80_TEMPLATE]
+            .join("\n")
             .replace("__MARAN_SERVER_NAME__", &self.name)
             .replace(
                 "__MARAN_CERT_PATH__",

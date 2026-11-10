@@ -312,21 +312,43 @@ public sealed class SetPhpExtensionCommandHandlerTests
         return php;
     }
 
+    /// <summary>A version that is not installed as an app is refused, journalled, and never reaches the agent.</summary>
+    [Fact]
+    public async Task A_version_that_is_not_installed_as_an_app_is_refused_and_never_reaches_the_agent()
+    {
+        var php = Host();
+        var tasks = new RecordingTaskRecorder();
+        var audit = new RecordingAuditWriter();
+
+        var result = await Handler(php, tasks, audit, SiteStacks.WithoutRuntimes()).HandleAsync(
+            Command("gd", true),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AppsNotInstalled", result.Error!.Code);
+        Assert.Empty(php.SetExtensionCalls);
+        Assert.Empty(tasks.Tasks);
+        Assert.False(Assert.Single(audit.Entries).Succeeded);
+    }
+
     /// <summary>Builds the handler over the given doubles, acting as an administrator.</summary>
     /// <param name="php">The agent's PHP surface.</param>
     /// <param name="tasks">Records the long-running task.</param>
     /// <param name="audit">Receives this module's journal entries.</param>
+    /// <param name="stack">The installed stack; a host with PHP 8.3 and 8.4 installed when omitted.</param>
     private static SetPhpExtensionCommandHandler Handler(
         RecordingAgentPhpClient php,
         RecordingTaskRecorder tasks,
-        RecordingAuditWriter audit)
+        RecordingAuditWriter audit,
+        SiteStackGate? stack = null)
     {
         return new SetPhpExtensionCommandHandler(
             php,
             tasks,
             new StubCorrelationIdAccessor("correlation-1"),
             new SiteAuditJournal(audit, FakeCurrentUser.Admin()),
-            SitesTestContext.SiteNames());
+            SitesTestContext.SiteNames(),
+            stack ?? SiteStacks.Ready());
     }
 
     /// <summary>Builds the command for version 8.3, stamped as an administrator's request.</summary>

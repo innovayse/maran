@@ -6,6 +6,7 @@ use crate::sites::model::create_site_input::CreateSiteInput;
 use crate::sites::render_vhost::render_vhost;
 use crate::sites::resolved_site_paths::resolved_site_paths;
 use crate::sites::sync_site_auth_file::sync_site_auth_file;
+use crate::sites::write_node_unit::write_node_unit;
 use crate::sites::write_vhost::write_vhost;
 use crate::sites::{SiteHost, SitesOpError};
 
@@ -40,7 +41,7 @@ pub fn enable_site(
     // Resolved, not merely named: `create_site` rendered the canonical
     // document root, so anything less here renders different text for the same
     // site and the comparison below never matches.
-    let paths = resolved_site_paths(host, &input.account, &input.domain)?;
+    let paths = resolved_site_paths(host, &input.account, &input.domain, input.web_server)?;
 
     let current = host
         .read_config(&paths.config_path)?
@@ -53,11 +54,20 @@ pub fn enable_site(
     // ahead of it. Converged even when the vhost already matches: a file lost
     // to a crash between the two writes is repaired by the retry.
     sync_site_auth_file(host, distro, input)?;
+    // A suspended Node.js site had its application stopped; enabling starts it again, before
+    // the vhost that proxies to it.
+    write_node_unit(host, distro, input, &paths)?;
     if current == contents {
         return Ok(());
     }
 
-    write_vhost(host, distro, &paths.config_path, &contents)
+    write_vhost(
+        host,
+        distro,
+        input.web_server,
+        &paths.config_path,
+        &contents,
+    )
 }
 
 #[cfg(test)]

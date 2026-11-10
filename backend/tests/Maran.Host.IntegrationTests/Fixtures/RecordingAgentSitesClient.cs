@@ -37,12 +37,14 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     /// <param name="accountUsername">System username of the owning account.</param>
     /// <param name="domain">The site's primary domain.</param>
     /// <param name="retiredPhpVersion">The pool version this removal retires, or the empty string.</param>
+    /// <param name="webServer"></param>
     /// <param name="cancellationToken">Unused: nothing here awaits.</param>
     /// <returns>Success, or the configured refusal.</returns>
     public Task<Result> DeleteAsync(
         string accountUsername,
         string domain,
         string retiredPhpVersion,
+        SiteWebServer webServer,
         CancellationToken cancellationToken)
     {
         Deleted.Add((accountUsername, domain, retiredPhpVersion));
@@ -76,6 +78,8 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     /// <param name="kind">Unused.</param>
     /// <param name="phpVersion">Unused.</param>
     /// <param name="proxyUpstream">Unused.</param>
+    /// <param name="webServer"></param>
+    /// <param name="node"></param>
     /// <param name="maxChildren">Unused.</param>
     /// <param name="settingOverrides">Unused.</param>
     /// <param name="cancellationToken">Unused.</param>
@@ -87,6 +91,8 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
         SiteBackendKind kind,
         string phpVersion,
         string proxyUpstream,
+        SiteWebServer webServer,
+        SiteNodeApp node,
         uint maxChildren,
         IReadOnlyList<PhpSettingDto> settingOverrides,
         CancellationToken cancellationToken)
@@ -184,9 +190,10 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     }
 
     /// <summary>Counts the reload the panel ordered, and answers as the agent would.</summary>
+    /// <param name="webServer"></param>
     /// <param name="cancellationToken">Unused: nothing here awaits.</param>
     /// <returns>Success.</returns>
-    public Task<Result> ReloadWebServerAsync(CancellationToken cancellationToken)
+    public Task<Result> ReloadWebServerAsync(SiteWebServer webServer, CancellationToken cancellationToken)
     {
         Reloads += 1;
         return Task.FromResult(Result.Ok());

@@ -72,7 +72,7 @@ public static class DemoWorldExtensions
         services.AddScoped<IDemoSeedStep, ResellerSeedStep>();
         services.AddScoped<IDemoSeedStep, ResellerPlanSeedStep>();
         services.AddScoped<IDemoSeedStep, AccountSeedStep>();
-        services.AddScoped<IDemoSeedStep, PhpVersionSeedStep>();
+        services.AddScoped<IDemoSeedStep, AppStackSeedStep>();
         services.AddScoped<IDemoSeedStep, SiteSeedStep>();
         services.AddScoped<IDemoSeedStep, CertificateSeedStep>();
         services.AddScoped<IDemoSeedStep, DatabaseSeedStep>();

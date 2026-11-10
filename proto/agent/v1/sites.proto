@@ -90,6 +90,26 @@ enum SiteBackendType {
   SITE_BACKEND_TYPE_PHP = 2;
   // Reverse-proxied to an upstream the caller names explicitly.
   SITE_BACKEND_TYPE_REVERSE_PROXY = 3;
+  // A Node.js application the agent runs under a per-site systemd unit, owned
+  // by the site's account, and reverse-proxies to app_port on the loopback
+  // address. Needs node_version, app_port and start_command. Added 2026-11-10
+  // (issue #517).
+  SITE_BACKEND_TYPE_NODE = 4;
+}
+
+// The web server that owns ports 80 and 443 for hosted sites, chosen once at
+// first-run setup through the app store (issue #517, docs/apps/README.md).
+// The panel's own front on port 8443 is nginx whichever value is chosen.
+// Added 2026-11-10.
+enum SiteWebServer {
+  // Not set. A caller that predates this enum sends it, and the agent reads it
+  // as SITE_WEB_SERVER_NGINX: before the choice existed nginx served every
+  // site, so the zero value is the old behaviour and not a guess.
+  SITE_WEB_SERVER_UNSPECIFIED = 0;
+  // nginx serves the site.
+  SITE_WEB_SERVER_NGINX = 1;
+  // Apache serves the site.
+  SITE_WEB_SERVER_APACHE = 2;
 }
 
 // The panel's record of what a site IS, as opposed to which site it is.
@@ -134,6 +154,20 @@ message SiteSpec {
   // that predates this field renders exactly the vhost it rendered before.
   // Added 2026-11-07.
   SiteOptions options = 6;
+  // Which web server renders the vhost; UNSPECIFIED means nginx. Panel-owned
+  // like every other field here, and sent on every re-render so the vhost a
+  // site was created with is the vhost it keeps. Added 2026-11-10.
+  SiteWebServer web_server = 7;
+  // Required when backend_type is NODE: the Node.js major version the site is
+  // bound to, e.g. "20". Added 2026-11-10.
+  string node_version = 8;
+  // Required when backend_type is NODE: the loopback port the application
+  // listens on, 1024 to 65535. Added 2026-11-10.
+  uint32 app_port = 9;
+  // Required when backend_type is NODE: the command the site's unit runs from
+  // the document root, e.g. "node server.js". Re-validated by the agent
+  // against its own shape rules and never handed to a shell. Added 2026-11-10.
+  string start_command = 10;
 }
 
 message CreateSiteRequest {
@@ -173,6 +207,19 @@ message CreateSiteRequest {
   // The site's per-site options, as in SiteSpec. Absent = none.
   // Added 2026-11-07.
   SiteOptions options = 9;
+  // Which web server renders the vhost; UNSPECIFIED means nginx. Added
+  // 2026-11-10 (issue #517).
+  SiteWebServer web_server = 10;
+  // Required when backend_type is NODE: the Node.js major version to bind to,
+  // e.g. "20". Added 2026-11-10.
+  string node_version = 11;
+  // Required when backend_type is NODE: the loopback port the application
+  // listens on, 1024 to 65535. Added 2026-11-10.
+  uint32 app_port = 12;
+  // Required when backend_type is NODE: the command the site's unit runs from
+  // the document root, e.g. "node server.js". Re-validated by the agent and
+  // never handed to a shell. Added 2026-11-10.
+  string start_command = 13;
 }
 
 message CreateSiteResponse {
@@ -284,6 +331,9 @@ message DeleteSiteRequest {
   //
   // Added 2026-09-01.
   string retired_php_version = 3;
+  // Which web server holds the site's vhost; UNSPECIFIED means nginx. Added
+  // 2026-11-10 (issue #517).
+  SiteWebServer web_server = 4;
 }
 
 message DeleteSiteResponse {
@@ -329,7 +379,11 @@ message TailSiteLogLine {
   bool historical = 2;
 }
 
-message ReloadWebServerRequest {}
+message ReloadWebServerRequest {
+  // Which web server to reload; UNSPECIFIED means nginx, the behaviour before
+  // the site web server was a choice. Added 2026-11-10 (issue #517).
+  SiteWebServer web_server = 1;
+}
 
 message ReloadWebServerResponse {
   oneof result {

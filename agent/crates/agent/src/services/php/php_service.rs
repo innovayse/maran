@@ -195,7 +195,7 @@ impl<H: PhpHost + 'static> PhpService for PhpServiceImpl<H> {
     /// the error — and never with a bare gRPC status for a domain outcome.
     ///
     /// The agent does not run the package manager: it starts the installer's
-    /// `maran-php-install@<package>` unit and waits for it, because its own
+    /// `maran-app-install@<package>` unit and waits for it, because its own
     /// sandbox keeps `/usr` read-only.
     ///
     /// **Cancellation class: run to completion** (rules/rust.md, "Async and

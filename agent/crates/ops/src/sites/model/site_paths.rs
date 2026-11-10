@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::web::domain::Domain;
+use maran_distro::SiteWebServer;
 
 /// Directory, inside the account's home, holding one directory per site.
 const SITES_DIRECTORY: &str = "sites";
@@ -55,17 +56,29 @@ impl SitePaths {
     /// write to or traverse, which is a stronger guarantee than any check made
     /// on a directory the customer owns could be.
     #[must_use]
-    pub fn for_site(account: &AccountName, domain: &Domain) -> Self {
+    pub fn for_site(account: &AccountName, domain: &Domain, web_server: SiteWebServer) -> Self {
         let home = PathBuf::from(AgentPaths::ACCOUNT_HOME_ROOT).join(account.as_str());
         let log_directory = AgentPaths::account_site_log_dir(account);
 
         Self {
             document_root: home.join(SITES_DIRECTORY).join(domain.as_str()),
-            access_log: log_directory.join(format!("{}.access.log", domain.as_str())),
-            error_log: log_directory.join(format!("{}.error.log", domain.as_str())),
+            access_log: Self::access_log_for(account, domain),
+            error_log: Self::error_log_for(account, domain),
             log_directory,
-            config_path: PathBuf::from(AgentPaths::NGINX_INCLUDE_DIRECTORY)
+            config_path: PathBuf::from(Self::include_directory(web_server))
                 .join(format!("{}.conf", domain.as_str())),
+        }
+    }
+
+    /// The directory the agent owns for `web_server`'s vhosts.
+    ///
+    /// One directory per web server, so a host that switched servers never has a vhost of one
+    /// read by the other.
+    #[must_use]
+    pub fn include_directory(web_server: SiteWebServer) -> &'static str {
+        match web_server {
+            SiteWebServer::Nginx => AgentPaths::NGINX_INCLUDE_DIRECTORY,
+            SiteWebServer::Apache => AgentPaths::APACHE_INCLUDE_DIRECTORY,
         }
     }
 
@@ -74,6 +87,33 @@ impl SitePaths {
     #[must_use]
     pub fn document_root_in_home(domain: &Domain) -> PathBuf {
         PathBuf::from(SITES_DIRECTORY).join(domain.as_str())
+    }
+
+    /// The web server whose include directory holds the vhost file at `config_path`, or
+    /// `None` for a path in neither.
+    ///
+    /// The inverse of [`Self::include_directory`], for the operations that start from a file
+    /// found in a directory listing and need to know which dialect it is written in.
+    #[must_use]
+    pub fn web_server_of(config_path: &std::path::Path) -> Option<SiteWebServer> {
+        let directory = config_path.parent()?;
+        [SiteWebServer::Nginx, SiteWebServer::Apache]
+            .into_iter()
+            .find(|web_server| {
+                directory == std::path::Path::new(Self::include_directory(*web_server))
+            })
+    }
+
+    /// The access log of `domain` under `account`, which does not depend on the web server.
+    #[must_use]
+    pub fn access_log_for(account: &AccountName, domain: &Domain) -> PathBuf {
+        AgentPaths::account_site_log_dir(account).join(format!("{}.access.log", domain.as_str()))
+    }
+
+    /// The error log of `domain` under `account`, which does not depend on the web server.
+    #[must_use]
+    pub fn error_log_for(account: &AccountName, domain: &Domain) -> PathBuf {
+        AgentPaths::account_site_log_dir(account).join(format!("{}.error.log", domain.as_str()))
     }
 
     /// The directory holding `account`'s site logs.

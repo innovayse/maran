@@ -4,6 +4,14 @@ This page covers what an administrator can do with the PHP versions installed on
 extensions on or off, what the shared OPcache is set to, and how the panel flags a PHP version that no
 longer receives security fixes. Customers see the same information read-only.
 
+**PHP is an app (issue #517).** The panel installs no PHP by default. Each PHP version is an app of the
+app store (`docs/apps/README.md`): an administrator installs `php-8.3` and the other versions from
+**Settings, Apps** or from the first-run setup wizard, and removes one there too (refused while a site
+uses that version). Everything on this page applies to the PHP versions that are installed; with none
+installed the PHP menu entries are absent and the PHP endpoints answer that no PHP app is installed.
+The extension switch below installs its package through the same root package unit the app store uses
+(`maran-app-install@<package>.service`).
+
 Status of the change this page describes (issue #157): the second security review of the privileged
 agent changes is OUTSTANDING and the branch must not merge to `main` until a reviewer has read it. The
 threat note is `docs/superpowers/notes/2026-11-07-php-extensions-threat-note.md`.
@@ -16,7 +24,7 @@ the panel cannot ask for any other, and it cannot name a package. Open **Setting
 choose **Extensions** on a version.
 
 - **Switching on** installs the extension's package through the same root install unit that installs a
-  PHP version, enables it for php-fpm, checks the configuration (`php-fpm -t`), reloads the version's
+  PHP version (`maran-app-install@`), enables it for php-fpm, checks the configuration (`php-fpm -t`), reloads the version's
   php-fpm and then reads the loaded modules back. An extension that is still not loaded afterwards is
   reported as a failure.
 - **Switching off** disables it for php-fpm the same way (check, reload, read back). If php-fpm refuses

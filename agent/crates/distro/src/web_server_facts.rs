@@ -1,11 +1,14 @@
-//! The web server and TLS tooling: nginx, the identity it runs as, and openssl.
+//! The web server and TLS tooling: nginx, Apache, the identities they run as, the Node.js
+//! launchers a site's unit runs, and openssl.
 //!
 //! A supertrait of [`DistroAdapter`](crate::adapter::DistroAdapter); split out by concern
 //! so the one adapter seam stays under the file-size trigger (rules/rust.md "Distro adapter").
 
 use crate::adapter_binary::AdapterBinary;
+use crate::site_web_server::SiteWebServer;
 
-/// The web server and TLS tooling: nginx, the identity it runs as, and openssl.
+/// The web server and TLS tooling: nginx, Apache, the identities they run as, the Node.js
+/// launchers a site's unit runs, and openssl.
 pub trait WebServerFacts: Send + Sync {
     /// Absolute path of the nginx binary, for the process-execution allow-list.
     ///
@@ -40,6 +43,72 @@ pub trait WebServerFacts: Send + Sync {
     /// a group is what a directory is owned by, and the two names agreeing is a
     /// fact about these two distributions rather than a rule.
     fn web_server_group(&self) -> &'static str;
+
+    /// Absolute path of the Apache control script, for the process-execution allow-list.
+    ///
+    /// The agent runs it with `-t` to check the whole configuration tree before and after
+    /// every vhost write, the way it runs nginx's own `-t` for the other site web server.
+    /// `apachectl` on the RHEL family, `apache2ctl` on the Debian and SUSE families.
+    fn apache_binary(&self) -> AdapterBinary;
+
+    /// Name of the Apache service unit, for `systemctl reload`/`restart`.
+    ///
+    /// `apache2` on the Debian and SUSE families, `httpd` on the RHEL family.
+    fn apache_service(&self) -> &'static str;
+
+    /// The user the Apache workers run as, which must own nothing and be able to read a
+    /// site's document root.
+    ///
+    /// Asked separately from [`Self::web_server_user`]: that is nginx's identity, and the
+    /// two differ on every family (`apache` against `nginx` on RHEL, `wwwrun` against
+    /// `nginx` on SUSE).
+    fn apache_user(&self) -> &'static str;
+
+    /// The group the Apache workers run in, which an account's home is group-owned by when
+    /// Apache is the site web server.
+    fn apache_group(&self) -> &'static str;
+
+    /// Absolute path of the Node.js interpreter a site's unit runs.
+    ///
+    /// Text and not an [`AdapterBinary`], like `sh_binary`: the agent never executes it, it
+    /// is written into a unit the service manager runs under the site's account.
+    fn node_executable(&self) -> &'static str;
+
+    /// Absolute path of the npm launcher a site's unit may run, text for the reason
+    /// [`Self::node_executable`] is.
+    fn npm_executable(&self) -> &'static str;
+
+    /// Absolute path of the binary whose `-t` checks `server`'s whole configuration tree.
+    fn site_web_server_binary(&self, server: SiteWebServer) -> AdapterBinary {
+        match server {
+            SiteWebServer::Nginx => self.nginx_binary(),
+            SiteWebServer::Apache => self.apache_binary(),
+        }
+    }
+
+    /// Name of the service unit that `systemctl reload` reaches `server` through.
+    fn site_web_server_service(&self, server: SiteWebServer) -> &'static str {
+        match server {
+            SiteWebServer::Nginx => self.nginx_service(),
+            SiteWebServer::Apache => self.apache_service(),
+        }
+    }
+
+    /// The user `server`'s workers run as.
+    fn site_web_server_user(&self, server: SiteWebServer) -> &'static str {
+        match server {
+            SiteWebServer::Nginx => self.web_server_user(),
+            SiteWebServer::Apache => self.apache_user(),
+        }
+    }
+
+    /// The group `server`'s workers run in, which an account's home is group-owned by.
+    fn site_web_server_group(&self, server: SiteWebServer) -> &'static str {
+        match server {
+            SiteWebServer::Nginx => self.web_server_group(),
+            SiteWebServer::Apache => self.apache_group(),
+        }
+    }
 
     /// Absolute path of the openssl binary, for the process-execution
     /// allow-list.

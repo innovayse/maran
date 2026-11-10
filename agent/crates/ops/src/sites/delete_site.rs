@@ -7,6 +7,7 @@ use maran_distro::DistroAdapter;
 use crate::php::PhpHost;
 use crate::sites::model::site_identity::SiteIdentity;
 use crate::sites::model::site_paths::SitePaths;
+use crate::sites::remove_node_unit::remove_node_unit;
 use crate::sites::remove_site_pool::remove_site_pool;
 use crate::sites::remove_vhost::remove_vhost;
 use crate::sites::{SiteHost, SitesOpError};
@@ -57,7 +58,7 @@ pub fn delete_site(
     // in the agent's own include directory, and requiring the customer's
     // document root to still resolve would make a site with a deleted home
     // impossible to clean up.
-    let paths = SitePaths::for_site(&site.account, &site.domain);
+    let paths = SitePaths::for_site(&site.account, &site.domain, site.web_server);
 
     if host.read_config(&paths.config_path)?.is_none() {
         return Err(SitesOpError::NotFound {
@@ -65,7 +66,12 @@ pub fn delete_site(
         });
     }
 
-    remove_vhost(host, distro, &paths.config_path)?;
+    remove_vhost(host, distro, site.web_server, &paths.config_path)?;
+
+    // The application AFTER the vhost that proxies to it, for the reason the pool is removed
+    // after it: the other order leaves a live vhost answering 502 for the length of the
+    // removal. A site that is not a Node.js one has no unit and this is one read.
+    remove_node_unit(host, distro, &site.domain)?;
 
     // The credential file AFTER the vhost that names it: removed first, the
     // still-live vhost would answer every request with a 500 until the vhost

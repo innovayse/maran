@@ -18,6 +18,7 @@
 mod test_support;
 
 pub mod accounts;
+pub mod apps;
 pub mod backup;
 pub mod cron;
 pub mod db;
@@ -28,6 +29,7 @@ pub mod ftps;
 pub mod logins;
 pub mod mail;
 pub mod monitor;
+pub mod packages;
 pub mod php;
 pub mod safe_write;
 pub mod sftp;

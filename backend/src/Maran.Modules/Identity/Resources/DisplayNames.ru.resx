@@ -991,4 +991,19 @@
   <data name="AuditActionMigrationBackupTaken">
     <value>Резервная копия для миграции создана</value>
   </data>
+  <data name="AuditActionAppInstallRequested">
+    <value>Администратор запросил установку приложения</value>
+  </data>
+  <data name="AuditActionAppUninstallRequested">
+    <value>Администратор запросил удаление приложения</value>
+  </data>
+  <data name="AuditActionAppInstalled">
+    <value>Установка приложения завершилась</value>
+  </data>
+  <data name="AuditActionAppUninstalled">
+    <value>Удаление приложения завершилось</value>
+  </data>
+  <data name="AuditActionAppServiceControlled">
+    <value>Администратор управлял службой приложения</value>
+  </data>
 </root>

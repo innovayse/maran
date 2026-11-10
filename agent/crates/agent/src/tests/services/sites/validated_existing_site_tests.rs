@@ -16,6 +16,7 @@ fn a_static_spec(aliases: &[&str]) -> SiteSpec {
         proxy_upstream: String::new(),
         has_certificate: false,
         options: None,
+        ..Default::default()
     }
 }
 

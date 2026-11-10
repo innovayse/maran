@@ -9,9 +9,11 @@ use maran_agent_core::validation::web::php_version::PhpVersion;
 use crate::DistroAdapter;
 use crate::account_programs::AccountPrograms;
 use crate::adapter_binary::AdapterBinary;
+use crate::app_facts::AppFacts;
 use crate::backup_facts::BackupFacts;
 use crate::catalogue_probe::CatalogueProbe;
 use crate::database_facts::DatabaseFacts;
+use crate::debian::debian_apps;
 use crate::debian::{
     debian_package_candidates, debian_packages, debian_paths, debian_php_extensions,
     debian_services,
@@ -23,6 +25,7 @@ use crate::file_transfer_facts::FileTransferFacts;
 use crate::firewall_facts::FirewallFacts;
 use crate::key_value_server::KeyValueServer;
 use crate::mail_facts::MailFacts;
+use crate::nodejs_packaging::NodejsPackaging;
 use crate::package_facts::PackageFacts;
 use crate::package_failure::PackageFailure;
 use crate::package_query_failure::PackageQueryFailure;
@@ -163,6 +166,72 @@ impl WebServerFacts for DebianAdapter {
 
     fn openssl_binary(&self) -> AdapterBinary {
         debian_services::openssl_binary()
+    }
+
+    fn apache_binary(&self) -> AdapterBinary {
+        debian_services::apache_binary()
+    }
+
+    fn apache_service(&self) -> &'static str {
+        debian_services::apache_service()
+    }
+
+    fn apache_user(&self) -> &'static str {
+        debian_services::apache_user()
+    }
+
+    fn apache_group(&self) -> &'static str {
+        debian_services::apache_group()
+    }
+
+    fn node_executable(&self) -> &'static str {
+        debian_services::node_executable()
+    }
+
+    fn npm_executable(&self) -> &'static str {
+        debian_services::npm_executable()
+    }
+}
+
+impl AppFacts for DebianAdapter {
+    fn nginx_package(&self) -> &'static str {
+        debian_apps::nginx_package()
+    }
+
+    fn apache_package(&self) -> &'static str {
+        debian_apps::apache_package()
+    }
+
+    fn apache_extra_packages(&self) -> &'static [&'static str] {
+        debian_apps::apache_extra_packages()
+    }
+
+    fn apache_include_snippet_path(&self) -> &'static str {
+        debian_apps::apache_include_snippet_path()
+    }
+
+    fn apache_required_modules(&self) -> &'static [&'static str] {
+        debian_apps::apache_required_modules()
+    }
+
+    fn apache_module_enabler(&self) -> Option<AdapterBinary> {
+        debian_apps::apache_module_enabler()
+    }
+
+    fn nodejs_packaging(&self) -> NodejsPackaging {
+        NodejsPackaging::SingleDistroPackage
+    }
+
+    fn nodejs_package(&self, _major: &str) -> String {
+        debian_apps::nodejs_package().to_owned()
+    }
+
+    fn nodejs_candidate_major(&self, candidate_query_stdout: &str) -> Option<String> {
+        debian_apps::nodejs_candidate_major(candidate_query_stdout)
+    }
+
+    fn node_binary(&self) -> AdapterBinary {
+        debian_apps::node_binary()
     }
 }
 

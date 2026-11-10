@@ -61,19 +61,25 @@ public sealed class SetPhpExtensionCommandHandler
     /// <summary>Resolves the localized extension labels of the answer.</summary>
     private readonly SiteDisplayNames _displayNames;
 
+    /// <summary>Reads which PHP versions are installed as apps.</summary>
+    private readonly SiteStackGate _stack;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="php">The agent's PHP surface.</param>
     /// <param name="tasks">Records the long-running task.</param>
     /// <param name="correlationIds">Ties the task to its request.</param>
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="displayNames">Resolves the localized extension labels of the answer.</param>
+    /// <param name="stack">Reads which PHP versions are installed as apps.</param>
     public SetPhpExtensionCommandHandler(
         IAgentPhpClient php,
         ITaskRecorder tasks,
         ICorrelationIdAccessor correlationIds,
         SiteAuditJournal journal,
-        SiteDisplayNames displayNames)
+        SiteDisplayNames displayNames,
+        SiteStackGate stack)
     {
+        _stack = stack;
         _php = php;
         _tasks = tasks;
         _correlationIds = correlationIds;
@@ -93,6 +99,15 @@ public sealed class SetPhpExtensionCommandHandler
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
+
+        // PHP is an app like any other: with none installed there is no PHP to report on, and the answer
+        // says so rather than listing an empty or stale host. Enforced here, not in the SPA, which only
+        // hides the menu (docs/apps/README.md).
+        var installed = await _stack.ReadAsync(cancellationToken);
+        if (!installed.HasPhp(command.Version))
+        {
+            return await RefuseAsync(command, SiteHostApps.NotInstalledFailure(), cancellationToken);
+        }
 
         var current = await _php.ListExtensionsAsync(command.Version, cancellationToken);
         if (!current.IsSuccess)

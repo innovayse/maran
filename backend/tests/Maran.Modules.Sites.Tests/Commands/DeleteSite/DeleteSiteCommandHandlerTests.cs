@@ -1,3 +1,4 @@
+using Maran.Agent.Client.Services.SitesService;
 using Maran.Modules.Sites.Commands.DeleteSite;
 using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
@@ -5,6 +6,7 @@ using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Sites.Services;
 using Maran.Modules.Sites.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Apps;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 
@@ -33,6 +35,27 @@ public sealed class DeleteSiteCommandHandlerTests
         // the next php-fpm reload fail for every tenant on the host.
         Assert.Equal("delete:acme:example.com:8.3", Assert.Single(agent.Calls));
         Assert.Empty(await context.Sites.ToListAsync());
+    }
+
+    /// <summary>The vhost is removed from the installed web server.</summary>
+    [Theory]
+    [InlineData(StackWebServer.Nginx, SiteWebServer.Nginx)]
+    [InlineData(StackWebServer.Apache, SiteWebServer.Apache)]
+    public async Task The_vhost_is_removed_from_the_installed_web_server(StackWebServer installed, SiteWebServer expected)
+    {
+        // The wire reads an unset web server as nginx, so a delete that did not name the installed one would
+        // leave an Apache site's vhost serving after the row is gone.
+        var account = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        var siteId = await SeedAsync(database, account);
+        var agent = new RecordingAgentSitesClient();
+        await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(account), database);
+
+        await Handler(context, account, agent, new RecordingAuditWriter(), SiteStacks.With(installed, ["8.3"], [])).HandleAsync(
+            new DeleteSiteCommand(siteId, "198.51.100.7", "tests"),
+            CancellationToken.None);
+
+        Assert.Equal(expected, Assert.Single(agent.DeleteWebServers));
     }
 
     /// <summary>Deleting a site frees every hostname it claimed.</summary>
@@ -179,16 +202,41 @@ public sealed class DeleteSiteCommandHandlerTests
         Assert.Equal("example.com", entry.Subject);
     }
 
+    /// <summary>With no site web server installed the operation is refused before the host is touched.</summary>
+    [Fact]
+    public async Task With_no_web_server_installed_the_operation_is_refused_before_the_host_is_touched()
+    {
+        var account = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        var siteId = await SeedAsync(database, account);
+        var agent = new RecordingAgentSitesClient();
+        var audit = new RecordingAuditWriter();
+        await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(account), database);
+
+        var result = await Handler(context, account, agent, audit, SiteStacks.NotReady()).HandleAsync(
+            new DeleteSiteCommand(siteId, "198.51.100.7", "tests"),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AppsStackNotReady", result.Error!.Code);
+        Assert.Equal(ErrorType.Conflict, result.Error.Type);
+        Assert.Empty(agent.Calls);
+        Assert.False(Assert.Single(audit.Entries).Succeeded);
+        Assert.Single(await context.Sites.ToListAsync());
+    }
+
     /// <summary>Builds the handler under test.</summary>
     /// <param name="context">The context bound to the calling principal.</param>
     /// <param name="accountId">The account the caller owns.</param>
     /// <param name="agent">The agent double.</param>
     /// <param name="audit">The journal double.</param>
+    /// <param name="stack">The installed stack; defaults to a host with nginx and runtimes installed.</param>
     private static DeleteSiteCommandHandler Handler(
         SitesDbContext context,
         Guid accountId,
         RecordingAgentSitesClient agent,
-        RecordingAuditWriter? audit = null)
+        RecordingAuditWriter? audit = null,
+        SiteStackGate? stack = null)
     {
         var accounts = new StubAccountDirectory(
             new AccountSnapshot(
@@ -204,7 +252,8 @@ public sealed class DeleteSiteCommandHandlerTests
             context,
             accounts,
             agent,
-            new SiteAuditJournal(audit ?? new RecordingAuditWriter(), FakeCurrentUser.Customer(accountId)));
+            new SiteAuditJournal(audit ?? new RecordingAuditWriter(), FakeCurrentUser.Customer(accountId)),
+            stack ?? SiteStacks.Ready());
     }
 
     /// <summary>Seeds one site and returns its id.</summary>
@@ -293,6 +342,9 @@ public sealed class DeleteSiteCommandHandlerTests
                 [],
                 SiteBackendType.Static,
                 string.Empty,
+                string.Empty,
+                string.Empty,
+                0,
                 string.Empty,
                 "/home/acme/sites/static.example.com",
                 new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));

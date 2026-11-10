@@ -104,6 +104,9 @@ public sealed class StartupPhpSiteReconcilerTests : IAsyncLifetime
             backend,
             version,
             string.Empty,
+            string.Empty,
+            0,
+            string.Empty,
             $"/home/acct/sites/{domain}",
             new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
     }
@@ -119,6 +122,8 @@ public sealed class StartupPhpSiteReconcilerTests : IAsyncLifetime
             options.UseNpgsql(_pg.GetConnectionString());
         });
         services.AddSingleton(agent);
+        services.AddScoped<IStackStatus, ReadyStackStatus>();
+        services.AddScoped<SiteStackGate>();
         services.AddScoped<PhpAccountPoolSettings>();
         services.AddSingleton<IAccountDirectory>(new FixedAccountDirectory(
             new AccountSnapshot(FirstAccount, "alpha", 5, 5, 5, 5, 3, 1024, AccountState.Active),

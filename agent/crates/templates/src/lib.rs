@@ -15,6 +15,7 @@
 //! steps in the opposite order. Byte-exact expected renders live in
 //! `tests/golden/`.
 
+pub mod apache;
 pub mod bind;
 pub mod dovecot;
 pub mod key_value;

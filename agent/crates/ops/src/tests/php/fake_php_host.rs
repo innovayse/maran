@@ -45,6 +45,10 @@ pub(crate) struct FakePhpHost {
     recording: RecordingCommands,
     /// `php-fpm -t`'s answer, and what it says when it refuses.
     validation: Mutex<(i32, String)>,
+    /// A program name (its path's last component) the validator's refusal is limited to: when
+    /// set, only a validator running THAT program refuses, so a test can have `nginx -t` say no
+    /// while Apache's check passes.
+    validation_limited_to: Mutex<Option<String>>,
     /// How many times a write actually reached the protocol — the number an
     /// idempotence test pins.
     writes: Mutex<usize>,
@@ -67,6 +71,10 @@ pub(crate) struct FakePhpHost {
     /// The version whose pool directory appears once a `start` succeeds, which
     /// is what a real install unit leaves behind.
     installs_on_start: Mutex<Option<String>>,
+    /// Files a successful `start` of an install unit leaves behind, as an app's package does.
+    files_on_start: Mutex<Vec<PathBuf>>,
+    /// Files a successful `start` of a removal unit takes away.
+    files_removed_on_start: Mutex<Vec<PathBuf>>,
     /// Subcommands whose program outlives its deadline and is killed.
     timeouts: Mutex<BTreeSet<String>>,
     /// Whether `php-fpm -t` outlives its deadline in `validate_and_reload`.
@@ -92,6 +100,7 @@ impl FakePhpHost {
             files: Mutex::new(BTreeMap::new()),
             recording: RecordingCommands::new(),
             validation: Mutex::new((0, String::new())),
+            validation_limited_to: Mutex::new(None),
             writes: Mutex::new(0),
             removals: Mutex::new(0),
             created_as_account: Mutex::new(Vec::new()),
@@ -100,6 +109,8 @@ impl FakePhpHost {
             answers_in_turn: Mutex::new(BTreeMap::new()),
             spawn_failures: Mutex::new(BTreeSet::new()),
             installs_on_start: Mutex::new(None),
+            files_on_start: Mutex::new(Vec::new()),
+            files_removed_on_start: Mutex::new(Vec::new()),
             timeouts: Mutex::new(BTreeSet::new()),
             validation_times_out: Mutex::new(false),
             protocol_times_out: Mutex::new(false),
@@ -242,9 +253,43 @@ impl FakePhpHost {
         *self.installs_on_start.lock().unwrap() = Some(version.to_owned());
     }
 
+    /// Makes a successful `start` of a `maran-app-install@` unit leave `paths` behind, as an
+    /// app's package does.
+    pub(crate) fn installs_files_on_start(&self, paths: &[&str]) {
+        *self.files_on_start.lock().unwrap() = paths.iter().map(PathBuf::from).collect();
+    }
+
+    /// Makes a successful `start` of a `maran-app-remove@` unit take `paths` away.
+    pub(crate) fn removes_files_on_start(&self, paths: &[&str]) {
+        *self.files_removed_on_start.lock().unwrap() = paths.iter().map(PathBuf::from).collect();
+    }
+
     /// Makes `php-fpm -t` refuse every pool, with `stderr` as the reason.
     pub(crate) fn reject_validation(&self, stderr: &str) {
         *self.validation.lock().unwrap() = (1, stderr.to_owned());
+    }
+
+    /// Limits [`Self::reject_validation`] to validators running the program named `program`
+    /// (compared with the last component of the validator's path).
+    pub(crate) fn limit_validation_refusal_to(&self, program: &str) {
+        *self.validation_limited_to.lock().unwrap() = Some(program.to_owned());
+    }
+
+    /// The verdict the protocol's validator gets: the configured refusal, unless it is limited to
+    /// another program.
+    fn verdict_for(&self, validator: &Validator<'_>) -> (i32, String) {
+        let limit = self.validation_limited_to.lock().unwrap().clone();
+        let applies = limit.is_none_or(|name| {
+            Path::new(validator.program.as_str())
+                .file_name()
+                .and_then(|file| file.to_str())
+                == Some(name.as_str())
+        });
+        if applies {
+            self.validation.lock().unwrap().clone()
+        } else {
+            (0, String::new())
+        }
     }
 
     /// Puts `contents` at `path` as if a pool were already on disk there,
@@ -337,6 +382,20 @@ impl ConfigHost for FakePhpHost {
                 };
             }
         }
+        if subcommand == "start" && outcome.status == 0 {
+            let unit = arguments.last().copied().unwrap_or_default();
+            let mut files = self.files.lock().unwrap();
+            if unit.starts_with("maran-app-install@") {
+                for path in self.files_on_start.lock().unwrap().iter() {
+                    files.insert(path.clone(), String::new());
+                }
+            }
+            if unit.starts_with("maran-app-remove@") {
+                for path in self.files_removed_on_start.lock().unwrap().iter() {
+                    files.remove(path);
+                }
+            }
+        }
         let installed = self.installs_on_start.lock().unwrap().clone();
         if let Some(version) = installed.filter(|_| subcommand == "start" && outcome.status == 0) {
             // Whichever family the operation was given, the unit leaves ITS
@@ -399,7 +458,7 @@ impl PhpHost for FakePhpHost {
             return Err(Self::protocol_bound(validator));
         }
 
-        let (status, stderr) = self.validation.lock().unwrap().clone();
+        let (status, stderr) = self.verdict_for(validator);
         if status != 0 {
             // The real protocol restores the previous content before
             // returning, so the fake leaves the map untouched.
@@ -435,7 +494,7 @@ impl PhpHost for FakePhpHost {
             return Err(Self::protocol_bound(validator));
         }
 
-        let (status, stderr) = self.validation.lock().unwrap().clone();
+        let (status, stderr) = self.verdict_for(validator);
         if status != 0 {
             // The real protocol puts the bytes back before returning, so the
             // fake leaves the map untouched.
@@ -499,5 +558,35 @@ pub(crate) fn pool_input(overrides: Vec<PhpOverride>) -> PoolInput {
         version: PhpVersion::parse("8.3").unwrap(),
         max_children: 10,
         overrides,
+    }
+}
+
+impl crate::apps::AppsHost for FakePhpHost {
+    fn path_exists(&self, path: &Path) -> bool {
+        self.files.lock().unwrap().contains_key(path)
+            || self.directories.lock().unwrap().contains(path)
+    }
+
+    fn directory_entries(&self, path: &Path) -> Vec<String> {
+        self.files
+            .lock()
+            .unwrap()
+            .keys()
+            .filter(|file| file.parent() == Some(path))
+            .filter_map(|file| file.file_name()?.to_str().map(str::to_owned))
+            .collect()
+    }
+
+    fn write_record(&self, path: &Path, contents: &str) -> Result<(), crate::apps::AppsOpError> {
+        self.files
+            .lock()
+            .unwrap()
+            .insert(path.to_path_buf(), contents.to_owned());
+        Ok(())
+    }
+
+    fn remove_record(&self, path: &Path) -> Result<(), crate::apps::AppsOpError> {
+        self.files.lock().unwrap().remove(path);
+        Ok(())
     }
 }

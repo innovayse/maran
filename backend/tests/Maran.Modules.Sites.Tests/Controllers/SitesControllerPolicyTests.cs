@@ -27,42 +27,6 @@ public sealed class SitesControllerPolicyTests
         Assert.Equal(new[] { AuthorizationPolicies.AnyAuthenticated }, policies);
     }
 
-    /// <summary>Installing a PHP version is a server-wide act and stays administrator-only.</summary>
-    [Fact]
-    public void Installing_a_php_version_names_the_administrator_policy()
-    {
-        var method = typeof(SitesController).GetMethod(nameof(SitesController.InstallPhpVersionAsync));
-
-        Assert.NotNull(method);
-        var policies = method!
-            .GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
-            .Cast<AuthorizeAttribute>()
-            .Select(attribute =>
-            {
-                return attribute.Policy;
-            })
-            .ToArray();
-        Assert.Equal(new[] { AuthorizationPolicies.AdminOnly }, policies);
-    }
-
-    /// <summary>The installable-versions list feeds the administrator-only install and is administrator-only too.</summary>
-    [Fact]
-    public void Listing_the_installable_php_versions_names_the_administrator_policy()
-    {
-        var method = typeof(SitesController).GetMethod(nameof(SitesController.GetInstallablePhpVersionsAsync));
-
-        Assert.NotNull(method);
-        var policies = method!
-            .GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
-            .Cast<AuthorizeAttribute>()
-            .Select(attribute =>
-            {
-                return attribute.Policy;
-            })
-            .ToArray();
-        Assert.Equal(new[] { AuthorizationPolicies.AdminOnly }, policies);
-    }
-
     /// <summary>Switching a PHP extension changes every account's pool of a version and stays administrator-only.</summary>
     [Fact]
     public void Switching_a_php_extension_names_the_administrator_policy_and_refuses_view_as()

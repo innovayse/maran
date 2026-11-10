@@ -7,6 +7,7 @@ use maran_agent_core::validation::web::php_version::PhpVersion;
 use crate::DistroAdapter;
 use crate::account_programs::AccountPrograms;
 use crate::adapter_binary::AdapterBinary;
+use crate::app_facts::AppFacts;
 use crate::backup_facts::BackupFacts;
 use crate::catalogue_probe::CatalogueProbe;
 use crate::database_facts::DatabaseFacts;
@@ -17,6 +18,7 @@ use crate::file_transfer_facts::FileTransferFacts;
 use crate::firewall_facts::FirewallFacts;
 use crate::key_value_server::KeyValueServer;
 use crate::mail_facts::MailFacts;
+use crate::nodejs_packaging::NodejsPackaging;
 use crate::package_facts::PackageFacts;
 use crate::package_failure::PackageFailure;
 use crate::package_query_failure::PackageQueryFailure;
@@ -30,6 +32,7 @@ use crate::reboot_probe_failure::RebootProbeFailure;
 use crate::reboot_requirement::RebootRequirement;
 use crate::scheduling_facts::SchedulingFacts;
 use crate::service_manager_facts::ServiceManagerFacts;
+use crate::suse::suse_apps;
 use crate::suse::{
     suse_account_programs, suse_dns_services, suse_mail_services, suse_package_candidates,
     suse_packages, suse_paths, suse_php_extensions, suse_services,
@@ -162,6 +165,72 @@ impl WebServerFacts for SuseAdapter {
 
     fn openssl_binary(&self) -> AdapterBinary {
         suse_services::openssl_binary()
+    }
+
+    fn apache_binary(&self) -> AdapterBinary {
+        suse_services::apache_binary()
+    }
+
+    fn apache_service(&self) -> &'static str {
+        suse_services::apache_service()
+    }
+
+    fn apache_user(&self) -> &'static str {
+        suse_services::apache_user()
+    }
+
+    fn apache_group(&self) -> &'static str {
+        suse_services::apache_group()
+    }
+
+    fn node_executable(&self) -> &'static str {
+        suse_services::node_executable()
+    }
+
+    fn npm_executable(&self) -> &'static str {
+        suse_services::npm_executable()
+    }
+}
+
+impl AppFacts for SuseAdapter {
+    fn nginx_package(&self) -> &'static str {
+        suse_apps::nginx_package()
+    }
+
+    fn apache_package(&self) -> &'static str {
+        suse_apps::apache_package()
+    }
+
+    fn apache_extra_packages(&self) -> &'static [&'static str] {
+        suse_apps::apache_extra_packages()
+    }
+
+    fn apache_include_snippet_path(&self) -> &'static str {
+        suse_apps::apache_include_snippet_path()
+    }
+
+    fn apache_required_modules(&self) -> &'static [&'static str] {
+        suse_apps::apache_required_modules()
+    }
+
+    fn apache_module_enabler(&self) -> Option<AdapterBinary> {
+        suse_apps::apache_module_enabler()
+    }
+
+    fn nodejs_packaging(&self) -> NodejsPackaging {
+        NodejsPackaging::PerMajorPackages
+    }
+
+    fn nodejs_package(&self, major: &str) -> String {
+        suse_apps::nodejs_package(major)
+    }
+
+    fn nodejs_candidate_major(&self, _candidate_query_stdout: &str) -> Option<String> {
+        None
+    }
+
+    fn node_binary(&self) -> AdapterBinary {
+        suse_apps::node_binary()
     }
 }
 

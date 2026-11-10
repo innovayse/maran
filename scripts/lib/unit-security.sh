@@ -22,7 +22,7 @@
 # the scored text, never different.
 #
 # The package-install template unit is rendered for BOTH OS families and the worse score is the one
-# held (the key is maran-php-install@.service, the template's name). Today the two are equal.
+# held (the keys are maran-app-install@.service and maran-app-remove@.service, the templates' names). Today the two are equal.
 #
 # THREE ANSWERS, the vocabulary of `maran test` and `maran openapi` (scripts/lib/suite.sh):
 #
@@ -73,7 +73,7 @@ units_systemd_major() {
   printf '%s' "$first" | sed -n 's/^systemd \([0-9][0-9]*\).*/\1/p'
 }
 
-# units_normalise_name: a unit file's key. An instance of the template (maran-php-install@i.service)
+# units_normalise_name: a unit file's key. An instance of the template (maran-app-install@i.service)
 # is the template's score, so it is keyed by the template's name.
 units_normalise_name() {
   printf '%s' "$1" | sed 's/@[^.]*\.service$/@.service/'
@@ -104,7 +104,8 @@ units_render_all() {
     case "$name" in
       maran-api.service)           render_api_unit "$out/$name" ;;
       maran-agent.service)         render_agent_unit "$out/$name" ;;
-      maran-php-install@.service)  render_php_install_unit "$out/maran-php-install@i.service" ;;
+      maran-app-install@.service)  render_app_install_unit "$out/maran-app-install@i.service" ;;
+      maran-app-remove@.service)   render_app_remove_unit "$out/maran-app-remove@i.service" ;;
       maran-dns.service|maran-ftps.service|maran-panel-backup.service|maran-update-security.service|maran-update-request.service|maran-update-check.service) cp "$file" "$out/$name" ;;
       *) echo "installer/systemd/$name: scripts/lib/unit-security.sh does not know how the installer installs this unit" >&2; return 1 ;;
     esac
@@ -197,7 +198,7 @@ units_write_ceilings() {
     echo "# measured with systemd $2"
     echo "# <unit><TAB><ceiling>: the highest 'systemd-analyze security --offline=yes' score the unit may have."
     echo "# Written by 'maran units --accept' from the units as the installer renders them; edit by re-measuring."
-    echo "# maran-php-install@.service is the worst of its Debian-family, RHEL-family and SUSE-family renders."
+    echo "# maran-app-install@.service and maran-app-remove@.service are each the worst of its Debian-family, RHEL-family and SUSE-family renders."
     echo "# A ceiling above 9 is a unit shipped as weakly sandboxed as it is today, not a target."
     sort -k1,1 "$1"
   } > "$3"

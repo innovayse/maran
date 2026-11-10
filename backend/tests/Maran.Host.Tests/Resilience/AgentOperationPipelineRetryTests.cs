@@ -35,7 +35,7 @@ public sealed class AgentOperationPipelineRetryTests
         var inner = new RecordingAgentSitesClient { FailuresBeforeSuccess = 2 };
 
         var result = await NewClient(inner)
-            .DeleteAsync("acc1", "example.com", "8.3", default)
+            .DeleteAsync("acc1", "example.com", "8.3", SiteWebServer.Nginx, default)
             .WaitAsync(TestTimeout);
 
         Assert.True(result.IsSuccess);
@@ -49,7 +49,7 @@ public sealed class AgentOperationPipelineRetryTests
         var inner = new RecordingAgentSitesClient { FailuresBeforeSuccess = 3 };
 
         var result = await NewClient(inner)
-            .DeleteAsync("acc1", "example.com", "8.3", default)
+            .DeleteAsync("acc1", "example.com", "8.3", SiteWebServer.Nginx, default)
             .WaitAsync(TestTimeout);
 
         AssertUnavailable(result);
@@ -78,7 +78,7 @@ public sealed class AgentOperationPipelineRetryTests
         var inner = new RecordingAgentSitesClient { Delay = TimeSpan.FromSeconds(20) };
 
         var result = await NewClient(inner, timeoutSeconds: 1)
-            .DeleteAsync("acc1", "example.com", "8.3", default)
+            .DeleteAsync("acc1", "example.com", "8.3", SiteWebServer.Nginx, default)
             .WaitAsync(TestTimeout);
 
         AssertUnavailable(result);
@@ -111,7 +111,7 @@ public sealed class AgentOperationPipelineRetryTests
             async (sites, token) =>
             {
                 calls++;
-                return await sites.DeleteAsync("acc1", "example.com", "8.3", token);
+                return await sites.DeleteAsync("acc1", "example.com", "8.3", SiteWebServer.Nginx, token);
             },
             client,
             CancellationToken.None).WaitAsync(TestTimeout);
@@ -163,7 +163,7 @@ public sealed class AgentOperationPipelineRetryTests
             async (sites, token) =>
             {
                 calls++;
-                return await sites.DeleteAsync("acc1", "example.com", "8.3", token);
+                return await sites.DeleteAsync("acc1", "example.com", "8.3", SiteWebServer.Nginx, token);
             },
             client,
             CancellationToken.None).WaitAsync(TestTimeout);
@@ -186,7 +186,7 @@ public sealed class AgentOperationPipelineRetryTests
             Pipeline(timeoutSeconds: 30),
             async (sites, token) =>
             {
-                return await sites.DeleteAsync("acc1", "example.com", "8.3", token);
+                return await sites.DeleteAsync("acc1", "example.com", "8.3", SiteWebServer.Nginx, token);
             },
             client,
             cancellation.Token);

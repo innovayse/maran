@@ -1,7 +1,7 @@
 //! Handing certificate material to the one config-write protocol.
 
 use maran_agent_core::utils::call_class::CallClass;
-use maran_distro::DistroAdapter;
+use maran_distro::{DistroAdapter, SiteWebServer};
 
 use crate::safe_write::model::{Reload, Validator};
 use crate::sites::SiteCertificate;
@@ -37,20 +37,25 @@ use maran_agent_core::end_of_options::END_OF_OPTIONS;
 pub(crate) fn write_material(
     host: &dyn SslHost,
     distro: &dyn DistroAdapter,
+    web_server: SiteWebServer,
     certificate: &SiteCertificate,
     material: &CertificateMaterial,
 ) -> Result<(), SslOpError> {
-    let nginx = distro.nginx_binary();
+    let binary = distro.site_web_server_binary(web_server);
     let service_manager = distro.service_manager();
     let validator = Validator {
-        program: &nginx,
+        program: &binary,
         arguments: &[VALIDATE_ARGUMENT],
-        // `nginx -t` only reads: a pure validation.
+        // The web server's `-t` only reads: a pure validation.
         class: CallClass::Validate,
     };
     // `--` before the unit: `systemctl` reads its options with `getopt_long`,
     // which ends option parsing at `--`, on both families.
-    let reload_arguments = [RELOAD_SUBCOMMAND, END_OF_OPTIONS, distro.nginx_service()];
+    let reload_arguments = [
+        RELOAD_SUBCOMMAND,
+        END_OF_OPTIONS,
+        distro.site_web_server_service(web_server),
+    ];
     let reload = Reload {
         program: &service_manager,
         arguments: &reload_arguments,

@@ -143,11 +143,13 @@ const NO_CRONTAB_MARKER: &str = "no crontab for";
 /// Panics when the host is outside the support matrix, which a polygon image
 /// never is.
 fn polygon_distro() -> &'static dyn DistroAdapter {
-    adapter_for(
+    let distro = adapter_for(
         detect()
             .expect("a polygon image is a supported host")
             .family,
-    )
+    );
+    PolygonPhp::ensure_installed(distro);
+    distro
 }
 
 /// The account operations, bound to the real host.

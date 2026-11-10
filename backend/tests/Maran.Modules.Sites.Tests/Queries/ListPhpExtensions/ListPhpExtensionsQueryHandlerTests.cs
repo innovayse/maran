@@ -1,7 +1,9 @@
 using Maran.Agent.Client.Services.PhpService;
 using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Queries.ListPhpExtensions;
+using Maran.Modules.Sites.Services;
 using Maran.Modules.Sites.Tests.TestSupport;
+using Maran.SharedKernel.Apps;
 using Maran.SharedKernel.Results;
 
 namespace Maran.Modules.Sites.Tests.Queries.ListPhpExtensions;
@@ -100,12 +102,33 @@ public sealed class ListPhpExtensionsQueryHandlerTests
         return php;
     }
 
+    /// <summary>A version that is not installed as an app reports it is not installed, without asking the agent.</summary>
+    /// <param name="installedVersion">The one PHP version installed as an app; empty when none is.</param>
+    [Theory]
+    [InlineData("")]
+    [InlineData("8.4")]
+    public async Task A_version_that_is_not_installed_as_an_app_reports_it_is_not_installed(string installedVersion)
+    {
+        var php = Host();
+        string[] installed = installedVersion.Length == 0 ? [] : [installedVersion];
+        var stack = SiteStacks.With(StackWebServer.Nginx, installed, []);
+
+        var result = await Handler(php, FakeCurrentUser.Admin(), stack).HandleAsync(Query(), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AppsNotInstalled", result.Error!.Code);
+    }
+
     /// <summary>Builds the handler over the real display names and the given caller.</summary>
     /// <param name="php">The agent's PHP surface.</param>
     /// <param name="caller">Who asks.</param>
-    private static ListPhpExtensionsQueryHandler Handler(RecordingAgentPhpClient php, FakeCurrentUser caller)
+    /// <param name="stack">The installed stack; a host with PHP 8.3 and 8.4 installed when omitted.</param>
+    private static ListPhpExtensionsQueryHandler Handler(
+        RecordingAgentPhpClient php,
+        FakeCurrentUser caller,
+        SiteStackGate? stack = null)
     {
-        return new ListPhpExtensionsQueryHandler(php, caller, SitesTestContext.SiteNames());
+        return new ListPhpExtensionsQueryHandler(php, caller, SitesTestContext.SiteNames(), stack ?? SiteStacks.Ready());
     }
 
     /// <summary>Builds the query for version 8.3.</summary>

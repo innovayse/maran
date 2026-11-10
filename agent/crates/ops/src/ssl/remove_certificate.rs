@@ -60,7 +60,7 @@ pub fn remove_certificate(
         });
     }
 
-    let paths = resolved_site_paths(host, &site.account, &site.domain)?;
+    let paths = resolved_site_paths(host, &site.account, &site.domain, site.web_server)?;
     let Some(current) = host.read_config(&paths.config_path)? else {
         return Err(SslOpError::SiteNotFound {
             domain: site.domain.as_str().to_owned(),
@@ -81,7 +81,7 @@ pub fn remove_certificate(
         };
         let wanted = render_vhost(&plain, &paths)?;
         if current != wanted {
-            write_vhost(host, distro, &paths.config_path, &wanted)?;
+            write_vhost(host, distro, site.web_server, &paths.config_path, &wanted)?;
         }
     }
 

@@ -41,6 +41,7 @@ use crate::services::sites::validated_overrides::validated_overrides;
 use crate::services::sites::validated_prune_request::validated_prune_request;
 use crate::services::sites::validated_site::validated_site;
 use crate::services::sites::validated_traffic_request::validated_traffic_request;
+use crate::services::sites::validated_web_server::validated_web_server;
 use crate::services::wire::invalid_input::invalid_input;
 use crate::services::wire::run_blocking::run_blocking;
 
@@ -164,6 +165,10 @@ where
             // afterwards, by `SslService`, which re-renders this same vhost.
             has_certificate: false,
             options: request.options,
+            web_server: request.web_server,
+            node_version: request.node_version,
+            app_port: request.app_port,
+            start_command: request.start_command,
         };
 
         let validated = self
@@ -392,12 +397,17 @@ where
             Ok((account, domain, retired))
         }) {
             Ok((account, domain, retired)) => {
+                let web_server = validated_web_server(request.web_server);
                 let (host, php_host, distro) = (
                     Arc::clone(&self.host),
                     Arc::clone(&self.php_host),
                     self.distro,
                 );
-                let site = SiteIdentity { account, domain };
+                let site = SiteIdentity {
+                    account,
+                    domain,
+                    web_server,
+                };
                 run_blocking("site operation", to_agent_error, move || {
                     // The site AND its certificate material, as one operation.
                     // Two calls here is what this rpc used to be missing the
@@ -612,8 +622,9 @@ where
     ) -> Result<Response<ReloadWebServerResponse>, Status> {
         let audit = AuditSlot::of(request.extensions());
         let (host, distro) = (Arc::clone(&self.host), self.distro);
+        let web_server = validated_web_server(request.into_inner().web_server);
         let result = run_blocking("site operation", to_agent_error, move || {
-            sites::reload_web_server(host.as_ref(), distro)
+            sites::reload_web_server(host.as_ref(), distro, web_server)
         })
         .await;
         audit.settle(&result);

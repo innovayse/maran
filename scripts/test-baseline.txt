@@ -89,6 +89,7 @@ backend	Maran.Modules.Licensing.Tests.dll	288	0	0
 backend	Maran.Modules.Fleet.Tests.dll	71	0	0
 backend	Maran.Modules.ServerMigration.Tests.dll	400	0	0
 backend	Maran.Host.IntegrationTests.dll [PerformanceBudget]	20	0	0
+spa	accessibility/axe-scan-apps.spec.ts	8	0	0
 spa	accessibility/axe-scan-cron-run-history.spec.ts	2	0	0
 spa	accessibility/axe-scan-detail-and-settings.spec.ts	68	0	0
 spa	accessibility/axe-scan-dns.spec.ts	18	0	0
@@ -123,6 +124,13 @@ spa	admin/panel-update.spec.ts	13	0	0
 spa	admin/smtp-settings.spec.ts	3	0	0
 spa	admin/view-as-read-only.spec.ts	5	0	0
 spa	admin/view-as.spec.ts	3	0	0
+spa	apps/layout.spec.ts	9	0	0
+spa	apps/php-versions.spec.ts	1	0	0
+spa	apps/runtimes.spec.ts	7	0	0
+spa	apps/stack-guard.spec.ts	5	0	0
+spa	apps/stack-unit.spec.ts	14	0	0
+spa	apps/stack-wizard.spec.ts	4	0	0
+spa	apps/store.spec.ts	8	0	0
 spa	audit/action-names.spec.ts	2	0	0
 spa	audit/actor-account-filters.spec.ts	4	0	0
 spa	audit/export.spec.ts	4	0	0
@@ -355,7 +363,6 @@ spa	sites/log-retention.spec.ts	6	0	0
 spa	sites/log-stream.spec.ts	7	0	0
 spa	sites/logs-tab.spec.ts	9	0	0
 spa	sites/panel-names.spec.ts	4	0	0
-spa	sites/php-install-select.spec.ts	4	0	0
 spa	sites/php-settings-loading.spec.ts	2	0	0
 spa	sites/php-settings.spec.ts	10	0	0
 spa	sites/php-versions-loading.spec.ts	3	0	0

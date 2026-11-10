@@ -1865,6 +1865,152 @@
         ],
         "type": "string"
       },
+      "Modules.Apps.Common.AppDto": {
+        "additionalProperties": false,
+        "properties": {
+          "appId": {
+            "type": "string"
+          },
+          "installedAt": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/Modules.Apps.Domain.Enums.AppKind"
+          },
+          "kindName": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "serviceStatus": {
+            "$ref": "#/components/schemas/Modules.Apps.Domain.Enums.AppServiceStatus"
+          },
+          "serviceStatusName": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/Modules.Apps.Domain.Enums.AppState"
+          },
+          "stateName": {
+            "type": "string"
+          },
+          "taskId": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Modules.Apps.Common.AppOperationAcceptedDto": {
+        "additionalProperties": false,
+        "properties": {
+          "taskId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Modules.Apps.Common.AppServiceDto": {
+        "additionalProperties": false,
+        "properties": {
+          "serviceStatus": {
+            "$ref": "#/components/schemas/Modules.Apps.Domain.Enums.AppServiceStatus"
+          },
+          "serviceStatusName": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Modules.Apps.Common.InstallableAppDto": {
+        "additionalProperties": false,
+        "properties": {
+          "appId": {
+            "type": "string"
+          },
+          "installed": {
+            "type": "boolean"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/Modules.Apps.Domain.Enums.AppKind"
+          },
+          "kindName": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Modules.Apps.Common.StackStatusDto": {
+        "additionalProperties": false,
+        "properties": {
+          "isReady": {
+            "type": "boolean"
+          },
+          "nodeVersions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "phpVersions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "webServer": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Modules.Apps.Domain.Enums.AppKind": {
+        "enum": [
+          "webServer",
+          "runtime"
+        ],
+        "type": "string"
+      },
+      "Modules.Apps.Domain.Enums.AppServiceAction": {
+        "enum": [
+          "start",
+          "stop",
+          "restart",
+          "reload"
+        ],
+        "type": "string"
+      },
+      "Modules.Apps.Domain.Enums.AppServiceStatus": {
+        "enum": [
+          "unknown",
+          "active",
+          "inactive",
+          "failed",
+          "none"
+        ],
+        "type": "string"
+      },
+      "Modules.Apps.Domain.Enums.AppState": {
+        "enum": [
+          "installing",
+          "installed",
+          "failed",
+          "removing"
+        ],
+        "type": "string"
+      },
       "Modules.Backups.Commands.CreateBackup.CreateBackupCommand": {
         "additionalProperties": false,
         "properties": {
@@ -9303,10 +9449,17 @@
             },
             "type": "array"
           },
+          "appPort": {
+            "format": "int32",
+            "type": "integer"
+          },
           "backendType": {
             "$ref": "#/components/schemas/Modules.Sites.Domain.Enums.SiteBackendType"
           },
           "domain": {
+            "type": "string"
+          },
+          "nodeVersion": {
             "type": "string"
           },
           "phpVersion": {
@@ -9314,14 +9467,8 @@
           },
           "proxyUpstream": {
             "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "Modules.Sites.Commands.InstallPhpVersion.InstallPhpVersionCommand": {
-        "additionalProperties": false,
-        "properties": {
-          "version": {
+          },
+          "startCommand": {
             "type": "string"
           }
         },
@@ -9397,18 +9544,6 @@
         "properties": {
           "enabled": {
             "type": "boolean"
-          }
-        },
-        "type": "object"
-      },
-      "Modules.Sites.Common.InstallablePhpVersionDto": {
-        "additionalProperties": false,
-        "properties": {
-          "installed": {
-            "type": "boolean"
-          },
-          "version": {
-            "type": "string"
           }
         },
         "type": "object"
@@ -9596,6 +9731,18 @@
             },
             "type": "array"
           },
+          "nodeVersions": {
+            "items": {
+              "$ref": "#/components/schemas/Modules.Sites.Common.SiteChoiceDto"
+            },
+            "type": "array"
+          },
+          "phpVersions": {
+            "items": {
+              "$ref": "#/components/schemas/Modules.Sites.Common.SiteChoiceDto"
+            },
+            "type": "array"
+          },
           "statuses": {
             "items": {
               "$ref": "#/components/schemas/Modules.Sites.Common.SiteChoiceDto"
@@ -9607,6 +9754,14 @@
               "$ref": "#/components/schemas/Modules.Sites.Common.SiteChoiceDto"
             },
             "type": "array"
+          },
+          "webServer": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Modules.Sites.Common.SiteChoiceDto"
+              }
+            ],
+            "nullable": true
           }
         },
         "type": "object"
@@ -9623,6 +9778,10 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "appPort": {
+            "format": "int32",
+            "type": "integer"
           },
           "backendType": {
             "$ref": "#/components/schemas/Modules.Sites.Domain.Enums.SiteBackendType"
@@ -9651,10 +9810,16 @@
             "format": "int32",
             "type": "integer"
           },
+          "nodeVersion": {
+            "type": "string"
+          },
           "phpVersion": {
             "type": "string"
           },
           "proxyUpstream": {
+            "type": "string"
+          },
+          "startCommand": {
             "type": "string"
           },
           "status": {
@@ -10087,7 +10252,8 @@
         "enum": [
           "static",
           "php",
-          "reverseProxy"
+          "reverseProxy",
+          "node"
         ],
         "type": "string"
       },
@@ -10486,6 +10652,7 @@
       "Sdk.Contracts.AgentCapability": {
         "enum": [
           "accounts",
+          "apps",
           "backup",
           "cron",
           "db",
@@ -10747,6 +10914,30 @@
           "items": {
             "items": {
               "$ref": "#/components/schemas/Modules.Accounts.Common.ResellerDto"
+            },
+            "type": "array"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "pageSize": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "total": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "SharedKernel.Results.PagedResultOfModules.Apps.Common.AppDto": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Modules.Apps.Common.AppDto"
             },
             "type": "array"
           },
@@ -14508,6 +14699,442 @@
         ],
         "tags": [
           "API Keys"
+        ]
+      }
+    },
+    "/api/v1/apps": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search.isNone",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search.value",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "$ref": "#/components/schemas/SharedKernel.Pagination.SortRequest"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "schema": {
+              "$ref": "#/components/schemas/Modules.Apps.Domain.Enums.AppKind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "$ref": "#/components/schemas/Modules.Apps.Domain.Enums.AppState"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedKernel.Results.PagedResultOfModules.Apps.Common.AppDto"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "503": {
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Apps"
+        ]
+      }
+    },
+    "/api/v1/apps/installable": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Modules.Apps.Common.InstallableAppDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "502": {
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Apps"
+        ]
+      }
+    },
+    "/api/v1/apps/stack": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Modules.Apps.Common.StackStatusDto"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Apps"
+        ]
+      }
+    },
+    "/api/v1/apps/{id}/install": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Modules.Apps.Common.AppOperationAcceptedDto"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "502": {
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Apps"
+        ]
+      }
+    },
+    "/api/v1/apps/{id}/service/{action}": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "action",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Modules.Apps.Domain.Enums.AppServiceAction"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Modules.Apps.Common.AppServiceDto"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "503": {
+            "description": "Service Unavailable"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Apps"
+        ]
+      }
+    },
+    "/api/v1/apps/{id}/uninstall": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Modules.Apps.Common.AppOperationAcceptedDto"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            },
+            "description": "Conflict"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Apps"
         ]
       }
     },
@@ -37280,129 +37907,6 @@
               }
             },
             "description": "Unauthorized"
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "tags": [
-          "Sites"
-        ]
-      }
-    },
-    "/api/v1/sites/php-versions/install": {
-      "post": {
-        "requestBody": {
-          "content": {
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/Modules.Sites.Commands.InstallPhpVersion.InstallPhpVersionCommand"
-              }
-            },
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Modules.Sites.Commands.InstallPhpVersion.InstallPhpVersionCommand"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Modules.Sites.Commands.InstallPhpVersion.InstallPhpVersionCommand"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/Modules.Sites.Common.PhpVersionDto"
-                  },
-                  "type": "array"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
-                }
-              }
-            },
-            "description": "Bad Request"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
-                }
-              }
-            },
-            "description": "Forbidden"
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "tags": [
-          "Sites"
-        ]
-      }
-    },
-    "/api/v1/sites/php-versions/installable": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/Modules.Sites.Common.InstallablePhpVersionDto"
-                  },
-                  "type": "array"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
-                }
-              }
-            },
-            "description": "Forbidden"
           }
         },
         "security": [

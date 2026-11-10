@@ -4,6 +4,7 @@ import { useAuthStore } from '../stores/auth'
 import { useDashboardStore } from '../stores/dashboard'
 import { useLiveDashboardStore } from '../stores/liveDashboard'
 import { useNavigationBadgesStore } from '../stores/navigationBadges'
+import { useStackStore } from '../stores/stack'
 import { useTasksStore } from '../stores/tasks'
 import { useCallerRole } from './useCallerRole'
 
@@ -44,6 +45,7 @@ export const useShellLiveReads = (): void => {
   const tasksStore = useTasksStore()
   const badgesStore = useNavigationBadgesStore()
   const dashboardStore = useDashboardStore()
+  const stackStore = useStackStore()
   const liveDashboardStore = useLiveDashboardStore()
   const { isAdmin, isCustomer } = useCallerRole()
 
@@ -78,6 +80,8 @@ export const useShellLiveReads = (): void => {
     // its own and asks for the stream and the checklist the panel refuses it (issue #513).
     liveDashboardStore.close()
     dashboardStore.reset()
+    // Whether sites can exist is asked again for the next identity, never carried over.
+    stackStore.reset()
   }
 
   /**
@@ -85,6 +89,9 @@ export const useShellLiveReads = (): void => {
    * @returns Nothing.
    */
   const startAllowed = (): void => {
+    // Every role may read the stack status (it only says which runtimes exist), and the menu and the
+    // site form draw from it, so it is read again for each identity the shell starts for.
+    void stackStore.load(true)
     if (readsTasks.value) {
       tasksStore.openTray()
       void tasksStore.loadFailures()

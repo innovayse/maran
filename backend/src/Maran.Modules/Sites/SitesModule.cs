@@ -104,6 +104,9 @@ public sealed class SitesModule : IPanelModule
         // filter: a hostname is claimed once across the whole server.
         services.AddScoped<SiteHostnameClaims>();
 
+        // Scoped, because it reads the Apps module's installed-stack answer, which is request-scoped.
+        services.AddScoped<SiteStackGate>();
+
         // Scoped, because it asks the claims reader above and drives the agent on the request's behalf.
         services.AddScoped<SiteVhostCompensator>();
 
@@ -127,6 +130,10 @@ public sealed class SitesModule : IPanelModule
         // Site.HasCertificate (see ISiteDirectory). Scoped, because it reads and writes through the
         // request-scoped, tenant-filtered context.
         services.AddScoped<ISiteDirectory, SiteDirectory>();
+
+        // Which sites an installed app still runs, for the app store's uninstall guard (issue #517). Scoped, because
+        // it reads through the request's context; it is server-wide and reached from administrator-only paths.
+        services.AddScoped<ISiteRuntimeUsage, SiteRuntimeUsage>();
 
         // The narrow window the DNS module asks whether an account's site serves a host name through (issue
         // #178). Scoped, because it reads through the request's tenant-filtered context.

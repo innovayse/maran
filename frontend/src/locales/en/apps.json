@@ -1,0 +1,121 @@
+{
+  "apps": {
+    "list": {
+      "heading": "Apps",
+      "subtitle": "The web server and the runtimes your sites run on. Install, remove and control them here.",
+      "tableCaption": "Apps installed on this server",
+      "searchLabel": "Search installed apps",
+      "searchPlaceholder": "Search by name…",
+      "searchClear": "Clear the search",
+      "emptyTitle": "No app is installed",
+      "emptyDescription": "Install a web server below before creating sites.",
+      "noResultsTitle": "No app matches",
+      "noResultsDescription": "Change the search or the filters, or clear them to see every installed app.",
+      "installedHeading": "Installed",
+      "availableHeading": "Available to install",
+      "availableDescription": "What this server's package sources offer.",
+      "availableCaption": "Apps this server can install",
+      "availableEmpty": "Everything this server can install is already installed.",
+      "availableName": "App",
+      "columns": {
+        "name": "App",
+        "kind": "Kind",
+        "version": "Version",
+        "state": "State",
+        "service": "Service",
+        "installedAt": "Installed",
+        "actions": "Actions"
+      },
+      "filters": {
+        "kind": "Kind",
+        "state": "State"
+      },
+      "rowActions": "Actions for {name}",
+      "install": "Install",
+      "installFor": "Install {name}",
+      "actions": {
+        "start": "Start",
+        "stop": "Stop",
+        "restart": "Restart",
+        "uninstall": "Uninstall"
+      },
+      "unreachable": "The apps could not be read."
+    },
+    "kind": {
+      "webServer": "Web server",
+      "runtime": "Runtime"
+    },
+    "state": {
+      "installing": "Installing",
+      "installed": "Installed",
+      "failed": "Failed",
+      "removing": "Removing"
+    },
+    "progress": {
+      "label": "Progress of {name}",
+      "value": "{percent} percent"
+    },
+    "confirm": {
+      "title": "Uninstall {name}",
+      "question": "Uninstall {name} from this server? Its packages are removed.",
+      "confirm": "Uninstall",
+      "working": "Removing…"
+    },
+    "inUse": {
+      "title": "{name} is in use",
+      "sites": "Sites that use it"
+    },
+    "setup": {
+      "heading": "Set up this server",
+      "subtitle": "Choose the web server that will serve your sites, and the runtimes they need. Nothing is installed until you confirm.",
+      "stepOf": "Step {n} of {total}",
+      "steps": {
+        "webServer": "Web server",
+        "runtimes": "Runtimes",
+        "review": "Review",
+        "install": "Install"
+      },
+      "webServer": {
+        "legend": "Web server",
+        "hint": "Exactly one web server serves your sites. Switching later means removing this one first, which needs every site removed.",
+        "none": "This server's package sources offer no web server."
+      },
+      "runtimes": {
+        "php": "PHP versions",
+        "node": "Node.js versions",
+        "hint": "Optional. Sites can only use a runtime that is installed; more can be added later from the app store.",
+        "none": "This server's package sources offer no runtime."
+      },
+      "review": {
+        "webServer": "Web server",
+        "runtimes": "Runtimes",
+        "noRuntimes": "None. Add runtimes later from the app store."
+      },
+      "back": "Back",
+      "next": "Next",
+      "install": "Install",
+      "retry": "Try the failed ones again",
+      "openPanel": "Open the panel",
+      "queue": {
+        "caption": "Installation progress",
+        "app": "App",
+        "state": "State",
+        "waiting": "Waiting",
+        "running": "Installing",
+        "done": "Installed",
+        "failed": "Failed"
+      },
+      "installingNotice": "Installing. Keep this page open; it may take several minutes.",
+      "doneTitle": "The server is ready",
+      "doneDescription": "A web server is installed. You can create sites now.",
+      "needWebServer": "The web server could not be installed, so sites cannot be created yet. Try again.",
+      "loadFailed": "The apps this server can install could not be read.",
+      "retryLoad": "Try again"
+    },
+    "pending": {
+      "heading": "Panel is being set up",
+      "title": "This panel is being set up",
+      "description": "An administrator has to finish setting up the server before sites can be managed. Come back in a few minutes."
+    }
+  }
+}

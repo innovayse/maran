@@ -399,6 +399,9 @@ public sealed class CertificatesAuthorizationTests : IAsyncLifetime
             SiteBackendType.Php,
             "8.3",
             string.Empty,
+            string.Empty,
+            0,
+            string.Empty,
             $"/home/acct/sites/{domain}",
             now);
     }

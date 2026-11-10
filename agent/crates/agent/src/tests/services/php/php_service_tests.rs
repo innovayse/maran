@@ -119,7 +119,7 @@ impl ConfigHost for InstallHost {
                 return Ok(CommandOutcome {
                     status: 1,
                     stdout: String::new(),
-                    stderr: "Job for maran-php-install@php8.3-fpm.service failed".to_owned(),
+                    stderr: "Job for maran-app-install@php8.3-fpm.service failed".to_owned(),
                 });
             }
             self.directories
@@ -277,7 +277,7 @@ async fn a_failed_install_unit_ends_the_stream_with_one_system_failure_carrying_
     assert!(
         errors[0]
             .tool_output
-            .contains("maran-php-install@php8.3-fpm.service")
+            .contains("maran-app-install@php8.3-fpm.service")
     );
 }
 

@@ -203,16 +203,41 @@ public sealed class EnableSiteCommandHandlerTests
         Assert.Equal(SiteStatus.Enabled, (await context.Sites.SingleAsync()).Status);
     }
 
+    /// <summary>With no site web server installed the operation is refused before the host is touched.</summary>
+    [Fact]
+    public async Task With_no_web_server_installed_the_operation_is_refused_before_the_host_is_touched()
+    {
+        var account = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        var siteId = await SeedAsync(database, account);
+        var agent = new RecordingAgentSitesClient();
+        var audit = new RecordingAuditWriter();
+        await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(account), database);
+
+        var result = await Handler(context, account, agent, audit, SiteStacks.NotReady()).HandleAsync(
+            new EnableSiteCommand(siteId, "198.51.100.7", "tests"),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AppsStackNotReady", result.Error!.Code);
+        Assert.Equal(ErrorType.Conflict, result.Error.Type);
+        Assert.Empty(agent.Calls);
+        Assert.False(Assert.Single(audit.Entries).Succeeded);
+        Assert.Equal(SiteStatus.Disabled, (await context.Sites.SingleAsync()).Status);
+    }
+
     /// <summary>Builds the handler under test.</summary>
     /// <param name="context">The context bound to the calling principal.</param>
     /// <param name="accountId">The account the caller owns.</param>
     /// <param name="agent">The agent double.</param>
     /// <param name="audit">The journal double.</param>
+    /// <param name="stack">The installed stack; defaults to a host with nginx and runtimes installed.</param>
     private static EnableSiteCommandHandler Handler(
         SitesDbContext context,
         Guid accountId,
         RecordingAgentSitesClient agent,
-        RecordingAuditWriter? audit = null)
+        RecordingAuditWriter? audit = null,
+        SiteStackGate? stack = null)
     {
         var accounts = new StubAccountDirectory(
             new AccountSnapshot(
@@ -229,7 +254,8 @@ public sealed class EnableSiteCommandHandlerTests
             accounts,
             agent,
             new SiteAuditJournal(audit ?? new RecordingAuditWriter(), FakeCurrentUser.Customer(accountId)),
-            SitesTestContext.SiteNames());
+            SitesTestContext.SiteNames(),
+            stack ?? SiteStacks.Ready());
     }
 
     /// <summary>Seeds one site in the state this operation acts from, and returns its id.</summary>

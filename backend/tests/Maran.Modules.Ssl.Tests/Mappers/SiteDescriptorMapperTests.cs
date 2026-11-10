@@ -24,7 +24,7 @@ public sealed class SiteDescriptorMapperTests
             new SiteIpAccessSnapshot(SiteIpAccessMode.DenyList, ["198.51.100.0/24"]),
             new SiteRequestRateSnapshot(10, 20)));
 
-        var options = SiteDescriptorMapper.From(snapshot, hasCertificate: true).Options;
+        var options = SiteDescriptorMapper.From(snapshot, hasCertificate: true, SiteWebServer.Nginx).Options;
 
         Assert.Equal(CanonicalHostKind.Www, options.CanonicalHost);
         Assert.Equal(64u, options.ClientMaxBodySizeMib);
@@ -38,6 +38,19 @@ public sealed class SiteDescriptorMapperTests
         Assert.Equal(new RequestRateDescriptor(10, 20), options.RequestRate);
     }
 
+    /// <summary>The descriptor carries the web server it is given.</summary>
+    [Theory]
+    [InlineData(SiteWebServer.Nginx)]
+    [InlineData(SiteWebServer.Apache)]
+    public void The_descriptor_carries_the_web_server_it_is_given(SiteWebServer webServer)
+    {
+        // The wire reads an unset web server as nginx, so a descriptor that lost it would rewrite an Apache
+        // site's vhost for nginx at the moment TLS was switched on.
+        var descriptor = SiteDescriptorMapper.From(Snapshot(SiteOptionsSnapshot.None), hasCertificate: true, webServer);
+
+        Assert.Equal(webServer, descriptor.WebServer);
+    }
+
     /// <summary>The options travel whether the certificate is being installed or removed.</summary>
     [Theory]
     [InlineData(true)]
@@ -49,7 +62,7 @@ public sealed class SiteDescriptorMapperTests
             BasicAuthUsers = [new SiteBasicAuthUserSnapshot("alice", "$2y$12$hash")],
         });
 
-        var descriptor = SiteDescriptorMapper.From(snapshot, hasCertificate);
+        var descriptor = SiteDescriptorMapper.From(snapshot, hasCertificate, SiteWebServer.Nginx);
 
         Assert.Equal(hasCertificate, descriptor.HasCertificate);
         Assert.Equal("alice", Assert.Single(descriptor.Options.BasicAuthUsers).Name);
@@ -67,7 +80,7 @@ public sealed class SiteDescriptorMapperTests
     {
         var snapshot = Snapshot(SiteOptionsSnapshot.None with { RequestRate = new SiteRequestRateSnapshot(5, 0) });
 
-        var options = SiteDescriptorMapper.From(snapshot, hasCertificate).Options;
+        var options = SiteDescriptorMapper.From(snapshot, hasCertificate, SiteWebServer.Nginx).Options;
 
         Assert.Equal(new RequestRateDescriptor(5, 0), options.RequestRate);
     }
@@ -76,7 +89,7 @@ public sealed class SiteDescriptorMapperTests
     [Fact]
     public void A_site_with_no_options_is_described_with_none()
     {
-        var options = SiteDescriptorMapper.From(Snapshot(SiteOptionsSnapshot.None), hasCertificate: true).Options;
+        var options = SiteDescriptorMapper.From(Snapshot(SiteOptionsSnapshot.None), hasCertificate: true, SiteWebServer.Nginx).Options;
 
         Assert.Equal(CanonicalHostKind.None, options.CanonicalHost);
         Assert.Null(options.ClientMaxBodySizeMib);
@@ -86,11 +99,35 @@ public sealed class SiteDescriptorMapperTests
         Assert.Null(options.RequestRate);
     }
 
+    /// <summary>A node site keeps its runtime facts through a certificate rewrite, and a php site carries none.</summary>
+    [Fact]
+    public void A_node_site_keeps_its_runtime_facts_through_a_certificate_rewrite()
+    {
+        // A rewrite that dropped them would replace the site's unit with an empty one.
+        var node = new SiteSnapshot(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "app.example.com",
+            [],
+            SiteBackend.Node,
+            string.Empty,
+            string.Empty,
+            new SiteNodeSnapshot("22", 3100, "npm start"),
+            false,
+            SiteOptionsSnapshot.None);
+
+        var descriptor = SiteDescriptorMapper.From(node, hasCertificate: true, SiteWebServer.Nginx);
+
+        Assert.Equal(SiteBackendKind.Node, descriptor.Backend);
+        Assert.Equal(new SiteNodeApp("22", 3100, "npm start"), descriptor.Node);
+        Assert.Equal(SiteNodeApp.None, SiteDescriptorMapper.From(Snapshot(SiteOptionsSnapshot.None), hasCertificate: true, SiteWebServer.Nginx).Node);
+    }
+
     /// <summary>Builds a snapshot of a PHP site carrying the given options.</summary>
     /// <param name="options">The options the snapshot carries.</param>
     private static SiteSnapshot Snapshot(SiteOptionsSnapshot options)
     {
         return new SiteSnapshot(
-            Guid.NewGuid(), Guid.NewGuid(), "example.com", ["www.example.com"], SiteBackend.Php, "8.3", string.Empty, false, options);
+            Guid.NewGuid(), Guid.NewGuid(), "example.com", ["www.example.com"], SiteBackend.Php, "8.3", string.Empty, SiteNodeSnapshot.None, false, options);
     }
 }

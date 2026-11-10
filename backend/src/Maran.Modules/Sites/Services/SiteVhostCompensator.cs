@@ -1,4 +1,5 @@
 using Maran.Agent.Client.Interfaces;
+using Maran.Agent.Client.Services.SitesService;
 using Microsoft.Extensions.Logging;
 
 namespace Maran.Modules.Sites.Services;
@@ -94,6 +95,7 @@ public sealed class SiteVhostCompensator
     /// <summary>Removes the vhost this request made, unless a committed site with the same domain owns that file.</summary>
     /// <param name="accountUsername">The owning account's system user name.</param>
     /// <param name="domain">The creation's primary domain, which addresses the delete.</param>
+    /// <param name="webServer">The web server the creation wrote the vhost for.</param>
     /// <remarks>
     /// <para>
     /// Takes no cancellation token: once the removal is decided on it must not be abandoned by a caller
@@ -108,7 +110,7 @@ public sealed class SiteVhostCompensator
     /// file nobody owns. Only the first case withholds the delete.
     /// </para>
     /// </remarks>
-    public async Task CompensateUnlessOwnedAsync(string accountUsername, string domain)
+    public async Task CompensateUnlessOwnedAsync(string accountUsername, string domain, SiteWebServer webServer)
     {
         var claimants = await _claims.ClaimingSiteDomainsAsync([domain.ToLowerInvariant()], CancellationToken.None);
         var ownedByAnotherSite = claimants.Any(claimant =>
@@ -121,12 +123,13 @@ public sealed class SiteVhostCompensator
             return;
         }
 
-        await CompensateAsync(accountUsername, domain);
+        await CompensateAsync(accountUsername, domain, webServer);
     }
 
     /// <summary>Removes a vhost the agent provisioned but no row owns.</summary>
     /// <param name="accountUsername">The owning account's system user name.</param>
     /// <param name="domain">The creation's primary domain, which addresses the delete.</param>
+    /// <param name="webServer">The web server the creation wrote the vhost for.</param>
     /// <remarks>
     /// Takes no cancellation token, for the reason <see cref="CompensateUnlessOwnedAsync"/> gives.
     /// Best effort, and logged rather than surfaced: the customer is already being told the creation
@@ -135,9 +138,9 @@ public sealed class SiteVhostCompensator
     /// shared by the account's other sites on that version and removing one would take them off the
     /// air, while an orphaned pool is merely wasteful.
     /// </remarks>
-    public async Task CompensateAsync(string accountUsername, string domain)
+    public async Task CompensateAsync(string accountUsername, string domain, SiteWebServer webServer)
     {
-        var deleted = await _agent.DeleteAsync(accountUsername, domain, string.Empty, CancellationToken.None);
+        var deleted = await _agent.DeleteAsync(accountUsername, domain, string.Empty, webServer, CancellationToken.None);
         if (!deleted.IsSuccess)
         {
             LogCompensationFailed(_logger, domain, deleted.Error!.Code, null);

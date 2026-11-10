@@ -49,6 +49,9 @@ public sealed class SimulatedAgentLedger
     /// <summary>The installed PHP versions, keyed by version.</summary>
     public SimulatedLedgerSection<SimulatedPhpRuntime> PhpRuntimes { get; }
 
+    /// <summary>The apps installed through the app store (web servers and runtimes), keyed by catalogue id.</summary>
+    public SimulatedLedgerSection<SimulatedApp> InstalledApps { get; }
+
     /// <summary>The certificate the panel's own vhost names; empty until one is installed.</summary>
     public SimulatedLedgerCell<SimulatedPanelCertificate> PanelCertificate { get; }
 
@@ -95,6 +98,7 @@ public sealed class SimulatedAgentLedger
         Certificates = new SimulatedLedgerSection<SimulatedCertificate>(_gate, limits.MaxSites);
         PanelChallenges = new SimulatedLedgerSection<SimulatedPanelChallenge>(_gate, limits.MaxPanelChallenges);
         PhpRuntimes = new SimulatedLedgerSection<SimulatedPhpRuntime>(_gate, limits.MaxPhpRuntimes);
+        InstalledApps = new SimulatedLedgerSection<SimulatedApp>(_gate, limits.MaxApps);
         PanelCertificate = new SimulatedLedgerCell<SimulatedPanelCertificate>(_gate, null);
         HostFacts = new SimulatedLedgerCell<SimulatedHostFacts>(_gate, SimulatedHostFacts.Baseline);
     }

@@ -191,6 +191,9 @@ public sealed class ListSitesQueryHandlerTests
                 SiteBackendType.Static,
                 string.Empty,
                 string.Empty,
+                string.Empty,
+                0,
+                string.Empty,
                 "/home/acct/sites/static.example.com",
                 Epoch),
             disabled);
@@ -300,6 +303,9 @@ public sealed class ListSitesQueryHandlerTests
             [],
             SiteBackendType.Php,
             "8.3",
+            string.Empty,
+            string.Empty,
+            0,
             string.Empty,
             "/home/acct/sites/" + domain,
             createdAt);

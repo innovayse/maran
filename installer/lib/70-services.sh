@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Step 70: install the systemd units from installer/systemd/ and enable the panel's two.
-# The package-install template unit is installed too, but never enabled: only the agent starts it.
+# The package-install and package-removal template units are installed too, but never enabled: only the agent starts them.
 # Does not start them yet — 80-nginx.sh must install the vhost first so the api's first
 # health check has something proxying to it, and both are started together at the end
 # of this step's counterpart call order in install.sh (api after nginx is configured
@@ -28,10 +28,12 @@ readonly MARAN_PHP_SOCKET_DIRECTORY="/run/maran-php"
 # The tmpfiles snippet building the mount points the agent unit bind-mounts the host's shared temporary
 # directories onto. Installed as it stands: nothing in it is substituted.
 readonly MARAN_HOST_TMPFILES_NAME="maran-host.conf"
-# The template unit through which the agent installs a PHP version as root, outside its own sandbox
-# (issue #93). The file name is the contract with the agent: ops/src/php starts
-# maran-php-install@<package>.service, so a rename here without one there installs nothing.
-readonly MARAN_PHP_INSTALL_UNIT_NAME="maran-php-install@.service"
+# The template units through which the agent installs and removes an app's package as root, outside
+# its own sandbox (issues #93, #517). The file names are the contract with the agent: it starts
+# maran-app-install@<package>.service and maran-app-remove@<package>.service, so a rename here
+# without one there installs or removes nothing.
+readonly MARAN_APP_INSTALL_UNIT_NAME="maran-app-install@.service"
+readonly MARAN_APP_REMOVE_UNIT_NAME="maran-app-remove@.service"
 
 # api_socket_directory: the directory half of MARAN_API_SOCKET_PATH.
 #
@@ -152,7 +154,9 @@ render_agent_unit() {
   refuse_unsubstituted_placeholder "$out" maran-agent.service
 }
 
-# render_php_install_unit: renders the package-install template unit for this host's OS family.
+# render_package_unit: renders one of the package-manager template units for this host's OS family.
+#
+# Arguments: the template's file name, the verb (install or remove) and the output path.
 #
 # The families name different package managers, and a systemd unit interpolates no shell
 # variable, so the family's ExecStart= and Environment= lines are substituted here. Each is ONE fixed
@@ -161,24 +165,33 @@ render_agent_unit() {
 # shell variable, so nothing below touches it. The paths are the ones DistroAdapter::package_manager
 # answers; they are spelled in the unit because systemd needs an absolute path at load time.
 #
-# --no-remove (Debian family) aborts an install that could only proceed by removing another
-# package; dnf removes nothing unless given --allowerasing, which is never passed. The Debian family
-# also sets DEBIAN_FRONTEND=noninteractive on purpose; the RHEL family has no equivalent, so its
+# --no-remove (Debian family install) aborts an install that could only proceed by removing another
+# package; dnf removes nothing unless given --allowerasing, which is never passed. The remove verb
+# passes no purge, no autoremove and no force option on any family. The Debian family also sets
+# DEBIAN_FRONTEND=noninteractive on purpose; the other families have no equivalent, so their
 # environment placeholder becomes a comment rather than an empty line.
 #
 # A family other than debian, rhel or suse is a refusal, never a default: a unit rendered for a package
-# manager the host does not have would fail only when an operator first installs a PHP version.
-render_php_install_unit() {
-  local out="$1" exec_start environment
+# manager the host does not have would fail only when an operator first installs an app.
+render_package_unit() {
+  local template="$1" verb="$2" out="$3" exec_start environment
   : "${MARAN_OS_FAMILY:?must be set by install.sh before this step is sourced}"
+  case "$verb" in
+    install | remove) ;;
+    *) echo "70-services.sh: no package unit for verb '${verb}'; aborting." >&2; exit 1 ;;
+  esac
   case "$MARAN_OS_FAMILY" in
     debian)
-      exec_start="ExecStart=/usr/bin/apt-get install -y --no-remove -- %i"
       environment="Environment=DEBIAN_FRONTEND=noninteractive"
+      if [ "$verb" = install ]; then
+        exec_start="ExecStart=/usr/bin/apt-get install -y --no-remove -- %i"
+      else
+        exec_start="ExecStart=/usr/bin/apt-get remove -y -- %i"
+      fi
       ;;
     rhel)
-      exec_start="ExecStart=/usr/bin/dnf install -y -- %i"
       environment="# No debconf on this family, so no frontend variable to set."
+      exec_start="ExecStart=/usr/bin/dnf ${verb} -y -- %i"
       ;;
     suse)
       # One fixed argv again. --non-interactive never prompts (a prompt in a unit would hang it) and
@@ -191,11 +204,15 @@ render_php_install_unit() {
       # SUSE family (the agent's suse adapter and this line must agree). Confirm with
       # `command -v zypper` and `zypper --non-interactive install --no-recommends -- bc; echo $?`
       # in the pinned Leap image, and with `grep -rn zypper agent/crates/distro/src/suse`.
-      exec_start="ExecStart=/usr/bin/zypper --non-interactive install --no-recommends -- %i"
       environment="# No debconf on this family, so no frontend variable to set."
+      if [ "$verb" = install ]; then
+        exec_start="ExecStart=/usr/bin/zypper --non-interactive install --no-recommends -- %i"
+      else
+        exec_start="ExecStart=/usr/bin/zypper --non-interactive remove -- %i"
+      fi
       ;;
     *)
-      echo "70-services.sh: no package-install unit for OS family '${MARAN_OS_FAMILY}'; aborting." >&2
+      echo "70-services.sh: no package unit for OS family '${MARAN_OS_FAMILY}'; aborting." >&2
       exit 1
       ;;
   esac
@@ -205,8 +222,18 @@ render_php_install_unit() {
     /^__MARAN_PKG_EXEC_START__$/ { print exec_start; next }
     /^__MARAN_PKG_ENVIRONMENT__$/ { print environment; next }
     { print }
-  ' "${LIB_DIR}/../systemd/${MARAN_PHP_INSTALL_UNIT_NAME}" > "$out"
-  refuse_unsubstituted_placeholder "$out" "$MARAN_PHP_INSTALL_UNIT_NAME"
+  ' "${LIB_DIR}/../systemd/${template}" > "$out"
+  refuse_unsubstituted_placeholder "$out" "$template"
+}
+
+# render_app_install_unit: the app install template unit (maran-app-install@.service).
+render_app_install_unit() {
+  render_package_unit "$MARAN_APP_INSTALL_UNIT_NAME" install "$1"
+}
+
+# render_app_remove_unit: the app removal template unit (maran-app-remove@.service).
+render_app_remove_unit() {
+  render_package_unit "$MARAN_APP_REMOVE_UNIT_NAME" remove "$1"
 }
 
 install_units() {
@@ -222,9 +249,11 @@ install_units() {
   install -m 0644 "${LIB_DIR}/../systemd/maran-host.tmpfiles.conf" "${MARAN_TMPFILES_DIR}/${MARAN_HOST_TMPFILES_NAME}"
   render_agent_unit "$tmp"
   install -m 0644 "$tmp" "${MARAN_UNIT_DIR}/maran-agent.service"
-  # Installed, NEVER enabled: it has no [Install] section and only the agent starts it.
-  render_php_install_unit "$tmp"
-  install -m 0644 "$tmp" "${MARAN_UNIT_DIR}/${MARAN_PHP_INSTALL_UNIT_NAME}"
+  # Installed, NEVER enabled: they have no [Install] section and only the agent starts them.
+  render_app_install_unit "$tmp"
+  install -m 0644 "$tmp" "${MARAN_UNIT_DIR}/${MARAN_APP_INSTALL_UNIT_NAME}"
+  render_app_remove_unit "$tmp"
+  install -m 0644 "$tmp" "${MARAN_UNIT_DIR}/${MARAN_APP_REMOVE_UNIT_NAME}"
   rm -f "$tmp"
 }
 

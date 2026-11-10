@@ -31,7 +31,8 @@ public sealed class CertificateRenewalWildcardTests
             fixture.Alerts,
             fixture.Clock,
             NullLogger<CertificateRenewalHandler>.Instance,
-            fixture.Tasks);
+            fixture.Tasks,
+            fixture.Stack);
     }
 
     /// <summary>Seeds a certificate five days from its end for the fixture's site.</summary>

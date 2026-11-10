@@ -28,7 +28,8 @@ public sealed class CertificateRenewalExpiryAlertTests
             fixture.Alerts,
             fixture.Clock,
             NullLogger<CertificateRenewalHandler>.Instance,
-            fixture.Tasks);
+            fixture.Tasks,
+            fixture.Stack);
     }
 
     /// <summary>Seeds one certificate for a fixture's site.</summary>

@@ -6,7 +6,7 @@ import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubShellReads } from '../fixtures/stub-shell-reads'
-import { stubInstallablePhpVersions, stubPhpVersions } from '../fixtures/stub-sites-routes'
+import { stubPhpVersions } from '../fixtures/stub-sites-routes'
 import type { PanelModule } from '../../src/types/module'
 import type { PhpExtension } from '../../src/types/phpVersion'
 import type { Page } from '@playwright/test'
@@ -48,9 +48,6 @@ const openExtensions = async (
   await stubLandingReads(page)
   await stubModules(page, MODULES)
   await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
-  await stubInstallablePhpVersions(page, () => {
-    return []
-  })
   const stub = await stubPhpExtensions(page, extensions, refusal)
 
   await page.goto('/')
@@ -123,9 +120,6 @@ test('while a change applies every switch is held and a notice points to the tas
   await stubLandingReads(page)
   await stubModules(page, MODULES)
   await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
-  await stubInstallablePhpVersions(page, () => {
-    return []
-  })
   await stubPhpExtensions(page, startingExtensions())
   // Installed AFTER the stub so that it holds the request and then hands it on to the stub.
   const held = await holdRoute(page, '**/api/v1/sites/php-versions/*/extensions/*')

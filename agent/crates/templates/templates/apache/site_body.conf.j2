@@ -1,0 +1,97 @@
+{#
+  This comment renders nothing, so the reasoning below costs no vhost a byte.
+
+  Both file-serving arms set the link rule once, on the document root's <Directory>,
+  so every file under it inherits it: `-FollowSymLinks +SymLinksIfOwnerMatch` follows a
+  symbolic link only when the link and what it resolves to have the same owner. The
+  workers can enter every account's home and a customer can link to any path, so without
+  it a link in one site's root served another account's files, or the host's. FollowSymLinks
+  is switched OFF by name and never left to the packaged default, because the distribution's
+  default configuration turns it on. AllowOverride None keeps a `.htaccess` the customer
+  writes from lifting the rule again.
+
+  The proxy arm writes no DocumentRoot and opens no file, so it carries no rule. It sets
+  the body limit to the same figure the file-serving PHP arm does, 512 MiB, because Apache
+  has no body limit by default and nginx has a 1 MiB one; the two web servers are kept
+  answering the same figure whichever one the host chose.
+
+  Everything under a dot is denied except the challenge directory, as the nginx vhost does.
+  Apache has no per-site request-rate limit in its stock modules, so a site with one is
+  refused when it is created (SiteOptionsError::RequestRateOnApache) instead of silently
+  rendered without it.
+
+  The full argument is the doc comment on `SiteBody` (src/apache/site_body.rs); keep the two
+  in step, and keep the rendered text to the directive and its one-line pointer.
+-#}
+{% if upstream.is_some() %}    CustomLog {{ access_log }} combined
+    ErrorLog {{ error_log }}
+
+    LimitRequestBody {{ options.body_limit_bytes() }}
+
+    ProxyRequests Off
+    ProxyPreserveHost On
+    ProxyPass /.well-known/acme-challenge/ !
+{% for redirect in options.redirect_rules() %}    ProxyPassMatch "{{ redirect.pattern }}" !
+{% endfor %}    ProxyPass / http://{{ upstream.unwrap() }}/
+    ProxyPassReverse / http://{{ upstream.unwrap() }}/
+    RequestHeader set X-Real-IP "expr=%{REMOTE_ADDR}"
+    RequestHeader set X-Forwarded-Proto "expr=%{REQUEST_SCHEME}"
+{% if options.restricts_access() %}
+    <Location />
+{{ options.render_access_rules()? }}
+    </Location>
+{% endif %}{% if options.has_locations(false) %}
+{{ options.render_locations(false)? }}
+{% endif %}{% else if fpm_socket.is_some() %}    CustomLog {{ access_log }} combined
+    ErrorLog {{ error_log }}
+
+    LimitRequestBody {{ options.body_limit_bytes() }}
+
+    DocumentRoot {{ document_root }}
+    DirectoryIndex index.php index.html
+
+    <Directory {{ document_root }}>
+        # A link is followed only when it and its target share an owner.
+        Options -Indexes -FollowSymLinks +SymLinksIfOwnerMatch
+        AllowOverride None
+        FallbackResource /index.php
+{% if options.restricts_access() %}{{ options.render_access_rules()? }}
+{% else %}        Require all granted
+{% endif %}    </Directory>
+
+    # Only a file whose name ends in .php is handed to the pool. A request such as
+    # /uploads/evil.jpg/x.php resolves to the .jpg and is served as a file, never run.
+    <FilesMatch "\.php$">
+        SetHandler "proxy:unix:{{ fpm_socket.unwrap() }}|fcgi://localhost"
+    </FilesMatch>
+    Header always unset X-Powered-By
+
+    # Everything under a dot is denied, including .env and .git. The challenge directory
+    # is exempt, as in the nginx vhost.
+    <LocationMatch "^(?!/\.well-known/acme-challenge/).*/\.">
+        Require all denied
+    </LocationMatch>
+{% if options.has_locations(true) %}
+{{ options.render_locations(true)? }}
+{% endif %}{% else %}    CustomLog {{ access_log }} combined
+    ErrorLog {{ error_log }}
+
+    DocumentRoot {{ document_root }}
+    DirectoryIndex index.html index.htm
+
+    <Directory {{ document_root }}>
+        # A link is followed only when it and its target share an owner.
+        Options -Indexes -FollowSymLinks +SymLinksIfOwnerMatch
+        AllowOverride None
+{% if options.restricts_access() %}{{ options.render_access_rules()? }}
+{% else %}        Require all granted
+{% endif %}    </Directory>
+
+    # Everything under a dot is denied, including .env and .git. The challenge directory
+    # is exempt, as in the nginx vhost.
+    <LocationMatch "^(?!/\.well-known/acme-challenge/).*/\.">
+        Require all denied
+    </LocationMatch>
+{% if options.has_locations(true) %}
+{{ options.render_locations(true)? }}
+{% endif %}{% endif %}

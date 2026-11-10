@@ -103,12 +103,12 @@ fn sites_in(contents: &str) -> Vec<(String, String)> {
     sites
 }
 
-/// Every validator this crate builds, and the four that are actions rather than
+/// Every validator this crate builds, and the six that are actions rather than
 /// checks.
 ///
 /// This test is meant to go RED both ways. A new call site appears in the
 /// discovered list and fails here, so a fifth mutating validator cannot be added
-/// unremarked. And the day one of the four named below gains a pure validator,
+/// unremarked. And the day one of the six named below gains a pure validator,
 /// its row changes and this test fails, so whoever closes it must also correct
 /// the count and the argument in [`super::Validator`]'s own doc comment — which
 /// is the point: the note must not outlive the gap.
@@ -116,7 +116,7 @@ fn sites_in(contents: &str) -> Vec<(String, String)> {
 /// It cannot go silently blind: a scan that stopped finding anything returns an
 /// empty list and fails here rather than agreeing that nothing changed.
 #[test]
-fn every_validator_is_a_check_except_the_four_that_have_no_check_mode() {
+fn every_validator_is_a_check_except_the_six_that_have_no_check_mode() {
     let sites = validator_call_sites();
 
     assert_eq!(
@@ -127,6 +127,17 @@ fn every_validator_is_a_check_except_the_four_that_have_no_check_mode() {
             row(
                 "accounts/set_account_open_files_limit.rs",
                 "&id",
+                "CallClass::Validate"
+            ),
+            // Pure — `nginx -t` over the real configuration, twice: when the panel's port-80
+            // block is suspended for Apache and when it is restored (issue #517).
+            row("apps/nginx_port80.rs", "&nginx", "CallClass::Validate"),
+            row("apps/nginx_port80.rs", "&nginx", "CallClass::Validate"),
+            // Pure — Apache's own configuration test over the real tree, before it is reloaded
+            // (issue #517).
+            row(
+                "apps/prepare_apache.rs",
+                "&validator_program",
                 "CallClass::Validate"
             ),
             // Pure — the DNS daemon's own configuration checker, over the real file, twice
@@ -233,17 +244,33 @@ fn every_validator_is_a_check_except_the_four_that_have_no_check_mode() {
                 "CallClass::Validate"
             ),
             // Pure — the web server's own validate-only flag, over the real tree.
-            // `nginx_validator` is the one place the vhost writers (write, create, remove)
-            // build it; `reload_web_server` builds its own.
-            row("sites/nginx_validator.rs", "nginx", "CallClass::Validate"),
+            // `web_server_validator` is the one place the vhost writers (write, create,
+            // remove) build it, for nginx and Apache alike; `reload_web_server` builds its own.
             row(
                 "sites/reload_web_server.rs",
-                "&nginx",
+                "&binary",
                 "CallClass::Validate"
+            ),
+            // MUTATING — the Node.js site's unit: `systemctl daemon-reload`, because a unit
+            // file has no check-without-load. Written and removed through the protocol.
+            row(
+                "sites/remove_node_unit.rs",
+                "&service_manager",
+                "CallClass::Reload"
+            ),
+            row(
+                "sites/web_server_validator.rs",
+                "binary",
+                "CallClass::Validate"
+            ),
+            row(
+                "sites/write_node_unit.rs",
+                "&service_manager",
+                "CallClass::Reload"
             ),
             // Pure — the TLS material is loaded by nginx, so nginx checks it.
             row("ssl/remove_material.rs", "&nginx", "CallClass::Validate"),
-            row("ssl/write_material.rs", "&nginx", "CallClass::Validate"),
+            row("ssl/write_material.rs", "&binary", "CallClass::Validate"),
         ],
         "a Validator call site was added, removed or re-aimed. If a tree gained a PURE \
          validator, update the count and the argument in Validator's own doc comment. If a \
@@ -251,8 +278,8 @@ fn every_validator_is_a_check_except_the_four_that_have_no_check_mode() {
     );
 }
 
-/// The four mutating validators are exactly the ones spawning the service
-/// manager, and there are exactly four.
+/// The six mutating validators are exactly the ones spawning the service
+/// manager, and there are exactly six.
 ///
 /// The positive control for the census above, on the axis that can go blind: the
 /// list is long, and a reader checking it by eye would not notice a `nginx_binary`
@@ -260,7 +287,7 @@ fn every_validator_is_a_check_except_the_four_that_have_no_check_mode() {
 /// directly, so the number in [`super::Validator`]'s doc comment has a check
 /// behind it rather than a reader's memory.
 #[test]
-fn exactly_four_validators_spawn_the_service_manager_instead_of_a_checker() {
+fn exactly_six_validators_spawn_the_service_manager_instead_of_a_checker() {
     let mutating: Vec<(String, String, String)> = validator_call_sites()
         .into_iter()
         .filter(|(_, program, _)| program.contains("service_manager"))
@@ -268,8 +295,8 @@ fn exactly_four_validators_spawn_the_service_manager_instead_of_a_checker() {
 
     assert_eq!(
         mutating.len(),
-        4,
-        "Validator's doc comment says four of this crate's validators are actions rather \
+        6,
+        "Validator's doc comment says six of this crate's validators are actions rather \
          than checks; the source now says {}: {mutating:?}",
         mutating.len()
     );

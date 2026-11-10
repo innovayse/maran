@@ -42,6 +42,23 @@ public sealed class SiteConfiguration : IEntityTypeConfiguration<Site>
             .IsRequired()
             .HasMaxLength(253);
 
+        // The Node backend's facts. Defaulted in the database as well as the entity for the reason
+        // LogRetentionDays is: the previous release inserts sites without knowing these columns exist,
+        // and existing rows are not Node sites.
+        builder.Property(site => site.NodeVersion)
+            .IsRequired()
+            .HasMaxLength(8)
+            .HasDefaultValue(string.Empty);
+
+        builder.Property(site => site.AppPort)
+            .IsRequired()
+            .HasDefaultValue(0);
+
+        builder.Property(site => site.StartCommand)
+            .IsRequired()
+            .HasMaxLength(NodeAppLimits.MaximumStartCommandLength)
+            .HasDefaultValue(string.Empty);
+
         builder.Property(site => site.DocumentRoot)
             .IsRequired()
             .HasMaxLength(4096);

@@ -7,6 +7,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_distro::SiteWebServer;
 use std::path::{Path, PathBuf};
 
 use maran_agent_core::agent_paths::AgentPaths;
@@ -464,7 +465,7 @@ fn the_vhost_connects_to_the_socket_this_pool_listens_on() {
         .find_map(|line| line.strip_prefix("listen = ").map(str::to_owned))
         .expect("the pool declares no listen");
     let vhost = site_host
-        .config(&SitePaths::for_site(&site.account, &site.domain).config_path)
+        .config(&SitePaths::for_site(&site.account, &site.domain, SiteWebServer::Nginx).config_path)
         .expect("create_site wrote no vhost");
 
     assert!(

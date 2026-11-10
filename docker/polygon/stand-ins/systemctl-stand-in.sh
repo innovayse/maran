@@ -67,9 +67,9 @@
 # init would otherwise contradict for every one of them.
 #
 # **Except the panel's own units that the installer never starts.** The
-# installer lays down `maran-ftps.service` and the `maran-php-install@` template
-# and starts neither: FTPS is off until an administrator turns it on, and a PHP
-# install unit runs only when asked. On a real host both read `inactive` and
+# installer lays down `maran-ftps.service` and the `maran-app-install@` and
+# `maran-app-remove@` templates and starts none: FTPS is off until an administrator
+# turns it on, and an app package unit runs only when asked. On a real host both read `inactive` and
 # `disabled` from the first boot, so here a unit with no file reads that too (see
 # is_dormant_panel_unit). Before this, the stand-in reported a never-started
 # `maran-ftps.service` as active, and the panel's FTPS card showed "Running" over
@@ -393,7 +393,7 @@ record_state() {
 # installer installs and never starts. Such a unit reads DORMANT_ACTIVE_STATE and
 # DORMANT_ENABLEMENT until a verb records otherwise — the state a real host holds
 # it in until the panel drives it. A template instance such as
-# `maran-php-install@php83-php-fpm.service` matches its `@*` pattern. The scheduled
+# `maran-app-install@php83-php-fpm.service` matches its `@*` pattern. The scheduled
 # panel backup's timer and service (issue #129) are dormant for the same reason: step 67
 # installs both and enables neither, because the operator switches the timer on with
 # `maran panel-backup-schedule enable` after writing the configuration, so a stand-in
@@ -404,7 +404,7 @@ record_state() {
 # update-security-units.sh).
 is_dormant_panel_unit() {
     case "$1" in
-        maran-ftps.service | maran-php-install@*.service) return 0 ;;
+        maran-ftps.service | maran-app-install@*.service | maran-app-remove@*.service) return 0 ;;
         maran-panel-backup.timer | maran-panel-backup.service) return 0 ;;
         maran-update-security.timer | maran-update-security.service) return 0 ;;
     esac
@@ -538,6 +538,47 @@ reload_php_fpm() {
     exec kill -USR2 "$master"
 }
 
+# run_app_package_unit: the `start maran-app-install@<package>` and `start maran-app-remove@<package>`
+# arms (issue #517). Never returns.
+#
+# The real unit runs ONE package-manager argv as root and `systemctl start` returns when it is over,
+# with the manager's status. A polygon has no PID 1 to run the template, but it is a disposable root
+# container, so this runs the same argv the installer renders (installer/lib/70-services.sh
+# render_package_unit) minus the sandbox: that is what lets the first-run, app install and app
+# uninstall assertions install and remove a real package instead of a recording. The manager's own
+# words go to stderr, because that is what the agent classifies a failure from. The
+# unit-text assertions (docker/polygon/asserts/parts/app-install-unit.sh) are what pin the rendered
+# argv; this arm only has to be the same shape. `--` ends option parsing, exactly as in the unit.
+run_app_package_unit() {
+    local verb_word="$1" package="$2" status=0
+    case "$package" in
+        '' | -*) fail "an app package unit was started with the instance '${package}', which is empty or begins with '-'" ;;
+    esac
+    if command -v apt-get >/dev/null 2>&1; then
+        if [ "$verb_word" = install ]; then
+            DEBIAN_FRONTEND=noninteractive apt-get install -y --no-remove -- "$package" >&2 || status=$?
+        else
+            DEBIAN_FRONTEND=noninteractive apt-get remove -y -- "$package" >&2 || status=$?
+        fi
+    elif command -v dnf >/dev/null 2>&1; then
+        dnf "$verb_word" -y -- "$package" >&2 || status=$?
+    elif command -v zypper >/dev/null 2>&1; then
+        if [ "$verb_word" = install ]; then
+            zypper --non-interactive install --no-recommends -- "$package" >&2 || status=$?
+        else
+            zypper --non-interactive remove -- "$package" >&2 || status=$?
+        fi
+    else
+        fail "no package manager in this image for an app package unit"
+    fi
+    if [ "$status" -ne 0 ]; then
+        printf 'Job for maran-app-%s@%s.service failed because the control process exited with error code.\n' \
+            "$verb_word" "$package" >&2
+        exit 1
+    fi
+    exit 0
+}
+
 # The verb, taken off the front so every arm below sees only its own arguments.
 verb="${1:-}"
 if [ "$#" -gt 0 ]; then
@@ -553,6 +594,14 @@ case "$verb" in
         require_unit_name "$unit"
         case "$verb:$unit" in
             restart:*.mount) remount_unit "$unit" ;;
+            start:maran-app-install@*.service)
+                package="${unit#maran-app-install@}"
+                run_app_package_unit install "${package%.service}"
+                ;;
+            start:maran-app-remove@*.service)
+                package="${unit#maran-app-remove@}"
+                run_app_package_unit remove "${package%.service}"
+                ;;
         esac
         record_state "$unit" active
         exit 0

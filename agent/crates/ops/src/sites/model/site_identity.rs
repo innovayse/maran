@@ -2,6 +2,7 @@
 
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::web::domain::Domain;
+use maran_distro::SiteWebServer;
 
 /// The account and the domain that name one site.
 ///
@@ -23,4 +24,7 @@ pub struct SiteIdentity {
     pub account: AccountName,
     /// The primary domain.
     pub domain: Domain,
+    /// The web server whose include directory holds the site's vhost, which is named from
+    /// it as much as from the account and the domain.
+    pub web_server: SiteWebServer,
 }

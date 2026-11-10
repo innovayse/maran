@@ -1,0 +1,9 @@
+{% if let Some(file) = auth_user_file %}        AuthType Basic
+        AuthName "Restricted"
+        AuthUserFile {{ file }}
+{% endif %}        <RequireAll>
+{% if auth_user_file.is_some() %}            Require valid-user
+{% endif %}{% if let Some(rules) = ip_rules %}{% if rules.allow_list %}            Require ip{% for network in rules.networks %} {{ network }}{% endfor %}
+{% else %}            Require all granted
+            Require not ip{% for network in rules.networks %} {{ network }}{% endfor %}
+{% endif %}{% endif %}        </RequireAll>

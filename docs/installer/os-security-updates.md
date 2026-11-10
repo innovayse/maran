@@ -69,8 +69,8 @@ Held from the unattended run only:
 | Group | Pattern |
 |---|---|
 | Database engines | `mariadb*`, `mysql*`, `postgresql*` |
-| Web server | `nginx*` |
-| PHP runtimes | `php*` |
+| Web servers | `nginx*`, `apache2*`, `httpd*` |
+| App store runtimes | `php*`, `nodejs*` |
 | FTP daemon | `vsftpd*` |
 
 The list lives in one place, `MARAN_OS_UPDATE_HOLD` in `installer/lib/00-common.sh`, and is rendered in

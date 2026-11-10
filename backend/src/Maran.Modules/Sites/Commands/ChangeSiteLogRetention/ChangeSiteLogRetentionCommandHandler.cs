@@ -48,19 +48,25 @@ public sealed class ChangeSiteLogRetentionCommandHandler
     /// <summary>The message bus the follow-up message is published on.</summary>
     private readonly IMessageBus _bus;
 
+    /// <summary>Refuses the operation while no site web server is installed.</summary>
+    private readonly SiteStackGate _stack;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Sites module's database context.</param>
     /// <param name="accounts">Names the owning account for the answer.</param>
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="siteNames">Names the site's backend and serving state for the request's culture.</param>
     /// <param name="bus">The message bus the follow-up message is published on.</param>
+    /// <param name="stack">Refuses the operation while no site web server is installed.</param>
     public ChangeSiteLogRetentionCommandHandler(
         SitesDbContext dbContext,
         IAccountDirectory accounts,
         SiteAuditJournal journal,
         SiteDisplayNames siteNames,
-        IMessageBus bus)
+        IMessageBus bus,
+        SiteStackGate stack)
     {
+        _stack = stack;
         _dbContext = dbContext;
         _accounts = accounts;
         _journal = journal;
@@ -76,6 +82,21 @@ public sealed class ChangeSiteLogRetentionCommandHandler
         ChangeSiteLogRetentionCommand command,
         CancellationToken cancellationToken)
     {
+        // The stack gate: sites cannot be changed while no web server is installed. Enforced here and
+        // not in the SPA, which only reflects it (docs/apps/README.md).
+        var installed = await _stack.ReadAsync(cancellationToken);
+        if (installed.NotReadyFailure() is { } notReady)
+        {
+            await _journal.RecordFailureAsync(
+                SiteAuditActions.SiteLogRetentionChanged,
+                command.SiteId.ToString(),
+                command.IpAddress,
+                command.UserAgent,
+                cancellationToken);
+
+            return Result<SiteDto>.Fail(notReady);
+        }
+
         var site = await _dbContext.Sites.SingleOrDefaultAsync(s => s.Id == command.SiteId, cancellationToken);
         if (site is null)
         {

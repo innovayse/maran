@@ -47,11 +47,13 @@ const POLYGON_WORKERS: u32 = 4;
 /// Panics when the host is outside the support matrix, which a polygon image
 /// never is.
 fn polygon_distro() -> &'static dyn DistroAdapter {
-    adapter_for(
+    let distro = adapter_for(
         detect()
             .expect("a polygon image is a supported host")
             .family,
-    )
+    );
+    PolygonPhp::ensure_installed(distro);
+    distro
 }
 
 #[test]

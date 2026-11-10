@@ -6,7 +6,6 @@ import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubShellReads } from '../fixtures/stub-shell-reads'
 import {
-  stubInstallablePhpVersions,
   stubPhpVersions,
   type PhpVersionStub,
 } from '../fixtures/stub-sites-routes'
@@ -86,9 +85,6 @@ const prepare = async (page: Page, versions: PhpVersionStub[]): Promise<void> =>
   await stubModules(page, MODULES)
   await stubDashboard(page, DASHBOARD)
   await stubPhpVersions(page, versions)
-  await stubInstallablePhpVersions(page, () => {
-    return []
-  })
 }
 
 /**

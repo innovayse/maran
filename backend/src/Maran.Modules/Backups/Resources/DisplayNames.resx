@@ -84,6 +84,15 @@
   <data name="BackupFailureAgentSaturated">
     <value>The server was already running as many of these as it allows</value>
   </data>
+  <data name="BackupFailureAgentAppNotInstalled">
+    <value>The app was not installed on the server</value>
+  </data>
+  <data name="BackupFailureAgentAppInUse">
+    <value>The app was still used by a site on the server</value>
+  </data>
+  <data name="BackupFailureAgentWebServerAlreadyInstalled">
+    <value>A web server for sites was already installed on the server</value>
+  </data>
   <data name="BackupDestinationDefault">
     <value>Local storage</value>
   </data>

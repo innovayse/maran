@@ -3,6 +3,7 @@ using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Sites.Services;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Apps;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 
@@ -26,8 +27,8 @@ public sealed class CreateSiteWorld
     /// <summary>The agent double.</summary>
     public RecordingAgentSitesClient Agent { get; }
 
-    /// <summary>The PHP runtime double.</summary>
-    public RecordingAgentPhpClient Php { get; }
+    /// <summary>The installed stack the handler reads: the web server and the runtimes installed as apps.</summary>
+    public SiteStackGate Stack { get; }
 
     /// <summary>The account directory double.</summary>
     public StubAccountDirectory Accounts { get; }
@@ -57,9 +58,10 @@ public sealed class CreateSiteWorld
     /// <summary>Assembles the world.</summary>
     /// <param name="accountId">The account the caller owns.</param>
     /// <param name="maxSites">The plan's site allowance.</param>
-    /// <param name="installedPhp">Versions the host reports as installed.</param>
+    /// <param name="installedPhp">PHP versions installed as apps.</param>
+    /// <param name="installedNode">Node majors installed as apps.</param>
+    /// <param name="webServer">The installed site web server; none leaves the stack not ready.</param>
     /// <param name="agentFailure">When set, the agent refuses every site operation.</param>
-    /// <param name="phpFailure">When set, the agent cannot list PHP versions.</param>
     /// <param name="createFailure">When set, the agent refuses only the creation.</param>
     /// <param name="deleteFailure">When set, the agent refuses only the delete.</param>
     /// <param name="asAdministrator">When true the caller is an administrator, whom no tenant filter narrows.</param>
@@ -68,8 +70,9 @@ public sealed class CreateSiteWorld
         Guid accountId,
         int maxSites = 5,
         string[]? installedPhp = null,
+        string[]? installedNode = null,
+        StackWebServer webServer = StackWebServer.Nginx,
         Error? agentFailure = null,
-        Error? phpFailure = null,
         Error? createFailure = null,
         Error? deleteFailure = null,
         bool asAdministrator = false,
@@ -83,9 +86,7 @@ public sealed class CreateSiteWorld
         Agent = agentFailure is null
             ? new RecordingAgentSitesClient { CreateFailure = createFailure, DeleteFailure = deleteFailure }
             : new RecordingAgentSitesClient(agentFailure) { CreateFailure = createFailure, DeleteFailure = deleteFailure };
-        Php = phpFailure is null
-            ? new RecordingAgentPhpClient(installedPhp ?? ["8.3"])
-            : new RecordingAgentPhpClient(phpFailure);
+        Stack = SiteStacks.With(webServer, installedPhp ?? ["8.3"], installedNode ?? ["22"]);
         Accounts = new StubAccountDirectory(new AccountSnapshot(
             accountId,
             "acme",
@@ -167,7 +168,7 @@ public sealed class CreateSiteWorld
             DbContext,
             Accounts,
             Agent,
-            Php,
+            Stack,
             claims,
             new SiteRecorder(SlotGate, new SiteVhostCompensator(claims, Agent, Logger)),
             new SiteAuditJournal(Audit, CurrentUser),

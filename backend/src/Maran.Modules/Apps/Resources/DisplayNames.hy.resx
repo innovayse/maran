@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AppsModuleDisplayName">
+    <value>Հավելվածներ</value>
+  </data>
+  <data name="AppsMenuStore">
+    <value>Հավելվածների խանութ</value>
+  </data>
+  <data name="AppsRouteStore">
+    <value>Հավելվածների խանութ</value>
+  </data>
+  <data name="AppKindWebServer">
+    <value>Վեբ սերվեր</value>
+  </data>
+  <data name="AppKindRuntime">
+    <value>Գործարկման միջավայր</value>
+  </data>
+  <data name="AppStateInstalling">
+    <value>Տեղադրվում է</value>
+  </data>
+  <data name="AppStateInstalled">
+    <value>Տեղադրված է</value>
+  </data>
+  <data name="AppStateFailed">
+    <value>Սխալ</value>
+  </data>
+  <data name="AppStateRemoving">
+    <value>Հեռացվում է</value>
+  </data>
+  <data name="AppServiceStatusUnknown">
+    <value>Անհայտ</value>
+  </data>
+  <data name="AppServiceStatusActive">
+    <value>Աշխատում է</value>
+  </data>
+  <data name="AppServiceStatusInactive">
+    <value>Կանգնած է</value>
+  </data>
+  <data name="AppServiceStatusFailed">
+    <value>Խափանում</value>
+  </data>
+  <data name="AppServiceStatusNone">
+    <value>Ծառայություն չկա</value>
+  </data>
+  <data name="AppFamilyNginx">
+    <value>nginx</value>
+  </data>
+  <data name="AppFamilyApache">
+    <value>Apache</value>
+  </data>
+  <data name="AppFamilyPhp">
+    <value>PHP {0}</value>
+  </data>
+  <data name="AppFamilyNode">
+    <value>Node.js {0}</value>
+  </data>
+</root>

@@ -3,14 +3,18 @@
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::web::domain::Domain;
 use maran_agent_core::validation::web::domain_error::DomainError;
+use maran_agent_core::validation::web::node_major::NodeMajor;
+use maran_agent_core::validation::web::node_start_command::NodeStartCommand;
 use maran_agent_core::validation::web::panel_host_names::PanelHostNames;
 use maran_agent_core::validation::web::php_version::PhpVersion;
+use maran_agent_core::validation::web::port::Port;
 use maran_agent_core::validation::web::upstream::Upstream;
 use maran_ops::sites::{CreateSiteInput, SiteCertificate, SiteKind};
 
 use crate::proto::{AgentError, SiteBackendType, SiteSpec};
 use crate::services::sites::validated_identity::validated_identity;
 use crate::services::sites::validated_options::validated_options;
+use crate::services::sites::validated_web_server::validated_web_server;
 use crate::services::wire::invalid_input::invalid_input;
 
 /// The most names one certificate may cover, the primary domain included:
@@ -52,7 +56,8 @@ pub(super) const MAXIMUM_ALIASES: usize = CERTIFICATE_NAME_LIMIT - 1;
 /// # Errors
 ///
 /// Returns the wire error when the spec is absent, when its backend is
-/// unspecified, when a PHP site names no valid version, when a proxied site
+/// unspecified, when a PHP site names no valid version, when a Node.js site names no
+/// catalogue major, port or start command, when a proxied site
 /// names no valid upstream, when it carries more than `MAXIMUM_ALIASES`
 /// aliases, when any alias is not a valid hostname, or when the domain or any
 /// alias is a reserved host name (an address literal, the loopback family, a
@@ -112,6 +117,13 @@ pub(super) fn site_from_spec(
             upstream: Upstream::parse(&spec.proxy_upstream)
                 .map_err(|error| invalid_input(error.to_string()))?,
         },
+        Ok(SiteBackendType::Node) => SiteKind::Node {
+            version: NodeMajor::parse(&spec.node_version)
+                .map_err(|error| invalid_input(error.to_string()))?,
+            port: Port::parse(spec.app_port).map_err(|error| invalid_input(error.to_string()))?,
+            start_command: NodeStartCommand::parse(&spec.start_command)
+                .map_err(|error| invalid_input(error.to_string()))?,
+        },
         // Unspecified and any value this build does not know are the same
         // answer: the agent will not guess what a site serves.
         Ok(SiteBackendType::Unspecified) | Err(_) => {
@@ -143,6 +155,7 @@ pub(super) fn site_from_spec(
         domain,
         aliases,
         kind,
+        web_server: validated_web_server(spec.web_server),
         certificate,
         options,
     })

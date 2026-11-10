@@ -18,6 +18,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Maran.Host.IntegrationTests;
 
@@ -623,6 +624,9 @@ public sealed class ReservedHostNameEndpointTests : IAsyncLifetime
 
             builder.ConfigureTestServices(services =>
             {
+                // A server whose first-run setup is finished: the Sites module refuses every site while no
+                // web server is installed (issue #517), and this test's subject is not that gate.
+                services.Replace(ServiceDescriptor.Scoped<IStackStatus, ReadyStackStatus>());
                 services.AddSingleton<IAgentSitesClient>(agent);
             });
         });

@@ -100,8 +100,11 @@ public sealed class CreateSiteCommandHandler
     /// <summary>The agent, which owns everything about the site that lives on the host.</summary>
     private readonly IAgentSitesClient _agent;
 
-    /// <summary>The host's PHP runtimes, so a site is never bound to a version that is not installed.</summary>
-    private readonly IAgentPhpClient _php;
+    /// <summary>
+    /// What the host has installed: the stack gate, the web server the vhost is rendered for, and the
+    /// runtimes a site may be bound to.
+    /// </summary>
+    private readonly SiteStackGate _stack;
 
     /// <summary>Writes the row under the atomic slot claim, removing the vhost again when it cannot.</summary>
     private readonly SiteRecorder _recorder;
@@ -132,7 +135,7 @@ public sealed class CreateSiteCommandHandler
     /// <param name="dbContext">The Sites module's database context.</param>
     /// <param name="accounts">The owning account's system user name and plan allowance.</param>
     /// <param name="agent">The agent client that provisions the site.</param>
-    /// <param name="php">The agent client listing the host's installed PHP runtimes.</param>
+    /// <param name="stack">Reads what is installed: the stack gate, the web server and the runtimes.</param>
     /// <param name="claims">Reads which committed sites already claim a hostname.</param>
     /// <param name="recorder">Writes the row under the atomic slot claim, removing the vhost again when it cannot.</param>
     /// <param name="journal">This module's audit journal.</param>
@@ -144,7 +147,7 @@ public sealed class CreateSiteCommandHandler
         SitesDbContext dbContext,
         IAccountDirectory accounts,
         IAgentSitesClient agent,
-        IAgentPhpClient php,
+        SiteStackGate stack,
         SiteHostnameClaims claims,
         SiteRecorder recorder,
         SiteAuditJournal journal,
@@ -158,7 +161,7 @@ public sealed class CreateSiteCommandHandler
         _poolSettings = poolSettings;
         _accounts = accounts;
         _agent = agent;
-        _php = php;
+        _stack = stack;
         _claims = claims;
         _recorder = recorder;
         _journal = journal;
@@ -171,7 +174,8 @@ public sealed class CreateSiteCommandHandler
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>
     /// The created site, or <c>AccountNotFound</c>, <c>SiteLimitReached</c>,
-    /// <c>SiteLimitReachedConcurrently</c>, <c>SiteDomainTaken</c>, <c>PhpVersionNotInstalled</c>, or
+    /// <c>SiteLimitReachedConcurrently</c>, <c>SiteDomainTaken</c>, <c>AppsStackNotReady</c>,
+    /// <c>AppsNotInstalled</c>, <c>SiteAppPortTaken</c>, or
     /// the agent's own typed failure.
     /// </returns>
     /// <exception cref="DbUpdateException">
@@ -181,6 +185,19 @@ public sealed class CreateSiteCommandHandler
     /// </exception>
     public async Task<Result<SiteDto>> HandleAsync(CreateSiteCommand command, CancellationToken cancellationToken)
     {
+        // The stack gate comes before anything else is read or asked: with no site web server installed
+        // there is nothing a site could be served by. Enforced here and not in the SPA, which only
+        // reflects it (docs/apps/README.md).
+        var installed = await _stack.ReadAsync(cancellationToken);
+        if (installed.NotReadyFailure() is { } notReady)
+        {
+            return await FailAsync(command, notReady, cancellationToken);
+        }
+
+        // Ready means a site web server is installed, so this is never null past the gate above; the
+        // vhost is rendered for the one web server the host has.
+        var webServer = installed.WebServer!.Value;
+
         // Tenant-scoped: the directory answers null for an account this caller does not own, so a
         // guessed account id is refused here and reads as "not found" rather than "forbidden".
         var account = await _accounts.FindAsync(command.AccountId, cancellationToken);
@@ -231,19 +248,33 @@ public sealed class CreateSiteCommandHandler
             return await FailAsync(command, Error.Of(nameof(ErrorMessages.SiteDomainTaken), ErrorType.Conflict), cancellationToken);
         }
 
-        if (command.BackendType == SiteBackendType.Php)
+        // A runtime is bound only if it is installed as an app. The apps are the host's record of what
+        // it has, so a missing one is AppsNotInstalled and the customer is told to ask for it, rather
+        // than a site being born pointing at a socket or a binary nothing provides.
+        if (command.BackendType == SiteBackendType.Php && !installed.HasPhp(command.PhpVersion))
         {
-            var installed = await IsPhpVersionInstalledAsync(command.PhpVersion, cancellationToken);
-            if (!installed.IsSuccess)
+            return await FailAsync(command, SiteHostApps.NotInstalledFailure(), cancellationToken);
+        }
+
+        if (command.BackendType == SiteBackendType.Node)
+        {
+            if (!installed.HasNode(command.NodeVersion))
             {
-                return await FailAsync(command, installed.Error!, cancellationToken);
+                return await FailAsync(command, SiteHostApps.NotInstalledFailure(), cancellationToken);
             }
 
-            if (!installed.Value)
+            // Two applications cannot listen on one loopback port, whichever accounts own them.
+            var portTaken = await _claims.IsAppPortTakenAsync(command.AppPort, cancellationToken);
+            if (portTaken)
             {
-                return await FailAsync(command, Error.Of(nameof(ErrorMessages.PhpVersionNotInstalled), ErrorType.Validation), cancellationToken);
+                return await FailAsync(command, Error.Of(nameof(ErrorMessages.SiteAppPortTaken), ErrorType.Conflict), cancellationToken);
             }
         }
+
+        // What a Node site runs, or nothing for any other backend: values a request carried for a
+        // backend that does not use them are dropped here, so the row never holds a port or a command
+        // that no unit runs.
+        var node = NodeAppOf(command);
 
         var provisioned = await _agent.CreateAsync(
             account.Username,
@@ -252,6 +283,8 @@ public sealed class CreateSiteCommandHandler
             SiteBackendKindOf(command.BackendType),
             command.PhpVersion,
             command.ProxyUpstream,
+            webServer,
+            node,
             // The plan budget travels with the creation because the agent writes the site's
             // php-fpm pool as part of creating it. It used to write only the vhost, and a PHP site
             // was therefore born pointing at a socket nothing had bound — it answered 502 until
@@ -274,10 +307,13 @@ public sealed class CreateSiteCommandHandler
             command.BackendType,
             command.PhpVersion,
             command.ProxyUpstream,
+            node.Version,
+            (int)node.Port,
+            node.StartCommand,
             provisioned.Value.DocumentRoot,
             _clock.UtcNow);
 
-        var recorded = await _recorder.RecordAsync(site, account.Username, account.MaxSites, cancellationToken);
+        var recorded = await _recorder.RecordAsync(site, account.Username, account.MaxSites, webServer, cancellationToken);
         if (!recorded.IsSuccess)
         {
             return await FailAsync(command, recorded.Error!, cancellationToken);
@@ -315,6 +351,7 @@ public sealed class CreateSiteCommandHandler
             SiteBackendType.Static => SiteBackendKind.Static,
             SiteBackendType.Php => SiteBackendKind.Php,
             SiteBackendType.ReverseProxy => SiteBackendKind.ReverseProxy,
+            SiteBackendType.Node => SiteBackendKind.Node,
             _ => throw new ArgumentOutOfRangeException(nameof(backendType), backendType, "Unmapped site backend type."),
         };
     }
@@ -364,21 +401,13 @@ public sealed class CreateSiteCommandHandler
         return Result<SiteDto>.Fail(error);
     }
 
-    /// <summary>Asks the agent whether a PHP version is installed on this host.</summary>
-    /// <param name="version">The two-component version requested.</param>
-    /// <param name="cancellationToken">Cancels the call.</param>
-    /// <returns>Whether it is installed, or the agent's own typed failure — which is NOT the same answer as "not installed".</returns>
-    private async Task<Result<bool>> IsPhpVersionInstalledAsync(string version, CancellationToken cancellationToken)
+    /// <summary>What the agent is told a Node site runs; nothing for any other backend.</summary>
+    /// <param name="command">The validated creation.</param>
+    /// <returns>The Node application, or <see cref="SiteNodeApp.None"/> for a site that has none.</returns>
+    private static SiteNodeApp NodeAppOf(CreateSiteCommand command)
     {
-        var versions = await _php.ListVersionsAsync(cancellationToken);
-        if (!versions.IsSuccess)
-        {
-            return Result<bool>.Fail(versions.Error!);
-        }
-
-        return Result<bool>.Ok(versions.Value.Any(installed =>
-        {
-            return string.Equals(installed.Version, version, StringComparison.Ordinal);
-        }));
+        return command.BackendType == SiteBackendType.Node
+            ? new SiteNodeApp(command.NodeVersion, (uint)command.AppPort, command.StartCommand)
+            : SiteNodeApp.None;
     }
 }

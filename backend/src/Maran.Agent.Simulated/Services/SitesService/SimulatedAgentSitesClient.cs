@@ -72,6 +72,8 @@ public sealed class SimulatedAgentSitesClient : IAgentSitesClient
         SiteBackendKind kind,
         string phpVersion,
         string proxyUpstream,
+        SiteWebServer webServer,
+        SiteNodeApp node,
         uint maxChildren,
         IReadOnlyList<PhpSettingDto> settingOverrides,
         CancellationToken cancellationToken)
@@ -79,9 +81,16 @@ public sealed class SimulatedAgentSitesClient : IAgentSitesClient
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(aliases);
         ArgumentNullException.ThrowIfNull(settingOverrides);
+        ArgumentNullException.ThrowIfNull(node);
 
-        var wellFormed = SimulatedSiteRequestRules.IsCreateWellFormed(
-            _ledger.Limits, accountUsername, domain, aliases, kind, phpVersion, proxyUpstream, settingOverrides);
+        // A Node site is refused without its runtime facts, as the real agent refuses it; the web server
+        // is not modelled by the simulation, which renders no vhost text.
+        var nodeComplete = kind != SiteBackendKind.Node
+            || (node.Version.Length > 0 && node.Port > 0 && node.StartCommand.Length > 0);
+        var wellFormed = Enum.IsDefined(webServer)
+            && nodeComplete
+            && SimulatedSiteRequestRules.IsCreateWellFormed(
+                _ledger.Limits, accountUsername, domain, aliases, kind, phpVersion, proxyUpstream, settingOverrides);
         if (!wellFormed)
         {
             return Task.FromResult(Result<CreatedSiteDto>.Fail(SimulatedAgentErrors.InvalidInput()));
@@ -206,6 +215,7 @@ public sealed class SimulatedAgentSitesClient : IAgentSitesClient
         string accountUsername,
         string domain,
         string retiredPhpVersion,
+        SiteWebServer webServer,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -301,7 +311,7 @@ public sealed class SimulatedAgentSitesClient : IAgentSitesClient
     }
 
     /// <inheritdoc />
-    public Task<Result> ReloadWebServerAsync(CancellationToken cancellationToken)
+    public Task<Result> ReloadWebServerAsync(SiteWebServer webServer, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 

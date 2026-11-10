@@ -84,6 +84,15 @@
   <data name="BackupFailureAgentSaturated">
     <value>Սերվերն արդեն կատարում էր թույլատրված առավելագույն թվով նման գործողություններ</value>
   </data>
+  <data name="BackupFailureAgentAppNotInstalled">
+    <value>Հավելվածը տեղադրված չէր սերվերում</value>
+  </data>
+  <data name="BackupFailureAgentAppInUse">
+    <value>Հավելվածը դեռ օգտագործվում էր սերվերի կայքի կողմից</value>
+  </data>
+  <data name="BackupFailureAgentWebServerAlreadyInstalled">
+    <value>Կայքերի վեբ սերվերն արդեն տեղադրված էր սերվերում</value>
+  </data>
   <data name="BackupDestinationDefault">
     <value>Տեղական պահոց</value>
   </data>

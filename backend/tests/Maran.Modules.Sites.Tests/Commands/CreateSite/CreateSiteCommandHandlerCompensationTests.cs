@@ -1,5 +1,7 @@
+using Maran.Agent.Client.Services.SitesService;
 using Maran.Modules.Sites.Commands.CreateSite;
 using Maran.Modules.Sites.Tests.TestSupport;
+using Maran.SharedKernel.Apps;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -49,6 +51,22 @@ public sealed class CreateSiteCommandHandlerCompensationTests
         Assert.False(result.IsSuccess);
         Assert.Equal("AgentLimitReached", result.Error!.Code);
         Assert.Equal(ErrorType.Conflict, result.Error.Type);
+    }
+
+    /// <summary>The compensating removal names the web server the vhost was written for.</summary>
+    [Fact]
+    public async Task The_compensating_removal_names_the_web_server_the_vhost_was_written_for()
+    {
+        // The wire reads an unset web server as nginx: on an Apache host a compensation that did not name it
+        // would leave the orphaned vhost serving a hostname another row owns.
+        var account = Guid.NewGuid();
+        var world = new CreateSiteWorld(account, webServer: StackWebServer.Apache);
+        world.LoseTo("winner.example", ["shop.example"]);
+
+        await world.Handler().HandleAsync(
+            CreateSiteWorld.Command(account, "zero.example", ["shop.example"]), CancellationToken.None);
+
+        Assert.Equal(SiteWebServer.Apache, Assert.Single(world.Agent.DeleteWebServers));
     }
 
     /// <summary>A creation that loses a hostname at the insert is told the domain is taken and its vhost is removed.</summary>

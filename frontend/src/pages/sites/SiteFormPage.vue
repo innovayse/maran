@@ -26,6 +26,8 @@ import UiFieldHint from '../../components/ui/UiFieldHint.vue'
 import UiForm from '../../components/ui/UiForm.vue'
 import UiInput from '../../components/ui/UiInput.vue'
 import UiCombobox from '../../components/ui/UiCombobox.vue'
+import UiDescriptionItem from '../../components/ui/UiDescriptionItem.vue'
+import UiDescriptionList from '../../components/ui/UiDescriptionList.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiTextarea from '../../components/ui/UiTextarea.vue'
 import SiteBackendFields from '../../components/sites/SiteBackendFields.vue'
@@ -51,6 +53,13 @@ const HOSTNAME_PATTERN = /^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.(?!-)[A-Za-z0-9-]{1,6
  */
 const PROXY_UPSTREAM_PATTERN = /^[A-Za-z0-9.-]{1,253}(:[0-9]{1,5})?$/
 
+/**
+ * The lowest and highest loopback port a Node.js app may listen on: below 1024 are the privileged
+ * ports, which the site's unprivileged service could not bind.
+ */
+const MIN_PORT = 1024
+const MAX_PORT = 65535
+
 /** The server's maximum length for a domain, an alias and an upstream alike. */
 const MAX_HOST_LENGTH = 253
 
@@ -74,6 +83,15 @@ const backendType: Ref<SiteBackendType> = ref('static')
 
 /** The PHP runtime to bind, when the backend is PHP. */
 const phpVersion: Ref<string> = ref('')
+
+/** The Node.js major to run under, when the backend is Node.js. */
+const nodeVersion: Ref<string> = ref('')
+
+/** The port the Node.js app listens on as typed, when the backend is Node.js. */
+const appPort: Ref<string> = ref('')
+
+/** The command that starts the Node.js app, when the backend is Node.js. */
+const startCommand: Ref<string> = ref('')
 
 /** The upstream to forward to, when the backend is a reverse proxy. */
 const proxyUpstream: Ref<string> = ref('')
@@ -172,6 +190,40 @@ const proxyUpstreamError: ComputedRef<string | null> = computed(() => {
   return null
 })
 
+/** The app port as a whole number, or `null` when what was typed is not a port. */
+const parsedAppPort: ComputedRef<number | null> = computed(() => {
+  const text = appPort.value.trim()
+  if (!/^[0-9]{1,5}$/.test(text)) {
+    return null
+  }
+  const port = Number(text)
+  return port >= MIN_PORT && port <= MAX_PORT ? port : null
+})
+
+/** Validation message for the Node.js version, or `null` when the backend does not need one. */
+const nodeVersionError: ComputedRef<string | null> = computed(() => {
+  if (!submitted.value || backendType.value !== 'node') {
+    return null
+  }
+  return nodeVersion.value.length === 0 ? t('sites.form.errors.nodeVersionRequired') : null
+})
+
+/** Validation message for the app port, or `null` when the backend does not need one. */
+const appPortError: ComputedRef<string | null> = computed(() => {
+  if (!submitted.value || backendType.value !== 'node') {
+    return null
+  }
+  return parsedAppPort.value === null ? t('sites.form.errors.appPortInvalid') : null
+})
+
+/** Validation message for the start command, or `null` when the backend does not need one. */
+const startCommandError: ComputedRef<string | null> = computed(() => {
+  if (!submitted.value || backendType.value !== 'node') {
+    return null
+  }
+  return startCommand.value.trim().length === 0 ? t('sites.form.errors.startCommandRequired') : null
+})
+
 /** Whether every field currently passes the client's own mirror of the server's rules. */
 const isValid: ComputedRef<boolean> = computed(() => {
   return (
@@ -179,6 +231,9 @@ const isValid: ComputedRef<boolean> = computed(() => {
     domainError.value === null &&
     aliasesError.value === null &&
     phpVersionError.value === null &&
+    nodeVersionError.value === null &&
+    appPortError.value === null &&
+    startCommandError.value === null &&
     proxyUpstreamError.value === null
   )
 })
@@ -210,6 +265,9 @@ const submit = async (): Promise<void> => {
     backendType: backendType.value,
     phpVersion: phpVersion.value,
     proxyUpstream: proxyUpstream.value.trim(),
+    nodeVersion: nodeVersion.value,
+    appPort: backendType.value === 'node' ? (parsedAppPort.value ?? 0) : 0,
+    startCommand: startCommand.value.trim(),
   })
 
   if (created !== null) {
@@ -284,14 +342,27 @@ onMounted(loadReferenceData)
               {{ t('sites.form.hints.aliasesCount', { count: aliases.length, max: maximumAliases }) }}
             </UiFieldHint>
           </div>
+          <div v-if="store.choices?.webServer" class="border-t border-border-subtle pt-5">
+            <UiDescriptionList>
+              <UiDescriptionItem :term="t('sites.form.fields.webServer')">{{ store.choices.webServer.label }}</UiDescriptionItem>
+            </UiDescriptionList>
+            <UiFieldHint class="mt-1.5">{{ t('sites.form.hints.webServer') }}</UiFieldHint>
+          </div>
           <div class="border-t border-border-subtle pt-5">
             <SiteBackendFields
               v-model:backend-type="backendType"
               v-model:php-version="phpVersion"
+              v-model:node-version="nodeVersion"
+              v-model:app-port="appPort"
+              v-model:start-command="startCommand"
               v-model:proxy-upstream="proxyUpstream"
               :backend-choices="store.choices?.backendTypes ?? []"
               :php-versions="phpVersionsStore.phpVersions"
+              :node-versions="store.choices?.nodeVersions ?? []"
               :php-version-error="phpVersionError"
+              :node-version-error="nodeVersionError"
+              :app-port-error="appPortError"
+              :start-command-error="startCommandError"
               :proxy-upstream-error="proxyUpstreamError"
             />
           </div>

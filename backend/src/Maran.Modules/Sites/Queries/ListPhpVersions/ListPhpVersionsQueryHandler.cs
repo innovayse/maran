@@ -21,11 +21,19 @@ public sealed class ListPhpVersionsQueryHandler
     /// <summary>Describes the agent's versions in the panel's outward shape.</summary>
     private readonly PhpVersionListing _listing;
 
+    /// <summary>Reads which PHP versions are installed as apps.</summary>
+    private readonly SiteStackGate _stack;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="php">The agent client listing the host's installed PHP runtimes.</param>
     /// <param name="listing">Describes the agent's versions in the panel's outward shape.</param>
-    public ListPhpVersionsQueryHandler(IAgentPhpClient php, PhpVersionListing listing)
+    /// <param name="stack">Reads which PHP versions are installed as apps.</param>
+    public ListPhpVersionsQueryHandler(
+        IAgentPhpClient php,
+        PhpVersionListing listing,
+        SiteStackGate stack)
     {
+        _stack = stack;
         _php = php;
         _listing = listing;
     }
@@ -38,14 +46,23 @@ public sealed class ListPhpVersionsQueryHandler
         ListPhpVersionsQuery query,
         CancellationToken cancellationToken)
     {
+        // PHP is an app like any other: with none installed there is no PHP to report on, and the answer
+        // says so rather than listing an empty or stale host. Enforced here, not in the SPA, which only
+        // hides the menu (docs/apps/README.md).
+        var installed = await _stack.ReadAsync(cancellationToken);
+        if (installed.PhpVersions.Count == 0)
+        {
+            return Result<IReadOnlyList<PhpVersionDto>>.Fail(SiteHostApps.NotInstalledFailure());
+        }
+
         var versions = await _php.ListVersionsAsync(cancellationToken);
         if (!versions.IsSuccess)
         {
             return Result<IReadOnlyList<PhpVersionDto>>.Fail(versions.Error!);
         }
 
-        var installed = await _listing.DescribeAsync(versions.Value, cancellationToken);
+        var described = await _listing.DescribeAsync(versions.Value, cancellationToken);
 
-        return Result<IReadOnlyList<PhpVersionDto>>.Ok(installed);
+        return Result<IReadOnlyList<PhpVersionDto>>.Ok(described);
     }
 }

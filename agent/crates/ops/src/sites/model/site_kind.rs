@@ -1,6 +1,9 @@
 //! What serves a site's content.
 
+use maran_agent_core::validation::web::node_major::NodeMajor;
+use maran_agent_core::validation::web::node_start_command::NodeStartCommand;
 use maran_agent_core::validation::web::php_version::PhpVersion;
+use maran_agent_core::validation::web::port::Port;
 use maran_agent_core::validation::web::upstream::Upstream;
 
 /// What serves a site's content, with the data each shape needs.
@@ -29,5 +32,19 @@ pub enum SiteKind {
     ReverseProxy {
         /// The validated `host:port`.
         upstream: Upstream,
+    },
+    /// A Node.js application run by a per-site systemd unit and reverse-proxied by the web
+    /// server to its loopback port (issue #517).
+    ///
+    /// Three fields and not a free-text unit: each is a type that cannot hold an injection
+    /// into the unit file or the vhost, and together they are everything the unit and the
+    /// proxy location are rendered from.
+    Node {
+        /// The Node.js major the site runs on, from the closed catalogue.
+        version: NodeMajor,
+        /// The loopback port the application listens on, which the vhost proxies to.
+        port: Port,
+        /// What the unit runs: `node <script>` or `npm <script>`.
+        start_command: NodeStartCommand,
     },
 }

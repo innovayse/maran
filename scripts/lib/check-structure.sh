@@ -493,6 +493,7 @@ done < <(registered_types_in_common)
 #    related platform-fact functions rather than growing a file per function. Listed here
 #    rather than inferred, same as the subject-named single-item exceptions below.
 concern_files='debian_paths|debian_packages|debian_package_candidates|debian_services|debian_php_extensions|rhel_paths|rhel_packages|rhel_package_candidates|rhel_services|rhel_php_extensions'
+concern_files="$concern_files|debian_apps|rhel_apps|suse_apps"
 concern_files="$concern_files|suse_paths|suse_packages|suse_package_candidates|suse_services|suse_account_programs|suse_mail_services|suse_dns_services|suse_php_extensions"
 while IFS= read -r file; do
   units=$(grep -cE '^pub (struct|enum|trait|fn|async fn) ' "$file")
@@ -686,6 +687,7 @@ subject_named='adapter|adapter_for|detect|distro_info|os_release|family|path|nam
 subject_named="$subject_named|directory|current_uid|unit|pool|error|server"
 subject_named="$subject_named|agent_options|options_error|peer_policy|peer_guard|render_validate_swap|rollback_guard"
 subject_named="$subject_named|debian_paths|debian_packages|debian_package_candidates|debian_services|debian_php_extensions|rhel_paths|rhel_packages|rhel_package_candidates|rhel_services|rhel_php_extensions"
+subject_named="$subject_named|debian_apps|rhel_apps|suse_apps"
 subject_named="$subject_named|suse_paths|suse_packages|suse_package_candidates|suse_services|suse_account_programs|suse_mail_services|suse_dns_services|suse_php_extensions"
 
 # 16b. Every name in that list still has a file. An exemption for a file that does not exist is
@@ -1403,29 +1405,34 @@ if [ "$(grep -rl -E '_(accessTokenIssuer|sessionService)\.IssueAsync\(' backend/
   report "scripts/lib/check-structure.sh: check 26 found no session or token minting sites at all, so it is not a statement about them (rules/testing.md)"
 fi
 
-# 27. The agent, the installer and the uninstaller spell the package-install unit the same way.
+# 27. The agent, the installer and the uninstaller spell the package-install and package-removal units the same way.
 #
-# The agent installs a PHP version by starting `maran-php-install@<package>.service`; the installer
-# ships and installs the template `maran-php-install@.service`; the uninstaller removes it. Four
-# spellings of one name, in two languages and three files, and a drift in any one is silent: a
-# renamed template leaves the agent asking systemd for a unit that does not exist, so every PHP
-# install fails on a real host while each side is green on its own (issue #93).
+# The agent installs an app by starting `maran-app-install@<package>.service` and removes one by
+# starting `maran-app-remove@<package>.service`; the installer ships and installs both templates; the
+# uninstaller removes both. Three spellings of each name, in two languages and three files, and a
+# drift in any one is silent: a renamed template leaves the agent asking systemd for a unit that does
+# not exist, so every app install fails on a real host while each side is green on its own (issues
+# #93, #517).
 #
-# The agent's side is read from the string constant in ops/src/php/run_install_unit.rs (shared by the version install and the extension switch, issue #157), so this
-# check follows a rename there instead of holding a fifth copy of the name.
+# The agent's install side is read from the string constant in ops/src/php/run_install_unit.rs
+# (INSTALL_UNIT_PREFIX), so this check follows a rename there instead of holding a fourth copy of the
+# name; the removal side is read from REMOVE_UNIT_PREFIX in the same file.
 php_unit_rust="agent/crates/ops/src/php/run_install_unit.rs"
-php_unit_prefix="$(sed -n 's/^const INSTALL_UNIT_PREFIX: &str = "\(.*\)";$/\1/p' "$php_unit_rust" 2>/dev/null | sed -n 1p)"
-if [ -z "$php_unit_prefix" ]; then
-  report "scripts/lib/check-structure.sh: check 27 could not read INSTALL_UNIT_PREFIX from ${php_unit_rust}, so it is not a statement about the package-install unit's name (rules/testing.md)"
-else
-  php_unit_template="${php_unit_prefix}.service"
-  [ -f "installer/systemd/${php_unit_template}" ] \
-    || report "installer/systemd/${php_unit_template}: missing, but the agent starts '${php_unit_prefix}<package>.service' (${php_unit_rust}) — every PHP version install would fail on a real host (issue #93)"
-  grep -q "^readonly MARAN_PHP_INSTALL_UNIT_NAME=\"${php_unit_template}\"\$" installer/lib/70-services.sh 2>/dev/null \
-    || report "installer/lib/70-services.sh: MARAN_PHP_INSTALL_UNIT_NAME is not '${php_unit_template}', the template the agent's '${php_unit_prefix}' prefix names — the installer would install a unit the agent never starts (issue #93)"
-  grep -q "rm -f /etc/systemd/system/${php_unit_template}\$" installer/uninstall.sh 2>/dev/null \
-    || report "installer/uninstall.sh: does not remove /etc/systemd/system/${php_unit_template}, which the installer drops — an uninstall would leave an unmanaged root package-install unit behind (issue #93)"
-fi
+for unit_kind in INSTALL REMOVE; do
+  unit_const="MARAN_APP_${unit_kind}_UNIT_NAME"
+  unit_prefix="$(sed -n "s/^const ${unit_kind}_UNIT_PREFIX: &str = \"\(.*\)\";\$/\1/p" "$php_unit_rust" 2>/dev/null | sed -n 1p)"
+  if [ -z "$unit_prefix" ]; then
+    report "scripts/lib/check-structure.sh: check 27 could not read ${unit_kind}_UNIT_PREFIX from ${php_unit_rust}, so it is not a statement about the app ${unit_kind,,} unit's name (rules/testing.md)"
+  else
+    unit_template="${unit_prefix}.service"
+    [ -f "installer/systemd/${unit_template}" ] \
+      || report "installer/systemd/${unit_template}: missing, but the agent starts '${unit_prefix}<package>.service' (${php_unit_rust}) — every app ${unit_kind,,} would fail on a real host (issues #93, #517)"
+    grep -q "^readonly ${unit_const}=\"${unit_template}\"\$" installer/lib/70-services.sh 2>/dev/null \
+      || report "installer/lib/70-services.sh: ${unit_const} is not '${unit_template}', the template the agent's '${unit_prefix}' prefix names — the installer would install a unit the agent never starts (issues #93, #517)"
+    grep -q "rm -f /etc/systemd/system/${unit_template}\$" installer/uninstall.sh 2>/dev/null \
+      || report "installer/uninstall.sh: does not remove /etc/systemd/system/${unit_template}, which the installer drops — an uninstall would leave an unmanaged root package unit behind (issues #93, #517)"
+  fi
+done
 
 # 28-30. The FTPS unit keeps its documented rejections off, its capability bound enumerated, and
 # its start line what the harness runs (issue #92).
@@ -1508,7 +1515,7 @@ fi
 # systemd; this check asks the same question about the two files' NAMES on every `maran structure`,
 # so a unit added without a ceiling (or a ceiling left behind by a removed unit) is named at once
 # and cannot wait for a scorer that may DID NOT RUN. A template unit is keyed by its template name
-# (`maran-php-install@.service`), which is the file's own name. Text, not score: this reads names.
+# (`maran-app-install@.service`), which is the file's own name. Text, not score: this reads names.
 units_dir="installer/systemd"
 units_ceilings="${units_dir}/unit-security-ceilings.txt"
 # Prints each non-comment, non-blank ceilings line's first (tab-separated) field.

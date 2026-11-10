@@ -15,6 +15,7 @@ use maran_agent_core::validation::web::php_version::PhpVersion;
 
 use super::RhelAdapter;
 use crate::AdapterBinary;
+use crate::AppFacts;
 use crate::{
     AccountPrograms, BackupFacts, DatabaseFacts, DnsFacts, FileTransferFacts, FirewallFacts,
     MailFacts, PackageFacts, PhpFacts, SchedulingFacts, ServiceManagerFacts, WebServerFacts,
@@ -248,8 +249,9 @@ fn the_rhel_family_names_the_three_ssh_programs_apart() {
 /// The adapter traits' own sources (every concern trait `DistroAdapter` composes),
 /// read as text so the table below is checked against the traits and not against a
 /// number somebody has to remember to bump.
-const TRAIT_SOURCES: [&str; 12] = [
+const TRAIT_SOURCES: [&str; 13] = [
     include_str!("../../account_programs.rs"),
+    include_str!("../../app_facts.rs"),
     include_str!("../../backup_facts.rs"),
     include_str!("../../database_facts.rs"),
     include_str!("../../dns_facts.rs"),
@@ -290,6 +292,8 @@ fn every_executable() -> Vec<(&'static str, AdapterBinary)> {
     let version = PhpVersion::parse("8.3").unwrap();
     vec![
         ("nginx", RhelAdapter.nginx_binary()),
+        ("apache", RhelAdapter.apache_binary()),
+        ("node", RhelAdapter.node_binary()),
         ("service_manager", RhelAdapter.service_manager()),
         ("journal", RhelAdapter.journal_binary()),
         ("systemd_run", RhelAdapter.systemd_run_binary()),
@@ -595,4 +599,80 @@ fn the_rhel_family_keeps_signed_zones_and_keys_in_their_own_directories() {
 #[test]
 fn the_rhel_family_names_rsync_at_its_documented_path() {
     assert_eq!(RhelAdapter.rsync_binary(), "/usr/bin/rsync");
+}
+
+/// The Rhel family names Apache's control script, unit, user and group as its packages ship them.
+#[test]
+fn the_rhel_family_names_the_apache_facts_of_its_packages() {
+    assert_eq!(RhelAdapter.apache_binary(), "/usr/sbin/apachectl");
+    assert_eq!(RhelAdapter.apache_service(), "httpd");
+    assert_eq!(RhelAdapter.apache_user(), "apache");
+    assert_eq!(RhelAdapter.apache_group(), "apache");
+}
+
+/// Apache's identity is its own answer and not nginx's: the inverse control for the test above,
+/// which an adapter that returned the nginx user for both would fail on every family but Debian.
+#[test]
+fn the_rhel_family_does_not_answer_the_nginx_facts_for_apache() {
+    assert_ne!(RhelAdapter.apache_service(), RhelAdapter.nginx_service());
+    assert_eq!(
+        RhelAdapter.apache_user() == RhelAdapter.web_server_user(),
+        "rhel" == "debian"
+    );
+}
+
+/// A site's unit runs Node.js and npm from absolute paths the adapter names.
+#[test]
+fn the_rhel_family_names_the_node_launchers_by_absolute_path() {
+    assert!(RhelAdapter.node_executable().starts_with('/'));
+    assert!(RhelAdapter.npm_executable().starts_with('/'));
+    assert_ne!(RhelAdapter.node_executable(), RhelAdapter.npm_executable());
+}
+
+/// The facts asked with a web server answer that server's own, never the other's: the nginx user
+/// and the Apache user are different accounts on this family, and so are the units.
+#[test]
+fn the_rhel_family_answers_each_site_web_server_with_its_own_facts() {
+    use crate::SiteWebServer;
+    assert_eq!(
+        RhelAdapter.site_web_server_service(SiteWebServer::Nginx),
+        "nginx"
+    );
+    assert_eq!(
+        RhelAdapter.site_web_server_service(SiteWebServer::Apache),
+        "httpd"
+    );
+    assert_eq!(
+        RhelAdapter.site_web_server_user(SiteWebServer::Nginx),
+        "nginx"
+    );
+    assert_eq!(
+        RhelAdapter.site_web_server_user(SiteWebServer::Apache),
+        "apache"
+    );
+    assert_eq!(
+        RhelAdapter.site_web_server_group(SiteWebServer::Apache),
+        "apache"
+    );
+    assert_eq!(
+        RhelAdapter.site_web_server_binary(SiteWebServer::Apache),
+        "/usr/sbin/apachectl"
+    );
+}
+
+/// The rhel family names the packages of the app catalogue as its sources carry them.
+#[test]
+fn the_rhel_family_names_the_packages_of_the_app_catalogue() {
+    assert_eq!(RhelAdapter.nginx_package(), "nginx");
+    assert_eq!(RhelAdapter.apache_package(), "httpd");
+    assert_eq!(RhelAdapter.apache_extra_packages(), &["mod_ssl"][..]);
+    assert_eq!(
+        RhelAdapter.apache_include_snippet_path(),
+        "/etc/httpd/conf.d/maran.conf"
+    );
+    assert_eq!(RhelAdapter.nodejs_package("20"), "nodejs20");
+    assert_eq!(
+        RhelAdapter.nodejs_packaging(),
+        crate::nodejs_packaging::NodejsPackaging::PerMajorPackages
+    );
 }

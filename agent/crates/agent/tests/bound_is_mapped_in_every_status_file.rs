@@ -24,11 +24,19 @@ const BOUND_VARIANT_LINE: &str = "Bound(#[from] BoundExceeded),";
 /// Area errors that carry a `Bound` and are deliberately mapped by no status
 /// file, each with the reason. The census fails when one of these stops being
 /// a bound-carrying error, so an entry cannot outlive its reason.
-const UNMAPPED_BY_DESIGN: [(&str, &str); 1] = [(
-    "SafeWriteError",
-    "the config-write protocol is not an rpc area: every area that calls it wraps its bound in \
+const UNMAPPED_BY_DESIGN: [(&str, &str); 2] = [
+    (
+        "SafeWriteError",
+        "the config-write protocol is not an rpc area: every area that calls it wraps its bound in \
      its own variant (SitesOpError, PhpOpError, SslOpError, SftpError, ...), and those are mapped",
-)];
+    ),
+    (
+        "PackageError",
+        "the package units' failure is not an rpc area either: the PHP area folds it into \
+     PhpOpError (From<PackageError>, whose Bound arm is mapped) and the app store carries it in \
+     AppsOpError::Package, which app_status hands to that same mapping",
+    ),
+];
 
 /// Every `*.rs` file below `root`, recursively.
 fn rust_files_below(root: &Path) -> Vec<PathBuf> {

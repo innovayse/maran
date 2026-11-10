@@ -1,15 +1,13 @@
 //! ListInstallablePhpVersions: which versions the operator may install here.
 
-use maran_agent_core::command_outcome::CommandOutcome;
-use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::web::php_version::PhpVersion;
-use maran_distro::{AdapterBinary, DistroAdapter};
+use maran_distro::DistroAdapter;
 
+use crate::packages::query_offered_packages;
 use crate::php::list_php_versions::is_installed;
 use crate::php::model::installable_php_version::InstallablePhpVersion;
 use crate::php::supported_versions::SUPPORTED_VERSIONS;
 use crate::php::{PhpHost, PhpOpError};
-use crate::safe_write::SafeWriteError;
 
 /// Lists the PHP versions that can be installed on this host, newest first,
 /// each saying whether it already is.
@@ -72,7 +70,7 @@ pub fn list_installable_php_versions(
         .map(|(_, _, package)| package.clone())
         .collect();
 
-    let offered = offered_packages(host, distro, &packages)?;
+    let offered = query_offered_packages(host, distro, &packages)?.names;
 
     Ok(candidates
         .into_iter()
@@ -84,57 +82,6 @@ pub fn list_installable_php_versions(
             })
         })
         .collect())
-}
-
-/// Asks the host which of `packages` its package manager offers.
-///
-/// # Errors
-///
-/// As [`list_installable_php_versions`].
-fn offered_packages(
-    host: &dyn PhpHost,
-    distro: &dyn DistroAdapter,
-    packages: &[String],
-) -> Result<Vec<String>, PhpOpError> {
-    if let Some(probe) = distro.catalogue_probe() {
-        let outcome = run_query(host, &distro.package_query_binary(), probe.arguments)?;
-        (probe.read)(outcome.status, &outcome.stdout).map_err(|reason| {
-            PhpOpError::PackageCatalogueUnavailable {
-                reason: reason.to_string(),
-            }
-        })?;
-    }
-
-    let arguments = distro.package_candidate_arguments(packages);
-    let arguments: Vec<&str> = arguments.iter().map(String::as_str).collect();
-    let outcome = run_query(host, &distro.package_candidate_binary(), &arguments)?;
-
-    distro
-        .read_package_candidates(outcome.status, &outcome.stdout, &outcome.stderr, packages)
-        .map_err(|reason| PhpOpError::PackageCatalogueUnavailable {
-            reason: reason.to_string(),
-        })
-}
-
-/// Runs `program` with `arguments` in the `Query` class.
-///
-/// # Errors
-///
-/// Returns [`PhpOpError::Bound`] for a run killed at its deadline, unchanged: a
-/// killed run has said nothing about the host. Any other failure to run is
-/// [`PhpOpError::PackageCatalogueUnavailable`].
-fn run_query(
-    host: &dyn PhpHost,
-    program: &AdapterBinary,
-    arguments: &[&str],
-) -> Result<CommandOutcome, PhpOpError> {
-    host.run(program, arguments, CallClass::Query)
-        .map_err(|error| match error {
-            SafeWriteError::Bound(bound) => PhpOpError::Bound(bound),
-            other => PhpOpError::PackageCatalogueUnavailable {
-                reason: other.to_string(),
-            },
-        })
 }
 
 #[cfg(test)]

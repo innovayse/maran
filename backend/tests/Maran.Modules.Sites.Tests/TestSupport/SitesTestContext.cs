@@ -68,6 +68,9 @@ public static class SitesTestContext
             SiteBackendType.Php,
             phpVersion,
             string.Empty,
+            string.Empty,
+            0,
+            string.Empty,
             $"/home/acct/sites/{domain}",
             new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
     }

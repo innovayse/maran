@@ -15,6 +15,14 @@ namespace Maran.Agent.Client.Services.SitesService;
 /// <param name="Backend">Which backend serves the site's content.</param>
 /// <param name="PhpVersion">The bound PHP version; required when <paramref name="Backend"/> is PHP.</param>
 /// <param name="ProxyUpstream">The upstream to forward to; required when the backend is a reverse proxy.</param>
+/// <param name="Node">
+/// What a Node backend runs; <see cref="SiteNodeApp.None"/> for any other backend. Required for the
+/// reason <paramref name="Options"/> is: a re-render without it would drop a Node site's unit.
+/// </param>
+/// <param name="WebServer">
+/// The web server whose vhost is rendered. Required for the reason <paramref name="Options"/> is: the wire reads
+/// an absent one as nginx, so a re-render without it would write an nginx vhost for a site Apache serves.
+/// </param>
 /// <param name="HasCertificate">
 /// Whether a TLS certificate is currently installed, so the re-rendered vhost keeps its TLS block.
 /// The panel knows this and the renderer must not guess: a guess drops a live site back to plain
@@ -30,6 +38,8 @@ public sealed record SiteDescriptor(
     SiteBackendKind Backend,
     string PhpVersion,
     string ProxyUpstream,
+    SiteNodeApp Node,
+    SiteWebServer WebServer,
     bool HasCertificate,
     SiteOptionsDescriptor Options)
 {
@@ -42,6 +52,10 @@ public sealed record SiteDescriptor(
             BackendType = ToWireBackend(Backend),
             PhpVersion = PhpVersion,
             ProxyUpstream = ProxyUpstream,
+            NodeVersion = Node.Version,
+            AppPort = Node.Port,
+            StartCommand = Node.StartCommand,
+            WebServer = ToWireWebServer(WebServer),
             HasCertificate = HasCertificate,
             Options = Options.ToWire(),
         };
@@ -65,7 +79,24 @@ public sealed record SiteDescriptor(
             SiteBackendKind.Static => SiteBackendType.Static,
             SiteBackendKind.Php => SiteBackendType.Php,
             SiteBackendKind.ReverseProxy => SiteBackendType.ReverseProxy,
+            SiteBackendKind.Node => SiteBackendType.Node,
             _ => throw new ArgumentOutOfRangeException(nameof(backend), backend, "Unknown site backend kind."),
+        };
+    }
+
+    /// <summary>Maps the panel's web server onto its wire counterpart.</summary>
+    /// <param name="webServer">The panel-side web server.</param>
+    /// <returns>The wire value.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown for a web server this mapping does not know, for the reason <see cref="ToWireBackend"/> gives.
+    /// </exception>
+    internal static Maran.Agent.V1.SiteWebServer ToWireWebServer(SiteWebServer webServer)
+    {
+        return webServer switch
+        {
+            SiteWebServer.Nginx => Maran.Agent.V1.SiteWebServer.Nginx,
+            SiteWebServer.Apache => Maran.Agent.V1.SiteWebServer.Apache,
+            _ => throw new ArgumentOutOfRangeException(nameof(webServer), webServer, "Unknown site web server."),
         };
     }
 }

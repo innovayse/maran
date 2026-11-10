@@ -71,7 +71,7 @@ pub(crate) fn converge_php_site(
         overrides,
         ..
     } = *switch;
-    let paths = resolved_site_paths(host, &input.account, &input.domain)?;
+    let paths = resolved_site_paths(host, &input.account, &input.domain, input.web_server)?;
 
     let Some(current) = host.read_config(&paths.config_path)? else {
         return Err(SitesOpError::NotFound {
@@ -104,7 +104,13 @@ pub(crate) fn converge_php_site(
     // and the options that changed are what this call is often made for.
     sync_site_auth_file(host, distro, input)?;
     if current != wanted_vhost {
-        write_vhost(host, distro, &paths.config_path, &wanted_vhost)?;
+        write_vhost(
+            host,
+            distro,
+            input.web_server,
+            &paths.config_path,
+            &wanted_vhost,
+        )?;
     }
 
     Ok(())

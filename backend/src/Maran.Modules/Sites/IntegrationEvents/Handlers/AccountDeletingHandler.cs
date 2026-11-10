@@ -2,6 +2,7 @@ using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Persistence;
+using Maran.Modules.Sites.Services;
 using Maran.Sdk.Events;
 
 namespace Maran.Modules.Sites.IntegrationEvents.Handlers;
@@ -53,13 +54,18 @@ public sealed class AccountDeletingHandler
     /// <summary>The agent, which owns the vhost include directory.</summary>
     private readonly IAgentSitesClient _agent;
 
+    /// <summary>Names the installed site web server, which every vhost this handler touches belongs to.</summary>
+    private readonly SiteStackGate _stack;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Sites module's database context.</param>
     /// <param name="agent">The agent client that removes each vhost.</param>
-    public AccountDeletingHandler(SitesDbContext dbContext, IAgentSitesClient agent)
+    /// <param name="stack">Names the installed site web server the vhosts belong to.</param>
+    public AccountDeletingHandler(SitesDbContext dbContext, IAgentSitesClient agent, SiteStackGate stack)
     {
         _dbContext = dbContext;
         _agent = agent;
+        _stack = stack;
     }
 
     /// <summary>Removes every site the account owns, from the host first and then from the panel.</summary>
@@ -113,11 +119,12 @@ public sealed class AccountDeletingHandler
         // it. Retiring it on the first would ask the agent to remove a pool two of the account's own
         // sites still name — and the removal protocol validates AFTER unlinking, so php-fpm would
         // refuse and the pool would be put back, failing a deletion that had nothing wrong with it.
+        var webServer = await _stack.RequireWebServerAsync(cancellationToken);
         var retired = new HashSet<string>(StringComparer.Ordinal);
         foreach (var site in owned)
         {
             var removed = await _agent.DeleteAsync(
-                message.Username, site.Domain, RetiredVersion(site, owned, retired), cancellationToken);
+                message.Username, site.Domain, RetiredVersion(site, owned, retired), webServer, cancellationToken);
             if (!removed.IsSuccess)
             {
                 throw new InvalidOperationException(

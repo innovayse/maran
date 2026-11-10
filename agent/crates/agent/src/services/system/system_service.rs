@@ -91,8 +91,13 @@ use crate::proto::{
 /// the transfer half of server migration to `transfer.proto`: `PullAccountFiles`,
 /// the rsync copy of an account's home from a registered source, and
 /// `StreamRemoteDatabase`, a remote database dumped and loaded through the
-/// restricted loader (issue #197, phase 2).
-const PROTO_VERSION: u32 = 26;
+/// restricted loader (issue #197, phase 2). 27 adds `apps.proto`, the app store
+/// of the host (`AppsService`: list, install, uninstall and control the web
+/// servers and runtimes sites run on), the site web server choice and the Node.js
+/// backend in `sites.proto`, and `ERROR_CODE_APP_NOT_INSTALLED`,
+/// `ERROR_CODE_APP_IN_USE` and `ERROR_CODE_WEB_SERVER_ALREADY_INSTALLED`
+/// (issue #517).
+const PROTO_VERSION: u32 = 27;
 
 /// Answers "what agent is this, and what host is it on?".
 pub struct SystemServiceImpl {

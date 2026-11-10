@@ -17,7 +17,6 @@
 //! line-oriented exactly as an nginx vhost is.
 
 mod apply_php_pool_settings;
-mod classify_install_failure;
 #[cfg(test)]
 #[path = "../tests/php/fake_php_host.rs"]
 pub(crate) mod fake_php_host;
@@ -34,9 +33,9 @@ mod reload_pool_trees;
 mod remove_account_pools;
 mod remove_pool;
 pub(crate) mod render_pool;
-mod run_install_unit;
+pub(crate) mod run_install_unit;
 mod set_php_extension;
-mod supported_versions;
+pub(crate) mod supported_versions;
 pub(crate) mod write_opcache_drop_in;
 pub(crate) mod write_pool;
 

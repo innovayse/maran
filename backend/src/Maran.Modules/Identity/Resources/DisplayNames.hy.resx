@@ -991,4 +991,19 @@
   <data name="AuditActionMigrationBackupTaken">
     <value>Տեղափոխման համար պահուստային պատճեն ստեղծվեց</value>
   </data>
+  <data name="AuditActionAppInstallRequested">
+    <value>Ադմինիստրատորը պահանջեց հավելվածի տեղադրում</value>
+  </data>
+  <data name="AuditActionAppUninstallRequested">
+    <value>Ադմինիստրատորը պահանջեց հավելվածի հեռացում</value>
+  </data>
+  <data name="AuditActionAppInstalled">
+    <value>Հավելվածի տեղադրումն ավարտվեց</value>
+  </data>
+  <data name="AuditActionAppUninstalled">
+    <value>Հավելվածի հեռացումն ավարտվեց</value>
+  </data>
+  <data name="AuditActionAppServiceControlled">
+    <value>Ադմինիստրատորը կառավարեց հավելվածի ծառայությունը</value>
+  </data>
 </root>

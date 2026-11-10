@@ -1,4 +1,5 @@
 using Maran.Host.BackgroundServices;
+using Maran.Modules.Apps.Services;
 using Maran.Modules.Backups.Services;
 using Maran.Modules.Dns.Services;
 using Maran.Modules.Firewall.Services;
@@ -34,6 +35,12 @@ public static class BackgroundWorkExtensions
         // ends silently at the next restart. The Firewall module owns the pass — it reads its own
         // rows and talks to its own agent client — and this owns the fact that it runs at startup.
         services.AddHostedService<StartupBanReconciler>();
+
+        // A one-off, the same shape: the stack gate reads the ledger of installed apps, so a server whose web
+        // server was installed by hand or by an older panel would refuse every site until the ledger is
+        // settled against the host. The Apps module owns the PASS - it asks its own agent client what the
+        // host has - and this owns the fact that it runs at startup.
+        services.AddHostedService<StartupAppReconciler>();
 
         // Also a one-off, and for the mirror-image reason: a task is opened by one process and
         // closed by the same one, so a process that stops in between leaves its row Running for

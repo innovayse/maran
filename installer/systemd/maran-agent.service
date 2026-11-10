@@ -167,9 +167,10 @@ NoNewPrivileges=true
 # compromised agent cannot overwrite the system's binaries or libraries, cannot replace
 # its own /usr/local/maran/agent binary, and cannot install a boot-time payload
 # directly — the persistence routes that survive a reinstall of the panel. The one
-# deliberate exception is PHP: the agent can ask PID 1 to start
-# maran-php-install@<package>.service, a package install, run as root under the sandbox of its own unit,
-# that is not a validator, so the closed set of six versions is enforced by the agent
+# deliberate exception is the app store (issue #517): the agent can ask PID 1 to start
+# maran-app-install@<package>.service or maran-app-remove@<package>.service, a package install or
+# removal, run as root under the sandbox of its own unit,
+# that is not a validator, so the closed app catalogue is enforced by the agent
 # alone, and a compromised agent could name another package there (--no-remove only
 # refuses removals; the `--` before the instance keeps it from being read as an option). Configuration-level
 # protection for /etc is not attempted by the sandbox; it is enforced upstream instead,
@@ -260,7 +261,7 @@ RuntimeDirectoryMode=0750
 #                    (root:root 0700, one subdirectory per account); RestoreBackup and
 #                    DeleteBackup read/unlink them. `local_object_store_host.rs` creates
 #                    this tree itself on first use, so the installer does not have to.
-#   /run/maran-php   AgentPaths::PHP_FPM_SOCKET_DIRECTORY, the PHP-FPM pool sockets. Built
+#   /run/maran-php   AgentPaths::PHP_FPM_SOCKET_DIRECTORY, the PHP-FPM pool sockets of a PHP app, once one is installed. Built
 #                    root:root 0755 by maran-php.tmpfiles.conf and deliberately NOT a
 #                    RuntimeDirectory=: that would delete the sockets php-fpm is listening on
 #                    whenever this unit stops, and it is a sibling of /run/maran because the
@@ -280,7 +281,7 @@ RuntimeDirectoryMode=0750
 # oversight: /var/lib/mysql (db.* rpcs go through the MySQL client protocol, the agent
 # never touches the datadir), /var/www (document roots live under /home), anything
 # under /usr (the agent does not run the package manager: it asks PID 1 to start
-# maran-php-install@<package>.service, whose process runs outside this sandbox), and the two
+# maran-app-install@<package>.service or maran-app-remove@<package>.service, whose process runs outside this sandbox), and the two
 # below, each of which is a path this unit ONCE listed:
 #
 #   /var/lib/maran   the PANEL's state root, not the agent's, and it sat in the writable

@@ -93,6 +93,57 @@ pub fn web_server_group() -> &'static str {
     "nginx"
 }
 
+/// Absolute path of the Apache control script, whose `-t` checks the configuration.
+///
+/// SUSE's `apache2` package ships `apache2ctl`, runs as `wwwrun` in group `www` and registers the unit as `apache2`.
+/// UNVERIFIED: read from the distribution documentation, confirm with `rpm -ql apache2 | grep ctl`, `getent passwd wwwrun` and `systemctl cat apache2` after installing the package.
+#[must_use]
+pub fn apache_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/sbin/apache2ctl")
+}
+
+/// Name of the Apache systemd service unit.
+///
+/// SUSE's `apache2` package ships `apache2ctl`, runs as `wwwrun` in group `www` and registers the unit as `apache2`.
+#[must_use]
+pub fn apache_service() -> &'static str {
+    "apache2"
+}
+
+/// The user the Apache workers run as.
+///
+/// SUSE's `apache2` package ships `apache2ctl`, runs as `wwwrun` in group `www` and registers the unit as `apache2`.
+#[must_use]
+pub fn apache_user() -> &'static str {
+    "wwwrun"
+}
+
+/// The group the Apache workers run in, and the one an account's home is group-owned by
+/// when Apache is the site web server.
+///
+/// SUSE's `apache2` package ships `apache2ctl`, runs as `wwwrun` in group `www` and registers the unit as `apache2`.
+#[must_use]
+pub fn apache_group() -> &'static str {
+    "www"
+}
+
+/// Absolute path of the Node.js interpreter a site's unit runs.
+///
+/// Text and not an `AdapterBinary`: the agent never executes it, the service manager does,
+/// from a unit the agent renders (the same split as `sh_binary`).
+#[must_use]
+pub fn node_executable() -> &'static str {
+    "/usr/bin/node"
+}
+
+/// Absolute path of the npm launcher a site's unit may run.
+///
+/// Text for the same reason as [`node_executable`].
+#[must_use]
+pub fn npm_executable() -> &'static str {
+    "/usr/bin/npm"
+}
+
 /// Name of the php-fpm systemd service unit.
 ///
 /// The `php8-fpm` package registers one `php-fpm` unit for the single PHP minor the family

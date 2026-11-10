@@ -41,6 +41,28 @@ public sealed class AgentErrorTranslatorTests
     }
 
     /// <summary>
+    /// The three app-store refusals (issue #517) have an arm of their own: an app that is not there is a
+    /// not-found, an app a site uses and a second web server are conflicts, and none rides on the
+    /// unspecified arm.
+    /// </summary>
+    /// <param name="code">The wire code.</param>
+    /// <param name="expectedCode">The panel's code.</param>
+    /// <param name="expectedType">The panel's kind.</param>
+    [Theory]
+    [InlineData(ErrorCode.AppNotInstalled, "AgentAppNotInstalled", ErrorType.NotFound)]
+    [InlineData(ErrorCode.AppInUse, "AgentAppInUse", ErrorType.Conflict)]
+    [InlineData(ErrorCode.WebServerAlreadyInstalled, "AgentWebServerAlreadyInstalled", ErrorType.Conflict)]
+    public void The_app_store_refusals_have_their_own_code_and_kind(
+        ErrorCode code,
+        string expectedCode,
+        ErrorType expectedType)
+    {
+        Assert.Equal(expectedType, AgentErrorTranslator.ToErrorType(code));
+        Assert.Equal(expectedCode, AgentErrorTranslator.ToErrorCode(code));
+        Assert.NotEqual(AgentErrorTranslator.ToErrorCode(ErrorCode.Unspecified), AgentErrorTranslator.ToErrorCode(code));
+    }
+
+    /// <summary>
     /// A sealed backup archive that does not open under the destination's key is a validation failure
     /// with its own code, not the shared "correct these details" one (issue #445).
     /// </summary>

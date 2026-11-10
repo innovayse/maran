@@ -32,12 +32,21 @@ public sealed class ListPhpExtensionsQueryHandler
     /// <summary>Resolves the localized extension labels.</summary>
     private readonly SiteDisplayNames _displayNames;
 
+    /// <summary>Reads which PHP versions are installed as apps.</summary>
+    private readonly SiteStackGate _stack;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="php">The agent client listing a version's extensions.</param>
     /// <param name="currentUser">The caller, to decide whether the availability is theirs to see.</param>
     /// <param name="displayNames">Resolves the localized extension labels.</param>
-    public ListPhpExtensionsQueryHandler(IAgentPhpClient php, ICurrentUser currentUser, SiteDisplayNames displayNames)
+    /// <param name="stack">Reads which PHP versions are installed as apps.</param>
+    public ListPhpExtensionsQueryHandler(
+        IAgentPhpClient php,
+        ICurrentUser currentUser,
+        SiteDisplayNames displayNames,
+        SiteStackGate stack)
     {
+        _stack = stack;
         _php = php;
         _currentUser = currentUser;
         _displayNames = displayNames;
@@ -52,6 +61,15 @@ public sealed class ListPhpExtensionsQueryHandler
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(query);
+
+        // PHP is an app like any other: with none installed there is no PHP to report on, and the answer
+        // says so rather than listing an empty or stale host. Enforced here, not in the SPA, which only
+        // hides the menu (docs/apps/README.md).
+        var installed = await _stack.ReadAsync(cancellationToken);
+        if (!installed.HasPhp(query.Version))
+        {
+            return Result<IReadOnlyList<PhpExtensionDto>>.Fail(SiteHostApps.NotInstalledFailure());
+        }
 
         var extensions = await _php.ListExtensionsAsync(query.Version, cancellationToken);
         if (!extensions.IsSuccess)

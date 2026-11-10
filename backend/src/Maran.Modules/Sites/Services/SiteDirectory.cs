@@ -90,6 +90,7 @@ public sealed class SiteDirectory : ISiteDirectory
             ToSdkBackend(site.BackendType),
             site.PhpVersion,
             site.ProxyUpstream,
+            new SiteNodeSnapshot(site.NodeVersion, site.AppPort, site.StartCommand),
             site.HasCertificate,
             SiteOptionsSnapshotMapper.From(site.Options));
     }
@@ -110,6 +111,7 @@ public sealed class SiteDirectory : ISiteDirectory
             SiteBackendType.Static => SiteBackend.Static,
             SiteBackendType.Php => SiteBackend.Php,
             SiteBackendType.ReverseProxy => SiteBackend.ReverseProxy,
+            SiteBackendType.Node => SiteBackend.Node,
             _ => throw new ArgumentOutOfRangeException(nameof(backendType), backendType, "Unmapped site backend type."),
         };
     }

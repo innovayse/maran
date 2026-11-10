@@ -290,6 +290,7 @@ public sealed class DemoWorldHostingSeed : ISimulatedAgentSeed
         {
             SiteBackendType.Php => SiteBackendKind.Php,
             SiteBackendType.ReverseProxy => SiteBackendKind.ReverseProxy,
+            SiteBackendType.Node => SiteBackendKind.Node,
             _ => SiteBackendKind.Static,
         };
     }

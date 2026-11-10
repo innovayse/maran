@@ -31,6 +31,13 @@ impl PanelHostNames {
         Self(Vec::new())
     }
 
+    /// The name the panel is served under: the first of the recorded list, which the installer
+    /// writes primary name first. `None` when no name is recorded.
+    #[must_use]
+    pub fn primary(&self) -> Option<&Domain> {
+        self.0.first()
+    }
+
     /// Parses the comma-separated list the installer writes. An empty list is
     /// [`PanelHostNames::none`].
     ///

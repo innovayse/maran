@@ -16,4 +16,7 @@ public enum SiteBackendKind
 
     /// <summary>Reverse-proxied to an upstream the caller names explicitly.</summary>
     ReverseProxy = 3,
+
+    /// <summary>A Node application run under a per-site unit and proxied to on a loopback port.</summary>
+    Node = 4,
 }

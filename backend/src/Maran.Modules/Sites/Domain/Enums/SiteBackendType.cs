@@ -17,4 +17,7 @@ public enum SiteBackendType
 
     /// <summary>Reverse-proxied to an upstream the customer names explicitly.</summary>
     ReverseProxy = 3,
+
+    /// <summary>A Node application on an installed Node major, run under a per-site unit and proxied to on a loopback port.</summary>
+    Node = 4,
 }

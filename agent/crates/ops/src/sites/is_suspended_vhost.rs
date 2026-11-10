@@ -54,7 +54,8 @@ pub(crate) fn is_suspended_vhost(
         .map(|alias| alias.as_str().to_owned())
         .collect();
 
-    let suspended = render_suspended_vhost(input.domain.as_str(), &aliases, paths)?;
+    let suspended =
+        render_suspended_vhost(input.domain.as_str(), &aliases, paths, input.web_server)?;
 
     if contents == suspended {
         return Ok(true);
@@ -62,7 +63,8 @@ pub(crate) fn is_suspended_vhost(
 
     // A stub an earlier agent wrote lacks the challenge location's symlink
     // rule and is still a suspension.
-    let legacy = render_legacy_suspended_vhost(input.domain.as_str(), &aliases, paths)?;
+    let legacy =
+        render_legacy_suspended_vhost(input.domain.as_str(), &aliases, paths, input.web_server)?;
 
     Ok(contents == legacy)
 }

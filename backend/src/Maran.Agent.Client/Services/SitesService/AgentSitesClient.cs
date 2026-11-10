@@ -61,6 +61,8 @@ public sealed class AgentSitesClient : IAgentSitesClient
         SiteBackendKind kind,
         string phpVersion,
         string proxyUpstream,
+        SiteWebServer webServer,
+        SiteNodeApp node,
         uint maxChildren,
         IReadOnlyList<PhpSettingDto> settingOverrides,
         CancellationToken cancellationToken)
@@ -72,6 +74,10 @@ public sealed class AgentSitesClient : IAgentSitesClient
             BackendType = SiteDescriptor.ToWireBackend(kind),
             PhpVersion = phpVersion,
             ProxyUpstream = proxyUpstream,
+            WebServer = SiteDescriptor.ToWireWebServer(webServer),
+            NodeVersion = node.Version,
+            AppPort = node.Port,
+            StartCommand = node.StartCommand,
             MaxChildren = maxChildren,
         };
         request.Aliases.AddRange(aliases);
@@ -181,6 +187,7 @@ public sealed class AgentSitesClient : IAgentSitesClient
         string accountUsername,
         string domain,
         string retiredPhpVersion,
+        SiteWebServer webServer,
         CancellationToken cancellationToken)
     {
         var request = new DeleteSiteRequest
@@ -188,6 +195,7 @@ public sealed class AgentSitesClient : IAgentSitesClient
             AccountUsername = accountUsername,
             Domain = domain,
             RetiredPhpVersion = retiredPhpVersion,
+            WebServer = SiteDescriptor.ToWireWebServer(webServer),
         };
         var response = await _invoker.DeleteSiteAsync(request, cancellationToken);
 
@@ -251,9 +259,10 @@ public sealed class AgentSitesClient : IAgentSitesClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result> ReloadWebServerAsync(CancellationToken cancellationToken)
+    public async Task<Result> ReloadWebServerAsync(SiteWebServer webServer, CancellationToken cancellationToken)
     {
-        var response = await _invoker.ReloadWebServerAsync(new ReloadWebServerRequest(), cancellationToken);
+        var request = new ReloadWebServerRequest { WebServer = SiteDescriptor.ToWireWebServer(webServer) };
+        var response = await _invoker.ReloadWebServerAsync(request, cancellationToken);
 
         return response.ResultCase switch
         {

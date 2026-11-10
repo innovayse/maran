@@ -1,5 +1,5 @@
 import type { ListRequest, Paged } from './list'
-import type { InstallablePhpVersion, PhpExtension, PhpVersion } from './phpVersion'
+import type { PhpExtension, PhpVersion } from './phpVersion'
 import type { SiteLogStreamHandlers, TailSiteLogOptions } from './siteLog'
 import type { SiteTraffic } from './siteTraffic'
 
@@ -12,7 +12,7 @@ import type { SiteTraffic } from './siteTraffic'
  * There is deliberately no "unspecified" member: a site whose backend cannot be named is a site
  * whose vhost cannot be rendered.
  */
-export type SiteBackendType = 'static' | 'php' | 'reverseProxy'
+export type SiteBackendType = 'static' | 'php' | 'node' | 'reverseProxy'
 
 /**
  * Whether a site serves its own content, mirroring the backend's
@@ -108,6 +108,12 @@ export interface CreateSiteRequest {
   phpVersion: string
   /** The upstream to forward to; required when the backend is a reverse proxy. */
   proxyUpstream: string
+  /** The installed Node.js major to run under; required when the backend is Node.js, otherwise the empty string. */
+  nodeVersion: string
+  /** The loopback port the Node.js app listens on (1024 to 65535); required when the backend is Node.js, otherwise `0`. */
+  appPort: number
+  /** The command that starts the Node.js app, run under the site's own service; required when the backend is Node.js, otherwise the empty string. */
+  startCommand: string
 }
 
 /**
@@ -202,14 +208,6 @@ export interface SitesApi {
   listPhpVersions: (signal?: AbortSignal) => Promise<PhpVersion[]>
 
   /**
-   * Lists the PHP versions this server can install, installed ones flagged — the reference data
-   * the install picker selects from, so nobody types a version. Administrator-only on the server.
-   * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The installable versions, newest first.
-   */
-  listInstallablePhpVersions: (signal?: AbortSignal) => Promise<InstallablePhpVersion[]>
-
-  /**
    * Reads the bounds a site's form must respect, so the form shows the server's limit rather than
    * a copy of it.
    * @param signal Optional abort signal to cancel the in-flight request.
@@ -224,17 +222,6 @@ export interface SitesApi {
    * @returns The choices.
    */
   getChoices: (signal?: AbortSignal) => Promise<SiteChoices>
-
-  /**
-   * Installs a PHP version on the server and answers what is installed afterwards.
-   *
-   * Administrator-only on the server. The promise does not settle until the install finishes,
-   * which is the host's package manager fetching over whatever mirror it has.
-   * @param version The version to install, e.g. `8.4`.
-   * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The versions installed on this server after the attempt.
-   */
-  installPhpVersion: (version: string, signal?: AbortSignal) => Promise<PhpVersion[]>
 
   /**
    * Lists the extensions of one installed PHP version. An administrator receives what can be done
@@ -378,4 +365,10 @@ export interface SiteChoices {
   trafficWindows: SiteChoice[]
   /** The log retentions a site may keep, in days, in the order they read. */
   logRetentions: SiteChoice[]
+  /** The PHP versions installed on this server, which a PHP site may bind to. */
+  phpVersions: SiteChoice[]
+  /** The Node.js majors installed on this server, which a Node.js site may run under. */
+  nodeVersions: SiteChoice[]
+  /** The web server installed on this server, which serves every site; `null` while none is. */
+  webServer: SiteChoice | null
 }

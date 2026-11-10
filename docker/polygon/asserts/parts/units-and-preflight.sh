@@ -97,7 +97,7 @@ assert_the_agent_unit_declares_its_writable_roots() {
 # nothing when it does not.
 #
 # The agent cannot run a package manager under ProtectSystem=true, and the fix for that is NOT to
-# widen the agent's own sandbox: the install runs in maran-php-install@.service, a separate unit
+# widen the agent's own sandbox: the install and removal run in maran-app-install@.service and maran-app-remove@.service, separate units
 # (issue #93). So the agent unit must keep /usr read-only. Two ways to break that, both read here:
 # a ReadWritePaths= token at or under /usr (an optional `-` prefix stripped, because `-/usr/lib` is
 # the same grant), and ProtectSystem= no longer `true`/`yes`/`full`/`strict`.
@@ -131,7 +131,7 @@ assert_the_agent_unit_never_makes_usr_writable() {
 
   defect="$(agent_unit_usr_defect "$AGENT_UNIT")"
   [ -z "$defect" ] \
-    || fail "$(basename "$AGENT_UNIT"): ${defect}. The package install runs in maran-php-install@.service so that the
+    || fail "$(basename "$AGENT_UNIT"): ${defect}. The package install runs in maran-app-install@.service so that the
 agent's own sandbox never has to open /usr."
 
   sed 's#^\(ReadWritePaths=.*\)$#\1 /usr#' "$AGENT_UNIT" > "${work}/usr-appended.service"

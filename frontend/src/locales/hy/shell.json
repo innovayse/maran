@@ -16,6 +16,7 @@
         "sitesList": "կայքեր դոմեյններ ssl tls https վկայական nginx",
         "sitePhp": "php կարգավորումներ տարբերակ ini",
         "phpVersions": "php տարբերակներ տեղադրում",
+        "apps": "հավելվածներ խանութ վեբ սերվեր nginx apache php node nodejs տեղադրում",
         "smtp": "smtp ելքային փոստ email սերվեր ուղարկում",
         "securityPolicy": "գաղտնաբառ password քաղաքականություն անվտանգություն երկքայլ 2fa արգելափակում",
         "panelCertificate": "ssl tls https վկայական վահանակ",

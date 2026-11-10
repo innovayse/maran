@@ -1,6 +1,7 @@
 using Maran.Modules.Ssl.Persistence;
 using Maran.Modules.Ssl.Services;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Apps;
 using Maran.SharedKernel.Results;
 using Npgsql;
 
@@ -81,6 +82,9 @@ public sealed class SslHandlerFixture : IDisposable
     /// <summary>Everything the handlers recorded as panel tasks.</summary>
     public RecordingTaskRecorder Tasks { get; } = new();
 
+    /// <summary>The installed apps, naming the web server every vhost rewrite and reload addresses.</summary>
+    public FakeStackStatus Stack { get; }
+
     /// <summary>The correlation id the request-driven handlers put on the tasks they open.</summary>
     public StubCorrelationIdAccessor CorrelationIds { get; } = new(Correlation);
 
@@ -92,6 +96,7 @@ public sealed class SslHandlerFixture : IDisposable
     /// <param name="knowsAccount">Whether the account directory can answer for this account.</param>
     /// <param name="saveFailures">How many database writes should be refused, simulating a database failure.</param>
     /// <param name="saveFailureSqlState">The SQLSTATE those refusals carry; a unique violation by default.</param>
+    /// <param name="webServer">The installed site web server; nginx by default.</param>
     public SslHandlerFixture(
         string[] domains,
         Error? acmeFailure = null,
@@ -99,8 +104,10 @@ public sealed class SslHandlerFixture : IDisposable
         Error? reloadFailure = null,
         bool knowsAccount = true,
         int saveFailures = 0,
-        string saveFailureSqlState = PostgresErrorCodes.UniqueViolation)
+        string saveFailureSqlState = PostgresErrorCodes.UniqueViolation,
+        StackWebServer webServer = StackWebServer.Nginx)
     {
+        Stack = new FakeStackStatus(webServer);
         var currentUser = FakeCurrentUser.Customer(AccountId);
         CurrentUser = currentUser;
         DbContext = SslTestContext.Create(
@@ -117,6 +124,7 @@ public sealed class SslHandlerFixture : IDisposable
                 SiteBackend.Php,
                 "8.3",
                 string.Empty,
+                SiteNodeSnapshot.None,
                 HasCertificate: false,
                 SiteOptionsSnapshot.None);
         }).ToArray();
@@ -128,7 +136,7 @@ public sealed class SslHandlerFixture : IDisposable
         Agent = new RecordingAgentSslClient(agentFailure);
         AgentSites = new RecordingAgentSitesClient(reloadFailure);
         Journal = new CertificateAuditJournal(Audit, currentUser);
-        Installer = new CertificateInstaller(Agent, Sites);
+        Installer = new CertificateInstaller(Agent, Sites, Stack);
         Wildcards = new WildcardAvailabilityCheck(Features, new AcmeDnsChallengeWriter([DnsChallenges]));
     }
 

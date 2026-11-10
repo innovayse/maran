@@ -400,15 +400,28 @@ so the one authority for the panel's public port is gone and this check cannot h
         fail "a listen directive in ${PANEL_VHOST} does not end in a port this check can read: '${port}'"
         ;;
     esac
-    if [ "$kind" = tls ]; then
-      [ "$port" = "$authority" ] \
-        || fail "the vhost listens on ${port} while install.sh sets MARAN_PANEL_PORT=${authority}; they are one number"
-      tls_checked=$((tls_checked + 1))
-    else
-      [ "$port" = 80 ] \
-        || fail "the vhost has a plain-HTTP listen on ${port}; the only plain block is the ACME challenge, which is port 80"
-    fi
+    [ "$kind" = tls ] \
+      || fail "${PANEL_VHOST} has a plain-HTTP listen on ${port}; the panel vhost binds its TLS port and nothing else, and the only plain block is the ACME challenge in ${PANEL_PORT80_BLOCK}"
+    [ "$port" = "$authority" ] \
+      || fail "the vhost listens on ${port} while install.sh sets MARAN_PANEL_PORT=${authority}; they are one number"
+    tls_checked=$((tls_checked + 1))
   done <<< "$listen_ports"
+
+  # The ACME block lives in its own file so that the agent can take it out of nginx's tree while
+  # Apache owns port 80 (issue #517): in apache mode nginx binds the panel port and NOTHING else.
+  # Its listens must therefore be plain and port 80, and it must hold no other port, TLS block or
+  # proxy - a second use for the file would be a reason to keep it in place when Apache needs 80.
+  local port80_listens plain_checked=0
+  port80_listens="$(awk '$1 == "listen" { spec = $2; sub(/;$/, "", spec); n = split(spec, parts, ":");
+      kind = "plain"; for (i = 3; i <= NF; i++) if ($i ~ /^ssl;?$/) kind = "tls"; print parts[n], kind }' \
+    "$PANEL_PORT80_BLOCK")"
+  while read -r port kind; do
+    [ "$kind" = plain ] && [ "$port" = 80 ] \
+      || fail "${PANEL_PORT80_BLOCK} has a listen on '${port}' (${kind}); it is the ACME challenge block, plain HTTP on port 80 and nothing else"
+    plain_checked=$((plain_checked + 1))
+  done <<< "$port80_listens"
+  [ "$plain_checked" -gt 0 ] \
+    || fail "no listen directive was found in ${PANEL_PORT80_BLOCK}; a check that reads nothing agrees with everything"
   # The vacuity guard is on the TLS axis: a vhost whose TLS listens vanished would otherwise
   # pass on its challenge block alone.
   [ "$tls_checked" -gt 0 ] \
@@ -480,7 +493,7 @@ following MARAN_API_SOCKET_PATH and can disagree with the socket the api actuall
   # the installer's own code and this family's real systemd-tmpfiles and then stats it.
   socket_dir="${socket_authority%/*}"
 
-  echo "All ${tls_checked} TLS listen directives (and the port-80 ACME challenge block), panel.env.example, 60-config.sh and 10-preflight.sh follow"
+  echo "All ${tls_checked} TLS listen directives of the panel vhost (which binds no port 80; the ${plain_checked} port-80 listens are the ACME block in maran-port80.conf), panel.env.example, 60-config.sh and 10-preflight.sh follow"
   echo "MARAN_PANEL_PORT=${authority}; the api listens on ${socket_authority} and on no TCP port at all."
   echo "The directory ${socket_dir} is checked by building it, further down, not by reading the unit."
 }

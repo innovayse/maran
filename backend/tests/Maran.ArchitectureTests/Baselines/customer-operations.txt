@@ -24,6 +24,7 @@ DELETE api/v1/sftp-users/{id:guid}	Sftp	SftpAuthorizationTests
 DELETE api/v1/sftp-users/{id:guid}/keys/{keyId:guid}	Sftp	SftpAuthorizationTests
 DELETE api/v1/sites/{id:guid}	Sites	SitesAuthorizationTests
 DELETE api/v1/view-as	Identity	ViewAsEndpointTests
+GET api/v1/apps/stack	Apps	-	reads the host-level site stack status (which web server and runtimes are installed), no account's row
 GET api/v1/accounts/me	Accounts	AccountsMeAndInvitationsAuthorizationTests
 GET api/v1/accounts/me/branding	Accounts	AccountsMeAndInvitationsAuthorizationTests
 GET api/v1/accounts/me/resource-summary	Accounts	AccountsMeAndInvitationsAuthorizationTests

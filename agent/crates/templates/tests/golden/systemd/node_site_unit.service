@@ -1,0 +1,33 @@
+# Rendered by Maran. Do not edit: this file is replaced whenever the site changes.
+[Unit]
+Description=Maran Node.js 20 application for example.com
+After=network.target
+
+[Service]
+Type=simple
+# The account's own uid and its primary group: the application runs with exactly the
+# rights the account has over its files, and with no others.
+User=acme
+WorkingDirectory=/home/acme/sites/example.com
+Environment=NODE_ENV=production
+Environment=PORT=3000
+ExecStart=/usr/bin/node server.js --max-old-space-size=256
+Restart=on-failure
+RestartSec=2
+
+# The same sandbox reasoning as the other units the agent runs for tenants: the application
+# may write inside its account's home and nowhere else on the file system, can never gain
+# privileges, and reaches the network only over IP and its own unix sockets.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/home/acme
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

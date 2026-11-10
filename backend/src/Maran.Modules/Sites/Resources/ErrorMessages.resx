@@ -174,4 +174,22 @@
   <data name="SiteOptionNotForBackend">
     <value>That option does not apply to this kind of site.</value>
   </data>
+  <data name="AppsStackNotReady">
+    <value>This server has no web server yet, so sites cannot be created or changed. Finish the server setup by installing a web server from the app store, then try again.</value>
+  </data>
+  <data name="AppsNotInstalled">
+    <value>This app is not installed on the server. Install it from the app store first.</value>
+  </data>
+  <data name="SiteNodeVersionInvalidFormat">
+    <value>Enter a Node.js version as its major number, for example 22.</value>
+  </data>
+  <data name="SiteAppPortInvalid">
+    <value>Enter a port between 1024 and 65535 for the application to listen on.</value>
+  </data>
+  <data name="SiteStartCommandInvalid">
+    <value>The start command is not valid. Use a single line with no control characters.</value>
+  </data>
+  <data name="SiteAppPortTaken">
+    <value>Another site on this server already uses that port. Choose a different one.</value>
+  </data>
 </root>

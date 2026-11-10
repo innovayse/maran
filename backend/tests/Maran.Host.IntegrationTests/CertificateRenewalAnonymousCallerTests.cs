@@ -191,7 +191,7 @@ public sealed class CertificateRenewalAnonymousCallerTests : IAsyncLifetime
         var accounts = OpenAccounts();
         var ssl = OpenSsl();
         var site = new SiteSnapshot(
-            world.SiteId, world.AccountId, Domain, [], SiteBackend.Php, "8.3", string.Empty, HasCertificate: false,
+            world.SiteId, world.AccountId, Domain, [], SiteBackend.Php, "8.3", string.Empty, SiteNodeSnapshot.None, HasCertificate: false,
             SiteOptionsSnapshot.None);
         var sites = new KnownSiteDirectory(site);
         var acme = new RecordingAcmeClient();
@@ -202,13 +202,14 @@ public sealed class CertificateRenewalAnonymousCallerTests : IAsyncLifetime
             sites,
             new AccountDirectory(accounts, principal),
             acme,
-            new CertificateInstaller(agent, sites),
+            new CertificateInstaller(agent, sites, new ReadyStackStatus()),
             agentSites,
             new CertificateAuditJournal(new RecordingAuditWriter(), principal),
             new SilentAlertMailer(),
             new FixedInstantClock(),
             NullLogger<CertificateRenewalHandler>.Instance,
-            new DiscardingTaskRecorder());
+            new DiscardingTaskRecorder(),
+            new ReadyStackStatus());
 
         return new RenewalRun(handler, acme, agent, agentSites);
     }

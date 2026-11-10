@@ -54,6 +54,9 @@ public sealed class ReplacePhpSettingsCommandHandler
     /// <summary>This module's audit journal.</summary>
     private readonly SiteAuditJournal _journal;
 
+    /// <summary>Reads which PHP versions are installed as apps.</summary>
+    private readonly SiteStackGate _stack;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Sites module's database context.</param>
     /// <param name="accounts">The account's system user, worker budget and plan bounds.</param>
@@ -61,14 +64,17 @@ public sealed class ReplacePhpSettingsCommandHandler
     /// <param name="applier">Rewrites those pools.</param>
     /// <param name="reader">Builds the answer.</param>
     /// <param name="journal">This module's audit journal.</param>
+    /// <param name="stack">Reads which PHP versions are installed as apps.</param>
     public ReplacePhpSettingsCommandHandler(
         SitesDbContext dbContext,
         IAccountDirectory accounts,
         PhpAccountPoolSettings pools,
         PhpPoolApplier applier,
         PhpSettingsReader reader,
-        SiteAuditJournal journal)
+        SiteAuditJournal journal,
+        SiteStackGate stack)
     {
+        _stack = stack;
         _dbContext = dbContext;
         _accounts = accounts;
         _pools = pools;
@@ -92,6 +98,16 @@ public sealed class ReplacePhpSettingsCommandHandler
         ReplacePhpSettingsCommand command,
         CancellationToken cancellationToken)
     {
+        // PHP is an app like any other: with none installed there is no PHP to report on, and the answer
+        // says so rather than listing an empty or stale host. Enforced here, not in the SPA, which only
+        // hides the menu (docs/apps/README.md).
+        var installed = await _stack.ReadAsync(cancellationToken);
+        if (installed.PhpVersions.Count == 0)
+        {
+            return await FailAsync(
+                command, command.AccountId.ToString("D"), SiteHostApps.NotInstalledFailure(), cancellationToken);
+        }
+
         var account = await _accounts.FindAsync(command.AccountId, cancellationToken);
         if (account is null)
         {

@@ -75,6 +75,8 @@ public sealed class AuditActionDisplayNameTests
                 "The actor name of the module's unattended entries, not an action.",
             ["Maran.Modules.ServerMigration.Services.ServerMigrationAuditJournal.ModuleName"] =
                 "The actor name of the module's unattended entries, not an action.",
+            ["Maran.Modules.Apps.Services.AppsAuditJournal.ModuleName"] =
+                "The actor name of the module's unattended entries, not an action.",
             ["Maran.Modules.Firewall.Services.FirewallAuditJournal.SystemActor"] =
                 "The actor recorded for an automatic ban, not an action.",
         };

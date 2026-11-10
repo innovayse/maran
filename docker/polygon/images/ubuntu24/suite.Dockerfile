@@ -1,12 +1,15 @@
 # Development-only test container for the Rust agent on Ubuntu 24.04.
 # Production never uses Docker — see spec §2.
 #
-# The image carries nginx, php-fpm and a Rust toolchain so that the agent's OWN
+# The image carries nginx and a Rust toolchain so that the agent's OWN
 # validation can be exercised: `safe_write` renames a rendered vhost into place
-# and then runs the real `nginx -t` against the real configuration tree, and
-# `write_pool` does the same with the real `php-fpm -t`. Until something ran
-# those binaries, the rollback protocol had never rolled anything back. The
-# packages are here to be VALIDATED AGAINST, not to make the container a web
+# and then runs the real `nginx -t` against the real configuration tree. Until
+# something ran that binary, the rollback protocol had never rolled anything back.
+# NO site runtime is preinstalled (issue #517): php-fpm, Apache and Node.js are
+# apps, so a suite that needs one installs it through the agent's app route, which
+# in this image is the systemctl stand-in running the real package manager. The
+# Sury repository is configured (key checked by fingerprint) because that is the
+# package source the app route installs php-fpm from. The packages are here to be VALIDATED AGAINST, not to make the container a web
 # server — nothing is started by the image, no port is published, and the agent's
 # integration tests are the only thing that runs.
 #
@@ -37,10 +40,6 @@ ARG RUST_VERSION=1.98.0
 # unpinned dependency that could rewrite every other one.
 ARG RUSTUP_VERSION=1.28.2
 ARG RUSTUP_SHA256=20a06e644b0d9bd2fbdbfd52d42540bdde820ea7df86e92e533c073da0cdd43c
-# One PHP version is enough to exercise a php-fpm pool and a `fastcgi_pass`
-# vhost. Sury keeps the dot in the version, which is exactly the family
-# difference DebianAdapter::php_fpm_pool_directory encodes.
-ARG PHP_VERSION=8.3
 # Sury's repository signing key, by fingerprint. The key is fetched over TLS
 # like everything else; what this pins is WHICH key, so a substituted one is
 # refused instead of becoming the trusted signer for every PHP package below.
@@ -57,9 +56,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # in one.
 ENV MARAN_POLYGON=ubuntu24
 
-# The web server and PHP first, from the family's own repositories: nginx from
-# Ubuntu, php-fpm from Sury, which is the repository DebianAdapter's package and
-# service names are written against.
+# The panel's web server first, from the family's own repositories: nginx from
+# Ubuntu, and Sury's repository as the PHP package SOURCE only (no PHP package is
+# installed: a PHP version is an app, installed when a suite asks for it).
 #
 # The nginx and php package VERSIONS deliberately float: they are what the
 # family ships on the day of the build, which is what the agent will meet on a
@@ -77,9 +76,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && echo "deb [signed-by=/usr/share/keyrings/sury-php.gpg] https://packages.sury.org/php/ noble main" \
         > /etc/apt/sources.list.d/sury-php.list \
     && apt-get update \
-    && apt-get install -y --no-install-recommends \
-        "php${PHP_VERSION}-fpm" \
-        "php${PHP_VERSION}-cli" \
     && rm -rf /var/lib/apt/lists/*
 
 # The Rust toolchain and what cargo needs to link a test binary: `cc` for the
@@ -187,6 +183,7 @@ COPY installer/lib/87-firewall.sh /tmp/maran-installer/lib/87-firewall.sh
 COPY installer/uninstall.sh /tmp/maran-installer/uninstall.sh
 COPY installer/install.sh /tmp/maran-installer/install.sh
 COPY installer/nginx/maran.conf /tmp/maran-installer/nginx/maran.conf
+COPY installer/nginx/maran-port80.conf /tmp/maran-installer/nginx/maran-port80.conf
 # The rotation policy for the PANEL'S OWN two nginx logs, which step 80 installs and which it
 # ABORTS BY NAME when the payload is missing. It is here because the assertions below run that
 # step for real: without this line step 80 refuses, every vhost assertion goes red for the wrong
@@ -228,9 +225,10 @@ COPY installer/systemd/maran-api.tmpfiles.conf /tmp/maran-installer/systemd/mara
 COPY installer/systemd/maran-host.tmpfiles.conf /tmp/maran-installer/systemd/maran-host.tmpfiles.conf
 COPY installer/systemd/maran-php.tmpfiles.conf /tmp/maran-installer/systemd/maran-php.tmpfiles.conf
 COPY installer/systemd/maran-agent.service /tmp/maran-installer/systemd/maran-agent.service
-# Step 70's install_units renders and installs the package-install template with the units above
-# (issue #93), so it must be here or the step aborts on a missing source and no suite runs.
-COPY installer/systemd/maran-php-install@.service /tmp/maran-installer/systemd/maran-php-install@.service
+# Step 70's install_units renders and installs the package-install and package-removal templates with
+# the units above (issues #93, #517), so both must be here or the step aborts on a missing source.
+COPY installer/systemd/maran-app-install@.service /tmp/maran-installer/systemd/maran-app-install@.service
+COPY installer/systemd/maran-app-remove@.service /tmp/maran-installer/systemd/maran-app-remove@.service
 COPY installer/lib/70-services.sh /tmp/maran-installer/lib/70-services.sh
 # Step 80 again — the earlier COPY was consumed by the `rm -rf /tmp/maran-installer` that ends
 # the include block above — and step 40 beside it. Both are RUN by the assert script, not read:

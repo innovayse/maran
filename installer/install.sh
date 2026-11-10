@@ -20,7 +20,7 @@
 #                             mechanism (unattended-upgrades, or dnf-automatic): step 68 installs it,
 #                             writes one root-owned configuration file and enables the distribution's
 #                             own timers. Security updates only, never an automatic reboot, and
-#                             database engines, nginx, PHP and vsftpd are held from the unattended run
+#                             database engines, web servers, runtimes (PHP, Node.js) and vsftpd are held from the unattended run
 #                             (installer/lib/00-common.sh MARAN_OS_UPDATE_HOLD) — the panel lists them
 #                             as pending for you to apply in a maintenance window. Without this flag
 #                             nothing is installed, written or enabled. See

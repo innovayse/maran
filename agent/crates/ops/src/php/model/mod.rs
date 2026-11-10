@@ -2,7 +2,6 @@
 //! (rules/rust.md "Operation anatomy").
 
 pub mod extension_availability;
-pub mod install_run;
 pub mod installable_php_version;
 pub mod installed_php_version;
 pub mod opcache_drop_in_outcome;

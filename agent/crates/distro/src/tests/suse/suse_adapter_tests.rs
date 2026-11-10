@@ -21,6 +21,7 @@ use maran_agent_core::validation::web::php_version::PhpVersion;
 
 use super::SuseAdapter;
 use crate::AdapterBinary;
+use crate::AppFacts;
 use crate::debian::DebianAdapter;
 use crate::rhel::RhelAdapter;
 use crate::{
@@ -219,8 +220,9 @@ fn no_tool_is_named_by_something_path_would_resolve() {
 /// The adapter traits' own sources (every concern trait `DistroAdapter` composes), read as text
 /// so the table below is checked against the traits and not against a number somebody has to
 /// remember to bump.
-const TRAIT_SOURCES: [&str; 12] = [
+const TRAIT_SOURCES: [&str; 13] = [
     include_str!("../../account_programs.rs"),
+    include_str!("../../app_facts.rs"),
     include_str!("../../backup_facts.rs"),
     include_str!("../../database_facts.rs"),
     include_str!("../../dns_facts.rs"),
@@ -259,6 +261,8 @@ fn every_executable() -> Vec<(&'static str, AdapterBinary)> {
     let version = PhpVersion::parse("8.4").unwrap();
     vec![
         ("nginx", SuseAdapter.nginx_binary()),
+        ("apache", SuseAdapter.apache_binary()),
+        ("node", SuseAdapter.node_binary()),
         ("service_manager", SuseAdapter.service_manager()),
         ("journal", SuseAdapter.journal_binary()),
         ("systemd_run", SuseAdapter.systemd_run_binary()),
@@ -663,4 +667,75 @@ fn a_php_version_the_suse_family_does_not_ship_has_a_pool_directory_of_its_own()
 #[test]
 fn the_suse_family_names_rsync_at_its_documented_path() {
     assert_eq!(SuseAdapter.rsync_binary(), "/usr/bin/rsync");
+}
+
+/// The Suse family names Apache's control script, unit, user and group as its packages ship them.
+#[test]
+fn the_suse_family_names_the_apache_facts_of_its_packages() {
+    assert_eq!(SuseAdapter.apache_binary(), "/usr/sbin/apache2ctl");
+    assert_eq!(SuseAdapter.apache_service(), "apache2");
+    assert_eq!(SuseAdapter.apache_user(), "wwwrun");
+    assert_eq!(SuseAdapter.apache_group(), "www");
+}
+
+/// Apache's identity is its own answer and not nginx's: the inverse control for the test above,
+/// which an adapter that returned the nginx user for both would fail on every family but Debian.
+#[test]
+fn the_suse_family_does_not_answer_the_nginx_facts_for_apache() {
+    assert_ne!(SuseAdapter.apache_service(), SuseAdapter.nginx_service());
+    assert_eq!(
+        SuseAdapter.apache_user() == SuseAdapter.web_server_user(),
+        "suse" == "debian"
+    );
+}
+
+/// A site's unit runs Node.js and npm from absolute paths the adapter names.
+#[test]
+fn the_suse_family_names_the_node_launchers_by_absolute_path() {
+    assert!(SuseAdapter.node_executable().starts_with('/'));
+    assert!(SuseAdapter.npm_executable().starts_with('/'));
+    assert_ne!(SuseAdapter.node_executable(), SuseAdapter.npm_executable());
+}
+
+/// The facts asked with a web server answer that server's own, never the other's.
+#[test]
+fn the_suse_family_answers_each_site_web_server_with_its_own_facts() {
+    use crate::SiteWebServer;
+    assert_eq!(
+        SuseAdapter.site_web_server_service(SiteWebServer::Nginx),
+        "nginx"
+    );
+    assert_eq!(
+        SuseAdapter.site_web_server_service(SiteWebServer::Apache),
+        "apache2"
+    );
+    assert_eq!(
+        SuseAdapter.site_web_server_user(SiteWebServer::Apache),
+        "wwwrun"
+    );
+    assert_eq!(
+        SuseAdapter.site_web_server_group(SiteWebServer::Apache),
+        "www"
+    );
+    assert_eq!(
+        SuseAdapter.site_web_server_binary(SiteWebServer::Nginx),
+        "/usr/sbin/nginx"
+    );
+}
+
+/// The suse family names the packages of the app catalogue as its sources carry them.
+#[test]
+fn the_suse_family_names_the_packages_of_the_app_catalogue() {
+    assert_eq!(SuseAdapter.nginx_package(), "nginx");
+    assert_eq!(SuseAdapter.apache_package(), "apache2");
+    assert_eq!(SuseAdapter.apache_extra_packages(), &[] as &[&str]);
+    assert_eq!(
+        SuseAdapter.apache_include_snippet_path(),
+        "/etc/apache2/conf.d/maran.conf"
+    );
+    assert_eq!(SuseAdapter.nodejs_package("20"), "nodejs20");
+    assert_eq!(
+        SuseAdapter.nodejs_packaging(),
+        crate::nodejs_packaging::NodejsPackaging::PerMajorPackages
+    );
 }

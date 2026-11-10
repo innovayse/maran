@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AppsStackNotReady">
+    <value>This server has no web server yet, so sites cannot be created or changed. Finish the server setup by installing a web server from the app store, then try again.</value>
+  </data>
+  <data name="AppsInUse">
+    <value>Sites on this server still use this app, so it was not removed. Move or delete those sites, then try again.</value>
+  </data>
+  <data name="AppsNotInstalled">
+    <value>This app is not installed on the server. Install it from the app store first.</value>
+  </data>
+  <data name="AppsAlreadyInstalled">
+    <value>This app is already installed, so nothing was changed.</value>
+  </data>
+  <data name="AppsOperationInProgress">
+    <value>Another install or removal of this app is already running. Wait for it to finish, then try again.</value>
+  </data>
+  <data name="AppsWebServerAlreadyInstalled">
+    <value>A web server for sites is already installed or being changed on this server, so nothing was installed. Remove the other one first; only one can serve sites at a time.</value>
+  </data>
+  <data name="AppsNotInstallable">
+    <value>This server's package sources do not offer that app, so nothing was installed. Choose one from the list the page shows.</value>
+  </data>
+  <data name="AppIdInvalid">
+    <value>That is not an app this panel can manage. Choose one from the app store.</value>
+  </data>
+  <data name="AppsOutcomeUnobserved">
+    <value>The panel lost track of the install or removal before the server reported how it ended, so the result is not known. Check the app's state in the app store, then try again.</value>
+  </data>
+  <data name="AppsOperationFailed">
+    <value>The install or removal stopped unexpectedly. Check the app's state in the app store, then try again, and contact support if it keeps happening.</value>
+  </data>
+  <data name="AppsServiceActionUnknown">
+    <value>That is not an action the panel offers. Choose start, stop, restart or reload.</value>
+  </data>
+  <data name="AppsHasNoService">
+    <value>This app has no service to control: it is a runtime that sites run on.</value>
+  </data>
+  <data name="AppKindUnknown">
+    <value>That is not a kind of app. Choose a web server or a runtime.</value>
+  </data>
+  <data name="AppStateUnknown">
+    <value>That is not a state an app can be in. Choose installing, installed, failed or removing.</value>
+  </data>
+</root>

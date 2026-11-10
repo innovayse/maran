@@ -155,14 +155,14 @@ async fn the_handshake_reports_the_current_contract_revision() {
     // services, database logins, site options, PHP extensions, file manager,
     // account limits, backup keys and four error codes); revision 24 adds the
     // remote-source rpcs of `transfer.proto` (issue #197); revision 25 adds
-    // `DISTRO_FAMILY_SUSE` (issue #59); revision 26 is the newest row of
-    // `REVISIONS` below.
+    // `DISTRO_FAMILY_SUSE` (issue #59); revision 26 adds the transfer half of server
+    // migration (issue #197); revision 27 is the newest row of `REVISIONS` below.
     // The panel's
     // `AgentProtoVersionWindow` moves
     // with this number (rules/proto.md "The contract revision"), so a literal
     // here is the point: changing the constant must be a deliberate edit of
     // this test too, in the same change as the window.
-    assert_eq!(info.proto_version, 26);
+    assert_eq!(info.proto_version, 27);
 }
 
 #[tokio::test]
@@ -216,6 +216,7 @@ const REVISIONS: &[(u32, u64)] = &[
     (24, 0x6470_ff3f_530a_3df1),
     (25, 0x195c_9d0e_a6d5_2dc6),
     (26, 0xe680_e3cf_639d_2959),
+    (27, 0xf8dd_e61c_e542_4f11),
 ];
 
 /// FNV-1a over the bytes: a fixed, dependency-free digest. Its job is to

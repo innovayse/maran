@@ -11,6 +11,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_distro::SiteWebServer;
 use std::path::{Path, PathBuf};
 
 use maran_agent_core::agent_paths::AgentPaths;
@@ -103,7 +104,11 @@ fn a_site_creates_its_log_directory_as_root_and_outside_every_home() {
     // And it is genuinely out of the home, which is where the containment comes
     // from. A check that only compared against the new constant would still
     // pass if that constant were moved back under `/home`.
-    let paths = crate::sites::model::site_paths::SitePaths::for_site(&input.account, &input.domain);
+    let paths = crate::sites::model::site_paths::SitePaths::for_site(
+        &input.account,
+        &input.domain,
+        SiteWebServer::Nginx,
+    );
     assert!(
         !paths
             .log_directory

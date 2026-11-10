@@ -3,6 +3,7 @@ using Maran.Agent.Simulated.Interfaces;
 using Maran.Agent.Simulated.Limits;
 using Maran.Agent.Simulated.Seeds;
 using Maran.Agent.Simulated.Services.AccountsService;
+using Maran.Agent.Simulated.Services.AppsService;
 using Maran.Agent.Simulated.Services.BackupService;
 using Maran.Agent.Simulated.Services.CronService;
 using Maran.Agent.Simulated.Services.DbService;
@@ -72,6 +73,7 @@ public static class DependencyInjection
         services.AddSingleton<IAgentAccountsClient, SimulatedAgentAccountsClient>();
         services.AddSingleton<IAgentSitesClient, SimulatedAgentSitesClient>();
         services.AddSingleton<IAgentPhpClient, SimulatedAgentPhpClient>();
+        services.AddSingleton<IAgentAppsClient, SimulatedAgentAppsClient>();
         services.AddSingleton<IAgentSslClient, SimulatedAgentSslClient>();
         services.AddSingleton<IAgentMonitorClient, SimulatedAgentMonitorClient>();
         services.AddSingleton<IAgentDbClient, SimulatedAgentDbClient>();

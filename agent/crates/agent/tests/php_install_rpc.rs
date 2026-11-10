@@ -9,7 +9,7 @@
 //!
 //! What these pin is the one arrangement issue #93 changed. The agent's own
 //! sandbox keeps `/usr` read-only, so it no longer runs the package manager: it
-//! asks the service manager to start the installer's `maran-php-install@<package>`
+//! asks the service manager to start the installer's `maran-app-install@<package>`
 //! unit and waits for that run to end. The tests observe the argv the host was
 //! asked to spawn, the messages on the stream, and the run-to-completion class
 //! of the rpc, with a host that records instead of installing. What no test here
@@ -309,12 +309,12 @@ async fn an_install_starts_the_adapters_unit_and_never_runs_the_package_manager(
         (
             DistroFamily::Debian,
             "8.3",
-            "maran-php-install@php8.3-fpm.service",
+            "maran-app-install@php8.3-fpm.service",
         ),
         (
             DistroFamily::Rhel,
             "8.3",
-            "maran-php-install@php83-php-fpm.service",
+            "maran-app-install@php83-php-fpm.service",
         ),
         // The SUSE family offers one PHP minor under the unversioned `php8-fpm` package, so the
         // version asked for is the distribution's own, 8.4. UNVERIFIED: read from the
@@ -323,7 +323,7 @@ async fn an_install_starts_the_adapters_unit_and_never_runs_the_package_manager(
         (
             DistroFamily::Suse,
             "8.4",
-            "maran-php-install@php8-fpm.service",
+            "maran-app-install@php8-fpm.service",
         ),
     ] {
         let (service, state) = service(family);
@@ -417,7 +417,7 @@ async fn a_failed_install_unit_ends_the_stream_with_one_system_failure_naming_th
     let (service, state) = service(DistroFamily::Debian);
     state.fail_start(
         1,
-        "Job for maran-php-install@php8.3-fpm.service failed because the control process exited with error code.",
+        "Job for maran-app-install@php8.3-fpm.service failed because the control process exited with error code.",
     );
 
     let messages = install(&service, "8.3").await;
@@ -428,7 +428,7 @@ async fn a_failed_install_unit_ends_the_stream_with_one_system_failure_naming_th
             assert!(
                 error
                     .tool_output
-                    .contains("maran-php-install@php8.3-fpm.service"),
+                    .contains("maran-app-install@php8.3-fpm.service"),
                 "the operator's text must name the unit, got {:?}",
                 error.tool_output
             );

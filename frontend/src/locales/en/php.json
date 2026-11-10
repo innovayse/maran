@@ -1,7 +1,7 @@
 {
   "php": {
     "title": "PHP versions",
-    "description": "The PHP runtimes installed on this server, and the one control that adds to them.",
+    "description": "The PHP runtimes installed on this server.",
     "table": {
       "heading": "Installed versions",
       "caption": "PHP versions installed on this server",
@@ -20,17 +20,7 @@
     },
     "empty": {
       "title": "No PHP version is installed",
-      "description": "No site on this server can run PHP until one is. Install a version below."
-    },
-    "install": {
-      "heading": "Install a version",
-      "label": "Version to install",
-      "placeholder": "Choose a version",
-      "option": "PHP {version}",
-      "nothingToInstall": "Every version this server can install is already installed.",
-      "submit": "Install this version",
-      "running": "Installing {version}…",
-      "hint": "Only versions this server's package repository offers are listed. The server's package manager does the fetching, which on a slow mirror takes minutes; the tasks screen carries the progress."
+      "description": "No site on this server can run PHP until a version is installed from the app store."
     },
     "lifecycle": {
       "daysLeft": "({count} day left) | ({count} days left)"
@@ -38,6 +28,11 @@
     "eol": {
       "warning": "{count} site runs on an end-of-life PHP version ({versions}) that no longer receives security fixes. Move it to a supported version. | {count} sites run on end-of-life PHP versions ({versions}) that no longer receive security fixes. Move them to a supported version.",
       "openSites": "Open the sites list"
+    },
+    "manage": {
+      "heading": "Add or remove a version",
+      "description": "PHP versions are apps. Install or remove one in the app store; a version that sites still use cannot be removed.",
+      "open": "Open the app store"
     }
   }
 }

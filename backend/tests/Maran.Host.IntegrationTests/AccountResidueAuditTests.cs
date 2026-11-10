@@ -286,6 +286,9 @@ public sealed class AccountResidueAuditTests : IAsyncLifetime
                 SiteBackendType.Php,
                 "8.3",
                 string.Empty,
+                string.Empty,
+                0,
+                string.Empty,
                 $"/home/{AccountName}/sites/{SiteDomain}",
                 now));
             await sites.SaveChangesAsync();

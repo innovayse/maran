@@ -174,4 +174,22 @@
   <data name="SiteOptionNotForBackend">
     <value>Этот параметр не применим к сайту такого вида.</value>
   </data>
+  <data name="AppsStackNotReady">
+    <value>На этом сервере ещё нет веб-сервера, поэтому сайты нельзя создавать и изменять. Завершите настройку сервера, установив веб-сервер из магазина приложений, и повторите попытку.</value>
+  </data>
+  <data name="AppsNotInstalled">
+    <value>Это приложение не установлено на сервере. Сначала установите его из магазина приложений.</value>
+  </data>
+  <data name="SiteNodeVersionInvalidFormat">
+    <value>Укажите версию Node.js её основным номером, например 22.</value>
+  </data>
+  <data name="SiteAppPortInvalid">
+    <value>Укажите порт от 1024 до 65535, на котором будет слушать приложение.</value>
+  </data>
+  <data name="SiteStartCommandInvalid">
+    <value>Команда запуска недопустима. Используйте одну строку без управляющих символов.</value>
+  </data>
+  <data name="SiteAppPortTaken">
+    <value>Другой сайт на этом сервере уже использует этот порт. Выберите другой.</value>
+  </data>
 </root>

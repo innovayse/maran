@@ -27,7 +27,7 @@ public sealed class SiteDescriptorMapperTests
         var site = PhpSite();
         site.AttachCertificate();
 
-        var descriptor = SiteDescriptorMapper.From(site);
+        var descriptor = SiteDescriptorMapper.From(site, SiteWebServer.Nginx);
 
         Assert.True(descriptor.HasCertificate);
     }
@@ -38,7 +38,7 @@ public sealed class SiteDescriptorMapperTests
     {
         // The other direction, so the field is read rather than hardcoded either way: a literal
         // `true` would be caught here and a literal `false` by the test above.
-        var descriptor = SiteDescriptorMapper.From(PhpSite());
+        var descriptor = SiteDescriptorMapper.From(PhpSite(), SiteWebServer.Nginx);
 
         Assert.False(descriptor.HasCertificate);
     }
@@ -51,7 +51,7 @@ public sealed class SiteDescriptorMapperTests
         site.AttachCertificate();
         site.DetachCertificate();
 
-        var descriptor = SiteDescriptorMapper.From(site);
+        var descriptor = SiteDescriptorMapper.From(site, SiteWebServer.Nginx);
 
         Assert.False(descriptor.HasCertificate);
     }
@@ -70,10 +70,13 @@ public sealed class SiteDescriptorMapperTests
             SiteBackendType.ReverseProxy,
             string.Empty,
             "127.0.0.1:8080",
+            string.Empty,
+            0,
+            string.Empty,
             "/home/acct/sites/proxy.example.com",
             CreatedAt);
 
-        var descriptor = SiteDescriptorMapper.From(site);
+        var descriptor = SiteDescriptorMapper.From(site, SiteWebServer.Nginx);
 
         Assert.Equal("127.0.0.1:8080", descriptor.ProxyUpstream);
         Assert.Equal(SiteBackendKind.ReverseProxy, descriptor.Backend);
@@ -91,23 +94,73 @@ public sealed class SiteDescriptorMapperTests
             SiteBackendType.Static,
             string.Empty,
             string.Empty,
+            string.Empty,
+            0,
+            string.Empty,
             "/home/acct/sites/static.example.com",
             CreatedAt);
 
-        var descriptor = SiteDescriptorMapper.From(site);
+        var descriptor = SiteDescriptorMapper.From(site, SiteWebServer.Nginx);
 
         Assert.Equal(SiteBackendKind.Static, descriptor.Backend);
         Assert.Equal(string.Empty, descriptor.PhpVersion);
+    }
+
+    /// <summary>The runtime facts of a node site are carried into the descriptor.</summary>
+    [Fact]
+    public void The_runtime_facts_of_a_node_site_are_carried_into_the_descriptor()
+    {
+        // A fabricated port or command here would re-render a live site's unit as somebody else's.
+        var site = new Site(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "app.example.com",
+            [],
+            SiteBackendType.Node,
+            string.Empty,
+            string.Empty,
+            "22",
+            3100,
+            "npm start",
+            "/home/acct/sites/app.example.com",
+            CreatedAt);
+
+        var descriptor = SiteDescriptorMapper.From(site, SiteWebServer.Nginx);
+
+        Assert.Equal(SiteBackendKind.Node, descriptor.Backend);
+        Assert.Equal(new SiteNodeApp("22", 3100, "npm start"), descriptor.Node);
+    }
+
+    /// <summary>A site that is not a node site is described with no node application.</summary>
+    [Fact]
+    public void A_site_that_is_not_a_node_site_is_described_with_no_node_application()
+    {
+        var descriptor = SiteDescriptorMapper.From(PhpSite(), SiteWebServer.Nginx);
+
+        Assert.Equal(SiteNodeApp.None, descriptor.Node);
     }
 
     /// <summary>The stored aliases and php version are carried into the descriptor.</summary>
     [Fact]
     public void The_stored_aliases_and_php_version_are_carried_into_the_descriptor()
     {
-        var descriptor = SiteDescriptorMapper.From(PhpSite());
+        var descriptor = SiteDescriptorMapper.From(PhpSite(), SiteWebServer.Nginx);
 
         Assert.Equal(["www.example.com", "cdn.example.com"], descriptor.Aliases);
         Assert.Equal("8.3", descriptor.PhpVersion);
+    }
+
+    /// <summary>The descriptor carries the web server it is given, whichever that is.</summary>
+    [Theory]
+    [InlineData(SiteWebServer.Nginx)]
+    [InlineData(SiteWebServer.Apache)]
+    public void The_descriptor_carries_the_web_server_it_is_given(SiteWebServer webServer)
+    {
+        // The web server is not a column: it is the installed one, passed in. A mapper that fixed it to nginx
+        // would re-render every Apache site's vhost for nginx on the next enable or suspend.
+        var descriptor = SiteDescriptorMapper.From(PhpSite(), webServer);
+
+        Assert.Equal(webServer, descriptor.WebServer);
     }
 
     /// <summary>Builds a PHP-backed site with two aliases.</summary>
@@ -120,6 +173,9 @@ public sealed class SiteDescriptorMapperTests
             ["www.example.com", "cdn.example.com"],
             SiteBackendType.Php,
             "8.3",
+            string.Empty,
+            string.Empty,
+            0,
             string.Empty,
             "/home/acct/sites/example.com",
             CreatedAt);

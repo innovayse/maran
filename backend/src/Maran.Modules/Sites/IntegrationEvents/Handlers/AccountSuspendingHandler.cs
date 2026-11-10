@@ -1,6 +1,7 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Sites.Mappers;
 using Maran.Modules.Sites.Persistence;
+using Maran.Modules.Sites.Services;
 using Maran.Sdk.Events;
 
 namespace Maran.Modules.Sites.IntegrationEvents.Handlers;
@@ -49,13 +50,18 @@ public sealed class AccountSuspendingHandler
     /// <summary>The agent, which owns the vhost include directory.</summary>
     private readonly IAgentSitesClient _agent;
 
+    /// <summary>Names the installed site web server, which every vhost this handler touches belongs to.</summary>
+    private readonly SiteStackGate _stack;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Sites module's database context.</param>
     /// <param name="agent">The agent client that re-renders each vhost.</param>
-    public AccountSuspendingHandler(SitesDbContext dbContext, IAgentSitesClient agent)
+    /// <param name="stack">Names the installed site web server the vhosts belong to.</param>
+    public AccountSuspendingHandler(SitesDbContext dbContext, IAgentSitesClient agent, SiteStackGate stack)
     {
         _dbContext = dbContext;
         _agent = agent;
+        _stack = stack;
     }
 
     /// <summary>Puts every site the account owns onto the suspended vhost.</summary>
@@ -85,6 +91,12 @@ public sealed class AccountSuspendingHandler
             .ToListAsync(cancellationToken);
 #pragma warning restore RS0030
 
+        if (owned.Count == 0)
+        {
+            return;
+        }
+
+        var webServer = await _stack.RequireWebServerAsync(cancellationToken);
         foreach (var site in owned)
         {
             // The descriptor comes from the row and never from literals: the suspended vhost keeps
@@ -93,7 +105,7 @@ public sealed class AccountSuspendingHandler
             // would produce a file that is suspended and does not compare equal, which the
             // attestation reports as NOT stubbed — refusing a suspension that had in fact worked.
             var stubbed = await _agent.DisableAsync(
-                message.Username, site.Domain, SiteDescriptorMapper.From(site), cancellationToken);
+                message.Username, site.Domain, SiteDescriptorMapper.From(site, webServer), cancellationToken);
             if (!stubbed.IsSuccess)
             {
                 throw new InvalidOperationException(

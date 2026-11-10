@@ -122,7 +122,16 @@ public sealed class SitesMigrationImporter : IAccountMigrationImporter
         foreach (var site in payload.Sites)
         {
             var created = await _bus.InvokeAsync<Result<SiteDto>>(
-                new CreateSiteCommand(accountId, site.Domain, site.BackendType, site.Aliases, site.PhpVersion, site.ProxyUpstream),
+                new CreateSiteCommand(
+                    accountId,
+                    site.Domain,
+                    site.BackendType,
+                    site.Aliases,
+                    site.PhpVersion,
+                    site.ProxyUpstream,
+                    NodeVersion: site.NodeVersion,
+                    AppPort: site.AppPort,
+                    StartCommand: site.StartCommand),
                 cancellationToken);
 
             if (!created.IsSuccess)

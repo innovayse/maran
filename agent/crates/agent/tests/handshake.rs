@@ -17,6 +17,7 @@ use tower::service_fn;
 use maran_agent::error::StartupError;
 use maran_agent::peercred::PeerPolicy;
 use maran_agent::proto::accounts_service_client::AccountsServiceClient;
+use maran_agent::proto::apps_service_client::AppsServiceClient;
 use maran_agent::proto::cron_service_client::CronServiceClient;
 use maran_agent::proto::db_service_client::DbServiceClient;
 use maran_agent::proto::files_service_client::FilesServiceClient;
@@ -31,7 +32,7 @@ use maran_agent::proto::{
     CreateSftpUserRequest, CreateSiteRequest, DeleteEntryRequest, DeleteFtpsUserRequest,
     EnableFtpsRequest, EnableFtpsResponse, ErrorCode, GetAccountSuspensionStateRequest,
     GetAccountUsageRequest, GetAgentInfoRequest, GetCronEnvironmentRequest, GetFtpsStatusRequest,
-    InstallCertificateRequest, InstallPhpVersionRequest, ListCronEntriesRequest,
+    InstallAppRequest, InstallCertificateRequest, InstallPhpVersionRequest, ListCronEntriesRequest,
     ListDatabasesRequest, ListPhpVersionsRequest, SetFtpsPasswordRequest, SiteBackendType,
     create_account_response, create_database_response, create_ftps_user_response,
     create_sftp_user_response, create_site_response, delete_entry_response,
@@ -99,7 +100,7 @@ async fn handshake_over_a_unix_socket_reports_the_agent_and_the_host() {
         other => panic!("the handshake must succeed on a supported host, got {other:?}"),
     };
 
-    assert_eq!(info.proto_version, 26);
+    assert_eq!(info.proto_version, 27);
     assert!(
         !info.version.is_empty(),
         "the agent must report its version"
@@ -278,12 +279,20 @@ async fn every_new_service_refuses_a_uid_the_policy_does_not_allow() {
     // The streaming rpc too: the interceptor runs per request, but a service
     // registered without a guard would leak through whichever rpc nobody
     // checked.
-    let install = PhpServiceClient::new(channel)
+    let install = PhpServiceClient::new(channel.clone())
         .install_php_version(InstallPhpVersionRequest {
             version: String::new(),
         })
         .await;
     assert_denied("PhpService.InstallPhpVersion", install.err());
+
+    // The app store installs packages as root, so it is guarded like the rest.
+    let app = AppsServiceClient::new(channel)
+        .install_app(InstallAppRequest {
+            app_id: String::new(),
+        })
+        .await;
+    assert_denied("AppsService.InstallApp", app.err());
 
     server.abort();
 }

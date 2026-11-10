@@ -70,6 +70,7 @@ const page = (
     planFeature,
     ownerOnly: false,
     viewAsRefused: false,
+    runtime: null,
     badge: null,
     searchTermsKey: null,
   }
@@ -181,10 +182,13 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
           page('site-domains', 'app.nav.children.siteDomains', planned(null), ACCOUNT_HOLDERS, null),
           page('site-certificates', 'app.nav.children.siteCertificates', planned(null), ACCOUNT_HOLDERS, null),
           findBy(
-            page('site-php', 'app.nav.children.sitePhp', routed('php-settings'), CUSTOMER, 'sites', 'php'),
+            { ...page('site-php', 'app.nav.children.sitePhp', routed('php-settings'), CUSTOMER, 'sites', 'php'), runtime: 'php' },
             'sitePhp',
           ),
-          findBy(page('php-versions', 'app.nav.phpVersions', routed('php-versions'), ADMIN, null), 'phpVersions'),
+          findBy(
+            { ...page('php-versions', 'app.nav.phpVersions', routed('php-versions'), ADMIN, null), runtime: 'php' },
+            'phpVersions',
+          ),
         ],
       },
       {
@@ -420,6 +424,9 @@ export const NAVIGATION_TREE: readonly NavigationGroupSpec[] = [
           // the module declares no menu or routes of its own (`Menu []`), so this item is its one door,
           // and naming the module is what keeps the catalogue fallback from drawing a second one.
           page('marketplace', 'marketplace.title', routed('marketplace'), ADMIN, 'marketplace'),
+          // The apps store (issue #517): the site web server and the runtimes sites run on. It names its
+          // module, like the marketplace, so the catalogue fallback does not draw a second door.
+          findBy({ ...page('apps', 'apps.list.heading', routed('apps'), ADMIN, 'apps'), viewAsRefused: true }, 'apps'),
           findBy(page('smtp-settings', 'app.smtp.heading', routed('smtp-settings'), ADMIN, null), 'smtp'),
           page('alert-settings', 'alertSettings.heading', routed('alert-settings'), ADMIN, null),
           page('settings-administrators', 'app.nav.children.settingsAdministrators', planned(null), ADMIN, null),

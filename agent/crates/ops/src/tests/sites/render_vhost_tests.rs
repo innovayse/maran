@@ -9,6 +9,7 @@
 use maran_agent_core::validation::web::client_body_size::ClientBodySize;
 use maran_agent_core::validation::web::request_rate::RequestRate;
 use maran_agent_core::validation::web::upstream::Upstream;
+use maran_distro::SiteWebServer;
 
 use super::render_vhost;
 use crate::sites::SitesOpError;
@@ -22,7 +23,10 @@ use crate::sites::model::site_paths::SitePaths;
 
 /// Renders `input` against the paths its own account and domain name.
 fn render(input: &CreateSiteInput) -> Result<String, SitesOpError> {
-    render_vhost(input, &SitePaths::for_site(&input.account, &input.domain))
+    render_vhost(
+        input,
+        &SitePaths::for_site(&input.account, &input.domain, SiteWebServer::Nginx),
+    )
 }
 
 /// `input` with a certificate installed.

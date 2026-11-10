@@ -3,6 +3,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use maran_agent_core::utils::call_class::CallClass;
+use maran_distro::SiteWebServer;
 
 use crate::sites::fake_site_host::{create_test_site, distro, legacy_suspended_text, php_input};
 use crate::sites::{SiteCertificate, SitePaths, disable_site};
@@ -30,7 +31,9 @@ fn the_material_is_removed_and_the_site_returns_to_plain_http() {
 
     assert_eq!(host.stored_count(), 0);
     let vhost = host
-        .config(&SitePaths::for_site(&input.account, &input.domain).config_path)
+        .config(
+            &SitePaths::for_site(&input.account, &input.domain, SiteWebServer::Nginx).config_path,
+        )
         .unwrap();
     assert!(!vhost.contains(&certificate.certificate_path().display().to_string()));
 }
@@ -112,7 +115,9 @@ fn removing_a_certificate_from_a_suspended_site_takes_the_material_and_leaves_th
     host.preinstall(&certificate, &matching_material());
     disable_site(&host, distro(), &input).unwrap();
     let suspended = host
-        .config(&SitePaths::for_site(&input.account, &input.domain).config_path)
+        .config(
+            &SitePaths::for_site(&input.account, &input.domain, SiteWebServer::Nginx).config_path,
+        )
         .unwrap();
     let writes_before = host.vhost_writes();
 
@@ -121,8 +126,10 @@ fn removing_a_certificate_from_a_suspended_site_takes_the_material_and_leaves_th
     assert_eq!(host.stored(certificate.certificate_path()), None);
     assert_eq!(host.stored(certificate.key_path()), None);
     assert_eq!(
-        host.config(&SitePaths::for_site(&input.account, &input.domain).config_path)
-            .unwrap(),
+        host.config(
+            &SitePaths::for_site(&input.account, &input.domain, SiteWebServer::Nginx).config_path
+        )
+        .unwrap(),
         suspended,
         "a certificate removal must not un-suspend a site"
     );
@@ -136,7 +143,8 @@ fn removing_a_certificate_from_a_site_serving_the_earlier_stub_leaves_the_stub()
     create_test_site(&host, &input).unwrap();
     let certificate = SiteCertificate::for_domain(&input.domain);
     host.preinstall(&certificate, &matching_material());
-    let config_path = SitePaths::for_site(&input.account, &input.domain).config_path;
+    let config_path =
+        SitePaths::for_site(&input.account, &input.domain, SiteWebServer::Nginx).config_path;
     let legacy = legacy_suspended_text(&host, &input, "example.com");
     host.place_config(&config_path, &legacy);
     let writes_before = host.vhost_writes();

@@ -63,6 +63,11 @@ namespace Maran.Modules.Sites.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text[]");
 
+                    b.Property<int>("AppPort")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<string>("BackendType")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -89,6 +94,13 @@ namespace Maran.Modules.Sites.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasDefaultValue(14);
 
+                    b.Property<string>("NodeVersion")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasDefaultValue("");
+
                     b.Property<string>("PhpVersion")
                         .IsRequired()
                         .HasMaxLength(8)
@@ -98,6 +110,13 @@ namespace Maran.Modules.Sites.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(253)
                         .HasColumnType("character varying(253)");
+
+                    b.Property<string>("StartCommand")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)")
+                        .HasDefaultValue("");
 
                     b.Property<string>("Status")
                         .IsRequired()

@@ -318,6 +318,27 @@ enum ErrorCode {
   // names a resource the agent manages. A caller predating this value reads it
   // as an unknown code and treats it as a failure of the host.
   ERROR_CODE_PACKAGE_NOT_AVAILABLE = 21;
+  // Added 2026-11-10, additively (issue #517). The app named by the request is
+  // not installed on this host, so there is nothing to uninstall or to control.
+  // Today UninstallApp and ControlAppService return it. **Nothing happened.**
+  // It is NOT ERROR_CODE_NOT_FOUND, which names a resource the agent manages
+  // (an account, a site, a pool file); an app is an operating-system package
+  // set, and the panel answers the two differently.
+  ERROR_CODE_APP_NOT_INSTALLED = 22;
+  // Added 2026-11-10, additively (issue #517). UninstallApp was refused because
+  // something on this host still uses the app: any site for a web server, a
+  // php-fpm pool of an account for a PHP version. The message names what uses
+  // it. **Nothing happened**, and it is NOT retryable as it stands: the answer
+  // is the same until the users of the app are gone. The panel checks first and
+  // answers `apps.inUse` itself; this code is the agent's own check of what is
+  // on disk, so a panel whose rows disagree with the host cannot remove an app
+  // out from under a live site.
+  ERROR_CODE_APP_IN_USE = 23;
+  // Added 2026-11-10, additively (issue #517). InstallApp was refused because
+  // the app is a site web server and the host already has the other one: a
+  // host serves its sites from exactly one. **Nothing happened.** Switching is
+  // uninstall then install, and it is NOT retryable as it stands.
+  ERROR_CODE_WEB_SERVER_ALREADY_INSTALLED = 24;
 }
 
 // Streamed progress of a long-running operation (backup, restore, install).

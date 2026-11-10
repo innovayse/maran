@@ -3,10 +3,11 @@
 
 use std::path::Path;
 
-use maran_distro::DistroAdapter;
+use maran_distro::{DistroAdapter, SiteWebServer};
 
 use crate::safe_write::model::Reload;
-use crate::sites::nginx_validator::nginx_validator;
+use crate::sites::vhost_server_names::vhost_server_names;
+use crate::sites::web_server_validator::web_server_validator;
 use crate::sites::write_vhost::RELOAD_SUBCOMMAND;
 use crate::sites::{SiteHost, SitesOpError};
 use maran_agent_core::end_of_options::END_OF_OPTIONS;
@@ -33,6 +34,9 @@ const CONFLICTING_SERVER_NAME_WARNING: &str = "conflicting server name";
 
 /// Creates the vhost at `target` for a site serving `served_names`, refusing
 /// when another vhost on this host already serves any of them.
+///
+/// Written for nginx, whose `-t` warns about a name served twice; for Apache see
+/// [`refuse_apache_name_in_use`], because its `-t` does not.
 ///
 /// The validator and the reload are built exactly as
 /// [`super::write_vhost::write_vhost`] builds them, from the same constants
@@ -92,33 +96,87 @@ const CONFLICTING_SERVER_NAME_WARNING: &str = "conflicting server name";
 pub(crate) fn create_vhost(
     host: &dyn SiteHost,
     distro: &dyn DistroAdapter,
+    web_server: SiteWebServer,
     target: &Path,
     contents: &str,
     served_names: &[&str],
 ) -> Result<(), SitesOpError> {
-    let nginx = distro.nginx_binary();
+    let binary = distro.site_web_server_binary(web_server);
     let service_manager = distro.service_manager();
-    let validator = nginx_validator(&nginx);
+    let validator = web_server_validator(&binary);
     // `--` before the unit: `systemctl` reads its options with `getopt_long`, which ends
     // option parsing at `--`. The program is the adapter's absolute path, and a bare
     // `"systemctl"` would be worse than a literal, because a root process would then
     // resolve it through `PATH`.
-    let reload_arguments = [RELOAD_SUBCOMMAND, END_OF_OPTIONS, distro.nginx_service()];
+    let reload_arguments = [
+        RELOAD_SUBCOMMAND,
+        END_OF_OPTIONS,
+        distro.site_web_server_service(web_server),
+    ];
     let reload = Reload {
         program: &service_manager,
         arguments: &reload_arguments,
     };
-    let refused_warnings: Vec<String> = served_names
-        .iter()
-        .flat_map(|name| {
-            [
-                format!("{CONFLICTING_SERVER_NAME_WARNING} \"{name}\""),
-                format!("{CONFLICTING_SERVER_NAME_WARNING} \".{name}\""),
-            ]
-        })
-        .collect();
+    let refused_warnings: Vec<String> = match web_server {
+        SiteWebServer::Nginx => served_names
+            .iter()
+            .flat_map(|name| {
+                [
+                    format!("{CONFLICTING_SERVER_NAME_WARNING} \"{name}\""),
+                    format!("{CONFLICTING_SERVER_NAME_WARNING} \".{name}\""),
+                ]
+            })
+            .collect(),
+        // Apache's `-t` prints no warning for two virtual hosts that name one host, so
+        // there is nothing to refuse on; the agent's own directory is scanned instead.
+        SiteWebServer::Apache => {
+            refuse_apache_name_in_use(host, served_names)?;
+            Vec::new()
+        }
+    };
 
     host.create_config(target, contents, &validator, &reload, &refused_warnings)
+}
+
+/// Refuses a creation when a vhost the agent already wrote names one of `served_names`.
+///
+/// The Apache half of the duplicate-host refusal. Where nginx answers the question itself
+/// (it warns, at `-t`, about a name served twice, and the warning is read inside the
+/// config-write protocol's lock), Apache's `-t` is silent and answers a name served twice
+/// from whichever file the include sorts first. So this reads the agent's own include
+/// directory instead.
+///
+/// The bound, stated rather than left to be found: it covers the files the agent wrote, not
+/// a hand-written vhost elsewhere in the Apache tree, and it is a check made before the
+/// protocol's lock is taken, so two creations racing for one name can both pass it. The
+/// panel serialises creations per account and a name is reserved per domain on the panel
+/// side; this is the second line, not the first.
+///
+/// # Errors
+///
+/// Returns [`SitesOpError::ServerNameTaken`] naming the first host already served, and
+/// whatever listing or reading the directory returns.
+fn refuse_apache_name_in_use(
+    host: &dyn SiteHost,
+    served_names: &[&str],
+) -> Result<(), SitesOpError> {
+    for path in host.list_config_paths()? {
+        let Some(existing) = host.read_config(&path)? else {
+            continue;
+        };
+        let taken = vhost_server_names(&existing);
+        if let Some(name) = served_names
+            .iter()
+            .find(|name| taken.iter().any(|t| t == *name))
+        {
+            return Err(SitesOpError::ServerNameTaken {
+                detail: format!("{name} is already served by {}", path.display()),
+                stderr: String::new(),
+            });
+        }
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

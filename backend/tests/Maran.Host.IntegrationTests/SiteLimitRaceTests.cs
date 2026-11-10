@@ -200,7 +200,7 @@ public sealed class SiteLimitRaceTests : IAsyncLifetime
             context,
             new OneAccountDirectory(AccountId, AccountUsername, maxSites: maxSites),
             agent,
-            new ThrowingAgentPhpClient(),
+            new SiteStackGate(new ReadyStackStatus()),
             claims,
             new SiteRecorder(
                 new SiteSlotGate(context),

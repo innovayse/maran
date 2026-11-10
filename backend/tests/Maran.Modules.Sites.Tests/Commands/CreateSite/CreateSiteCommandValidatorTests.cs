@@ -306,6 +306,87 @@ public sealed class CreateSiteCommandValidatorTests
         Assert.Equal(SiteAliasLimit.CertificateNameLimit, SiteAliasLimit.MaximumAliases + 1);
     }
 
+    /// <summary>A well formed node site passes every rule.</summary>
+    [Fact]
+    public void A_well_formed_node_site_passes_every_rule()
+    {
+        _validator.TestValidate(NodeCommand()).ShouldNotHaveAnyValidationErrors();
+    }
+
+    /// <summary>A node major that is not one or two digits is refused with its own code.</summary>
+    /// <param name="version">The submitted major.</param>
+    [Theory]
+    [InlineData("")]
+    [InlineData("22.1")]
+    [InlineData("v22")]
+    [InlineData("220")]
+    [InlineData("22\n")]
+    public void A_node_major_that_is_not_one_or_two_digits_is_refused(string version)
+    {
+        _validator.TestValidate(NodeCommand() with { NodeVersion = version })
+            .ShouldHaveValidationErrorFor(command => command.NodeVersion);
+    }
+
+    /// <summary>A port outside the unprivileged range is refused; the range's own ends are accepted.</summary>
+    /// <param name="port">The submitted port.</param>
+    /// <param name="accepted">Whether the port is within the range.</param>
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(80, false)]
+    [InlineData(1023, false)]
+    [InlineData(1024, true)]
+    [InlineData(65535, true)]
+    [InlineData(65536, false)]
+    public void A_port_outside_the_unprivileged_range_is_refused(int port, bool accepted)
+    {
+        var result = _validator.TestValidate(NodeCommand() with { AppPort = port });
+
+        if (accepted)
+        {
+            result.ShouldNotHaveValidationErrorFor(command => command.AppPort);
+        }
+        else
+        {
+            result.ShouldHaveValidationErrorFor(command => command.AppPort).WithErrorMessage("SiteAppPortInvalid");
+        }
+    }
+
+    /// <summary>A start command that is empty or spans lines is refused; one printable line is accepted.</summary>
+    /// <param name="command">The submitted command.</param>
+    /// <param name="accepted">Whether it is one printable line.</param>
+    [Theory]
+    [InlineData("npm start", true)]
+    [InlineData("node server.js --port 3100", true)]
+    [InlineData("", false)]
+    [InlineData("   ", false)]
+    [InlineData("npm start\nExecStartPre=/bin/sh", false)]
+    [InlineData("npm start\r", false)]
+    [InlineData("npm\0start", false)]
+    public void A_start_command_must_be_one_printable_line(string command, bool accepted)
+    {
+        var result = _validator.TestValidate(NodeCommand() with { StartCommand = command });
+
+        if (accepted)
+        {
+            result.ShouldNotHaveValidationErrorFor(c => c.StartCommand);
+        }
+        else
+        {
+            result.ShouldHaveValidationErrorFor(c => c.StartCommand).WithErrorMessage("SiteStartCommandInvalid");
+        }
+    }
+
+    /// <summary>The node fields are only judged for a node site.</summary>
+    [Fact]
+    public void The_node_fields_are_only_judged_for_a_node_site()
+    {
+        var result = _validator.TestValidate(Command() with { NodeVersion = "bogus", AppPort = 1, StartCommand = "" });
+
+        result.ShouldNotHaveValidationErrorFor(command => command.NodeVersion);
+        result.ShouldNotHaveValidationErrorFor(command => command.AppPort);
+        result.ShouldNotHaveValidationErrorFor(command => command.StartCommand);
+    }
+
     /// <summary>Distinct, well formed aliases of the given count.</summary>
     /// <param name="count">How many aliases to build.</param>
     /// <returns>The aliases, none of them the command's domain.</returns>
@@ -340,5 +421,18 @@ public sealed class CreateSiteCommandValidatorTests
             string.Empty,
             "198.51.100.7",
             "tests");
+    }
+
+    /// <summary>Builds a valid Node-backed command each test varies one field of.</summary>
+    private static CreateSiteCommand NodeCommand()
+    {
+        return new CreateSiteCommand(
+            Guid.NewGuid(),
+            "app.example.com",
+            SiteBackendType.Node,
+            [],
+            NodeVersion: "22",
+            AppPort: 3100,
+            StartCommand: "npm start");
     }
 }

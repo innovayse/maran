@@ -106,6 +106,8 @@ public sealed class BarrierSitesAgent : IAgentSitesClient
     /// <param name="kind">The backend kind; ignored.</param>
     /// <param name="phpVersion">The PHP version; ignored.</param>
     /// <param name="proxyUpstream">The proxy upstream; ignored.</param>
+    /// <param name="webServer"></param>
+    /// <param name="node"></param>
     /// <param name="maxChildren">The pool's worker budget; ignored.</param>
     /// <param name="settingOverrides">The php.ini overrides; ignored.</param>
     /// <param name="cancellationToken">Cancellation for the wait and the call.</param>
@@ -117,6 +119,8 @@ public sealed class BarrierSitesAgent : IAgentSitesClient
         SiteBackendKind kind,
         string phpVersion,
         string proxyUpstream,
+        SiteWebServer webServer,
+        SiteNodeApp node,
         uint maxChildren,
         IReadOnlyList<PhpSettingDto> settingOverrides,
         CancellationToken cancellationToken)
@@ -142,12 +146,14 @@ public sealed class BarrierSitesAgent : IAgentSitesClient
     /// <param name="accountUsername">The owning account's system user name; ignored.</param>
     /// <param name="domain">The site's primary domain, recorded as the vhost taken down.</param>
     /// <param name="retiredPhpVersion">The pool version to retire, which a compensation leaves empty.</param>
+    /// <param name="webServer"></param>
     /// <param name="cancellationToken">Cancellation for the call; ignored.</param>
     /// <returns>Success.</returns>
     public Task<Result> DeleteAsync(
         string accountUsername,
         string domain,
         string retiredPhpVersion,
+        SiteWebServer webServer,
         CancellationToken cancellationToken)
     {
         lock (_retiredPhpVersions)
@@ -254,9 +260,10 @@ public sealed class BarrierSitesAgent : IAgentSitesClient
     }
 
     /// <summary>Not exercised by a site creation.</summary>
+    /// <param name="webServer"></param>
     /// <param name="cancellationToken">Ignored.</param>
     /// <returns>Never returns.</returns>
-    public Task<Result> ReloadWebServerAsync(CancellationToken cancellationToken)
+    public Task<Result> ReloadWebServerAsync(SiteWebServer webServer, CancellationToken cancellationToken)
     {
         throw new NotSupportedException("This double answers site creation and deletion only.");
     }

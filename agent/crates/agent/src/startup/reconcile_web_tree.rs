@@ -1,6 +1,6 @@
 //! The startup validation of the web configuration tree.
 
-use maran_distro::DistroAdapter;
+use maran_distro::{DistroAdapter, SiteWebServer};
 use maran_ops::sites::{SiteMaintenanceHost, SitesOpError, reload_web_server};
 
 use super::web_tree_reconciliation::WebTreeReconciliation;
@@ -74,7 +74,37 @@ pub(crate) fn reconcile_web_tree(
     host: &dyn SiteMaintenanceHost,
     distro: &dyn DistroAdapter,
 ) -> WebTreeReconciliation {
-    match reload_web_server(host, distro) {
+    // nginx is always a tree to validate: it is the panel's own front whichever server serves
+    // the sites. Apache's tree is validated when Apache is the site web server (issue #517): the
+    // agent's marker names it, the same record the app store keeps, and not a binary on disk.
+    let mut outcome = reconcile_server(host, distro, SiteWebServer::Nginx);
+    if maran_ops::apps::apache_is_the_site_web_server() {
+        let apache = reconcile_server(host, distro, SiteWebServer::Apache);
+        outcome = worse(outcome, apache);
+    }
+    outcome
+}
+
+/// The more serious of two outcomes: a rejected tree over a reload that did not take, and
+/// either over a clean one.
+fn worse(first: WebTreeReconciliation, second: WebTreeReconciliation) -> WebTreeReconciliation {
+    use WebTreeReconciliation::{Applied, NotReloaded, Refused};
+    match (&first, &second) {
+        (Refused, _) => first,
+        (_, Refused) => second,
+        (NotReloaded, _) => first,
+        (_, NotReloaded) => second,
+        (Applied, Applied) => first,
+    }
+}
+
+/// Validates one web server's tree and reloads it, as `reconcile_web_tree` describes.
+fn reconcile_server(
+    host: &dyn SiteMaintenanceHost,
+    distro: &dyn DistroAdapter,
+    web_server: SiteWebServer,
+) -> WebTreeReconciliation {
+    match reload_web_server(host, distro, web_server) {
         Ok(()) => {
             tracing::info!(
                 "the web configuration tree on disk validated and the running server was \

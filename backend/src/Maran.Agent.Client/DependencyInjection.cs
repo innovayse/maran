@@ -2,6 +2,7 @@ using System.Resources;
 using Maran.Agent.Client.Extensions;
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.AccountsService;
+using Maran.Agent.Client.Services.AppsService;
 using Maran.Agent.Client.Services.BackupService;
 using Maran.Agent.Client.Services.CronService;
 using Maran.Agent.Client.Services.DbService;
@@ -75,6 +76,13 @@ public static class DependencyInjection
                 return new AgentPhpClient(
                     provider.GetRequiredService<IAgentChannels>(),
                     provider.GetRequiredService<ILogger<AgentPhpClient>>());
+            });
+        services.AddSingleton<IAgentAppsClient>(
+            provider =>
+            {
+                return new AgentAppsClient(
+                    provider.GetRequiredService<IAgentChannels>(),
+                    provider.GetRequiredService<ILogger<AgentAppsClient>>());
             });
         services.AddSingleton<IAgentFilesClient>(
             provider =>

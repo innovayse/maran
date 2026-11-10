@@ -31,6 +31,7 @@ use crate::fleet::fleet_admission_layer::FleetAdmissionLayer;
 use crate::fleet::fleet_listener::FleetListener;
 use crate::peercred::{PeerGuard, PeerPolicy};
 use crate::proto::accounts_service_server::AccountsServiceServer;
+use crate::proto::apps_service_server::AppsServiceServer;
 use crate::proto::backup_service_server::BackupServiceServer;
 use crate::proto::cron_service_server::CronServiceServer;
 use crate::proto::db_service_server::DbServiceServer;
@@ -47,6 +48,7 @@ use crate::proto::ssl_service_server::SslServiceServer;
 use crate::proto::system_service_server::SystemServiceServer;
 use crate::proto::transfer_service_server::TransferServiceServer;
 use crate::services::accounts::accounts_service::AccountsServiceImpl;
+use crate::services::apps::apps_service::AppsServiceImpl;
 use crate::services::backup::backup_service::BackupServiceImpl;
 use crate::services::backup::file_transfer_jails::FileTransferJails;
 use crate::services::cron::cron_service::CronServiceImpl;
@@ -353,6 +355,12 @@ pub async fn serve(
         ))
         .add_service(PhpServiceServer::with_interceptor(
             PhpServiceImpl::new(ProcessPhpHost::new(), adapter),
+            PeerGuard::new(policy),
+        ))
+        // The app store (issue #517): the same process host as the PHP service, because
+        // installing a PHP version IS an app install and shares its machine.
+        .add_service(AppsServiceServer::with_interceptor(
+            AppsServiceImpl::new(ProcessPhpHost::new(), adapter, panel_host_names.clone()),
             PeerGuard::new(policy),
         ))
         // No distro adapter: this service creates and removes files inside a

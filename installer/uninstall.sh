@@ -202,11 +202,12 @@ remove_suse_os_security_updates() {
 remove_systemd_units() {
   echo "Removing systemd units..."
   rm -f /etc/systemd/system/maran-api.service /etc/systemd/system/maran-agent.service
-  # The package-install template (issue #93) is never enabled, so stop_and_disable_services has no
-  # line for it. An instance still running is stopped first so its package manager is not left
-  # orphaned by the removal of its own unit file.
-  systemctl stop 'maran-php-install@*.service' 2>/dev/null || true
-  rm -f /etc/systemd/system/maran-php-install@.service
+  # The package-install and package-removal templates (issues #93, #517) are never enabled, so
+  # stop_and_disable_services has no line for them. An instance still running is stopped first so
+  # its package manager is not left orphaned by the removal of its own unit file.
+  systemctl stop 'maran-app-install@*.service' 'maran-app-remove@*.service' 2>/dev/null || true
+  rm -f /etc/systemd/system/maran-app-install@.service
+  rm -f /etc/systemd/system/maran-app-remove@.service
   # The api's socket directory is built by a tmpfiles snippet rather than by the unit's
   # RuntimeDirectory=, so removing the unit does not remove the directory: both go here.
   # Left behind, the snippet would go on recreating an empty 2710 directory on every boot of a
@@ -237,6 +238,11 @@ remove_nginx_vhost() {
   # exposure — but it is litter with the panel's hostname and certificate paths in it.
   rm -f /etc/nginx/conf.d/maran.conf.candidate /etc/nginx/conf.d/maran.conf.previous \
         /etc/nginx/conf.d/maran.conf.adopted
+  # And the panel's ACME block on port 80, with its staging name and the name the agent parks it
+  # under while Apache is the site web server (step 80's MARAN_NGINX_PORT80_CONF and
+  # MARAN_PORT80_SUSPENDED_SUFFIX).
+  rm -f /etc/nginx/conf.d/maran-port80.conf /etc/nginx/conf.d/maran-port80.conf.candidate \
+        /etc/nginx/conf.d/maran-port80.conf.suspended
   # NOT `maran.conf.foreign*`. Those are files the installer found under one of its own working
   # names and could not account for — an operator's own backup, most likely, or a symlink step 80
   # refuses to follow — moved aside rather than overwritten. They were never ours to write and they
@@ -253,8 +259,40 @@ remove_nginx_vhost() {
   # include naming a directory that no longer exists makes every later `nginx -t` on this
   # host fail — including ones that have nothing to do with Maran.
   rm -f /etc/nginx/conf.d/maran-sites.conf
+  restore_packaged_port80_server_in_nginx_conf
   remove_conf_d_include_from_nginx_conf
   systemctl reload nginx 2>/dev/null || true
+}
+
+# restore_packaged_port80_server_in_nginx_conf: undoes step 80's disable_packaged_port80_server_in_nginx_conf
+# exactly. Every line step 80 commented out carries the prefix "# maran-disabled: "; this strips that
+# prefix and nothing else, so the distribution's default server comes back byte for byte and any edit
+# the operator made elsewhere in the file is kept. A no-op when no line carries the prefix.
+#
+# Staged beside nginx.conf and kept only if `nginx -t` accepts it, otherwise the file is put back as
+# it was and the operator is told (the SUSE function below does the same for its own lines). The
+# pristine copy step 80 kept is removed only when no Maran edit is left in the file.
+restore_packaged_port80_server_in_nginx_conf() {
+  local conf="/etc/nginx/nginx.conf" prefix="# maran-disabled: " staged
+  [ -f "$conf" ] && grep -qF -- "$prefix" "$conf" || return 0
+  staged="$(mktemp "${conf}.maran-staging.XXXXXX")"
+  awk -v prefix="$prefix" '
+    index($0, prefix) == 1 { print substr($0, length(prefix) + 1); next }
+    { print }
+  ' "$conf" > "$staged"
+  chmod --reference="$conf" "$staged"
+  chown --reference="$conf" "$staged"
+  cp -p -- "$conf" "${conf}.maran-restore"
+  sync "$staged"
+  mv -f -- "$staged" "$conf"
+  if nginx -t >/dev/null 2>&1; then
+    rm -f -- "${conf}.maran-restore"
+    grep -qF -- "# Maran: the vhosts live in conf.d" "$conf" || rm -f -- "${conf}.maran-previous"
+    echo "Restored the distribution's default port-80 server in ${conf}."
+  else
+    mv -f -- "${conf}.maran-restore" "$conf"
+    echo "NOTE: nginx rejected ${conf} with its packaged port-80 server back (for a reason of this host's own); the file is as it was. The original is at ${conf}.maran-previous."
+  fi
 }
 
 # remove_conf_d_include_from_nginx_conf: takes back the two lines step 80 adds to /etc/nginx/nginx.conf

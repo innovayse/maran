@@ -1022,3 +1022,174 @@ run_services_step() {
 . "$2"
 eval "$3"' _ "$COMMON_LIB" "$SERVICES_STEP" "$snippet"
 }
+
+# assert_the_panel_acme_block_is_a_file_of_its_own_that_a_suspended_host_keeps_out: the panel's port-80
+# ACME block is installed as conf.d/maran-port80.conf, apart from the panel vhost, so that the agent can
+# take it out of nginx's tree while Apache is the site web server (issue #517). Apache owns port 80 then,
+# and a nginx still binding it would stop Apache starting.
+#
+# Four propositions, each with its inverse so that none can be satisfied by a step that does nothing:
+#   1. step 80 installs the block and the panel vhost holds NO port-80 listen (nginx binds 8443 alone
+#      once the block is suspended);
+#   2. the installed block binds port 80 (the inverse of 1: the listen did not vanish, it moved);
+#   3. with the block parked at `.suspended`, as the agent leaves it, a re-run of the step does NOT
+#      put it back - an installer update on an Apache host must not take port 80 from Apache;
+#   4. with the park removed, the same re-run DOES write it (the inverse of 3).
+#
+# UNOBSERVED HERE: Apache itself. The agent's side of the move is covered by the unit tests of
+# maran_ops::apps; this proves the installer's half of the contract.
+assert_the_panel_acme_block_is_a_file_of_its_own_that_a_suspended_host_keeps_out() {
+  local vhost block parked vhost_copy="" block_copy=""
+
+  prepare_host_for_the_nginx_step
+  vhost="$(run_nginx_step 'nginx_conf_dest')"
+  block="$(run_nginx_step 'echo "$MARAN_NGINX_PORT80_CONF"')"
+  parked="$(run_nginx_step 'echo "${MARAN_NGINX_PORT80_CONF}${MARAN_PORT80_SUSPENDED_SUFFIX}"')"
+  case "$block" in
+    /etc/nginx/*.conf) ;;
+    *) fail "80-nginx.sh names the port-80 block '${block}', which is not a .conf under nginx's tree; nginx would never read it." ;;
+  esac
+  [ "$parked" = "${block}.suspended" ] \
+    || fail "the parked name of the port-80 block is '${parked}', not '${block}.suspended'; it must be a name nginx never opens, and the agent spells the same one."
+
+  if [ -e "$vhost" ]; then vhost_copy="$(mktemp)"; cp -p "$vhost" "$vhost_copy"; fi
+  if [ -e "$block" ]; then block_copy="$(mktemp)"; cp -p "$block" "$block_copy"; fi
+  rm -f "$vhost" "$block" "$parked"
+
+  run_nginx_step 'step_nginx' >/dev/null 2>&1 \
+    || fail "step 80 refused to install the panel vhost and its port-80 block."
+  forget_nginx_service_records
+
+  [ -f "$block" ] || fail "step 80 did not install the port-80 ACME block at ${block}."
+  grep -Eq '^[[:space:]]*listen[[:space:]]+(\[::\]:)?80;' "$block" \
+    || fail "${block} does not bind port 80, so the ACME challenge for the panel's name has no listener."
+  if grep -Eq '^[[:space:]]*listen[[:space:]]+(\[::\]:|[0-9.]+:)?80([[:space:]]|;)' "$vhost"; then
+    fail "the installed panel vhost ${vhost} still binds port 80; in apache mode nginx must bind the panel port only."
+  fi
+
+  mv "$block" "$parked"
+  run_nginx_step 'step_nginx' >/dev/null 2>&1 \
+    || fail "step 80 refused a re-run while the port-80 block was parked."
+  forget_nginx_service_records
+  [ ! -e "$block" ] \
+    || fail "a re-run of step 80 wrote the port-80 block back while it was parked for Apache, which would take port 80 from it."
+
+  rm -f "$parked"
+  run_nginx_step 'step_nginx' >/dev/null 2>&1 \
+    || fail "step 80 refused a re-run with nothing parked."
+  forget_nginx_service_records
+  [ -f "$block" ] \
+    || fail "with nothing parked, a re-run of step 80 did not write the port-80 block; the previous check could not tell a skipped write from a broken one."
+
+  rm -f "$vhost" "$block" "$parked"
+  [ -z "$vhost_copy" ] || { cp -p "$vhost_copy" "$vhost"; rm -f "$vhost_copy"; }
+  [ -z "$block_copy" ] || { cp -p "$block_copy" "$block"; rm -f "$block_copy"; }
+  nginx -t >/dev/null 2>&1 \
+    || fail "this assertion did not put the nginx tree back the way it found it:
+$(nginx -t 2>&1)"
+
+  echo "The panel's port-80 ACME block is its own file (conf.d/maran-port80.conf) and the panel vhost binds no port 80."
+  echo "A block parked at .suspended, as the agent leaves it for Apache, is not written back by a re-run of step 80;"
+  echo "with the park removed the same re-run writes it, so the first result is not a step that writes nothing."
+}
+
+# assert_the_packaged_default_port_80_server_is_disabled_and_restorable: the distribution's own default
+# `listen 80` server in /etc/nginx/nginx.conf would hold port 80 whatever Maran's files say, so Apache -
+# which owns 80/443 once it is the site web server (issue #517) - could not start. Step 80 comments that
+# block out line by line (prefix "# maran-disabled: "), and uninstall.sh strips exactly the prefix.
+#
+# Three parts, each with its inverse so that none can pass on a stock file that never had the block:
+#   1. a synthetic nginx.conf with a port-80 server, a panel-port server, an `8080` server and a
+#      commented-out port-80 server: only the first is disabled (the others are the controls), the
+#      prefix-stripped result equals the input byte for byte, and a second pass changes nothing;
+#   2. this family's REAL stock nginx.conf: after the render no active `listen` on port 80 remains,
+#      and on the RHEL family the stock file DID have one (the control that the render removed something);
+#   3. the installer's own step function on the real file: nginx accepts the result, `nginx -T` shows no
+#      listener on 80, and the original is put back at the end.
+#
+# UNOBSERVED HERE: the openSUSE stock file (this image set has a leap16 lane that runs the same
+# assertion; if its stock file has a port-80 server part 2 proves it is disabled, and if it has none the
+# render is a no-op, which part 1 proves is harmless).
+assert_the_packaged_default_port_80_server_is_disabled_and_restorable() {
+  local work conf="/etc/nginx/nginx.conf" copy rendered active_before
+  local prefix="# maran-disabled: "
+  prepare_host_for_the_nginx_step
+  work="$(mktemp -d)"
+  # Active (non-comment) listens on port 80 in a file, one per line.
+  active_port80() {
+    sed 's/#.*//' "$1" | grep -E 'listen[[:space:]]+(\[::\]:|[0-9.*]+:)?80([[:space:];])' || true
+  }
+
+  cat > "${work}/synthetic.conf" <<'CONF'
+events {}
+http {
+    include mime.types;
+    server {
+        listen 80;
+        listen [::]:80;
+        server_name _;
+        location / { return 200; }
+    }
+    server {
+        listen 8443 ssl;
+        server_name panel;
+    }
+    server {
+        listen 8080;
+        server_name other;
+    }
+    # server {
+    #     listen 80;
+    # }
+}
+CONF
+  rendered="${work}/rendered.conf"
+  run_nginx_step "render_nginx_conf_without_packaged_port80_server '${work}/synthetic.conf'" > "$rendered" \
+    || fail "step 80's render of a synthetic nginx.conf failed."
+  [ -z "$(active_port80 "$rendered")" ] \
+    || fail "the synthetic port-80 server is still active after the render:
+$(cat "$rendered")"
+  grep -q 'listen 8443 ssl;' "$rendered" && grep -q 'listen 8080;' "$rendered" \
+    || fail "the render disabled a server that does not listen on port 80 (8443 or 8080); the pattern is too wide."
+  [ -n "$(active_port80 "${work}/synthetic.conf")" ] \
+    || fail "the synthetic input has no active port-80 listen; this check would prove nothing."
+  awk -v prefix="$prefix" 'index($0, prefix) == 1 { print substr($0, length(prefix) + 1); next } { print }' "$rendered" \
+    | cmp -s - "${work}/synthetic.conf" \
+    || fail "stripping the prefix from the render did not give the input back byte for byte; uninstall could not restore it."
+  run_nginx_step "render_nginx_conf_without_packaged_port80_server '${rendered}'" | cmp -s - "$rendered" \
+    || fail "a second render of the disabled file changed it; the step is not idempotent."
+
+  [ -f "$conf" ] || fail "${conf} does not exist on this image."
+  active_before="$(active_port80 "$conf")"
+  if [ "${MARAN_OS_FAMILY:-}" = rhel ] && [ -z "$active_before" ]; then
+    fail "the RHEL family's stock ${conf} has no active port-80 server on this image, so part 2 would prove nothing; the assumption behind issue #517's port-80 split is wrong."
+  fi
+
+  copy="${work}/nginx.conf.original"
+  cp -p "$conf" "$copy"
+  rm -f "${conf}.maran-previous"
+  run_nginx_step 'disable_packaged_port80_server_in_nginx_conf' >/dev/null 2>&1 \
+    || { cp -p "$copy" "$conf"; fail "step 80's disable_packaged_port80_server_in_nginx_conf refused this image's nginx.conf."; }
+  nginx -t >/dev/null 2>&1 || { cp -p "$copy" "$conf"; fail "nginx rejects ${conf} after the packaged port-80 server was disabled:
+$(nginx -t 2>&1)"; }
+  if nginx -T 2>/dev/null | sed 's/#.*//' | grep -Eq 'listen[[:space:]]+(\[::\]:|[0-9.*]+:)?80([[:space:];])'; then
+    cp -p "$copy" "$conf"; rm -f "${conf}.maran-previous"
+    fail "nginx still has a listener on port 80 after step 80 disabled the packaged server:
+$(nginx -T 2>/dev/null | sed 's/#.*//' | grep -E 'listen')"
+  fi
+  if [ -n "$active_before" ]; then
+    cmp -s "${conf}.maran-previous" "$copy" \
+      || { cp -p "$copy" "$conf"; fail "the pristine copy ${conf}.maran-previous is not the original nginx.conf."; }
+  fi
+
+  cp -p "$copy" "$conf"
+  rm -f "${conf}.maran-previous"
+  nginx -t >/dev/null 2>&1 || fail "this assertion did not put ${conf} back the way it found it:
+$(nginx -t 2>&1)"
+  rm -rf "$work"
+  unset -f active_port80
+
+  echo "A packaged http-level server with an active port-80 listen is commented out line by line; servers on other ports,"
+  echo "an 8080 listener and a commented-out block are left alone, the prefix strips back to the original byte for byte, and a"
+  echo "second pass changes nothing. On this image's real nginx.conf nginx loads the result and has no listener on port 80."
+}

@@ -19,7 +19,7 @@ import type { AuthenticatedUser, Session } from '../../src/types/auth'
 import type { AuditEvent } from '../../src/types/audit'
 import type { MyAccount } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
-import { completePhpVersion, stubInstallablePhpVersions, type PhpVersionStub } from '../fixtures/stub-sites-routes'
+import { completePhpVersion, type PhpVersionStub } from '../fixtures/stub-sites-routes'
 import type { SecurityPolicy } from '../../src/types/securityPolicy'
 import type { Locator, Page } from '@playwright/test'
 
@@ -429,8 +429,6 @@ const SCREENS: Screen[] = [
     layout: 'shell',
     prepare: async (page): Promise<void> => {
       await signedInAdministrator(page)
-      // The page also lists the versions the host could install; this spec has none to offer.
-      await stubInstallablePhpVersions(page, () => {return []})
       await page.route('**/api/v1/sites/php-versions', async (route) => {
         await route.fulfill({
           status: 200,

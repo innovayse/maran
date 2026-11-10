@@ -154,6 +154,9 @@ public static class ScaleDataset
                 SiteBackendType.Php,
                 PhpVersions[index % PhpVersions.Length],
                 string.Empty,
+                string.Empty,
+                0,
+                string.Empty,
                 $"/home/{name}/sites/{domain}",
                 Epoch.AddMinutes(index));
             sites.Sites.Add(site);

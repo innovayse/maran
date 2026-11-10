@@ -990,4 +990,19 @@
   <data name="AuditActionMigrationBackupTaken">
     <value>Backup taken for a migration</value>
   </data>
+  <data name="AuditActionAppInstallRequested">
+    <value>An administrator requested an app install</value>
+  </data>
+  <data name="AuditActionAppUninstallRequested">
+    <value>An administrator requested an app removal</value>
+  </data>
+  <data name="AuditActionAppInstalled">
+    <value>An app install ended</value>
+  </data>
+  <data name="AuditActionAppUninstalled">
+    <value>An app removal ended</value>
+  </data>
+  <data name="AuditActionAppServiceControlled">
+    <value>An administrator controlled an app's service</value>
+  </data>
 </root>

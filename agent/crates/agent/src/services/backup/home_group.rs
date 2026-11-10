@@ -2,6 +2,7 @@
 
 use maran_agent_core::privs::group_id::GroupId;
 use maran_distro::DistroAdapter;
+use maran_ops::apps::installed_site_web_server;
 
 use crate::proto::AgentError;
 use crate::services::wire::system_failure::system_failure;
@@ -15,8 +16,8 @@ use crate::services::wire::system_failure::system_failure;
 /// panel — so the finalising step re-applies exactly that arrangement, and this
 /// is where the group's NAME becomes a NUMBER.
 ///
-/// The name is the distro adapter's, because the two families spell it
-/// differently, and the number is the host's, because a name is not a gid on
+/// The name is the distro adapter's for the web server that serves this host's sites (Apache
+/// when it is installed, nginx otherwise), because the families spell it differently, and the number is the host's, because a name is not a gid on
 /// any of them. Nothing about this is a decision the service makes — which is
 /// why it is a named unit here rather than two lines inside the handler
 /// (rules/rust.md "Service anatomy").
@@ -30,7 +31,7 @@ use crate::services::wire::system_failure::system_failure;
 /// readable by a process that should not reach it, and both are worse than a
 /// restore an operator is told about.
 pub fn home_group(distro: &dyn DistroAdapter) -> Result<u32, AgentError> {
-    GroupId::resolve(distro.web_server_group())
+    GroupId::resolve(distro.site_web_server_group(installed_site_web_server()))
         .map(|group| group.gid())
         .map_err(|error| system_failure(format!("the web server's group is unusable: {error}")))
 }

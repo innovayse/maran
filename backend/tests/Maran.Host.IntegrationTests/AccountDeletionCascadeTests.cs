@@ -551,6 +551,9 @@ public sealed class AccountDeletionCascadeTests : IAsyncLifetime
             SiteBackendType.Php,
             PhpVersion,
             string.Empty,
+            string.Empty,
+            0,
+            string.Empty,
             $"/home/{AccountName}/sites/{SiteDomain}",
             now));
         await siteContext.SaveChangesAsync();

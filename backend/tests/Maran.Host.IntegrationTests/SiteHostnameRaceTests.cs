@@ -264,6 +264,9 @@ public sealed class SiteHostnameRaceTests : IAsyncLifetime
             SiteBackendType.Static,
             string.Empty,
             string.Empty,
+            string.Empty,
+            0,
+            string.Empty,
             $"/home/acct/web/{domain}/public",
             new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
     }
@@ -292,7 +295,7 @@ public sealed class SiteHostnameRaceTests : IAsyncLifetime
             context,
             new OneAccountDirectory(accountId, username, maxSites: 5),
             agent,
-            new ThrowingAgentPhpClient(),
+            new SiteStackGate(new ReadyStackStatus()),
             claims,
             new SiteRecorder(
                 new SiteSlotGate(context),

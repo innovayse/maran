@@ -1,0 +1,84 @@
+# Removes ONE package through the host's package manager, as root, outside the agent's sandbox,
+# under the sandbox of its sibling maran-app-install@.service (issue #517, docs/apps/README.md).
+#
+# Why this unit exists: for the same reason the install unit does. maran-agent.service runs with
+# ProtectSystem=true, so /usr is read-only to the agent and to every child it forks, and a package
+# manager run as its child cannot delete a file under /usr. This unit is the one named, fixed
+# route to a package removal. Only the agent starts it:
+#   systemctl start maran-app-remove@<package>.service
+# where <package> is the exact package name the agent's distro adapter answers for a ValidatedAppId,
+# after the agent has parsed the app id against its closed catalogue, checked that the app is
+# installed and that no site uses it. THIS UNIT DOES NOT RE-CHECK THE INSTANCE, for the reason the
+# install unit does not: the agent starts it as root, and anyone else able to start a system unit
+# can already run the package manager directly.
+#
+# The instance is the WHOLE package argument and arrives as %i, never %I (see the install unit).
+# The two placeholder lines below are rendered by installer/lib/70-services.sh from the host's OS
+# family; every rendered form is one fixed argv with no shell and no program taken from a variable:
+#   Debian family:  /usr/bin/apt-get remove -y -- %i   (DEBIAN_FRONTEND=noninteractive)
+#   RHEL family:    /usr/bin/dnf remove -y -- %i
+#   SUSE family:    /usr/bin/zypper --non-interactive remove -- %i
+# `--` ends option parsing, so an instance that begins with `-` is read as a package name.
+# What is deliberately absent: `purge` (the panel's own site configuration, which the package does
+# not own, must outlive a reinstall), `autoremove` (a dependency another package still wants is not
+# this unit's to judge), and --force-* options. A removal that the package manager resolves by also
+# removing a dependent package is the package manager's normal behaviour; the agent shows the
+# operator that list before it starts this unit (threat note section "Package removal").
+# Same absences as the install unit: no ProtectSystem=, no PrivateNetwork=, no NoNewPrivileges=,
+# no RestrictSUIDSGID=, no EnvironmentFile=; standard input is /dev/null so nothing can prompt.
+[Unit]
+Description=Maran app package removal (%i)
+# The default start rate limit refuses a sixth start within ten seconds, and the refusal
+# (start-limit-hit) would reach the operator as a package-manager failure that never ran the
+# package manager. Retries cluster exactly when the manager fails fast (a held dpkg lock). The agent is the only starter and its retries are paced by a person or a job
+# timeout, so the limit protects nothing here.
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+# `systemctl start` on a oneshot returns only when the run is over and exits non-zero if it failed,
+# which is the status the agent reports. `no` (the default, stated) rather than `yes`: with yes, a
+# second start of an instance that had already succeeded would do nothing, even after the package
+# had been removed.
+RemainAfterExit=no
+# systemd's built-in default PATH starts with /usr/local/sbin:/usr/local/bin, the unmanaged
+# directories the agent keeps out of every child's PATH (agent-core apply_child_environment). The
+# children here are maintainer scripts running as root, so the same PATH is stated.
+Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin
+__MARAN_PKG_ENVIRONMENT__
+# 0022, not the agent's 0027: the same mask as the install unit, so a package's scripts behave
+# the same on the way out as on the way in.
+UMask=0022
+__MARAN_PKG_EXEC_START__
+# oneshot has NO timeout by default, so a stuck maintainer script would hold the agent's blocking
+# call forever. Thirty minutes is generous on purpose: a timeout kills the package manager part-way,
+# which leaves a half-removed package, the worst state this unit can produce. It is a ceiling for
+# a hung script, not an expected duration.
+TimeoutStartSec=1800
+# The sandbox: exactly the install unit's (issue #408), directive for directive, so the two root
+# package routes cannot drift apart. Those directives were measured for an INSTALL; the removal
+# runs the same package manager and the maintainer scripts prerm/postrm, which touch the same
+# things, and the polygon asserts (docker/polygon/asserts/parts/app-install-unit.sh) install and
+# then remove a package through this unit. UNCONFIRMED: an enforcing SELinux host, the real
+# runtime packages' removal scripts (threat note section "Package removal").
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectHostname=yes
+ProtectClock=yes
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+# AF_NETLINK stays: name resolution asks for it, and account tools write audit records over it.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+# EPERM and not the default kill: a SIGSYS death leaves no package-manager text for
+# classify_install_failure to read. A deny-list, so a syscall an older systemd does not know is
+# simply not denied.
+SystemCallFilter=~@mount @swap @reboot @raw-io @module @cpu-emulation @debug @clock
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=~CAP_SYS_MODULE CAP_SYS_RAWIO CAP_SYS_BOOT CAP_SYS_TIME CAP_SYS_PACCT CAP_SYS_TTY_CONFIG CAP_WAKE_ALARM CAP_BLOCK_SUSPEND CAP_BPF CAP_PERFMON CAP_SYSLOG CAP_NET_RAW CAP_NET_BROADCAST CAP_LEASE

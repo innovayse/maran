@@ -39,19 +39,30 @@
         "aliases": "Псевдонимы",
         "backendType": "Бэкенд",
         "phpVersion": "Версия PHP",
-        "proxyUpstream": "Апстрим"
+        "proxyUpstream": "Апстрим",
+        "webServer": "Веб-сервер",
+        "nodeVersion": "Версия Node.js",
+        "appPort": "Порт приложения",
+        "startCommand": "Команда запуска"
       },
       "hints": {
         "aliases": "По одному имени хоста в строке. Все они обслуживаются одним и тем же vhost.",
         "aliasesCount": "{count} из {max} дополнительных имён.",
         "phpVersion": "Выбрать можно только версии, установленные на этом сервере.",
-        "proxyUpstream": "Хост или хост:порт, куда пересылаются запросы, например 127.0.0.1:3000. Без схемы, пути и параметров."
+        "proxyUpstream": "Хост или хост:порт, куда пересылаются запросы, например 127.0.0.1:3000. Без схемы, пути и параметров.",
+        "webServer": "Все сайты обслуживает веб-сервер, установленный на этом сервере.",
+        "startCommand": "Выполняется в отдельной службе сайта, в папке сайта, например npm start.",
+        "appPort": "Порт, который слушает ваше приложение, от 1024 до 65535. Запросы пересылаются на него.",
+        "nodeVersion": "Можно выбрать только версии, установленные на этом сервере."
       },
       "placeholders": {
         "domain": "example.com",
         "proxyUpstream": "127.0.0.1:3000",
         "account": "Выберите аккаунт",
-        "phpVersion": "Выберите версию PHP"
+        "phpVersion": "Выберите версию PHP",
+        "nodeVersion": "Выберите версию Node.js",
+        "startCommand": "npm start",
+        "appPort": "3000"
       },
       "phpVersionOption": "PHP {version}",
       "phpVersionDefaultOption": "PHP {version} (по умолчанию на сервере)",
@@ -65,9 +76,13 @@
         "aliasesLimit": "У сайта может быть не больше {max} дополнительных имён.",
         "phpVersionRequired": "Выберите установленную версию PHP.",
         "proxyUpstreamRequired": "Для сайта с обратным прокси нужен апстрим.",
-        "proxyUpstreamInvalid": "Апстрим должен быть хостом или хост:порт, без схемы и пути."
+        "proxyUpstreamInvalid": "Апстрим должен быть хостом или хост:порт, без схемы и пути.",
+        "nodeVersionRequired": "Выберите установленную версию Node.js.",
+        "appPortInvalid": "Порт приложения должен быть целым числом от 1024 до 65535.",
+        "startCommandRequired": "Укажите команду запуска."
       },
-      "created": "Сайт {domain} добавлен."
+      "created": "Сайт {domain} добавлен.",
+      "noNodeVersions": "На этом сервере не установлено ни одной версии Node.js."
     },
     "detail": {
       "heading": "Сайт",

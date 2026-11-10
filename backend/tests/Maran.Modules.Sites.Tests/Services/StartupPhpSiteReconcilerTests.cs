@@ -5,6 +5,8 @@ using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Sites.Services;
 using Maran.Modules.Sites.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Apps;
+using Maran.SharedKernel.Interfaces;
 
 namespace Maran.Modules.Sites.Tests.Services;
 
@@ -208,10 +210,50 @@ public sealed class StartupPhpSiteReconcilerTests
         Assert.Equal(TimeSpan.FromSeconds(30), StartupPhpSiteReconciler.RetryDelay);
     }
 
+    /// <summary>The vhost is rendered for the installed web server.</summary>
+    [Fact]
+    public async Task The_vhost_is_rendered_for_the_installed_web_server()
+    {
+        // The wire reads an unset web server as nginx, so a pass that did not carry the installed one would
+        // rewrite an Apache host's vhosts for nginx on every panel start.
+        using var world = WorldOn(new FakeStackStatus(StackWebServer.Apache), [Account(FirstAccount, "alpha")], Php(FirstAccount, "one.example"));
+
+        Assert.True(await world.Reconciler.ReconcileAsync(CancellationToken.None));
+
+        Assert.Equal(SiteWebServer.Apache, Assert.Single(world.Agent.Descriptors).WebServer);
+    }
+
+    /// <summary>With PHP sites and no installed web server the pass fails and touches nothing.</summary>
+    [Fact]
+    public async Task With_php_sites_and_no_installed_web_server_the_pass_fails_and_touches_nothing()
+    {
+        using var world = WorldOn(
+            new FakeStackStatus(StackWebServer.None), [Account(FirstAccount, "alpha")], Php(FirstAccount, "one.example"));
+
+        Assert.False(await world.Reconciler.ReconcileAsync(CancellationToken.None));
+
+        Assert.Empty(world.Agent.Calls);
+    }
+
+    /// <summary>With no PHP sites an absent web server is not a failure (the inverse control).</summary>
+    [Fact]
+    public async Task With_no_php_sites_an_absent_web_server_is_not_a_failure()
+    {
+        using var world = WorldOn(new FakeStackStatus(StackWebServer.None), [Account(FirstAccount, "alpha")]);
+
+        Assert.True(await world.Reconciler.ReconcileAsync(CancellationToken.None));
+    }
+
     /// <summary>Builds a world with the given accounts and sites.</summary>
     private static ReconcilerWorld World(IReadOnlyList<AccountSnapshot> accounts, params Site[] sites)
     {
         return new ReconcilerWorld(accounts, sites);
+    }
+
+    /// <summary>Builds a world over a given stack.</summary>
+    private static ReconcilerWorld WorldOn(IStackStatus stack, IReadOnlyList<AccountSnapshot> accounts, params Site[] sites)
+    {
+        return new ReconcilerWorld(accounts, sites, stack);
     }
 
     /// <summary>Builds an account snapshot with a three-worker pool budget.</summary>
@@ -237,6 +279,9 @@ public sealed class StartupPhpSiteReconcilerTests
             backend,
             string.Empty,
             backend == SiteBackendType.ReverseProxy ? "127.0.0.1:8080" : string.Empty,
+            string.Empty,
+            0,
+            string.Empty,
             $"/home/acct/sites/{domain}",
             new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
     }
@@ -262,7 +307,8 @@ public sealed class StartupPhpSiteReconcilerTests
         /// <summary>Seeds the store and builds the reconciler over it.</summary>
         /// <param name="accounts">The accounts the directory knows.</param>
         /// <param name="sites">The rows the panel stores.</param>
-        public ReconcilerWorld(IReadOnlyList<AccountSnapshot> accounts, IReadOnlyList<Site> sites)
+        /// <param name="stack">The installed apps; nginx and PHP when omitted.</param>
+        public ReconcilerWorld(IReadOnlyList<AccountSnapshot> accounts, IReadOnlyList<Site> sites, IStackStatus? stack = null)
         {
             // Seeded as an administrator and read back with no principal at all, which is what
             // startup has.
@@ -270,7 +316,7 @@ public sealed class StartupPhpSiteReconcilerTests
             _dbContext.Sites.AddRange(sites);
             _dbContext.SaveChanges();
 
-            _scopes = new StartupPhpSiteScopeFactory(_dbContext, Agent, new StubAccountDirectory(accounts.ToArray()));
+            _scopes = new StartupPhpSiteScopeFactory(_dbContext, Agent, new StubAccountDirectory(accounts.ToArray()), stack);
             Reconciler = new StartupPhpSiteReconciler(_scopes.Scopes, Log);
         }
 

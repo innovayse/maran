@@ -66,6 +66,7 @@ const SCREEN_SWEEP_SPECS = [
   'e2e/settings/alert-settings.spec.ts',
   'e2e/settings/licence.spec.ts',
   'e2e/marketplace/layout.spec.ts',
+  'e2e/apps/layout.spec.ts',
   'e2e/migration/no-horizontal-scroll.spec.ts',
 ]
 

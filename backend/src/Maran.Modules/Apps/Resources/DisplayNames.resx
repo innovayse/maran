@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AppsModuleDisplayName">
+    <value>Apps</value>
+  </data>
+  <data name="AppsMenuStore">
+    <value>App store</value>
+  </data>
+  <data name="AppsRouteStore">
+    <value>App store</value>
+  </data>
+  <data name="AppKindWebServer">
+    <value>Web server</value>
+  </data>
+  <data name="AppKindRuntime">
+    <value>Runtime</value>
+  </data>
+  <data name="AppStateInstalling">
+    <value>Installing</value>
+  </data>
+  <data name="AppStateInstalled">
+    <value>Installed</value>
+  </data>
+  <data name="AppStateFailed">
+    <value>Failed</value>
+  </data>
+  <data name="AppStateRemoving">
+    <value>Removing</value>
+  </data>
+  <data name="AppServiceStatusUnknown">
+    <value>Unknown</value>
+  </data>
+  <data name="AppServiceStatusActive">
+    <value>Running</value>
+  </data>
+  <data name="AppServiceStatusInactive">
+    <value>Stopped</value>
+  </data>
+  <data name="AppServiceStatusFailed">
+    <value>Failed</value>
+  </data>
+  <data name="AppServiceStatusNone">
+    <value>No service</value>
+  </data>
+  <data name="AppFamilyNginx">
+    <value>nginx</value>
+  </data>
+  <data name="AppFamilyApache">
+    <value>Apache</value>
+  </data>
+  <data name="AppFamilyPhp">
+    <value>PHP {0}</value>
+  </data>
+  <data name="AppFamilyNode">
+    <value>Node.js {0}</value>
+  </data>
+</root>

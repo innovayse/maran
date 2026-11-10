@@ -1,4 +1,5 @@
 using Maran.Agent.Client.Interfaces;
+using Maran.Agent.Client.Services.SitesService;
 using Maran.Modules.Ssl.Mappers;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
@@ -33,13 +34,18 @@ public sealed class CertificateInstaller
     /// <summary>The one window onto the Sites module, and the only hand on its certificate flag.</summary>
     private readonly ISiteDirectory _sites;
 
+    /// <summary>What the app store has installed, which names the web server whose vhost is rewritten.</summary>
+    private readonly IStackStatus _stack;
+
     /// <summary>Creates the installer.</summary>
     /// <param name="agent">The agent client that writes the material and rewrites the vhost.</param>
     /// <param name="sites">The Sdk abstraction over the module that owns site rows.</param>
-    public CertificateInstaller(IAgentSslClient agent, ISiteDirectory sites)
+    /// <param name="stack">What the app store has installed, which names the web server the vhost is rendered for.</param>
+    public CertificateInstaller(IAgentSslClient agent, ISiteDirectory sites, IStackStatus stack)
     {
         _agent = agent;
         _sites = sites;
+        _stack = stack;
     }
 
     /// <summary>Installs material for a site and marks the site as carrying a certificate.</summary>
@@ -61,7 +67,7 @@ public sealed class CertificateInstaller
             site.Domain,
             certificatePem,
             privateKeyPem,
-            SiteDescriptorMapper.From(site, hasCertificate: true),
+            SiteDescriptorMapper.From(site, hasCertificate: true, SiteWebServerMapper.Require(_stack)),
             cancellationToken);
         if (!installed.IsSuccess)
         {

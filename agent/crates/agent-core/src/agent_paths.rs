@@ -31,6 +31,46 @@ impl AgentPaths {
     /// once, to include this directory from their packaged `nginx.conf`.
     pub const NGINX_INCLUDE_DIRECTORY: &'static str = "/etc/maran/nginx/sites";
 
+    /// Directory the agent's own Apache site includes are written to (issue #517).
+    ///
+    /// The Apache counterpart of [`Self::NGINX_INCLUDE_DIRECTORY`], for the same reason and
+    /// with the same rule: never the distribution's `sites-enabled`, `conf.d` or
+    /// `vhosts.d`, which belong to its packaging. Installing the Apache app adds one
+    /// `IncludeOptional` of `<this directory>/*.conf` to the packaged configuration, once.
+    pub const APACHE_INCLUDE_DIRECTORY: &'static str = "/etc/maran/apache/sites";
+
+    /// The port-80 virtual host Apache answers the panel's own ACME challenge with, while
+    /// Apache is the site web server and so owns port 80 (issue #517).
+    ///
+    /// Beside [`Self::APACHE_INCLUDE_DIRECTORY`] and not inside it: that directory holds
+    /// exactly one file per hosted site, and a file that is not a site would make Apache look
+    /// permanently in use.
+    pub const APACHE_ACME_CONFIG: &'static str = "/etc/maran/apache/maran-acme.conf";
+
+    /// The agent's own record of which web server serves the hosted sites (issue #517): a file
+    /// holding `nginx` or `apache`, absent while the host has not chosen one.
+    ///
+    /// nginx is always on the host because it is the panel's own front on the panel port, so its
+    /// package says nothing about the choice; this file does. It is written by `InstallApp`
+    /// (atomically, root only) and removed by `UninstallApp`, and it is what `ListApps`, the
+    /// ownership of an account's home and the startup web-tree pass read. Under `/etc/maran`, which
+    /// the agent already writes and the unit's `ProtectSystem=true` leaves writable.
+    pub const SITE_WEB_SERVER_MARKER: &'static str = "/etc/maran/site-web-server";
+
+    /// The panel's own port-80 ACME challenge block in nginx's configuration (issue #517),
+    /// installed by `installer/lib/80-nginx.sh` as `MARAN_NGINX_PORT80_CONF` (the same path).
+    ///
+    /// It is the only thing in the panel's nginx configuration that binds port 80. While Apache is
+    /// the site web server and owns port 80, `InstallApp(apache)` renames it to
+    /// [`Self::NGINX_PORT80_SUSPENDED_CONFIG`] and reloads nginx before Apache is started;
+    /// removing Apache puts it back. A fixed path: no request names it.
+    pub const NGINX_PORT80_CONFIG: &'static str = "/etc/nginx/conf.d/maran-port80.conf";
+
+    /// Where [`Self::NGINX_PORT80_CONFIG`] is parked while Apache owns port 80. Not `*.conf`, so
+    /// nginx never opens it; the installer's `MARAN_PORT80_SUSPENDED_SUFFIX` spells the same name.
+    pub const NGINX_PORT80_SUSPENDED_CONFIG: &'static str =
+        "/etc/nginx/conf.d/maran-port80.conf.suspended";
+
     /// Directory the credential files of sites with HTTP basic authentication
     /// are written to, one `<domain>.htpasswd` per site (issue #151).
     ///

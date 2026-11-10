@@ -39,6 +39,7 @@ use crate::accounts::remove_account_sysv_ipc::remove_account_sysv_ipc;
 use crate::accounts::{
     AccountError, AccountSuspensionState, AccountUsage, CreatedAccount, StoredPassword, SystemHost,
 };
+use crate::apps::installed_site_web_server;
 use crate::cron::cron_lock::cron_lock;
 use crate::cron::{CronError, CronHost, NO_CRONTAB_MARKER, inspect_account_cron};
 use crate::db::{DbHost, drop_account_databases};
@@ -1716,7 +1717,8 @@ impl<H: SystemHost> AccountOperations<H> {
                 &[
                     "--no-dereference",
                     END_OF_OPTIONS,
-                    self.distro.web_server_group(),
+                    self.distro
+                        .site_web_server_group(installed_site_web_server()),
                     &repaired.home,
                 ],
                 CallClass::Mutation,
@@ -1744,7 +1746,9 @@ impl<H: SystemHost> AccountOperations<H> {
     /// [`AccountError::Bound`] when `getent` outlived its deadline and was killed.
     fn web_server_group_gid(&self) -> Result<u32, AccountError> {
         let program = self.distro.getent_binary();
-        let group = self.distro.web_server_group();
+        let group = self
+            .distro
+            .site_web_server_group(installed_site_web_server());
         let outcome = self.host.run(
             &program,
             &[END_OF_OPTIONS, GROUP_DATABASE, group],
@@ -1850,7 +1854,8 @@ impl<H: SystemHost> AccountOperations<H> {
             &[
                 "--no-dereference",
                 END_OF_OPTIONS,
-                self.distro.web_server_group(),
+                self.distro
+                    .site_web_server_group(installed_site_web_server()),
                 home,
             ],
             CallClass::Mutation,
