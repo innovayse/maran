@@ -1,8 +1,11 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubFirewall } from '../fixtures/stub-firewall-routes'
+import { stubDashboardProblem } from '../fixtures/stub-dashboard-route'
+import { DEFAULT_LAYOUT, stubDashboardLayout } from '../fixtures/stub-live-dashboard-stream'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { FirewallRule } from '../../src/types/firewall'
 
 // Issue #221 (point 7): the Firewall page showed two vertical scrollbars and the app bar moved.
@@ -13,9 +16,16 @@ import type { FirewallRule } from '../../src/types/firewall'
 // because a launch option needs a browser of its own.
 test.use({ launchOptions: { ignoreDefaultArgs: ['--hide-scrollbars'] } })
 
-test('the Firewall page scrolls in its panel only, and the app bar does not move', async ({ page }) => {
+test('the Firewall page scrolls in its panel only, and the app bar does not move', async ({ page, guard }) => {
   await page.setViewportSize({ width: 1440, height: 600 })
   await stubSignedIn(page)
+  await stubShellReads(page)
+  // The landing page is drawn from a refused dashboard read: a short page with a notice, which is
+  // the "short page" the end of this spec compares the long Firewall page with. A loaded dashboard
+  // would be taller than this 600px window and scroll, which is not what the spec is about.
+  await stubDashboardProblem(page, 'The dashboard is not available.')
+  await stubDashboardLayout(page, DEFAULT_LAYOUT)
+  guard.allow(503, /\/api\/v1\/dashboard$/)
   await stubHealthy(page)
   await stubModules(page, [{ name: 'firewall', displayName: 'Firewall', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
   const rules = Array.from({ length: 40 }, (_, index): FirewallRule => {

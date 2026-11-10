@@ -17,6 +17,19 @@ import ResellerDetailPage from '../pages/resellers/ResellerDetailPage.vue'
 import ResellerFormPage from '../pages/resellers/ResellerFormPage.vue'
 import ResellerProfileFormPage from '../pages/resellers/ResellerProfileFormPage.vue'
 import ResellersListPage from '../pages/resellers/ResellersListPage.vue'
+import AccountExportDetailPage from '../pages/migration/AccountExportDetailPage.vue'
+import AccountExportFormPage from '../pages/migration/AccountExportFormPage.vue'
+import AccountExportsListPage from '../pages/migration/AccountExportsListPage.vue'
+import AccountImportDetailPage from '../pages/migration/AccountImportDetailPage.vue'
+import AccountImportFormPage from '../pages/migration/AccountImportFormPage.vue'
+import AccountImportsListPage from '../pages/migration/AccountImportsListPage.vue'
+import ExportGrantsListPage from '../pages/migration/ExportGrantsListPage.vue'
+import MigrationJobDetailPage from '../pages/migration/MigrationJobDetailPage.vue'
+import MigrationJobFormPage from '../pages/migration/MigrationJobFormPage.vue'
+import MigrationJobsListPage from '../pages/migration/MigrationJobsListPage.vue'
+import RemoteServerDetailPage from '../pages/migration/RemoteServerDetailPage.vue'
+import RemoteServerFormPage from '../pages/migration/RemoteServerFormPage.vue'
+import RemoteServersListPage from '../pages/migration/RemoteServersListPage.vue'
 import SitesListPage from '../pages/sites/SitesListPage.vue'
 import SiteFormPage from '../pages/sites/SiteFormPage.vue'
 import SiteDetailPage from '../pages/sites/SiteDetailPage.vue'
@@ -27,6 +40,8 @@ import DnsNameserversPage from '../pages/dns/DnsNameserversPage.vue'
 import DnsZoneDetailPage from '../pages/dns/DnsZoneDetailPage.vue'
 import DnsZoneFormPage from '../pages/dns/DnsZoneFormPage.vue'
 import DnsZonesListPage from '../pages/dns/DnsZonesListPage.vue'
+import DnsTemplateFormPage from '../pages/dns/DnsTemplateFormPage.vue'
+import DnsTemplatesListPage from '../pages/dns/DnsTemplatesListPage.vue'
 import BackupDestinationsPage from '../pages/backups/BackupDestinationsPage.vue'
 import BackupSchedulePage from '../pages/backups/BackupSchedulePage.vue'
 import MyBackupSchedulePage from '../pages/backups/MyBackupSchedulePage.vue'
@@ -36,6 +51,7 @@ import SftpUsersListPage from '../pages/sftp/SftpUsersListPage.vue'
 import MailAliasesListPage from '../pages/mail/MailAliasesListPage.vue'
 import MailboxesListPage from '../pages/mail/MailboxesListPage.vue'
 import MailDomainsListPage from '../pages/mail/MailDomainsListPage.vue'
+import MailQueuePage from '../pages/mail/MailQueuePage.vue'
 import FirewallPage from '../pages/firewall/FirewallPage.vue'
 import FirewallBansPage from '../pages/firewall/FirewallBansPage.vue'
 import FirewallWhitelistPage from '../pages/firewall/FirewallWhitelistPage.vue'
@@ -47,6 +63,8 @@ import CronRunsPage from '../pages/cron/CronRunsPage.vue'
 import TasksPage from '../pages/tasks/TasksPage.vue'
 import MonitoringPage from '../pages/monitoring/MonitoringPage.vue'
 import PendingUpdatesPage from '../pages/monitoring/PendingUpdatesPage.vue'
+import MarketplacePage from '../pages/marketplace/MarketplacePage.vue'
+import MarketplaceModuleDetailPage from '../pages/marketplace/MarketplaceModuleDetailPage.vue'
 import AuthLayout from '../layouts/AuthLayout.vue'
 import LoginPage from '../pages/auth/LoginPage.vue'
 import TwoFactorPage from '../pages/auth/TwoFactorPage.vue'
@@ -54,6 +72,7 @@ import SetupPage from '../pages/auth/SetupPage.vue'
 import ForgotPasswordPage from '../pages/auth/ForgotPasswordPage.vue'
 import ResetPasswordPage from '../pages/auth/ResetPasswordPage.vue'
 import AcceptInvitationPage from '../pages/auth/AcceptInvitationPage.vue'
+import ChangePasswordPage from '../pages/auth/ChangePasswordPage.vue'
 import AuditPage from '../pages/settings/AuditPage.vue'
 import SessionsPage from '../pages/settings/SessionsPage.vue'
 import ApiKeysPage from '../pages/settings/ApiKeysPage.vue'
@@ -61,6 +80,7 @@ import TwoFactorSettingsPage from '../pages/settings/TwoFactorSettingsPage.vue'
 import SecurityPolicyPage from '../pages/settings/SecurityPolicyPage.vue'
 import PhpSettingsPage from '../pages/sites/PhpSettingsPage.vue'
 import PhpVersionsPage from '../pages/settings/PhpVersionsPage.vue'
+import LicencePage from '../pages/settings/LicencePage.vue'
 import PanelUpdatePage from '../pages/settings/PanelUpdatePage.vue'
 import PanelCertificatePage from '../pages/settings/PanelCertificatePage.vue'
 import ResellerBrandingPage from '../pages/reseller/ResellerBrandingPage.vue'
@@ -68,6 +88,7 @@ import AlertSettingsPage from '../pages/settings/AlertSettingsPage.vue'
 import SmtpSettingsPage from '../pages/settings/SmtpSettingsPage.vue'
 import { createAuthGuard } from './authGuard'
 import { createModuleAccessGuard } from './moduleAccessGuard'
+import { createPackagedRoutesGuard } from './packagedRoutesGuard'
 import { createRoleGuard } from './roleGuard'
 
 /**
@@ -83,6 +104,9 @@ const SITE_ID_SEGMENT = ':id([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-
  * as text and resolves a segment by its constant (`e2e/ui-kit/route-coverage.spec.ts`).
  */
 const DNS_ZONE_SEGMENT = 'zones/:id([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})'
+
+/** The route segment naming a DNS zone template by its id; a UUID only, for the reason {@link DNS_ZONE_SEGMENT} gives. */
+const DNS_TEMPLATE_SEGMENT = 'templates/:id([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})'
 
 /**
  * Creates the application router. Every route nests under {@link DefaultLayout},
@@ -205,6 +229,126 @@ export const createAppRouter = (): Router => {
         ],
       },
       {
+        // Remote servers: the migration sources an administrator registers (issue #197). They belong to
+        // the Migration module. Administrators only: the endpoints refuse every other role, and
+        // `adminOnly` sends a reseller or a customer to the "not available" screen.
+        path: '/migration/remote-servers',
+        component: DefaultLayout,
+        children: [
+          { path: '', name: 'remote-servers', component: RemoteServersListPage, meta: { module: 'servermigration', title: 'migration.list.heading', adminOnly: true, viewAsRefused: true } },
+          { path: 'new', name: 'remote-servers-new', component: RemoteServerFormPage, meta: { module: 'servermigration', title: 'migration.form.headingNew', adminOnly: true, viewAsRefused: true, navigationParent: 'remote-servers' } },
+          // After 'new', for the reason the accounts routes give.
+          {
+            path: ':id',
+            name: 'remote-server-detail',
+            component: RemoteServerDetailPage,
+            props: true,
+            meta: {
+              module: 'servermigration',
+              title: 'migration.detail.heading',
+              adminOnly: true,
+              viewAsRefused: true,
+              navigationParent: 'remote-servers',
+              titledByRecord: true,
+            },
+          },
+          {
+            path: ':id/edit',
+            name: 'remote-server-edit',
+            component: RemoteServerFormPage,
+            props: true,
+            meta: { module: 'servermigration', title: 'migration.form.headingEdit', adminOnly: true, viewAsRefused: true, navigationParent: 'remote-servers' },
+          },
+        ],
+      },
+      {
+        // Whole-server migration jobs (issue #197, phase 2): choosing a registered server's accounts, mapping
+        // them, the dry run, the parallel two-phase transfer and the cut-over. Administrators only, and refused
+        // while viewing as a login, like the remote servers they read from.
+        path: '/migration/jobs',
+        component: DefaultLayout,
+        children: [
+          { path: '', name: 'migration-jobs', component: MigrationJobsListPage, meta: { module: 'servermigration', title: 'migrationJobs.list.heading', adminOnly: true, viewAsRefused: true } },
+          { path: 'new', name: 'migration-jobs-new', component: MigrationJobFormPage, meta: { module: 'servermigration', title: 'migrationJobs.form.heading', adminOnly: true, viewAsRefused: true, navigationParent: 'migration-jobs' } },
+          // After 'new', for the reason the accounts routes give.
+          {
+            path: ':id',
+            name: 'migration-job-detail',
+            component: MigrationJobDetailPage,
+            props: true,
+            meta: { module: 'servermigration', title: 'migrationJobs.list.heading', adminOnly: true, viewAsRefused: true, navigationParent: 'migration-jobs' },
+          },
+        ],
+      },
+      {
+        // The lists of the account move (issue #127): the exports made, the imports staged or run, and
+        // the pull grants issued for exports. Each is one server page; administrators only, and
+        // refused while viewing as a login, like the forms they sit beside.
+        path: '/migration/account-exports',
+        component: DefaultLayout,
+        children: [
+          { path: '', name: 'account-exports', component: AccountExportsListPage, meta: { module: 'servermigration', title: 'accountMove.export.list.heading', adminOnly: true, viewAsRefused: true } },
+        ],
+      },
+      {
+        path: '/migration/account-imports',
+        component: DefaultLayout,
+        children: [
+          { path: '', name: 'account-imports', component: AccountImportsListPage, meta: { module: 'servermigration', title: 'accountMove.import.list.heading', adminOnly: true, viewAsRefused: true } },
+        ],
+      },
+      {
+        path: '/migration/export-grants',
+        component: DefaultLayout,
+        children: [
+          { path: '', name: 'export-grants', component: ExportGrantsListPage, meta: { module: 'servermigration', title: 'accountMove.export.grants.heading', adminOnly: true, viewAsRefused: true } },
+        ],
+      },
+      {
+        // Exporting an account for another Maran server (issue #127). The Migration module's screens,
+        // administrators only: the endpoints refuse every other role, and `adminOnly` sends a reseller
+        // or a customer to the "not available" screen. Viewing as a login is refused as well.
+        path: '/migration/account-export',
+        component: DefaultLayout,
+        children: [
+          { path: '', name: 'account-export', component: AccountExportFormPage, meta: { module: 'servermigration', title: 'accountMove.export.heading', adminOnly: true, viewAsRefused: true } },
+          {
+            path: ':id',
+            name: 'account-export-detail',
+            component: AccountExportDetailPage,
+            props: true,
+            meta: {
+              module: 'servermigration',
+              title: 'accountMove.export.detail.title',
+              adminOnly: true,
+              viewAsRefused: true,
+              navigationParent: 'account-exports',
+            },
+          },
+        ],
+      },
+      {
+        // Importing an account from another Maran server's package (issue #127); same rules as the export.
+        path: '/migration/account-import',
+        component: DefaultLayout,
+        children: [
+          { path: '', name: 'account-import', component: AccountImportFormPage, meta: { module: 'servermigration', title: 'accountMove.import.heading', adminOnly: true, viewAsRefused: true } },
+          {
+            path: ':id',
+            name: 'account-import-detail',
+            component: AccountImportDetailPage,
+            props: true,
+            meta: {
+              module: 'servermigration',
+              title: 'accountMove.import.detail.title',
+              adminOnly: true,
+              viewAsRefused: true,
+              navigationParent: 'account-imports',
+            },
+          },
+        ],
+      },
+      {
         // A reseller's own overview: its envelope and what it has used of it (issue #179). It is the
         // reseller's home, in place of the server dashboard, which is not theirs. The endpoint
         // (`GET /api/v1/reseller/me`) refuses every other role, and `resellerOnly` sends an
@@ -227,7 +371,7 @@ export const createAppRouter = (): Router => {
         component: DefaultLayout,
         children: [
           { path: '', name: 'sites', component: SitesListPage, meta: { module: 'sites', title: 'sites.list.heading' } },
-          { path: 'new', name: 'sites-new', component: SiteFormPage, meta: { module: 'sites', title: 'sites.form.heading' } },
+          { path: 'new', name: 'sites-new', component: SiteFormPage, meta: { module: 'sites', title: 'sites.form.heading', navigationParent: 'sites' } },
           // The account's PHP settings (issue #138), one page for every site on PHP. A static segment
           // beside the UUID pattern below, which it can never match. The endpoint is the Php
           // feature's, so the navigation offers the item only to a plan that sells it.
@@ -277,8 +421,8 @@ export const createAppRouter = (): Router => {
         // customer's "My zones" (the navigation lists both entries under this one route), and a zone
         // has a detail page with its records. The name server settings are administrators only: the
         // endpoint refuses every other role, and `adminOnly` spares a customer an administrator's
-        // screen around a refusal. Zone templates and DNSSEC are later phases of the issue and have
-        // no route until their endpoints exist.
+        // screen around a refusal. The zone templates (issue #452) are administrators only for the
+        // same reason: a list, a form that creates one and the same form changing one.
         path: '/dns',
         component: DefaultLayout,
         children: [
@@ -297,6 +441,21 @@ export const createAppRouter = (): Router => {
             component: DnsZoneDetailPage,
             props: true,
             meta: { module: 'dns', title: 'dns.detail.heading', navigationParent: 'dns-zones', titledByRecord: true },
+          },
+          { path: 'templates', name: 'dns-templates', component: DnsTemplatesListPage, meta: { module: 'dns', title: 'dns.templates.heading', adminOnly: true } },
+          {
+            path: 'templates/new',
+            name: 'dns-template-new',
+            component: DnsTemplateFormPage,
+            meta: { module: 'dns', title: 'dns.templates.form.newHeading', adminOnly: true, navigationParent: 'dns-templates' },
+          },
+          // The UUID pattern keeps this route off /dns/templates/new, as the zone detail's does.
+          {
+            path: DNS_TEMPLATE_SEGMENT,
+            name: 'dns-template-edit',
+            component: DnsTemplateFormPage,
+            props: true,
+            meta: { module: 'dns', title: 'dns.templates.form.editHeading', adminOnly: true, navigationParent: 'dns-templates' },
           },
           {
             path: 'nameservers',
@@ -371,6 +530,9 @@ export const createAppRouter = (): Router => {
           { path: 'domains', name: 'mail-domains', component: MailDomainsListPage, meta: { module: 'mail', title: 'mail.domains.heading' } },
           { path: 'mailboxes', name: 'mailboxes', component: MailboxesListPage, meta: { module: 'mail', title: 'mail.mailboxes.heading' } },
           { path: 'aliases', name: 'mail-aliases', component: MailAliasesListPage, meta: { module: 'mail', title: 'mail.aliases.heading' } },
+          // Administrators only: the queue is the host's, every account's mail in flight. The endpoint is the
+          // boundary; `adminOnly` sends a reseller or a customer to the "not available" screen.
+          { path: 'queue', name: 'mail-queue', component: MailQueuePage, meta: { module: 'mail', title: 'mail.queue.heading', adminOnly: true } },
         ],
       },
       {
@@ -429,7 +591,7 @@ export const createAppRouter = (): Router => {
             path: ':entryId/runs',
             name: 'cron-runs',
             component: CronRunsPage,
-            meta: { module: 'cron', title: 'cron.runs.heading' },
+            meta: { module: 'cron', title: 'cron.runs.heading', navigationParent: 'cron' },
           },
         ],
       },
@@ -448,6 +610,33 @@ export const createAppRouter = (): Router => {
         component: DefaultLayout,
         children: [
           { path: '', name: 'monitoring', component: MonitoringPage, meta: { module: 'monitoring', title: 'monitoring.heading', adminOnly: true } },
+        ],
+      },
+      {
+        // The module marketplace (issues #186, #187): administrators only, the endpoints refuse every
+        // other role whatever `adminOnly` says. The detail route names the list as its
+        // parent so the menu keeps the Settings entry marked while a module's page is open.
+        path: '/marketplace',
+        component: DefaultLayout,
+        children: [
+          {
+            path: '',
+            name: 'marketplace',
+            component: MarketplacePage,
+            meta: { module: 'marketplace', title: 'marketplace.title', adminOnly: true },
+          },
+          {
+            path: ':id',
+            name: 'marketplace-module',
+            component: MarketplaceModuleDetailPage,
+            meta: {
+              module: 'marketplace',
+              title: 'marketplace.detail.title',
+              adminOnly: true,
+              navigationParent: 'marketplace',
+              titledByRecord: true,
+            },
+          },
         ],
       },
       {
@@ -519,7 +708,7 @@ export const createAppRouter = (): Router => {
           { path: '', name: 'my-account', component: MyAccountPage, meta: { title: 'app.shell.menu.myAccount' } },
           // The account owner's team (issue #315). Not a licensed module and not `adminOnly`: the
           // endpoints refuse everyone but the account's owner, and the page renders that refusal.
-          { path: 'sub-users', name: 'sub-users', component: SubUsersPage, meta: { title: 'subUsers.heading' } },
+          { path: 'sub-users', name: 'sub-users', component: SubUsersPage, meta: { title: 'subUsers.heading', viewAsRefused: true } },
         ],
       },
       {
@@ -533,13 +722,22 @@ export const createAppRouter = (): Router => {
         children: [{ path: '', name: 'two-factor-setup', component: TwoFactorSettingsPage, meta: { title: 'app.twoFactor.heading' } }],
       },
       {
+        // The new password of a login still holding the first one somebody else chose (issue
+        // #514): the same shape as the steered enrolment above, on the bare layout, because that
+        // token reaches only the password change. The auth guard sends such a caller here from any
+        // URL; nothing links to it.
+        path: '/change-password',
+        component: AuthLayout,
+        children: [{ path: '', name: 'change-password', component: ChangePasswordPage, meta: { title: 'app.auth.changePasswordRequired.title' } }],
+      },
+      {
         // Account security, not a licensed module: these two screens belong to
         // whoever is signed in, so they carry no `meta.module` and the licence
         // guard has nothing to say about them.
         path: '/settings',
         component: DefaultLayout,
         children: [
-          { path: 'sessions', name: 'sessions', component: SessionsPage, meta: { title: 'app.sessions.heading' } },
+          { path: 'sessions', name: 'sessions', component: SessionsPage, meta: { title: 'app.sessions.heading', viewAsRefused: true } },
           {
             path: 'two-factor',
             name: 'two-factor',
@@ -558,7 +756,7 @@ export const createAppRouter = (): Router => {
           { path: 'api-keys', name: 'api-keys', component: ApiKeysPage, meta: { module: 'identity', title: 'apiKeys.heading', adminOnly: true } },
           // A reseller's own API keys (issue #435): the same screen asking the reseller's endpoint, which
           // refuses every other role; `resellerOnly` sends an administrator or a customer to the "not available" screen.
-          { path: 'reseller-api-keys', name: 'reseller-api-keys', component: ApiKeysPage, meta: { title: 'apiKeys.heading', resellerOnly: true } },
+          { path: 'reseller-api-keys', name: 'reseller-api-keys', component: ApiKeysPage, meta: { title: 'apiKeys.heading', resellerOnly: true, viewAsRefused: true } },
           { path: 'security-policy', name: 'security-policy', component: SecurityPolicyPage, meta: { title: 'app.securityPolicy.heading', adminOnly: true } },
           // Who is told about an alert and at what level (issue #142); administrators only, like the mail it rides on.
           { path: 'alerts', name: 'alert-settings', component: AlertSettingsPage, meta: { title: 'alertSettings.heading', adminOnly: true } },
@@ -581,6 +779,15 @@ export const createAppRouter = (): Router => {
             name: 'panel-update',
             component: PanelUpdatePage,
             meta: { title: 'panelUpdate.heading', adminOnly: true },
+          },
+          // The panel's licence status and the install form (issue #8): administrators only, the
+          // endpoints refuse everyone else whatever this flag says. It carries no `meta.module`: the
+          // screen that installs a licence must stay reachable when the licence is what is missing.
+          {
+            path: 'licence',
+            name: 'licence',
+            component: LicencePage,
+            meta: { title: 'licence.heading', adminOnly: true },
           },
           // PHP runtimes are server-wide and installing one is administrators' work, so this sits
           // with the other administrator screens and carries no `meta.module`: a host with no PHP
@@ -619,6 +826,9 @@ export const createAppRouter = (): Router => {
   // The role guard runs before the licence guard: a customer must never be told to buy a screen
   // that is an administrator's, not theirs.
   router.beforeEach(createRoleGuard())
+  // Installed modules' screens exist only once the catalogue is loaded; a deep link to one is
+  // resolved here, before the licence guard judges it.
+  router.beforeEach(createPackagedRoutesGuard(router))
   router.beforeEach(createModuleAccessGuard())
 
   return router

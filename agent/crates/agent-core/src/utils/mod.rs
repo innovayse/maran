@@ -40,6 +40,7 @@ pub mod pkill_uid_arguments;
 pub mod run_bounded;
 pub mod run_for_window;
 pub mod run_unthreaded;
+pub mod run_unthreaded_to_file;
 pub mod slots_full;
 pub mod spawn_argv;
 pub mod spawn_error;

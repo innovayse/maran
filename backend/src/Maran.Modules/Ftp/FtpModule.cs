@@ -79,6 +79,11 @@ public sealed class FtpModule : IPanelModule
         // rather than as logic inside whatever happens to notice.
         services.AddScoped<FtpsTlsReloader>();
 
+        // Moving an account to another Maran server (issue #127): what this module hands over, and how it
+        // creates what it is handed. The Migration module gathers every implementation through the Sdk.
+        services.AddScoped<IAccountMigrationExporter, FtpMigrationExporter>();
+        services.AddScoped<IAccountMigrationImporter, FtpMigrationImporter>();
+
         // The shared resource pool the panel-wide ResxErrorTextProvider resolves error codes and
         // Manifest.DisplayNameKey against. Module-internal lookups inject IStringLocalizer<T>
         // directly instead.

@@ -33,6 +33,7 @@ import UiPagination from '../../components/ui/UiPagination.vue'
 import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
 import UiSearchInput from '../../components/ui/UiSearchInput.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
+import UiToolbar from '../../components/ui/UiToolbar.vue'
 import DatabaseCreatedDialog from '../../components/databases/DatabaseCreatedDialog.vue'
 import DatabaseUserActionConfirm from '../../components/databases/DatabaseUserActionConfirm.vue'
 import DatabaseUserCreateForm from '../../components/databases/DatabaseUserCreateForm.vue'
@@ -274,7 +275,7 @@ onBeforeUnmount(() => {
 
       <div class="flex flex-col gap-4">
         <!-- No search and no filter has anything to narrow before the first user exists. -->
-        <div v-if="!answeredNothing || isNarrowed" class="flex flex-wrap items-end gap-3">
+        <UiToolbar v-if="!answeredNothing || isNarrowed">
           <UiSearchInput
             v-model="table.search.value"
             class="min-w-55 max-w-85 flex-1"
@@ -290,7 +291,7 @@ onBeforeUnmount(() => {
             :active-label="t('common.list.filtersApplied', { n: table.activeFilterCount.value }, table.activeFilterCount.value)"
             @click="openFilters"
           />
-        </div>
+        </UiToolbar>
 
         <UiActiveFilter
           v-if="chips.length > 0"

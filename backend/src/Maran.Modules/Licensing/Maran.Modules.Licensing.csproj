@@ -33,13 +33,35 @@
   <ItemGroup>
     <!-- Ed25519 verification only; no home-grown crypto (rules/security.md item 9) and the BCL has
          no Ed25519 support on net9.0 — see the pin's comment in Directory.Packages.props.
-         No WolverineFx: this module's one handler is resolved by ordinary DI, not dispatched
-         through Wolverine — see LicensingController's own remarks for why (Wolverine's discovery
-         walks the composed ModuleRegistry, and this module is deliberately absent from it). -->
+         WolverineFx: the status query and the install command are dispatched through the bus like
+         every other module's, now that this module is in the ModuleRegistry that Wolverine's handler
+         discovery walks (it has a screen, so it is no longer deliberately absent from it). -->
     <PackageReference Include="BouncyCastle.Cryptography" />
+    <PackageReference Include="WolverineFx" />
     <!-- FluentValidation: InstallLicenceCommandValidator's one request-shape rule
          (rules/security.md "Input"), the same package every other module's command validators use. -->
     <PackageReference Include="FluentValidation" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The production licence verification key, embedded only when the release has one. The file is
+         the 64 hexadecimal characters of the Ed25519 PUBLIC key, generated offline by the issuing
+         service (its private half never enters this repository). Until it exists, a build trusts no
+         key and refuses every licence (EmbeddedLicenceVerificationKeySource); no placeholder is
+         ever embedded in its stead. -->
+    <EmbeddedResource Include="..\..\..\..\installer\keys\licence-verification.pub"
+                      Condition="Exists('..\..\..\..\installer\keys\licence-verification.pub')"
+                      LogicalName="licence-verification.pub" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The production lease verification key, embedded only when the release has one. A different key
+         from the licence key on purpose (a leaked lease key must not mint licences, and the reverse).
+         The file is the 64 hexadecimal characters of the Ed25519 PUBLIC key, generated offline by the
+         issuing service; until it exists a build refuses every lease, and no placeholder is embedded. -->
+    <EmbeddedResource Include="..\..\..\..\installer\keys\lease-verification.pub"
+                      Condition="Exists('..\..\..\..\installer\keys\lease-verification.pub')"
+                      LogicalName="lease-verification.pub" />
   </ItemGroup>
 
   <ItemGroup>
@@ -70,6 +92,15 @@
       <Generator></Generator>
     </EmbeddedResource>
     <EmbeddedResource Update="Resources\DisplayNames.hy.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\NotificationMessages.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\NotificationMessages.ru.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\NotificationMessages.hy.resx">
       <Generator></Generator>
     </EmbeddedResource>
   </ItemGroup>

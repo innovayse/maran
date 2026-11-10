@@ -1,10 +1,12 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubPhpVersions, stubSiteDetail, stubSites } from '../fixtures/stub-sites-routes'
 import type { PanelModule } from '../../src/types/module'
 import type { SiteDetail } from '../../src/types/site'
+import type { Page } from '@playwright/test'
 
 const LICENSED_SITES: PanelModule[] = [
   { name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -34,6 +36,7 @@ const SITE: SiteDetail = {
  */
 const stubDetailDependencies = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_SITES)
   await stubSites(page, [])
@@ -145,8 +148,9 @@ test('a site address that is not a UUID shows the not-found screen without askin
 
 // A well-formed id the panel does not know answers 404, and that is the site's not-found state —
 // never an error alert repeating the transport's "Not Found" (issue #204, item 6).
-test('an unknown site id shows the site not-found state rather than an error alert', async ({ page }) => {
+test('an unknown site id shows the site not-found state rather than an error alert', async ({ page, guard }) => {
   const unknownId = '44444444-4444-4444-4444-444444444444'
+  guard.allow(404, new RegExp(`/api/v1/sites/${unknownId}$`))
   await stubDetailDependencies(page)
   await page.route(`**/api/v1/sites/${unknownId}`, async (route) => {
     await route.fulfill({
@@ -165,8 +169,9 @@ test('an unknown site id shows the site not-found state rather than an error ale
 
 // The inverse control for the test above: a refusal that is NOT a 404 is still an error, shown
 // with the panel's own text, so the not-found state is not simply what every failure renders as.
-test('a site read the panel fails for another reason shows the panel message as an error', async ({ page }) => {
+test('a site read the panel fails for another reason shows the panel message as an error', async ({ page, guard }) => {
   const failingId = '77777777-7777-7777-7777-777777777777'
+  guard.allow(503, new RegExp(`/api/v1/sites/${failingId}$`))
   await stubDetailDependencies(page)
   await page.route(`**/api/v1/sites/${failingId}`, async (route) => {
     await route.fulfill({

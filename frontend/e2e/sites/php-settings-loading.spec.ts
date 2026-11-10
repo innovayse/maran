@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { holdRoute } from '../fixtures/hold-route'
 import { PHP_SETTINGS_PATTERN, signInAsPhpCustomer, stubPhpSettings } from '../fixtures/stub-php-settings-route'
 
@@ -26,7 +26,8 @@ test('while the settings are on the way the page shows placeholders and one poli
   await expect(page.getByTestId('loading-status').filter({ hasText: 'Loading…' })).toHaveCount(0)
 })
 
-test('a refused read shows the backend sentence as an alert and no form', async ({ page }) => {
+test('a refused read shows the backend sentence as an alert and no form', async ({ page, guard }) => {
+  guard.allow(500, /\/api\/v1\/php-settings$/)
   const detail = 'Your PHP settings could not be read.'
   await signInAsPhpCustomer(page)
   await page.route(PHP_SETTINGS_PATTERN, async (route) => {

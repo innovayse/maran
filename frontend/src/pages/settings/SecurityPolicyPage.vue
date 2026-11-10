@@ -11,7 +11,7 @@
  * its real labels and a placeholder in place of each control (`UiForm loading` inside a
  * {@link UiLoadingRegion}) rather than with plausible-looking numbers.
  */
-import { ref, watch, type Ref } from 'vue'
+import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiButton from '../../components/ui/UiButton.vue'
@@ -24,6 +24,7 @@ import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiSwitch from '../../components/ui/UiSwitch.vue'
 import { useSecurityPolicyStore } from '../../stores/securityPolicy'
 import type { SecurityPolicy } from '../../types/securityPolicy'
+import { readOptionalWholeNumber } from '../../utils/optionalWholeNumber'
 
 const { t } = useI18n()
 const policyStore = useSecurityPolicyStore()
@@ -42,6 +43,34 @@ const maxFailedLoginAttempts: Ref<string> = ref('')
 
 /** How long a locked account stays locked, in minutes, as typed. */
 const lockoutMinutes: Ref<string> = ref('')
+
+/** Whether a save was attempted since the page opened, so a field is faulted only once the person has tried. */
+const attempted: Ref<boolean> = ref(false)
+
+/** The problem with the minimum password length as typed, once a save was attempted. */
+const minimumPasswordLengthError: ComputedRef<string | null> = computed(() => {
+  return attempted.value ? wholeNumberProblem(minimumPasswordLength.value) : null
+})
+
+/** The problem with the failed sign-in threshold as typed, once a save was attempted. */
+const maxFailedLoginAttemptsError: ComputedRef<string | null> = computed(() => {
+  return attempted.value ? wholeNumberProblem(maxFailedLoginAttempts.value) : null
+})
+
+/** The problem with the lockout length as typed, once a save was attempted. */
+const lockoutMinutesError: ComputedRef<string | null> = computed(() => {
+  return attempted.value ? wholeNumberProblem(lockoutMinutes.value) : null
+})
+
+/**
+ * The sentence for a numeric field whose text is not a whole number, or `null` when it is one.
+ * Only the SHAPE is checked here; the bounds stay the server's (see {@link submit}).
+ * @param text The field's text as typed.
+ * @returns The translated problem, or `null`.
+ */
+const wholeNumberProblem = (text: string): string | null => {
+  return readOptionalWholeNumber(text).kind === 'figure' ? null : t('app.securityPolicy.wholeNumberInvalid')
+}
 
 /**
  * Copies a policy the panel reported into the form's fields.
@@ -63,13 +92,24 @@ const fill = (policy: SecurityPolicy | null): void => {
 /**
  * Saves the policy as typed.
  *
- * The numbers are sent as numbers, and the bounds are the server's to enforce: it
- * refuses a minimum length under eight, a lock threshold under three and a lockout
+ * A number field that does not hold a whole number is faulted beside the field and nothing is
+ * sent: the shape is the client's to check, because the request body cannot carry text where
+ * the server expects a number. The numbers are sent as numbers, and the bounds are the server's
+ * to enforce: it refuses a minimum length under eight, a lock threshold under three and a lockout
  * over a day, each with its own localized message, and duplicating those bounds
  * here would put two authorities on one rule.
  * @returns Resolves once the request has settled.
  */
 const submit = async (): Promise<void> => {
+  attempted.value = true
+  if (
+    minimumPasswordLengthError.value !== null ||
+    maxFailedLoginAttemptsError.value !== null ||
+    lockoutMinutesError.value !== null
+  ) {
+    return
+  }
+
   await policyStore.save({
     minimumPasswordLength: Number(minimumPasswordLength.value),
     forceTwoFactorForAdmins: forceTwoFactorForAdmins.value,
@@ -88,6 +128,9 @@ watch(
   { immediate: true },
 )
 
+// Feedback belongs to the visit (issue #508): what an earlier visit left in the store is cleared before
+// the page shows anything, so no old refusal or confirmation (in the previous language) is read as current.
+policyStore.clearFeedback()
 void policyStore.load()
 </script>
 
@@ -132,6 +175,8 @@ void policyStore.load()
             <UiInput
               v-model="minimumPasswordLength"
               :label="t('app.securityPolicy.minimumPasswordLengthLabel')"
+              :error="minimumPasswordLengthError"
+              inputmode="numeric"
               required
             />
           </UiCard>
@@ -181,11 +226,15 @@ void policyStore.load()
               <UiInput
                 v-model="maxFailedLoginAttempts"
                 :label="t('app.securityPolicy.maxFailedLoginAttemptsLabel')"
+                :error="maxFailedLoginAttemptsError"
+                inputmode="numeric"
                 required
               />
               <UiInput
                 v-model="lockoutMinutes"
                 :label="t('app.securityPolicy.lockoutMinutesLabel')"
+                :error="lockoutMinutesError"
+                inputmode="numeric"
                 required
               />
             </div>

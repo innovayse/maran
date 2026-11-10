@@ -99,6 +99,11 @@ public sealed class CronModule : IPanelModule
         // summary. Scoped, because it resolves the account through the request-scoped directory.
         services.AddScoped<IAccountResourceCounter, CronAccountResourceCounter>();
 
+        // Moving an account to another Maran server (issue #127): what this module hands over, and how it
+        // creates what it is handed. The Migration module gathers every implementation through the Sdk.
+        services.AddScoped<IAccountMigrationExporter, CronMigrationExporter>();
+        services.AddScoped<IAccountMigrationImporter, CronMigrationImporter>();
+
         // The shared resource pool the panel-wide ResxErrorTextProvider resolves error codes and
         // Manifest.DisplayNameKey against. Module-internal lookups inject IStringLocalizer<T>
         // directly instead.

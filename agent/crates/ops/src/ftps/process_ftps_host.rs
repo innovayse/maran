@@ -28,6 +28,7 @@ use crate::accounts::read_managed_account;
 use crate::ftps::ftps_error::FtpsError;
 use crate::ftps::ftps_host::FtpsHost;
 use crate::ftps::model::candidate_outcome::CandidateOutcome;
+use crate::logins::ensure_mount_point::ensure_mount_point;
 use crate::safe_write::model::{Reload, Validator};
 use crate::safe_write::{ConfigHost, SafeWriteError, write_config};
 use crate::sftp::AccountOwnership;
@@ -403,6 +404,21 @@ impl FtpsHost for ProcessFtpsHost {
             .map_err(|_| FtpsError::JailFailed)?;
 
         Ok(())
+    }
+
+    /// Delegates to `ensure_mount_point`, which sets the mode only on a
+    /// directory that is not the account's mounted home.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FtpsError::JailFailed`] for every failure.
+    fn ensure_mount_point(
+        &self,
+        mount_point: &Path,
+        home: &Path,
+        mode: u32,
+    ) -> Result<(), FtpsError> {
+        ensure_mount_point(mount_point, home, mode).map_err(|_| FtpsError::JailFailed)
     }
 
     /// Lists `account`'s FTPS logins by reading the host's own passwd file.

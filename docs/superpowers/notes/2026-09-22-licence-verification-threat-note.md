@@ -278,3 +278,59 @@ through — those are not the same person.
 
 The verdict for all twenty-eight notes is tabulated in
 `docs/superpowers/notes/2026-09-22-second-review-packet.md`.
+
+## Amendment 2026-11-09: the verifier no longer embeds a key (#470, #472)
+
+**What was wrong.** `Ed25519LicenceSignatureVerifier` embedded a PLACEHOLDER public key whose private
+half was committed in the licensing test project (`TestKeys.RealPrivateKeyHex`), and the module is wired
+into every build. Section 1's property, "a licence cannot be forged without the matching PRIVATE key",
+was false for the shipped panel: anyone who could read the repository could sign an envelope that
+verified `Valid`, with any tier, any module list and a far-future expiry, and post it to
+`POST /api/v1/licence-status/install`. Section 4 above says the public key needs no protection; that is
+true only while its private half is secret, and here it was not.
+
+**What changed.**
+
+- The verifier holds no key in source. Its constructor takes a `LicenceVerificationKey`, which is either a
+  32-byte Ed25519 public key or `None`. With `None` every signature is refused and `LicenceVerifier`
+  answers `Refused(NoVerificationKey)`, a reason of its own with its own operator sentence ("this panel
+  has no licence key"), not a signature failure and not a placeholder trusted "for now". An empty
+  installation is still `Absent`.
+- The production key is the release's: `installer/keys/licence-verification.pub` (the 64 hexadecimal
+  characters of the public key, beside `release-signing.pub`), embedded into the Licensing assembly at
+  build time when the file exists. The file does not exist yet, because the real key pair has not been
+  generated (offline, by the issuing service, the private half never in this repository). Until it is
+  added, every build refuses every licence. A present but unreadable file is also "no key", because the
+  read runs during composition, where a throw would take the panel down (section 2).
+- Tests supply their own key through the constructor. The licensing test project's key pair was
+  regenerated; the old placeholder pair appears nowhere in the tree.
+- `LicenceVerificationKeyTests` (architecture tests) scans every 64-hexadecimal string literal under
+  `backend/` as a possible Ed25519 secret, derives its public half, and fails when the embedded production
+  key equals one. Its controls: the scan must find the licensing test secrets, a key derived from one is
+  refused, and a fresh key and the no-key state are accepted.
+- #472: Licensing reaches the root agent through `IAgentMonitorClient` (the machine-id rpc of section 5) but
+  declared no capability and, being outside `ModuleRegistry.All`, was never read by `AgentCapabilityGuard`.
+  The manifest now declares `AgentCapability.Monitor`; `LicensingExtensions` runs the guard over the module
+  it composes by hand; and the guard's CI census reads `ModuleContractCensus.AllModules()` (the registry
+  plus the one `UnregisteredModules()` list) instead of the registry alone. A planted module outside the
+  registry that hides a capability is refused, and the shipped set is not.
+
+**Why it is safe now.** There is no key in the source tree to steal or reuse, so the repository alone does
+not let anyone forge a licence: the only key a build can trust is one a release embedded, and CI refuses a
+release key that equals any secret written down under `backend/`. A build with no key accepts nothing.
+Licensing's reach into the agent is declared, shown to the administrator and checked at startup and in CI
+like every other module's.
+
+**What this does not do.** It does not generate the production key, and it does not make a licence
+obtainable: until the key ceremony happens no build can validate a licence. The scan sees only
+64-character hexadecimal literals in `backend/**/*.cs`; a private key kept elsewhere or written in another
+form is outside it, and the offline key ceremony is what covers that. The guard still does not catch
+service location (rules/security.md item 13's stated limit).
+
+## Second review: OUTSTANDING (#331)
+
+The privileged surfaces touched here (licence verification, the agent capability guard) have not had their
+second review. A reviewer must check: that no build path embeds any key other than the release's file; that
+`NoVerificationKey` is reached before any signature work and cannot be skipped; that the key file's path in
+the csproj cannot be redirected by an environment variable; and that the capability census really covers
+every composed module. The author could not verify the real key ceremony, because no production key exists.

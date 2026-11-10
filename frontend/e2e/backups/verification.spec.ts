@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
@@ -6,9 +6,11 @@ import { stubBackups, stubBackupVerification, type BackupVerifyAnswer } from '..
 import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { Backup } from '../../src/types/backup'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 const LICENSED: PanelModule[] = [
   { name: 'backups', displayName: 'Backups', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -104,6 +106,7 @@ const openBackups = async (
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE, BOB, CAROL])
   await stubBackups(page, backups)
   const verified = await stubBackupVerification(page, backups, answer)
@@ -171,7 +174,8 @@ test('Verify now shows a failed verification message verbatim', async ({ page })
   await expect(row).toContainText('Code: BackupDumpMissing')
 })
 
-test('a refused verification shows the panel message above the list', async ({ page }) => {
+test('a refused verification shows the panel message above the list', async ({ page, guard }) => {
+  guard.allow(503, /\/api\/v1\/backups\/[^/]+\/verify$/)
   const detail = 'The backup agent is not reachable.'
   await openBackups(page, [UNVERIFIED], { kind: 'problem', status: 503, code: 'AgentUnavailable', detail })
 

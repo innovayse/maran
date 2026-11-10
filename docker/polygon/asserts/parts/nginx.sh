@@ -396,7 +396,8 @@ $(nginx -t 2>&1)"
   echo "The panel vhost declares a log format of its own and every access_log directive in it was"
   echo "enumerated: each names one of this file's own query-free formats, and no format the file declares"
   echo "carries a variable that holds a query string. Served through this family's real nginx, a request"
-  echo "for /setup carrying a secret in its query string is logged WITHOUT the secret and WITH the path,"
+  echo "for /setup carrying a secret in its query string, and one carrying a secret in the query string of its"
+  echo "Referer, are logged WITHOUT either secret and WITH the path,"
   echo "and the same two requests through a copy of the vhost with the format name removed — what shipped"
   echo "before this fix — put the secret in the log, so the probe can see the leak it reports absent."
 }
@@ -469,6 +470,84 @@ CASES
   echo "see the function's comment."
 }
 
+# assert_the_account_move_locations_carry_the_package_limits: the three locations of an account move (issue #127)
+# are present in the vhost step 80 renders, the upload's client_max_body_size is exactly the package ceiling the
+# panel enforces plus the room for the two signed documents ahead of the artifact, the transfer locations switch
+# nginx's buffering off, and the general location still carries the server-wide 64m (the upload limit is not
+# widened for any other path).
+#
+# The number is checked against its parts, not against itself: 256 GiB (MigrationPackageLimits.MaxArtifactBytes)
+# plus 4 MiB, computed here from those two figures, so a change to either side that forgets the other fails
+# here and not on the first large upload. The block is read out of the rendered file by its own opening line, never
+# grepped from the whole file, because the 64m also matches a naive search.
+#
+# Inverse control: the same reader is run against a copy of the vhost whose upload block was given the 64m, and
+# must report the difference; a reader that always agreed would pass the shipped file for the wrong reason.
+#
+# UNOBSERVED HERE: nginx's own parsed value (nginx -T) and any real request. The rendered file is the one step 80
+# installs, and the validation gate in assert_nginx_vhost_is_validated_before_it_is_served parses the same
+# template, so a directive nginx rejects is caught there; what is not measured is a multi-gigabyte body through a
+# real nginx, which the real-host suite for the export-to-import path names as its own blind spot.
+assert_the_account_move_locations_carry_the_package_limits() {
+  local rendered env_file expected got block control
+  expected=$((256 * 1024 * 1024 * 1024 + 4 * 1024 * 1024))
+
+  env_file="$(mktemp)"
+  rendered="$(mktemp)"
+  : > "$env_file"
+  if ! run_nginx_step "render_vhost '${rendered}'" '' "$env_file" >/dev/null 2>&1; then
+    rm -f "$env_file" "$rendered"
+    fail "step 80's render_vhost failed, so the account-move locations could not be read."
+  fi
+
+  block_of() {
+    awk -v opening="$2" '
+      index($0, opening) { inside = 1 }
+      inside { print }
+      inside && /^[[:space:]]*}[[:space:]]*$/ { exit }
+    ' "$1"
+  }
+
+  block="$(block_of "$rendered" 'location = /api/v1/account-imports {')"
+  [ -n "$block" ] || { rm -f "$env_file" "$rendered"; fail "the vhost has no 'location = /api/v1/account-imports {' block, so the package upload would meet the server-wide 64m limit."; }
+  got="$(printf '%s\n' "$block" | awk '$1 == "client_max_body_size" { sub(/;$/, "", $2); print $2; exit }')"
+  if [ "$got" != "$expected" ]; then
+    rm -f "$env_file" "$rendered"
+    fail "the package upload location rendered client_max_body_size '${got}', expected ${expected} (256 GiB, MigrationPackageLimits.MaxArtifactBytes, plus 4 MiB)."
+  fi
+  printf '%s\n' "$block" | grep -q 'proxy_request_buffering off;' \
+    || { rm -f "$env_file" "$rendered"; fail "the package upload location does not switch proxy_request_buffering off, so nginx would spool the whole package to the system disk."; }
+
+  block="$(block_of "$rendered" 'location = /api/v1/account-imports/pull {')"
+  [ -n "$block" ] || { rm -f "$env_file" "$rendered"; fail "the vhost has no pull location, so the request that waits for a whole package would meet the general 300s read timeout."; }
+  printf '%s\n' "$block" | grep -q 'proxy_read_timeout 14400s;' \
+    || { rm -f "$env_file" "$rendered"; fail "the pull location's proxy_read_timeout is not 14400s."; }
+
+  block="$(block_of "$rendered" 'location ~ ^/api/v1/(account-exports/[0-9a-fA-F-]+/package|migration-pull/(head|package))$ {')"
+  [ -n "$block" ] || { rm -f "$env_file" "$rendered"; fail "the vhost has no package download location."; }
+  printf '%s\n' "$block" | grep -q 'proxy_buffering off;' \
+    || { rm -f "$env_file" "$rendered"; fail "the package download location does not switch proxy_buffering off, so nginx would spool a second plaintext copy of the package."; }
+
+  grep -q 'client_max_body_size 64m;' "$rendered" \
+    || { rm -f "$env_file" "$rendered"; fail "the server-wide client_max_body_size 64m is gone."; }
+  [ "$(grep -c 'client_max_body_size 274882101248;' "$rendered")" = "1" ] \
+    || { rm -f "$env_file" "$rendered"; fail "the package ceiling appears in more than the one upload location, so another path was widened."; }
+
+  # The inverse control: the reader must SEE a vhost whose upload block carries the wrong number.
+  control="$(mktemp)"
+  sed 's/client_max_body_size 274882101248;/client_max_body_size 64m;/' "$rendered" > "$control"
+  got="$(block_of "$control" 'location = /api/v1/account-imports {' | awk '$1 == "client_max_body_size" { sub(/;$/, "", $2); print $2; exit }')"
+  rm -f "$env_file" "$rendered" "$control"
+  [ "$got" = "64m" ] \
+    || fail "the control (an upload block given 64m) was read as '${got}', so this assertion could not have seen a wrong limit."
+
+  echo "The vhost step 80 renders carries the account-move locations: the package upload accepts exactly 256 GiB plus"
+  echo "4 MiB with request buffering off, the pull waits as long as a transfer, the package downloads switch response"
+  echo "buffering off, the server-wide 64m is untouched and the package ceiling appears in one location only. A copy"
+  echo "with the 64m in the upload block is read as 64m, so the reader can see a wrong limit. UNOBSERVED HERE: nginx's"
+  echo "own parsed value and a real multi-gigabyte request; see the function's comment."
+}
+
 # panel_vhost_log_census: prints what is wrong with the vhost's logging directives, or nothing.
 #
 # A predicate rather than a series of `fail` calls, so that the propositions stay readable and so
@@ -499,9 +578,9 @@ comparison meaningless."
     esac
     while IFS= read -r variable; do
       case "$variable" in
-        '$request'|'$request_uri'|'$args'|'$query_string'|'$is_args')
-          echo "log_format ${name} in ${PANEL_VHOST} logs ${variable}, which carries the request's query
-string. A secret an operator is handed in a URL — a one-time setup token, a reset link, a signed
+        '$request'|'$request_uri'|'$args'|'$query_string'|'$is_args'|'$http_referer')
+          echo "log_format ${name} in ${PANEL_VHOST} logs ${variable}, which carries a query string (the
+request's own, or for \$http_referer the one of the page that made the request). A secret an operator is handed in a URL — a one-time setup token, a reset link, a signed
 download — then reaches /var/log/maran/nginx-access.log, which outlives the install and is readable by
 every uid in the panel's service group (rules/security.md item 8: never in logs, never in URLs)."
           return 0 ;;
@@ -546,6 +625,14 @@ own, so the loop that checks formats for query-string variables checked nothing.
 empty list. Either the panel vhost no longer logs — which is a decision, not an accident, and belongs in
 this assertion — or the directive is spelled in a way this reader cannot see."
          return 0; }
+  # The header half of issue #465: the document that issues the requests must tell the browser to
+  # send no Referer at all. Read from the comment-stripped text, so a mention in prose cannot satisfy
+  # it, and checked for the exact policy: `same-origin` is the value that leaked.
+  printf '%s\n' "$flattened" | grep -qE 'add_header[[:space:]]+Referrer-Policy[[:space:]]+"no-referrer"[[:space:]]+always[[:space:]]*;' \
+    || { echo "${PANEL_VHOST} does not send 'Referrer-Policy: no-referrer' (always). With any weaker policy
+a browser names the full address of an SPA page, query string included, as the Referer of every request
+the page makes, and a reset or invitation link carries its token in that query string (issue #465)."
+         return 0; }
   # Nothing wrong. This predicate always returns zero and says what it found on stdout, because a
   # non-zero status from inside a command substitution is what `set -e` acts on: the caller would
   # exit with no message at all, which is the one failure mode a gate must never have.
@@ -572,10 +659,10 @@ panel_vhost_log_outcome() {
 secret from an unlogged one. The access_log line no longer has the shape this sed strips."; return 0; }
   logged="$(panel_vhost_request_pair "$port")" || { printf '%s' "$logged"; return 0; }
   case "$logged" in
-    *"$VHOST_LOG_PROBE_SECRET"*) ;;
+    *"$VHOST_LOG_PROBE_SECRET"*"$VHOST_LOG_PROBE_REFERER_SECRET"*|*"$VHOST_LOG_PROBE_REFERER_SECRET"*"$VHOST_LOG_PROBE_SECRET"*) ;;
     *) printf '%s' "served through a vhost whose access_log names NO format — nginx's built-in 'combined' —
-the query string '${VHOST_LOG_PROBE_SECRET}' did not appear in ${VHOST_LOG_ACCESS_LOG}. That is the leak
-this assertion exists to keep closed, and this control is how it knows it can see it: without the secret
+the query string '${VHOST_LOG_PROBE_SECRET}' and the Referer '${VHOST_LOG_PROBE_REFERER_SECRET}' did not
+both appear in ${VHOST_LOG_ACCESS_LOG}. That is the leak this assertion exists to keep closed, and this control is how it knows it can see it: without the secret
 appearing here, the shipped run below proves only that nothing was logged at all. What the log holds:
 ${logged}"
        return 0 ;;
@@ -584,6 +671,16 @@ ${logged}"
   # And now the shipped one.
   cp -p "$shipped" "$dest"
   logged="$(panel_vhost_request_pair "$port")" || { printf '%s' "$logged"; return 0; }
+  case "$logged" in
+    *"$VHOST_LOG_PROBE_REFERER_SECRET"*)
+      printf '%s' "the shipped panel vhost logged the Referer '${VHOST_LOG_PROBE_REFERER_SECRET}' into
+${VHOST_LOG_ACCESS_LOG}. A browser names the full address of an SPA page, query string included, as
+the Referer of every request that page makes, so a reset or invitation link reaches a file that outlives
+the request and is readable by every uid in the panel's service group (rules/security.md item 8, issue
+#465). What the log holds:
+${logged}"
+      return 0 ;;
+  esac
   case "$logged" in
     *"$VHOST_LOG_PROBE_SECRET"*)
       printf '%s' "the shipped panel vhost logged the query string '${VHOST_LOG_PROBE_SECRET}' into
@@ -621,14 +718,11 @@ ${logged}"
   return 0
 }
 
-# panel_vhost_request_pair: (re)starts nginx on the vhost now on the served path, makes the two
-# probe requests, and prints the access log. Non-zero, with the reason on stdout, when the server
-# or the requests did not happen — which must never be read as "the secret was not logged".
-panel_vhost_request_pair() {
-  local port="$1" status
-
-  : > "$VHOST_LOG_ACCESS_LOG"
-  : > "$VHOST_LOG_ERROR_LOG"
+# panel_vhost_restart_nginx: stops the nginx this assertion started, if any, and starts it again on
+# the vhost now on the served path. Non-zero, with the reason on stdout, when nginx would not start -
+# which must never be read as "the thing probed was absent".
+panel_vhost_restart_nginx() {
+  local status
   if nginx -s quit >/dev/null 2>&1; then
     # nginx does not exit synchronously on `quit`; it finishes its connections first, and starting
     # a second master while the first still holds the port fails on `bind()`. Waited for by the pid
@@ -649,6 +743,18 @@ panel_vhost_request_pair() {
     || { printf '%s' "nginx refused to start on the vhost under test (exit ${status}), so no request was served and
 nothing below observed anything:
 $(nginx -t 2>&1)"; return 1; }
+  return 0
+}
+
+# panel_vhost_request_pair: (re)starts nginx on the vhost now on the served path, makes the two
+# probe requests, and prints the access log. Non-zero, with the reason on stdout, when the server
+# or the requests did not happen — which must never be read as "the secret was not logged".
+panel_vhost_request_pair() {
+  local port="$1"
+
+  : > "$VHOST_LOG_ACCESS_LOG"
+  : > "$VHOST_LOG_ERROR_LOG"
+  panel_vhost_restart_nginx || return 1
 
   # -k because the certificate is the self-signed one step 80 generates; the probe is about the log
   # line, not about trust. --fail is deliberately NOT passed: a non-2xx answer is still a logged
@@ -657,7 +763,8 @@ $(nginx -t 2>&1)"; return 1; }
   curl -sk -o /dev/null "https://127.0.0.1:${port}${VHOST_LOG_PROBE_PATH}?token=${VHOST_LOG_PROBE_SECRET}" \
     || { printf '%s' "curl could not reach https://127.0.0.1:${port}${VHOST_LOG_PROBE_PATH} on this container, so the
 secret was never sent and its absence from the log means nothing."; return 1; }
-  curl -sk -o /dev/null "https://127.0.0.1:${port}${VHOST_LOG_PROBE_PATH}" \
+  curl -sk -o /dev/null -H "Referer: https://127.0.0.1:${port}/reset-password?token=${VHOST_LOG_PROBE_REFERER_SECRET}" \
+    "https://127.0.0.1:${port}${VHOST_LOG_PROBE_PATH}" \
     || { printf '%s' "curl reached the panel with a query string and not without one, which leaves this assertion
 no control request. https://127.0.0.1:${port}${VHOST_LOG_PROBE_PATH}"; return 1; }
 
@@ -682,6 +789,207 @@ no control request. https://127.0.0.1:${port}${VHOST_LOG_PROBE_PATH}"; return 1;
 
   cat "$VHOST_LOG_ACCESS_LOG"
   return 0
+}
+
+# THE MODULE FRAME LOCATION'S OWN HEADERS, AND THE DENY THE REST OF THE PANEL KEEPS (issue #185).
+#
+# A packaged module's screen runs in a sandboxed iframe whose document the API serves from
+# /module-frames/, so that one location must be framable while everything else stays unframable. nginx
+# makes that a property of HOW `add_header` is inherited, not of any single line: a location that
+# declares no add_header of its own inherits the server's (X-Frame-Options DENY, a CSP with
+# `frame-ancestors 'none'`), and a location that declares one inherits NONE of them. Two defects hide
+# in that rule and a check on either response alone is blind to one of them:
+#   * the frame location drops its own set -> it inherits DENY and every module screen is blank;
+#   * DENY is dropped from the server level to "fix" the first -> the frame loads, and so does the
+#     whole panel inside anyone's page (clickjacking on every administrative screen).
+# So the assertion reads BOTH responses of the SERVED vhost and runs two inverse controls: a vhost whose
+# frame location lost its own headers MUST be reported for it, and a vhost with DENY removed everywhere
+# MUST be reported for /api/, with the frame location's good headers NOT reported in that run.
+#
+# UNOBSERVED HERE, and printed by the assertion: (1) the API's own Content-Security-Policy and its
+# `frame-ancestors 'self'` - the polygon has no API behind the socket, so nginx answers 502 itself and
+# the headers read are exactly the ones nginx adds (`always` makes them ride on a 502); the API's half is
+# the Host tests' (ModuleFrameHeaders); (2) a browser actually framing the document - the shell's
+# Playwright specs; (3) any nginx >= 1.25.1 parse of this file, as in the vhost's own comment.
+
+# panel_vhost_location_block: prints the directives inside one top-level `location <path> {` of a
+# vhost file, comments removed, or nothing when the location is absent. The vhost has no nested
+# braces inside a location, so the first closing brace on a line of its own ends the block.
+panel_vhost_location_block() {
+  sed 's/^[[:space:]]*#.*//' "$1" | awk -v want="$2" '
+    $1 == "location" && $2 == want && $3 == "{" { inside = 1; next }
+    inside && $1 == "}" { exit }
+    inside { print }
+  '
+}
+
+# panel_vhost_frame_census: prints what is wrong with the text of the frame location, or nothing.
+# A fact about the file only; the served answer is read by panel_vhost_frame_outcome.
+panel_vhost_frame_census() {
+  local block
+  block="$(panel_vhost_location_block "$PANEL_VHOST" /module-frames/)"
+  [ -n "$block" ] \
+    || { echo "${PANEL_VHOST} has no 'location /module-frames/ {' block (or it is spelled so this reader cannot see it), so a packaged module's frame has no location of its own."; return 0; }
+  local header
+  for header in 'Strict-Transport-Security' 'X-Content-Type-Options' 'Referrer-Policy'; do
+    printf '%s\n' "$block" | grep -qE "^[[:space:]]*add_header[[:space:]]+${header}[[:space:]].*always;" \
+      || { echo "the /module-frames/ location of ${PANEL_VHOST} does not declare '${header}' with 'always' itself. Declaring ANY add_header there replaces the server-level set, so a header not repeated is a header the frame responses go without."; return 0; }
+  done
+  printf '%s\n' "$block" | grep -qiE 'X-Frame-Options|frame-ancestors|Content-Security-Policy' \
+    && { echo "the /module-frames/ location of ${PANEL_VHOST} sets X-Frame-Options, a frame-ancestors or a Content-Security-Policy. The panel's own iframe could not load under DENY or 'none', and the API's frame CSP must pass through unchanged."; return 0; }
+  sed 's/^[[:space:]]*#.*//' "$PANEL_VHOST" | grep -qE '^[[:space:]]*add_header[[:space:]]+X-Frame-Options[[:space:]]+"DENY"[[:space:]]+always;' \
+    || { echo "${PANEL_VHOST} no longer sends 'X-Frame-Options: DENY' at server level, so /api/ and the SPA are framable by any page."; return 0; }
+  return 0
+}
+
+# panel_vhost_probe_headers: <port> <path>. Prints the response header block of one request to the
+# served vhost. Non-zero, with the reason on stdout, when the request did not happen - never an empty
+# answer that a caller could read as "no such header".
+panel_vhost_probe_headers() {
+  local port="$1" path="$2" headers
+  # -k: the certificate is the self-signed one step 80 generates. No --fail: a 502 from an absent API
+  # is the expected answer and still carries the `always` headers.
+  headers="$(curl -sk -o /dev/null -D - --max-time 10 "https://127.0.0.1:${port}${path}")" \
+    || { printf '%s' "curl could not reach https://127.0.0.1:${port}${path} on this container, so the headers of that location were never read."; return 1; }
+  printf '%s\n' "$headers"
+}
+
+# panel_vhost_frame_findings: <frame headers> <api headers>. Prints one finding per line, each starting
+# with a code the controls match on, or nothing. Pure text in, text out, so the controls can feed it
+# the answers of vhosts that are meant to be wrong.
+panel_vhost_frame_findings() {
+  local frame api
+  frame="$(printf '%s\n' "$1" | tr -d '\r' | tr 'A-Z' 'a-z')"
+  api="$(printf '%s\n' "$2" | tr -d '\r' | tr 'A-Z' 'a-z')"
+
+  # The vacuity guard on the axis that can go blind: an answer with no status line means nothing was
+  # served, and every "header is absent" below would then be true of a dead server.
+  printf '%s\n' "$frame" | head -n 1 | grep -q '^http/' || echo "PROBE-NO-ANSWER the /module-frames/ request returned no HTTP status line."
+  printf '%s\n' "$api" | head -n 1 | grep -q '^http/' || echo "PROBE-NO-ANSWER the /api/ request returned no HTTP status line."
+
+  printf '%s\n' "$frame" | grep -q '^strict-transport-security:' || echo "FRAME-MISSING-HSTS the frame response carries no Strict-Transport-Security."
+  printf '%s\n' "$frame" | grep -qE '^x-content-type-options: *nosniff' || echo "FRAME-MISSING-NOSNIFF the frame response carries no 'X-Content-Type-Options: nosniff'."
+  printf '%s\n' "$frame" | grep -qE '^referrer-policy: *no-referrer' || echo "FRAME-MISSING-REFERRER the frame response carries no 'Referrer-Policy: no-referrer'."
+  printf '%s\n' "$frame" | grep -q '^x-frame-options:' && echo "FRAME-HAS-X-FRAME-OPTIONS the frame response carries X-Frame-Options, so the panel's own iframe cannot load."
+  printf '%s\n' "$frame" | grep -qE "^content-security-policy:.*frame-ancestors 'none'" && echo "FRAME-HAS-FRAME-ANCESTORS-NONE the frame response carries the shell's frame-ancestors 'none'."
+
+  printf '%s\n' "$api" | grep -qE '^x-frame-options: *deny' || echo "API-LACKS-DENY the /api/ response carries no 'X-Frame-Options: DENY'."
+  printf '%s\n' "$api" | grep -qE "^content-security-policy:.*frame-ancestors 'none'" || echo "API-LACKS-FRAME-ANCESTORS-NONE the /api/ response carries no CSP with frame-ancestors 'none'."
+  return 0
+}
+
+# panel_vhost_frame_probe: <port>. Restarts nginx on the vhost now on the served path and prints the
+# findings of the two real requests. Non-zero, with the reason on stdout, when nothing was served.
+panel_vhost_frame_probe() {
+  local port="$1" frame api
+  panel_vhost_restart_nginx || return 1
+  frame="$(panel_vhost_probe_headers "$port" /module-frames/polygon/1.0.0/)" || { printf '%s' "$frame"; return 1; }
+  api="$(panel_vhost_probe_headers "$port" /api/v1/polygon-frame-probe)" || { printf '%s' "$api"; return 1; }
+  panel_vhost_frame_findings "$frame" "$api"
+}
+
+# panel_vhost_frame_outcome: <served path> <shipped copy> <port>. Runs the two inverse controls and then
+# the shipped vhost, and prints what went wrong, or nothing.
+panel_vhost_frame_outcome() {
+  local dest="$1" shipped="$2" port="$3" findings
+
+  # Control A: the frame location without its own headers. It must be reported for X-Frame-Options.
+  awk '
+    $1 == "location" && $2 == "/module-frames/" { inside = 1 }
+    inside && $1 == "add_header" { next }
+    inside && $1 == "}" { inside = 0 }
+    { print }
+  ' "$shipped" > "$dest"
+  cmp -s "$dest" "$shipped" \
+    && { printf '%s' "control A is identical to the shipped vhost: the awk no longer finds the frame location's add_header lines, so the run below cannot tell a frame location that dropped its headers from one that kept them."; return 0; }
+  findings="$(panel_vhost_frame_probe "$port")" || { printf '%s' "$findings"; return 0; }
+  case "$findings" in
+    *FRAME-HAS-X-FRAME-OPTIONS*) ;;
+    *) printf '%s' "control A (the frame location with its add_header lines removed, so it inherits the server's) was NOT reported for X-Frame-Options. The probe cannot see an inherited DENY, so a clean answer for the shipped vhost proves nothing. Findings: ${findings:-none}"
+       return 0 ;;
+  esac
+
+  # Control B: DENY removed from every place it is declared. It must be reported for /api/, and the
+  # frame location's own good headers must NOT be reported in the same run.
+  grep -vE '^[[:space:]]*add_header[[:space:]]+X-Frame-Options' "$shipped" > "$dest"
+  cmp -s "$dest" "$shipped" \
+    && { printf '%s' "control B is identical to the shipped vhost: no add_header X-Frame-Options line was removed."; return 0; }
+  findings="$(panel_vhost_frame_probe "$port")" || { printf '%s' "$findings"; return 0; }
+  case "$findings" in
+    *API-LACKS-DENY*) ;;
+    *) printf '%s' "control B (X-Frame-Options removed from the whole vhost) was NOT reported for /api/. A vhost that dropped DENY everywhere would pass this assertion. Findings: ${findings:-none}"
+       return 0 ;;
+  esac
+  case "$findings" in
+    *FRAME-*) printf '%s' "control B reported the frame location, whose headers it did not touch, so the two findings are not independent. Findings: ${findings}"
+              return 0 ;;
+  esac
+
+  # The shipped vhost.
+  cp -p "$shipped" "$dest"
+  findings="$(panel_vhost_frame_probe "$port")" || { printf '%s' "$findings"; return 0; }
+  [ -z "$findings" ] \
+    || { printf '%s' "the shipped panel vhost, served by this family's nginx, answers wrongly:
+${findings}"; return 0; }
+  return 0
+}
+
+# assert_the_module_frame_location_has_its_own_headers_and_api_keeps_deny: the frame location answers
+# with its own complete header set and without DENY, and /api/ still answers DENY - read from the vhost
+# step 80 installed at the path nginx serves, not from the template. See the comment block above.
+assert_the_module_frame_location_has_its_own_headers_and_api_keeps_deny() {
+  local dest entry_copy="" served_copy outcome port
+
+  outcome="$(panel_vhost_frame_census)"
+  [ -z "$outcome" ] || fail "$outcome"
+
+  prepare_host_for_the_nginx_step
+  dest="$(run_nginx_step 'nginx_conf_dest')"
+
+  # The host is left exactly as it was found, the discipline the log assertion follows.
+  if [ -e "$dest" ]; then
+    entry_copy="$(mktemp)"
+    cp -p "$dest" "$entry_copy"
+  fi
+  rm -f "$dest"
+
+  run_nginx_step 'step_nginx' >/dev/null 2>&1 \
+    || fail "step 80 refused to install the shipped panel vhost, so nothing below could be served. Run
+assert_nginx_vhost_is_validated_before_it_is_served for the named reason."
+  forget_nginx_service_records
+
+  served_copy="$(mktemp)"
+  cp -p "$dest" "$served_copy"
+  port="$(installer_value MARAN_PANEL_PORT "$INSTALLER_ENTRY_POINT")"
+
+  outcome="$(panel_vhost_frame_outcome "$dest" "$served_copy" "$port")"
+
+  # Everything back before anything is reported.
+  nginx -s quit >/dev/null 2>&1 || true
+  cp -p "$served_copy" "$dest"
+  rm -f "$served_copy"
+  rm -f "$VHOST_LOG_ACCESS_LOG" "$VHOST_LOG_ERROR_LOG"
+  rm -f "$dest"
+  if [ -n "$entry_copy" ]; then
+    cp -p "$entry_copy" "$dest"
+    rm -f "$entry_copy"
+  fi
+  forget_nginx_service_records
+
+  [ -z "$outcome" ] || fail "$outcome"
+  nginx -t >/dev/null 2>&1 \
+    || fail "this assertion did not put ${dest} back the way it found it; nginx no longer loads:
+$(nginx -t 2>&1)"
+
+  echo "The panel vhost, as step 80 installed it and this family's nginx serves it, answers a request under"
+  echo "/module-frames/ with Strict-Transport-Security, nosniff and no-referrer and WITHOUT X-Frame-Options or a"
+  echo "frame-ancestors 'none', and answers a request under /api/ with X-Frame-Options DENY and the shell's CSP."
+  echo "Two inverse controls were reported first: a vhost whose frame location lost its own headers (reported for"
+  echo "the inherited X-Frame-Options) and a vhost with DENY removed everywhere (reported for /api/, with the"
+  echo "frame location not reported). UNOBSERVED HERE: the API's own CSP and its frame-ancestors 'self' (no API"
+  echo "behind the socket in this image: nginx answers 502 itself, and its 'always' headers are what was read;"
+  echo "the API half is the Host tests'), a browser actually framing the document (the shell's Playwright specs),"
+  echo "and any nginx >= 1.25.1 parse of this file."
 }
 
 # web_server_group_for_this_family: the group install.sh's own detect_web_server_identity decides.

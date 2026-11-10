@@ -80,8 +80,19 @@ use crate::proto::{
 /// the backup `archive_key`, `encrypted` and `RestoreScope` fields (issue #160);
 /// and `ERROR_CODE_TOO_LARGE`, `ERROR_CODE_QUOTA_EXCEEDED`,
 /// `ERROR_CODE_ARCHIVE_UNSAFE` and `ERROR_CODE_ARCHIVE_UNOPENABLE`
-/// (issues #166, #167, #168, #445).
-const PROTO_VERSION: u32 = 21;
+/// (issues #166, #167, #168, #445). 22 adds DNSSEC to `dns.proto`: the zone
+/// signing instruction, its observation and `dnssec_supported` (issue #452). 23 adds
+/// `ERROR_CODE_PACKAGE_NOT_AVAILABLE`, the install failure of a package no source
+/// of the host carries (issue #466). 24 adds the second half of `transfer.proto`,
+/// the agent's first outbound client: `GenerateSourceKey`, `ScanHostKey`,
+/// `TestSource` and `ReadSourceInventory`, the registration and read-only
+/// inventory of a remote server to migrate from (issue #197). 25 adds
+/// `DISTRO_FAMILY_SUSE`, the wire value of the SUSE family (issue #59). 26 adds
+/// the transfer half of server migration to `transfer.proto`: `PullAccountFiles`,
+/// the rsync copy of an account's home from a registered source, and
+/// `StreamRemoteDatabase`, a remote database dumped and loaded through the
+/// restricted loader (issue #197, phase 2).
+const PROTO_VERSION: u32 = 26;
 
 /// Answers "what agent is this, and what host is it on?".
 pub struct SystemServiceImpl {
@@ -107,6 +118,7 @@ impl SystemServiceImpl {
         match self.distro.family {
             DistroFamily::Debian => WireFamily::Debian,
             DistroFamily::Rhel => WireFamily::Rhel,
+            DistroFamily::Suse => WireFamily::Suse,
         }
     }
 }

@@ -82,6 +82,21 @@ reset flow. The change adds:
    NOT ended by the lockout (lockout gates authentication, not sessions), so a mistyping owner is not
    signed out; they wait out the window or use the e-mail reset, which clears the lock. A successful
    change clears the failed-attempt counter and any lock, as the reset does.
+9a. **The count is atomic (issue #469).** Item 1 above relies on the per-user counter, and the
+    counter was a lost-update: the handler loaded `FailedLoginAttempts`, incremented it in memory and
+    EF wrote the absolute value, and `Users` has no concurrency token, so N parallel wrong passwords
+    counted as ONE failure (a burst of K guesses advanced the lockout by 1, making the effective
+    threshold roughly 10 x K guesses). Sign-in and this endpoint now count through
+    `IFailedLoginRecorder` (`FailedLoginRecorder`): inside a transaction it takes `FOR UPDATE` on the
+    login's row, reloads it and applies `User.RecordFailedLogin`, so concurrent failures are counted
+    one after another and the lock engages at exactly the configured number. The Argon2id verification
+    runs before the lock, so it is held for one small update. A concurrency token was rejected: it
+    would make every other writer of the row throw on contention to protect a counter only this type
+    writes. **Stated limit:** the lock serialises callers that take it. Held by
+    `ParallelFailedLoginCountTests` (real PostgreSQL: N parallel wrong passwords count N and lock; N-1
+    count N-1 and do not; parallel correct passwords record nothing); the unit tests run on a
+    stand-in without the lock and say so. The two-factor endpoint feeds the same counter (issue #463).
+    **Second review: OUTSTANDING (#331).**
 10. **Surface.** No new port, daemon, outbound call or agent RPC. One endpoint under an existing
     controller, existing rate-limit policy.
 

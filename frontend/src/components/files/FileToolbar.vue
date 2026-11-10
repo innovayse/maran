@@ -10,6 +10,7 @@ import UiCheckbox from '../ui/UiCheckbox.vue'
 import UiIcon from '../ui/UiIcon.vue'
 import UiSearchInput from '../ui/UiSearchInput.vue'
 import UiSwitch from '../ui/UiSwitch.vue'
+import UiToolbar from '../ui/UiToolbar.vue'
 
 /** Props accepted by {@link FileToolbar}. */
 defineProps<{
@@ -43,7 +44,7 @@ const { t } = useI18n()
 </script>
 
 <template>
-  <div class="flex flex-wrap items-end gap-3">
+  <UiToolbar>
     <UiButton variant="secondary" :disabled="!canGoUp" @click="emit('up')">
       <UiIcon name="chevronLeft" size="sm" />{{ t('filesBrowser.toolbar.up') }}
     </UiButton>
@@ -69,5 +70,5 @@ const { t } = useI18n()
     <UiButton variant="ghost" size="icon" :aria-label="t('filesBrowser.toolbar.refresh')" @click="emit('refresh')">
       <UiIcon name="rotateCw" size="md" />
     </UiButton>
-  </div>
+  </UiToolbar>
 </template>

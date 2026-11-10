@@ -1,7 +1,10 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import { ONE_SHOT, stubDashboard } from '../fixtures/stub-dashboard-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubIdleLiveDashboard } from '../fixtures/stub-live-dashboard-stream'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import {
   completePhpVersion,
   stubInstallablePhpVersions,
@@ -10,6 +13,7 @@ import {
 } from '../fixtures/stub-sites-routes'
 import type { PanelModule } from '../../src/types/module'
 import type { InstallablePhpVersion } from '../../src/types/phpVersion'
+import type { Page } from '@playwright/test'
 
 // Installing a PHP version is a choice from the versions the agent reports as installable (#330):
 // the operator never types one. The spec reaches the screen by clicking through the sidebar, as an
@@ -41,8 +45,12 @@ const openPhpVersions = async (page: Page): Promise<unknown[]> => {
   const installBodies: unknown[] = []
 
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, MODULES)
+  // The walk starts on the dashboard, so the administrator's dashboard reads are answered too.
+  await stubDashboard(page, ONE_SHOT)
+  await stubIdleLiveDashboard(page)
   await stubPhpVersions(page, installed)
   await stubInstallablePhpVersions(page, () => {return installable})
   await page.route('**/api/v1/sites/php-versions/install', async (route) => {
@@ -97,4 +105,31 @@ test('choosing an option and pressing install sends exactly that version and dro
   await expect.poll(() => {return installBodies}).toEqual([{ version: '8.4' }])
   await page.getByRole('combobox', { name: 'Version to install' }).click()
   await expect(page.getByRole('option')).toHaveText(['PHP 8.2'])
+})
+
+test('an install the host cannot carry out shows the server\'s own sentence and leaves the list as it was', async ({
+  page,
+  guard,
+}) => {
+  guard.allow(409, /\/api\/v1\/sites\/php-versions\/install$/)
+  // Issue #466: a package no source of the host carries is a 409 with a typed code, and the screen
+  // renders the sentence the backend localised, not a generic "contact support" alert.
+  const sentence = 'None of the package repositories configured on your server carries the software you asked to install, so nothing was installed.'
+  await openPhpVersions(page)
+  await page.route('**/api/v1/sites/php-versions/install', async (route) => {
+    await route.fulfill({
+      status: 409,
+      contentType: 'application/problem+json',
+      body: JSON.stringify({ status: 409, code: 'AgentPackageNotAvailable', title: sentence }),
+    })
+  })
+
+  await page.getByRole('combobox', { name: 'Version to install' }).click()
+  await page.getByRole('option', { name: 'PHP 8.2' }).click()
+  await page.getByRole('button', { name: 'Install this version' }).click()
+
+  await expect(page.getByText(sentence)).toBeVisible()
+  await expect(page.getByText(/contact support/i)).toHaveCount(0)
+  await page.getByRole('combobox', { name: 'Version to install' }).click()
+  await expect(page.getByRole('option')).toHaveText(['PHP 8.4', 'PHP 8.2'])
 })

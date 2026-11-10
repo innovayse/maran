@@ -244,7 +244,7 @@ public sealed class InviteSubUserCommandHandler
             // request does.
             await transaction.RollbackAsync(cancellationToken);
             _dbContext.ChangeTracker.Clear();
-            await JournalAsync(command, succeeded: false, cancellationToken);
+            await JournalAsync(command, null, succeeded: false, cancellationToken);
             return uniform;
         }
 
@@ -257,13 +257,13 @@ public sealed class InviteSubUserCommandHandler
             // The decoy's rows are undone, and the journal line is written on its own afterwards.
             await transaction.RollbackAsync(cancellationToken);
             _dbContext.ChangeTracker.Clear();
-            await JournalAsync(command, succeeded: false, cancellationToken);
+            await JournalAsync(command, null, succeeded: false, cancellationToken);
             return uniform;
         }
 
         // Written inside the transaction, so the invitation and its record stand or fall together
         // and the free path pays one commit, as the taken path's journal write does.
-        await JournalAsync(command, succeeded: true, cancellationToken);
+        await JournalAsync(command, user.Id, succeeded: true, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
         // Published, not sent, because the mail credential lives in the Notifications module. The
@@ -310,22 +310,44 @@ public sealed class InviteSubUserCommandHandler
         Error error,
         CancellationToken cancellationToken)
     {
-        await JournalAsync(command, succeeded: false, cancellationToken);
+        await JournalAsync(command, null, succeeded: false, cancellationToken);
         return Result<SubUserInvitationDto>.Fail(error);
     }
 
     /// <summary>Journals the invitation attempt with the owner as actor and the requested login as subject.</summary>
     /// <param name="command">The request.</param>
+    /// <param name="userId">The login that was created, or <c>null</c> when none was kept: the subject is then only the typed text.</param>
     /// <param name="succeeded">Whether the invitation was created.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <returns>A task that completes once the entry is written.</returns>
-    private async Task JournalAsync(InviteSubUserCommand command, bool succeeded, CancellationToken cancellationToken)
+    private async Task JournalAsync(
+        InviteSubUserCommand command,
+        Guid? userId,
+        bool succeeded,
+        CancellationToken cancellationToken)
     {
         // The subject is the login name the owner asked for: a refused attempt still leaves a trace of
         // what was attempted, as the other credential-issuing actions do. The audit log is
         // administrator-only, so the real outcome recorded here is not an answer to the owner.
+        var actorUserId = SignedInCallerPolicy.Require(_currentUser).UserId;
+        if (userId is { } invited)
+        {
+            // The login exists: it is the subject login, so erasing it later finds this row by identity.
+            await _journal.RecordOnUserAsync(
+                actorUserId,
+                invited,
+                IdentityAuditActions.SubUserInvited,
+                command.Username,
+                command.IpAddress,
+                command.UserAgent,
+                succeeded,
+                cancellationToken);
+
+            return;
+        }
+
         await _journal.RecordIdentifiedAsync(
-            SignedInCallerPolicy.Require(_currentUser).UserId,
+            actorUserId,
             IdentityAuditActions.SubUserInvited,
             command.Username,
             command.IpAddress,

@@ -247,3 +247,27 @@ What this does NOT defend against, stated plainly:
 Written before the code. The only things this note decides that a review could still change are the
 major-version rule (proposed: no unattended major), the default interval (daily with a four-hour
 random delay) and the best-effort nature of the report; each is stated so a reviewer can overrule it.
+
+## Addendum 2026-11-09 (issue #383)
+
+- **Item 10 wording applied, approval still NOT RECORDED.** `rules/security.md` item 10 and the update
+  paragraph of the design spec (section 14, and the outbound-call list of section 15) now name this timer as the
+  second documented exception, with the owner's recommended defaults applied: on after an online install and told
+  on the terminal, off after an offline install, on/off/status only, a fixed daily schedule, and units that arrive
+  through the installer and not through `maran update`. The wording is a proposal until the owner approves it in
+  writing; this note does not grant that approval and the branch stays unmergeable to `main`.
+- **Observed since the note was written (installer polygon, both families, no systemd):**
+  `docker/polygon/asserts/parts/update-security-units.sh` checks the units' effective lines (the fixed
+  `ExecStart` with `--security-only`, five writable paths and not `/var/lib/maran`, the daily timer with no second
+  trigger) against 41 planted cases, and runs step 69: units root:root 0644 and byte-identical to the package,
+  dump directory 0700 and a planted symbolic link refused before any write, timer enabled on an online first
+  install, left off on an offline one, and a timer disabled with the real `maran update-schedule disable` still
+  disabled after two re-runs of the step.
+- **Still UNOBSERVED:** the unit running under its sandbox on a booted host (the list of writable paths is derived
+  by reading), reboot persistence of a disabled timer, `Persistent=true` catch-up, a real signed release applied
+  end to end by the timer, and the rollback of a release that fails its health gate when started by the unit.
+  The first real unattended run must be watched.
+- **Existing servers.** `maran update` installs no unit, so a server moved to this release by an update has no timer
+  until the installer is run on it again; this is stated in `docs/operations/panel-update.md`. Letting the update
+  install the two unit files would widen the root update's writes to `/etc/systemd` and needs its own section here.
+- **Second review: OUTSTANDING (#331).**

@@ -1,9 +1,13 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn, stubbedAdministrator } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubSessions } from '../fixtures/stub-sessions-route'
+import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubAudit } from '../fixtures/stub-audit-routes'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
+import type { Page } from '@playwright/test'
 
 /**
  * Signs a person in with the given role and answers the pages the menu leads to.
@@ -15,7 +19,10 @@ const stubPanel = async (page: Page, role: 'admin' | 'customer'): Promise<void> 
   await stubSignedIn(page, { ...stubbedAdministrator, role })
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
+  await stubLandingReads(page, role === 'admin' ? 'administrator' : 'customer')
   await stubSessions(page, [])
+  await stubAccounts(page, [])
   await stubAudit(page, [])
 }
 
@@ -105,4 +112,33 @@ test('the account menu opens upwards when the sidebar footer leaves no room belo
     })
     expect(reachable).toBe(true)
   }
+})
+
+test('the sidebar card ends the session from an icon-only button where the chevron was', async ({ page }) => {
+  await stubPanel(page, 'admin')
+  await page.route('**/api/v1/auth/logout', async (route) => {
+    await route.fulfill({ status: 204 })
+  })
+
+  await page.goto('/')
+  const sidebar = page.getByRole('complementary')
+  const signOut = sidebar.getByRole('button', { name: 'Sign out', exact: true })
+  await expect(signOut).toBeVisible()
+  // Keyboard-reachable control with a tooltip, the icon being its only content.
+  await expect(signOut).toHaveAttribute('title', 'Sign out')
+  await expect(signOut).toHaveText('')
+
+  await signOut.click()
+
+  await expect(page).toHaveURL(/\/login/)
+})
+
+test('the sidebar card has exactly one sign-out control', async ({ page }) => {
+  // Inverse control to the test above: the old full-width button must be gone, not merely joined by
+  // a second one.
+  await stubPanel(page, 'admin')
+
+  await page.goto('/')
+  const sidebar = page.getByRole('complementary')
+  await expect(sidebar.getByRole('button', { name: /sign out/i })).toHaveCount(1)
 })

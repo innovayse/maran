@@ -81,8 +81,10 @@ export interface Reseller {
  * shape plus the language its invitation was written in and its envelope.
  */
 export interface ResellerDetail extends Reseller {
-  /** The language the reseller's invitation was written in (`en`, `ru`, `hy`). */
+  /** The language the reseller's invitation was written in (`en`, `ru`, `hy`), as the edit form selects it. */
   language: string
+  /** That language written in itself (`English`, `Русский`, `Հայերեն`), resolved by the backend: what the detail prints. */
+  languageName: string
   /** What the reseller may sell. */
   envelope: ResellerEnvelope
 }

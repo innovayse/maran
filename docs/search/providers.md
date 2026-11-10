@@ -34,7 +34,11 @@ Providers run one after another, not in parallel, because they share the request
 ## Licensing
 
 The Host does not call a provider whose module is not enabled (`SearchModuleGate`); a provider that belongs
-to no composed module is not called.
+to no composed module is not called. A module is enabled by the same rule the module catalogue and the
+request-time gate use: an included module always is, and a paid module only while the licence window
+(`ILicenceEntitlements`) reports it covered, so a lapsed or unlicensed paid module is never searched and a
+licensed one is. The window is asked once per search, for the paid modules only, and not at all when every
+composed module is included.
 
 ## Tests a provider owes
 

@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { FULL_CATALOGUE } from '../fixtures/open-full-shell'
 import {
   stubAccountMemberships,
@@ -7,9 +7,14 @@ import {
 } from '../fixtures/stub-account-memberships-routes'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubMyAccount } from '../fixtures/stub-my-account-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubEmptyTasks } from '../fixtures/stub-tasks-routes'
+import type { MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
+import type { Locator, Page } from '@playwright/test'
 
 // Issue #313: one person who may act for several hosting accounts switches between them from the
 // app bar without signing out. The selector is drawn only with two or more accounts; choosing
@@ -39,13 +44,46 @@ const twoAccounts = (): MembershipsState => {
   }
 }
 
+/**
+ * The account the shell reads as the caller's own: the one the session currently acts for.
+ * @param state The accounts the person holds and the one that is active.
+ * @returns That account, with a plan nothing here reads.
+ */
+const activeAccountOf = (state: MembershipsState): MyAccount => {
+  const name = state.accounts.find((account) => {
+    return account.accountId === state.activeAccountId
+  })?.name ?? 'olive'
+  return {
+    id: state.activeAccountId,
+    name,
+    primaryDomain: `${name}.example.com`,
+    status: 'active',
+    statusName: 'Active',
+    plan: {
+      displayName: 'Starter',
+      diskQuotaMb: 1024,
+      maxSites: 5,
+      maxDatabases: 5,
+      maxSftpUsers: 5,
+      maxFtpUsers: 5,
+      maxCronEntries: 5,
+    },
+  }
+}
+
 const openAs = async (page: Page, user: AuthenticatedUser, state: MembershipsState): Promise<void> => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await stubSignedIn(page, user)
   await stubRefreshFollowsActiveAccount(page, user, state)
   await stubHealthy(page)
+  // The shell's defaults first: the memberships below replace the empty list of further accounts.
+  await stubShellReads(page)
   await stubModules(page, FULL_CATALOGUE)
   await stubEmptyTasks(page)
+  await stubLandingReads(page, user.role === 'admin' ? 'administrator' : 'customer')
+  await stubMyAccount(page, () => {
+    return activeAccountOf(state)
+  })
   await stubAccountMemberships(page, state)
   await page.goto('/')
 }
@@ -74,7 +112,8 @@ test('choosing the other account switches it and the panel then acts for it', as
   expect(state.switchRequests).toEqual([{ accountId: SHOP_ACCOUNT }])
 })
 
-test('a refused switch keeps the person where they are and says why', async ({ page }) => {
+test('a refused switch keeps the person where they are and says why', async ({ page, guard }) => {
+  guard.allow(404, /\/api\/v1\/me\/active-account$/)
   const state = twoAccounts()
   state.refuseSwitchWith = { status: 404, detail: 'This account could not be found.' }
   await openAs(page, CUSTOMER, state)

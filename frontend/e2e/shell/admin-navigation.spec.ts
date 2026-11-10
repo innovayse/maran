@@ -1,9 +1,14 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { FULL_CATALOGUE, mainNavigation, openFullShell, openSection } from '../fixtures/open-full-shell'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubQuietOwnAccount } from '../fixtures/stub-quiet-own-account'
+import { stubEmptySearch } from '../fixtures/stub-search-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { AuthenticatedUser } from '../../src/types/auth'
+import type { Page } from '@playwright/test'
 
 // Issue #311: the administrator's menu is one task-grouped tree. Every built page is a link, every
 // page not built yet is drawn disabled with a "coming soon" hint, pages keep their URLs while the
@@ -101,6 +106,8 @@ test('the security policy sits under Security and keeps its settings address', a
 
 test('the jump-to palette offers built pages and leaves planned ones out', async ({ page }) => {
   await openFullShell(page)
+  // Typing into the palette asks the panel's search too; it finds nothing, the pages are the subject.
+  await stubEmptySearch(page)
   await page.keyboard.press('Control+k')
   const field = page.getByRole('combobox', { name: 'Search the panel' })
   await expect(field).toBeFocused()
@@ -118,6 +125,9 @@ test('the jump-to palette offers built pages and leaves planned ones out', async
 // `customer/customer-navigation.spec.ts`; only what belongs to the server is absent here.
 test('a customer sees none of the server items, built or planned', async ({ page }) => {
   await stubSignedIn(page, CUSTOMER)
+  await stubShellReads(page)
+  await stubLandingReads(page, 'customer')
+  await stubQuietOwnAccount(page, CUSTOMER.accountId ?? '')
   await stubHealthy(page)
   await stubModules(page, FULL_CATALOGUE)
   await page.goto('/')

@@ -101,11 +101,11 @@ public sealed class ResellerPlansAndAccountsEndpointTests : IAsyncLifetime
 
     /// <summary>
     /// A reseller creates an account on its own plan: the account is the reseller's, the host is asked
-    /// once, the owner is invited by mail; the reseller then changes the owner's address. Both are
-    /// journalled with the reseller as actor.
+    /// once, the owner is invited by mail; the reseller is then refused the owner's address, which only
+    /// an administrator may change (issue #482). The creation is journalled with the reseller as actor.
     /// </summary>
     [Fact]
-    public async Task A_reseller_creates_an_account_on_its_own_plan_and_changes_the_owner_address()
+    public async Task A_reseller_creates_an_account_on_its_own_plan_and_is_refused_the_owner_address()
     {
         await using var world = await new ResellerFixtureBuilder(_pg).BuildAsync();
         using var alpha = await world.SignInAsync("alpha");
@@ -125,16 +125,11 @@ public sealed class ResellerPlansAndAccountsEndpointTests : IAsyncLifetime
         var changed = await alpha.PutAsJsonAsync(
             $"/api/v1/accounts/{id}/owner-email", new { OwnerEmail = "alphatwo-new@example.com" });
 
-        Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
-        using var changedBody = JsonDocument.Parse(await changed.Content.ReadAsStringAsync());
-        Assert.Equal("alphatwo-new@example.com", changedBody.RootElement.GetProperty("ownerEmail").GetString());
+        Assert.Equal(HttpStatusCode.Forbidden, changed.StatusCode);
         var entries = await world.AuditEntriesAsync(
             AccountAuditActions.AccountCreated, AccountAuditActions.AccountOwnerEmailChanged);
         Assert.Equal(
-            [
-                (AccountAuditActions.AccountCreated, "alphatwo", true),
-                (AccountAuditActions.AccountOwnerEmailChanged, "alphatwo", true),
-            ],
+            [(AccountAuditActions.AccountCreated, "alphatwo", true)],
             entries.Select(entry => { return (entry.Action, entry.Subject, entry.Succeeded); }));
         Assert.All(entries, entry => { Assert.Equal("alpha", entry.ActorUsername); });
     }

@@ -1,12 +1,15 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubAccountResources } from '../fixtures/stub-account-resources-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubInvitation } from '../fixtures/stub-invitation-routes'
 import { stubPlans, THREE_PLANS } from '../fixtures/stub-plans-route'
 import { ACME_HOSTING, stubResellers } from '../fixtures/stub-resellers-routes'
 import { stubResellerSession } from '../fixtures/stub-reseller-session'
 import type { AccountDetail, Plan } from '../../src/types/account'
+import type { Page } from '@playwright/test'
 
 /** The plan the account starts on (an administrator's plan). */
 const [CURRENT_PLAN] = THREE_PLANS
@@ -58,6 +61,8 @@ const openAccount = async (
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
+  await stubShellReads(page)
+  await stubAccountResources(page, { accountId: ACCOUNT.id, resources: [] })
   await stubInvitation(page, ACCOUNT.id, 'pending')
   await stubPlans(page, THREE_PLANS)
   await stubResellers(page)
@@ -163,7 +168,9 @@ for (const refusal of [
   { code: 'ResellerAllocationChanged', message: "The reseller's allocation changed while the account was being moved. Try again." },
   { code: 'ResellerAccountLimitReached', message: 'This reseller cannot take another account: its account limit is reached.' },
 ]) {
-  test(`a move refused as ${refusal.code} returns to the form over the panel sentence`, async ({ page }) => {
+  test(`a move refused as ${refusal.code} returns to the form over the panel sentence`, async ({ page, guard }) => {
+    // The refusal is the subject: the owner move answers 409 with the panel's own sentence.
+    guard.allow(409, new RegExp(`/api/v1/accounts/${ACCOUNT.id}/owner$`))
     await openAccount(page, refusal)
 
     const dialog = await chooseReseller(page)
@@ -179,6 +186,7 @@ for (const refusal of [
 
 test('a reseller is not offered the owner change', async ({ page }) => {
   await stubResellerSession(page)
+  await stubAccountResources(page, { accountId: ACCOUNT.id, resources: [] })
   await stubPlans(page, THREE_PLANS)
   await page.route(`**/api/v1/accounts/${ACCOUNT.id}`, async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ACCOUNT) })

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Maran.Agent.Client.Errors;
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.DnsService;
 
@@ -108,6 +109,6 @@ public sealed class SimulatedAgentDnsClient : IAgentDnsClient
     /// <returns>The agent's own not-found code, so the panel exercises its real translation.</returns>
     private static Error NotServed()
     {
-        return Error.Of("AgentNotFound", ErrorType.NotFound);
+        return Error.Of(AgentErrorCodes.NotFound, ErrorType.NotFound);
     }
 }

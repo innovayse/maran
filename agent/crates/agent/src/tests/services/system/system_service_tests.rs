@@ -20,7 +20,7 @@ use tonic::Request;
 
 use super::SystemServiceImpl;
 use crate::proto::system_service_server::SystemService;
-use crate::proto::{GetAgentInfoRequest, get_agent_info_response};
+use crate::proto::{DistroFamily as WireFamily, GetAgentInfoRequest, get_agent_info_response};
 
 /// The service over a detected distribution, which the handshake does not read.
 fn service() -> SystemServiceImpl {
@@ -29,6 +29,61 @@ fn service() -> SystemServiceImpl {
         version_id: "24.04".to_owned(),
         family: DistroFamily::Debian,
     })
+}
+
+/// The wire family the handshake states for a host of `family`.
+async fn stated_family(family: DistroFamily) -> i32 {
+    let service = SystemServiceImpl::new(DistroInfo {
+        id: "host".to_owned(),
+        version_id: "1".to_owned(),
+        family,
+    });
+    let response = service
+        .get_agent_info(Request::new(GetAgentInfoRequest {}))
+        .await
+        .unwrap()
+        .into_inner();
+
+    let get_agent_info_response::Result::Ok(info) = response.result.unwrap() else {
+        panic!("the handshake is infallible");
+    };
+
+    info.family
+}
+
+#[tokio::test]
+async fn a_suse_host_is_answered_as_the_suse_wire_family() {
+    assert_eq!(
+        stated_family(DistroFamily::Suse).await,
+        WireFamily::Suse as i32
+    );
+}
+
+#[tokio::test]
+async fn a_debian_host_is_answered_as_the_debian_wire_family() {
+    assert_eq!(
+        stated_family(DistroFamily::Debian).await,
+        WireFamily::Debian as i32
+    );
+}
+
+#[tokio::test]
+async fn a_rhel_host_is_answered_as_the_rhel_wire_family() {
+    assert_eq!(
+        stated_family(DistroFamily::Rhel).await,
+        WireFamily::Rhel as i32
+    );
+}
+
+#[tokio::test]
+async fn the_suse_wire_value_is_three_and_never_unspecified() {
+    // The number is the contract: the panel's refusal of an unknown family
+    // reads it, and zero is the value a sender that never set it would carry.
+    assert_eq!(WireFamily::Suse as i32, 3);
+    assert_ne!(
+        stated_family(DistroFamily::Suse).await,
+        WireFamily::Unspecified as i32
+    );
 }
 
 #[tokio::test]
@@ -98,13 +153,16 @@ async fn the_handshake_reports_the_current_contract_revision() {
     // `RestorePanelSelfSigned` (issue #425); revision 21 is the one combined
     // revision for the v1 feature contract growth (dns, mail and transfer
     // services, database logins, site options, PHP extensions, file manager,
-    // account limits, backup keys and four error codes).
+    // account limits, backup keys and four error codes); revision 24 adds the
+    // remote-source rpcs of `transfer.proto` (issue #197); revision 25 adds
+    // `DISTRO_FAMILY_SUSE` (issue #59); revision 26 is the newest row of
+    // `REVISIONS` below.
     // The panel's
     // `AgentProtoVersionWindow` moves
     // with this number (rules/proto.md "The contract revision"), so a literal
     // here is the point: changing the constant must be a deliberate edit of
     // this test too, in the same change as the window.
-    assert_eq!(info.proto_version, 21);
+    assert_eq!(info.proto_version, 26);
 }
 
 #[tokio::test]
@@ -153,6 +211,11 @@ const REVISIONS: &[(u32, u64)] = &[
     (19, 0x0cc4_b43b_c23f_52ff),
     (20, 0x013b_52f9_27db_295b),
     (21, 0x4057_c8a8_c560_0f2f),
+    (22, 0xddcb_2ce0_eaba_d62b),
+    (23, 0x2d29_e8e1_7096_e19e),
+    (24, 0x6470_ff3f_530a_3df1),
+    (25, 0x195c_9d0e_a6d5_2dc6),
+    (26, 0xe680_e3cf_639d_2959),
 ];
 
 /// FNV-1a over the bytes: a fixed, dependency-free digest. Its job is to

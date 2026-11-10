@@ -1,8 +1,11 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { setPersistedLocale } from '../fixtures/set-locale'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
+import type { Locator, Page } from '@playwright/test'
 
 /**
  * Chooses a language from the header's locale select.
@@ -47,6 +50,8 @@ test('the locale switcher changes the interface language for all three locales i
   await setPersistedLocale(page, 'en')
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
 
   await page.goto('/')
   await expect(page.getByRole('heading', { level: 1, name: 'System status' })).toBeVisible()
@@ -66,6 +71,8 @@ test('the switcher shows the active language on its trigger', async ({ page }) =
   await setPersistedLocale(page, 'en')
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
 
   await page.goto('/')
   const trigger = localeTrigger(page)
@@ -84,6 +91,8 @@ test('the chosen locale survives a reload', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
 
   await page.goto('/')
   await chooseLanguage(page, 'Հայերեն')
@@ -103,6 +112,8 @@ test('requests carry the chosen locale in Accept-Language so server text matches
   await stubSignedIn(page)
   await setPersistedLocale(page, 'ru')
   await stubEmptyModules(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
 
   /** `Accept-Language` header of every `/health` request the app made. */
   const acceptLanguages: string[] = []
@@ -126,6 +137,8 @@ test('the document language attribute follows the chosen locale', async ({ page 
   await setPersistedLocale(page, 'en')
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
 
   await page.goto('/')
   await expect(page.locator('html')).toHaveAttribute('lang', 'en')

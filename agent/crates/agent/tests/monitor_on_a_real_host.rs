@@ -600,7 +600,8 @@ fn the_fingerprint_inputs_are_read_from_this_hosts_own_files() {
 /// Whether this host's package manager has a catalogue on disk, observed here
 /// from the files themselves and not through the operation under test: package
 /// index files under apt's lists directory on the Debian family, solver caches
-/// under dnf's cache directory on the RHEL family.
+/// under dnf's cache directory on the RHEL family, solver caches under zypper's
+/// cache directory on the SUSE family.
 ///
 /// The paths are written out here on purpose, for the reason
 /// [`UNIT_STATE_DIRECTORY`] is: a test that asked the code under test where the
@@ -624,6 +625,15 @@ fn catalogue_exists_on_disk(family: DistroFamily) -> bool {
         DistroFamily::Rhel => names_under(Path::new("/var/cache/dnf"), 2, &|name| {
             name.ends_with(".solv") || name.ends_with(".solvx")
         }),
+        // UNVERIFIED: read from the distribution documentation, not measured. zypper keeps one
+        // solver cache per repository as `/var/cache/zypp/solv/<repository>/solv`; confirm with
+        // `zypper --non-interactive refresh && find /var/cache/zypp/solv -name solv` in the pinned
+        // Leap image. A wrong path here reads as "no catalogue" on a host that has one, which the
+        // `(false, Ok(..))` and `(true, Err(..))` arms below turn into a named failure rather
+        // than a silent pass.
+        DistroFamily::Suse => {
+            names_under(Path::new("/var/cache/zypp/solv"), 2, &|name| name == "solv")
+        }
     }
 }
 

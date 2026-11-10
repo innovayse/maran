@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="RemoteServerNotFound">
+    <value>That remote server does not exist.</value>
+  </data>
+  <data name="RemoteServerNameTaken">
+    <value>Another remote server already has that name.</value>
+  </data>
+  <data name="RemoteServerEndpointTaken">
+    <value>A remote server with that host, port and login is already registered.</value>
+  </data>
+  <data name="RemoteServerHostKeyUnconfirmed">
+    <value>Confirm the server's host key first. Nothing connects until you have compared its fingerprint.</value>
+  </data>
+  <data name="RemoteServerHostKeyChanged">
+    <value>The server presented a different host key than the one you confirmed, so nothing was read. Scan its host keys again and confirm the new fingerprint only if you expected the change.</value>
+  </data>
+  <data name="RemoteServerHostKeyFingerprintMismatch">
+    <value>That fingerprint is not one the server offered. Compare it with the one shown on the server itself and type it exactly.</value>
+  </data>
+  <data name="RemoteServerAuthRefused">
+    <value>The server refused the panel's key. Add the public key to the login's authorized keys on that server and test again.</value>
+  </data>
+  <data name="RemoteServerUnreachable">
+    <value>The server could not be reached. Check the host and port and that its SSH service is running.</value>
+  </data>
+  <data name="RemoteServerAddressRefused">
+    <value>The panel does not connect to that address. It is this server itself, or a loopback, link-local or otherwise reserved address.</value>
+  </data>
+  <data name="RemoteServerNotReady">
+    <value>The server needs a confirmed host key and no unresolved connection problem before it can be read. Test the connection first.</value>
+  </data>
+  <data name="MigrationAgentUnavailable">
+    <value>The panel could not reach its agent to talk to the remote server. Try again shortly.</value>
+  </data>
+  <data name="MigrationDiscoveryFailed">
+    <value>The operation on the remote server failed. Test the connection and try again.</value>
+  </data>
+  <data name="MigrationAccountNotFound">
+    <value>That account does not exist.</value>
+  </data>
+  <data name="MigrationExportNotFound">
+    <value>That export does not exist or has expired.</value>
+  </data>
+  <data name="MigrationImportNotFound">
+    <value>That import does not exist.</value>
+  </data>
+  <data name="MigrationGrantNotFound">
+    <value>That grant does not exist.</value>
+  </data>
+  <data name="MigrationBackupsUnavailable">
+    <value>This panel has no backup service, so there is nothing to move an account with.</value>
+  </data>
+  <data name="MigrationPackageMalformed">
+    <value>The package is damaged or is not a package made by a Maran server.</value>
+  </data>
+  <data name="MigrationPackageTooLarge">
+    <value>The package is larger than this server will accept.</value>
+  </data>
+  <data name="MigrationPackageSchemaUnknown">
+    <value>The package was made by a version of Maran that this server cannot read.</value>
+  </data>
+  <data name="MigrationSignatureInvalid">
+    <value>The package signature does not verify. Nothing was imported.</value>
+  </data>
+  <data name="MigrationFingerprintMismatch">
+    <value>The key fingerprint is not the one you confirmed on the sending server. Nothing was imported.</value>
+  </data>
+  <data name="MigrationAccountNameConfirmationMismatch">
+    <value>The account name you typed does not match. The import was not started.</value>
+  </data>
+  <data name="MigrationImportNotReady">
+    <value>This import is not waiting to be started.</value>
+  </data>
+  <data name="MigrationImportHasConflicts">
+    <value>The dry run found conflicts. Resolve them and try again.</value>
+  </data>
+  <data name="MigrationInitiatorGone">
+    <value>The administrator who started the import can no longer act, so it was stopped before anything was created.</value>
+  </data>
+  <data name="MigrationImportFaulted">
+    <value>The import failed unexpectedly and was rolled back.</value>
+  </data>
+  <data name="MigrationRollbackUnavailable">
+    <value>The import failed and this panel cannot delete the account it created. Delete it by hand.</value>
+  </data>
+  <data name="MigrationSecretsAlreadyClaimed">
+    <value>The generated passwords were already shown once and are no longer kept.</value>
+  </data>
+  <data name="MigrationSectionNotImportable">
+    <value>This server has no module that can import this part of the package, so it will be skipped.</value>
+  </data>
+  <data name="MigrationPullUnreachable">
+    <value>The other server could not be reached, or it stopped answering. Check the address and try again.</value>
+  </data>
+  <data name="MigrationPullAddressRefused">
+    <value>That address cannot be used for a pull: it is this server, or a loopback or link-local address, or it resolves only to such addresses.</value>
+  </data>
+  <data name="MigrationPullRefused">
+    <value>The other server did not accept the grant. It may be wrong, expired, already used or tied to another address; issue a new one there.</value>
+  </data>
+  <data name="MigrationJobNotFound">
+    <value>That migration does not exist.</value>
+  </data>
+  <data name="MigrationJobAccountNotFound">
+    <value>That account is not part of the migration.</value>
+  </data>
+  <data name="MigrationJobNotEditable">
+    <value>The mapping can only be changed before the migration starts.</value>
+  </data>
+  <data name="MigrationJobStateInvalid">
+    <value>The migration is not in a state that allows that.</value>
+  </data>
+  <data name="MigrationJobNoAccounts">
+    <value>Choose at least one account to migrate.</value>
+  </data>
+  <data name="MigrationJobHasConflicts">
+    <value>The migration has conflicts. Resolve them in the dry run before starting.</value>
+  </data>
+  <data name="MigrationAccountStateInvalid">
+    <value>The account is not in a state that allows that.</value>
+  </data>
+  <data name="MigrationMappingIncomplete">
+    <value>Choose a plan, an owner e-mail and a primary domain for this account.</value>
+  </data>
+  <data name="MigrationLimitInvalid">
+    <value>The concurrency must be 1 to 8 and the bandwidth limit a positive number.</value>
+  </data>
+  <data name="MigrationDuplicateInJob">
+    <value>Two accounts in this migration claim the same domain.</value>
+  </data>
+  <data name="MigrationDatabaseNameNotImportable">
+    <value>This database cannot keep its name here. Names are never changed; rename it on the source or leave it out.</value>
+  </data>
+  <data name="MigrationSiteProxyNotImported">
+    <value>This site is a reverse proxy and its upstream is not known, so it was left out. Create it by hand.</value>
+  </data>
+  <data name="MigrationCronNotMigrated">
+    <value>Scheduled tasks are only counted on the source and are not transferred. Recreate them after the move.</value>
+  </data>
+  <data name="MigrationMailNotMigrated">
+    <value>Mail is not migrated. Move the mailboxes separately.</value>
+  </data>
+  <data name="MigrationGrantMissing">
+    <value>A source that is a Maran panel needs its address, its confirmed key fingerprint and a pull grant for every account.</value>
+  </data>
+  <data name="MigrationTransferFaulted">
+    <value>The transfer stopped because of a fault on this server. Details are in the server log.</value>
+  </data>
+  <data name="MigrationDiskInsufficient">
+    <value>This server does not have enough free disk space for the transfer.</value>
+  </data>
+  <data name="MigrationPullFailed">
+    <value>Copying the files failed. The source may have unreadable files or the connection dropped.</value>
+  </data>
+  <data name="MigrationPullIncomplete">
+    <value>Copying the files did not finish within its time allowance. Retry to continue from where it stopped.</value>
+  </data>
+  <data name="MigrationDumpFailed">
+    <value>Dumping a database on the source failed.</value>
+  </data>
+  <data name="MigrationDumpTooLarge">
+    <value>A database dump is larger than the allowance.</value>
+  </data>
+  <data name="MigrationDumpRefused">
+    <value>A database dump holds something a single-database user cannot load (a trigger, routine, event or view) and was refused. Nothing was loaded with more privilege.</value>
+  </data>
+  <data name="MigrationDumpLoadFailed">
+    <value>The server refused a statement of a database dump.</value>
+  </data>
+  <data name="MigrationAccountCancelled">
+    <value>The account was cancelled.</value>
+  </data>
+  <data name="RemoteServerInUse">
+    <value>A migration still uses this server. Remove or finish the migration first.</value>
+  </data>
+</root>

@@ -72,6 +72,47 @@ public sealed class SaveSmtpSettingsCommandValidatorTests
         _validator.TestValidate(command).ShouldHaveValidationErrorFor(candidate => candidate.Security);
     }
 
+    /// <summary>
+    /// A request that never mentions the security mode is refused, and cleartext has to be named
+    /// (issue #491).
+    /// </summary>
+    /// <remarks>
+    /// The omitted field deserializes to <c>default(SmtpSecurity)</c>, which is 0. That used to be the
+    /// cleartext mode, so omitting the setting sent the submission credential unprotected; the enum has
+    /// no member with the value 0 now, so the omission is an invalid mode. The accepting half is in
+    /// <see cref="Every_named_security_mode_including_cleartext_is_accepted"/>.
+    /// </remarks>
+    [Fact]
+    public void An_omitted_security_mode_is_refused_and_does_not_select_cleartext()
+    {
+        var command = Valid() with { Security = default };
+
+        Assert.Equal(0, (int)command.Security);
+        _validator.TestValidate(command).ShouldHaveValidationErrorFor(candidate => candidate.Security);
+    }
+
+    /// <summary>Every named mode is accepted, cleartext included, because naming it is the deliberate choice.</summary>
+    /// <param name="security">A mode the picker offers.</param>
+    [Theory]
+    [InlineData(SmtpSecurity.StartTls)]
+    [InlineData(SmtpSecurity.ImplicitTls)]
+    [InlineData(SmtpSecurity.None)]
+    public void Every_named_security_mode_including_cleartext_is_accepted(SmtpSecurity security)
+    {
+        _validator.TestValidate(Valid() with { Security = security })
+            .ShouldNotHaveValidationErrorFor(candidate => candidate.Security);
+    }
+
+    /// <summary>The numbers the modes are stored as are pinned, because rows hold them.</summary>
+    [Fact]
+    public void The_stored_numbers_of_the_security_modes_are_pinned_and_zero_is_none_of_them()
+    {
+        Assert.Equal(1, (int)SmtpSecurity.StartTls);
+        Assert.Equal(2, (int)SmtpSecurity.ImplicitTls);
+        Assert.Equal(3, (int)SmtpSecurity.None);
+        Assert.False(Enum.IsDefined((SmtpSecurity)0));
+    }
+
     /// <summary>A sender that is not one bare address is refused.</summary>
     [Theory]
     [InlineData("Panel <panel@example.com>")]

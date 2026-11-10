@@ -1,10 +1,12 @@
 import { readFile } from 'node:fs/promises'
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAudit, stubAuditExport, stubAuditExportRefused } from '../fixtures/stub-audit-routes'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { AuditEvent } from '../../src/types/audit'
+import type { Page } from '@playwright/test'
 
 // The journal's export (#145): everything the current search and filters match, as CSV or JSON,
 // downloaded through the panel's authenticated client and saved under the name the panel proposes.
@@ -17,6 +19,7 @@ const SIGN_IN: AuditEvent = {
   action: 'LoginSucceeded',
   actionName: 'Signed in',
   subject: 'admin',
+  subjectName: 'admin',
   ipAddress: '203.0.113.7',
   succeeded: true,
   outcomeName: 'Succeeded',
@@ -29,6 +32,7 @@ const REFUSED: AuditEvent = {
   action: 'LoginFailed',
   actionName: 'Sign-in refused',
   subject: 'mallory',
+  subjectName: 'mallory',
   ipAddress: '198.51.100.4',
   succeeded: false,
   outcomeName: 'Failed',
@@ -46,6 +50,7 @@ const openJournal = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
   await stubAudit(page, [SIGN_IN, REFUSED])
 }
 
@@ -111,7 +116,9 @@ test('the export carries the search and filters applied, and neither the page no
   expect(sent?.searchParams.has('sort')).toBe(false)
 })
 
-test('a refused export shows the panel’s sentence and saves no file', async ({ page }) => {
+test('a refused export shows the panel’s sentence and saves no file', async ({ page, guard }) => {
+  // The refusal is the subject: the panel declines an export too large to hand over with a 400.
+  guard.allow(400, /\/api\/v1\/audit\/export(\?.*)?$/)
   await openJournal(page)
   await stubAuditExportRefused(page, 'This export is too large. Narrow the window and try again.')
   let saved = false

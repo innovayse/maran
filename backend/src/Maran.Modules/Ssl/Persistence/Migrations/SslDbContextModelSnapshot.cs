@@ -76,6 +76,11 @@ namespace Maran.Modules.Ssl.Persistence.Migrations
                     b.Property<DateTimeOffset?>("ExpiryAlertedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool>("IsWildcard")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<DateTimeOffset>("IssuedAt")
                         .HasColumnType("timestamp with time zone");
 

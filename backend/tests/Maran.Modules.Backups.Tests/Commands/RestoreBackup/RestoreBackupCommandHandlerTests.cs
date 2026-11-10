@@ -2,6 +2,7 @@ using Maran.Agent.Client.Services.BackupService;
 using Maran.Modules.Backups.Commands.RestoreBackup;
 using Maran.Modules.Backups.Common;
 using Maran.Modules.Backups.Domain.Enums;
+using Maran.Modules.Backups.Jobs;
 using Maran.Modules.Backups.Persistence;
 using Maran.Modules.Backups.Services;
 using Maran.Modules.Backups.Tests.TestSupport;
@@ -53,6 +54,31 @@ public sealed class RestoreBackupCommandHandlerTests
         Assert.True(result.IsSuccess);
         Assert.Equal(world.BackupId, result.Value.BackupId);
         Assert.Equal(2u, result.Value.DatabasesRestored);
+    }
+
+    /// <summary>A restore that took its safety copy asks for the pre-restore copies to be bounded (issue #479).</summary>
+    [Fact]
+    public async Task A_restore_asks_for_the_pre_restore_copies_to_be_bounded()
+    {
+        var world = World.Create([WholeRestore]);
+
+        var result = await world.Handler.HandleAsync(world.Command(World.Username), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var requested = Assert.Single(world.Bus.Published.OfType<PreRestoreRetentionRequested>());
+        Assert.Equal(world.AccountId, requested.AccountId);
+    }
+
+    /// <summary>A restore that is refused before its safety copy exists asks for nothing to be pruned.</summary>
+    [Fact]
+    public async Task A_restore_refused_before_its_safety_copy_asks_for_no_pruning()
+    {
+        var world = World.Create([WholeRestore]);
+
+        var result = await world.Handler.HandleAsync(world.Command("wrong"), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Empty(world.Bus.Published);
     }
 
     /// <summary>A restore that lost a database is a failure, not a success carrying smaller numbers.</summary>
@@ -802,6 +828,9 @@ public sealed class RestoreBackupCommandHandlerTests
         /// <summary>The task double, holding what was recorded.</summary>
         public RecordingTaskRecorder Tasks { get; }
 
+        /// <summary>The bus double, holding what the safety backup service published.</summary>
+        public RecordingMessageBus Bus { get; } = new();
+
         /// <summary>The site window double; a test declares the sites the panel hosts on it.</summary>
         public StubSiteDirectory Sites { get; } = new();
 
@@ -860,7 +889,8 @@ public sealed class RestoreBackupCommandHandlerTests
                     BackupRunnerFactory.Create(Agent, Tasks, dbContext, _currentUser, Audit, new FakeClock(Now)),
                     new BackupDestinationResolver(dbContext),
                     new BackupAuditJournal(Audit, _currentUser),
-                    new FakeClock(Now)),
+                    new FakeClock(Now),
+                    Bus),
                 new BackupDestinationResolver(dbContext),
                 new BackupAuditJournal(Audit, _currentUser),
                 Tasks,

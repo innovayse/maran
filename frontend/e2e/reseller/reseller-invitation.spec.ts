@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubInvitation, type InvitationStub } from '../fixtures/stub-invitation-routes'
@@ -8,6 +8,7 @@ import { ACME_HOSTING, BRAVO_HOSTING, stubResellers } from '../fixtures/stub-res
 import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { InvitationState } from '../../src/types/invitation'
 import type { ResellerDetail } from '../../src/types/reseller'
+import type { Page } from '@playwright/test'
 
 // Issue #374: an administrator can resend or reissue a reseller's invitation from the reseller's
 // own page. The state is read from the panel every time, a link is shown once and replaced on the

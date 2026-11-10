@@ -1,7 +1,9 @@
 using Maran.Modules.Identity.Domain.Entities;
+using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Domain.Policies;
 using Maran.Modules.Identity.Domain.ValueObjects;
 using Maran.Modules.Identity.Persistence;
+using Maran.Sdk.Interfaces;
 
 namespace Maran.Modules.Identity.Services;
 
@@ -29,6 +31,15 @@ namespace Maran.Modules.Identity.Services;
 /// a customer viewed through an active account or a reseller viewed through none, and is never an
 /// administrator — the same rule the token issuer applied before it signed.
 /// </para>
+/// <para>
+/// <b>And the operator must STILL be entitled to the account, asked of its current owner on every
+/// request (issue #460).</b> A session is bound to its account through its own row, and a row written
+/// while the operator owned the account says nothing about who owns it later. An administrator may view
+/// any account; a reseller operator only an account it owns right now
+/// (<see cref="IAccountOwnership"/>), read from the operator's own login row and never from the token.
+/// So a session opened in the window of an ownership change, or after it, is refused on its first
+/// request and no revocation has to win a race to close it.
+/// </para>
 /// </remarks>
 public sealed class ViewAsSessionVerifier
 {
@@ -38,13 +49,18 @@ public sealed class ViewAsSessionVerifier
     /// <summary>The panel's clock.</summary>
     private readonly IClock _clock;
 
+    /// <summary>Answers whether a reseller operator still owns the viewed account.</summary>
+    private readonly IAccountOwnership _ownership;
+
     /// <summary>Creates the verifier.</summary>
     /// <param name="dbContext">The module's database context.</param>
     /// <param name="clock">The panel's clock.</param>
-    public ViewAsSessionVerifier(IdentityDbContext dbContext, IClock clock)
+    /// <param name="ownership">Answers whether a reseller operator still owns the viewed account.</param>
+    public ViewAsSessionVerifier(IdentityDbContext dbContext, IClock clock, IAccountOwnership ownership)
     {
         _dbContext = dbContext;
         _clock = clock;
+        _ownership = ownership;
     }
 
     /// <summary>Reports whether a view-as token's session may still be used.</summary>
@@ -83,6 +99,11 @@ public sealed class ViewAsSessionVerifier
             return false;
         }
 
+        if (!await OperatorMayStillViewAsync(actorUserId, session.ActiveAccountId, cancellationToken))
+        {
+            return false;
+        }
+
         var actorFamilyId = await _dbContext.Sessions
             .AsNoTracking()
             .Where(s => s.Id == actorSessionId && s.UserId == actorUserId && s.ViewAs == null)
@@ -99,6 +120,41 @@ public sealed class ViewAsSessionVerifier
             .AnyAsync(
                 s => s.FamilyId == actorFamilyId && s.UserId == actorUserId && s.Revocation == null && s.ExpiresAt > now,
                 cancellationToken);
+    }
+
+    /// <summary>Reports whether the operator is entitled to look through the account at this moment.</summary>
+    /// <param name="actorUserId">The operator, from the token's <c>act</c> claim.</param>
+    /// <param name="accountId">The account the session speaks for; null for a reseller view.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <returns>
+    /// True for an administrator; true for a reseller that owns the account now; false for anything
+    /// else, including an operator row that no longer exists, and a reseller operator with no account.
+    /// </returns>
+    private async Task<bool> OperatorMayStillViewAsync(
+        Guid actorUserId,
+        Guid? accountId,
+        CancellationToken cancellationToken)
+    {
+        var actor = await _dbContext.Users
+            .AsNoTracking()
+            .Where(u => u.Id == actorUserId)
+            .Select(u => new { u.Role, u.ResellerId })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (actor is null)
+        {
+            return false;
+        }
+
+        if (actor.Role == UserRole.Admin)
+        {
+            return true;
+        }
+
+        return actor.Role == UserRole.Reseller
+            && actor.ResellerId is { } resellerId
+            && accountId is { } account
+            && await _ownership.IsOwnedByResellerAsync(account, resellerId, cancellationToken);
     }
 
     /// <summary>Reads a view-as session that is still active.</summary>

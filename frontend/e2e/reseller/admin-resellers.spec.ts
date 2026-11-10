@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import { installNetworkGuard } from '../fixtures/network-guard'
 import { openSection, mainNavigation } from '../fixtures/open-full-shell'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
@@ -17,6 +18,7 @@ import {
 import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { PanelModule } from '../../src/types/module'
 import type { ResellerDetail, ResellerEnvelope } from '../../src/types/reseller'
+import type { Page } from '@playwright/test'
 
 // Issue #179: an administrator manages resellers. The Resellers page is reached from the sidebar's
 // Accounts section by clicks, lists resellers (server-searched, filtered by status), creates one
@@ -254,7 +256,8 @@ test('a valid reseller is posted with its envelope and its detail page opens wit
   await expect(page.getByText('Disk per account (MB)')).toBeVisible()
 })
 
-test('a refused create shows the panel sentence verbatim and keeps what was typed', async ({ page }) => {
+test('a refused create shows the panel sentence verbatim and keeps what was typed', async ({ page, guard }) => {
+  guard.allow(409, /\/api\/v1\/resellers$/)
   const detail = 'A reseller named "acmehosting" already exists on this panel.'
   await openAccounts(page, { create: detail })
   await openResellersFromSidebar(page)
@@ -279,6 +282,26 @@ test('the detail page shows the envelope, the usage and the actions of an active
   await expect(page.getByRole('button', { name: 'Suspend', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Reactivate', exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'View as this reseller' })).toBeVisible()
+})
+
+test('the usage bars carry visible captions and the invitation language is shown by name', async ({ page }) => {
+  await openAccounts(page)
+  await openReseller(page, 'acmehosting')
+
+  // Each bar is named in text a sighted reader sees, beside what it measures (issue #511): the name
+  // used to live only in the bar's aria-label, leaving three anonymous stripes.
+  const accounts = page.getByTestId('usage-accounts')
+  await expect(accounts.getByText('Accounts', { exact: true })).toBeVisible()
+  await expect(accounts.getByText(/^3 of \d+$/)).toBeVisible()
+  await expect(page.getByTestId('usage-plans').getByText('Plans', { exact: true })).toBeVisible()
+  await expect(page.getByTestId('usage-plans').getByText(/^2 of \d+$/)).toBeVisible()
+  await expect(page.getByTestId('usage-disk').getByText('Disk allocated', { exact: true })).toBeVisible()
+  await expect(page.getByTestId('usage-disk').getByText(/ of /)).toBeVisible()
+
+  // The language reads as its name, never as the code the panel stores.
+  const facts = page.locator('dl').filter({ hasText: 'Invitation language' })
+  await expect(facts).toContainText('English')
+  await expect(facts).not.toContainText(/\ben\b/)
 })
 
 test('suspending asks first, then marks the reseller suspended and offers to reactivate it', async ({ page }) => {
@@ -309,7 +332,8 @@ test('suspending asks first, then marks the reseller suspended and offers to rea
   expect(requests.reactivated).toEqual([ACME_HOSTING.id])
 })
 
-test('a refused suspension shows the panel sentence verbatim and changes nothing', async ({ page }) => {
+test('a refused suspension shows the panel sentence verbatim and changes nothing', async ({ page, guard }) => {
+  guard.allow(409, /\/api\/v1\/resellers\/[^/]+\/suspend$/)
   const detail = 'The reseller is being removed and cannot be suspended.'
   await openAccounts(page, { suspend: detail })
   await openReseller(page, 'acmehosting')
@@ -339,7 +363,8 @@ test('deleting asks first, removes the reseller and returns to a list without it
   await expect(page.getByRole('row', { name: /bravohosting/ })).toHaveCount(0)
 })
 
-test('a refused deletion shows the panel sentence verbatim and stays on the reseller', async ({ page }) => {
+test('a refused deletion shows the panel sentence verbatim and stays on the reseller', async ({ page, guard }) => {
+  guard.allow(409, /\/api\/v1\/resellers\/[^/]+$/)
   const detail = 'This reseller still owns 3 accounts. Move or delete them first.'
   await openAccounts(page, { remove: detail })
   await openReseller(page, 'acmehosting')
@@ -393,7 +418,8 @@ test('renaming a reseller starts from its current identity and puts the whole id
   await expect(page.getByRole('heading', { level: 1, name: 'globexhosting' })).toBeVisible()
 })
 
-test('a refused rename shows the panel sentence verbatim and keeps what was typed', async ({ page }) => {
+test('a refused rename shows the panel sentence verbatim and keeps what was typed', async ({ page, guard }) => {
+  guard.allow(409, /\/api\/v1\/resellers\/[^/]+$/)
   const detail = 'This name is already used by another reseller or by a hosting account.'
   await openAccounts(page, { update: detail })
   await openReseller(page, 'acmehosting')
@@ -445,6 +471,8 @@ test('the resellers screens have no horizontal scroll at 390 px in English, Russ
   for (const locale of ['en', 'ru', 'hy'] as const) {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } })
     const page = await context.newPage()
+    // This page is not the fixture's, so it is guarded here: the same findings, asserted per language below.
+    const guard = await installNetworkGuard(page, 'stubbed')
     await setPersistedLocale(page, locale)
     await installPanel(page)
     await page.goto('/resellers')
@@ -459,6 +487,7 @@ test('the resellers screens have no horizontal scroll at 390 px in English, Russ
     widths = await widthsOf(page)
     expect(widths.document, `${locale}: the detail page scrolls sideways`).toBeLessThanOrEqual(widths.viewport)
     expect(widths.main, `${locale}: the detail page overflows its panel`).toBeLessThanOrEqual(widths.mainBox)
+    expect(await guard.problems(), `${locale}: the page asked for, or was given, something it should not have`).toEqual([])
 
     await context.close()
   }

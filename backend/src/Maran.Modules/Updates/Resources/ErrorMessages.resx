@@ -15,6 +15,9 @@
   <data name="PanelUpdateRunning">
     <value>An update is already queued or running.</value>
   </data>
+  <data name="PanelUpdateCheckRunning">
+    <value>A check for updates is already queued or running.</value>
+  </data>
   <data name="PanelUpdateUnavailable">
     <value>The panel cannot start an update on this server right now.</value>
   </data>

@@ -1,0 +1,5 @@
+/etc/php/7.4
+/etc/php/8.2
+/etc/opt/remi/php83
+/etc/php/8.2
+/etc/php/composer

@@ -1,10 +1,10 @@
-import { test, type Page } from '@playwright/test'
 import {
   expectTableFastLoad,
   expectTableSlowFailure,
   expectTableSlowLoad,
   type TableLoadingScenario,
 } from '../fixtures/expect-table-loading'
+import { test } from '../fixtures/guarded-test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubFirewall } from '../fixtures/stub-firewall-routes'
@@ -12,10 +12,12 @@ import { runningFtpsStatus, stubFtpUsers, stubFtpUsersProblem, stubFtpsServer } 
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubSftpUsers, stubSftpUsersProblem } from '../fixtures/stub-sftp-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { FtpUser } from '../../src/types/ftpUser'
 import type { PanelModule } from '../../src/types/module'
 import type { SftpUser } from '../../src/types/sftpUser'
+import type { Page } from '@playwright/test'
 
 // The SFTP and FTPS logins while they are on the way (#243): each page's table drawn from its own
 // column schema, the page's own list read being the one held.
@@ -66,6 +68,7 @@ const signIn = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubFirewall(page, { rules: [], bans: [], whitelist: [] })
   await stubFtpsServer(page, runningFtpsStatus)
@@ -96,7 +99,8 @@ test('SFTP logins: a fast answer shows no placeholder', async ({ page }) => {
   await expectTableFastLoad(page, SFTP_LOGINS_SCENARIO)
 })
 
-test('SFTP logins: a slow failure is an alert, never a skeleton', async ({ page }) => {
+test('SFTP logins: a slow failure is an alert, never a skeleton', async ({ page, guard }) => {
+  guard.allow(500, /\/api\/v1\/sftp-users(\?.*)?$/)
   await expectTableSlowFailure(page, SFTP_LOGINS_SCENARIO)
 })
 
@@ -125,6 +129,7 @@ test('FTPS logins: a fast answer shows no placeholder', async ({ page }) => {
   await expectTableFastLoad(page, FTPS_LOGINS_SCENARIO)
 })
 
-test('FTPS logins: a slow failure is an alert, never a skeleton', async ({ page }) => {
+test('FTPS logins: a slow failure is an alert, never a skeleton', async ({ page, guard }) => {
+  guard.allow(500, /\/api\/v1\/ftp-users(\?.*)?$/)
   await expectTableSlowFailure(page, FTPS_LOGINS_SCENARIO)
 })

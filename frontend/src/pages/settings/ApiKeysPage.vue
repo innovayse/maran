@@ -40,6 +40,7 @@ import ApiKeyRevokeConfirm from '../../components/api-keys/ApiKeyRevokeConfirm.v
 import ApiKeysFilterSheet from '../../components/api-keys/ApiKeysFilterSheet.vue'
 import ApiKeysTable from '../../components/api-keys/ApiKeysTable.vue'
 import UiLink from '../../components/ui/UiLink.vue'
+import UiToolbar from '../../components/ui/UiToolbar.vue'
 import { useCallerRole } from '../../composables/useCallerRole'
 import { useListLabels } from '../../composables/useListLabels'
 import { useIntegrationKeyActions } from '../../composables/useIntegrationKeyActions'
@@ -205,7 +206,7 @@ onBeforeUnmount((): void => {
 
     <UiCard v-else>
       <div class="flex flex-col gap-4">
-        <div class="flex flex-wrap items-end gap-3">
+        <UiToolbar>
           <UiSearchInput
             v-model="table.search.value"
             class="min-w-55 max-w-85 flex-1"
@@ -219,7 +220,7 @@ onBeforeUnmount((): void => {
             :active-label="t('common.list.filtersApplied', { n: table.activeFilterCount.value }, table.activeFilterCount.value)"
             @click="openFilters"
           />
-        </div>
+        </UiToolbar>
 
         <UiActiveFilter
           v-if="chips.length > 0"

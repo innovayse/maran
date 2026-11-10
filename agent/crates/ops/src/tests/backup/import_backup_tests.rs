@@ -194,6 +194,34 @@ fn an_unreadable_password_database_refuses_the_import_before_anything_is_created
 }
 
 #[test]
+fn a_published_package_converges_even_once_its_system_user_exists() {
+    let fixture = Fixture::new();
+    let key = generated_key();
+    let package = manifest(&key);
+    fixture
+        .import(
+            &host(),
+            &mut ChunkSource::clean(vec![ARTIFACT.to_vec()]),
+            &package,
+        )
+        .unwrap();
+
+    // The panel creates the account after the first import; a retry then finds the user.
+    let after_account_creation = host();
+    after_account_creation.answers_identities(&[Some(AccountIdentity {
+        uid: 1000,
+        gid: 1000,
+    })]);
+    let mut second = ChunkSource::clean(vec![ARTIFACT.to_vec()]);
+    let again = fixture
+        .import(&after_account_creation, &mut second, &package)
+        .unwrap();
+
+    assert!(again.already_present);
+    assert_eq!(second.asked(), 0);
+}
+
+#[test]
 fn the_same_package_twice_converges_without_reading_the_stream_again() {
     let fixture = Fixture::new();
     let key = generated_key();

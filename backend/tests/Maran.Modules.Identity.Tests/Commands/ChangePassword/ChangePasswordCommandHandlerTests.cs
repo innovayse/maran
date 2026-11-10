@@ -54,7 +54,8 @@ public sealed class ChangePasswordCommandHandlerTests : IAsyncLifetime
             _context,
             _hasher,
             NewSessions(),
-            TestSecurityPolicyCache.Over(_context),
+            new UnlockedFailedLoginRecorder(_context, TestSecurityPolicyCache.Over(_context)),
+            new CredentialTokenRetirement(_context),
             new IdentityAuditJournal(_audit, new StubCurrentUser(_userId, "admin")),
             _clock);
     }
@@ -240,5 +241,66 @@ public sealed class ChangePasswordCommandHandlerTests : IAsyncLifetime
         Assert.Equal("PasswordSameAsUsername", result.Error!.Code);
         Assert.Equal(ErrorType.Validation, result.Error.Type);
         Assert.True(_hasher.Verify(OldPassword, (await ReloadUserAsync()).PasswordHash));
+    }
+
+    /// <summary>Stores one reset token and one invitation token of the user, minted at <paramref name="at"/>.</summary>
+    /// <param name="at">The instant they are issued.</param>
+    private async Task<(PasswordResetToken Reset, InvitationToken Invitation)> SeedTokensAsync(DateTimeOffset at)
+    {
+        var reset = new PasswordResetToken(Guid.NewGuid(), _userId, Guid.NewGuid().ToString("N"), at);
+        var invitation = new InvitationToken(Guid.NewGuid(), _userId, Guid.NewGuid().ToString("N"), at);
+        _context.PasswordResetTokens.Add(reset);
+        _context.InvitationTokens.Add(invitation);
+        await _context.SaveChangesAsync();
+        return (reset, invitation);
+    }
+
+    /// <summary>A reset or invitation token mailed before the change is refused after it, and the retirement is audited.</summary>
+    [Fact]
+    public async Task A_reset_or_invitation_token_mailed_before_the_change_is_refused_after_it()
+    {
+        var (reset, invitation) = await SeedTokensAsync(Now.AddMinutes(-10));
+        Assert.True(reset.IsUsable(Now));
+        Assert.True(invitation.IsUsable(Now));
+
+        var result = await NewHandler().HandleAsync(Command(OldPassword), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var storedReset = await _context.PasswordResetTokens.AsNoTracking().SingleAsync(t => t.Id == reset.Id);
+        var storedInvitation = await _context.InvitationTokens.AsNoTracking().SingleAsync(t => t.Id == invitation.Id);
+        Assert.False(storedReset.IsUsable(Now));
+        Assert.False(storedInvitation.IsUsable(Now));
+        var retired = Assert.Single(_audit.Written, entry =>
+        {
+            return entry.Action == IdentityAuditActions.CredentialTokensRetired;
+        });
+        Assert.Equal($"{_userId}: 2", retired.Subject);
+    }
+
+    /// <summary>A token issued after the change is untouched by it.</summary>
+    [Fact]
+    public async Task A_token_issued_after_the_change_stays_usable()
+    {
+        await NewHandler().HandleAsync(Command(OldPassword), CancellationToken.None);
+        var (reset, invitation) = await SeedTokensAsync(Now.AddMinutes(1));
+
+        Assert.True(reset.IsUsable(Now.AddMinutes(2)));
+        Assert.True(invitation.IsUsable(Now.AddMinutes(2)));
+    }
+
+    /// <summary>A refused change (wrong current password) retires no token.</summary>
+    [Fact]
+    public async Task A_refused_change_retires_no_token()
+    {
+        var (reset, _) = await SeedTokensAsync(Now.AddMinutes(-10));
+
+        await NewHandler().HandleAsync(Command("not the password"), CancellationToken.None);
+
+        var stored = await _context.PasswordResetTokens.AsNoTracking().SingleAsync(t => t.Id == reset.Id);
+        Assert.True(stored.IsUsable(Now));
+        Assert.DoesNotContain(_audit.Written, entry =>
+        {
+            return entry.Action == IdentityAuditActions.CredentialTokensRetired;
+        });
     }
 }

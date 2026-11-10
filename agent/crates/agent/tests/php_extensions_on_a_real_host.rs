@@ -224,6 +224,21 @@ fn availability_follows_the_family_the_host_runs() {
                 assert_eq!(item.availability, expected, "`{}`", item.name.as_str());
             }
         }
+        DistroFamily::Suse => {
+            // UNVERIFIED: read from the distribution's `php8-<extension>` package naming and
+            // from the absence of a `phpdismod`-style tool, not measured; confirm with
+            // `rpm -ql php8-gd` and `command -v phpdismod` in the pinned Leap image. Every
+            // catalogue entry has a package of its own (`curl` included, unlike the RHEL
+            // family) and none has a switch, so every entry can only be turned on.
+            for item in &extensions {
+                assert_eq!(
+                    item.availability,
+                    ExtensionAvailability::DisableNotSupported,
+                    "`{}`",
+                    item.name.as_str()
+                );
+            }
+        }
     }
 }
 
@@ -282,6 +297,23 @@ fn switching_an_extension_is_observed_by_the_real_php_fpm_or_refused_where_the_f
             assert!(
                 matches!(refusal, Err(PhpOpError::ExtensionSwitchUnsupported { .. })),
                 "the RHEL family has no clean switch off, got {refusal:?}"
+            );
+            assert!(
+                real_modules().contains(printed_module_name(name.as_str())),
+                "a refused switch-off must leave `{}` loaded",
+                name.as_str()
+            );
+        }
+        DistroFamily::Suse => {
+            // UNVERIFIED: the family is read to ship no switch (see the availability test
+            // above for the confirming commands), so the answer is the same typed refusal the
+            // RHEL family gives and the loaded module is left alone.
+            let refusal =
+                set_php_extension(&host, polygon_distro(), &version, name, false, |_, _| {});
+
+            assert!(
+                matches!(refusal, Err(PhpOpError::ExtensionSwitchUnsupported { .. })),
+                "the SUSE family has no clean switch off, got {refusal:?}"
             );
             assert!(
                 real_modules().contains(printed_module_name(name.as_str())),

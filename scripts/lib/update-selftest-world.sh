@@ -223,9 +223,9 @@ for lib in release-version release-verify release-unpack release-layout update-d
     selftest_failed "${lib}.sh builds a shell string (lines above): eval, bash -c or sh -c."
   fi
 done
-scan_code "${root}/scripts/lib/release-bundle.sh" "$shell_pattern" >/dev/null \
-  || selftest_failed "the shell-string scan found nothing in scripts/lib/release-bundle.sh, which has an sh -c - the scan cannot hit."
-selftest_pass "no eval, bash -c or sh -c in the eleven release and update libraries (the scan hits release-bundle.sh, so it can)"
+scan_code "${root}/scripts/lib/release-build-components.sh" "$shell_pattern" >/dev/null \
+  || selftest_failed "the shell-string scan found nothing in scripts/lib/release-build-components.sh, which has an sh -c - the scan cannot hit."
+selftest_pass "no eval, bash -c or sh -c in the eleven release and update libraries (the scan hits release-build-components.sh, so it can)"
 
 # shellcheck disable=SC1090
 . "${libdir}/common.sh"

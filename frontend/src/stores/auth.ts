@@ -2,7 +2,13 @@ import { defineStore } from 'pinia'
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useAuthApi } from '../composables/apis/useAuthApi'
 import { ApiError } from '../composables/useApi'
-import type { AuthenticatedSession, AuthenticatedUser, AuthSession, LoginRequest } from '../types/auth'
+import type {
+  AuthenticatedSession,
+  AuthenticatedUser,
+  AuthSession,
+  ChangePasswordRequest,
+  LoginRequest,
+} from '../types/auth'
 import type { ViewAsSession } from '../types/viewAs'
 
 /**
@@ -22,21 +28,30 @@ export const useAuthStore = defineStore('auth', () => {
   const api = useAuthApi()
 
   /**
-   * Who is signed in, as one value. The token, the user, the owed second factor and the enrolment
-   * steer used to be four refs kept in step by hand; here they cannot disagree.
+   * Who is signed in, as one value. The token, the user, the owed second factor and the two
+   * steers (enrolment, first-password change) used to be separate refs kept in step by hand; here
+   * they cannot disagree.
    */
   const session: Ref<AuthSession> = ref({ state: 'signedOut' })
 
   /** The signed access token, or `null` when nobody holds one. */
   const accessToken: ComputedRef<string | null> = computed(() => {
     const current = session.value
-    return current.state === 'signedIn' || current.state === 'enrolmentRequired' ? current.accessToken : null
+    return current.state === 'signedIn' ||
+      current.state === 'enrolmentRequired' ||
+      current.state === 'passwordChangeRequired'
+      ? current.accessToken
+      : null
   })
 
   /** Who is signed in, or `null`. */
   const user: ComputedRef<AuthenticatedUser | null> = computed(() => {
     const current = session.value
-    return current.state === 'signedIn' || current.state === 'enrolmentRequired' ? current.user : null
+    return current.state === 'signedIn' ||
+      current.state === 'enrolmentRequired' ||
+      current.state === 'passwordChangeRequired'
+      ? current.user
+      : null
   })
 
   /** True while a sign-in, refresh or sign-out is in flight. */
@@ -63,6 +78,18 @@ export const useAuthStore = defineStore('auth', () => {
     return session.value.state === 'enrolmentRequired'
   })
 
+  /**
+   * True when the signed-in login still holds a first password somebody else chose (issue #514).
+   *
+   * Like `requiresTwoFactorSetup`, the sign-in succeeded and there IS a token, but it reaches only
+   * the password change: every other endpoint answers 403. The router reads this to keep the person
+   * on the screen that asks for the new password, so the shell and the requests it would fire never
+   * start.
+   */
+  const requiresPasswordChange: ComputedRef<boolean> = computed(() => {
+    return session.value.state === 'passwordChangeRequired'
+  })
+
   /** True once the store has tried to restore a session, successfully or not. */
   const isRestored: Ref<boolean> = ref(false)
 
@@ -82,6 +109,21 @@ export const useAuthStore = defineStore('auth', () => {
   })
 
   /**
+   * Picks which signed-in arm a result belongs to. The first password is asked for before anything
+   * else: its token reaches only the password change, so it outranks the enrolment steer, which
+   * would otherwise send the person to a screen whose endpoints that token cannot reach either.
+   * @param signedIn The signed-in half of the result.
+   * @returns The state the session takes.
+   */
+  const stateOf = (signedIn: AuthenticatedSession): 'signedIn' | 'enrolmentRequired' | 'passwordChangeRequired' => {
+    if (signedIn.requiresPasswordChange) {
+      return 'passwordChangeRequired'
+    }
+
+    return signedIn.requiresTwoFactorSetup ? 'enrolmentRequired' : 'signedIn'
+  }
+
+  /**
    * Stores the outcome of a successful sign-in or refresh.
    *
    * Takes the whole result rather than its parts: the token, its user and the
@@ -93,7 +135,7 @@ export const useAuthStore = defineStore('auth', () => {
    */
   const accept = (signedIn: AuthenticatedSession): void => {
     session.value = {
-      state: signedIn.requiresTwoFactorSetup ? 'enrolmentRequired' : 'signedIn',
+      state: stateOf(signedIn),
       accessToken: signedIn.accessToken,
       user: signedIn.user,
     }
@@ -115,6 +157,7 @@ export const useAuthStore = defineStore('auth', () => {
       expiresAt: viewAs.expiresAt,
       user: viewAs.user,
       requiresTwoFactorSetup: false,
+      requiresPasswordChange: false,
     })
   }
 
@@ -250,6 +293,31 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
+   * Replaces the first password somebody else chose, then renews the session so the token no longer
+   * carries the restriction (issue #514).
+   *
+   * The change itself is the one request that token reaches. A successful change clears the
+   * obligation on the server, but the token already held still carries it until it is re-issued, so
+   * the refresh cookie is exchanged straight away; the router reads the renewed state, not a guess.
+   * @param request The password chosen for the first sign-in and its replacement.
+   * @returns True when the password was changed and the session is renewed; false when the panel refused.
+   */
+  const changeRequiredPassword = async (request: ChangePasswordRequest): Promise<boolean> => {
+    loading.value = true
+    errorMessage.value = null
+    try {
+      await api.changePassword(request)
+    } catch (error) {
+      remember(error)
+      return false
+    } finally {
+      loading.value = false
+    }
+
+    return renewAccessToken()
+  }
+
+  /**
    * Signs out of this device.
    * @returns Resolves once the request has settled; state is cleared either way.
    */
@@ -291,12 +359,14 @@ export const useAuthStore = defineStore('auth', () => {
     errorMessage,
     twoFactorUsername,
     requiresTwoFactorSetup,
+    requiresPasswordChange,
     isRestored,
     isAuthenticated,
     renewAccessToken,
     restore,
     login,
     verifyTwoFactor,
+    changeRequiredPassword,
     logout,
     dismissError,
     logoutEverywhere,

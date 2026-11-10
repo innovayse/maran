@@ -69,4 +69,37 @@
   <data name="MailAliasKindCatchAll">
     <value>Для всей почты</value>
   </data>
+  <data name="MailMenuQueue">
+    <value>Почтовая очередь</value>
+  </data>
+  <data name="MailRouteQueue">
+    <value>Почтовая очередь</value>
+  </data>
+  <data name="MailQueueNameActive">
+    <value>Отправляется</value>
+  </data>
+  <data name="MailQueueNameDeferred">
+    <value>Ждёт повтора</value>
+  </data>
+  <data name="MailQueueNameHeld">
+    <value>Удержано</value>
+  </data>
+  <data name="MailQueueNameIncoming">
+    <value>Поступает</value>
+  </data>
+  <data name="MailDeferralNone">
+    <value>Не задержано</value>
+  </data>
+  <data name="MailDeferralNetwork">
+    <value>Сетевая проблема</value>
+  </data>
+  <data name="MailDeferralRemoteRefused">
+    <value>Отклонено сервером получателя</value>
+  </data>
+  <data name="MailDeferralLocalError">
+    <value>Ошибка на этом сервере</value>
+  </data>
+  <data name="MailDeferralOther">
+    <value>Другая причина</value>
+  </data>
 </root>

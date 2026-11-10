@@ -49,7 +49,7 @@
 //!
 //! **One operation here repairs the server rather than serving a request.**
 //! `repair_grants` exists because a database-level `GRANT`'s name is a LIKE
-//! pattern, so every grant this agent issued before `grant_pattern.rs` was
+//! pattern, so every grant this agent issued before `agent_core::validation::db::grant_pattern` was
 //! written is stored in `mysql.db` as a wildcard that matches a neighbour's
 //! database. Escaping new grants could not reach the rows already on a host. It
 //! is the one operation that reads the grant table, the one that acts on rows it
@@ -78,7 +78,6 @@ pub(crate) mod fake_db_host;
 #[cfg(test)]
 #[path = "../tests/db/fake_privilege_host.rs"]
 pub(crate) mod fake_privilege_host;
-mod grant_pattern;
 mod grant_rows;
 mod list_databases;
 pub mod model;

@@ -26,6 +26,9 @@
     "leaveConfirm": "Leave without saving",
     "leaveCancel": "Keep editing",
     "leaveActing": "Leaving…",
-    "close": "Close"
+    "close": "Close",
+    "tabIndents": "Tab key indents",
+    "find": "Find and replace",
+    "goToLine": "Go to line"
   }
 }

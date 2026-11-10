@@ -98,6 +98,14 @@ public sealed class AuditEvent
     public Guid? AccountId { get; private set; }
 
     /// <summary>
+    /// The verified login this entry is ABOUT, when it was done to one (an owner changing a sub-user's
+    /// grants); null for every entry whose subject is only text somebody typed. Erasable: erasing the
+    /// login replaces it with the pseudonym id. It is what ties a subject to a person, because the
+    /// subject text alone is chosen by the caller and identifies nobody.
+    /// </summary>
+    public Guid? SubjectUserId { get; private set; }
+
+    /// <summary>
     /// The row's position in the tamper-evidence chain; null until the maintenance worker seals it.
     /// Positions start at 1 and never repeat (a unique index holds that).
     /// </summary>
@@ -151,6 +159,7 @@ public sealed class AuditEvent
     /// <param name="correlationId">The request's correlation id, tying this row to the logs.</param>
     /// <param name="impersonator">The operator viewing as the actor, or null when there was none.</param>
     /// <param name="accountId">The hosting account the entry is about, or null when the writer knew none.</param>
+    /// <param name="subjectUserId">The verified login the entry is about, or null when the subject is only typed text.</param>
     public AuditEvent(
         Guid id,
         DateTimeOffset occurredAt,
@@ -163,7 +172,8 @@ public sealed class AuditEvent
         bool succeeded,
         string? correlationId,
         AuditImpersonator? impersonator = null,
-        Guid? accountId = null)
+        Guid? accountId = null,
+        Guid? subjectUserId = null)
     {
         Id = id;
         OccurredAt = occurredAt;
@@ -177,6 +187,7 @@ public sealed class AuditEvent
         CorrelationId = correlationId;
         Impersonator = impersonator;
         AccountId = accountId;
+        SubjectUserId = subjectUserId;
     }
 
     /// <summary>Parameterless constructor required by EF Core materialization.</summary>
@@ -234,35 +245,45 @@ public sealed class AuditEvent
     /// Replaces what identifies the erased person in this row with a pseudonym, and destroys the
     /// commitment's salt.
     /// </summary>
-    /// <param name="erasedUserId">The login being erased, matched against the actor and the impersonator.</param>
+    /// <param name="erasedUserId">The login being erased, matched against the actor, the impersonator and the subject login.</param>
     /// <param name="at">When the erasure happened, from the panel's clock; kept only if no earlier erasure set it.</param>
     /// <param name="pseudonymId">The random id standing in for the person across all of their rows.</param>
     /// <param name="pseudonymName">The name standing in for the person, for example <c>erased-user-1a2b3c4d</c>.</param>
-    /// <param name="replaceSubject">Whether the subject names the person (it equals their username or e-mail) and is replaced by the pseudonym name.</param>
+    /// <param name="ownNames">The login name, address and id the person was known by; compared with the subject of a row the person acted in.</param>
     /// <remarks>
     /// <para>
-    /// A row can match as the ACTOR, as the IMPERSONATOR, or only by its subject. A row of an
-    /// unidentified caller whose claimed name IS the subject (a refused sign-in typed with the person's
-    /// login name or address) counts as the person's own as the actor: its name column holds the same
-    /// text as its subject. Only the matching part is replaced: when an operator who is being erased viewed as somebody else, the actor
-    /// columns belong to that other, living person and are kept, while the impersonator becomes the
-    /// pseudonym. The address and user agent are the request's, and so belong to whoever was at the
-    /// keyboard, which is the erased person in either of the first two cases.
+    /// <b>A row is the person's only by an identity recorded on it, never by text.</b> It matches as the
+    /// ACTOR (<see cref="ActorUserId"/>), as the IMPERSONATOR, or as the SUBJECT login
+    /// (<see cref="SubjectUserId"/>). A row of an unidentified caller who merely typed the person's name
+    /// (a refused sign-in) carries none of these and is never touched: the typed text is chosen by
+    /// whoever typed it, so letting it select rows would let anyone who can create a login with a chosen
+    /// name erase other people's evidence.
     /// </para>
     /// <para>
-    /// A row that matches in none of the three ways is left exactly as it was, <see cref="ErasedAt"/>
-    /// included. <see cref="Subject"/> is replaced only when <paramref name="replaceSubject"/> says
-    /// the caller found it to be the person's own name; this method never inspects subject text.
+    /// Actor columns are replaced only when the person is the actor; when an operator who is being erased
+    /// viewed as somebody else, the actor columns belong to that living person and are kept. The address
+    /// and user agent are the request's, so they are blanked when the person was the actor or the
+    /// impersonator, and kept when the person was only the subject (they belong to whoever acted). The
+    /// subject text is replaced when the person is the subject login, or when the person is the actor and
+    /// the subject is one of <paramref name="ownNames"/> (a row about themselves).
     /// </para>
+    /// <para>A row that matches in none of these ways is left exactly as it was, <see cref="ErasedAt"/> included.</para>
     /// </remarks>
-    public void ErasePerson(Guid erasedUserId, DateTimeOffset at, Guid pseudonymId, string pseudonymName, bool replaceSubject)
+    public void ErasePerson(
+        Guid erasedUserId,
+        DateTimeOffset at,
+        Guid pseudonymId,
+        string pseudonymName,
+        IReadOnlySet<string> ownNames)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(pseudonymName);
+        ArgumentNullException.ThrowIfNull(ownNames);
 
-        var actorMatches = ActorUserId == erasedUserId || (replaceSubject && NamesTheSubjectAsClaimedActor());
+        var actorMatches = ActorUserId == erasedUserId;
         var impersonatorMatches = Impersonator is not null && Impersonator.OperatorId == erasedUserId;
+        var subjectMatches = SubjectUserId == erasedUserId;
 
-        if (!actorMatches && !impersonatorMatches && !replaceSubject)
+        if (!actorMatches && !impersonatorMatches && !subjectMatches)
         {
             return;
         }
@@ -284,9 +305,14 @@ public sealed class AuditEvent
             UserAgent = string.Empty;
         }
 
-        if (replaceSubject)
+        if (subjectMatches || (actorMatches && ownNames.Contains(Subject)))
         {
             Subject = pseudonymName;
+        }
+
+        if (subjectMatches)
+        {
+            SubjectUserId = pseudonymId;
         }
 
         MarkErased(at);
@@ -307,27 +333,6 @@ public sealed class AuditEvent
         AccountId = pseudonymAccountId;
         Subject = pseudonymSubject;
         MarkErased(at);
-    }
-
-    /// <summary>
-    /// Whether this is a row of an UNIDENTIFIED caller who typed a name: no actor id, and the actor name
-    /// is the very text the subject holds (or its truncation to the actor column's width).
-    /// </summary>
-    /// <returns>
-    /// <c>true</c> for a sign-in or reset claim that matched nobody. When the claimed text is the erased
-    /// person's name, the actor name column holds that name too, and so do the address and user agent of
-    /// whoever typed it, so the whole row is the person's and not only its subject.
-    /// </returns>
-    private bool NamesTheSubjectAsClaimedActor()
-    {
-        if (ActorUserId is not null || ActorUsername.Length == 0)
-        {
-            return false;
-        }
-
-        var claimed = Subject.Length > ActorUsernameMaxLength ? Subject[..ActorUsernameMaxLength] : Subject;
-
-        return string.Equals(ActorUsername, claimed, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>Records that an erasure touched the row and destroys the salt, keeping the earliest erasure time.</summary>

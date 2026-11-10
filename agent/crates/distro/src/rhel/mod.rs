@@ -1,6 +1,7 @@
 //! Adapter for the RHEL family (AlmaLinux, Rocky).
 
 pub mod rhel_adapter;
+pub mod rhel_package_candidates;
 pub mod rhel_packages;
 pub mod rhel_paths;
 pub mod rhel_php_extensions;

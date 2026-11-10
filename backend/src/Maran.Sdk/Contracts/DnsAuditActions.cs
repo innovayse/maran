@@ -38,4 +38,22 @@ public static class DnsAuditActions
 
     /// <summary>A zone's whole record set was replaced in one step (an import).</summary>
     public const string DnsRecordsReplaced = "DnsRecordsReplaced";
+
+    /// <summary>A zone template was created or replaced. The entry names the template, never its records.</summary>
+    public const string ZoneTemplateSaved = "ZoneTemplateSaved";
+
+    /// <summary>A zone template was deleted.</summary>
+    public const string ZoneTemplateDeleted = "ZoneTemplateDeleted";
+
+    /// <summary>The template new sites get their zone from was changed.</summary>
+    public const string ZoneTemplateDefaultChanged = "ZoneTemplateDefaultChanged";
+
+    /// <summary>DNSSEC signing was switched on for a zone. The entry names the zone and never the key.</summary>
+    public const string ZoneSigningEnabled = "ZoneSigningEnabled";
+
+    /// <summary>A zone's withdrawal from DNSSEC signing began. The entry names the zone and never the key.</summary>
+    public const string ZoneSigningWithdrawalStarted = "ZoneSigningWithdrawalStarted";
+
+    /// <summary>A zone's withdrawal from DNSSEC signing ended: the zone is unsigned and its key is deleted.</summary>
+    public const string ZoneSigningWithdrawn = "ZoneSigningWithdrawn";
 }

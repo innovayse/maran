@@ -217,6 +217,36 @@ doc comment on `MonitorHost::read_sshd_config` for the fuller argument.
 
 ---
 
+## Amendment 2026-11-09 (#474): the key directory is required, and the precedence was stated backwards
+
+**What was wrong.** (1) The block the installer writes carries `AuthorizedKeysFile
+/etc/ssh/maran-sftp-keys/%u`, and the check never looked for it. With the line removed or changed the
+group falls back to the per-user `authorized_keys` in the customer-writable home, so a customer could
+log in by a key of their own while the panel's root-owned per-login key files (parked on suspension
+and lock) were ignored; the check still answered `Intact`. (2) §3 and the doc comments said OpenSSH
+applies the LAST matching block, so a later block could undo ours. `sshd_config(5)` says the
+opposite: for each keyword the FIRST obtained value is used, and a `Match` block applies on top of
+the global section. A later block cannot undo ours; an EARLIER one can, and both families `Include
+sshd_config.d/*.conf` from the TOP while the installer appends at the END. §3b remains the dangerous
+direction, and it is the earlier-`Match` case (`Match all`, or `Match Group` naming the sftp group,
+with `ChrootDirectory none` or `ForceCommand none` in a drop-in), not a later block.
+
+**What changed.** `SftpJailStatus::evaluate` requires `AuthorizedKeysFile` with the value
+`<AgentPaths::SFTP_AUTHORIZED_KEYS_DIRECTORY>/%u` beside the four directives it already required, and
+reads each required keyword the way sshd does: the FIRST line in the block that names it must carry
+the required value, so a wrong line before a right one is drift. The doc comments on `evaluate` and
+`MonitorHost::read_sshd_config` now state first-match-wins. `missing` still holds only the check's
+own vocabulary (the keyword and the compiled-in directory), never a byte of the file.
+
+**What is still not seen.** `Include` is not resolved and an earlier `Match` in a drop-in is not
+detected (§3b, unchanged in substance). The precedence statement is taken from `sshd_config(5)`; the
+`sshd -T -C user=<member>,host=h,addr=1.2.3.4` measurement the issue suggests was not run on either
+family in this session.
+
+**Second review: OUTSTANDING (#331).**
+
+---
+
 ## Second review: RECORDED 2026-09-23
 
 Every sentence above that calls the second reviewer OUTSTANDING described the state until this

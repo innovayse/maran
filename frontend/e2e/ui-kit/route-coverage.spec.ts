@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import {
   routesOf,
   sweptPathsOf,
@@ -36,7 +36,7 @@ const SWEEP_SPECS = [
 
 /**
  * How many distinct addresses the reader finds in each sweep spec today, measured with
- * `sweptPathsOf` (the DNS sweep opens four screens, so a shared floor of "more than three" had to
+ * `sweptPathsOf` (the DNS sweep opens seven addresses, so a shared floor of "more than three" had to
  * be loosened for it). The census itself guarantees every route a row (the first test below, which
  * diffs the router against ALL the addresses read); these floors only guard the reader going blind
  * on one spec, and a single shared floor cannot do that for a 24-row spec: it would let the reader
@@ -47,7 +47,7 @@ const SWEEP_ADDRESS_FLOORS: Record<string, number> = {
   'e2e/ui-kit/no-horizontal-scroll-admin.spec.ts': 24,
   'e2e/ui-kit/no-horizontal-scroll-other.spec.ts': 15,
   'e2e/ui-kit/no-horizontal-scroll-settings-and-resellers.spec.ts': 17,
-  'e2e/dns/no-horizontal-scroll.spec.ts': 4,
+  'e2e/dns/no-horizontal-scroll.spec.ts': 7,
 }
 
 /**
@@ -56,6 +56,7 @@ const SWEEP_ADDRESS_FLOORS: Record<string, number> = {
  */
 const SCREEN_SWEEP_SPECS = [
   'e2e/mail/mail-layout.spec.ts',
+  'e2e/mail/mail-queue.spec.ts',
   'e2e/databases/users.spec.ts',
   'e2e/backups/my-schedule.spec.ts',
   'e2e/sites/php-settings.spec.ts',
@@ -63,6 +64,9 @@ const SCREEN_SWEEP_SPECS = [
   'e2e/files/editor.spec.ts',
   'e2e/files/trash.spec.ts',
   'e2e/settings/alert-settings.spec.ts',
+  'e2e/settings/licence.spec.ts',
+  'e2e/marketplace/layout.spec.ts',
+  'e2e/migration/no-horizontal-scroll.spec.ts',
 ]
 
 /** Routes no sweep row opens, each with its reason. A stale entry fails the spec below. */
@@ -166,6 +170,18 @@ test.describe('every routed screen is swept at 390 px or excused', () => {
     }
     expect(perSpec.flat()).toContain('/accounts')
     expect(perSpec.flat()).toContain('/login')
+  })
+
+  test('prose naming the key in backticks does not hide the rows after it (positive control and inverse)', () => {
+    // A comment reading "the `path:` rows below" opens a template string at its own backtick; the
+    // reader must skip it and still find the real rows, or the whole spec reads as having none.
+    const source = [
+      '// The census reads the `path:` rows below, and `other` things.',
+      "const SCREENS = [{ path: '/things' }, { path: `/things/${id}` }]",
+    ].join('\n')
+
+    expect(sweptPathsOf([source])).toEqual(['/things', '/things/x'])
+    expect(sweptPathsOf(["const row = { path: '/plain' }"])).toEqual(['/plain'])
   })
 
   test('a route that no sweep opens is reported (positive control)', () => {

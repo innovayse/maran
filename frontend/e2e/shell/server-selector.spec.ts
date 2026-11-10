@@ -1,9 +1,12 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "../fixtures/guarded-test";
 import { stubSignedIn, stubbedAdministrator } from "../fixtures/stub-auth-routes";
 import { stubEmptyModules } from "../fixtures/stub-modules-route";
 import { stubHealthy } from "../fixtures/stub-health-route";
+import { stubLandingReads } from "../fixtures/stub-landing-reads";
 import { stubServers } from "../fixtures/stub-servers-route";
+import { stubShellReads } from "../fixtures/stub-shell-reads";
 import type { Server } from "../../src/types/server";
+import type { Page } from "@playwright/test";
 
 /** The one server the panel manages today: the machine it runs on, named by its configured host. */
 const LOCAL_SERVER: Server = { kindDisplayName: "This server (local)", hostName: "panel.example.com" };
@@ -20,6 +23,9 @@ const stubPanel = async (page: Page, role: "admin" | "customer", servers: Server
   await stubSignedIn(page, { ...stubbedAdministrator, role });
   await stubHealthy(page);
   await stubEmptyModules(page);
+  await stubShellReads(page);
+  await stubLandingReads(page, role === "admin" ? "administrator" : "customer");
+  // After the shell's quiet list, so this spec's servers (and its count of reads) are the ones answered.
   return stubServers(page, servers);
 };
 

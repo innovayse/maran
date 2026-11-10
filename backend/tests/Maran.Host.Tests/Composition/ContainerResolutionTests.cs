@@ -221,6 +221,7 @@ public sealed class ContainerResolutionTests : IClassFixture<PanelTestFactory>
     [InlineData(typeof(IAgentCronClient), typeof(ResilientAgentCronClient))]
     [InlineData(typeof(IAgentFirewallClient), typeof(ResilientAgentFirewallClient))]
     [InlineData(typeof(IAgentMonitorClient), typeof(ResilientAgentMonitorClient))]
+    [InlineData(typeof(IAgentTransferClient), typeof(ResilientAgentTransferClient))]
     public void Every_agent_client_resolves_wrapped_in_its_resilience_pipeline(Type serviceType, Type expectedType)
     {
         using var scope = _factory.Services.CreateScope();

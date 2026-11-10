@@ -16,6 +16,7 @@ use crate::backup::backup_error::BackupError;
 use crate::backup::backup_host::BackupHost;
 use crate::backup::backup_root::prepare_account_directory;
 use crate::backup::finalise_restore::{HOME_MODE, finalise_restore};
+use crate::backup::jail_mounts::JailMounts;
 use crate::backup::model::restore_outcome::RestoreOutcome;
 use crate::backup::model::restore_scope::RestoreScope;
 use crate::backup::model::restore_sink::RestoreSink;
@@ -59,7 +60,7 @@ const ROOT_UID: u32 = 0;
 /// | 5 | Extract `home/*` AS the account into the staging directory | Untouched. The staging tree is removed on the way out. |
 /// | 6 | **For each database in turn: dump it for rollback, then drop it, then load the archive's dump.** The first drop is the point of no return | Every database already replaced is reloaded from its own rollback dump, in reverse order, and the operation reports FAILED naming what it put back and what it could not. **The files are still untouched** — the swap has not happened yet, so there is nothing to reverse there. |
 /// | 7 | Rename the home aside, then rename the staging tree into its place | Between the two renames the account has no home, for microseconds. If the second rename fails the first is reversed at once and the account has its home back. If the reversal also fails, the error names the exact path the home is parked at, because a message an operator can act on beats a rollback that lies. |
-/// | 8 | Re-apply ownership and mode on the home root; remove the parked tree and the scratch | Restored. A failure here is a disk-space or a permissions problem to report, not a failed restore — except the ownership, which is re-applied before anything is removed for the reason in "finalising" below. |
+/// | 8 | Re-apply ownership and mode on the home root; mount the file-transfer jails onto the new home; remove the parked tree and the scratch | Restored. A failure removing the tree is a disk-space or a permissions problem to report, not a failed restore — except the ownership, which is re-applied before anything is removed for the reason in "finalising" below, and the jails: if they cannot be mounted onto the new home the parked tree is kept and the restore reports [`BackupError::JailsNotRefreshed`] (issue #487), because a transfer login would otherwise read and write the displaced tree. |
 ///
 /// # Why the rollback dump is taken per database, immediately before its own
 /// drop — and not for all of them up front
@@ -154,10 +155,11 @@ const ROOT_UID: u32 = 0;
 /// Every restore-side variant of [`BackupError`]. The ones that matter to a
 /// customer are [`BackupError::RolledBack`] (the databases are as they were),
 /// [`BackupError::RolledBackPartially`] (some are neither state, and it names
-/// them) and [`BackupError::HomeParkedAt`] (the home exists, at the path in the
-/// message). [`BackupError::FreeSpace`] is the refusal at the free-space floor
+/// them), [`BackupError::HomeParkedAt`] (the home exists, at the path in the
+/// message) and [`BackupError::JailsNotRefreshed`] (the home is restored, a
+/// file-transfer jail still shows the previous one). [`BackupError::FreeSpace`] is the refusal at the free-space floor
 /// (issue #148), decided on the home filesystem before anything is staged.
-// Nine parameters, and each one is a different authority. Folding them into a
+// Twelve parameters, and each one is a different authority. Folding them into a
 // request struct was considered and rejected: the struct would be built by the
 // service layer, one field at a time, and a field left at its default there is
 // exactly the kind of omission this operation must not have — an empty
@@ -176,6 +178,7 @@ pub fn restore_backup(
     home_group: u32,
     floor: &FreeSpaceFloor,
     key: Option<&ArchiveKey>,
+    jails: &dyn JailMounts,
     sink: &mut dyn RestoreSink,
 ) -> Result<RestoreOutcome, BackupError> {
     let guard = take_account_lock(account).ok_or(BackupError::AlreadyRunning)?;
@@ -212,6 +215,7 @@ pub fn restore_backup(
             scope,
             expected_sha256,
             key,
+            jails,
             sink,
         )
     });
@@ -241,6 +245,7 @@ fn restore_in(
     scope: &RestoreScope,
     expected_sha256: &str,
     key: Option<&ArchiveKey>,
+    jails: &dyn JailMounts,
     sink: &mut dyn RestoreSink,
 ) -> Result<RestoreOutcome, BackupError> {
     // Before anything is staged or extracted: the home filesystem must still
@@ -286,7 +291,7 @@ fn restore_in(
         }
     };
 
-    let outcome = perform(placement, host, account, backup_id, &planned, sink);
+    let outcome = perform(placement, host, account, backup_id, &planned, jails, sink);
 
     let _ = remove_dir_all(&placement.staging);
     let _ = remove_dir_all(&placement.scratch);
@@ -305,6 +310,7 @@ fn perform(
     account: &AccountName,
     backup_id: &BackupId,
     planned: &RestorePlan,
+    jails: &dyn JailMounts,
     sink: &mut dyn RestoreSink,
 ) -> Result<RestoreOutcome, BackupError> {
     // The two partial scopes (issue #160) have their own, narrower second half;
@@ -359,7 +365,7 @@ fn perform(
     )?;
 
     swap_home(placement, account, sink)?;
-    finalise_restore(placement, account, sink)?;
+    finalise_restore(placement, account, jails, sink)?;
 
     // Last, and only on the fully successful path. Removing it earlier would
     // hand the window back to the defect this whole marker exists to close; not

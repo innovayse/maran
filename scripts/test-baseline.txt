@@ -1,25 +1,25 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
-rust	maran_agent [unittests src/lib.rs]	1071	0	0
+rust	maran_agent [unittests src/lib.rs]	1197	0	0
 rust	maran_agent [unittests src/main.rs]	0	0	0
 rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	6
 rust	account_identity_on_a_real_host [tests/account_identity_on_a_real_host.rs]	0	0	6
-rust	account_leftovers_on_a_real_host [tests/account_leftovers_on_a_real_host.rs]	0	0	2
+rust	account_leftovers_on_a_real_host [tests/account_leftovers_on_a_real_host.rs]	0	0	4
 rust	account_limits_on_a_real_host [tests/account_limits_on_a_real_host.rs]	0	0	5
-rust	audit_lines [tests/audit_lines.rs]	7	0	0
+rust	audit_lines [tests/audit_lines.rs]	8	0	0
 rust	backup_on_a_real_host [tests/backup_on_a_real_host.rs]	0	0	14
-rust	binary_paths_on_a_real_host [tests/binary_paths_on_a_real_host.rs]	0	0	5
+rust	binary_paths_on_a_real_host [tests/binary_paths_on_a_real_host.rs]	0	0	7
 rust	bound_is_mapped_in_every_status_file [tests/bound_is_mapped_in_every_status_file.rs]	4	0	0
 rust	cron_on_a_real_host [tests/cron_on_a_real_host.rs]	0	0	6
-rust	databases_on_a_real_host [tests/databases_on_a_real_host.rs]	0	0	9
-rust	dns_zone_files_on_a_real_host [tests/dns_zone_files_on_a_real_host.rs]	0	0	4
+rust	databases_on_a_real_host [tests/databases_on_a_real_host.rs]	0	0	10
+rust	dns_zone_files_on_a_real_host [tests/dns_zone_files_on_a_real_host.rs]	0	0	11
 rust	files_archives_on_a_real_host [tests/files_archives_on_a_real_host.rs]	0	0	9
 rust	files_browse_bounds_on_a_real_host [tests/files_browse_bounds_on_a_real_host.rs]	0	0	12
 rust	files_browse_containment_on_a_real_host [tests/files_browse_containment_on_a_real_host.rs]	0	0	10
 rust	files_browse_on_a_real_host [tests/files_browse_on_a_real_host.rs]	0	0	9
-rust	firewall_on_a_real_host [tests/firewall_on_a_real_host.rs]	0	0	10
+rust	firewall_on_a_real_host [tests/firewall_on_a_real_host.rs]	0	0	11
 rust	fleet_listener [tests/fleet_listener.rs]	11	0	0
-rust	ftps_on_a_real_host [tests/ftps_on_a_real_host.rs]	0	0	16
+rust	ftps_on_a_real_host [tests/ftps_on_a_real_host.rs]	0	0	19
 rust	handshake [tests/handshake.rs]	10	0	0
 rust	monitor_on_a_real_host [tests/monitor_on_a_real_host.rs]	0	0	11
 rust	panel_certificate_on_a_real_host [tests/panel_certificate_on_a_real_host.rs]	0	0	6
@@ -28,65 +28,73 @@ rust	php_install_rpc [tests/php_install_rpc.rs]	7	0	0
 rust	php_pools_on_a_real_host [tests/php_pools_on_a_real_host.rs]	0	0	4
 rust	php_socket_migration_on_a_real_host [tests/php_socket_migration_on_a_real_host.rs]	0	0	3
 rust	privileges_on_a_real_host [tests/privileges_on_a_real_host.rs]	0	0	20
-rust	restore_recovery_on_a_real_host [tests/restore_recovery_on_a_real_host.rs]	0	0	4
+rust	restore_recovery_on_a_real_host [tests/restore_recovery_on_a_real_host.rs]	0	0	5
 rust	sftp_key_sessions_on_a_real_host [tests/sftp_key_sessions_on_a_real_host.rs]	0	0	1
-rust	sftp_on_a_real_host [tests/sftp_on_a_real_host.rs]	0	0	9
+rust	sftp_on_a_real_host [tests/sftp_on_a_real_host.rs]	0	0	10
 rust	sftp_suspension_on_a_real_host [tests/sftp_suspension_on_a_real_host.rs]	0	0	5
 rust	shutdown_signal [tests/shutdown_signal.rs]	3	0	0
 rust	site_traffic_on_a_real_host [tests/site_traffic_on_a_real_host.rs]	0	0	2
-rust	sites_on_a_real_host [tests/sites_on_a_real_host.rs]	0	0	38
-rust	maran_agent_core [unittests src/lib.rs]	972	0	0
-rust	maran_distro [unittests src/lib.rs]	202	0	0
-rust	maran_ops [unittests src/lib.rs]	3276	0	1
+rust	sites_on_a_real_host [tests/sites_on_a_real_host.rs]	0	0	39
+rust	transfer_on_a_real_host [tests/transfer_on_a_real_host.rs]	0	0	4
+rust	maran_agent_core [unittests src/lib.rs]	1127	0	0
+rust	maran_distro [unittests src/lib.rs]	351	0	0
+rust	maran_ops [unittests src/lib.rs]	3859	0	1
 rust	bound_errors [tests/bound_errors.rs]	9	0	0
 rust	safe_write_bound_on_real_processes [tests/safe_write_bound_on_real_processes.rs]	6	0	0
 rust	maran_templates [unittests src/lib.rs]	38	0	0
-rust	bind_golden_test [tests/bind_golden_test.rs]	4	0	0
+rust	bind_golden_test [tests/bind_golden_test.rs]	9	0	0
+rust	dnssec_golden_test [tests/dnssec_golden_test.rs]	7	0	0
 rust	golden_test [tests/golden_test.rs]	25	0	0
-rust	mail_golden_test [tests/mail_golden_test.rs]	12	0	0
+rust	mail_golden_test [tests/mail_golden_test.rs]	17	0	0
 rust	nginx_link_rule_test [tests/nginx_link_rule_test.rs]	9	0	0
 rust	request_rate_golden_test [tests/request_rate_golden_test.rs]	12	0	0
 rust	site_options_golden_test [tests/site_options_golden_test.rs]	10	0	0
 rust	zone_golden_test [tests/zone_golden_test.rs]	6	0	0
+rust	zone_statement_golden_test [tests/zone_statement_golden_test.rs]	8	0	0
 rust	doc-tests maran_agent	0	0	0
 rust	doc-tests maran_agent_core	0	0	0
 rust	doc-tests maran_distro	1	0	0
 rust	doc-tests maran_ops	1	0	0
 rust	doc-tests maran_templates	0	0	0
-backend	Maran.Host.Tests.dll	867	0	0
-backend	Maran.SharedKernel.Tests.dll	625	0	0
-backend	Maran.Agent.Client.Tests.dll	698	0	0
-backend	Maran.ArchitectureTests.dll	223	0	0
-backend	Maran.Host.IntegrationTests.dll	1681	0	0
-backend	Maran.Agent.Simulated.Tests.dll	340	0	0
-backend	Maran.Host.Demo.Tests.dll	177	0	0
+backend	Maran.Host.Tests.dll	1084	0	0
+backend	Maran.SharedKernel.Tests.dll	669	0	0
+backend	Maran.Agent.Client.Tests.dll	813	0	0
+backend	Maran.ArchitectureTests.dll	254	0	0
+backend	Maran.Host.IntegrationTests.dll	1791	0	0
+backend	Maran.Agent.Simulated.Tests.dll	343	0	0
+backend	Maran.Host.Demo.Tests.dll	179	0	0
 backend	Maran.Host.DemoIntegrationTests.dll	21	0	0
-backend	Maran.Modules.Accounts.Tests.dll	1502	0	0
-backend	Maran.Modules.Identity.Tests.dll	1447	0	0
-backend	Maran.Modules.Sites.Tests.dll	746	0	0
-backend	Maran.Modules.Ssl.Tests.dll	366	0	0
-backend	Maran.Modules.Databases.Tests.dll	247	0	0
-backend	Maran.Modules.Ftp.Tests.dll	186	0	0
-backend	Maran.Modules.Mail.Tests.dll	485	0	0
-backend	Maran.Modules.Dns.Tests.dll	155	0	0
-backend	Maran.Modules.Sftp.Tests.dll	285	0	0
+backend	Maran.Modules.Accounts.Tests.dll	1541	0	0
+backend	Maran.Modules.Identity.Tests.dll	1507	0	0
+backend	Maran.Modules.Sites.Tests.dll	750	0	0
+backend	Maran.Modules.Ssl.Tests.dll	428	0	0
+backend	Maran.Modules.Databases.Tests.dll	250	0	0
+backend	Maran.Modules.Ftp.Tests.dll	188	0	0
+backend	Maran.Modules.Mail.Tests.dll	499	0	0
+backend	Maran.Modules.Dns.Tests.dll	456	0	0
+backend	Maran.Modules.Sftp.Tests.dll	287	0	0
 backend	Maran.Modules.Tasks.Tests.dll	130	0	0
-backend	Maran.Modules.Cron.Tests.dll	256	0	0
+backend	Maran.Modules.Cron.Tests.dll	258	0	0
 backend	Maran.Modules.Files.Tests.dll	749	0	0
 backend	Maran.Modules.Idempotency.Tests.dll	58	0	0
-backend	Maran.Modules.Updates.Tests.dll	135	0	0
-backend	Maran.Modules.Firewall.Tests.dll	331	0	0
+backend	Maran.Modules.Updates.Tests.dll	151	0	0
+backend	Maran.Modules.Marketplace.Tests.dll	345	0	0
+backend	Maran.Modules.Firewall.Tests.dll	354	0	0
 backend	Maran.Modules.Monitoring.Tests.dll	292	0	0
-backend	Maran.Modules.Notifications.Tests.dll	139	0	0
-backend	Maran.Modules.Backups.Tests.dll	479	0	0
-backend	Maran.Sdk.Tests.dll	721	0	0
-backend	Maran.Packaging.Tests.dll	103	0	0
-backend	Maran.Modules.Licensing.Tests.dll	56	0	0
+backend	Maran.Modules.Notifications.Tests.dll	145	0	0
+backend	Maran.Modules.Backups.Tests.dll	490	0	0
+backend	Maran.Sdk.Tests.dll	896	0	0
+backend	Maran.Packaging.Tests.dll	118	0	0
+backend	Maran.Modules.Licensing.Tests.dll	288	0	0
 backend	Maran.Modules.Fleet.Tests.dll	71	0	0
+backend	Maran.Modules.ServerMigration.Tests.dll	400	0	0
 backend	Maran.Host.IntegrationTests.dll [PerformanceBudget]	20	0	0
+spa	accessibility/axe-scan-cron-run-history.spec.ts	2	0	0
 spa	accessibility/axe-scan-detail-and-settings.spec.ts	68	0	0
-spa	accessibility/axe-scan-dns.spec.ts	8	0	0
-spa	accessibility/axe-scan.spec.ts	27	0	0
+spa	accessibility/axe-scan-dns.spec.ts	18	0	0
+spa	accessibility/axe-scan-file-editor.spec.ts	4	0	0
+spa	accessibility/axe-scan-migration.spec.ts	18	0	0
+spa	accessibility/axe-scan.spec.ts	33	0	0
 spa	accessibility/document-language.spec.ts	2	0	0
 spa	accessibility/mail-axe-scan.spec.ts	6	0	0
 spa	accessibility/reduced-motion.spec.ts	2	0	0
@@ -105,13 +113,15 @@ spa	accounts/list.spec.ts	15	0	0
 spa	accounts/loading.spec.ts	3	0	0
 spa	accounts/my-account-loading.spec.ts	3	0	0
 spa	accounts/personal-data-export.spec.ts	3	0	0
-spa	accounts/resources.spec.ts	9	0	0
+spa	accounts/reseller-privileges.spec.ts	4	0	0
+spa	accounts/resources.spec.ts	11	0	0
 spa	accounts/status-choices.spec.ts	4	0	0
 spa	accounts/transfer.spec.ts	7	0	0
 spa	admin/audit.spec.ts	3	0	0
 spa	admin/panel-certificate.spec.ts	8	0	0
-spa	admin/panel-update.spec.ts	4	0	0
+spa	admin/panel-update.spec.ts	13	0	0
 spa	admin/smtp-settings.spec.ts	3	0	0
+spa	admin/view-as-read-only.spec.ts	5	0	0
 spa	admin/view-as.spec.ts	3	0	0
 spa	audit/action-names.spec.ts	2	0	0
 spa	audit/actor-account-filters.spec.ts	4	0	0
@@ -125,9 +135,12 @@ spa	audit/outcome-names.spec.ts	2	0	0
 spa	audit/reseller-journal.spec.ts	5	0	0
 spa	audit/retention.spec.ts	6	0	0
 spa	audit/sidebar-link.spec.ts	2	0	0
+spa	audit/subject-names.spec.ts	2	0	0
 spa	auth/client-checks.spec.ts	7	0	0
 spa	auth/forgot-password.spec.ts	3	0	0
+spa	auth/link-token-leaves-the-address.spec.ts	3	0	0
 spa	auth/login.spec.ts	7	0	0
+spa	auth/required-password-change.spec.ts	6	0	0
 spa	auth/reset-password.spec.ts	2	0	0
 spa	auth/sessions-list.spec.ts	5	0	0
 spa	auth/sessions-loading.spec.ts	3	0	0
@@ -152,10 +165,11 @@ spa	backups/schedule-loading.spec.ts	3	0	0
 spa	backups/schedule.spec.ts	10	0	0
 spa	backups/verification.spec.ts	12	0	0
 spa	backups/weekday-names.spec.ts	1	0	0
+spa	contract/stub-contract.spec.ts	8	0	0
 spa	cron/account-filter.spec.ts	3	0	0
 spa	cron/description.spec.ts	4	0	0
 spa	cron/entries.spec.ts	7	0	0
-spa	cron/environment.spec.ts	5	0	0
+spa	cron/environment.spec.ts	8	0	0
 spa	cron/loading.spec.ts	3	0	0
 spa	cron/raw-refusal.spec.ts	4	0	0
 spa	cron/run-now.spec.ts	3	0	0
@@ -190,12 +204,14 @@ spa	databases/list.spec.ts	15	0	0
 spa	databases/loading.spec.ts	6	0	0
 spa	databases/users.spec.ts	14	0	0
 spa	disk-usage.spec.ts	3	0	0
-spa	dns/nameservers.spec.ts	13	0	0
+spa	dns/dnssec.spec.ts	18	0	0
+spa	dns/nameservers.spec.ts	16	0	0
 spa	dns/navigation.spec.ts	4	0	0
-spa	dns/no-horizontal-scroll.spec.ts	15	0	0
+spa	dns/no-horizontal-scroll.spec.ts	27	0	0
 spa	dns/records.spec.ts	18	0	0
+spa	dns/templates.spec.ts	18	0	0
 spa	dns/zone-detail.spec.ts	6	0	0
-spa	dns/zone-form.spec.ts	7	0	0
+spa	dns/zone-form.spec.ts	11	0	0
 spa	dns/zones-list-stale-read.spec.ts	2	0	0
 spa	dns/zones-list.spec.ts	11	0	0
 spa	file-transfer/account-filter.spec.ts	8	0	0
@@ -211,6 +227,7 @@ spa	file-transfer/sftp-create.spec.ts	4	0	0
 spa	file-transfer/sftp-keys.spec.ts	18	0	0
 spa	file-transfer/sftp-list.spec.ts	9	0	0
 spa	files/browser.spec.ts	15	0	0
+spa	files/code-editor.spec.ts	10	0	0
 spa	files/dialogs.spec.ts	12	0	0
 spa	files/editor.spec.ts	11	0	0
 spa	files/transfers.spec.ts	4	0	0
@@ -230,7 +247,26 @@ spa	golden-path/account-to-ssl.spec.ts	0	0	1
 spa	mail/mail-aliases.spec.ts	10	0	0
 spa	mail/mail-domains.spec.ts	11	0	0
 spa	mail/mail-layout.spec.ts	9	0	0
+spa	mail/mail-queue.spec.ts	16	0	0
+spa	mail/mail-server-off.spec.ts	5	0	0
 spa	mail/mailboxes.spec.ts	14	0	0
+spa	marketplace/access.spec.ts	4	0	0
+spa	marketplace/browse.spec.ts	8	0	0
+spa	marketplace/install.spec.ts	6	0	0
+spa	marketplace/layout.spec.ts	10	0	0
+spa	marketplace/switch.spec.ts	5	0	0
+spa	marketplace/update-and-remove.spec.ts	6	0	0
+spa	migration/account-export.spec.ts	8	0	0
+spa	migration/account-import.spec.ts	14	0	0
+spa	migration/account-move-lists.spec.ts	14	0	0
+spa	migration/no-horizontal-scroll.spec.ts	42	0	0
+spa	migration/remote-servers.spec.ts	28	0	0
+spa	migration/server-migration.spec.ts	4	0	0
+spa	modules/bridge-messages.spec.ts	14	0	0
+spa	modules/frame-hostile.spec.ts	17	0	0
+spa	modules/frame-isolation.spec.ts	4	0	0
+spa	modules/no-horizontal-scroll.spec.ts	6	0	0
+spa	modules/packaged-menu.spec.ts	11	0	0
 spa	monitoring/clock-sync.spec.ts	2	0	0
 spa	monitoring/log-level.spec.ts	3	0	0
 spa	monitoring/monitoring-loading.spec.ts	3	0	0
@@ -244,32 +280,38 @@ spa	plans/plan-php-limits.spec.ts	4	0	0
 spa	plans/plans.spec.ts	17	0	0
 spa	plurals.spec.ts	3	0	0
 spa	reseller/admin-reseller-api-keys.spec.ts	7	0	0
-spa	reseller/admin-resellers.spec.ts	19	0	0
+spa	reseller/admin-resellers.spec.ts	20	0	0
 spa	reseller/reseller-api-keys.spec.ts	6	0	0
 spa	reseller/reseller-branding.spec.ts	6	0	0
 spa	reseller/reseller-invitation.spec.ts	5	0	0
 spa	reseller/reseller-plans-accounts.spec.ts	10	0	0
-spa	reseller/reseller-role-exact.spec.ts	45	0	0
+spa	reseller/reseller-role-exact.spec.ts	46	0	0
 spa	reseller/view-as-reseller.spec.ts	8	0	0
 spa	settings/alert-settings.spec.ts	7	0	0
 spa	settings/api-keys.spec.ts	22	0	0
+spa	settings/licence.spec.ts	14	0	0
+spa	settings/numeric-fields-and-stale-feedback.spec.ts	4	0	0
 spa	settings/php-eol.spec.ts	5	0	0
 spa	settings/php-extensions.spec.ts	7	0	0
 spa	settings/profile-loading.spec.ts	3	0	0
 spa	settings/security-policy-loading.spec.ts	3	0	0
 spa	settings/smtp-loading.spec.ts	3	0	0
 spa	settings/two-factor-loading.spec.ts	3	0	0
-spa	shell/account-menu.spec.ts	4	0	0
+spa	shell/account-menu.spec.ts	6	0	0
 spa	shell/admin-navigation.spec.ts	9	0	0
 spa	shell/app-bar-fits.spec.ts	16	0	0
 spa	shell/breadcrumb-trail.spec.ts	11	0	0
 spa	shell/change-password.spec.ts	6	0	0
 spa	shell/command-palette-a11y.spec.ts	3	0	0
+spa	shell/command-palette-search-terms.spec.ts	7	0	0
 spa	shell/command-palette.spec.ts	1	0	0
 spa	shell/content-scroll.spec.ts	1	0	0
+spa	shell/create-page-location.spec.ts	3	0	0
+spa	shell/cross-screen-state.spec.ts	2	0	0
 spa	shell/document-title.spec.ts	5	0	0
 spa	shell/favourites.spec.ts	7	0	0
 spa	shell/global-search.spec.ts	4	0	0
+spa	shell/header-account-menu.spec.ts	9	0	0
 spa	shell/health-server-error.spec.ts	1	0	0
 spa	shell/health-status.spec.ts	2	0	0
 spa	shell/health-unreachable.spec.ts	1	0	0
@@ -284,7 +326,7 @@ spa	shell/member-navigation-account-switch.spec.ts	4	0	0
 spa	shell/member-navigation.spec.ts	5	0	0
 spa	shell/mobile-drawer.spec.ts	15	0	0
 spa	shell/module-landing-coverage.spec.ts	2	0	0
-spa	shell/navigation-badges.spec.ts	10	0	0
+spa	shell/navigation-badges.spec.ts	13	0	0
 spa	shell/navigation-destination-labels.spec.ts	11	0	0
 spa	shell/navigation-order-labels.spec.ts	2	0	0
 spa	shell/not-found.spec.ts	1	0	0
@@ -301,6 +343,7 @@ spa	shell/submenu-current-child.spec.ts	5	0	0
 spa	shell/tasks-naming.spec.ts	1	0	0
 spa	shell/theme-switch.spec.ts	4	0	0
 spa	sites/account-filter.spec.ts	3	0	0
+spa	sites/alias-error.spec.ts	2	0	0
 spa	sites/alias-limit.spec.ts	3	0	0
 spa	sites/choices.spec.ts	2	0	0
 spa	sites/detail-loading.spec.ts	6	0	0
@@ -312,7 +355,7 @@ spa	sites/log-retention.spec.ts	6	0	0
 spa	sites/log-stream.spec.ts	7	0	0
 spa	sites/logs-tab.spec.ts	9	0	0
 spa	sites/panel-names.spec.ts	4	0	0
-spa	sites/php-install-select.spec.ts	3	0	0
+spa	sites/php-install-select.spec.ts	4	0	0
 spa	sites/php-settings-loading.spec.ts	2	0	0
 spa	sites/php-settings.spec.ts	10	0	0
 spa	sites/php-versions-loading.spec.ts	3	0	0
@@ -320,7 +363,7 @@ spa	sites/request-rate.spec.ts	9	0	0
 spa	sites/site-options-loading.spec.ts	2	0	0
 spa	sites/site-options.spec.ts	13	0	0
 spa	sites/ssl-renewal-failures.spec.ts	10	0	0
-spa	sites/ssl-tab.spec.ts	11	0	0
+spa	sites/ssl-tab.spec.ts	14	0	0
 spa	sites/traffic-tab.spec.ts	11	0	0
 spa	tasks/badge.spec.ts	4	0	0
 spa	tasks/failure-sentence.spec.ts	5	0	0
@@ -335,22 +378,24 @@ spa	ui-kit/badge-narrow.spec.ts	2	0	0
 spa	ui-kit/chart.spec.ts	5	0	0
 spa	ui-kit/combobox.spec.ts	6	0	0
 spa	ui-kit/dropdown-landing-focus.spec.ts	5	0	0
+spa	ui-kit/field-error-state.spec.ts	4	0	0
 spa	ui-kit/filter-sheet.spec.ts	9	0	0
 spa	ui-kit/focus-return.spec.ts	3	0	0
 spa	ui-kit/modal-keyboard.spec.ts	2	0	0
 spa	ui-kit/motion-and-tables.spec.ts	8	0	1
 spa	ui-kit/no-horizontal-scroll-admin.spec.ts	75	0	0
-spa	ui-kit/no-horizontal-scroll-other.spec.ts	54	0	0
+spa	ui-kit/no-horizontal-scroll-other.spec.ts	57	0	0
 spa	ui-kit/no-horizontal-scroll-settings-and-resellers.spec.ts	51	0	0
 spa	ui-kit/no-horizontal-scroll-tablet.spec.ts	79	0	0
 spa	ui-kit/pagination.spec.ts	10	0	0
-spa	ui-kit/route-coverage.spec.ts	8	0	0
+spa	ui-kit/route-coverage.spec.ts	9	0	0
 spa	ui-kit/select-empty.spec.ts	1	0	0
 spa	ui-kit/sentence-case.spec.ts	36	0	0
 spa	ui-kit/skeleton.spec.ts	10	0	0
 spa	ui-kit/table-cards.spec.ts	4	0	0
 spa	ui-kit/table-narrow.spec.ts	19	0	0
 spa	ui-kit/text-zoom.spec.ts	3	0	0
+spa	ui-kit/toolbar-alignment.spec.ts	8	0	0
 spa	ui-kit/type-consistency.spec.ts	7	0	0
 spa	ui-kit/unfilled-select-prompt.spec.ts	4	0	0
 spa	upgrade/tier-name.spec.ts	3	0	0

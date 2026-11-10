@@ -295,7 +295,7 @@ public sealed class SuspendAccountCommandHandler
         await _tasks.ReportAsync(
             taskId, 80, SuspensionAttestationPolicy.Describe(observed.Value!, cascade.Report), cancellationToken);
 
-        account.Suspend();
+        account.Suspend(_scope.Actor);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordSuccessAsync(

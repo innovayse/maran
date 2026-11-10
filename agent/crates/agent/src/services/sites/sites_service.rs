@@ -3,6 +3,7 @@
 use std::pin::Pin;
 use std::sync::Arc;
 
+use maran_agent_core::validation::web::panel_host_names::PanelHostNames;
 use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_ops::php::PhpHost;
 use maran_ops::sites::{
@@ -90,6 +91,8 @@ pub struct SitesServiceImpl<S, P> {
     /// Where platform facts come from. A service never branches on a
     /// distribution itself (rules/rust.md "Distro adapter"); it passes this on.
     distro: &'static dyn maran_distro::DistroAdapter,
+    /// The names the panel itself is served under, which no site or alias may take.
+    panel_host_names: PanelHostNames,
 }
 
 impl<S, P> SitesServiceImpl<S, P>
@@ -99,16 +102,23 @@ where
 {
     /// Creates the service around the hosts it runs operations against.
     #[must_use]
-    pub fn new(host: S, php_host: P, distro: &'static dyn maran_distro::DistroAdapter) -> Self {
+    pub fn new(
+        host: S,
+        php_host: P,
+        distro: &'static dyn maran_distro::DistroAdapter,
+        panel_host_names: PanelHostNames,
+    ) -> Self {
         Self {
             host: Arc::new(host),
             php_host: Arc::new(php_host),
             distro,
+            panel_host_names,
         }
     }
 
     /// The site description a re-rendering rpc carries, validated, with the
-    /// reserved host name set enforced for the domain and every alias.
+    /// reserved host name set and the panel's own names enforced for the domain
+    /// and every alias.
     ///
     /// Used by create, enable and switching PHP version; disable, delete, log
     /// tail and inspection take the shape-only existing-site path instead.
@@ -117,11 +127,12 @@ where
     ///
     /// Returns the wire error for anything the agent will not accept.
     fn site(
+        &self,
         account_username: &str,
         domain: &str,
         spec: Option<&SiteSpec>,
     ) -> Result<CreateSiteInput, AgentError> {
-        validated_site(account_username, domain, spec)
+        validated_site(account_username, domain, spec, &self.panel_host_names)
     }
 }
 
@@ -155,7 +166,8 @@ where
             options: request.options,
         };
 
-        let validated = Self::site(&request.account_username, &request.domain, Some(&spec))
+        let validated = self
+            .site(&request.account_username, &request.domain, Some(&spec))
             .and_then(|input| {
                 audit.account(&input.account);
                 audit.site(&input.domain);
@@ -211,25 +223,26 @@ where
         let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
 
-        let validated = Self::site(
-            &request.account_username,
-            &request.domain,
-            request.site.as_ref(),
-        )
-        .and_then(|input| {
-            audit.account(&input.account);
-            audit.site(&input.domain);
-            let version = maran_agent_core::validation::web::php_version::PhpVersion::parse(
-                &request.php_version,
+        let validated = self
+            .site(
+                &request.account_username,
+                &request.domain,
+                request.site.as_ref(),
             )
-            .map_err(|error| AgentError {
-                code: ErrorCode::InvalidInput as i32,
-                message: error.to_string(),
-                tool_output: String::new(),
-            })?;
-            let overrides = validated_overrides(&request.overrides)?;
-            Ok((input, version, overrides))
-        });
+            .and_then(|input| {
+                audit.account(&input.account);
+                audit.site(&input.domain);
+                let version = maran_agent_core::validation::web::php_version::PhpVersion::parse(
+                    &request.php_version,
+                )
+                .map_err(|error| AgentError {
+                    code: ErrorCode::InvalidInput as i32,
+                    message: error.to_string(),
+                    tool_output: String::new(),
+                })?;
+                let overrides = validated_overrides(&request.overrides)?;
+                Ok((input, version, overrides))
+            });
 
         let result = match validated {
             Ok((input, version, overrides)) => {
@@ -277,7 +290,7 @@ where
     ) -> Result<Response<EnableSiteResponse>, Status> {
         let audit = AuditSlot::of(request.extensions());
         let request = request.into_inner();
-        let result = match Self::site(
+        let result = match self.site(
             &request.account_username,
             &request.domain,
             request.site.as_ref(),
@@ -391,10 +404,13 @@ where
                     // second of: `purge_certificate` had no caller anywhere in
                     // the agent, and a deleted site's `privkey.pem` stayed on
                     // disk. One function means there is no second call to
-                    // forget.
+                    // forget. The site's visitor logs are part of the same act
+                    // (issue #477): they are named by the account and the domain,
+                    // which the panel recycles.
                     ssl::delete_site_with_certificate(
                         host.as_ref(),
                         php_host.as_ref(),
+                        &ProcessSiteLogHost::new(),
                         distro,
                         &site,
                         retired.as_ref(),

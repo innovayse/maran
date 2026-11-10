@@ -1,5 +1,5 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
 import { expectNoSeriousViolations } from '../fixtures/expect-no-serious-violations'
+import { expect, test } from '../fixtures/guarded-test'
 import { FULL_CATALOGUE, mainNavigation, openSection } from '../fixtures/open-full-shell'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import {
@@ -12,10 +12,15 @@ import {
 } from '../fixtures/stub-api-keys-routes'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubMyAccount } from '../fixtures/stub-my-account-route'
 import { RESELLER_USER, stubResellerSession } from '../fixtures/stub-reseller-session'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
+import type { MyAccount } from '../../src/types/account'
 import type { ApiKey } from '../../src/types/apiKey'
 import type { AuthenticatedUser } from '../../src/types/auth'
+import type { Locator, Page } from '@playwright/test'
 
 // The API keys screen (administrators only): a server-paged list searched and filtered by state on
 // the panel, a create dialog whose scopes come from the panel, a secret shown once, and a revoke
@@ -29,6 +34,16 @@ const CUSTOMER: AuthenticatedUser = {
   email: 'olive@example.com',
   role: 'customer',
   accountId: '11111111-1111-1111-1111-111111111111',
+}
+
+/** The customer's own account, which the customer's menu is drawn from. */
+const OWN_ACCOUNT: MyAccount = {
+  id: '11111111-1111-1111-1111-111111111111',
+  name: 'olive',
+  primaryDomain: 'olive-shop.example.com',
+  status: 'active',
+  statusName: 'Active',
+  plan: { displayName: 'Starter', diskQuotaMb: 1024, maxSites: 1, maxDatabases: 1, maxSftpUsers: 1, maxFtpUsers: 1, maxCronEntries: 1 },
 }
 
 const BILLING = apiKeyRow()
@@ -50,23 +65,17 @@ const OLD_HOOK = apiKeyRow({
 
 /**
  * Signs in as an administrator with every module, stubs the API keys endpoints and lands on the
- * dashboard, with every other `/api/v1` read answered by an empty 404 so the shell around the
- * screen is drawn either way.
+ * dashboard, with the reads of the shell and of the landing screen answered.
  * @param page The Playwright page.
  * @param state The keys and refusals the panel plays.
  * @returns The calls the stub will record.
  */
 const openPanel = async (page: Page, state: StubbedApiKeys): Promise<ApiKeyCalls> => {
   await page.setViewportSize({ width: 1440, height: 900 })
-  await page.route(/\/api\/v1\//, async (route) => {
-    await route.fulfill({
-      status: 404,
-      contentType: 'application/problem+json',
-      body: JSON.stringify({ title: 'Not found', status: 404 }),
-    })
-  })
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
   await stubModules(page, FULL_CATALOGUE)
   const calls = await stubApiKeys(page, state)
   await page.goto('/')
@@ -304,7 +313,8 @@ test('ranges typed one per line and an expiry day are sent as a list and an inst
   expect(calls.created[0]?.expiresAt).toMatch(/^2099-12-3[01]T/)
 })
 
-test('a refused create shows the panel sentence in the dialog and creates nothing', async ({ page }) => {
+test('a refused create shows the panel sentence in the dialog and creates nothing', async ({ page, guard }) => {
+  guard.allow(422, /\/api\/v1\/api-keys$/)
   const sentence = 'A key with this name already exists on the panel.'
   await openApiKeys(page, [BILLING], { createRefusal: sentence })
 
@@ -423,7 +433,8 @@ test('cancelling the revoke confirmation sends nothing', async ({ page }) => {
   expect(calls.revoked).toEqual([])
 })
 
-test('a refused revoke shows the panel sentence as received', async ({ page }) => {
+test('a refused revoke shows the panel sentence as received', async ({ page, guard }) => {
+  guard.allow(409, /\/api\/v1\/api-keys\/[^/]+$/)
   const sentence = 'This key belongs to the integration that is running right now.'
   await openApiKeys(page, [BILLING], { revokeRefusal: sentence })
 
@@ -442,7 +453,8 @@ test('a refused revoke shows the panel sentence as received', async ({ page }) =
   await expect(page.getByText('The key Billing integration was revoked.')).toHaveCount(0)
 })
 
-test('a refused list shows the panel sentence as received and no table', async ({ page }) => {
+test('a refused list shows the panel sentence as received and no table', async ({ page, guard }) => {
+  guard.allow(403, /\/api\/v1\/api-keys(\?.*)?$/)
   const sentence = 'Keys are not available to this caller.'
   await openApiKeys(page, [BILLING], { listRefusal: sentence })
 
@@ -491,6 +503,9 @@ for (const chrome of [
 test('a customer is not offered the API keys item or the Security group', async ({ page }) => {
   await stubSignedIn(page, CUSTOMER)
   await stubHealthy(page)
+  await stubShellReads(page)
+  await stubMyAccount(page, OWN_ACCOUNT)
+  await stubLandingReads(page, 'customer')
   await stubModules(page, FULL_CATALOGUE)
   await stubApiKeys(page, { keys: [BILLING] })
 

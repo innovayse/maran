@@ -1,11 +1,13 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubPlans, THREE_PLANS } from '../fixtures/stub-plans-route'
 import { ACME_HOSTING, stubResellers } from '../fixtures/stub-resellers-routes'
 import type { Plan } from '../../src/types/account'
+import type { Page } from '@playwright/test'
 
 // Issue #437: on the create form an administrator who chooses a reseller as owner is offered that
 // reseller's plans, and the plan chosen for the previous owner is dropped.
@@ -31,6 +33,7 @@ const openForm = async (page: Page): Promise<(string | null)[]> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
+  await stubShellReads(page)
   await stubAccounts(page, [])
   await stubPlans(page, THREE_PLANS)
   await stubResellers(page)

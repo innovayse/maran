@@ -1,7 +1,8 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import {
   EMPTY_SITE_OPTIONS,
   OPTIONS_SITE_ID,
@@ -13,6 +14,7 @@ import { stubPhpVersions, stubSiteDetail, stubSites } from '../fixtures/stub-sit
 import type { PanelModule } from '../../src/types/module'
 import type { SiteDetail } from '../../src/types/site'
 import type { SiteOptions } from '../../src/types/siteOptions'
+import type { Page } from '@playwright/test'
 
 // A site's Options tab (issue #151): redirects, password protection, IP rules, upload size and cache
 // lifetime, saved as one set. Every list the selects offer and every bound comes from the panel's
@@ -57,6 +59,7 @@ const CONFIGURED: SiteOptions = {
  */
 const stubOptionsTab = async (page: Page, options: SiteOptions = EMPTY_SITE_OPTIONS): Promise<SiteOptionsStub> => {
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_SITES)
   await stubSites(page, [])
@@ -267,8 +270,10 @@ test('a value that is not a whole number is not sent and is explained', async ({
   expect(stub.saved).toHaveLength(0)
 })
 
-test('the panel refusal of a redirect is shown under the redirects with its own words', async ({ page }) => {
+test('the panel refusal of a redirect is shown under the redirects with its own words', async ({ page, guard }) => {
+  guard.allow(400, /\/api\/v1\/sites\/[^/]+\/options$/)
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_SITES)
   await stubSites(page, [])

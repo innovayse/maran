@@ -47,8 +47,8 @@ public static class AuditCanonicalForm
     }
 
     /// <summary>
-    /// The columns an erasure may replace: who acted and who was viewing, what it was about, where it came
-    /// from and the account it concerns.
+    /// The columns an erasure may replace: who acted and who was viewing, what it was about (the subject text and the
+    /// login it names, when it names one), where it came from and the account it concerns.
     /// </summary>
     /// <param name="row">The row to describe.</param>
     /// <returns>The canonical bytes of the row's erasable columns.</returns>
@@ -66,6 +66,14 @@ public static class AuditCanonicalForm
         WriteField(stream, row.AccountId?.ToString("D", CultureInfo.InvariantCulture));
         WriteField(stream, row.Impersonator?.OperatorId.ToString("D", CultureInfo.InvariantCulture));
         WriteField(stream, row.Impersonator?.Username);
+
+        // Appended only when present, so a row written before the column existed (and any row without a
+        // subject login) hashes to exactly the bytes it was sealed with. A present value adds forty
+        // bytes, so the two forms can never be the same sequence.
+        if (row.SubjectUserId is { } subjectUserId)
+        {
+            WriteField(stream, subjectUserId.ToString("D", CultureInfo.InvariantCulture));
+        }
 
         return stream.ToArray();
     }

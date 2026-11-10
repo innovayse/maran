@@ -59,6 +59,7 @@ public sealed class AgentSystemClientTests
     [Theory]
     [InlineData(DistroFamily.Debian, AgentDistroFamily.Debian)]
     [InlineData(DistroFamily.Rhel, AgentDistroFamily.Rhel)]
+    [InlineData(DistroFamily.Suse, AgentDistroFamily.Suse)]
     public async Task Each_stated_distro_family_maps_to_its_own_panel_family(
         DistroFamily wire,
         AgentDistroFamily expected)
@@ -77,6 +78,19 @@ public sealed class AgentSystemClientTests
     public async Task An_agent_that_states_no_distro_family_is_refused_as_an_invalid_response()
     {
         var response = HandshakeReporting(AgentProtoVersionWindow.Maximum, DistroFamily.Unspecified);
+        var client = new AgentSystemClient(new StubSystemService(response), NullLogger<AgentSystemClient>.Instance);
+
+        var result = await client.GetInfoAsync(CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentInvalidResponse", result.Error!.Code);
+    }
+
+    /// <summary>A family value this build does not know is refused too, never shown as some family.</summary>
+    [Fact]
+    public async Task An_agent_that_states_a_family_this_build_does_not_know_is_refused_as_an_invalid_response()
+    {
+        var response = HandshakeReporting(AgentProtoVersionWindow.Maximum, (DistroFamily)99);
         var client = new AgentSystemClient(new StubSystemService(response), NullLogger<AgentSystemClient>.Instance);
 
         var result = await client.GetInfoAsync(CancellationToken.None);

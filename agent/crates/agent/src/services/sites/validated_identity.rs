@@ -2,6 +2,7 @@
 
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::web::domain::Domain;
+use maran_agent_core::validation::web::panel_host_names::PanelHostNames;
 
 use crate::proto::AgentError;
 use crate::services::wire::invalid_input::invalid_input;
@@ -16,7 +17,8 @@ use crate::services::wire::invalid_input::invalid_input;
 /// certificate directory, so both are checked where they are used.
 ///
 /// The reserved host-name set is enforced here, so this is the identity of a site
-/// being created or re-served. The cleanup and read-only rpcs use
+/// being created or re-served: the fixed set every host shares, and `panel`, the names this
+/// host's own panel is served under (issue #468). The cleanup and read-only rpcs use
 /// `validated_existing_identity`, which checks the shape alone.
 ///
 /// # Errors
@@ -25,10 +27,13 @@ use crate::services::wire::invalid_input::invalid_input;
 pub fn validated_identity(
     account_username: &str,
     domain: &str,
+    panel: &PanelHostNames,
 ) -> Result<(AccountName, Domain), AgentError> {
     let account =
         AccountName::parse(account_username).map_err(|error| invalid_input(error.to_string()))?;
-    let domain = Domain::parse(domain).map_err(|error| invalid_input(error.to_string()))?;
+    let domain = Domain::parse(domain)
+        .and_then(|domain| panel.check(domain))
+        .map_err(|error| invalid_input(error.to_string()))?;
 
     Ok((account, domain))
 }

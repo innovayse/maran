@@ -3,7 +3,8 @@
 // A failing assertion IS the reporting mechanism for a test.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::time::Duration;
 
 use maran_agent_core::command_outcome::CommandOutcome;
@@ -19,6 +20,18 @@ use super::reconcile_dns_zones;
 struct SilentHost {
     /// Whether the zone directory can be listed.
     directory_readable: bool,
+    /// Every directory that was listed, in order.
+    listed: Mutex<Vec<PathBuf>>,
+}
+
+impl SilentHost {
+    /// A host whose directories can (or cannot) be listed.
+    fn new(directory_readable: bool) -> Self {
+        Self {
+            directory_readable,
+            listed: Mutex::new(Vec::new()),
+        }
+    }
 }
 
 impl DnsHost for SilentHost {
@@ -39,6 +52,9 @@ impl DnsHost for SilentHost {
         _: &Validator<'_>,
         _: &Reload<'_>,
     ) -> Result<(), DnsError> {
+        Ok(())
+    }
+    fn probe_config(&self, _: &Path, _: &str, _: &Validator<'_>) -> Result<(), DnsError> {
         Ok(())
     }
     fn remove_file(&self, _: &Path) -> Result<(), DnsError> {
@@ -63,7 +79,11 @@ impl ZoneHost for SilentHost {
     ) -> Result<(), DnsError> {
         Ok(())
     }
-    fn zone_file_names(&self, _: &Path) -> Result<Vec<String>, DnsError> {
+    fn write_key_file(&self, _: &Path, _: &str, _: &str) -> Result<(), DnsError> {
+        Ok(())
+    }
+    fn zone_file_names(&self, directory: &Path) -> Result<Vec<String>, DnsError> {
+        self.listed.lock().unwrap().push(directory.to_path_buf());
         if self.directory_readable {
             Ok(vec!["example.com.db".to_owned()])
         } else {
@@ -77,9 +97,7 @@ impl ZoneHost for SilentHost {
 
 #[test]
 fn a_host_without_a_running_daemon_is_not_a_fault() {
-    let host = SilentHost {
-        directory_readable: true,
-    };
+    let host = SilentHost::new(true);
 
     assert_eq!(
         reconcile_dns_zones(&host, adapter_for(DistroFamily::Debian)),
@@ -89,12 +107,29 @@ fn a_host_without_a_running_daemon_is_not_a_fault() {
 
 #[test]
 fn an_unreadable_zone_directory_is_reported_and_never_stops_the_start() {
-    let host = SilentHost {
-        directory_readable: false,
-    };
+    let host = SilentHost::new(false);
 
     assert_eq!(
         reconcile_dns_zones(&host, adapter_for(DistroFamily::Debian)),
         None
     );
+}
+
+#[test]
+fn the_plain_the_signed_and_the_key_directories_are_all_looked_at() {
+    let host = SilentHost::new(true);
+
+    reconcile_dns_zones(&host, adapter_for(DistroFamily::Debian));
+
+    let listed = host.listed.lock().unwrap().clone();
+    for expected in [
+        "/var/lib/bind/maran/zones",
+        "/var/lib/bind/maran/signed-zones",
+        "/var/lib/bind/maran/keys",
+    ] {
+        assert!(
+            listed.contains(&PathBuf::from(expected)),
+            "{expected} was not listed: {listed:?}"
+        );
+    }
 }

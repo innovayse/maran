@@ -31,6 +31,12 @@ public sealed class CertificateConfiguration : IEntityTypeConfiguration<Certific
             .HasConversion<string>()
             .HasMaxLength(16);
 
+        // Additive: the previous release ignores the column, and a row written before it existed reads
+        // as a plain certificate, which is what every such row is.
+        builder.Property(certificate => certificate.IsWildcard)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         builder.Property(certificate => certificate.NotAfter)
             .IsRequired();
 

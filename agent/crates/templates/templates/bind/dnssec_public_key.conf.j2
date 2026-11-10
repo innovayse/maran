@@ -1,0 +1,6 @@
+; This is a key-signing key, keyid {{ key_tag }}, for {{ zone }}
+; Created: 20200101000000
+; Publish: 20200101000000
+; Activate: 20200101000000
+{{ zone }} IN DNSKEY {{ flags }} {{ protocol }} {{ algorithm }} {{ public_key }}
+{# A trailing comment keeps the final newline, which askama would otherwise drop. #}

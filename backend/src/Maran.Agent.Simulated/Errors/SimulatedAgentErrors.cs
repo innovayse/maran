@@ -1,3 +1,5 @@
+using Maran.Agent.Client.Errors;
+
 namespace Maran.Agent.Simulated.Errors;
 
 /// <summary>
@@ -18,7 +20,7 @@ public static class SimulatedAgentErrors
     public const string AlreadyExistsCode = "AgentAlreadyExists";
 
     /// <summary>The thing being read, changed or removed is not there.</summary>
-    public const string NotFoundCode = "AgentNotFound";
+    public const string NotFoundCode = AgentErrorCodes.NotFound;
 
     /// <summary>The request carried a value the agent refuses outright.</summary>
     public const string InvalidInputCode = "AgentInvalidInput";

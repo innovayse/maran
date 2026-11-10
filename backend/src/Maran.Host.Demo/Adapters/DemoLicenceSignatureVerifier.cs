@@ -17,6 +17,15 @@ public sealed class DemoLicenceSignatureVerifier : ILicenceSignatureVerifier
         _key = key;
     }
 
+    /// <inheritdoc />
+    public bool HasVerificationKey
+    {
+        get
+        {
+            return true;
+        }
+    }
+
     /// <summary>Checks a signature against the demo key.</summary>
     /// <param name="payloadBytes">The exact bytes the signature was computed over.</param>
     /// <param name="signature">The detached signature.</param>

@@ -25,7 +25,8 @@ public sealed class StubAgentDnsClient : IAgentDnsClient
     /// <inheritdoc />
     public Task<Result<DnsDaemonStatusDto>> GetStatusAsync(CancellationToken cancellationToken)
     {
-        return Task.FromResult(Result<DnsDaemonStatusDto>.Ok(new DnsDaemonStatusDto(true, true, true, DnsPolicyState.InForce, DnsPolicyState.InForce)));
+        return Task.FromResult(Result<DnsDaemonStatusDto>.Ok(new DnsDaemonStatusDto(
+            true, true, true, DnsPolicyState.InForce, DnsPolicyState.InForce, DnssecSupported: true)));
     }
 
     /// <inheritdoc />

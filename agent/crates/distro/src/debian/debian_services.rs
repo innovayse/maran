@@ -422,6 +422,23 @@ pub fn ssh_keygen_binary() -> AdapterBinary {
     AdapterBinary::fixed("/usr/bin/ssh-keygen")
 }
 
+/// Absolute path of the OpenSSH client `ssh`, for the process-execution allow-list.
+///
+/// Shipped by `openssh-client`, the package that also ships `ssh-keygen` above and
+/// [`ssh_keyscan_binary`]; it is listed in the package's own file list, which is
+/// the documented interface the merged-`/usr` rule on `DistroAdapter` says to
+/// answer (issue #197).
+pub fn ssh_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/ssh")
+}
+
+/// Absolute path of `ssh-keyscan`, for the process-execution allow-list.
+///
+/// Shipped by `openssh-client` (issue #197).
+pub fn ssh_keyscan_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/ssh-keyscan")
+}
+
 /// Directory a systemd unit file must be written to for `systemctl` to see it.
 ///
 /// The administrator's own unit directory, which outranks anything a package
@@ -755,4 +772,29 @@ pub fn dns_state_directory() -> &'static str {
 #[must_use]
 pub fn dns_zone_directory() -> &'static str {
     "/var/lib/bind/maran/zones"
+}
+
+/// The directory the zone files of signed zones are written into on the Debian family:
+/// `signed-zones/` below [`dns_state_directory`].
+#[must_use]
+pub fn dns_signed_zone_directory() -> &'static str {
+    "/var/lib/bind/maran/signed-zones"
+}
+
+/// The directory a signed zone's key files are written into on the Debian family:
+/// `keys/` below [`dns_state_directory`].
+#[must_use]
+pub fn dns_key_directory() -> &'static str {
+    "/var/lib/bind/maran/keys"
+}
+
+/// Absolute path of `rsync`, for the process-execution allow-list (issue #197,
+/// phase 2).
+///
+/// Shipped by the `rsync` package, which the installer installs with the OpenSSH
+/// client. It is the path in the package's own file list, which is the documented
+/// interface the merged-`/usr` rule on `DistroAdapter` says to answer.
+#[must_use]
+pub fn rsync_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/rsync")
 }

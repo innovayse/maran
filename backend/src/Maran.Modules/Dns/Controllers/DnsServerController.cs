@@ -14,7 +14,7 @@ namespace Maran.Modules.Dns.Controllers;
 /// HTTP surface for the server's own name server: switching it on and off, reading what it is doing, and
 /// the settings every zone is published with. Thin by design: binds, dispatches, translates.
 ///
-/// <c>AdminOnly</c>, because it opens port 53 to the internet and because the settings are rendered into
+/// <c>AdminOnly</c>, because it starts a daemon that listens on every address and because the settings are rendered into
 /// every account's zones. Nothing here is a customer's row, so there is no tenant filter to lean on:
 /// the policy is the whole of the authorisation, and a customer, a reseller and an API key are all refused
 /// before a handler runs.
@@ -49,7 +49,7 @@ public sealed class DnsServerController : BaseApiController
         return ToActionResult(await _bus.InvokeAsync<Result<DnsStatusDto>>(new GetDnsStatusQuery(), cancellationToken));
     }
 
-    /// <summary>Switches the name server on and opens port 53 for it.</summary>
+    /// <summary>Switches the name server on. The firewall is not touched; port 53 is opened separately.</summary>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("enable")]
     [ProducesResponseType(typeof(DnsStatusDto), StatusCodes.Status200OK)]
@@ -62,7 +62,7 @@ public sealed class DnsServerController : BaseApiController
         return ToActionResult(await _bus.InvokeAsync<Result<DnsStatusDto>>(command, cancellationToken));
     }
 
-    /// <summary>Switches the name server off and closes port 53. Zones and their files stay.</summary>
+    /// <summary>Switches the name server off. The firewall is not touched. Zones and their files stay.</summary>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("disable")]
     [ProducesResponseType(typeof(DnsStatusDto), StatusCodes.Status200OK)]

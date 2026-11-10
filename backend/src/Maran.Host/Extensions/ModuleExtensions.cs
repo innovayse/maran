@@ -76,6 +76,10 @@ public static class ModuleExtensions
         });
         services.AddHostedService<PackagedModuleRefusalRecorder>();
 
+        // Which module owns which controller, for the scope a framed call is held to. Built here for the
+        // same reason as the registry above: only the composition root knows the whole module set.
+        services.AddSingleton(new ModuleEndpointOwners(modules));
+
         // Registered by the Host and not by any module, because it is the only place that knows all
         // of them: it answers whether the account-deletion cascade actually emptied every module's
         // rows, so a deletion completes on observed absence rather than on nothing having thrown.

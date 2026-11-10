@@ -1,7 +1,9 @@
 using Maran.Modules.Backups.Domain.Entities;
 using Maran.Modules.Backups.Domain.Enums;
+using Maran.Modules.Backups.Jobs;
 using Maran.Modules.Backups.Models;
 using Maran.Modules.Backups.Persistence;
+using Wolverine;
 
 namespace Maran.Modules.Backups.Services;
 
@@ -47,24 +49,30 @@ public sealed class SafetyBackupService
     /// <summary>The injected time source; never the ambient clock (rules/csharp.md).</summary>
     private readonly IClock _clock;
 
+    /// <summary>The bus the pre-restore retention pass is requested on.</summary>
+    private readonly IMessageBus _bus;
+
     /// <summary>Creates the service.</summary>
     /// <param name="dbContext">The Backups module's database context.</param>
     /// <param name="runner">The stream consumer that drives the run.</param>
     /// <param name="destinations">Resolves which destination the safety backup writes to.</param>
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="clock">The injected time source used to stamp the row.</param>
+    /// <param name="bus">The bus the pre-restore retention pass is requested on.</param>
     public SafetyBackupService(
         BackupsDbContext dbContext,
         BackupRunner runner,
         BackupDestinationResolver destinations,
         BackupAuditJournal journal,
-        IClock clock)
+        IClock clock,
+        IMessageBus bus)
     {
         _dbContext = dbContext;
         _runner = runner;
         _destinations = destinations;
         _journal = journal;
         _clock = clock;
+        _bus = bus;
     }
 
     /// <summary>Takes one safety backup of an account and reports whether a usable archive exists.</summary>
@@ -123,6 +131,16 @@ public sealed class SafetyBackupService
                 // The caller has what it asked for either way: a finding about the archive is
                 // recorded and mailed, never turned into a refusal of the operation.
                 await _runner.VerifyCompletedAsync(backup, accountName, cancellationToken);
+
+                // A restore leaves one of these behind every time, and a customer can restore three
+                // times an hour, so the newest few are all that is kept (issue #479). Published after
+                // the copy is recorded, so the pass counts it; a lost message is made up for by the
+                // next scheduled run, which bounds the same copies.
+                if (kind == BackupKind.PreRestore)
+                {
+                    await _bus.PublishAsync(new PreRestoreRetentionRequested(accountId));
+                }
+
                 break;
 
             case FailedBackupOutcome failed:

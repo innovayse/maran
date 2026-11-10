@@ -1,15 +1,18 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccountNames, stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubMailAliases, stubMailChoices, stubMailDomains, type MailStubRecorder } from '../fixtures/stub-mail-routes'
+import { MAIL_ON, stubMailServer } from '../fixtures/stub-mail-server-routes'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account, MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { PanelModule } from '../../src/types/module'
 import type { MailAlias } from '../../src/types/mailAlias'
 import type { MailDomain } from '../../src/types/mailDomain'
+import type { Page } from '@playwright/test'
 
 // The aliases and forwarders page (#177): aliases, forwarders to outside addresses and the catch-all
 // of a domain, one server page at a time. Whether a destination is a legal address, an outside one
@@ -97,11 +100,13 @@ const OUTSIDE: MailAlias = {
 const openWith = async (page: Page, aliases: MailAlias[], user?: AuthenticatedUser): Promise<MailStubRecorder> => {
   await stubSignedIn(page, user)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubAccountNames(page, [ALICE])
   await stubMyAccount(page, OWN_ACCOUNT)
   await stubMailChoices(page)
+  await stubMailServer(page, MAIL_ON)
   await stubMailDomains(page, [ALPHA])
   return await stubMailAliases(page, aliases)
 }

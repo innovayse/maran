@@ -108,11 +108,10 @@ export const stubCronEntryEnabled = async (page: Page): Promise<void> => {
 /**
  * Fulfils the last-run endpoint.
  *
- * `null` is a real answer here and is served as the literal JSON `null` with a 200, which is
- * exactly what `GetCronEntryOutputQueryHandler` produces for an entry that has never run — the
- * handler returns `Result<CronEntryOutputDto?>` and `ToActionResult` wraps the null value in an
- * `OkObjectResult`. Serving `204` or `{}` instead would be the stub agreeing with a belief the SPA
- * might hold rather than with the module.
+ * `null` is a real answer here and is served as the panel serves it: `GetCronEntryOutputQueryHandler`
+ * returns `Result<CronEntryOutputDto?>` with a null value for an entry that has never run, and
+ * MVC's no-content formatter turns a null object into `204` with no body. A JSON `null` with a
+ * `200` is a shape the panel never sends, and the contract guard refuses it.
  * @param page The Playwright page whose network the route is installed on.
  * @param output The reading, or `null` for an entry that has never run.
  * @returns Resolves once the route is installed.
@@ -122,6 +121,12 @@ export const stubCronEntryOutput = async (
   output: CronEntryOutput | null,
 ): Promise<void> => {
   await page.route(OUTPUT_PATTERN, async (route: Route) => {
+    if (output === null) {
+      // An entry that never ran has no reading, and the panel answers it 204 with no body (a null
+      // value is "no content" to its serializer), never 200 with a JSON `null`.
+      await route.fulfill({ status: 204 })
+      return
+    }
     await route.fulfill({
       status: 200,
       contentType: 'application/json',

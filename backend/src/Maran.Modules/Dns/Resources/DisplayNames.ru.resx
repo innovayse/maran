@@ -66,4 +66,40 @@
   <data name="DnsOriginAcmeChallenge">
     <value>Проверка сертификата</value>
   </data>
+  <data name="DnsTemplateVariableApex">
+    <value>Собственное доменное имя зоны, например example.com.</value>
+  </data>
+  <data name="DnsTemplateVariableIpv4">
+    <value>Публичный адрес IPv4 сервера из настроек сервера имён.</value>
+  </data>
+  <data name="DnsTemplateVariableIpv6">
+    <value>Публичный адрес IPv6 сервера из настроек сервера имён.</value>
+  </data>
+  <data name="DnsTemplateVariableNs1">
+    <value>Первый сервер имён из настроек сервера имён.</value>
+  </data>
+  <data name="DnsTemplateVariableNs2">
+    <value>Второй сервер имён из настроек сервера имён.</value>
+  </data>
+  <data name="DnsTemplateVariableHostmaster">
+    <value>Почтовый ящик hostmaster в записи через точку из настроек сервера имён.</value>
+  </data>
+  <data name="DnsTemplateSkippedApex">
+    <value>Для этой записи нужно доменное имя зоны.</value>
+  </data>
+  <data name="DnsTemplateSkippedIpv4">
+    <value>Пропущено: в настройках сервера имён не указан публичный адрес IPv4.</value>
+  </data>
+  <data name="DnsTemplateSkippedIpv6">
+    <value>Пропущено: в настройках сервера имён не указан публичный адрес IPv6.</value>
+  </data>
+  <data name="DnsTemplateSkippedNs1">
+    <value>Пропущено: в настройках сервера имён не указан первый сервер имён.</value>
+  </data>
+  <data name="DnsTemplateSkippedNs2">
+    <value>Пропущено: в настройках сервера имён не указан второй сервер имён.</value>
+  </data>
+  <data name="DnsTemplateSkippedHostmaster">
+    <value>Пропущено: в настройках сервера имён не указан почтовый ящик hostmaster.</value>
+  </data>
 </root>

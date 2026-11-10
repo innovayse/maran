@@ -1,22 +1,24 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { storedSmtpSettings, stubSmtpSettings, stubTestMailRefused } from '../fixtures/stub-smtp-routes'
 
 /**
- * A value no part of the screen may put on screen. It is sent in a field the real
- * `SmtpSettingsDto` does not have, which is what gives this spec something to
- * catch: a form that filled its password field from the response — or a store that
- * kept whatever the panel sent — would show it, and this assertion would go red.
+ * A password the administrator types in this spec. It is the positive control of the assertions
+ * below: the field is shown to hold a typed value once revealed, so the empty field a stored
+ * password produces is proof the form was not filled, not a probe that cannot see a value.
  */
-const PROVIDER_SECRET = 'provider-secret-9f2b41'
+const TYPED_PASSWORD = 'typed-replacement-7c41d9'
 
 test('the mail settings form shows that a password is saved without ever rendering one', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
-  await stubSmtpSettings(page, { ...storedSmtpSettings, password: PROVIDER_SECRET })
+  await stubShellReads(page)
+  // The contract-shaped body: `SmtpSettingsDto` has `hasPassword` and no field that could carry the value.
+  await stubSmtpSettings(page, storedSmtpSettings)
 
   await page.goto('/settings/smtp')
 
@@ -25,19 +27,24 @@ test('the mail settings form shows that a password is saved without ever renderi
   await expect(page.getByText('A password is saved. Type one here only to replace it.')).toBeVisible()
 
   // The field is empty: what is typed here REPLACES the stored password, and an
-  // empty field is how "leave it alone" is expressed.
-  await expect(page.getByLabel('Password', { exact: true })).toHaveValue('')
-
-  // Nowhere on the page, in any element, in either the masked or revealed state.
-  await expect(page.locator('body')).not.toContainText(PROVIDER_SECRET)
+  // empty field is how "leave it alone" is expressed. The same holds once revealed.
+  const password = page.getByLabel('Password', { exact: true })
+  await expect(password).toHaveValue('')
   await page.getByRole('button', { name: 'Show' }).first().click()
-  await expect(page.locator('body')).not.toContainText(PROVIDER_SECRET)
+  await expect(password).toHaveValue('')
+
+  // Positive control: a value typed into the revealed field IS visible to the same assertion.
+  await password.fill(TYPED_PASSWORD)
+  await expect(password).toHaveValue(TYPED_PASSWORD)
 })
 
-test('a refused test message shows the mail server’s own words as the panel relayed them', async ({ page }) => {
+test('a refused test message shows the mail server’s own words as the panel relayed them', async ({ page, guard }) => {
+  // The refusal is the subject: the panel relays the mail server's rejection as a 400.
+  guard.allow(400, /\/api\/v1\/notifications\/smtp\/test$/)
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
   await stubSmtpSettings(page, storedSmtpSettings)
   await stubTestMailRefused(page, 'The mail server refused the credentials: 535 5.7.8 Authentication failed.')
 
@@ -63,7 +70,16 @@ test('the connection security is chosen from the modes the panel lists and sent 
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
   await stubSmtpSettings(page, storedSmtpSettings)
+  // The panel answers a save with 204 and no body; the shared stub answers every method with the settings.
+  await page.route('**/api/v1/notifications/smtp', async (route) => {
+    if (route.request().method() === 'PUT') {
+      await route.fulfill({ status: 204 })
+      return
+    }
+    await route.fallback()
+  })
 
   await page.goto('/settings/smtp')
   await expect(page.getByLabel('Mail server')).toHaveValue('smtp.example.net')
@@ -75,9 +91,9 @@ test('the connection security is chosen from the modes the panel lists and sent 
   // Every option is one the panel listed, in its order and its words; the bundle owns none of them.
   await picker.click()
   await expect(page.getByRole('option')).toHaveText([
-    'No encryption',
     'STARTTLS (upgrade the connection)',
     'Implicit TLS (encrypted from the start)',
+    'No encryption',
   ])
   await page.getByRole('option', { name: 'Implicit TLS (encrypted from the start)' }).click()
 

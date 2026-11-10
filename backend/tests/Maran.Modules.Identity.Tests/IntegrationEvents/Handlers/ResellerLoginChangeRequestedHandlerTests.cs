@@ -1,6 +1,7 @@
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.IntegrationEvents.Handlers;
 using Maran.Modules.Identity.Persistence;
+using Maran.Modules.Identity.Services;
 using Maran.Modules.Identity.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
@@ -23,6 +24,9 @@ public sealed class ResellerLoginChangeRequestedHandlerTests : IDisposable
 
     /// <summary>The module's context, in memory.</summary>
     private readonly IdentityDbContext _context = IdentityTestContext.Create();
+
+    /// <summary>Keeps what the handler journals.</summary>
+    private readonly RecordingAuditWriter _audit = new();
 
     /// <inheritdoc />
     public void Dispose()
@@ -53,7 +57,11 @@ public sealed class ResellerLoginChangeRequestedHandlerTests : IDisposable
     /// <param name="email">The new address.</param>
     private Task<Result> RunAsync(string username, string email)
     {
-        return new ResellerLoginChangeRequestedHandler(_context)
+        return new ResellerLoginChangeRequestedHandler(
+                _context,
+                new CredentialTokenRetirement(_context),
+                new IdentityAuditJournal(_audit, new StubCurrentUser()),
+                new FakeClock(Now))
             .HandleAsync(new ResellerLoginChangeRequested(ResellerId, username, email), CancellationToken.None);
     }
 
@@ -123,5 +131,44 @@ public sealed class ResellerLoginChangeRequestedHandlerTests : IDisposable
 
         Assert.True(result.IsSuccess);
         Assert.Empty(await _context.Users.ToListAsync());
+    }
+
+    /// <summary>The tokens mailed to the reseller's old address are refused after the move, and it is audited.</summary>
+    [Fact]
+    public async Task Tokens_mailed_to_the_old_address_are_refused_after_the_move()
+    {
+        var user = await SeedResellerLoginAsync();
+        var invitation = new InvitationToken(Guid.NewGuid(), user.Id, Guid.NewGuid().ToString("N"), Now);
+        var reset = new PasswordResetToken(Guid.NewGuid(), user.Id, Guid.NewGuid().ToString("N"), Now);
+        _context.InvitationTokens.Add(invitation);
+        _context.PasswordResetTokens.Add(reset);
+        await _context.SaveChangesAsync();
+
+        var result = await RunAsync("acme", "new@example.com");
+
+        Assert.True(result.IsSuccess);
+        Assert.False((await _context.InvitationTokens.AsNoTracking().SingleAsync()).IsUsable(Now));
+        Assert.False((await _context.PasswordResetTokens.AsNoTracking().SingleAsync()).IsUsable(Now));
+        var entry = Assert.Single(_audit.Written);
+        Assert.Equal(IdentityAuditActions.CredentialTokensRetired, entry.Action);
+    }
+
+    /// <summary>A rename that keeps the address retires nothing, and a token issued after a move works.</summary>
+    [Fact]
+    public async Task A_rename_without_a_new_address_retires_nothing_and_a_later_token_works()
+    {
+        var user = await SeedResellerLoginAsync();
+        var kept = new InvitationToken(Guid.NewGuid(), user.Id, Guid.NewGuid().ToString("N"), Now);
+        _context.InvitationTokens.Add(kept);
+        await _context.SaveChangesAsync();
+
+        await RunAsync("globex", "old@example.com");
+
+        Assert.True((await _context.InvitationTokens.AsNoTracking().SingleAsync()).IsUsable(Now));
+        Assert.Empty(_audit.Written);
+
+        await RunAsync("globex", "new@example.com");
+        var later = new InvitationToken(Guid.NewGuid(), user.Id, Guid.NewGuid().ToString("N"), Now.AddMinutes(1));
+        Assert.True(later.IsUsable(Now.AddMinutes(2)));
     }
 }

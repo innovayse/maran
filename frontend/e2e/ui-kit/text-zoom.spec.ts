@@ -1,13 +1,16 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubBackupDestinations } from '../fixtures/stub-backup-destination-routes'
+import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { stubBackupSchedules } from '../fixtures/stub-backup-schedule-routes'
 import { stubBackups } from '../fixtures/stub-backups-routes'
 import { ALERT_DELIVERY_OK, loaded, stubDashboard, SYNCHRONIZED_CLOCK } from '../fixtures/stub-dashboard-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { DEFAULT_LAYOUT, installLiveStream, stubDashboardLayout } from '../fixtures/stub-live-dashboard-stream'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubPlans, THREE_PLANS } from '../fixtures/stub-plans-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubPhpVersions, stubSites } from '../fixtures/stub-sites-routes'
 import { stubTasks } from '../fixtures/stub-tasks-routes'
 import type { Account } from '../../src/types/account'
@@ -15,6 +18,7 @@ import type { Backup } from '../../src/types/backup'
 import type { Dashboard } from '../../src/types/dashboard'
 import type { PanelModule } from '../../src/types/module'
 import type { Site } from '../../src/types/site'
+import type { Page } from '@playwright/test'
 
 /*
  * Text-only zoom, or a large system font: `html { font-size: 200% }` on a 1280px window.
@@ -124,6 +128,7 @@ const DASHBOARD: Dashboard = {
       action: 'SignInFailed',
       actionName: 'Sign-in failed',
       subject: 'storefront.acme-industrial-holdings.example.com',
+      subjectName: 'storefront.acme-industrial-holdings.example.com',
       ipAddress: '203.0.113.9',
       succeeded: false,
       outcomeName: 'Failed',
@@ -140,12 +145,17 @@ const stubPanel = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, MODULES)
+  await stubShellReads(page)
   await stubTasks(page, [])
   await stubDashboard(page, DASHBOARD)
+  // The dashboard reads its widget layout and opens the live stream, which the stand-in keeps off the network.
+  await stubDashboardLayout(page, DEFAULT_LAYOUT)
+  await installLiveStream(page)
   await stubPlans(page, THREE_PLANS)
   await stubAccounts(page, [ACCOUNT])
   await stubSites(page, [SITE])
   await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
+  await stubBackupOptions(page)
   await stubBackups(page, [BACKUP])
   await stubBackupSchedules(page, {})
   await stubBackupDestinations(page, [])

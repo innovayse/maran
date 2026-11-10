@@ -57,6 +57,7 @@ public sealed class PanelUpdateStateReader
             ReadCheck(),
             ReadPrevious(release),
             ReadSignals(),
+            ReadMarkerAge(_options.CheckMarkerPath),
             IsRealDirectory(_options.RequestDirectory));
     }
 
@@ -64,7 +65,7 @@ public sealed class PanelUpdateStateReader
     /// <returns>The marker's age, when there is a marker, and whether root's running record is fresh.</returns>
     public PanelUpdateSignals ReadSignals()
     {
-        return new PanelUpdateSignals(ReadMarkerAge(), IsRunningFresh());
+        return new PanelUpdateSignals(ReadMarkerAge(_options.MarkerPath), IsRunningFresh());
     }
 
     /// <summary>Reads the last manifest check root recorded.</summary>
@@ -103,13 +104,14 @@ public sealed class PanelUpdateStateReader
         return IsRealDirectory(Path.Combine(_options.ReleasesDirectory, previous)) ? previous : null;
     }
 
-    /// <summary>Reads how long ago the request marker was created.</summary>
+    /// <summary>Reads how long ago a request marker was created.</summary>
+    /// <param name="path">The marker's full path.</param>
     /// <returns>The age, never negative, or null when there is no marker.</returns>
-    private TimeSpan? ReadMarkerAge()
+    private TimeSpan? ReadMarkerAge(string path)
     {
         try
         {
-            var marker = new FileInfo(_options.MarkerPath);
+            var marker = new FileInfo(path);
             if (!marker.Exists)
             {
                 return null;

@@ -190,6 +190,7 @@ public sealed class AgentSystemClient : IAgentSystemClient
         {
             DistroFamily.Debian => AgentDistroFamily.Debian,
             DistroFamily.Rhel => AgentDistroFamily.Rhel,
+            DistroFamily.Suse => AgentDistroFamily.Suse,
             _ => null,
         };
     }

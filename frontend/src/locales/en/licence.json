@@ -1,0 +1,23 @@
+{
+  "licence": {
+    "heading": "Licence",
+    "subtitle": "The licence this panel runs under and the paid modules it covers.",
+    "statusTitle": "Licence status",
+    "licenceIdLabel": "Licence ID",
+    "tierLabel": "Tier",
+    "expiryLabel": "Expires",
+    "modulesLabel": "Modules",
+    "noModules": "No modules listed",
+    "leaseLabel": "Lease",
+    "leaseValidUntil": "valid until {date}",
+    "leaseExpiredNotice": "The licence lease has expired. Paid modules that depend on it stay locked until the lease is renewed.",
+    "offlineNote": "This is an offline licence: it is verified on this server without contacting a licensing service.",
+    "installTitle": "Install a licence",
+    "installHint": "Paste the licence you received. The panel verifies its signature before it accepts it.",
+    "installLabel": "Licence text",
+    "installSubmit": "Install licence",
+    "installing": "Installing…",
+    "installRequired": "Paste the licence text first.",
+    "installed": "The licence was installed."
+  }
+}

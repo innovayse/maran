@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from './fixtures/guarded-test'
 import { stubSignedIn } from './fixtures/stub-auth-routes'
 import {
   ALERT_DELIVERY_OK,
@@ -10,10 +10,14 @@ import {
   WITHHELD_DASHBOARD,
 } from './fixtures/stub-dashboard-route'
 import { stubHealthy } from './fixtures/stub-health-route'
+import { stubIdleLiveDashboard } from './fixtures/stub-live-dashboard-stream'
 import { stubModules } from './fixtures/stub-modules-route'
+import { stubQuietOwnAccount } from './fixtures/stub-quiet-own-account'
+import { stubShellReads } from './fixtures/stub-shell-reads'
 import type { AuthenticatedUser } from '../src/types/auth'
 import type { Dashboard } from '../src/types/dashboard'
 import type { PanelModule } from '../src/types/module'
+import type { Page } from '@playwright/test'
 
 const LICENSED: PanelModule[] = [
   { name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -68,6 +72,7 @@ const FULL: Dashboard = {
       action: 'AccountCreated',
       actionName: 'Account created',
       subject: 'acme',
+      subjectName: 'acme',
       ipAddress: '203.0.113.9',
       succeeded: true,
       outcomeName: 'Succeeded',
@@ -80,6 +85,7 @@ const FULL: Dashboard = {
       action: 'SignInFailed',
       actionName: 'Sign-in failed',
       subject: 'admin',
+      subjectName: 'admin',
       ipAddress: '203.0.113.9',
       succeeded: false,
       outcomeName: 'Failed',
@@ -109,8 +115,17 @@ const FRESHLY_INSTALLED: Dashboard = {
 const openLandingPage = async (page: Page, dashboard: Dashboard, user?: AuthenticatedUser): Promise<void> => {
   await stubModules(page, LICENSED)
   await stubSignedIn(page, user)
+  await stubShellReads(page)
+  if (user?.role === 'customer' && user.accountId) {
+    // A customer's shell reads the account it acts for on every screen.
+    await stubQuietOwnAccount(page, user.accountId)
+  }
   await stubHealthy(page)
   await stubDashboard(page, dashboard)
+  if (dashboard.audience === 'administrator') {
+    // Only the server's own audience reads the layout and opens the stream.
+    await stubIdleLiveDashboard(page)
+  }
   await page.goto('/')
 }
 
@@ -196,12 +211,16 @@ test.describe('the landing page', () => {
     await expect(page.getByText('Latest activity')).toHaveCount(0)
   })
 
-  test('a dashboard the panel refused is said out loud, not left as an absence', async ({ page }) => {
+  test('a dashboard the panel refused is said out loud, not left as an absence', async ({ page, guard }) => {
     // An administrator who sees only the health sentence cannot tell a refused read from the defect
     // this page was built to fix, so the panel's own message is rendered.
     await stubModules(page, LICENSED)
     await stubSignedIn(page)
+    await stubShellReads(page)
     await stubHealthy(page)
+    await stubIdleLiveDashboard(page)
+    // The refused dashboard read is the subject of this test.
+    guard.allow(503, /\/api\/v1\/dashboard$/)
     await stubDashboardProblem(page, 'The agent is not answering on this server.')
     await page.goto('/')
 

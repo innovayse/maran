@@ -1,6 +1,5 @@
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Queries.GetViewAs;
-using Maran.Modules.Identity.Services;
 using Maran.Modules.Identity.Tests.TestSupport;
 
 namespace Maran.Modules.Identity.Tests.Queries.GetViewAs;
@@ -23,7 +22,7 @@ public sealed class GetViewAsQueryHandlerTests : IDisposable
     {
         return new GetViewAsQueryHandler(
             _fixture.Context,
-            new ViewAsSessionVerifier(_fixture.Context, _fixture.Clock),
+            _fixture.NewVerifier(),
             _fixture.NewSubjectReader());
     }
 

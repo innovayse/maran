@@ -553,3 +553,84 @@ through — those are not the same person.
 
 The verdict for all twenty-eight notes is tabulated in
 `docs/superpowers/notes/2026-09-22-second-review-packet.md`.
+
+## Amendment 2026-11-09 (issue #490): rotation reloads nginx, it no longer signals USR1
+
+**What was wrong.** The rotation policies (`installer/logrotate/maran-sites`, `maran-panel`, and the
+distribution's `/etc/logrotate.d/nginx`) ended in SIGUSR1. nginx answers USR1 by reopening every log
+it holds, and the WORKERS reopen by path as the worker user. That user cannot traverse
+`/var/log/maran` (root:<service group> 0750) or the root-owned account directories, which is the
+containment this note depends on. Each rotation logged `[emerg] open() ... (13: Permission denied)`
+from every worker, and the workers kept writing into the renamed file. The master's reopen also
+chowned the live files to the worker user. Observed on the dev host on 2026-11-08 and 2026-11-09.
+
+**What changed.** The two Maran policies run `nginx -s reload`, and `installer/lib/80-nginx.sh`
+(`make_distro_nginx_logrotate_reload`) replaces the body of the distribution stanza's postrotate with
+the same reload, refusing the install when it cannot. No directory mode, owner or file mode changed;
+the workers were NOT given access to the log tree, which would have let a compromised worker read every
+tenant's access log and list the tenants.
+
+**Why it is safe now.** Only the root master opens the files by path, so the 0750 root-owned chain
+stays the whole defence, as before. The master no longer chowns the live files to the worker user, so
+they stay root:root 0640 as `create` made them. `nginx -s reload` is the signal the unit's own
+`ExecReload` sends, run by root from logrotate. The distribution file is a package conffile: a
+package upgrade keeps the edit, and the next install run re-applies it to a new stanza. Covered by
+`assert_nginx_log_rotation_reloads_and_never_signals_usr1` (polygon), with a planted-USR1 break and
+inverse controls.
+
+**Second review: OUTSTANDING (#331).** A reviewer must check that editing a distro conffile is
+acceptable, and that a failed reload (invalid tree at 00:00) leaving logs on the rotated file is
+tolerable. The author could not observe a rotation delivered to a running nginx in the polygon.
+
+## Amendment 2026-11-09 (issue #477): the logs are removed with the site and with the account
+
+**What was wrong.** Residual risk 4 above ("Account deletion does not remove
+`/var/log/maran/sites/<account>`... It is litter, not a hole") reasoned about WRITE reachability only.
+The directory and its files are READ by the agent on behalf of whoever owns the account name today:
+the log tail (up to 1000 lines of history) and the traffic summary open
+`<domain>.access.log` in that account's directory whatever its age, nginx appends to a file that
+exists, and rotation keeps 14 generations. Deleting a site or an account left every file, so a later
+holder of the same account name and domain was handed the previous tenant's visitor addresses, request
+targets (query strings, session ids, tokens in URLs), user agents and referrers, and the previous
+tenant's personal data outlived the erasure a deletion promises. The sentence "litter, not a hole" is
+withdrawn.
+
+**What changed.**
+
+- `sites::remove_site_logs` removes the live `<domain>.access.log` and `<domain>.error.log` and every
+  rotated generation (`is_site_log_name`, the whole entry name against `rotated_log_name`'s anchored
+  grammar plus the two live names), regular files only, by name through the one pinned directory
+  descriptor of `SiteLogHost` (the discipline `prune_site_logs` already has). A missing directory is
+  success (`open_directory_if_present`); every other refusal (a symlink, a directory root does not own)
+  stays an error.
+- `ssl::delete_site_with_certificate`, the only deletion path of the service layer, calls it after the
+  vhost is gone and the certificate material is purged, so nothing is being appended any more. A failure
+  is REPORTED (unlike the key purge): the logs are personal data. The retry converges, because a repeat
+  that finds the vhost already gone (`NotFound`) still removes the logs before answering `NotFound`.
+- `accounts::remove_account_site_logs` is a step of the account deletion sequence, after the mail spool
+  and the open-files drop-in and before the identity re-check and `userdel`. It opens the log root and
+  the account's directory with `O_DIRECTORY | O_NOFOLLOW`, judges every entry with a no-follow `fstatat`
+  BEFORE removing any (so a refusal leaves the directory as it was), unlinks the regular files relative
+  to the held descriptor and unlinks the emptied directory from the root's descriptor. A symlink,
+  directory or special file anywhere refuses the deletion (`AccountError::SiteLogsRemain`,
+  `SYSTEM_FAILURE`, name only) with the account still present, retryable like the mail spool.
+
+**Why it is safe now.** The only way a later holder reaches the old bytes is the file existing; it does
+not. Nothing is followed (descriptor walk, no path string decides anything); the match is a whole-name
+comparison, so another site's files (including look-alike domains `a.com.access`, `a.com.access.log`) and
+an operator's own file are untouched, which the tests plant and require. Archiving was considered and
+rejected: a copy kept "for later" is personal data nobody asked to keep.
+
+**Not covered.** nginx workers that still hold an unlinked log open keep writing into it until they exit
+(graceful shutdown after the reload that removed the vhost); the bytes vanish with the last descriptor.
+Logs that deletions made BEFORE this release left behind are not swept: a recycled pair created now still
+finds them until an operator removes the files (or `/var/log/maran/sites/<account>` of a deleted account)
+by hand. Backups of a home never contained these files (they live outside it).
+
+**Second review: OUTSTANDING (#331).** A reviewer must check the order of the account step against the
+other uid-keyed steps and that refusing a deletion over a stray subdirectory is the right direction. The
+author observed both against a temporary directory only; the polygon cases
+(`deleting_a_site_takes_its_visitor_logs_so_a_recreated_pair_starts_empty`,
+`a_deleted_accounts_site_logs_are_not_readable_by_the_next_holder_of_its_name`,
+`deleting_an_account_leaves_a_neighbours_site_logs_untouched`) need `docker run --privileged` and were
+written but not run in this session.

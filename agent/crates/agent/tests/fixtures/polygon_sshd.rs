@@ -20,9 +20,11 @@
 //! container can only make one when its AppArmor confinement is lifted, and on
 //! the RHEL family a container with AppArmor lifted has a `pam_unix` that
 //! refuses every account — key-based logins included, in the *account* phase,
-//! long after the signature has verified. Measured on both families; the Debian
+//! long after the signature has verified. Measured on those two families; the Debian
 //! family is unaffected either way, and the option is set on both so the two
-//! suites are the same suite.
+//! suites are the same suite. The SUSE family (SELinux, not AppArmor) was NOT measured: the
+//! option is set there for the same reason, and whether it is needed is for the first run in
+//! the pinned Leap image to say.
 //!
 //! What that costs, precisely: with `UsePAM=no` sshd checks the password
 //! against `/etc/shadow` itself instead of asking PAM. **The credential is still
@@ -44,7 +46,13 @@ use std::time::{Duration, Instant};
 /// The environment variable each polygon image sets, naming itself.
 const POLYGON_MARKER: &str = "MARAN_POLYGON";
 
-/// The daemon, at the path both families install it to.
+/// The daemon, at the path the Debian and RHEL families install it to.
+///
+/// The SUSE family is read to install it at the same path (usr-merged layout). UNVERIFIED:
+/// read from the distribution documentation, not measured; confirm with `rpm -ql openssh-server |
+/// grep sbin/sshd` in the pinned Leap image. The `/etc/ssh/sshd_config` the daemon reads there
+/// may differ from the one the installer edits (the family may keep vendor defaults under
+/// `/usr/etc`); `sshd -T` in the same image says which file the daemon reads.
 const SSHD_BINARY: &str = "/usr/sbin/sshd";
 
 /// The port the suite's own daemon listens on.
@@ -318,6 +326,36 @@ impl PolygonSshd {
             .stdin(Stdio::null())
             .output()
             .unwrap_or_else(|error| panic!("the polygon image installs an ssh client: {error}"))
+    }
+
+    /// The daemon's own resolved configuration for a connection by `user`, one
+    /// `keyword value` line per option, with every `Match` block that applies
+    /// to that user already applied (`sshd -T -C`).
+    ///
+    /// This is how a refusal that is configured rather than exercised is read
+    /// off the daemon instead of off a file: a directive in the wrong block
+    /// reads the same in the file and does nothing, while this is the value the
+    /// daemon consults.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `sshd -T` cannot be run or rejects the configuration.
+    pub fn effective_config(&self, user: &str) -> String {
+        let output = Command::new(SSHD_BINARY)
+            .args([
+                "-T",
+                "-C",
+                &format!("user={user},host=localhost,addr={SSHD_ADDRESS}"),
+            ])
+            .output()
+            .unwrap_or_else(|error| panic!("{SSHD_BINARY} -T could not be run: {error}"));
+        assert!(
+            output.status.success(),
+            "sshd -T rejects the configuration:\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        String::from_utf8_lossy(&output.stdout).into_owned()
     }
 
     /// Writes the helper the ssh client asks for the password with.

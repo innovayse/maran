@@ -1,13 +1,15 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubDatabases } from '../fixtures/stub-databases-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
-import { stubManagedPlans } from '../fixtures/stub-plans-route'
+import { stubManagedPlans, stubPlans } from '../fixtures/stub-plans-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { Database } from '../../src/types/database'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 // The kit's overlay motion, the confirmation's named action and safe starting focus, and the narrow
 // table's scroll cue and sticky action column (issues #217 and #218), all driven through real
@@ -59,6 +61,7 @@ const openPlans = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, ACCOUNTS_LICENSED)
+  await stubShellReads(page)
   await stubManagedPlans(page)
   await page.goto('/plans')
   await expect(page.getByRole('button', { name: 'Delete Business' })).toBeVisible()
@@ -73,6 +76,7 @@ const openDatabases = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, DATABASES_LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubDatabases(page, [SHOP])
   await page.goto('/databases')
@@ -214,6 +218,8 @@ test.describe('filter trigger and bulk bar', () => {
     await stubSignedIn(page)
     await stubHealthy(page)
     await stubModules(page, ACCOUNTS_LICENSED)
+    await stubShellReads(page)
+    await stubPlans(page)
     await stubAccounts(page, [ALICE])
     await page.goto('/accounts')
 
@@ -231,6 +237,8 @@ test.describe('filter trigger and bulk bar', () => {
     await stubSignedIn(page)
     await stubHealthy(page)
     await stubModules(page, ACCOUNTS_LICENSED)
+    await stubShellReads(page)
+    await stubPlans(page)
     await stubAccounts(page, [ALICE])
     await page.goto('/accounts')
 

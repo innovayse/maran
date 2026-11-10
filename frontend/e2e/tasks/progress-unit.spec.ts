@@ -1,7 +1,8 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubTaskStream, stubTasks } from '../fixtures/stub-tasks-routes'
 import type { PanelModule } from '../../src/types/module'
 import type { PanelTask } from '../../src/types/panelTask'
@@ -53,6 +54,7 @@ test('the progress column names its unit rather than printing a bare number', as
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubTasks(page, [DONE, RUNNING])
   await stubTaskStream(page, '')
 

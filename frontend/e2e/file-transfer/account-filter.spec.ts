@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import { stubMyAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubAccountNames, stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubFirewall } from '../fixtures/stub-firewall-routes'
@@ -7,11 +8,13 @@ import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
 import { stubSftpUsers } from '../fixtures/stub-sftp-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account, MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { FtpUser } from '../../src/types/ftpUser'
 import type { PanelModule } from '../../src/types/module'
 import type { SftpUser } from '../../src/types/sftpUser'
+import type { Page } from '@playwright/test'
 
 // Issue #223: the account page links to each list as `?account=<id>`. The list then asks the panel
 // for that account's rows only, says so with a removable chip, and offers the way back; a
@@ -130,9 +133,11 @@ const openScreen = async (
   await stubSignedIn(page, user)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE, BOB])
   await stubAccountNames(page, [ALICE, BOB])
   await stubMyAccount(page, OWN_ACCOUNT)
+  await stubMyAccountResources(page, { accountId: OWN_ACCOUNT.id, resources: [] })
   await stubFirewall(page, { rules: [], bans: [], whitelist: [] })
   await stubFtpsServer(page, runningFtpsStatus)
   const sftp = await stubSftpUsers(page, [ALICE_SFTP, BOB_SFTP])

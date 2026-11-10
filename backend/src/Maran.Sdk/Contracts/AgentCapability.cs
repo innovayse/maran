@@ -48,8 +48,9 @@ public enum AgentCapability
     /// This panel's own authoritative DNS daemon and the zones it serves: <c>IAgentDnsClient</c>.
     /// </summary>
     /// <remarks>
-    /// Separate from <see cref="Firewall"/> on purpose: the module that manages DNS does not open
-    /// port 53 itself, the agent's enable operation does, as part of switching the daemon on.
+    /// Separate from <see cref="Firewall"/> on purpose: neither the module that manages DNS nor the
+    /// agent's enable operation opens port 53. Switching the daemon on or off never touches the firewall;
+    /// the administrator opens the port as a separate step.
     /// </remarks>
     Dns,
 
@@ -112,4 +113,18 @@ public enum AgentCapability
 
     /// <summary>The agent's own identity and health: <c>IAgentSystemClient</c>.</summary>
     System,
+
+    /// <summary>
+    /// Registered remote servers the agent connects out to over SSH, to read what they serve:
+    /// <c>IAgentTransferClient</c>.
+    /// </summary>
+    /// <remarks>
+    /// The one capability that makes the agent open a connection to another host. It is bounded by what
+    /// an administrator typed (one host, one port, one pinned host key per call), runs a closed set of
+    /// read-only commands there and never writes to the other host, and a module declaring it states
+    /// to the administrator reading the manifest that the panel will reach out of this server.
+    /// Separate from <see cref="Backup"/> on purpose: a module that moves a backup between servers
+    /// must not gain the right to log in to a stranger's machine, and the reverse.
+    /// </remarks>
+    Transfer,
 }

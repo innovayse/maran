@@ -1,6 +1,7 @@
 {
   "common": {
     "cancel": "Cancel",
+    "save": "Save",
     "actions": "Actions",
     "close": "Close",
     "name": "Name",
@@ -33,7 +34,8 @@
       "unreachable": "The panel could not be reached. Try again in a moment.",
       "any": "Any",
       "chip": "{filter}: {value}",
-      "clearSearchAndFilters": "Clear search and filters"
+      "clearSearchAndFilters": "Clear search and filters",
+      "searchTooLong": "The search is too long. Use at most {max} characters."
     },
     "loading": {
       "busy": "Loading…",

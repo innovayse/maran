@@ -114,3 +114,7 @@ impl Domain {
 #[cfg(test)]
 #[path = "../../tests/validation/web/domain_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "../../tests/validation/web/domain_property_tests.rs"]
+mod property_tests;

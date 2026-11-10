@@ -57,18 +57,24 @@ const ALLOWED: &[(&str, OverrideKind)] = &[
     (
         "memory_limit",
         OverrideKind::Bytes {
+            // Not zero: PHP reads zero in a size as "no limit".
+            minimum: 1,
             maximum: MAXIMUM_BYTES,
         },
     ),
     (
         "upload_max_filesize",
         OverrideKind::Bytes {
+            // Not zero: PHP reads zero in a size as "no limit".
+            minimum: 1,
             maximum: MAXIMUM_BYTES,
         },
     ),
     (
         "post_max_size",
         OverrideKind::Bytes {
+            // Not zero: PHP reads zero in a size as "no limit".
+            minimum: 1,
             maximum: MAXIMUM_BYTES,
         },
     ),
@@ -152,13 +158,10 @@ impl PhpOverride {
         }
 
         match *kind {
-            OverrideKind::Bytes { maximum } => {
-                check_maximum(
-                    allowed_name,
-                    value,
-                    parse_bytes(allowed_name, value)?,
-                    maximum,
-                )?;
+            OverrideKind::Bytes { minimum, maximum } => {
+                let actual = parse_bytes(allowed_name, value)?;
+                check_minimum(allowed_name, value, actual, minimum)?;
+                check_maximum(allowed_name, value, actual, maximum)?;
             }
             OverrideKind::Seconds { minimum, maximum }
             | OverrideKind::Count { minimum, maximum } => {

@@ -35,6 +35,16 @@ const ACCEPT_INVITATION_ROUTE = 'accept-invitation'
 const TWO_FACTOR_SETUP_ROUTE = 'two-factor-setup'
 
 /**
+ * Route name of the screen that asks for the new password of a login still holding the first
+ * password somebody else chose (issue #514).
+ *
+ * A bare-layout screen for the same reason as {@link TWO_FACTOR_SETUP_ROUTE}: the token that person
+ * holds reaches only the password change, so the shell, whose every other entry answers 403, is
+ * exactly what they must not be given.
+ */
+const CHANGE_PASSWORD_ROUTE = 'change-password'
+
+/**
  * The screens a signed-out visitor may reach.
  *
  * The password-reset and accept-invitation screens are here because the person
@@ -81,6 +91,19 @@ export const createAuthGuard = (): NavigationGuardWithThis<undefined> => {
     await authStore.restore()
 
     if (authStore.isAuthenticated) {
+      // The first password somebody else chose must be replaced before anything else: that token
+      // reaches only the password change. Asked before the enrolment steer and for every URL, for
+      // the reason the steer below states, so no screen of the shell opens to answer 403.
+      if (authStore.requiresPasswordChange) {
+        return to.name === CHANGE_PASSWORD_ROUTE ? true : { name: CHANGE_PASSWORD_ROUTE }
+      }
+
+      // The screen is the obligation's, not a settings page: once the password is chosen there is
+      // nothing for it to do, and a bookmark to it belongs in the panel.
+      if (to.name === CHANGE_PASSWORD_ROUTE) {
+        return { name: 'system-status' }
+      }
+
       // A panel that forces administrators to hold a second factor issues a token
       // that reaches ONLY the enrolment endpoints. Checked before anything else a
       // signed-in caller may do, and without exempting the public screens, so the

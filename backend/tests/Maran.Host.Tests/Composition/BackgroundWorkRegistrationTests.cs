@@ -1,5 +1,6 @@
 using Maran.Modules.Backups.Services;
 using Maran.Modules.Dns.Services;
+using Maran.Modules.Licensing.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -78,5 +79,37 @@ public sealed class BackgroundWorkRegistrationTests : IClassFixture<ValidatingPa
         {
             return service is DnsZoneReconciler;
         });
+    }
+
+    /// <summary>The pass that journals a module's licence lapse and recovery is registered, and is the module's own singleton.</summary>
+    /// <remarks>
+    /// Without this line a lapse is refused on the wire but never reaches the audit trail: the class exists,
+    /// its doc comments describe the entry, and nothing runs it. The hosted service must be the SAME object the
+    /// module registers as a singleton, or a test that drives one pass would drive a different watcher from the
+    /// one the host runs.
+    /// </remarks>
+    [Fact]
+    public void The_licence_cover_watcher_is_registered_as_a_hosted_service_and_is_the_modules_singleton()
+    {
+        var hosted = _factory.Services.GetServices<IHostedService>().OfType<LicenceCoverageWatcher>().ToList();
+
+        var watcher = Assert.Single(hosted);
+        Assert.Same(watcher, _factory.Services.GetRequiredService<LicenceCoverageWatcher>());
+    }
+
+    /// <summary>The licence lease renewal is registered as a hosted service and is the module's own singleton.</summary>
+    /// <remarks>
+    /// Without this line nothing ever writes the lease file: the class exists, its doc comments describe the daily
+    /// renewal, and every online licence lapses at the end of its last lease. The hosted service must be the SAME
+    /// object the module registers, or a test that drives one pass would drive a different worker from the one the
+    /// host runs.
+    /// </remarks>
+    [Fact]
+    public void The_licence_lease_renewal_is_registered_as_a_hosted_service_and_is_the_modules_singleton()
+    {
+        var hosted = _factory.Services.GetServices<IHostedService>().OfType<LeaseRenewalWorker>().ToList();
+
+        var worker = Assert.Single(hosted);
+        Assert.Same(worker, _factory.Services.GetRequiredService<LeaseRenewalWorker>());
     }
 }

@@ -50,9 +50,13 @@ use maran_agent_core::end_of_options::END_OF_OPTIONS;
 use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::utils::spawn_argv::spawn_argv;
 use maran_agent_core::validation::web::php_version::PhpVersion;
-use maran_distro::{AdapterBinary, DistroAdapter, adapter_for, detect};
+use maran_distro::{AdapterBinary, DistroAdapter, DistroFamily, adapter_for, detect};
 
-/// The PHP version the polygon images ship.
+/// The PHP version the Debian and RHEL polygon images ship.
+///
+/// The SUSE family ships one distribution minor (8.4, UNVERIFIED) under unversioned paths, so
+/// its adapter answers the same path for this label; it is a label there, not the installed
+/// version, and the test below that stats the answer is unaffected.
 const POLYGON_PHP_VERSION: &str = "8.3";
 
 /// The environment variable each polygon image sets, naming itself.
@@ -113,7 +117,7 @@ fn polygon_distro() -> &'static dyn DistroAdapter {
 fn declared_binaries(distro: &'static dyn DistroAdapter) -> Vec<(&'static str, String)> {
     let php_version = PhpVersion::parse(POLYGON_PHP_VERSION).expect("a valid PHP version");
 
-    vec![
+    let mut declared = vec![
         ("nginx_binary", distro.nginx_binary().to_string()),
         ("service_manager", distro.service_manager().to_string()),
         ("journal_binary", distro.journal_binary().to_string()),
@@ -154,6 +158,10 @@ fn declared_binaries(distro: &'static dyn DistroAdapter) -> Vec<(&'static str, S
             "package_query_binary",
             distro.package_query_binary().to_string(),
         ),
+        (
+            "package_candidate_binary",
+            distro.package_candidate_binary().to_string(),
+        ),
         ("nft_binary", distro.nft_binary().to_string()),
         ("tar_binary", distro.tar_binary().to_string()),
         ("gzip_binary", distro.gzip_binary().to_string()),
@@ -161,8 +169,53 @@ fn declared_binaries(distro: &'static dyn DistroAdapter) -> Vec<(&'static str, S
             "database_dump_binary",
             distro.database_dump_binary().to_string(),
         ),
-        ("vsftpd_binary", distro.vsftpd_binary().to_string()),
-    ]
+    ];
+
+    // The one program a family may decline to carry is named by `not_offered_binaries`, and
+    // every other family is held to its path here. The match is exhaustive on purpose: a fourth
+    // family does not compile until somebody says whether it offers FTPS.
+    match distro.family() {
+        DistroFamily::Debian | DistroFamily::Rhel => {
+            declared.push(("vsftpd_binary", distro.vsftpd_binary().to_string()));
+        }
+        DistroFamily::Suse => {}
+    }
+
+    declared
+}
+
+/// The declared paths of programs this family does not offer, so nothing is installed there.
+///
+/// The SUSE family does not offer FTPS (issue #59, decision 222: vsftpd is not packaged for
+/// Leap 16 and the installer skips FTPS with a plain message). Its adapter still answers
+/// `vsftpd_binary()` so the trait is complete, with the path an upstream package would use, and
+/// that path is therefore left out of [`declared_binaries`] and checked for ABSENCE by
+/// `a_program_the_family_does_not_offer_is_absent_at_its_declared_path`. The Debian and RHEL
+/// families offer everything they declare, so for them the list is empty and that test asserts
+/// the emptiness rather than skipping.
+fn not_offered_binaries(distro: &'static dyn DistroAdapter) -> Vec<(&'static str, String)> {
+    match distro.family() {
+        DistroFamily::Debian | DistroFamily::Rhel => Vec::new(),
+        DistroFamily::Suse => vec![("vsftpd_binary", distro.vsftpd_binary().to_string())],
+    }
+}
+
+/// Why `path` is not an executable regular file on this host, or `None` when it is one.
+///
+/// The single judgement behind `every_declared_binary_path_names_an_executable_file`, so the
+/// test that proves the judgement can fail asks the very function that refuses a real path.
+fn unusable_reason(path: &str) -> Option<String> {
+    let metadata = match std::fs::metadata(Path::new(path)) {
+        Ok(metadata) => metadata,
+        Err(error) => return Some(format!("this host has nothing there ({error})")),
+    };
+    if !metadata.is_file() {
+        return Some("it exists but is not a regular file".to_owned());
+    }
+    if metadata.permissions().mode() & 0o111 == 0 {
+        return Some("it exists but has no execute bit".to_owned());
+    }
+    None
 }
 
 /// Every path a distro adapter declares names an executable file on this host.
@@ -177,24 +230,82 @@ fn every_declared_binary_path_names_an_executable_file() {
     let distro = polygon_distro();
 
     for (accessor, path) in declared_binaries(distro) {
-        let metadata = std::fs::metadata(Path::new(&path)).unwrap_or_else(|error| {
+        if let Some(reason) = unusable_reason(&path) {
             panic!(
-                "DistroAdapter::{accessor}() declares {path}, and this host has \
-                 nothing there ({error}). The agent execs that exact path: \
-                 either the declaration is wrong for this family, or the \
-                 polygon image is missing the package that installs it."
-            )
-        });
-        assert!(
-            metadata.is_file(),
-            "DistroAdapter::{accessor}() declares {path}, which exists but is \
-             not a regular file. The agent execs it."
-        );
-        assert!(
-            metadata.permissions().mode() & 0o111 != 0,
-            "DistroAdapter::{accessor}() declares {path}, which exists but has \
-             no execute bit. The agent execs it."
-        );
+                "DistroAdapter::{accessor}() declares {path}, and {reason}. The agent \
+                 execs that exact path: either the declaration is wrong for this \
+                 family ({:?}), or the polygon image is missing the package that \
+                 installs it. On the SUSE family every path is UNVERIFIED until the \
+                 first run in the pinned Leap image: confirm with `rpm -qf {path}`.",
+                distro.family()
+            );
+        }
+    }
+}
+
+/// The judgement behind the test above refuses a path with nothing at it, and accepts one that
+/// is an executable file.
+///
+/// The inverse control the refusing test owes: a judgement mutated to refuse everything, or to
+/// accept everything, would pass the test above on a healthy polygon, so this feeds it one path
+/// of each kind. The accepted path is this test binary itself, which exists, is a regular file
+/// and is executable on every host that can run it.
+#[test]
+#[ignore = "requires a polygon container"]
+fn the_binary_path_judgement_refuses_an_absent_path_and_accepts_an_executable_one() {
+    require_polygon();
+
+    assert!(
+        unusable_reason(ABSENT_PATH).is_some(),
+        "a path nothing is installed at must be refused, or the suite above cannot fail"
+    );
+    assert!(
+        unusable_reason("/").is_some(),
+        "a directory is not an executable regular file and must be refused"
+    );
+
+    let present = std::env::current_exe().expect("the running test binary has a path");
+    let present = present.to_str().expect("the test binary path is UTF-8");
+    assert_eq!(
+        unusable_reason(present),
+        None,
+        "an executable regular file must be accepted, or the suite above refuses everything"
+    );
+}
+
+/// A program the family does not offer is not installed at the path its adapter declares.
+///
+/// SUSE states that FTPS is not offered and the adapter's answer is asserted against the disk:
+/// the polygon image installs no vsftpd. The other two families offer everything they declare,
+/// so the list is asserted empty for them and nothing is skipped silently.
+///
+/// UNVERIFIED on SUSE: that no repository of the pinned Leap image carries vsftpd; confirm with
+/// `zypper --non-interactive search --match-exact vsftpd` (a "No matching items found" answer).
+#[test]
+#[ignore = "requires a polygon container"]
+fn a_program_the_family_does_not_offer_is_absent_at_its_declared_path() {
+    require_polygon();
+    let distro = polygon_distro();
+    let not_offered = not_offered_binaries(distro);
+
+    match distro.family() {
+        DistroFamily::Debian | DistroFamily::Rhel => assert!(
+            not_offered.is_empty(),
+            "this family offers every program it declares, got {not_offered:?}"
+        ),
+        DistroFamily::Suse => {
+            assert!(
+                !not_offered.is_empty(),
+                "the SUSE family does not offer FTPS and must list the vsftpd path it declares"
+            );
+            for (accessor, path) in not_offered {
+                assert!(
+                    std::fs::symlink_metadata(Path::new(&path)).is_err(),
+                    "DistroAdapter::{accessor}() declares {path} for a program the SUSE family \
+                     does not offer, and the host has one: FTPS is no longer unavailable here"
+                );
+            }
+        }
     }
 }
 

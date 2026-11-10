@@ -1,10 +1,12 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubFirewall } from '../fixtures/stub-firewall-routes'
 import type { Ban, FirewallRule, WhitelistEntry } from '../../src/types/firewall'
 import type { PanelModule } from '../../src/types/module'
+import type { Locator, Page } from '@playwright/test'
 
 // Issue #218, point 5: the three firewall screens (Rules, Bans, Never banned) are laid out one way,
 // their placeholders describe the field rather than look like a value, a refusal goes away once the
@@ -48,6 +50,7 @@ const stubScreens = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubFirewall(page, { rules: [{ ...RULE }], bans: [{ ...BAN }], whitelist: [{ ...EXEMPTION }] })
 }
 
@@ -115,7 +118,8 @@ test('no firewall placeholder reads like a value somebody already typed', async 
   }
 })
 
-test('a refused rule stops being shown once the port it was about is changed', async ({ page }) => {
+test('a refused rule stops being shown once the port it was about is changed', async ({ page, guard }) => {
+  guard.allow(409, /\/api\/v1\/firewall\/rules$/)
   await stubScreens(page)
   await page.route('**/api/v1/firewall/rules*', async (route) => {
     if (route.request().method() !== 'POST') {

@@ -1,10 +1,15 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import { stubAudit } from '../fixtures/stub-audit-routes'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubModules } from '../fixtures/stub-modules-route'
-import { forbidAccountsList } from '../fixtures/stub-my-account-route'
+import { forbidAccountsList, stubMyAccount } from '../fixtures/stub-my-account-route'
 import { setPersistedLocale } from '../fixtures/set-locale'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
+import type { MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
+import type { Page } from '@playwright/test'
 import type { PanelModule } from '../../src/types/module'
 
 // Issue #202: a customer who reaches an administrator's screen by URL lands on one localized
@@ -19,6 +24,35 @@ const CUSTOMER: AuthenticatedUser = {
   email: 'olive@example.com',
   role: 'customer',
   accountId: '11111111-1111-1111-1111-111111111111',
+}
+
+const OWN_ACCOUNT: MyAccount = {
+  id: '11111111-1111-1111-1111-111111111111',
+  name: 'olive',
+  primaryDomain: 'olive.example.com',
+  status: 'active',
+  statusName: 'Active',
+  plan: {
+    displayName: 'Starter',
+    diskQuotaMb: 1024,
+    maxSites: 5,
+    maxDatabases: 5,
+    maxSftpUsers: 5,
+    maxFtpUsers: 5,
+    maxCronEntries: 5,
+  },
+}
+
+/**
+ * Answers what the signed-in shell of a customer reads on every screen, and the landing screen the
+ * way back from the not-available page leads to.
+ * @param page The Playwright page under test.
+ * @returns Resolves once the routes are installed.
+ */
+const stubCustomerShell = async (page: Page): Promise<void> => {
+  await stubShellReads(page)
+  await stubMyAccount(page, OWN_ACCOUNT)
+  await stubLandingReads(page, 'customer')
 }
 
 // The catalogue an administrator would see, so the guard cannot pass merely because the module
@@ -59,6 +93,7 @@ for (const path of ADMIN_ONLY_PATHS) {
   test(`a customer opening ${path} lands on the not-available page`, async ({ page }) => {
     await stubSignedIn(page, CUSTOMER)
     await stubHealthy(page)
+    await stubCustomerShell(page)
     await stubModules(page, MODULES)
     const accountsListCalls = await forbidAccountsList(page)
 
@@ -76,6 +111,7 @@ for (const locale of ['ru', 'hy'] as const) {
     await setPersistedLocale(page, locale)
     await stubSignedIn(page, CUSTOMER)
     await stubHealthy(page)
+    await stubCustomerShell(page)
     await stubModules(page, MODULES)
 
     await page.goto('/firewall')
@@ -89,6 +125,7 @@ test('a module missing from a customer catalogue is not available, not an upgrad
   // The panel filters the catalogue by role, so "absent" means "not part of your area".
   await stubSignedIn(page, CUSTOMER)
   await stubHealthy(page)
+  await stubCustomerShell(page)
   await stubModules(page, [{ name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
 
   await page.goto('/cron')
@@ -99,7 +136,8 @@ test('a module missing from a customer catalogue is not available, not an upgrad
 test('a module the licence locks still sends a customer to the upgrade page', async ({ page }) => {
   await stubSignedIn(page, CUSTOMER)
   await stubHealthy(page)
-  await stubModules(page, [{ name: 'cron', displayName: 'Cron', kindDisplayName: 'Core', tier: 'business', state: 'locked' }])
+  await stubCustomerShell(page)
+  await stubModules(page, [{ name: 'cron', displayName: 'Cron', kindDisplayName: 'Core', tier: 'planGated', state: 'locked' }])
 
   await page.goto('/cron')
 
@@ -109,6 +147,7 @@ test('a module the licence locks still sends a customer to the upgrade page', as
 test('the way back from the not-available page leads to system status', async ({ page }) => {
   await stubSignedIn(page, CUSTOMER)
   await stubHealthy(page)
+  await stubCustomerShell(page)
   await stubModules(page, MODULES)
 
   await page.goto('/settings/audit')
@@ -121,7 +160,9 @@ test('an administrator still reaches an admin-only screen', async ({ page }) => 
   // Positive control: the guard reads the role, not the flag alone.
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubModules(page, MODULES)
+  await stubAudit(page, [])
 
   await page.goto('/settings/audit')
 

@@ -45,6 +45,11 @@ internal static class DnsZoneMapper
             request.Records.Add(ToWire(record));
         }
 
+        if (zone.Signing is not null)
+        {
+            request.Signing = ToWire(zone.Signing);
+        }
+
         return request;
     }
 
@@ -58,7 +63,82 @@ internal static class DnsZoneMapper
             status.Port53Answering,
             status.EnabledAtBoot,
             ToState(status.RecursionRefused),
-            ToState(status.ResponseRateLimiting));
+            ToState(status.ResponseRateLimiting),
+            status.DnssecSupported);
+    }
+
+    /// <summary>Reads a zone's signing observation.</summary>
+    /// <param name="observation">The wire observation; null when the answer carried none.</param>
+    /// <returns>
+    /// The panel's view, or null when there is no observation. A value the panel does not know reads as not
+    /// observed, never as a phase or a key.
+    /// </returns>
+    public static DnsSigningObservedDto? ToObserved(DnsSigningObservation? observation)
+    {
+        if (observation is null)
+        {
+            return null;
+        }
+
+        var phase = ToPhase(observation.Mode);
+        var phaseObserved = observation.ModeObserved == DnsPolicyObservation.InForce && phase is not null
+            ? DnsPolicyState.InForce
+            : DnsPolicyState.NotObserved;
+        var keyObserved = ToState(observation.PublishedKeyObserved);
+
+        return new DnsSigningObservedDto(
+            phaseObserved == DnsPolicyState.InForce ? phase!.Value : DnsSigningPhase.Off,
+            phaseObserved,
+            keyObserved == DnsPolicyState.InForce ? checked((int)observation.PublishedKeyTag) : 0,
+            keyObserved);
+    }
+
+    /// <summary>Puts a zone's signing instruction on the wire.</summary>
+    /// <param name="signing">The panel's instruction.</param>
+    /// <returns>The wire message; the private key is revealed here, for the one purpose it exists for.</returns>
+    private static DnsSigning ToWire(DnsSigningDefinition signing)
+    {
+        var wire = new DnsSigning { Mode = ToWire(signing.Phase) };
+        if (signing.Key is not null)
+        {
+            wire.Key = new DnsSigningKey
+            {
+                PublicKey = signing.Key.PublicKey,
+                PrivateKey = signing.Key.PrivateKey.Reveal(),
+                Flags = checked((uint)signing.Key.Flags),
+                KeyTag = checked((uint)signing.Key.KeyTag),
+            };
+        }
+
+        return wire;
+    }
+
+    /// <summary>Maps the panel's phase to the wire's mode.</summary>
+    /// <param name="phase">The panel's phase.</param>
+    /// <returns>The wire mode.</returns>
+    private static DnsSigningMode ToWire(DnsSigningPhase phase)
+    {
+        return phase switch
+        {
+            DnsSigningPhase.Off => DnsSigningMode.Unsigned,
+            DnsSigningPhase.Active => DnsSigningMode.Signed,
+            DnsSigningPhase.Withdrawing => DnsSigningMode.Withdrawing,
+            _ => throw new ArgumentOutOfRangeException(nameof(phase), phase, "Unknown DNS signing phase."),
+        };
+    }
+
+    /// <summary>Maps the wire's mode to the panel's phase.</summary>
+    /// <param name="mode">The wire mode.</param>
+    /// <returns>The phase, or null for a value the panel does not know.</returns>
+    private static DnsSigningPhase? ToPhase(DnsSigningMode mode)
+    {
+        return mode switch
+        {
+            DnsSigningMode.Unsigned => DnsSigningPhase.Off,
+            DnsSigningMode.Signed => DnsSigningPhase.Active,
+            DnsSigningMode.Withdrawing => DnsSigningPhase.Withdrawing,
+            _ => null,
+        };
     }
 
     /// <summary>Puts one record on the wire: the value goes into the one field its type reads.</summary>

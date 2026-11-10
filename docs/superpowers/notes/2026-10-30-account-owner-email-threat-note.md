@@ -24,8 +24,8 @@ read it.
 ## What an attacker could do with the address change
 
 1. **Redirect a customer's password reset to an address they control.** That needs the
-   administrator role: the controller is `AdminOnly` at class level, a customer is answered 403
-   (`AccountEditEndpointTests`, `AccountsAuthorizationTests`). An administrator already controls the
+   administrator role: the action is `AdminOnly`, a customer and a reseller are answered 403
+   (`AccountEditEndpointTests`, `AccountsAuthorizationTests`, `AccountResellerPrivilegeEndpointTests`). An administrator already controls the
    whole server, the customer's files and the customer's login state, so this gives an administrator
    nothing they did not have. A stolen administrator session is the real risk, and it is the same risk
    every administrator endpoint carries; the change is journalled (`AccountOwnerEmailChanged`, actor,
@@ -58,3 +58,25 @@ suspended one.
 - That the two writes (login first, account row second) cannot leave the login on an address the
   administrator did not ask for.
 - Whether the old address should be notified of the change.
+
+## Correction (issue #482): the reseller role reached this endpoint
+
+The statement above, that the controller is `AdminOnly` at class level, was wrong once resellers
+existed: `AccountsController` is `AdminOrReseller`, so a reseller could change the owner address of
+any account in its scope, and the next password reset for that customer went to the address the
+reseller chose. That is an account takeover of a customer who did not agree.
+
+**Decision.** The route is administrator-only, enforced on the action (`[Authorize(Policy =
+AuthorizationPolicies.AdminOnly)]` on `ChangeOwnerEmailAsync`), so a reseller, a reseller's API key
+and a customer are answered 403 before the handler runs. The alternative the issue names, a reseller
+allowed only after the CURRENT owner confirms through a link sent to the OLD address, needs a
+confirmation token, its table, its mail and its expiry, none of which exists; building a credential
+flow to preserve a convenience is more attack surface than the convenience is worth. A reseller who
+needs a customer's address changed asks the administrator, and the change is journalled as before.
+The SPA hides the action from everyone but an administrator (advice only; the endpoint refuses).
+
+**Tests.** `AccountResellerPrivilegeEndpointTests` (a reseller is refused for its own account and
+another's and the stored address is unchanged, with an administrator accepted as the control), and
+`e2e/accounts/reseller-privileges.spec.ts` for the screen.
+
+**Second review: OUTSTANDING (#331)**

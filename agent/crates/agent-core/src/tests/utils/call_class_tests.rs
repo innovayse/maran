@@ -21,6 +21,15 @@ fn every_call_class_deadline_is_the_pinned_value() {
     assert_eq!(CallClass::Listing.deadline(), Duration::from_secs(3_600));
     assert_eq!(CallClass::Bulk.deadline(), Duration::from_secs(43_200));
     assert_eq!(CallClass::CronRun.deadline(), Duration::from_secs(180));
+    assert_eq!(CallClass::SourceRead.deadline(), Duration::from_secs(900));
+}
+
+/// A read of a source outlasts its own handshake bounds (15 s to connect, four
+/// 15 s keep-alives) and stays far below a bulk job, because it only reads.
+#[test]
+fn a_source_read_outlasts_its_handshake_and_stays_below_a_bulk_job() {
+    assert!(CallClass::SourceRead.deadline() > Duration::from_secs(15 + 4 * 15));
+    assert!(CallClass::SourceRead.deadline() < CallClass::Listing.deadline());
 }
 
 /// A run-now outlasts the job's own 120 s runtime ceiling, so the service
@@ -74,6 +83,7 @@ fn no_class_is_shorter_than_query() {
         CallClass::Listing,
         CallClass::Bulk,
         CallClass::CronRun,
+        CallClass::SourceRead,
     ];
 
     for class in all {

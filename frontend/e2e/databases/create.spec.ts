@@ -1,9 +1,10 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubCreateDatabaseProblem, stubDatabases } from '../fixtures/stub-databases-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
 
@@ -30,6 +31,7 @@ test('the create form refuses a name the panel can reject without asking the ser
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubDatabases(page, [])
 
@@ -58,6 +60,7 @@ test('the create form refuses an empty name and never asks the server about it',
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubDatabases(page, [])
 
@@ -81,6 +84,7 @@ test('creating a database adds it to the list under the name MySQL holds', async
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubDatabases(page, [])
 
@@ -99,6 +103,7 @@ test('the form empties its name fields once the panel has accepted them', async 
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubDatabases(page, [])
 
@@ -115,11 +120,13 @@ test('the form empties its name fields once the panel has accepted them', async 
 })
 
 // rules/vue.md: the SPA never invents an error message for a server outcome.
-test('a rejected create renders the backend own message rather than frontend copy', async ({ page }) => {
+test('a rejected create renders the backend own message rather than frontend copy', async ({ page, guard }) => {
   const backendDetail = 'A database with that name already exists for this account.'
+  guard.allow(409, /\/api\/v1\/databases$/)
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubCreateDatabaseProblem(page, backendDetail)
 

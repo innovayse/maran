@@ -393,3 +393,91 @@ until it does.
 - After: both return 4xx with the reserved-name resx key; the agent rpc called directly with the
   static names returns `InvalidInput`; unit tables list IPv4 literals, `localhost` forms and special-use
   suffixes as refused with `shop.example.com` accepted as the positive control.
+
+## Amendment (issue #468): the panel is served under more than one name
+
+### What was wrong
+
+The host-specific half of the reserved set was one value, `Panel__HostName`, which the installer
+takes from `hostname -f` (the same string rendered into the panel vhost's `server_name`). The
+name an operator tells customers is a different setting, `Panel__PublicUrl`, which the installer
+documents as overridable to any name (`https://panel.example.com:8443` while `hostname -f` is
+`srv1.provider.net`). Only the first was reserved. A tenant could therefore create a site named
+`panel.example.com` (its DNS already pointing at the server), answer the name on 80 and 443 with
+the ACME HTTP-01 location included, obtain a publicly trusted certificate and key for it through
+`IssueCertificate`, and serve a lookalike login to anyone who types the bare name. The residual
+risk this note listed as "what the author cannot verify" (that `hostname -f` equals the name the
+operator reaches the panel by) was real, and the code did not enforce it.
+
+### What changed
+
+- ONE source of reserved panel names: `PanelHostDirectory` (Host) now reserves the vhost's name
+  (`Panel:HostName`) AND the DNS host of `Panel:PublicUrl`, each with its `www.` form, compared
+  case-insensitively with one trailing dot dropped. `PublicUrlRule.TryGetDnsName` extracts the
+  host through the same strict origin rule the start-up check of the setting uses. Every door
+  already asked `IReservedHostDirectory`: site create (domain and each alias), certificate issue,
+  custom-certificate install, DNS zone create. They needed no change, which is the point of one
+  source. The FTPS door stays on the static set only, as decided above. `IPanelHostName.TryGet`
+  still hands out only the vhost's name, because the panel's own certificate is ordered for the
+  name its vhost serves.
+- The agent's own boundary. The earlier decision, that the agent does not refuse the panel's name,
+  is REVERSED for the reason it gave: the agent needs a root-owned source for the name. The
+  installer now writes `MARAN_AGENT_RESERVED_HOST_NAMES` (comma-separated, vhost name and the
+  public address's DNS host, once each) into `agent.env`, root-owned and re-detected on every run,
+  and the unit passes it as `--reserved-host-names=${MARAN_AGENT_RESERVED_HOST_NAMES}`, glued with
+  `=` so that an empty value is still one argument. `PanelHostNames` (agent-core,
+  `validation/web/panel_host_names.rs`) is the constructed type; an entry that is not a host name
+  stops the agent from starting rather than silently ceasing to be reserved. It is checked beside
+  `Domain::parse` in `validated_identity` and `validated_site` (site create, aliases, enable, PHP
+  version, certificate install and self-signed generation) and in `validated_zone` (PutZone). The
+  existing-site paths (`validated_existing_*`) do not apply it, so a site created under such a name
+  before this change can still be disabled, deleted and cleaned up.
+- No new input a caller controls: the names come from a file only root can write, read once at
+  start. The agent opens no new port and runs no new program.
+
+### Why it is safe now
+
+- Through the API a tenant can no longer hold a vhost, certificate or zone for either panel name,
+  and the refusal reveals neither the matched value nor which name matched.
+- A request that reaches the agent without the API's validator is refused at the root boundary
+  for the same names, closing the compromised-`maran-api` residual for these two names.
+- Failing direction is unchanged and permissive: no recorded names, or an unusable public address
+  (not an origin, an IP address, `localhost`), reserve nothing host-specific, and the static set
+  stays unconditional. An `agent.env` written by an older installer has no key; the unit then
+  passes an empty value and the agent reserves nothing extra until the installer is re-run.
+
+### Tests
+
+- Backend: `PanelHostDirectoryTests` (the public address's host and its `www.` form refused beside a
+  different vhost name; the vhost's name still refused; an unrelated name accepted as the inverse
+  control; an unusable public address reserves nothing), `PublicUrlRuleTests` (the host extractor),
+  and `ReservedHostNameEndpointTests` over real HTTP (site domain, alias, certificate issue and
+  custom install refused for the advertised host with the agent counter at zero; an unrelated site
+  still created; the composed host's registered directory answers for the advertised host).
+- Agent: `panel_host_names_tests` (listed names, the `www.` form, case, unrelated and sibling names
+  accepted, empty list, malformed entry), `validated_site_tests`, `validated_identity_tests`,
+  `validated_zone_tests` (each refuses a panel name and accepts an unrelated one), and
+  `invocation_tests` (the flag, its empty value, a malformed list, a repeated flag).
+- Installer: polygon assertion `assert_the_agent_is_told_every_name_the_panel_is_served_under`
+  runs the real `write_agent_env` (both names once each, a same-name run, address, IPv6 and
+  localhost adding nothing, an empty host writing the key empty) and ties the unit line and
+  `agent.env.example` to the key; a planted break (dropping the public host) was seen to fail it.
+
+### Still unverified
+
+- That the operator's `Panel__PublicUrl` host is the only other name customers are told; a CDN or
+  extra alias name set up outside the panel is not known to either side.
+- Systemd's expansion of the unit line on a real host (`--reserved-host-names=${VAR}` with an
+  unset and an empty variable) is reasoned from the documentation, not measured here; the glued `=`
+  form was chosen so that the argument exists either way.
+- Names under the panel's domain stay creatable by design, and rows created before this change are
+  not removed.
+
+### Second review: OUTSTANDING (#331)
+
+This change touches the root agent's input boundary and the installer's privileged steps, which
+rules/security.md makes SENSITIVE. The human second review has NOT happened and this amendment
+does not discharge it; the branch must not merge to `main` until it does. A reviewer checks: the
+agent refuses exactly the listed names and `www.` forms and nothing broader; the existing-site
+paths remain shape-only; `agent_reserved_host_names` writes only validated characters into a
+world-readable file; and the unit line works with the variable empty and unset.

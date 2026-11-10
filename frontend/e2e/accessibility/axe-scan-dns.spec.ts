@@ -1,7 +1,9 @@
-import { test, expect } from '@playwright/test'
 import { expectNoSeriousViolations } from '../fixtures/expect-no-serious-violations'
+import { test, expect } from '../fixtures/guarded-test'
 import { dnsDraft, dnsRecord } from '../fixtures/stub-dns-routes'
 import { EXAMPLE_ZONE, SHOP_ZONE, openDnsScreen } from '../fixtures/open-dns-screen'
+import { CUSTOM_TEMPLATE, WEB_AND_MAIL_TEMPLATE, WEB_TEMPLATE, openDnsTemplatesScreen } from '../fixtures/stub-dns-templates-routes'
+import { SIGNED_DNSSEC, WITHDRAWING_DNSSEC, openDnsDnssecScreen } from '../fixtures/stub-dns-dnssec-routes'
 
 // Issue #149 for the DNS screens (issue #178): axe runs on the zones list, a zone with its
 // records and the nameservers page, with real rows in them,
@@ -46,6 +48,62 @@ for (const theme of ['dark', 'light'] as const) {
       await page.getByRole('button', { name: 'Records', exact: true }).click()
       await page.getByRole('button', { name: 'Add record' }).click()
       await expect(page.getByRole('dialog', { name: 'Add a record' })).toBeVisible()
+
+      await expectNoSeriousViolations(page)
+    })
+
+    test('the zone templates list has no serious accessibility violation', async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 900 })
+      await openDnsTemplatesScreen(page, { templates: [WEB_TEMPLATE, WEB_AND_MAIL_TEMPLATE, CUSTOM_TEMPLATE] })
+
+      await page.goto('/dns/templates')
+      await expect(page.getByRole('link', { name: 'parking', exact: true })).toBeVisible()
+
+      await expectNoSeriousViolations(page)
+    })
+
+    test('the template form with its records and variables has no serious accessibility violation', async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 900 })
+      await openDnsTemplatesScreen(page, { templates: [WEB_AND_MAIL_TEMPLATE] })
+
+      await page.goto(`/dns/templates/${WEB_AND_MAIL_TEMPLATE.id}`)
+      await expect(page.getByRole('row').filter({ hasText: 'mail.{apex}' })).toBeVisible()
+      await expect(page.getByText('{apex}', { exact: true })).toBeVisible()
+
+      await expectNoSeriousViolations(page)
+    })
+
+    test('the template record dialog has no serious accessibility violation', async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 900 })
+      await openDnsTemplatesScreen(page, { templates: [WEB_AND_MAIL_TEMPLATE] })
+
+      await page.goto(`/dns/templates/${WEB_AND_MAIL_TEMPLATE.id}`)
+      await page.getByRole('button', { name: 'Add record' }).click()
+      await expect(page.getByRole('dialog', { name: 'Add a record to the template' })).toBeVisible()
+
+      await expectNoSeriousViolations(page)
+    })
+
+    test('the DNSSEC pane of a signed zone has no serious accessibility violation', async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 900 })
+      await openDnsDnssecScreen(page, { dnssec: SIGNED_DNSSEC }, { zones: [EXAMPLE_ZONE] })
+
+      await page.goto(`/dns/zones/${EXAMPLE_ZONE.id}`)
+      await page.getByRole('button', { name: 'DNSSEC', exact: true }).click()
+      await expect(page.getByTestId('ds-digest')).toBeVisible()
+
+      await expectNoSeriousViolations(page)
+    })
+
+    test('the DNSSEC pane of a zone being unsigned, with its confirmation open, has no serious accessibility violation', async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 900 })
+      await openDnsDnssecScreen(page, { dnssec: WITHDRAWING_DNSSEC }, { zones: [EXAMPLE_ZONE] })
+
+      await page.goto(`/dns/zones/${EXAMPLE_ZONE.id}`)
+      await page.getByRole('button', { name: 'DNSSEC', exact: true }).click()
+      await page.getByRole('checkbox', { name: 'I removed the DS record at the registrar' }).check({ force: true })
+      await page.getByRole('button', { name: 'Finish withdrawal' }).click()
+      await expect(page.getByRole('dialog', { name: 'Finish withdrawing DNSSEC from example.com?' })).toBeVisible()
 
       await expectNoSeriousViolations(page)
     })

@@ -5,7 +5,7 @@
 #![forbid(unsafe_code)]
 //! maran-ops — the agent's domain operations, one module per area
 //! (`accounts/`, `sites/`, `php/`, `db/`, `sftp/`, `ftps/`, `files/`, `cron/`,
-//! `firewall/`, `ssl/`, `backup/`, `monitor/`), plus `logins/` for what the two
+//! `firewall/`, `ssl/`, `backup/`, `monitor/`, `transfer/`), plus `logins/` for what the two
 //! login areas share. Every operation is
 //! idempotent and re-validates its inputs via `maran-agent-core`
 //! (rules/rust.md "Validation first"). Modules land with their backend
@@ -33,3 +33,4 @@ pub mod safe_write;
 pub mod sftp;
 pub mod sites;
 pub mod ssl;
+pub mod transfer;

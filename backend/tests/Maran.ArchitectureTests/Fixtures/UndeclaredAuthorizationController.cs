@@ -78,4 +78,22 @@ public sealed class UndeclaredAuthorizationController : ControllerBase
     {
         return Ok();
     }
+
+    /// <summary>Names the <c>MigrationGrant</c> scheme with a policy that is not the grant's.</summary>
+    /// <returns>Nothing meaningful; the body is never executed.</returns>
+    [Authorize(AuthenticationSchemes = MigrationGrantDefaults.Scheme, Policy = AuthorizationPolicies.AdminOnly)]
+    [HttpGet("grant-scheme-wrong-policy")]
+    public IActionResult GrantSchemeWithWrongPolicyAsync()
+    {
+        return Ok();
+    }
+
+    /// <summary>Names the grant's policy without the <c>MigrationGrant</c> scheme.</summary>
+    /// <returns>Nothing meaningful; the body is never executed.</returns>
+    [Authorize(Policy = MigrationGrantPolicyNames.Pull)]
+    [HttpGet("grant-policy-without-scheme")]
+    public IActionResult GrantPolicyWithoutSchemeAsync()
+    {
+        return Ok();
+    }
 }

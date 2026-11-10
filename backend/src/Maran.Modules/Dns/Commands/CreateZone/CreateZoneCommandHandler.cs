@@ -3,20 +3,24 @@ using Maran.Modules.Dns.Common;
 using Maran.Modules.Dns.Domain.Entities;
 using Maran.Modules.Dns.Domain.Enums;
 using Maran.Modules.Dns.Domain.Policies;
+using Maran.Modules.Dns.Domain.ValueObjects;
 using Maran.Modules.Dns.Interfaces;
 using Maran.Modules.Dns.Mappers;
+using Maran.Modules.Dns.Options;
 using Maran.Modules.Dns.Persistence;
 using Maran.Modules.Dns.Resources;
 using Maran.Modules.Dns.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 using Maran.SharedKernel.Callers;
+using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Options;
 
 namespace Maran.Modules.Dns.Commands.CreateZone;
 
 /// <summary>
-/// Handles <see cref="CreateZoneCommand"/>: checks who may create which name, hands the empty zone to the
-/// name server, and only then records it against the account's allowance.
+/// Handles <see cref="CreateZoneCommand"/>: checks who may create which name, hands the zone, empty or made from
+/// its template, to the name server, and only then records it against the account's allowance.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -79,6 +83,12 @@ public sealed class CreateZoneCommandHandler
     /// <summary>The clock the zone's first serial is taken from.</summary>
     private readonly IClock _clock;
 
+    /// <summary>The operator's settings: how many records a zone may hold.</summary>
+    private readonly IOptions<DnsOptions> _options;
+
+    /// <summary>The viewer's-language lookup of the module's display names, for the skipped records' reasons.</summary>
+    private readonly IStringLocalizer<DisplayNames> _names;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Dns module's database context.</param>
     /// <param name="accounts">The window onto the Accounts module.</param>
@@ -91,6 +101,8 @@ public sealed class CreateZoneCommandHandler
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="currentUser">The authenticated principal.</param>
     /// <param name="clock">The clock.</param>
+    /// <param name="options">The operator's settings.</param>
+    /// <param name="names">The viewer's-language lookup of the module's display names.</param>
     public CreateZoneCommandHandler(
         DnsDbContext dbContext,
         IAccountDirectory accounts,
@@ -102,7 +114,9 @@ public sealed class CreateZoneCommandHandler
         ZoneNameDirectory zoneNames,
         DnsAuditJournal journal,
         ICurrentUser currentUser,
-        IClock clock)
+        IClock clock,
+        IOptions<DnsOptions> options,
+        IStringLocalizer<DisplayNames> names)
     {
         _dbContext = dbContext;
         _accounts = accounts;
@@ -115,6 +129,8 @@ public sealed class CreateZoneCommandHandler
         _journal = journal;
         _currentUser = currentUser;
         _clock = clock;
+        _options = options;
+        _names = names;
     }
 
     /// <summary>Creates the zone.</summary>
@@ -144,6 +160,12 @@ public sealed class CreateZoneCommandHandler
         }
 
         var zone = new Zone(Guid.NewGuid(), account.Id, name, _clock.UtcNow);
+        var applied = await ApplyTemplateAsync(zone, command.TemplateId, settings!, cancellationToken);
+        if (!applied.IsSuccess)
+        {
+            return await FailAsync(command, name, applied.Error!, cancellationToken);
+        }
+
         var recorded = await ServeAndRecordAsync(zone, settings!, account.MaxDnsZones, cancellationToken);
         if (!recorded.IsSuccess)
         {
@@ -155,7 +177,84 @@ public sealed class CreateZoneCommandHandler
 
         var ownerNames = await _accounts.NamesOfAsync([zone.AccountId], cancellationToken);
 
-        return Result<ZoneDto>.Ok(ZoneMapper.From(zone, 0, ownerNames, settings!.Nameservers));
+        return Result<ZoneDto>.Ok(ZoneMapper.From(
+            zone, zone.Records.Count, ownerNames, settings!.Nameservers, applied.Value));
+    }
+
+    /// <summary>Makes the zone's records from the template the caller named, if any.</summary>
+    /// <param name="zone">The new zone, not yet served or stored.</param>
+    /// <param name="templateId">The template, or null for an empty zone.</param>
+    /// <param name="settings">The settings the variables are read from.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>
+    /// The records left out for want of a setting (empty when no template was named), or
+    /// <c>ZoneTemplateNotFound</c>, <c>ZoneTemplateInvalid</c> or <c>ZoneTemplateTooManyRecords</c>.
+    /// </returns>
+    private async Task<Result<IReadOnlyList<SkippedTemplateRecordDto>>> ApplyTemplateAsync(
+        Zone zone,
+        Guid? templateId,
+        DnsSettings settings,
+        CancellationToken cancellationToken)
+    {
+        if (templateId is not { } id)
+        {
+            return Result<IReadOnlyList<SkippedTemplateRecordDto>>.Ok([]);
+        }
+
+        var template = await _dbContext.ZoneTemplates
+            .AsNoTracking()
+            .Include(row => row.Records)
+            .SingleOrDefaultAsync(row => row.Id == id, cancellationToken);
+        if (template is null)
+        {
+            return Fail(nameof(ErrorMessages.ZoneTemplateNotFound), ErrorType.NotFound);
+        }
+
+        var records = template.Records.Select(record =>
+        {
+            return record.ToDraft();
+        }).ToList();
+        if (!TemplateExpansionPolicy.TryExpand(records, TemplateContext.For(zone.Name, settings), out var expansion))
+        {
+            return Fail(nameof(ErrorMessages.ZoneTemplateInvalid), ErrorType.Conflict);
+        }
+
+        // Re-validated against the real zone: the sample the template was saved against is not this zone.
+        var wellFormed = expansion!.Drafts.All(draft =>
+        {
+            return RecordShapePolicy.Check(RecordShapePolicy.Normalize(draft), zone.Name) == RecordShapeVerdict.Accepted;
+        });
+        if (!wellFormed)
+        {
+            return Fail(nameof(ErrorMessages.ZoneTemplateInvalid), ErrorType.Conflict);
+        }
+
+        var verdict = zone.AddTemplateRecords(expansion.Drafts, _options.Value.MaxRecordsPerZone, _clock.UtcNow);
+        if (verdict == RecordRuleVerdict.ZoneFull)
+        {
+            return Fail(nameof(ErrorMessages.ZoneTemplateTooManyRecords), ErrorType.Conflict);
+        }
+
+        if (verdict != RecordRuleVerdict.Accepted)
+        {
+            return Fail(nameof(ErrorMessages.ZoneTemplateInvalid), ErrorType.Conflict);
+        }
+
+        IReadOnlyList<SkippedTemplateRecordDto> skipped = expansion.Skipped.Select(item =>
+        {
+            return SkippedTemplateRecordMapper.From(item, _names);
+        }).ToList();
+
+        return Result<IReadOnlyList<SkippedTemplateRecordDto>>.Ok(skipped);
+    }
+
+    /// <summary>Builds the failed result of <see cref="ApplyTemplateAsync"/>.</summary>
+    /// <param name="code">The error code.</param>
+    /// <param name="type">The error kind.</param>
+    /// <returns>The failed result.</returns>
+    private static Result<IReadOnlyList<SkippedTemplateRecordDto>> Fail(string code, ErrorType type)
+    {
+        return Result<IReadOnlyList<SkippedTemplateRecordDto>>.Fail(Error.Of(code, type));
     }
 
     /// <summary>Weighs the request against everything that can be known before the host is touched.</summary>

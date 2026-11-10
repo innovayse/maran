@@ -1,15 +1,18 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, resolve } from 'node:path'
-import { expect, test } from '@playwright/test'
 import { MODULES_WITHOUT_ITEM, NAVIGATION_TREE } from '../../src/router/navigationTree'
 import type { PanelModule } from '../../src/types/module'
 import type { NavigationPageSpec } from '../../src/types/navigation'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubSmtpSettings, storedSmtpSettings } from '../fixtures/stub-smtp-routes'
 import { setPersistedLocale } from '../fixtures/set-locale'
+import { PACKAGED_ID, PACKAGED_TEXT, packagedModule } from '../fixtures/stub-packaged-module'
 
 // The class of defect this file closes, rather than the one instance of it.
 //
@@ -23,7 +26,10 @@ import { setPersistedLocale } from '../fixtures/set-locale'
 // Since issue #311 the sidebar is the navigation tree (`router/navigationTree.ts`), so a composed
 // module is covered in exactly one of three ways: the tree lists a built administrator page for it,
 // it is named in `MODULES_WITHOUT_ITEM` (its screens live elsewhere on purpose), or — a module the
-// tree does not know — it lands on a real screen through the catalogue fallback entry.
+// tree does not know — it lands on a real screen through the catalogue fallback entry. An INSTALLED
+// (packaged) module is the fourth way and needs no entry anywhere in this bundle: its own catalogue
+// entry declares its menu and its routes, so it is covered by construction, and the check below
+// serves one and follows its entry to the frame screen instead of the upgrade wall (issue #185).
 //
 // So this reads the catalogue's OWN source — `ModuleRegistry.All`, which is exactly what
 // `ModulesEndpoint.DescribeModules` enumerates, and each module's `Manifest.Id`, which is exactly
@@ -70,7 +76,11 @@ const LOCALE_DIR = join(REPO_ROOT, 'frontend', 'src', 'locales', 'en')
  */
 const mergeInto = (target: Record<string, unknown>, source: Record<string, unknown>): void => {
   for (const [key, value] of Object.entries(source)) {
-    const existing = target[key]
+    // A locale file is data: a key that would reach the object prototype is never merged.
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+      continue
+    }
+    const existing = Object.hasOwn(target, key) ? target[key] : undefined
     if (typeof value === 'object' && value !== null && typeof existing === 'object' && existing !== null) {
       mergeInto(existing as Record<string, unknown>, value as Record<string, unknown>)
     } else {
@@ -147,12 +157,15 @@ test('every module the backend composes has a sidebar destination that is not th
   expect(exempt.length).toBeLessThan(ids.length)
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
   await stubModules(page, [
     ...ids.map((name): PanelModule => {
       // A distinctive label per module, so a failure names the module rather than a position.
       return { name, displayName: `Module ${name}`, kindDisplayName: 'Core', tier: 'included', state: 'enabled' }
     }),
     { name: UNKNOWN_MODULE, displayName: `Module ${UNKNOWN_MODULE}`, kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+    packagedModule('en'),
   ])
 
   await page.goto('/')
@@ -189,6 +202,12 @@ test('every module the backend composes has a sidebar destination that is not th
     await expect(link, id).not.toHaveAttribute('href', /^\/upgrade\//)
   }
 
+  // An installed module lands on its own frame screen, named by the backend's menu label, and
+  // reaches no wall: its catalogue entry is the only thing that told this bundle it exists.
+  const installed = nav.getByRole('link', { name: PACKAGED_TEXT.en.menu, exact: true })
+  await expect(installed, PACKAGED_ID).toHaveCount(1)
+  await expect(installed, PACKAGED_ID).toHaveAttribute('href', `/m/${PACKAGED_ID}/hello`)
+
   // The inverse control: the one module nothing has a screen for DOES reach the wall, which
   // is what proves the assertion below can see an upgrade link at all.
   await expect(page.getByRole('link', { name: `Module ${UNKNOWN_MODULE}` })).toHaveAttribute(
@@ -215,6 +234,8 @@ test('the notifications module reaches the outgoing-mail screen from the Setting
   await setPersistedLocale(page, 'ru')
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
   await stubSmtpSettings(page, storedSmtpSettings)
   await stubModules(page, [
     {

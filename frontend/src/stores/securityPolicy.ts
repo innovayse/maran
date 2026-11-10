@@ -63,6 +63,16 @@ export const useSecurityPolicyStore = defineStore('securityPolicy', () => {
   }
 
   /**
+   * Forgets the outcome of the last save. Feedback belongs to the visit that caused it: the screen calls
+   * this when it opens, so a refusal or a confirmation from an earlier visit (possibly in another
+   * language) is not shown as if it were current.
+   * @returns Nothing; the state is reset synchronously.
+   */
+  const clearFeedback = (): void => {
+    submission.value = { state: 'idle' }
+  }
+
+  /**
    * Loads the policy the panel is enforcing.
    * @returns Resolves once the request has settled, successfully or not.
    */
@@ -96,5 +106,5 @@ export const useSecurityPolicyStore = defineStore('securityPolicy', () => {
     }
   }
 
-  return { policy, loading, loadState, loadMessage, submission, submitMessage, load, save }
+  return { policy, loading, loadState, loadMessage, submission, submitMessage, clearFeedback, load, save }
 })

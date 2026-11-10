@@ -208,6 +208,13 @@ public sealed class TwoFactorEnrolmentSteeringTests : IAsyncLifetime
                 continue;
             }
 
+            // The pull of an export package answers to a single-use grant and to no session, so a login
+            // owing enrolment is not what it asks about; it is 401 for every bearer token.
+            if (MigrationGrantEndpoint.IsGrantOnly(endpoint))
+            {
+                continue;
+            }
+
             if (IsApiKeyOnly(endpoint) != apiKeyOnly)
             {
                 continue;

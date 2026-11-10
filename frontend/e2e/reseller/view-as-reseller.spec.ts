@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import { installNetworkGuard } from '../fixtures/network-guard'
 import { mainNavigation, openSection } from '../fixtures/open-full-shell'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
@@ -8,7 +9,7 @@ import { stubDatabases } from '../fixtures/stub-databases-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
-import { stubMyAccountResources } from '../fixtures/stub-account-resources-route'
+import { stubAccountResources, stubMyAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubManagedPlans, stubPlans } from '../fixtures/stub-plans-route'
 import {
   RESELLER_USER,
@@ -25,6 +26,7 @@ import type { AccountResourceSummary } from '../../src/types/accountResourceSumm
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { PanelModule } from '../../src/types/module'
 import type { ViewingAs } from '../../src/types/viewAs'
+import type { Page } from '@playwright/test'
 
 // Issues #314 and #317 for resellers. An administrator views the panel as a reseller from the
 // reseller's page; a reseller views the panel as one of its own accounts. The "You are viewing as"
@@ -150,6 +152,8 @@ const installReseller = async (page: Page, refusal?: string): Promise<ViewAsChai
   await stubResellerSession(page, ACME_HOSTING, MODULES)
   await stubMyAccount(page, OWN_ACCOUNT)
   await stubMyAccountResources(page, OWN_RESOURCES)
+  // The account's own page, which the reseller opens before it views as the account, reads the same figures.
+  await stubAccountResources(page, OWN_RESOURCES)
   await stubDashboard(page, WITHHELD_DASHBOARD)
   await stubAccounts(page, [ALPHA])
   await stubPlans(page, [])
@@ -278,7 +282,9 @@ test('a reseller account page offers "View as this account" and no administrator
 
 test('a refused start for an account shows the panel sentence and the reseller stays where it was', async ({
   page,
+  guard,
 }) => {
+  guard.allow(404, /\/api\/v1\/view-as$/)
   const detail = 'That account was not found, or it has no login to view as.'
   const calls = await installReseller(page, detail)
   await openAccount(page)
@@ -293,7 +299,9 @@ test('a refused start for an account shows the panel sentence and the reseller s
 
 test('a refused start for a reseller shows the panel sentence and the administrator stays where it was', async ({
   page,
+  guard,
 }) => {
+  guard.allow(404, /\/api\/v1\/view-as\/reseller$/)
   const detail = 'That reseller was not found, or it has no login to view as.'
   const calls = await installAdministrator(page, detail)
   await openReseller(page)
@@ -322,19 +330,21 @@ test('the reseller banner is drawn in Russian and Armenian without scrolling sid
 }) => {
   const words = {
     ru: {
-      action: 'Посмотреть как этот реселлер',
+      action: 'Просмотреть от имени этого реселлера',
       region: 'Просмотр от имени другого реселлера',
-      text: 'Вы просматриваете как реселлер acmehosting (acmehosting).',
+      text: 'Вы просматриваете панель от имени реселлера acmehosting (acmehosting).',
     },
     hy: {
-      action: 'Դիտել որպես այս վերավաճառող',
-      region: 'Դիտում է այլ վերավաճառող',
-      text: 'Դուք դիտում եք որպես վերավաճառող acmehosting (acmehosting)։',
+      action: 'Դիտել որպես այս ռեսելլեր',
+      region: 'Դիտում է այլ ռեսելլեր',
+      text: 'Դուք դիտում եք որպես ռեսելլեր acmehosting (acmehosting)։',
     },
   } as const
   for (const locale of ['ru', 'hy'] as const) {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } })
     const page = await context.newPage()
+    // This page is not the fixture's, so it is guarded here: the same findings, asserted per language below.
+    const guard = await installNetworkGuard(page, 'stubbed')
     await setPersistedLocale(page, locale)
     await installAdministrator(page)
 
@@ -350,6 +360,7 @@ test('the reseller banner is drawn in Russian and Armenian without scrolling sid
       return { document: document.documentElement.scrollWidth, viewport: window.innerWidth }
     })
     expect(widths.document, `${locale}: the banner page scrolls sideways`).toBeLessThanOrEqual(widths.viewport)
+    expect(await guard.problems(), `${locale}: the page asked for, or was given, something it should not have`).toEqual([])
     await context.close()
   }
 })

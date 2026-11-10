@@ -1,7 +1,8 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { EXAMPLE_ZONE, openDnsScreen } from '../fixtures/open-dns-screen'
 import { dnsDraft, dnsRecord, type DnsStubState } from '../fixtures/stub-dns-routes'
 import type { DnsRecordRequest } from '../../src/types/dnsRecord'
+import type { Page } from '@playwright/test'
 
 // The records pane of a zone (issue #178): a server-paged list with search, a filter sheet, the
 // add and change dialog whose fields come from the panel's record type catalogue, a confirmed
@@ -251,7 +252,8 @@ test('a value with a control character is refused without asking the server', as
   ).toBe(false)
 })
 
-test('the server judges what a value must look like per type and its reason is shown in the dialog', async ({ page }) => {
+test('the server judges what a value must look like per type and its reason is shown in the dialog', async ({ page, guard }) => {
+  guard.allow(409, /\/api\/v1\/dns-zones\/[^/]+\/records$/)
   await openRecords(page, {
     refusals: { 'POST dns-zones/:id/records': { detail: 'An A record needs an IPv4 address.' } },
   })
@@ -282,7 +284,7 @@ test('changing a record starts from its values and replaces it', async ({ page }
   const put = state.requests.find((request) => {
     return request.method === 'PUT'
   })
-  expect(put?.url.pathname).toMatch(/\/records\/rec-www$/)
+  expect(put?.url.pathname).toMatch(new RegExp(`/records/${WWW.id}$`))
 })
 
 test('changing an MX record shows its preference, and a preference of zero is kept', async ({ page }) => {
@@ -298,7 +300,7 @@ test('changing an MX record shows its preference, and a preference of zero is ke
   await expect(page.getByText('The record was saved.')).toBeVisible()
   await expect(page.getByRole('row').filter({ hasText: 'mail.example.com' })).toContainText('0 mail.example.com')
   const mx = state.records[EXAMPLE_ZONE.id]?.find((record) => {
-    return record.id === 'rec-mx'
+    return record.id === MAIL.id
   })
   expect(mx).toMatchObject({ priority: 0 })
 })
@@ -320,7 +322,8 @@ test('deleting a record asks first and removes it', async ({ page }) => {
   await expect(page.getByRole('row').filter({ hasText: '203.0.113.10' })).toHaveCount(0)
 })
 
-test('a refused delete keeps the record and shows the panel\'s reason', async ({ page }) => {
+test('a refused delete keeps the record and shows the panel\'s reason', async ({ page, guard }) => {
+  guard.allow(409, /\/api\/v1\/dns-zones\/[^/]+\/records\/[^/]+$/)
   await openRecords(page, {
     refusals: { 'DELETE dns-zones/:id/records/:id': { detail: 'The zone is being applied. Try again in a moment.' } },
   })

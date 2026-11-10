@@ -5,7 +5,7 @@ using Maran.Modules.Firewall.Persistence;
 namespace Maran.Modules.Firewall.Services;
 
 /// <summary>
-/// The one place this module asks whether an address is exempt from an AUTOMATIC ban.
+/// The one place this module asks whether an address is exempt from a ban.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -18,15 +18,13 @@ namespace Maran.Modules.Firewall.Services;
 /// The harm was bounded by the original TTL, but "bounded" is not the promise the list makes.
 /// </para>
 /// <para>
-/// <b>Three paths reach <c>BanAsync</c>, and only two of them come through here.</b> The detector's
-/// handler asks before placing a new ban; the reconciler asks before restoring an old one. The third
-/// is <see cref="Commands.BanAddress.BanAddressCommandHandler"/> — an administrator banning an
-/// address deliberately — and it does NOT consult this guard, on purpose: the whitelist exempts an
-/// address from the detector, not from an administrator who has decided to block it
-/// (<see cref="WhitelistEntry"/> says so in as many words). A FOURTH path that reaches
-/// <c>BanAsync</c> automatically without coming through here is the original defect again; the
-/// guard shrinks the number of places that must remember from every caller to this one, and that is
-/// the honest description of what it achieves.
+/// <b>Three paths reach <c>BanAsync</c>, and all three now come through here.</b> The detector's
+/// handler asks before placing a new ban; the reconciler asks before restoring an old one; and
+/// <see cref="Commands.BanAddress.BanAddressCommandHandler"/> asks before an administrator's
+/// deliberate ban, refusing it with <c>BanAddressWhitelisted</c> (issue #459). The bans table is
+/// dropped ahead of every accept, so a manual ban inside a whitelisted range could cut off exactly the
+/// addresses the list exists to protect; the way to ban one is to remove its range first. A FOURTH
+/// path that reaches <c>BanAsync</c> without coming through here is the original defect again.
 /// </para>
 /// <para>
 /// <b>Two ways in, because the two callers ask at different rates.</b> A detection is one event, so

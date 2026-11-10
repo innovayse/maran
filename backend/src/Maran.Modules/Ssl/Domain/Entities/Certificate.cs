@@ -55,6 +55,13 @@ public sealed class Certificate
     /// <summary>Where it came from, and therefore whether renewal may replace it.</summary>
     public CertificateSource Source { get; private set; }
 
+    /// <summary>
+    /// Whether the certificate also covers every name directly under <see cref="Domain"/> (<c>*.domain</c>).
+    /// Renewal repeats the way it was ordered: a wildcard is proven again through DNS, a plain certificate
+    /// over HTTP, so the choice is kept for as long as the certificate is.
+    /// </summary>
+    public bool IsWildcard { get; private set; }
+
     /// <summary>When the installed certificate expires, as the agent parsed it out of the material.</summary>
     public DateTimeOffset NotAfter { get; private set; }
 
@@ -115,6 +122,7 @@ public sealed class Certificate
     /// <param name="source">Where it came from.</param>
     /// <param name="notAfter">When it expires, as parsed from the installed material.</param>
     /// <param name="issuedAt">When the panel installed it, taken from <see cref="IClock"/>.</param>
+    /// <param name="isWildcard">Whether it also covers <c>*.domain</c>; false for a plain certificate.</param>
     public Certificate(
         Guid id,
         Guid accountId,
@@ -122,13 +130,15 @@ public sealed class Certificate
         string domain,
         CertificateSource source,
         DateTimeOffset notAfter,
-        DateTimeOffset issuedAt)
+        DateTimeOffset issuedAt,
+        bool isWildcard = false)
     {
         Id = id;
         AccountId = accountId;
         SiteId = siteId;
         Domain = domain;
         Source = source;
+        IsWildcard = isWildcard;
         NotAfter = notAfter;
         IssuedAt = issuedAt;
         LastRenewalAttemptAt = null;

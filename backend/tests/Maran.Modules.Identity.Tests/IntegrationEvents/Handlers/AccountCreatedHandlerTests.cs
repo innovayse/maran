@@ -81,6 +81,23 @@ public sealed class AccountCreatedHandlerTests : IDisposable
         Assert.Single(_bus.Published);
     }
 
+    /// <summary>
+    /// An imported account (issue #127) still gets its login and a live token, so the administrator can issue
+    /// the link at cut-over, but no mail is published: the owner is not invited to a server that is not live.
+    /// The default test above is the inverse control, where the same event without the flag does publish.
+    /// </summary>
+    [Fact]
+    public async Task A_suppressed_invitation_makes_the_login_and_the_token_and_publishes_no_mail()
+    {
+        await NewHandler().HandleAsync(Created() with { SuppressInvitationMail = true }, CancellationToken.None);
+
+        var user = Assert.Single(await _context.Users.ToListAsync());
+        Assert.Equal(UserLifecycle.Invited, user.Lifecycle);
+        var token = Assert.Single(await _context.InvitationTokens.Where(candidate => candidate.UserId == user.Id).ToListAsync());
+        Assert.True(token.IsUsable(Now));
+        Assert.Empty(_bus.Published);
+    }
+
     /// <summary>A created account gives its owner an owner membership, written with the login.</summary>
     [Fact]
     public async Task A_created_account_gives_its_owner_an_owner_membership()

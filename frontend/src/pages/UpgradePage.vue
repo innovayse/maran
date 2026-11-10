@@ -73,6 +73,15 @@ const tierSentence: ComputedRef<string | undefined> = computed(() => {
 
   return tierName === undefined ? undefined : t('app.upgrade.tier', { tier: tierName })
 })
+
+/**
+ * The backend's sentence explaining why an installed module is degraded or failed, or `undefined`
+ * when the module has none to give. Rendered as text; the SPA words nothing of it.
+ */
+const failureSentence: ComputedRef<string | undefined> = computed(() => {
+  const sentence = catalogueEntry.value?.failureDisplay
+  return sentence === null || sentence === undefined || sentence === '' ? undefined : sentence
+})
 </script>
 
 <template>
@@ -94,6 +103,10 @@ const tierSentence: ComputedRef<string | undefined> = computed(() => {
           </p>
           <p v-if="tierSentence !== undefined" class="mt-2 text-sm text-text-secondary wrap-anywhere">
             {{ tierSentence }}
+          </p>
+          <!-- Why an installed module is not running (degraded or failed), in the backend's own words. -->
+          <p v-if="failureSentence !== undefined" class="mt-2 text-sm text-text-secondary wrap-anywhere">
+            {{ failureSentence }}
           </p>
         </div>
       </div>

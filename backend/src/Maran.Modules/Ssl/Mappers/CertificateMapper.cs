@@ -30,6 +30,7 @@ public static class CertificateMapper
             certificate.LastRenewalAttemptAt,
             certificate.LastRenewalFailureCode,
             lastRenewalError,
-            certificate.ConsecutiveRenewalFailures);
+            certificate.ConsecutiveRenewalFailures,
+            certificate.IsWildcard);
     }
 }

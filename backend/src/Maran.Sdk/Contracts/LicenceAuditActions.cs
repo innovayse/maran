@@ -32,4 +32,39 @@ public static class LicenceAuditActions
     /// (docs/superpowers/notes/2026-09-22-licence-installation-threat-note.md §5).
     /// </summary>
     public const string LicenceInstalled = "LicenceInstalled";
+
+    /// <summary>
+    /// A module the installed licence covered stopped being covered because its cover ran out: the licence
+    /// expired or its lease ended. Written by the panel itself when it OBSERVES the change (the watcher
+    /// polls the licence window every few minutes), so the time on the entry is the time the panel noticed,
+    /// not the instant the cover ended. The subject is <c>module=&lt;id&gt;;from=&lt;verdict&gt;;to=Lapsed</c>,
+    /// where <c>from</c> is <c>Unobserved</c> for the first reading after the panel started; it never
+    /// carries the licence id, text, signature or machine id
+    /// (docs/superpowers/notes/2026-11-07-licensing-lease-threat-note.md).
+    /// </summary>
+    public const string ModuleLapsed = "LicenceModuleLapsed";
+
+    /// <summary>
+    /// A module that had lapsed is covered again: a licence or lease that covers it was installed. Written
+    /// by the panel itself on observing the change; the subject is
+    /// <c>module=&lt;id&gt;;from=Lapsed;to=Covered</c>.
+    /// </summary>
+    public const string ModuleRecovered = "LicenceModuleRecovered";
+
+    /// <summary>
+    /// The panel fetched a new licence lease from the licence service, verified it with the pinned lease key and
+    /// stored it. Written by the panel itself (actor <c>maran-licensing</c>, no account) once per renewal. The
+    /// subject is <c>outcome=Renewed;validUntil=&lt;ISO instant&gt;</c>: the end of the new lease and nothing else,
+    /// never the licence id, the lease text, the signature or the machine id
+    /// (docs/superpowers/notes/2026-11-07-licensing-lease-threat-note.md).
+    /// </summary>
+    public const string LeaseRenewed = "LicenceLeaseRenewed";
+
+    /// <summary>
+    /// A renewal of the licence lease did not produce a stored lease: the service could not be reached or
+    /// refused, its answer was not a lease this licence could use, or the file could not be written. The old
+    /// lease, if any, is untouched. Written by the panel itself, once per failed attempt; the subject is
+    /// <c>outcome=&lt;word&gt;;consecutiveFailures=&lt;n&gt;</c>.
+    /// </summary>
+    public const string LeaseRenewalFailed = "LicenceLeaseRenewalFailed";
 }

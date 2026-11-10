@@ -45,4 +45,10 @@ pub enum DomainError {
     /// host (`local`, `localdomain`, `internal`, `lan`, `home.arpa`, `invalid`).
     #[error("a domain cannot use a special-use suffix")]
     SpecialUseSuffix,
+
+    /// The name is one the panel itself is served under, handed to the agent by the
+    /// installer. Raised by [`super::panel_host_names::PanelHostNames::check`], never
+    /// by [`super::domain::Domain::parse`], which cannot know the panel's names.
+    #[error("a domain cannot be a name the panel is served under")]
+    PanelHostName,
 }

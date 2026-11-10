@@ -87,6 +87,8 @@ const save = async (): Promise<void> => {
 }
 
 onMounted(async () => {
+  // Feedback belongs to the visit (issue #508): a save refusal from an earlier visit is not current.
+  store.clearRetentionFeedback()
   await store.loadRetention()
 })
 

@@ -12,8 +12,12 @@ pub enum OverrideKind {
     ///
     /// PHP also reads `-1` here as "unlimited", which is exactly the value
     /// this bound exists to refuse; it is rejected as malformed, since the
-    /// grammar below admits no sign.
+    /// grammar below admits no sign. `0` is refused by the floor for the same
+    /// reason: `post_max_size = 0` is PHP's spelling of "no limit", and a
+    /// ceiling the value zero walks under is not a ceiling.
     Bytes {
+        /// The smallest size, in bytes, the customer may set.
+        minimum: u64,
         /// The largest size, in bytes, the customer may set.
         maximum: u64,
     },

@@ -87,6 +87,36 @@ public static class PublicUrlRule
         return true;
     }
 
+    /// <summary>
+    /// The DNS host name of an acceptable public origin, in lower case, for the reader that must know
+    /// which name the panel is reached by and not only whether the origin is well formed.
+    /// </summary>
+    /// <param name="value">The configured text, exactly as read from configuration.</param>
+    /// <param name="hostName">
+    /// The host of the origin. Null when the value is refused, and also when its host is not a DNS
+    /// name worth reserving: an IP address (<see cref="ReservedHostNameRule"/> already refuses every
+    /// address-shaped name) or <c>localhost</c>.
+    /// </param>
+    /// <returns>True when the value is an acceptable origin whose host is a DNS name.</returns>
+    public static bool TryGetDnsName(string? value, [NotNullWhen(true)] out string? hostName)
+    {
+        hostName = null;
+
+        if (!TryNormalise(value, out var origin))
+        {
+            return false;
+        }
+
+        var uri = new Uri(origin);
+        if (uri.HostNameType != UriHostNameType.Dns || uri.DnsSafeHost == LoopbackName)
+        {
+            return false;
+        }
+
+        hostName = uri.DnsSafeHost;
+        return true;
+    }
+
     /// <summary>Whether a value is an acceptable public origin.</summary>
     /// <param name="value">The configured text.</param>
     /// <returns>True when <see cref="TryNormalise"/> accepts it.</returns>

@@ -30,6 +30,9 @@ public sealed class CertificateAuditJournal : ISystemAuditJournal
     /// </remarks>
     public const string ModuleName = "ssl";
 
+    /// <summary>The word that marks a wildcard certificate in an entry's subject, beside its domain.</summary>
+    private const string WildcardMark = " (wildcard)";
+
     /// <summary>The panel's append-only journal.</summary>
     private readonly IAuditWriter _auditWriter;
 
@@ -43,6 +46,20 @@ public sealed class CertificateAuditJournal : ISystemAuditJournal
     {
         _auditWriter = auditWriter;
         _currentUser = currentUser;
+    }
+
+    /// <summary>Spells the subject of an entry about a certificate: its domain, marked when it is a wildcard.</summary>
+    /// <param name="domain">The certificate's domain.</param>
+    /// <param name="wildcard">Whether the certificate also covers <c>*.domain</c>.</param>
+    /// <returns>The domain alone for a plain certificate, else the domain followed by the wildcard mark.</returns>
+    /// <remarks>
+    /// The entry has one subject column and an operator searches it by domain, so the mark follows the domain
+    /// and the domain still leads. A wildcard is a wider grant of the same domain's identity, which is why an
+    /// order for one is told apart in the journal.
+    /// </remarks>
+    public static string SubjectOf(string domain, bool wildcard)
+    {
+        return wildcard ? domain + WildcardMark : domain;
     }
 
     /// <summary>Records an operation that took effect.</summary>

@@ -3,6 +3,8 @@
 // A failing assertion IS the reporting mechanism for a test.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_agent_core::validation::web::panel_host_names::PanelHostNames;
+
 use super::{CERTIFICATE_NAME_LIMIT, MAXIMUM_ALIASES, validated_site};
 use crate::proto::{ErrorCode, SiteBackendType, SiteSpec};
 
@@ -22,7 +24,8 @@ fn a_static_spec(aliases: &[&str]) -> SiteSpec {
 fn an_ordinary_domain_and_alias_are_accepted() {
     let spec = a_static_spec(&["www.example.com"]);
 
-    let input = validated_site("acme", "example.com", Some(&spec)).expect("accepted");
+    let input = validated_site("acme", "example.com", Some(&spec), &PanelHostNames::none())
+        .expect("accepted");
 
     assert_eq!(input.domain.as_str(), "example.com");
     assert_eq!(input.aliases.len(), 1);
@@ -34,7 +37,7 @@ fn a_reserved_domain_is_refused_as_invalid_input() {
     let spec = a_static_spec(&[]);
 
     for reserved in ["203.0.113.7", "localhost", "x.local"] {
-        let error = validated_site("acme", reserved, Some(&spec))
+        let error = validated_site("acme", reserved, Some(&spec), &PanelHostNames::none())
             .map(|_| ())
             .expect_err("a reserved domain must be refused");
 
@@ -47,7 +50,7 @@ fn a_reserved_alias_is_refused_even_when_the_domain_is_ordinary() {
     for reserved in ["203.0.113.7", "x.local", "localhost"] {
         let spec = a_static_spec(&["www.example.com", reserved]);
 
-        let error = validated_site("acme", "example.com", Some(&spec))
+        let error = validated_site("acme", "example.com", Some(&spec), &PanelHostNames::none())
             .map(|_| ())
             .expect_err("a reserved alias must be refused");
 
@@ -59,12 +62,12 @@ fn a_reserved_alias_is_refused_even_when_the_domain_is_ordinary() {
 fn a_malformed_alias_is_still_refused() {
     let spec = a_static_spec(&["bad_name.example.com"]);
 
-    assert!(validated_site("acme", "example.com", Some(&spec)).is_err());
+    assert!(validated_site("acme", "example.com", Some(&spec), &PanelHostNames::none()).is_err());
 }
 
 #[test]
 fn an_absent_spec_is_refused() {
-    assert!(validated_site("acme", "example.com", None).is_err());
+    assert!(validated_site("acme", "example.com", None, &PanelHostNames::none()).is_err());
 }
 
 /// A static spec carrying `count` distinct, well-formed aliases of `example.com`.
@@ -80,7 +83,8 @@ fn a_static_spec_with_aliases(count: usize) -> SiteSpec {
 fn a_site_carrying_exactly_the_maximum_number_of_aliases_is_accepted() {
     let spec = a_static_spec_with_aliases(MAXIMUM_ALIASES);
 
-    let input = validated_site("acme", "example.com", Some(&spec)).expect("accepted");
+    let input = validated_site("acme", "example.com", Some(&spec), &PanelHostNames::none())
+        .expect("accepted");
 
     assert_eq!(input.aliases.len(), MAXIMUM_ALIASES);
 }
@@ -89,7 +93,7 @@ fn a_site_carrying_exactly_the_maximum_number_of_aliases_is_accepted() {
 fn one_alias_over_the_maximum_is_refused_as_invalid_input() {
     let spec = a_static_spec_with_aliases(MAXIMUM_ALIASES + 1);
 
-    let error = validated_site("acme", "example.com", Some(&spec))
+    let error = validated_site("acme", "example.com", Some(&spec), &PanelHostNames::none())
         .map(|_| ())
         .expect_err("one alias over the maximum must be refused");
 
@@ -114,7 +118,8 @@ fn a_specs_options_reach_the_validated_site() {
         ..a_static_spec(&["www.example.com"])
     };
 
-    let input = validated_site("acme", "example.com", Some(&spec)).expect("accepted");
+    let input = validated_site("acme", "example.com", Some(&spec), &PanelHostNames::none())
+        .expect("accepted");
 
     assert!(input.options.canonical_host().is_some());
 }
@@ -132,7 +137,7 @@ fn options_that_do_not_fit_the_site_refuse_the_whole_spec() {
         ..a_static_spec(&[])
     };
 
-    assert!(validated_site("acme", "example.com", Some(&spec)).is_err());
+    assert!(validated_site("acme", "example.com", Some(&spec), &PanelHostNames::none()).is_err());
 }
 
 #[test]
@@ -148,5 +153,42 @@ fn a_canonical_host_the_site_does_not_serve_refuses_the_whole_spec() {
         ..a_static_spec(&[])
     };
 
-    assert!(validated_site("acme", "example.com", Some(&spec)).is_err());
+    assert!(validated_site("acme", "example.com", Some(&spec), &PanelHostNames::none()).is_err());
+}
+
+/// The names of a host whose panel is served under `panel.example.com`.
+fn the_panel_names() -> PanelHostNames {
+    PanelHostNames::parse_list("panel.example.com").unwrap()
+}
+
+#[test]
+fn a_panel_name_as_the_domain_is_refused_as_invalid_input() {
+    let spec = a_static_spec(&[]);
+
+    let error = validated_site("acme", "panel.example.com", Some(&spec), &the_panel_names())
+        .map(|_| ())
+        .expect_err("the panel's name must be refused");
+
+    assert_eq!(error.code, ErrorCode::InvalidInput as i32);
+}
+
+#[test]
+fn a_panel_name_as_an_alias_is_refused_as_invalid_input() {
+    let spec = a_static_spec(&["panel.example.com"]);
+
+    let error = validated_site("acme", "example.com", Some(&spec), &the_panel_names())
+        .map(|_| ())
+        .expect_err("the panel's name must be refused as an alias");
+
+    assert_eq!(error.code, ErrorCode::InvalidInput as i32);
+}
+
+#[test]
+fn an_unrelated_domain_and_alias_are_accepted_beside_the_panel_names() {
+    let spec = a_static_spec(&["www.shop.example.com"]);
+
+    let input = validated_site("acme", "shop.example.com", Some(&spec), &the_panel_names())
+        .expect("accepted");
+
+    assert_eq!(input.aliases.len(), 1);
 }

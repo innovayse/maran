@@ -58,6 +58,7 @@ import UiSearchInput from '../../components/ui/UiSearchInput.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
 import UiTable from '../../components/ui/UiTable.vue'
+import UiToolbar from '../../components/ui/UiToolbar.vue'
 import type { UiTableColumn } from '../../types/tableColumn'
 import PlanDeleteDialog from '../../components/plans/PlanDeleteDialog.vue'
 import { useCallerRole } from '../../composables/useCallerRole'
@@ -244,13 +245,15 @@ onMounted(() => {
 
     <UiCard v-else>
       <div class="flex flex-col gap-4">
-        <UiSearchInput
-          v-model="table.search.value"
-          class="min-w-55 max-w-85"
-          :label="t('plans.list.searchLabel')"
-          :placeholder="t('plans.list.searchPlaceholder')"
-          :clear-label="t('plans.list.searchClear')"
-        />
+        <UiToolbar>
+          <UiSearchInput
+            v-model="table.search.value"
+            class="min-w-55 max-w-85"
+            :label="t('plans.list.searchLabel')"
+            :placeholder="t('plans.list.searchPlaceholder')"
+            :clear-label="t('plans.list.searchClear')"
+          />
+        </UiToolbar>
 
         <UiActiveFilter
           v-if="chips.length > 0"

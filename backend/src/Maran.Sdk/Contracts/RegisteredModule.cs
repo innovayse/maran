@@ -9,4 +9,14 @@ namespace Maran.Sdk.Contracts;
 /// <param name="Kind">Whether it ships with the panel or came from a package.</param>
 /// <param name="Tier">The licence tier it is sold under.</param>
 /// <param name="State">Where it stands (<see cref="ModuleLifecycleState"/>); a core module is always active.</param>
-public sealed record RegisteredModule(string Id, string Version, ModuleKind Kind, LicenceTier Tier, ModuleLifecycleState State);
+/// <param name="Failure">
+/// Why the module is degraded or failed, as a coded <see cref="Error"/> the catalogue resolves into a sentence in the
+/// reader's language; null in every other state, and for a module whose cause the loader did not state.
+/// </param>
+public sealed record RegisteredModule(
+    string Id,
+    string Version,
+    ModuleKind Kind,
+    LicenceTier Tier,
+    ModuleLifecycleState State,
+    Error? Failure = null);

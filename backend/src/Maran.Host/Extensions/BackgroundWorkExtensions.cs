@@ -2,6 +2,7 @@ using Maran.Host.BackgroundServices;
 using Maran.Modules.Backups.Services;
 using Maran.Modules.Dns.Services;
 using Maran.Modules.Firewall.Services;
+using Maran.Modules.Licensing.Services;
 using Maran.Modules.Monitoring.Services;
 using Maran.Modules.Sites.Services;
 using Maran.Modules.Tasks.Services;
@@ -96,6 +97,11 @@ public static class BackgroundWorkExtensions
         // often it is asked.
         services.AddHostedService<BackupScheduleScheduler>();
 
+        // The hourly removal of account exports whose retention has ended (issue #127): the artifact in the agent's
+        // root-only directory is a plaintext copy of a customer's data, and the screen promises it is gone after
+        // seven days. The ServerMigration module owns the JOB and this owns the CADENCE.
+        services.AddHostedService<AccountExportExpiryScheduler>();
+
         // A one-off, and the third of that shape here — but the only one that ASKS the host a
         // question instead of reading the panel's own rows. The agent's CreateBackup runs to
         // completion on a detached task, so a panel process killed mid-stream leaves a Running
@@ -128,6 +134,12 @@ public static class BackgroundWorkExtensions
         // agent applied an edit would leave the daemon serving data the database does not have, for ever.
         services.AddHostedService<DnsZoneReconciler>();
 
+        // The hourly sweep of certificate validation records an order left behind when its process died
+        // between publishing a DNS-01 challenge and removing it (issue #161). The Dns module owns the PASS
+        // (which records are stale, the lock an edit takes) and this owns the cadence; without this line a
+        // record published for a validation that never finished would stay in the customer's zone for ever.
+        services.AddHostedService<DnsChallengeSweeper>();
+
         // A one-off that reads a CHOICE rather than repairing state: an administrator's runtime log
         // level lives in the logger's switch, which a restart resets to the configured level. The
         // Monitoring module owns the stored choice and this owns the fact that it is applied at
@@ -139,6 +151,23 @@ public static class BackgroundWorkExtensions
         // update itself causes, so nothing else would ever close it. The Updates module owns the PASS
         // and its thresholds; this owns the fact that it runs.
         services.AddHostedService<PanelUpdateTaskReaper>();
+
+        // The pass that writes a module's licence lapse and recovery to the audit journal. It has to run
+        // outside a request: the journal stamps a customer caller's account on its entries, and a lapse
+        // is the whole server's fact. The Licensing module owns the PASS (what is a lapse, what the
+        // entry carries) and this owns the fact that it runs; it is resolved from the module's own
+        // singleton registration so the pass the host runs and the pass a test drives are one object.
+        services.AddHostedService(provider => { return provider.GetRequiredService<LicenceCoverageWatcher>(); });
+
+        // The daily renewal of the licence lease, the only thing that writes lease.json and, with the
+        // marketplace, one of the two things that leave the server on this panel's own account
+        // (rules/security.md item 10, fifth exception). Without this line every online licence lapses at the
+        // end of its last lease and a paid module's download is refused as LeaseRequired. The Licensing module
+        // owns the PASS (when a lease is due, what answer is accepted, what is written) and its schedule's rule;
+        // this owns the fact that it runs. It does nothing for an offline licence or with no licence installed,
+        // and is resolved from the module's singleton so the worker the host runs and the one a test drives are
+        // one object.
+        services.AddHostedService(provider => { return provider.GetRequiredService<LeaseRenewalWorker>(); });
 
         return services;
     }

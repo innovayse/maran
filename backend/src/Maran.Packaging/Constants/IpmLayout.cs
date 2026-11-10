@@ -29,6 +29,18 @@ public static class IpmLayout
     /// <summary>The folder of the module's static interface bundle.</summary>
     public const string SpaPrefix = "spa/";
 
+    /// <summary>
+    /// The extension of an interface bundle's entry: a classic script. The panel generates the document the
+    /// entry runs in, so a bundle never supplies one and never ships a module script (<c>.mjs</c>).
+    /// </summary>
+    public const string SpaScriptExtension = ".js";
+
+    /// <summary>
+    /// The extensions of a document. No file under <c>spa/</c> may carry one: the panel would never serve it,
+    /// and a package that ships one is declaring an interface this format does not have.
+    /// </summary>
+    public static readonly IReadOnlyList<string> SpaDocumentExtensions = [".html", ".htm"];
+
     /// <summary>The folder of the interface bundle's translations, one <c>&lt;locale&gt;.json</c> each.</summary>
     public const string SpaLocalesPrefix = "spa/locales/";
 

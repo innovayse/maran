@@ -1,5 +1,4 @@
 import type { Page } from '@playwright/test'
-import type { PanelTask } from '../../src/types/panelTask'
 import type { PhpExtension } from '../../src/types/phpVersion'
 
 /** One switch request the stubbed panel received. */
@@ -24,27 +23,11 @@ const SWITCH_PATTERN = '**/api/v1/sites/php-versions/*/extensions/*'
 /** The path the extension list is read from, whatever the version. */
 const LIST_PATTERN = '**/api/v1/sites/php-versions/*/extensions'
 
-/** The task a stubbed server answers a successful switch with. */
-const FINISHED_TASK: PanelTask = {
-  id: '00000000-0000-0000-0000-0000000000aa',
-  kind: 'PhpExtensionChange',
-  subject: '8.3',
-  correlationId: null,
-  status: 'succeeded',
-  statusName: 'Succeeded',
-  percent: 100,
-  log: '',
-  logIncluded: true,
-  failure: null,
-  startedAt: '2026-11-07T10:00:00+00:00',
-  finishedAt: '2026-11-07T10:00:05+00:00',
-  revision: 3,
-}
-
 /**
  * Fulfils the extension list and the switch of a PHP version the way the panel does: the list
- * answers the rows as held, and a switch changes the held row and answers the task. A switch is
- * refused with the given sentence when `refusal` is set, and the row stays as it was.
+ * answers the rows as held, and a switch changes the held row and answers the extensions read back
+ * afterwards. A switch is refused with the given sentence when `refusal` is set, and the row stays as
+ * it was.
  * @param page The Playwright page whose network the routes are installed on.
  * @param extensions The extensions the stubbed server starts with.
  * @param refusal The panel's own sentence to refuse every switch with, or `null` to accept them.
@@ -81,7 +64,7 @@ export const stubPhpExtensions = async (
     if (row) {
       row.enabled = body.enabled
     }
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(FINISHED_TASK) })
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(extensions) })
   })
 
   return { extensions, requests }

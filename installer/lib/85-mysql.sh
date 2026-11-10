@@ -49,6 +49,10 @@ mysql_packages_for_family() {
   case "$MARAN_OS_FAMILY" in
     debian) echo "mariadb-server mariadb-client" ;;
     rhel)   echo "mariadb-server mariadb" ;;
+    # UNVERIFIED: openSUSE Leap 16 ships the server and the clients in the package `mariadb`
+    # (`mariadb-client` is a separate package that may be needed for /usr/bin/mariadb). Confirm
+    # with `rpm -ql mariadb | grep -E 'bin/(mariadb|mysql)$'` in the pinned image.
+    suse)   echo "mariadb" ;;
     *)
       echo "85-mysql.sh: unsupported OS family '${MARAN_OS_FAMILY}'" >&2
       exit 1

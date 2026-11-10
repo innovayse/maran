@@ -3,10 +3,16 @@ using Maran.Modules.Dns.Commands.ChangeRecord;
 using Maran.Modules.Dns.Commands.CreateZone;
 using Maran.Modules.Dns.Commands.DeleteRecord;
 using Maran.Modules.Dns.Commands.DeleteZone;
+using Maran.Modules.Dns.Commands.DeleteZoneTemplate;
 using Maran.Modules.Dns.Commands.DisableDns;
 using Maran.Modules.Dns.Commands.EnableDns;
+using Maran.Modules.Dns.Commands.EnableZoneSigning;
+using Maran.Modules.Dns.Commands.FinishZoneSigningWithdrawal;
+using Maran.Modules.Dns.Commands.MakeDefaultZoneTemplate;
 using Maran.Modules.Dns.Commands.ReplaceRecords;
 using Maran.Modules.Dns.Commands.SaveDnsSettings;
+using Maran.Modules.Dns.Commands.SaveZoneTemplate;
+using Maran.Modules.Dns.Commands.WithdrawZoneSigning;
 using Maran.Modules.Dns.Domain.Entities;
 using Maran.Modules.Dns.IntegrationEvents.Handlers;
 using Maran.Modules.Dns.Options;
@@ -14,8 +20,14 @@ using Maran.Modules.Dns.Persistence;
 using Maran.Modules.Dns.Queries.GetDnsSettings;
 using Maran.Modules.Dns.Queries.GetDnsStatus;
 using Maran.Modules.Dns.Queries.GetZone;
+using Maran.Modules.Dns.Queries.GetZoneDnssec;
+using Maran.Modules.Dns.Queries.GetZoneTemplate;
+using Maran.Modules.Dns.Queries.GetZoneTemplateVariables;
 using Maran.Modules.Dns.Queries.ListRecords;
 using Maran.Modules.Dns.Queries.ListZones;
+using Maran.Modules.Dns.Queries.ListZoneTemplateChoices;
+using Maran.Modules.Dns.Queries.ListZoneTemplates;
+using Maran.Modules.Dns.Seeders;
 using Maran.Modules.Dns.Services;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Interfaces;
@@ -114,6 +126,48 @@ public sealed class DnsTestContext : IDisposable
     /// <summary>The handler that removes an account's zones.</summary>
     public AccountDeletingHandler AccountDeleting { get; }
 
+    /// <summary>The handler that creates or replaces a zone template.</summary>
+    public SaveZoneTemplateCommandHandler SaveTemplate { get; }
+
+    /// <summary>The handler that deletes a zone template.</summary>
+    public DeleteZoneTemplateCommandHandler DeleteTemplate { get; }
+
+    /// <summary>The handler that chooses the default zone template.</summary>
+    public MakeDefaultZoneTemplateCommandHandler MakeDefaultTemplate { get; }
+
+    /// <summary>The handler that lists zone templates.</summary>
+    public ListZoneTemplatesQueryHandler ListTemplates { get; }
+
+    /// <summary>The handler that reads one zone template.</summary>
+    public GetZoneTemplateQueryHandler GetTemplate { get; }
+
+    /// <summary>The handler that lists the template choices of the creation form.</summary>
+    public ListZoneTemplateChoicesQueryHandler ListTemplateChoices { get; }
+
+    /// <summary>The handler that reads the catalogue of template variables.</summary>
+    public GetZoneTemplateVariablesQueryHandler TemplateVariables { get; }
+
+    /// <summary>The seeder of the built-in zone templates.</summary>
+    public ZoneTemplateSeeder TemplateSeeder { get; }
+
+    /// <summary>
+    /// The clock the DNSSEC handlers take their instants from, which a test moves forward to pass the withdrawal's
+    /// minimum wait. It starts at the instant of <see cref="Clock"/>.
+    /// </summary>
+    public AdvancingClock SigningClock { get; } = new();
+
+    /// <summary>The handler that switches DNSSEC signing on.</summary>
+    public EnableZoneSigningCommandHandler EnableSigning { get; }
+
+    /// <summary>The handler that begins a withdrawal from signing.</summary>
+    public WithdrawZoneSigningCommandHandler WithdrawSigning { get; }
+
+    /// <summary>The handler that ends a withdrawal from signing.</summary>
+    public FinishZoneSigningWithdrawalCommandHandler FinishSigningWithdrawal { get; }
+
+    /// <summary>The handler that reads a zone's DNSSEC situation.</summary>
+    public GetZoneDnssecQueryHandler GetDnssec { get; }
+
     /// <summary>The audit entries written so far.</summary>
     public IReadOnlyList<AuditEntry> Entries
     {
@@ -144,7 +198,7 @@ public sealed class DnsTestContext : IDisposable
             })
             .Options;
 
-        Database = new DnsDbContext(options, principal);
+        Database = new DnsDbContext(options, principal, new MarkingEncryptionService());
 
         var journal = new DnsAuditJournal(Audit, principal);
         var zoneLock = new ObservingDnsZoneLock(Database);
@@ -163,7 +217,9 @@ public sealed class DnsTestContext : IDisposable
             new ZoneNameDirectory(Database),
             journal,
             principal,
-            Clock);
+            Clock,
+            Options,
+            Names);
         DeleteZone = new DeleteZoneCommandHandler(Database, Agent, zoneLock, journal);
         AddRecord = new AddRecordCommandHandler(editor, Options, journal, Clock, Names);
         ChangeRecord = new ChangeRecordCommandHandler(editor, journal, Clock, Names);
@@ -178,6 +234,20 @@ public sealed class DnsTestContext : IDisposable
         ListZones = new ListZonesQueryHandler(Database, Accounts);
         ListRecords = new ListRecordsQueryHandler(Database, Names);
         AccountDeleting = new AccountDeletingHandler(Database, Agent);
+        SaveTemplate = new SaveZoneTemplateCommandHandler(Database, Options, journal, Clock);
+        DeleteTemplate = new DeleteZoneTemplateCommandHandler(Database, journal);
+        MakeDefaultTemplate = new MakeDefaultZoneTemplateCommandHandler(Database, journal, Clock);
+        ListTemplates = new ListZoneTemplatesQueryHandler(Database);
+        GetTemplate = new GetZoneTemplateQueryHandler(Database);
+        ListTemplateChoices = new ListZoneTemplateChoicesQueryHandler(Database);
+        TemplateVariables = new GetZoneTemplateVariablesQueryHandler(Names);
+        TemplateSeeder = new ZoneTemplateSeeder(Database, Clock);
+
+        var probe = new DnssecHostProbe(Agent);
+        EnableSigning = new EnableZoneSigningCommandHandler(editor, probe, journal, SigningClock);
+        WithdrawSigning = new WithdrawZoneSigningCommandHandler(editor, probe, journal, SigningClock);
+        FinishSigningWithdrawal = new FinishZoneSigningWithdrawalCommandHandler(editor, probe, journal, SigningClock);
+        GetDnssec = new GetZoneDnssecQueryHandler(Database, Agent, probe);
     }
 
     /// <summary>Stores settings that are complete and switched on, as an administrator would have.</summary>

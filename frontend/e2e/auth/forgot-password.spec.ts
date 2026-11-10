@@ -1,8 +1,9 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedOut } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubForgotPasswordAccepted } from '../fixtures/stub-password-reset-routes'
+import type { Page } from '@playwright/test'
 
 /**
  * Asks for a reset link for one address and returns everything the screen renders

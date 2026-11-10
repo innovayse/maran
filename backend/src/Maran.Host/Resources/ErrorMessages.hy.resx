@@ -33,4 +33,7 @@
   <data name="HostViewAsNotAllowed">
     <value>Այս գործողությունը հասանելի չէ, քանի դեռ դիտում եք այս հաշվի անունից։</value>
   </data>
+  <data name="ModuleFrameOutOfScope">
+    <value>Այս հարցումը հասանելի չէ այն մոդուլի էկրանին, որը ուղարկել է այն։</value>
+  </data>
 </root>

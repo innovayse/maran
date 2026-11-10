@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { mainNavigation, openFullShell, openSection } from '../fixtures/open-full-shell'
 
 // Issue #209, point 4: "Tasks" opened "Background tasks" while cron is "Scheduled tasks" — two

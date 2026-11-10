@@ -11,12 +11,16 @@ use maran_distro::AdapterBinary;
 
 use crate::dns::dns_error::DnsError;
 use crate::dns::dns_host::DnsHost;
+use crate::safe_write::model::config_file::ConfigFile;
 use crate::safe_write::model::{Reload, Validator};
-use crate::safe_write::{ConfigHost, SafeWriteError, write_config};
+use crate::safe_write::{ConfigHost, SafeWriteError, write_config, write_unreloaded_config};
 
 /// How long a connection to port 53 may take. Bounded because the probe runs
 /// inside an rpc: a daemon that accepts and stalls must not hold the caller open.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// The mode of a probe file: owner only.
+const PROBE_FILE_MODE: u32 = 0o600;
 
 /// Runs the real daemon's tools and the real service manager, and opens the real
 /// socket.
@@ -117,6 +121,35 @@ impl DnsHost for ProcessDnsHost {
         reload: &Reload<'_>,
     ) -> Result<(), DnsError> {
         write_config(self, target, contents, validator, reload).map_err(DnsError::from_config_write)
+    }
+
+    /// Writes the probe through the protocol without a reload, lets the validator
+    /// read it, and removes it whatever the verdict.
+    ///
+    /// The mode is `0600`: the file holds no secret, but nothing needs another
+    /// reader, and the checker runs as root.
+    ///
+    /// # Errors
+    ///
+    /// Maps the protocol's failure through `DnsError::from_config_write`.
+    fn probe_config(
+        &self,
+        target: &Path,
+        contents: &str,
+        validator: &Validator<'_>,
+    ) -> Result<(), DnsError> {
+        let file = ConfigFile {
+            target,
+            contents,
+            mode: PROBE_FILE_MODE,
+        };
+        let verdict =
+            write_unreloaded_config(self, &file, validator).map_err(DnsError::from_config_write);
+        // After a refusal the protocol puts back what was there (nothing, or a
+        // leftover of an earlier probe); after an acceptance it leaves the file.
+        // Either way this file has no business surviving the question.
+        let removed = DnsHost::remove_file(self, target);
+        verdict.and(removed)
     }
 
     /// Removes the file; one that is not there is success.

@@ -1,4 +1,5 @@
 using Maran.Modules.Accounts.Domain.Entities;
+using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
@@ -53,7 +54,7 @@ public sealed class AccountDirectoryTests
         await using var dbContext = CreateDbContext();
         var activeId = await SeedAsync(dbContext, "acme");
         var suspendedId = await SeedAsync(dbContext, "paused");
-        (await dbContext.Accounts.SingleAsync(account => account.Id == suspendedId)).Suspend();
+        (await dbContext.Accounts.SingleAsync(account => account.Id == suspendedId)).Suspend(SuspensionActor.Administrator);
         await dbContext.SaveChangesAsync();
         var directory = new AccountDirectory(dbContext, FakeCurrentUser.Admin());
 

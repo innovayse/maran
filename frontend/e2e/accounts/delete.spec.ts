@@ -1,11 +1,14 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubInvitation } from '../fixtures/stub-invitation-routes'
+import { stubAccountResources } from '../fixtures/stub-account-resources-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
+import type { Page } from '@playwright/test'
 
 /** The account under test. */
 const ACCOUNT: Account = {
@@ -43,6 +46,8 @@ const openDetail = async (page: Page, modules: PanelModule[]): Promise<string[]>
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, modules)
+  await stubShellReads(page)
+  await stubAccountResources(page, { accountId: ACCOUNT.id, resources: [] })
   await stubInvitation(page, ACCOUNT.id, 'pending')
   await page.route(`**/api/v1/accounts/${ACCOUNT.id}`, async (route) => {
     if (route.request().method() === 'GET') {
@@ -145,10 +150,14 @@ test('typing the account name exactly deletes it and returns to the list', async
 
 // A refusal is the whole reason the dialog exists to be read: the panel's own message says why, and
 // the account is still there. The dialog stays open, and the confirmation is spent.
-test('a refused deletion shows the panel message and keeps the account', async ({ page }) => {
+test('a refused deletion shows the panel message and keeps the account', async ({ page, guard }) => {
+  // The refusal is the subject: the deletion answers 500 with the panel's own sentence.
+  guard.allow(500, new RegExp(`/api/v1/accounts/${ACCOUNT.id}$`))
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, WITH_BACKUPS)
+  await stubShellReads(page)
+  await stubAccountResources(page, { accountId: ACCOUNT.id, resources: [] })
   await stubInvitation(page, ACCOUNT.id, 'pending')
   await page.route(`**/api/v1/accounts/${ACCOUNT.id}`, async (route) => {
     if (route.request().method() === 'GET') {

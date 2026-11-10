@@ -1,11 +1,14 @@
 <script setup lang="ts">
 /**
- * One zone, in two panes: what it is, and its records. The panes are separate
- * components rendered as-is; this page owns the zone's read, the tab, and the delete.
+ * One zone, in up to three panes: what it is, its records, and its DNSSEC signing. The panes are separate
+ * components rendered as-is; this page owns the zone's read, the tab, and the delete. The DNSSEC
+ * pane is offered only when this host can sign or the zone is already signed, so a host that
+ * cannot sign shows nothing it cannot do.
  *
  * Deleting asks first and says what it does: every record goes with the zone and the name server
  * stops answering for the name. It leaves for the list afterwards, because the page it was on no
- * longer describes anything. A zone another account owns, or one that never existed, is the
+ * longer describes anything. A signed zone's confirmation adds the warning about the DS record
+ * the registrar still holds. A zone another account owns, or one that never existed, is the
  * not-found state, not an alert: the panel answered, and what it said is that no such zone exists
  * for the caller.
  *
@@ -23,16 +26,18 @@ import UiLink from '../../components/ui/UiLink.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
-import UiSegmentedControl, { type SegmentOption } from '../../components/ui/UiSegmentedControl.vue'
+import UiSegmentedControl from '../../components/ui/UiSegmentedControl.vue'
+import DnsDnssecTab from './DnsDnssecTab.vue'
 import DnsOverviewTab from './DnsOverviewTab.vue'
 import DnsRecordsTab from './DnsRecordsTab.vue'
+import { useDnsDnssecStore } from '../../stores/dnsDnssec'
 import { useDnsZonesStore } from '../../stores/dnsZones'
 import { flashNoticeState, takeFlashNotice } from '../../utils/flashNotice'
 import type { DnsZone } from '../../types/dns'
 import type { LoadingState } from '../../types/loading'
 
 /** Which pane of the detail page is on screen. */
-type DetailTab = 'overview' | 'records'
+type DetailTab = 'overview' | 'records' | 'dnssec'
 
 /** Props accepted by this page, bound from the route. */
 const props = defineProps<{
@@ -43,6 +48,7 @@ const props = defineProps<{
 const { t } = useI18n()
 const router = useRouter()
 const store = useDnsZonesStore()
+const dnssecStore = useDnsDnssecStore()
 
 /** The tab currently shown. */
 const tab: Ref<DetailTab> = ref('overview')
@@ -78,12 +84,39 @@ const regionState: ComputedRef<LoadingState> = computed(() => {
   }
 })
 
+/**
+ * Whether the DNSSEC pane is offered: this host can sign, or the zone is signed (or being
+ * unsigned) already and its DS record must stay reachable. A host that cannot sign shows no pane.
+ */
+const showDnssecTab: ComputedRef<boolean> = computed(() => {
+  if (zone.value !== null && zone.value.dnssecState !== 'off') {
+    return true
+  }
+  return dnssecStore.detail.state === 'loaded' && dnssecStore.detail.dnssec.available
+})
+
+/** The pane on screen: the chosen one, unless it is the DNSSEC pane and that is no longer offered. */
+const activeTab: ComputedRef<DetailTab> = computed(() => {
+  return tab.value === 'dnssec' && !showDnssecTab.value ? 'overview' : tab.value
+})
+
 /** The panes, in the order the design lists them. */
-const tabOptions: ComputedRef<SegmentOption[]> = computed(() => {
-  return [
+const tabOptions: ComputedRef<{ value: string; label: string }[]> = computed(() => {
+  const options = [
     { value: 'overview', label: t('dns.detail.tabs.overview') },
     { value: 'records', label: t('dns.detail.tabs.records') },
   ]
+  if (showDnssecTab.value) {
+    options.push({ value: 'dnssec', label: t('dns.detail.tabs.dnssec') })
+  }
+  return options
+})
+
+/** The delete confirmation's consequence; a signed zone's also warns about the DS record at the registrar. */
+const deleteQuestion: ComputedRef<string> = computed(() => {
+  return zone.value !== null && zone.value.dnssecState !== 'off'
+    ? t('dns.zones.confirmDeleteSigned')
+    : t('dns.zones.confirmDelete')
 })
 
 /**
@@ -145,7 +178,9 @@ const dismissNotice = (): void => {
 onMounted(async () => {
   store.clearErrors()
   notice.value = takeFlashNotice()
-  await store.loadOne(props.id)
+  dnssecStore.reset()
+  // Both reads start together: the pane's visibility needs the signing, the heading needs the zone.
+  await Promise.all([store.loadOne(props.id), dnssecStore.load(props.id)])
 })
 </script>
 
@@ -180,21 +215,22 @@ onMounted(async () => {
         </UiAlert>
 
         <UiSegmentedControl
-          :model-value="tab"
+          :model-value="activeTab"
           :options="tabOptions"
           :label="t('dns.detail.heading')"
           @update:model-value="onTabChange"
         />
 
-        <DnsOverviewTab v-if="tab === 'overview'" :zone="zone" />
-        <DnsRecordsTab v-else :zone-id="props.id" @changed="refresh" />
+        <DnsOverviewTab v-if="activeTab === 'overview'" :zone="zone" />
+        <DnsRecordsTab v-else-if="activeTab === 'records'" :zone-id="props.id" @changed="refresh" />
+        <DnsDnssecTab v-else :zone-id="props.id" :zone-name="zone?.name ?? ''" @changed="refresh" />
       </div>
     </UiLoadingRegion>
 
     <UiConfirm
       :open="confirmingDelete"
       :title="t('dns.zones.confirmDeleteTitle', { name: zone?.name ?? '' })"
-      :question="t('dns.zones.confirmDelete')"
+      :question="deleteQuestion"
       :confirm-label="t('dns.zones.confirmDeleteAction')"
       :cancel-label="t('common.cancel')"
       :close-label="t('common.close')"

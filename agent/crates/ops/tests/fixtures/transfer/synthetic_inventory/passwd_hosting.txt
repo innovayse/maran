@@ -1,0 +1,9 @@
+# SYNTHETIC FIXTURE: hand-written text, not captured from a real host.
+root:x:0:0:root:/root:/bin/bash
+daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
+www-data:x:33:33:www-data:/var/www:/usr/sbin/nologin
+nobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin
+acme:x:1001:1001::/home/acme:/bin/bash
+shopsite:x:1002:1002::/home/shopsite:/usr/sbin/nologin
+batchsvc:x:1003:1003::/srv/batch:/usr/sbin/nologin
+deploy:x:1004:1004::/opt/deploy:/bin/bash

@@ -104,6 +104,12 @@ create_directory_layout() {
   install -d -o root  -g root         -m 0755 /usr/local/maran
   install -d -o root  -g "$MARAN_GROUP" -m 0750 /etc/maran
   install -d -o "$MARAN_USER" -g "$MARAN_GROUP" -m 0750 /var/lib/maran
+  # The marketplace's package directory (Marketplace__PackageDirectory, default
+  # /var/lib/maran/marketplace): where the panel streams a download while it checks the size and
+  # the fingerprint, before the loader sees the file. The panel creates it itself on first use, so
+  # this line only guarantees the owner and the mode on a fresh install; it holds nothing root reads
+  # or runs. See create_service_owned_directory for why it is not a plain `install -d`.
+  create_service_owned_directory /var/lib/maran/marketplace 0700
   # /var/log/maran is ROOT's, with the service group able to read and traverse it — not the
   # panel's. Two root processes create and append to files directly inside it: install.sh's
   # `tee -a install.log`, which is the first thing an install does, and the nginx MASTER
@@ -213,13 +219,26 @@ create_directory_layout() {
   #
   # Created the same way the release staging directory is (installer/lib/50-artifacts.sh):
   # `install -d` alone exits 0 on an existing path, follows a symlink and checks neither
-  # owner nor mode, so it accepts a directory somebody else put there first. The `rm -rf`
-  # removes a stale directory or a planted symlink (removing a symlink unlinks the link,
-  # never its target), `install -d` makes a real one, and the gate below is what turns
-  # this from a hope into a refusal. The agent re-states the same properties against the
-  # inode immediately before it writes, because a mode is one chmod away from being wrong
-  # and an install-time check says nothing about noon.
-  rm -rf -- /var/lib/maran-scratch
+  # owner nor mode, so it accepts a directory somebody else put there first. The guarded
+  # removal below unlinks a planted symlink (never its target) or a directory another uid
+  # owns, `install -d` makes a real one, and the gate after it is what turns this from a
+  # hope into a refusal. The agent re-states the same properties against the inode
+  # immediately before it writes, because a mode is one chmod away from being wrong and an
+  # install-time check says nothing about noon.
+  #
+  # The removal is CONDITIONAL, exactly as the restore staging root's above, and for the same
+  # reason: customer data. A restore killed after its first DROP DATABASE leaves the databases'
+  # pre-restore dumps in <scratch>/backup/<id>/rollback/ - the ONLY copy of that state - and
+  # the agent's start-up reaper (ops::backup::reap_backup_scratch) keeps them on purpose and
+  # logs where they are (docs/superpowers/notes/2026-09-09-restore-interruption-recovery-
+  # threat-note.md, "The scratch directory"). Step 40 runs again on every upgrade, so an
+  # unconditional `rm -rf` here would delete them during the very recovery that note sends the
+  # operator into, and would pull the staging tree out from under a backup or restore in flight
+  # on the still-serving old agent. Emptying the scratch is the agent's job alone: it knows
+  # which half is reproducible, and it runs before the socket is bound (step 70 restarts it).
+  # Keeping a root-owned real directory removes no protection: nothing an unprivileged uid can
+  # create is one (/var/lib is root:root 0755), and the gate below re-checks owner and mode.
+  remove_unless_root_only_directory /var/lib/maran-scratch
   install -d -o root -g root -m 0700 /var/lib/maran-scratch
   assert_root_only_directory /var/lib/maran-scratch
   # AgentPaths::PANEL_ACME_CHALLENGE_DIRECTORY, root:root 0755 (issue #132): the agent writes the
@@ -380,9 +399,74 @@ assert_root_only_directory() {
   assert_root_only_directory_with_mode "$1" 700
 }
 
+# create_service_owned_directory: <path> <octal mode>. Makes a directory INSIDE the service
+# account's own state tree, owned by that account.
+#
+# It is not `install -d`, for the reason the root-only helpers above are not: `install -d` exits 0
+# on an existing path, FOLLOWS a symbolic link there, and applies the ownership to the link's
+# target. Here the parent (/var/lib/maran) belongs to the unprivileged service account, which can
+# therefore leave a symbolic link at this name aimed at a root-owned directory; `install -d -o` run
+# by root would then re-own that directory to the service account. So: anything that is not a real
+# directory is unlinked first (a link is removed, never its target), the directory is created with
+# the final mode, `chown -h` never dereferences, and the gate at the end refuses to continue unless
+# the result is a real directory, owned by the service account, with exactly the mode asked for.
+#
+# One narrow window remains and is stated rather than hidden: the check and the use are separate
+# steps, and a link planted by the service account between the final test and the `chmod` would be
+# followed by it. What that can do is bounded: `chmod` here only ever TIGHTENS to 0700, and the gate
+# that follows reads the result again and aborts the install if it is not what was asked for.
+create_service_owned_directory() {
+  local path="$1" mode="$2" owner mode_found expected_owner
+  if [ -L "$path" ] || { [ -e "$path" ] && [ ! -d "$path" ]; }; then
+    rm -f -- "$path"
+  fi
+  [ -d "$path" ] || mkdir -m "$mode" -- "$path"
+  chown -h "${MARAN_USER}:${MARAN_GROUP}" -- "$path"
+  if [ -L "$path" ] || [ ! -d "$path" ]; then
+    echo "40-user.sh: ${path} is not a real directory. Aborting." >&2
+    exit 1
+  fi
+  chmod "$mode" -- "$path"
+  expected_owner="$(id -u "$MARAN_USER")"
+  owner="$(stat -c '%u' "$path")"
+  mode_found="$(stat -c '%a' "$path")"
+  if [ "$owner" -ne "$expected_owner" ] || [ "$mode_found" != "${mode#0}" ]; then
+    echo "40-user.sh: ${path} must be owned by the service account with mode ${mode}" >&2
+    echo "  (found owner uid ${owner}, mode ${mode_found}). Aborting." >&2
+    exit 1
+  fi
+}
+
+# The marketplace key's place is /usr/local/maran/keys/marketplace-metadata.pub, Marketplace__MetadataKeyPath's
+# default in backend/src/Maran.Modules/Marketplace/Options/MarketplaceOptions.cs. Root-owned and not writable
+# by the service account, like every other trust anchor under /usr/local/maran: a key the panel's own uid
+# could replace would let that uid make the panel believe a forged catalogue. (The paths are locals of the
+# function below and not file-scope constants: a `readonly` set twice is a fatal error, and the polygon
+# sources this file more than once.)
+#
+# install_marketplace_key: installs installer/keys/marketplace-metadata.pub to the path above, but
+# ONLY when the installer bundle carries it. The owner supplies that file with a release and the
+# repository commits none, so a bundle without it is a normal state, not an error: the marketplace
+# then fails closed (it believes no answer and offers no install; the panel reads the file at each
+# check, so copying it in later needs no restart) and this prints the one notice that says so. A key
+# left by an earlier install is kept, and then nothing is printed, because the notice would be false.
+install_marketplace_key() {
+  local source="${SCRIPT_DIR:?40-user.sh: SCRIPT_DIR is unset; it is set by install.sh and must be in the environment}/keys/marketplace-metadata.pub"
+  local key_dir="/usr/local/maran/keys" key_path="/usr/local/maran/keys/marketplace-metadata.pub"
+  if [ -f "$source" ]; then
+    install -d -o root -g root -m 0755 "$key_dir"
+    install -o root -g root -m 0644 "$source" "$key_path"
+    return 0
+  fi
+  if [ ! -f "$key_path" ]; then
+    echo "marketplace key not bundled: the marketplace will show catalogues as unverified"
+  fi
+}
+
 step_user() {
   echo "Creating '${MARAN_USER}' system user and directory layout..."
   create_service_user
   create_directory_layout
+  install_marketplace_key
   echo "User and directories ready."
 }

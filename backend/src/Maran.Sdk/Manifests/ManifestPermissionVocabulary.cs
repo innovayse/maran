@@ -15,9 +15,9 @@ namespace Maran.Sdk.Manifests;
 /// </remarks>
 public static class ManifestPermissionVocabulary
 {
-    /// <summary>Every policy name in <see cref="AuthorizationPolicies"/> and <see cref="ApiKeyPolicyNames"/>.</summary>
+    /// <summary>Every policy name in <see cref="AuthorizationPolicies"/>, <see cref="ApiKeyPolicyNames"/> and <see cref="MigrationGrantPolicyNames"/>.</summary>
     public static IReadOnlySet<string> Policies { get; } =
-        Read(typeof(AuthorizationPolicies), typeof(ApiKeyPolicyNames));
+        Read(typeof(AuthorizationPolicies), typeof(ApiKeyPolicyNames), typeof(MigrationGrantPolicyNames));
 
     /// <summary>Reads the string constants out of the given classes.</summary>
     /// <param name="holders">The static classes whose public string constants are policy names.</param>

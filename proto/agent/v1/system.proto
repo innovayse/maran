@@ -69,4 +69,8 @@ enum DistroFamily {
   DISTRO_FAMILY_DEBIAN = 1;
   // AlmaLinux and Rocky: dnf, conf.d, the nginx account, SELinux contexts.
   DISTRO_FAMILY_RHEL = 2;
+  // openSUSE Leap and SLES: zypper, conf.d, the nginx account, SELinux, and the
+  // agent's nftables as the only firewall (issue #59). Added at contract
+  // revision 25; a panel older than that revision refuses an agent that states it.
+  DISTRO_FAMILY_SUSE = 3;
 }

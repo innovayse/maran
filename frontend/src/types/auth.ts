@@ -55,6 +55,14 @@ export interface AuthenticatedSession {
    * lets the app route straight to enrolment instead of showing a wall of 403s.
    */
   requiresTwoFactorSetup: boolean
+  /**
+   * True when the login's password was chosen by whoever created the account and has not been
+   * replaced yet. Like `requiresTwoFactorSetup` the sign-in SUCCEEDED, but the token reaches
+   * only the password change (and sign-out) until the person has chosen their own password, which the
+   * server enforces by reading the claim inside the token. This flag only lets the app route straight
+   * to the screen that asks for the new password instead of showing a shell of 403s (issue #514).
+   */
+  requiresPasswordChange: boolean
 }
 
 /**
@@ -76,6 +84,14 @@ export type AuthSession =
   | {
       /** Signed in, but the panel requires a second factor this person has not enrolled: the token reaches only enrolment. */
       state: 'enrolmentRequired'
+      /** The signed access token. */
+      accessToken: string
+      /** Who is signed in. */
+      user: AuthenticatedUser
+    }
+  | {
+      /** Signed in with a first password somebody else chose: the token reaches only the password change. */
+      state: 'passwordChangeRequired'
       /** The signed access token. */
       accessToken: string
       /** Who is signed in. */

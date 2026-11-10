@@ -4,6 +4,7 @@ using Maran.Host.Authorization;
 using Maran.Host.Modules;
 using Maran.Host.RateLimiting;
 using Maran.Sdk.Contracts;
+using Maran.Sdk.Interfaces;
 using Maran.Sdk.ModelBinding;
 using Maran.SharedKernel.Enums;
 using Maran.SharedKernel.Pagination;
@@ -46,12 +47,14 @@ public static class SearchEndpoint
                 [FromBody] SearchRequest request,
                 SearchFanOut fanOut,
                 PackagedModuleComposition composition,
+                ILicenceEntitlements entitlements,
                 CancellationToken cancellationToken) =>
             {
                 var query = new SearchQuery(ValidTermOf(request));
+                var verdicts = await SearchModuleGate.VerdictsOfAsync(composition, entitlements, cancellationToken);
                 var groups = await fanOut.SearchAsync(
                     query,
-                    provider => { return SearchModuleGate.Permits(composition, provider); },
+                    provider => { return SearchModuleGate.Permits(composition, verdicts, provider); },
                     SearchFanOut.ProviderTimeout,
                     cancellationToken);
                 return Results.Ok(new SearchResultDto(groups));

@@ -27,6 +27,7 @@ public static class AccountHandlerFactory
     /// <param name="audit">The journal's writer; a fresh one when not stated.</param>
     /// <param name="bus">The bus the owner's login is requested on; a fresh stub when not stated.</param>
     /// <param name="passwordPolicy">The password policy double; one that accepts everything when not stated.</param>
+    /// <param name="ownerLogins">The login directory double; one that finds no clash when not stated.</param>
     /// <returns>The handler.</returns>
     public static CreateAccountCommandHandler Create(
         AccountsDbContext dbContext,
@@ -34,7 +35,8 @@ public static class AccountHandlerFactory
         RecordingAgentAccountsClient agent,
         RecordingAuditWriter? audit = null,
         StubMessageBus? bus = null,
-        StubInitialPasswordPolicy? passwordPolicy = null)
+        StubInitialPasswordPolicy? passwordPolicy = null,
+        StubOwnerLoginDirectory? ownerLogins = null)
     {
         return new CreateAccountCommandHandler(
             dbContext,
@@ -46,6 +48,7 @@ public static class AccountHandlerFactory
             new AccountRuntimeLimitsEnforcer(agent),
             new AccountLimitOverrideResolver(new ResellerScope(dbContext, currentUser)),
             passwordPolicy ?? new StubInitialPasswordPolicy(),
+            ownerLogins ?? new StubOwnerLoginDirectory(),
             new FakeClock(Now),
             new AccountAuditJournal(audit ?? new RecordingAuditWriter(), currentUser),
             bus ?? new StubMessageBus(),
@@ -100,7 +103,7 @@ public static class AccountHandlerFactory
             new ResellerAllocationGuard(dbContext),
             new ResellerNameDirectory(dbContext),
             HostSynchronizer(agent),
-            bus,
+            new AccountOwnerChangeAnnouncer(bus, NullLogger<AccountOwnerChangeAnnouncer>.Instance),
             new AccountAuditJournal(audit, currentUser),
             new StubDisplayNames(),
             new AccountPlanChangeAnnouncer(bus, NullLogger<AccountPlanChangeAnnouncer>.Instance));

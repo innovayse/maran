@@ -16,7 +16,9 @@ public static class DependencyInjection
     /// Registers the Sdk's shared facilities: <see cref="OperatorAlertDispatcher"/>, scoped because the
     /// recipient window it reads is a module's scoped service, and <see cref="NullModuleLoader"/> as the
     /// <see cref="IModuleLoader"/> only when none is registered yet (<c>TryAdd</c>), so a package that
-    /// provides a real loader replaces it by registering first.
+    /// provides a real loader replaces it by registering first; <see cref="NullModuleSpaAssets"/> is the
+    /// <see cref="IModuleSpaAssets"/> by the same rule, and <see cref="NoLeaseRequestAuthorizer"/> is the
+    /// <see cref="ILeaseRequestAuthorizer"/> until the Licensing module holds a lease.
     /// </summary>
     /// <param name="services">The application service collection.</param>
     /// <returns>The same collection, for chaining.</returns>
@@ -24,6 +26,8 @@ public static class DependencyInjection
     {
         services.AddScoped<OperatorAlertDispatcher>();
         services.TryAddSingleton<IModuleLoader, NullModuleLoader>();
+        services.TryAddSingleton<ILeaseRequestAuthorizer, NoLeaseRequestAuthorizer>();
+        services.TryAddSingleton<IModuleSpaAssets, NullModuleSpaAssets>();
         return services;
     }
 }

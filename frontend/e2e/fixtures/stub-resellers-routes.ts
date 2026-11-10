@@ -62,6 +62,16 @@ export const RESELLER_ENVELOPE: ResellerEnvelope = {
   features: ['databases', 'cron', 'fileTransfer', 'backups'],
 }
 
+/**
+ * Names a language the way the panel does: written in itself, from the one list the stub of the
+ * language picker serves.
+ * @param language The language code, such as `en`.
+ * @returns The language's name, or the code itself for one the stub does not list.
+ */
+const languageNameOf = (language: string): string => {
+  return OWNER_LANGUAGES.find((choice) => {return choice.language === language})?.languageDisplayName ?? language
+}
+
 /** A reseller that is active and has sold something. */
 export const ACME_HOSTING: ResellerDetail = {
   id: '00000000-0000-0000-0000-0000000000e1',
@@ -74,6 +84,7 @@ export const ACME_HOSTING: ResellerDetail = {
   planCount: 2,
   diskAllocatedMb: 30720,
   language: 'en',
+  languageName: 'English',
   envelope: RESELLER_ENVELOPE,
 }
 
@@ -249,6 +260,7 @@ export const stubResellers = async (
         planCount: 0,
         diskAllocatedMb: 0,
         language: body.language,
+        languageName: languageNameOf(body.language),
         envelope: body.envelope,
       }
       resellers.push(created)
@@ -256,11 +268,22 @@ export const stubResellers = async (
       return
     }
 
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(pagedAnswer(resellers, route.request().url(), RESELLER_RULES)),
+    // A listed row is the contract's `ResellerDto`; the invitation language and the envelope belong to the detail only.
+    const answer = pagedAnswer(resellers, route.request().url(), RESELLER_RULES)
+    const listed: Reseller[] = answer.items.map((reseller) => {
+      return {
+        id: reseller.id,
+        name: reseller.name,
+        contactEmail: reseller.contactEmail,
+        status: reseller.status,
+        statusName: reseller.statusName,
+        createdAt: reseller.createdAt,
+        accountCount: reseller.accountCount,
+        planCount: reseller.planCount,
+        diskAllocatedMb: reseller.diskAllocatedMb,
+      }
     })
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...answer, items: listed }) })
   })
 
   await page.route(CHOICES_PATTERN, async (route) => {
@@ -299,6 +322,7 @@ export const stubResellers = async (
       current.name = body.name
       current.contactEmail = body.contactEmail
       current.language = body.language
+      current.languageName = languageNameOf(body.language)
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(current) })
       return
     }

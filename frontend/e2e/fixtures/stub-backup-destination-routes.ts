@@ -28,17 +28,13 @@ const DESTINATION_RULES: PagedRules<BackupDestination> = {
 /**
  * Fulfils `GET /api/v1/backup-destinations` as a page honouring `page`, `pageSize`, `search`, `sort`
  * and `kind`.
- *
- * The rows are any shape that is at least the panel's wire shape: a spec proving the screen drops
- * a member the panel should never send (a credential) needs to be able to send one.
- * @template T The row shape, the wire shape or a wider one.
  * @param page The Playwright page whose network the route is installed on.
  * @param destinations The destinations the stub knows, in the panel's default order.
  * @returns A function reporting every list request so far, oldest first.
  */
-export const stubBackupDestinations = async <T extends BackupDestination>(
+export const stubBackupDestinations = async (
   page: Page,
-  destinations: readonly T[],
+  destinations: readonly BackupDestination[],
 ): Promise<() => readonly URL[]> => {
   const listRequests: URL[] = []
 

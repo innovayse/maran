@@ -40,6 +40,7 @@ use maran_agent::proto::{
     get_ftps_status_response, list_cron_entries_response, set_ftps_password_response,
 };
 use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
+use maran_agent_core::validation::web::panel_host_names::PanelHostNames;
 
 /// How long the test waits for the server to bind before declaring it stuck.
 const BIND_TIMEOUT: Duration = Duration::from_secs(5);
@@ -68,8 +69,14 @@ async fn handshake_over_a_unix_socket_reports_the_agent_and_the_host() {
     let policy = PeerPolicy::new(maran_agent_core::utils::current_uid::current_uid().unwrap());
     let server_path = socket_path.clone();
     let mut server = tokio::spawn(async move {
-        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor(), None)
-            .await
+        maran_agent::server::serve(
+            &server_path,
+            policy,
+            FreeSpaceFloor::default_floor(),
+            PanelHostNames::none(),
+            None,
+        )
+        .await
     });
 
     match wait_until_listening(&socket_path, &mut server).await {
@@ -92,7 +99,7 @@ async fn handshake_over_a_unix_socket_reports_the_agent_and_the_host() {
         other => panic!("the handshake must succeed on a supported host, got {other:?}"),
     };
 
-    assert_eq!(info.proto_version, 21);
+    assert_eq!(info.proto_version, 26);
     assert!(
         !info.version.is_empty(),
         "the agent must report its version"
@@ -177,8 +184,14 @@ async fn every_new_service_refuses_a_uid_the_policy_does_not_allow() {
     let policy = PeerPolicy::new(uid.wrapping_add(1));
     let server_path = socket_path.clone();
     let mut server = tokio::spawn(async move {
-        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor(), None)
-            .await
+        maran_agent::server::serve(
+            &server_path,
+            policy,
+            FreeSpaceFloor::default_floor(),
+            PanelHostNames::none(),
+            None,
+        )
+        .await
     });
 
     match wait_until_listening(&socket_path, &mut server).await {
@@ -299,8 +312,14 @@ async fn the_files_service_answers_over_the_wire_and_refuses_what_it_does_not_im
     let policy = PeerPolicy::new(maran_agent_core::utils::current_uid::current_uid().unwrap());
     let server_path = socket_path.clone();
     let mut server = tokio::spawn(async move {
-        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor(), None)
-            .await
+        maran_agent::server::serve(
+            &server_path,
+            policy,
+            FreeSpaceFloor::default_floor(),
+            PanelHostNames::none(),
+            None,
+        )
+        .await
     });
 
     match wait_until_listening(&socket_path, &mut server).await {
@@ -378,8 +397,14 @@ async fn the_files_browse_rpcs_answer_over_the_wire_and_refuse_input_before_any_
     let policy = PeerPolicy::new(maran_agent_core::utils::current_uid::current_uid().unwrap());
     let server_path = socket_path.clone();
     let mut server = tokio::spawn(async move {
-        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor(), None)
-            .await
+        maran_agent::server::serve(
+            &server_path,
+            policy,
+            FreeSpaceFloor::default_floor(),
+            PanelHostNames::none(),
+            None,
+        )
+        .await
     });
 
     match wait_until_listening(&socket_path, &mut server).await {
@@ -461,8 +486,14 @@ async fn the_database_and_sftp_services_answer_over_the_wire_with_a_typed_refusa
     let policy = PeerPolicy::new(maran_agent_core::utils::current_uid::current_uid().unwrap());
     let server_path = socket_path.clone();
     let mut server = tokio::spawn(async move {
-        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor(), None)
-            .await
+        maran_agent::server::serve(
+            &server_path,
+            policy,
+            FreeSpaceFloor::default_floor(),
+            PanelHostNames::none(),
+            None,
+        )
+        .await
     });
 
     match wait_until_listening(&socket_path, &mut server).await {
@@ -566,8 +597,14 @@ async fn a_create_site_naming_one_host_twice_is_refused_over_the_wire_as_invalid
     let policy = PeerPolicy::new(maran_agent_core::utils::current_uid::current_uid().unwrap());
     let server_path = socket_path.clone();
     let mut server = tokio::spawn(async move {
-        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor(), None)
-            .await
+        maran_agent::server::serve(
+            &server_path,
+            policy,
+            FreeSpaceFloor::default_floor(),
+            PanelHostNames::none(),
+            None,
+        )
+        .await
     });
 
     match wait_until_listening(&socket_path, &mut server).await {
@@ -617,8 +654,14 @@ async fn the_ftps_service_answers_its_own_typed_errors_rather_than_unimplemented
     let policy = PeerPolicy::new(maran_agent_core::utils::current_uid::current_uid().unwrap());
     let server_path = socket_path.clone();
     let mut server = tokio::spawn(async move {
-        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor(), None)
-            .await
+        maran_agent::server::serve(
+            &server_path,
+            policy,
+            FreeSpaceFloor::default_floor(),
+            PanelHostNames::none(),
+            None,
+        )
+        .await
     });
 
     match wait_until_listening(&socket_path, &mut server).await {
@@ -811,8 +854,14 @@ async fn the_enable_shape_the_panel_sends_passes_the_agents_input_boundary_and_a
     let policy = PeerPolicy::new(maran_agent_core::utils::current_uid::current_uid().unwrap());
     let server_path = socket_path.clone();
     let mut server = tokio::spawn(async move {
-        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor(), None)
-            .await
+        maran_agent::server::serve(
+            &server_path,
+            policy,
+            FreeSpaceFloor::default_floor(),
+            PanelHostNames::none(),
+            None,
+        )
+        .await
     });
 
     match wait_until_listening(&socket_path, &mut server).await {
@@ -985,8 +1034,14 @@ async fn a_reserved_account_name_is_refused_over_the_wire_before_any_tool_runs()
     let policy = PeerPolicy::new(maran_agent_core::utils::current_uid::current_uid().unwrap());
     let server_path = socket_path.clone();
     let mut server = tokio::spawn(async move {
-        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor(), None)
-            .await
+        maran_agent::server::serve(
+            &server_path,
+            policy,
+            FreeSpaceFloor::default_floor(),
+            PanelHostNames::none(),
+            None,
+        )
+        .await
     });
 
     match wait_until_listening(&socket_path, &mut server).await {
@@ -1134,8 +1189,14 @@ async fn a_reserved_host_name_is_refused_over_the_wire_as_invalid_input_at_every
     let policy = PeerPolicy::new(maran_agent_core::utils::current_uid::current_uid().unwrap());
     let server_path = socket_path.clone();
     let mut server = tokio::spawn(async move {
-        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor(), None)
-            .await
+        maran_agent::server::serve(
+            &server_path,
+            policy,
+            FreeSpaceFloor::default_floor(),
+            PanelHostNames::none(),
+            None,
+        )
+        .await
     });
 
     match wait_until_listening(&socket_path, &mut server).await {

@@ -84,6 +84,12 @@
   <data name="IpmSignatureMissing">
     <value>The package is not signed.</value>
   </data>
+  <data name="IpmSpaDocumentForbidden">
+    <value>The package carries a web page in its interface folder. The panel builds the page itself, so the folder may hold scripts, styles, images and translations only.</value>
+  </data>
+  <data name="IpmSpaEntryNotClassicScript">
+    <value>The package's interface entry must be a classic script (a .js file) placed directly in the interface folder.</value>
+  </data>
   <data name="IpmTooManyEntries">
     <value>The package contains more entries than the panel accepts.</value>
   </data>

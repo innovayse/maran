@@ -1,0 +1,22 @@
+{
+  "name": "@maran/module-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "license": "BUSL-1.1",
+  "description": "The module author's client of the Maran bridge protocol v1: connects a packaged module's isolated frame to the panel shell over a MessageChannel. Dependency-free, no network code. Emits ES modules for the author's bundler; the module's entry is bundled to ONE CLASSIC script (for example an IIFE), never a module script. Has no unit runner on purpose (rules/testing.md: the frontend is verified end to end): the contract is covered by the shell's Playwright specs and by the sample module's entry script.",
+  "type": "module",
+  "exports": {
+    ".": "./dist/connectToShell.js",
+    "./types": "./dist/types/moduleBridge.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}

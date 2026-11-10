@@ -191,6 +191,7 @@ pub fn build_mail_stages(
                     virtual_mailboxes_path: AgentPaths::MAIL_VIRTUAL_MAILBOXES_PATH.to_owned(),
                     virtual_aliases_path: AgentPaths::MAIL_VIRTUAL_ALIASES_PATH.to_owned(),
                     sender_login_maps_path: AgentPaths::MAIL_SENDER_LOGIN_MAPS_PATH.to_owned(),
+                    local_submit_users_path: local_submit_users_path(distro),
                     lmtp_socket: MailSockets::LMTP.to_owned(),
                     sasl_socket: MailSockets::SASL.to_owned(),
                     milter_socket: MailSockets::MILTER.to_owned(),
@@ -214,6 +215,16 @@ pub fn build_mail_stages(
     };
 
     Ok(vec![key_value, rspamd, dovecot, postfix])
+}
+
+/// The table of users allowed to submit mail locally, as the string Postfix is told.
+///
+/// Built here and in `seed_mail_maps` from the one `AgentPaths`
+/// function, so the table Postfix reads is the table the agent seeds.
+fn local_submit_users_path(distro: &dyn DistroAdapter) -> String {
+    AgentPaths::mail_local_submit_users_path(distro.postfix_config_directory())
+        .to_string_lossy()
+        .into_owned()
 }
 
 /// One rendered file at the mode every mail configuration file has.

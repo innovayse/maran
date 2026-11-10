@@ -1,13 +1,13 @@
 using Maran.Modules.Licensing.Common;
 using Maran.Modules.Licensing.Domain.Enums;
-using Maran.Modules.Licensing.Interfaces;
+using Maran.Modules.Licensing.Models;
 using Maran.Modules.Licensing.Services;
 
 namespace Maran.Modules.Licensing.Queries.GetLicenceStatus;
 
 /// <summary>
-/// Handles <see cref="GetLicenceStatusQuery"/> by re-verifying the installed licence and reporting the
-/// three-state answer, then journalling that the fact was read.
+/// Handles <see cref="GetLicenceStatusQuery"/> by re-verifying the installed licence and its lease and
+/// reporting the three-state answer with the lease's standing, then journalling that the fact was read.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -23,9 +23,8 @@ namespace Maran.Modules.Licensing.Queries.GetLicenceStatus;
 /// <para>
 /// <b>Re-verifies rather than trusting a cached status.</b> This slice adds no persistence for "the
 /// currently installed licence" (see <see cref="LicensingModule"/>'s own remarks), so the only honest
-/// answer is the one <see cref="ILicenceRawTextSource"/> and <see cref="LicenceVerifier"/> would give a
-/// fresh caller right now — identical to what <see cref="Services.LicenceStartupCheck"/> already does
-/// at boot, on the same read-only source.
+/// answer is the one <see cref="LicenceCoverageSource"/> would give a fresh caller right now, never the
+/// cache the request-time gate uses: an administrator reading the screen sees the files as they are.
 /// </para>
 /// <para>
 /// <b>The audit entry is written on every call, never only on a refusal.</b> See
@@ -36,11 +35,8 @@ namespace Maran.Modules.Licensing.Queries.GetLicenceStatus;
 /// </remarks>
 public sealed class GetLicenceStatusQueryHandler
 {
-    /// <summary>Where the installed licence's raw text, if any, is read from.</summary>
-    private readonly ILicenceRawTextSource _rawTextSource;
-
-    /// <summary>This module's offline verifier.</summary>
-    private readonly LicenceVerifier _verifier;
+    /// <summary>Reads the installed licence and its lease and judges both now, uncached.</summary>
+    private readonly LicenceCoverageSource _coverageSource;
 
     /// <summary>Resolves the operator-facing sentence and advice for a status.</summary>
     private readonly LicenceStatusDisplayNames _displayNames;
@@ -49,18 +45,15 @@ public sealed class GetLicenceStatusQueryHandler
     private readonly LicensingAuditJournal _auditJournal;
 
     /// <summary>Creates the handler.</summary>
-    /// <param name="rawTextSource">Where the installed licence's raw text, if any, is read from.</param>
-    /// <param name="verifier">This module's offline verifier.</param>
+    /// <param name="coverageSource">Reads the installed licence and its lease and judges both now, uncached.</param>
     /// <param name="displayNames">Resolves the operator-facing sentence and advice for a status.</param>
     /// <param name="auditJournal">Writes this module's audit entries.</param>
     public GetLicenceStatusQueryHandler(
-        ILicenceRawTextSource rawTextSource,
-        LicenceVerifier verifier,
+        LicenceCoverageSource coverageSource,
         LicenceStatusDisplayNames displayNames,
         LicensingAuditJournal auditJournal)
     {
-        _rawTextSource = rawTextSource;
-        _verifier = verifier;
+        _coverageSource = coverageSource;
         _displayNames = displayNames;
         _auditJournal = auditJournal;
     }
@@ -73,19 +66,21 @@ public sealed class GetLicenceStatusQueryHandler
         GetLicenceStatusQuery query,
         CancellationToken cancellationToken)
     {
-        var rawLicenceText = _rawTextSource.ReadRawLicenceText();
-        var status = await _verifier.VerifyAsync(rawLicenceText, cancellationToken);
+        var coverage = await _coverageSource.ReadAsync(cancellationToken);
 
-        await _auditJournal.RecordReadAsync(status, query.IpAddress, query.UserAgent, cancellationToken);
+        await _auditJournal.RecordReadAsync(coverage.Status, query.IpAddress, query.UserAgent, cancellationToken);
 
-        return Result<LicenceStatusDto>.Ok(ToDto(status));
+        return Result<LicenceStatusDto>.Ok(ToDto(coverage));
     }
 
     /// <summary>Maps the verified status to its wire shape, adding only text already judged safe to disclose.</summary>
-    /// <param name="status">The three-state outcome <see cref="LicenceVerifier"/> produced.</param>
+    /// <param name="coverage">The three-state outcome <see cref="LicenceVerifier"/> produced and the standing of its lease.</param>
     /// <returns>The DTO — see <see cref="LicenceStatusDto"/>'s own remarks for what it may never carry.</returns>
-    private LicenceStatusDto ToDto(LicenceStatus status)
+    private LicenceStatusDto ToDto(LicenceCoverage coverage)
     {
+        var status = coverage.Status;
+        var leaseName = _displayNames.LeaseNameFor(coverage.Lease.Kind);
+
         switch (status)
         {
             case LicenceStatus.Valid valid:
@@ -99,7 +94,11 @@ public sealed class GetLicenceStatusQueryHandler
                     Sentence: _displayNames.SentenceFor(status),
                     Advice: null,
                     StateDisplayName: _displayNames.StateNameFor(LicenceStateKind.Valid),
-                    RefusalReasonDisplayName: null);
+                    RefusalReasonDisplayName: null,
+                    IsOffline: valid.Licence.IsOffline,
+                    Lease: coverage.Lease.Kind,
+                    LeaseDisplayName: leaseName,
+                    LeaseValidUntil: coverage.Lease.ValidUntil);
 
             case LicenceStatus.Absent:
                 return new LicenceStatusDto(
@@ -112,7 +111,11 @@ public sealed class GetLicenceStatusQueryHandler
                     Sentence: _displayNames.SentenceFor(status),
                     Advice: null,
                     StateDisplayName: _displayNames.StateNameFor(LicenceStateKind.Absent),
-                    RefusalReasonDisplayName: null);
+                    RefusalReasonDisplayName: null,
+                    IsOffline: false,
+                    Lease: coverage.Lease.Kind,
+                    LeaseDisplayName: leaseName,
+                    LeaseValidUntil: null);
 
             case LicenceStatus.Refused refused:
                 return new LicenceStatusDto(
@@ -125,10 +128,14 @@ public sealed class GetLicenceStatusQueryHandler
                     Sentence: _displayNames.SentenceFor(status),
                     Advice: _displayNames.AdviceFor(refused.Reason),
                     StateDisplayName: _displayNames.StateNameFor(LicenceStateKind.Refused),
-                    RefusalReasonDisplayName: _displayNames.ReasonNameFor(refused.Reason));
+                    RefusalReasonDisplayName: _displayNames.ReasonNameFor(refused.Reason),
+                    IsOffline: false,
+                    Lease: coverage.Lease.Kind,
+                    LeaseDisplayName: leaseName,
+                    LeaseValidUntil: null);
 
             default:
-                throw new ArgumentOutOfRangeException(nameof(status), status, "Unknown LicenceStatus case.");
+                throw new InvalidOperationException($"Unknown LicenceStatus case: {status}.");
         }
     }
 }

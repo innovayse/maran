@@ -102,16 +102,25 @@ const CONFIG_EXTENSION: &str = "conf";
 /// does (`follow_log`, on behalf of `TailSiteLog`) is the root daemon itself.
 const SITE_LOG_DIRECTORY_MODE: u32 = 0o750;
 
-/// The mode of the credential directory: `root:<web server group>`, `2750`.
+/// The mode of the credential directory: `root:<web server group>`, `0750`.
 ///
-/// The group can enter it and nobody else can list it; the setgid bit makes a
-/// file written inside inherit the group, which is what lets the web server's
-/// workers read a file the root agent wrote.
-const AUTH_DIRECTORY_MODE: u32 = 0o2750;
+/// The group can enter it and nobody else can list it or reach a file inside.
+/// No setuid, setgid or sticky bit, on purpose: the agent's unit sets
+/// `RestrictSUIDSGID=true`, under which the kernel refuses any such bit in a
+/// `chmod` with EPERM, so a `2750` here made every credential write fail on a
+/// real host (issue #498). The directory is therefore the whole of the
+/// protection, and the file below does not rely on inheriting its group.
+const AUTH_DIRECTORY_MODE: u32 = 0o750;
 
-/// The mode of a credential file: readable by the directory's group (the web
-/// server), writable by root alone, closed to everyone else.
-const AUTH_FILE_MODE: u32 = 0o640;
+/// The mode of a credential file: `0644`, written by root alone.
+///
+/// The file is created by root, so its group is root's, not the web server's;
+/// without a setgid directory to hand the group on, the web server's workers
+/// reach it as "other", which needs the read bit. Who can open it is decided by
+/// the directory above (`0750`, `root:<web server group>`): a process outside
+/// that group cannot traverse to the file, so the world-readable bit exposes
+/// the hashes to exactly the readers the old `0640` + group gave them to.
+const AUTH_FILE_MODE: u32 = 0o644;
 
 /// The `getent` database that holds groups.
 const GROUP_DATABASE: &str = "group";
@@ -151,7 +160,8 @@ impl ProcessSiteHost {
         std::os::unix::fs::chown(directory, None, Some(group_id))
             .map_err(|error| failed("could not hand to the web server's group", &error))?;
         // After the chown, and explicitly: `DirBuilder`'s mode is masked by the
-        // agent's umask and has no setgid bit, and a chown does not restore one.
+        // agent's umask, and this also puts right a directory an earlier agent
+        // or an operator left with another mode (a chown clears nothing it set).
         std::fs::set_permissions(directory, Permissions::from_mode(AUTH_DIRECTORY_MODE))
             .map_err(|error| failed("could not set the mode of", &error))
     }

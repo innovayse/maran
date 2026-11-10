@@ -80,6 +80,15 @@ pub enum CallClass {
     /// 200 s), which stays under the reverse proxy's 300 s. The numbers move
     /// together: a change to the ceiling is a change here.
     CronRun,
+    /// One read-only command run on a REGISTERED SOURCE over `ssh` (issue
+    /// #197): the probes, a listing, a file, a crontab, `du` of one home. The
+    /// time is dominated by the source, not by this host: a `du` of a large
+    /// home on a busy disk takes minutes, and the connection itself is bounded
+    /// separately by `ConnectTimeout` and the keep-alive options, so this
+    /// deadline only has to catch a client that is wedged past both. Fifteen
+    /// minutes is above a measured-by-reasoning `du` of a large home and far
+    /// below `Bulk`, because nothing here moves data: it only reads.
+    SourceRead,
 }
 
 impl CallClass {
@@ -97,6 +106,7 @@ impl CallClass {
     /// | `Listing` | 3 600 s | `tar --list` of ONE artifact (at most 64 GiB compressed): about 18 MB/s sustained; scales with the artifact ceiling, not the home, and mutates nothing |
     /// | `Bulk` | 43 200 s | a dump or archive of a large account |
     /// | `CronRun` | 180 s | the job's own 120 s runtime ceiling + the client's report |
+    /// | `SourceRead` | 900 s | a `du` of a large home on a busy source; the handshake has its own bounds |
     #[must_use]
     pub const fn deadline(self) -> Duration {
         let seconds = match self {
@@ -108,6 +118,7 @@ impl CallClass {
             Self::Listing => 3_600,
             Self::Bulk => 43_200,
             Self::CronRun => 180,
+            Self::SourceRead => 900,
         };
 
         Duration::from_secs(seconds)

@@ -1,12 +1,14 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
-import { stubPhpVersions, stubSiteChoices, stubSites } from '../fixtures/stub-sites-routes'
+import { stubPhpVersions, stubSiteChoices, stubSiteLimits, stubSites } from '../fixtures/stub-sites-routes'
 import type { Account } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
 import type { Site, SiteChoices } from '../../src/types/site'
+import type { Page } from '@playwright/test'
 
 const LICENSED_SITES: PanelModule[] = [
   { name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -64,11 +66,14 @@ const ONE_SITE: Site = {
  */
 const stubScreens = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_SITES)
   await stubAccounts(page, [OWNER])
   await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
   await stubSites(page, [ONE_SITE])
+  // The site form reads the bounds it must respect.
+  await stubSiteLimits(page, { maximumAliases: 10 })
   // After stubSites, whose own default answer this replaces.
   await stubSiteChoices(page, PANEL_CHOICES)
 }

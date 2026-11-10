@@ -1,11 +1,13 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubFirewall } from '../fixtures/stub-firewall-routes'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import type { Ban } from '../../src/types/firewall'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 const LICENSED: PanelModule[] = [
   { name: 'firewall', displayName: 'Firewall', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -48,6 +50,7 @@ const openScreen = async (page: Page, bans: Ban[]): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubFirewall(page, { rules: [], bans, whitelist: [] })
   await page.goto('/firewall/bans')
 }

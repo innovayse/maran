@@ -1,6 +1,8 @@
 using Maran.Agent.Client.Services.MailService;
 using Maran.Modules.Mail.Common;
 using Maran.Modules.Mail.Domain.Enums;
+using Maran.Modules.Mail.Resources;
+using Microsoft.Extensions.Localization;
 
 namespace Maran.Modules.Mail.Mappers;
 
@@ -11,35 +13,75 @@ namespace Maran.Modules.Mail.Mappers;
 /// </remarks>
 public static class MailQueueMapper
 {
-    /// <summary>Restates one queue listing.</summary>
+    /// <summary>Restates the messages of one queue listing.</summary>
     /// <param name="queue">What the agent listed.</param>
-    /// <returns>The wire shape.</returns>
-    public static MailQueueDto ToDto(AgentMailQueueListing queue)
+    /// <param name="displayNames">The module's localized names of things that are not failures.</param>
+    /// <returns>The wire shape of each listed message, in the agent's order.</returns>
+    public static IReadOnlyList<MailQueueEntryDto> ToEntries(
+        AgentMailQueueListing queue,
+        IStringLocalizer<DisplayNames> displayNames)
     {
-        return new MailQueueDto(
-            queue.Entries
-                .Select(entry =>
-                {
-                    return ToEntryDto(entry);
-                })
-                .ToList(),
-            queue.TotalMessages,
-            queue.Truncated);
+        ArgumentNullException.ThrowIfNull(queue);
+        ArgumentNullException.ThrowIfNull(displayNames);
+
+        return queue.Entries
+            .Select(entry =>
+            {
+                return ToEntryDto(entry, displayNames);
+            })
+            .ToList();
     }
 
     /// <summary>Restates one queued message.</summary>
     /// <param name="entry">The agent's entry.</param>
+    /// <param name="displayNames">The module's localized names.</param>
     /// <returns>The wire shape.</returns>
-    private static MailQueueEntryDto ToEntryDto(AgentMailQueueEntry entry)
+    private static MailQueueEntryDto ToEntryDto(AgentMailQueueEntry entry, IStringLocalizer<DisplayNames> displayNames)
     {
+        var queue = ToQueueName(entry.Queue);
+        var deferral = ToDeferralClass(entry.DeferralClass);
+
         return new MailQueueEntryDto(
             entry.QueueId,
-            ToQueueName(entry.Queue),
+            queue,
+            displayNames[QueueNameKey(queue)],
             entry.Sender,
             entry.RecipientCount,
             entry.SizeBytes,
             entry.ArrivedAt,
-            ToDeferralClass(entry.DeferralClass));
+            deferral,
+            displayNames[DeferralNameKey(deferral)]);
+    }
+
+    /// <summary>The resource key of a queue's localized name.</summary>
+    /// <param name="queue">The queue.</param>
+    /// <returns>The <c>DisplayNames</c> key that names it.</returns>
+    private static string QueueNameKey(MailQueueName queue)
+    {
+        return queue switch
+        {
+            MailQueueName.Active => "MailQueueNameActive",
+            MailQueueName.Deferred => "MailQueueNameDeferred",
+            MailQueueName.Held => "MailQueueNameHeld",
+            MailQueueName.Incoming => "MailQueueNameIncoming",
+            _ => throw new ArgumentOutOfRangeException(nameof(queue), queue, "Undefined mail queue."),
+        };
+    }
+
+    /// <summary>The resource key of a deferral class's localized name.</summary>
+    /// <param name="deferral">The class.</param>
+    /// <returns>The <c>DisplayNames</c> key that names it.</returns>
+    private static string DeferralNameKey(MailDeferralClass deferral)
+    {
+        return deferral switch
+        {
+            MailDeferralClass.None => "MailDeferralNone",
+            MailDeferralClass.Network => "MailDeferralNetwork",
+            MailDeferralClass.RemoteRefused => "MailDeferralRemoteRefused",
+            MailDeferralClass.LocalError => "MailDeferralLocalError",
+            MailDeferralClass.Other => "MailDeferralOther",
+            _ => throw new ArgumentOutOfRangeException(nameof(deferral), deferral, "Undefined deferral class."),
+        };
     }
 
     /// <summary>Mirrors the agent's queue vocabulary.</summary>

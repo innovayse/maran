@@ -3,7 +3,6 @@ using Maran.ArchitectureTests.Fixtures;
 using Maran.Host.Modules;
 using Maran.Host.OpenApi;
 using Maran.Modules.Fleet;
-using Maran.Modules.Licensing;
 using Maran.Sdk.Interfaces;
 using Maran.Sdk.Manifests;
 using Microsoft.AspNetCore.Authorization;
@@ -17,39 +16,50 @@ namespace Maran.ArchitectureTests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Why Licensing is appended by hand.</b> <see cref="ModuleRegistry.All"/> deliberately omits it
-/// (it has no screen yet and is wired as a hosted service), yet it publishes a manifest and is a
-/// core module. A census over the registry alone would silently skip the one module whose manifest
-/// carries the strictest claim, which is the blind-gate pattern of rules/testing.md. The second
+/// <b>Why a list is appended by hand.</b> <see cref="ModuleRegistry.All"/> deliberately omits a module
+/// that is not composed yet (Fleet), yet it publishes a manifest. A census over the registry alone
+/// would silently skip it, which is the blind-gate pattern of rules/testing.md. The second
 /// source, <see cref="ShippedModuleTypes"/>, is every <see cref="IPanelModule"/> compiled into a
 /// module assembly the build ships, so a module that is neither in the registry nor appended here
-/// is named by <c>ModuleContractTests</c> instead of being skipped.
+/// is named by <c>ModuleContractTests</c> instead of being skipped. Licensing joined the registry when it
+/// got its screen (issue #8) and left this list with it.
 /// </para>
 /// <para>
 /// UNOBSERVED HERE: a module the panel composes by some route other than the registry and the
-/// Licensing hosted service. There is none today; the second source would name it if it existed.
+/// registry. There is none today; the second source would name it if it existed.
 /// </para>
 /// </remarks>
 public static class ModuleContractCensus
 {
     /// <summary>
     /// The modules the build ships that <see cref="ModuleRegistry.All"/> does not list, and why each is outside it:
-    /// Licensing has no screen and is wired as a hosted service; Fleet (issues #180, #319) is the registry of
+    /// Fleet (issues #180, #319) is the registry of
     /// servers and has no endpoint, menu entry or composition yet, so listing it would put a module in the
     /// catalogue the sidebar has no destination for. The change that composes Fleet removes it from this list.
     /// </summary>
     /// <returns>One instance of each module judged beside the registry's.</returns>
     public static IReadOnlyList<IPanelModule> UnregisteredModules()
     {
-        return [new LicensingModule(), new FleetModule()];
+        return [new FleetModule()];
+    }
+
+    /// <summary>Every module the build ships: the registry's, followed by <see cref="UnregisteredModules"/>.</summary>
+    /// <remarks>
+    /// The ONE composition of the two lists. A check about "every module" (the agent capability census, the
+    /// schema ownership census, the contract census) reads this rather than concatenating them itself, so a
+    /// module outside the registry is never covered by one check and skipped by another (issue #472).
+    /// </remarks>
+    /// <returns>One instance of each module.</returns>
+    public static IReadOnlyList<IPanelModule> AllModules()
+    {
+        return ModuleRegistry.All.Concat(UnregisteredModules()).ToList();
     }
 
     /// <summary>Every module the panel knows about: the registry plus the modules it does not list.</summary>
     /// <returns>One subject per module, ordered by id.</returns>
     public static IReadOnlyList<ModuleContractSubject> Subjects()
     {
-        return ModuleRegistry.All
-            .Concat(UnregisteredModules())
+        return AllModules()
             .Select(SubjectOf)
             .OrderBy(subject => { return subject.Manifest.Id; }, StringComparer.Ordinal)
             .ToList();

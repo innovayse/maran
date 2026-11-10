@@ -1,4 +1,5 @@
 using Maran.Modules.Accounts.Domain.Entities;
+using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Databases.Domain.Entities;
 using Maran.Modules.Databases.Persistence;
@@ -113,7 +114,7 @@ public static class ScaleDataset
                 IdOf(2, index), name, $"{name}.example.com", plans[index % PlanCount].Id, Epoch.AddMinutes(index));
             if (index % SuspendedEvery == 0)
             {
-                account.Suspend();
+                account.Suspend(SuspensionActor.Administrator);
             }
 
             context.Accounts.Add(account);

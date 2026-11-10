@@ -1,7 +1,8 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAudit, stubAuditProblem } from '../fixtures/stub-audit-routes'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import type { AuditEvent } from '../../src/types/audit'
 
@@ -14,6 +15,7 @@ const SIGN_IN: AuditEvent = {
   action: 'LoginSucceeded',
   actionName: 'Signed in',
   subject: 'admin',
+  subjectName: 'admin',
   ipAddress: '203.0.113.7',
   succeeded: true,
   outcomeName: 'Succeeded',
@@ -28,6 +30,7 @@ const REFUSED: AuditEvent = {
   action: 'LoginFailed',
   actionName: 'Sign-in refused',
   subject: 'admin',
+  subjectName: 'admin',
   ipAddress: '198.51.100.4',
   succeeded: false,
   outcomeName: 'Failed',
@@ -37,6 +40,7 @@ test('the audit screen lists what happened, and marks a refusal as one', async (
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
   await stubAudit(page, [SIGN_IN, REFUSED])
 
   await page.goto('/settings/audit')
@@ -51,6 +55,7 @@ test('an empty journal says so instead of rendering an empty table', async ({ pa
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
   await stubAudit(page, [])
 
   await page.goto('/settings/audit')
@@ -58,12 +63,15 @@ test('an empty journal says so instead of rendering an empty table', async ({ pa
   await expect(page.getByText('Nothing recorded yet')).toBeVisible()
 })
 
-test('a refusal from the panel is shown verbatim rather than an empty screen', async ({ page }) => {
+test('a refusal from the panel is shown verbatim rather than an empty screen', async ({ page, guard }) => {
+  // The refusal is the subject: the audit endpoint answers a non-administrator 403.
+  guard.allow(403, /\/api\/v1\/audit(\?.*)?$/)
   // A customer reaching this URL: the endpoint is administrators-only, and the SPA renders the
   // panel's own message rather than deciding for itself what the visitor may see.
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
   await stubAuditProblem(page, 403, 'Administrators only.')
 
   await page.goto('/settings/audit')

@@ -55,6 +55,14 @@ public sealed class Licence
     /// </remarks>
     public string? BoundMachineId { get; }
 
+    /// <summary>
+    /// Whether this licence is an offline licence, covered by its own expiry with no lease. False
+    /// unless the signed payload carries <c>"offline": true</c>, so every licence issued before the
+    /// field existed keeps meaning what it meant. Part of the signed payload and therefore not
+    /// something an administrator can switch on by editing the file.
+    /// </summary>
+    public bool IsOffline { get; }
+
     /// <summary>Creates a parsed, not-yet-verified licence value.</summary>
     /// <param name="id">The licence's own opaque identifier.</param>
     /// <param name="product">The product this licence was issued for.</param>
@@ -65,13 +73,18 @@ public sealed class Licence
     /// The machine-id of the server this licence is issued for, or <see langword="null"/> when it
     /// names none and may run anywhere.
     /// </param>
+    /// <param name="isOffline">
+    /// Whether the signed payload says this is an offline licence (the enterprise bundle for a server
+    /// that cannot reach the licence cloud): it is covered by its own expiry alone and needs no lease.
+    /// </param>
     public Licence(
         LicenceId id,
         string product,
         string tier,
         IReadOnlyList<string> modules,
         DateTimeOffset expiry,
-        string? boundMachineId = null)
+        string? boundMachineId = null,
+        bool isOffline = false)
     {
         Id = id;
         Product = product;
@@ -79,5 +92,6 @@ public sealed class Licence
         Modules = modules;
         Expiry = expiry;
         BoundMachineId = boundMachineId;
+        IsOffline = isOffline;
     }
 }

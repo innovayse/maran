@@ -1,9 +1,11 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubSessions } from '../fixtures/stub-sessions-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Session } from '../../src/types/auth'
+import type { Locator, Page } from '@playwright/test'
 
 // The signed-in devices list is server-paged (#196): the page, its size, the search and the sort
 // live in the URL, the panel answers one page of the caller's own sessions and their total, and the
@@ -40,6 +42,7 @@ const openWith = async (page: Page, sessions: Session[]): Promise<() => readonly
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
   return await stubSessions(page, sessions)
 }
 

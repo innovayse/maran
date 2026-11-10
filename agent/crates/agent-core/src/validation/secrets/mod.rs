@@ -8,3 +8,5 @@ pub mod archive_key;
 pub mod archive_key_error;
 pub mod password;
 pub mod password_error;
+pub mod source_private_key;
+pub mod source_private_key_error;

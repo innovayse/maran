@@ -36,4 +36,43 @@
   <data name="ModuleManifestInvalid">
     <value>Манифест модуля нарушает контракт модулей.</value>
   </data>
+  <data name="ModulePackageNotAsAnnounced">
+    <value>Пакет не соответствует тому, что каталог заявил о нём.</value>
+  </data>
+  <data name="MigrationSectionInvalid">
+    <value>Эту часть пакета невозможно прочитать, поэтому её нельзя импортировать.</value>
+  </data>
+  <data name="MigrationTargetAccountMissing">
+    <value>Аккаунта для импорта ещё не существует. Импорт остановлен.</value>
+  </data>
+  <data name="MigrationNameTaken">
+    <value>Это имя уже используется на этом сервере. Имена аккаунтов сохраняются как есть и не переименовываются.</value>
+  </data>
+  <data name="MigrationDomainTaken">
+    <value>Этот домен уже размещён на этом сервере.</value>
+  </data>
+  <data name="MigrationPlanLimitExceeded">
+    <value>Пакет содержит больше, чем допускает выбранный тариф.</value>
+  </data>
+  <data name="MigrationPlanMissing">
+    <value>Выбранного тарифа нет на этом сервере.</value>
+  </data>
+  <data name="MigrationPhpVersionMissing">
+    <value>Этому сайту нужна версия PHP, не установленная на этом сервере. Сначала установите её.</value>
+  </data>
+  <data name="MigrationCronImportedDisabled">
+    <value>Задания cron импортируются выключенными. Включите их после переноса, когда этот сервер начнёт работать.</value>
+  </data>
+  <data name="MigrationCertificateReissue">
+    <value>Выпустите этот сертификат заново, когда имя будет указывать на этот сервер. Он не переносится.</value>
+  </data>
+  <data name="MigrationCertificateUpload">
+    <value>Загрузите этот сертификат заново. Его ключ не покидает старый сервер, поэтому он не переносится.</value>
+  </data>
+  <data name="MigrationBackupIdTaken">
+    <value>Резервная копия с таким идентификатором уже есть на этом сервере.</value>
+  </data>
+  <data name="MigrationRollbackRefused">
+    <value>Аккаунт создан не этим импортом, поэтому он не был удалён.</value>
+  </data>
 </root>

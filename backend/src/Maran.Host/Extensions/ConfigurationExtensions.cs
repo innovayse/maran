@@ -82,6 +82,27 @@ public static class ConfigurationExtensions
         + "key, not the encryption key, with a new key from 'openssl rand -base64 32': every user is "
         + "signed out, and no data is lost.";
 
+    /// <summary>The configuration path of the setup token, as an operator writes it.</summary>
+    private const string SetupTokenSetting = $"{SetupOptions.SectionName}:{nameof(SetupOptions.Token)}";
+
+    /// <summary>
+    /// The remedy for a refused setup token. Replacing it loses nothing: the token only authorizes
+    /// creating the first administrator, and an installed panel's installer writes a fresh one.
+    /// </summary>
+    private const string SetupTokenRemedy =
+        "Replace it with a new token from 'openssl rand -hex 24', or leave it empty once the first "
+        + "administrator exists: nothing is lost, the token only authorizes creating that administrator.";
+
+    /// <summary>Refusal of a setup token equal to a value this repository publishes.</summary>
+    private const string SetupTokenPublishedMessage =
+        SetupTokenSetting + " is a setup token published in this product's source code, so anyone can "
+        + "use it to become the panel's administrator. " + RefusedOutsideDevelopment + " " + SetupTokenRemedy;
+
+    /// <summary>Refusal of a setup token too short or too uniform to resist a guess.</summary>
+    private const string SetupTokenWeakMessage =
+        SetupTokenSetting + " is shorter than 32 characters or made of too few different ones, so it "
+        + "can be guessed. " + RefusedOutsideDevelopment + " " + SetupTokenRemedy;
+
     /// <summary>Registers all panel options with data-annotation and custom validation.</summary>
     /// <param name="services">The application service collection.</param>
     /// <param name="configuration">Configuration the options bind from.</param>
@@ -185,10 +206,30 @@ public static class ConfigurationExtensions
                 SigningKeyEqualsEncryptionKeyMessage)
             .ValidateOnStart();
 
-        // No validation callback and no [Required]: an absent token is the normal state of a panel
-        // that has finished its setup, and it must not stop the boot.
+        // No [Required]: an absent token is the normal state of a panel that has finished its setup,
+        // and it must not stop the boot. A token that IS set is judged by SetupTokenPolicy, outside
+        // Development and Testing: the published sample would hand the first administrator to anyone
+        // who has read this repository, and a short or uniform one to anyone who can guess. Each
+        // refusal names the setting and the remedy and never a character of the token.
         services.AddOptions<SetupOptions>()
-            .Bind(configuration.GetSection(SetupOptions.SectionName));
+            .Bind(configuration.GetSection(SetupOptions.SectionName))
+            .Validate<IHostEnvironment>(
+                (options, environment) =>
+                {
+                    return AdmitsDevelopmentKeys(environment)
+                        || !SetupTokenPolicy.IsPublishedSample(options.Token);
+                },
+                SetupTokenPublishedMessage)
+            // A published token is also short; it is reported once, as published.
+            .Validate<IHostEnvironment>(
+                (options, environment) =>
+                {
+                    return AdmitsDevelopmentKeys(environment)
+                        || SetupTokenPolicy.IsPublishedSample(options.Token)
+                        || !SetupTokenPolicy.IsWeak(options.Token);
+                },
+                SetupTokenWeakMessage)
+            .ValidateOnStart();
 
         // Also no [Required], for a different reason: a panel on TCP (development, and a server
         // whose installer has not been re-run) never consults the uid, so demanding it would fail

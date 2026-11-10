@@ -3,11 +3,13 @@ using Maran.Modules.Accounts.Commands.ReactivateAccount;
 using Maran.Modules.Accounts.Commands.SuspendAccount;
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Domain.Entities;
+using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Services;
 using Maran.Sdk.Interfaces;
 using Maran.SharedKernel.Interfaces;
 using Maran.SharedKernel.Results;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Maran.Modules.Accounts.Tests.TestSupport;
@@ -87,8 +89,13 @@ public sealed class ResellerAccountLifecycleHarness : IDisposable
     /// <param name="name">The account's name.</param>
     /// <param name="resellerId">The owning reseller, or null for the administrator.</param>
     /// <param name="suspended">Whether the account is seeded suspended.</param>
+    /// <param name="suspendedBy">Who suspended it, when it is seeded suspended; a reseller by default.</param>
     /// <returns>The account.</returns>
-    public async Task<Account> SeedAccountAsync(string name, Guid? resellerId, bool suspended = false)
+    public async Task<Account> SeedAccountAsync(
+        string name,
+        Guid? resellerId,
+        bool suspended = false,
+        SuspensionActor suspendedBy = SuspensionActor.Reseller)
     {
         var account = new Account(
             Guid.NewGuid(),
@@ -99,12 +106,24 @@ public sealed class ResellerAccountLifecycleHarness : IDisposable
             resellerId: resellerId);
         if (suspended)
         {
-            account.Suspend();
+            account.Suspend(suspendedBy);
         }
 
         Seeder.Accounts.Add(account);
         await Seeder.SaveChangesAsync();
         return account;
+    }
+
+    /// <summary>
+    /// Reads an account as the database holds it now. The seeding context still tracks the row it
+    /// planted, so a plain query on it would hand back that stale instance and not what a handler
+    /// running on the other context saved.
+    /// </summary>
+    /// <param name="accountId">The account to read.</param>
+    /// <returns>The stored account, detached from any context.</returns>
+    public Task<Account> StoredAccountAsync(Guid accountId)
+    {
+        return Seeder.Accounts.AsNoTracking().SingleAsync(row => row.Id == accountId);
     }
 
     /// <summary>Runs one suspension as the caller.</summary>

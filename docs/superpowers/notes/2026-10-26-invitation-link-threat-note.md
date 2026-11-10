@@ -129,3 +129,34 @@ caller adds, and the same OUTSTANDING second review applies to it.
   login, and only while that login has no password. Taking over a claimed login is refused.
 - **Not verified.** No second reviewer (agent session); the real mail path was not exercised, only the
   published message.
+
+## Addendum: tokens do not survive a change of address or password (issues #467, #475)
+
+**What was wrong.** Changing an account owner's or a reseller's login e-mail
+(`AccountLoginEmailChangeRequestedHandler`, `ResellerLoginChangeRequestedHandler`) only called
+`User.ChangeEmail`, and `ChangePasswordCommandHandler` only revoked sessions. Every invitation token (seven
+days) and password-reset token (one hour) mailed to the OLD address stayed usable, because the token is
+looked up by digest and user id and never by the address it was sent to. An administrator correcting a wrong,
+former or compromised address therefore left the holder of that mailbox able to accept the invitation and
+set the owner login's password (account or reseller takeover), and an owner changing their password to shut
+out a reader of their mailbox left a live reset token for the rest of the hour.
+
+**What changed.** `Identity/Services/CredentialTokenRetirement` is the single place that spends every unspent
+`InvitationToken` and `PasswordResetToken` of a login. The two e-mail handlers call it, only when the address
+really changes, and `ChangePasswordCommandHandler` calls it after the new password is proven; each stamps the
+rows in the SAME `SaveChanges` as the change, so no instant exists with the new address or password and the
+old token live. `ResetPasswordCommandHandler` uses the same service instead of its own two loops. A non-zero
+retirement writes `CredentialTokensRetired` (subject: the login id and the count, never a token, a digest or
+an address). A token issued after the change is untouched. Membership offers are not tokens mailed to an
+address: they are addressed to an existing login and are accepted by that login signed in, so the address
+change does not reach them.
+
+**Why it is safe now.** Retirement is committed with the change, rows are stamped rather than deleted so a
+replay is a journaled refusal, and the e-mail change cannot be saved without it. Tests: the retired tokens
+are refused after the change and a token issued afterwards works, per path.
+
+**Not done / unverified.** Sessions of an `Active` login are not revoked on an e-mail change (the issue
+suggested it; the reported takeover needs no session). Accepting an invitation does not additionally require
+a pending invitation on the login (the suggested defence in depth). No second reviewer.
+
+**Second review: OUTSTANDING (#331).**

@@ -50,6 +50,10 @@ public sealed class DnsAuthorizationTests : IAsyncLifetime
             { "PUT", "/api/v1/dns-zones/{id}/records" },
             { "PUT", "/api/v1/dns-zones/{id}/records/00000000-0000-4000-8000-000000000001" },
             { "DELETE", "/api/v1/dns-zones/{id}/records/00000000-0000-4000-8000-000000000001" },
+            { "GET", "/api/v1/dns-zones/{id}/dnssec" },
+            { "POST", "/api/v1/dns-zones/{id}/dnssec/enable" },
+            { "POST", "/api/v1/dns-zones/{id}/dnssec/withdraw" },
+            { "POST", "/api/v1/dns-zones/{id}/dnssec/finish-withdrawal" },
         };
     }
 
@@ -316,6 +320,11 @@ public sealed class DnsAuthorizationTests : IAsyncLifetime
         if (path.Contains("/records", StringComparison.Ordinal))
         {
             return JsonContent.Create(new { record });
+        }
+
+        if (path.EndsWith("/dnssec/finish-withdrawal", StringComparison.Ordinal))
+        {
+            return JsonContent.Create(new { dsRecordRemoved = true });
         }
 
         if (path.Contains("dns-settings", StringComparison.Ordinal))

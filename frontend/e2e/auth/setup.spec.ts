@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubSetupState } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
@@ -121,6 +121,11 @@ test('creating the administrator lands on the sign-in screen', async ({ page }) 
       }),
     })
   })
+  // The sign-in screen the visitor lands on asks once whether a session can be renewed; nobody
+  // holds a refresh cookie, so the panel answers 204.
+  await page.route('**/api/v1/auth/refresh', async (route) => {
+    await route.fulfill({ status: 204 })
+  })
 
   await page.goto('/setup')
   // Typed, not prefilled: the token no longer travels in the address.
@@ -136,7 +141,9 @@ test('creating the administrator lands on the sign-in screen', async ({ page }) 
   await expect(page).toHaveURL('/login')
 })
 
-test('a rejected password shows the rule the backend broke it on', async ({ page }) => {
+test('a rejected password shows the rule the backend broke it on', async ({ page, guard }) => {
+  // The refusal is the subject of this test.
+  guard.allow(400, /\/api\/v1\/setup$/)
   await stubSetupState(page, { isComplete: false })
   await stubHealthy(page)
   await stubEmptyModules(page)

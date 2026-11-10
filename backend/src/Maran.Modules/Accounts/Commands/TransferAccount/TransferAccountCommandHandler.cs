@@ -8,7 +8,6 @@ using Maran.Sdk.Contracts;
 using Maran.Sdk.Events;
 using Microsoft.Extensions.Localization;
 using Npgsql;
-using Wolverine;
 
 namespace Maran.Modules.Accounts.Commands.TransferAccount;
 
@@ -43,12 +42,16 @@ namespace Maran.Modules.Accounts.Commands.TransferAccount;
 /// Moving to the administrator has no envelope to admit against.
 /// </para>
 /// <para>
-/// <b>Sessions.</b> The view-as sessions a reseller opened on the account end with the ownership that
-/// allowed them, by <see cref="AccountOwnerChanging"/>, which Identity answers. It is INVOKED, not
-/// published, and before the row is written, so a subscriber that throws aborts the move with the
-/// account still with its owner: the direction that can be repeated. The customer's own logins keep
-/// their sessions — their tokens name the account and no reseller, so the move changes nothing they can
-/// do. An administrator's view-as session stays, as an administrator sees every account.
+/// <b>Sessions.</b> The former reseller is locked out by the COMMIT, not by this handler: every request of
+/// a reseller's view-as session asks the account's current owner (Identity's
+/// <c>ViewAsSessionVerifier</c>), so a session opened before the save, or racing it, is refused from the
+/// instant the row changes. An earlier version revoked BEFORE the host push and the save, which left a
+/// window in which the reseller still owned the account and could open a fresh session that then
+/// outlived the move (issue #460). What is announced is therefore announced AFTER the save
+/// (<see cref="AccountOwnerChanged"/>, through <see cref="AccountOwnerChangeAnnouncer"/>) and only ends
+/// the rows the check has made useless; a subscriber's failure is logged and never undoes the move. The
+/// customer's own logins keep their sessions — their tokens name the account and no reseller. An
+/// administrator's view-as session stays, as an administrator sees every account.
 /// </para>
 /// <para>
 /// <b>The PHP bounds follow the plan.</b> When the new plan bounds PHP differently, the move announces
@@ -96,8 +99,8 @@ public sealed class TransferAccountCommandHandler
     /// <summary>Puts the new plan's figures on the host, and the former ones back.</summary>
     private readonly AccountPlanHostSynchronizer _host;
 
-    /// <summary>The bus <see cref="AccountOwnerChanging"/> is invoked on.</summary>
-    private readonly IMessageBus _bus;
+    /// <summary>Tells the other modules, after the save, that the account has a new owner.</summary>
+    private readonly AccountOwnerChangeAnnouncer _ownerAnnouncer;
 
     /// <summary>This module's audit journal.</summary>
     private readonly AccountAuditJournal _journal;
@@ -113,7 +116,7 @@ public sealed class TransferAccountCommandHandler
     /// <param name="allocation">Admits the account into the new owner's envelope and claims the owner's row.</param>
     /// <param name="resellerNames">Names the owners in the journal subject and the answer.</param>
     /// <param name="host">Puts the new plan's figures on the host, and the former ones back.</param>
-    /// <param name="bus">The bus <see cref="AccountOwnerChanging"/> is invoked on.</param>
+    /// <param name="ownerAnnouncer">Tells the other modules, after the save, that the account has a new owner.</param>
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="displayNames">Resolves a shipped plan's name in the request's culture.</param>
     /// <param name="announcer">Tells the other modules, after the save, that the account's PHP bounds changed.</param>
@@ -122,7 +125,7 @@ public sealed class TransferAccountCommandHandler
         ResellerAllocationGuard allocation,
         ResellerNameDirectory resellerNames,
         AccountPlanHostSynchronizer host,
-        IMessageBus bus,
+        AccountOwnerChangeAnnouncer ownerAnnouncer,
         AccountAuditJournal journal,
         IStringLocalizer<DisplayNames> displayNames,
         AccountPlanChangeAnnouncer announcer)
@@ -131,7 +134,7 @@ public sealed class TransferAccountCommandHandler
         _allocation = allocation;
         _resellerNames = resellerNames;
         _host = host;
-        _bus = bus;
+        _ownerAnnouncer = ownerAnnouncer;
         _journal = journal;
         _displayNames = displayNames;
         _announcer = announcer;
@@ -198,9 +201,6 @@ public sealed class TransferAccountCommandHandler
             return await FailAsync(command, subject, refusal.Error, cancellationToken);
         }
 
-        // Before the host and the row: a subscriber that throws leaves the account where it was.
-        await _bus.InvokeAsync(new AccountOwnerChanging(account.Id), cancellationToken);
-
         var hostFailure = await _host.ApplyAsync(account, current, target, cancellationToken);
         if (hostFailure is not null)
         {
@@ -213,6 +213,10 @@ public sealed class TransferAccountCommandHandler
         {
             return await FailAsync(command, subject, saveRefusal, cancellationToken);
         }
+
+        // After the commit: from here the ownership check refuses the former owner's view-as sessions,
+        // and this ends their rows. Announced before anything that can fail to finish the move's answer.
+        await _ownerAnnouncer.AnnounceAsync(account.Id, cancellationToken);
 
         if (current.PhpLimits != target.PhpLimits)
         {

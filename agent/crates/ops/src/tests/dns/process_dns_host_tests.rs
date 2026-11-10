@@ -12,8 +12,10 @@ use std::path::Path;
 use maran_agent_core::utils::call_class::CallClass;
 use maran_distro::{DistroFamily, adapter_for};
 
+use crate::dns::dns_error::DnsError;
 use crate::dns::dns_host::DnsHost;
 use crate::dns::process_dns_host::ProcessDnsHost;
+use crate::safe_write::model::Validator;
 use crate::test_support::call_class_census::classes_named_in_code;
 
 #[test]
@@ -92,4 +94,83 @@ fn the_operations_pin_the_classes_their_spawns_run_under() {
         enable,
         ["Validate", "Reload", "Reload", "Validate", "Reload"]
     );
+}
+
+#[test]
+fn a_probe_the_validator_accepts_is_answered_ok_and_leaves_no_file() {
+    let host = ProcessDnsHost::new();
+    let id = adapter_for(DistroFamily::Debian).id_binary();
+    let directory = tempfile::tempdir().unwrap();
+    let target = directory.path().join("dnssec-probe.conf");
+
+    // `id -u` exits 0: a validator that accepts.
+    host.probe_config(
+        &target,
+        "probe\n",
+        &Validator {
+            program: &id,
+            arguments: &["-u"],
+            class: CallClass::Query,
+        },
+    )
+    .unwrap();
+
+    assert!(!target.exists(), "the probe file outlived the question");
+}
+
+#[test]
+fn a_probe_the_validator_refuses_is_an_error_and_leaves_no_file() {
+    // The planted refusal: `id` of a user nobody has exits non-zero.
+    let host = ProcessDnsHost::new();
+    let id = adapter_for(DistroFamily::Debian).id_binary();
+    let directory = tempfile::tempdir().unwrap();
+    let target = directory.path().join("dnssec-probe.conf");
+
+    let refused = host.probe_config(
+        &target,
+        "probe\n",
+        &Validator {
+            program: &id,
+            arguments: &["--", "no-such-user-for-maran-probe"],
+            class: CallClass::Query,
+        },
+    );
+
+    assert!(matches!(refused, Err(DnsError::ConfigRejected { .. })));
+    assert!(!target.exists(), "the refused probe file stayed");
+}
+
+#[test]
+fn a_leftover_probe_from_an_interrupted_run_is_removed_by_the_next_one() {
+    let host = ProcessDnsHost::new();
+    let id = adapter_for(DistroFamily::Debian).id_binary();
+    let directory = tempfile::tempdir().unwrap();
+    let target = directory.path().join("dnssec-probe.conf");
+    std::fs::write(&target, "left over\n").unwrap();
+
+    let refused = host.probe_config(
+        &target,
+        "probe\n",
+        &Validator {
+            program: &id,
+            arguments: &["--", "no-such-user-for-maran-probe"],
+            class: CallClass::Query,
+        },
+    );
+
+    assert!(refused.is_err());
+    assert!(!target.exists());
+}
+
+#[test]
+fn the_new_operations_pin_the_classes_their_spawns_run_under() {
+    let probe = classes_named_in_code(include_str!("../../dns/probe_dnssec_support.rs"));
+    let mode = classes_named_in_code(include_str!("../../dns/read_zone_mode.rs"));
+    let state = classes_named_in_code(include_str!("../../dns/read_signing_state.rs"));
+    let put = classes_named_in_code(include_str!("../../dns/put_zone.rs"));
+
+    assert_eq!(probe, ["Validate"]);
+    assert_eq!(mode, ["Query"]);
+    assert_eq!(state, ["Query"]);
+    assert_eq!(put, ["Validate"]);
 }

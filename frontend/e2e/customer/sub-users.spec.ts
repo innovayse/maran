@@ -1,14 +1,17 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { FULL_CATALOGUE, mainNavigation, openSection } from '../fixtures/open-full-shell'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubEmptyTasks } from '../fixtures/stub-tasks-routes'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { offerRow, stubSubUsers, stubSubUsersForbidden, subUserRow } from '../fixtures/stub-sub-users-routes'
 import type { MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
+import type { Page } from '@playwright/test'
 
 // Issues #315 and #328: an account's owner invites, resends, offers a place to an existing login,
 // limits and removes team members from My account > Sub-users.
@@ -45,8 +48,10 @@ const CUSTOMER: AuthenticatedUser = {
 const openSubUsers = async (page: Page): Promise<void> => {
   await stubSignedIn(page, CUSTOMER)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubModules(page, FULL_CATALOGUE)
   await stubEmptyTasks(page)
+  await stubLandingReads(page, 'customer')
   await stubMyAccount(page, OWN_ACCOUNT)
   await page.goto('/')
   await openSection(page, 'My account')
@@ -136,7 +141,8 @@ test('an owner removes a person only after confirming', async ({ page }) => {
   await expect(page.getByRole('row', { name: /writer/ })).toBeVisible()
 })
 
-test('a team member who opens the page reads the panel refusal and is offered no form', async ({ page }) => {
+test('a team member who opens the page reads the panel refusal and is offered no form', async ({ page, guard }) => {
+  guard.allow(403, /\/api\/v1\/me\/sub-users(\/.*)?(\?.*)?$/)
   await stubSubUsersForbidden(page, 'Only the owner of the account can manage its sub-users.')
   await openSubUsers(page)
 
@@ -176,7 +182,8 @@ test('a person who already signed in is not offered a resend', async ({ page }) 
   await expect(page.getByRole('menuitem', { name: 'Resend invitation' })).toHaveCount(0)
 })
 
-test('a refused resend shows the panel sentence verbatim', async ({ page }) => {
+test('a refused resend shows the panel sentence verbatim', async ({ page, guard }) => {
+  guard.allow(409, /\/api\/v1\/me\/sub-users\/[^/]+\/invitation$/)
   await stubSubUsers(page, [subUserRow('writer', [], 'invited')], { resendRefusal: 'That person has already accepted.' })
   await openSubUsers(page)
 
@@ -225,7 +232,8 @@ test('the add-existing form refuses an empty identifier without calling the pane
   expect(sent.offers).toEqual([])
 })
 
-test('a refused offer shows the panel sentence verbatim and no success message', async ({ page }) => {
+test('a refused offer shows the panel sentence verbatim and no success message', async ({ page, guard }) => {
+  guard.allow(409, /\/api\/v1\/me\/sub-users\/existing$/)
   await stubSubUsers(page, [], { offerRefusal: 'You have reached the limit of sub-users for this account.' })
   await openSubUsers(page)
 
@@ -262,11 +270,11 @@ const LOCALES = [
     code: 'ru',
     navigation: 'Основная навигация',
     expand: 'Показать разделы «Мой аккаунт»',
-    link: 'Пользователи',
+    link: 'Субпользователи',
     actions: 'Действия для writer',
     resend: 'Отправить приглашение повторно',
     sent: 'Новое приглашение отправлено пользователю writer. Прежняя ссылка больше не действует.',
-    identifier: 'Существующий логин или e-mail',
+    identifier: 'Существующий логин или email',
     submit: 'Отправить предложение',
     offered: 'Если такой логин существует, предложение отправлено. Человек должен принять его, чтобы присоединиться.',
   },
@@ -290,8 +298,10 @@ for (const locale of LOCALES) {
     await stubSubUsers(page, [subUserRow('writer', [], 'invited')])
     await stubSignedIn(page, CUSTOMER)
     await stubHealthy(page)
+    await stubShellReads(page)
     await stubModules(page, FULL_CATALOGUE)
     await stubEmptyTasks(page)
+    await stubLandingReads(page, 'customer')
     await stubMyAccount(page, OWN_ACCOUNT)
     await page.goto('/')
     const navigation = page.getByRole('navigation', { name: locale.navigation })

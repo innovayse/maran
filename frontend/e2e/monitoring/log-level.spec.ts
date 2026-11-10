@@ -1,9 +1,11 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { logLevelChanges, stubbedBucket, stubMonitoring } from '../fixtures/stub-monitoring-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 // The panel's runtime log level on the monitoring screen (issue #131): the card shows what the
 // panel's logger is writing at, and applying another level asks the panel and reads the answer back.
@@ -20,6 +22,7 @@ const openMonitoring = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubMonitoring(
     page,
     { lastDay: [stubbedBucket(0, 11.5)], lastWeek: [stubbedBucket(0, 91.5)] },
@@ -61,7 +64,8 @@ test('applying a level sends it, confirms it and shows what the panel reads back
 })
 
 // The proposition: a refused change shows the panel's own sentence, verbatim, inside the card.
-test('a refused change shows the panel’s own message in the card', async ({ page }) => {
+test('a refused change shows the panel’s own message in the card', async ({ page, guard }) => {
+  guard.allow(400, /\/api\/v1\/log-level$/)
   await openMonitoring(page)
   await page.route(/\/api\/v1\/log-level$/, async (route) => {
     if (route.request().method() !== 'PUT') {

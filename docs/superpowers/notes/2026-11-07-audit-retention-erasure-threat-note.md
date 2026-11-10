@@ -303,8 +303,9 @@ and two findings follow from reading the tree:
 
 ### What is replaced and what is kept
 
-- **User** (the person's rows: `ActorUserId = user`, or `ImpersonatorUserId = user`, or `Subject` EQUAL
-  to the user's stored username or e-mail, case-insensitively). Replaced: `ActorUserId` by one fresh
+- **User** (the person's rows: `ActorUserId = user`, or `ImpersonatorUserId = user`, or
+  `SubjectUserId = user`; amended by issue #464, see "Amendment" below: a row is matched by an identity
+  recorded on it and never by subject text). Replaced: `ActorUserId` by one fresh
   random GUID shared by that user's rows; `ActorUsername` by `erased-user-<8 hex>`; `IpAddress` and
   `UserAgent` by empty; the impersonator name when the impersonator is that user; a matched `Subject` by
   the same text. Kept: `OccurredAt`, `Action`, `Succeeded`, `CorrelationId`, `AccountId`, and any
@@ -566,6 +567,46 @@ Read, in this order, as the author could not check them:
 10. The migration: expand-only, nullable columns, `maran migrate guard` clean, no `// contract-phase:`.
 11. The tests listed in the plan, for the controls: a planted tamper is found, a clean chain accepted,
     a planted secret found by the probe, a planted original identifier found after erasure.
+
+## Amendment: erasure matches by recorded identity, never by text (issue #464)
+
+**What was wrong.** The person match selected every journal row whose `Subject` equalled the erased
+login's username or e-mail, case-insensitively, across all tenants, and treated a row with no actor
+whose claimed name equalled that text as the person's own, blanking its `IpAddress` and `UserAgent`.
+A sub-user's username is chosen by the inviting account owner, who can also remove the sub-user. So a
+customer could invite a sub-user named like a sprayed username (`root`, or a case variant of a real
+login) and remove it: the source address and user agent of every refused sign-in carrying that name
+were destroyed, and other tenants' and administrators' subjects were replaced. The chain verifier
+could not notice, because the erasable fields of an erased row are skipped by design (section 3,
+limit 1). This section 4 rule listed the equality match without considering that the matched text is
+attacker-chosen.
+
+**What changed.**
+- A row belongs to a person only through an identity recorded on it: `ActorUserId`, the impersonator
+  id, or the new `SubjectUserId` (nullable `uuid`, indexed, expand-only migration
+  `AddAuditEventSubjectUserId`). `SubjectUserId` is written only by an operation one verified login
+  does to another (`IdentityAuditJournal.RecordOnUserAsync`: invite, resend, grant change, removal of a
+  login that stays, invitation link). It is never derived from text.
+- A row that only carries a typed name (a refused sign-in, an offer or invitation never accepted) has
+  none of the three and is never pseudonymised by anybody's erasure. The same holds for a subject that
+  is a login's id written as text: a caller can type any text.
+- The subject text of a matched row is replaced when the person is its subject login, or when the person
+  is its actor and the subject is one of their own names (a row about themselves).
+- The new column is part of the erasable commitment, appended only when present, so every row sealed
+  before the column existed hashes to the bytes it was sealed with and the chain stays verifiable.
+
+**Why it is safe now.** What selects a row is an id the server wrote from a verified token or a loaded
+row. No field a caller types takes part in the selection, so creating a login with a chosen name selects
+nothing but that login's own rows. Tests: the attack leaves the sprayed rows, a text-only row and an
+id-as-text row byte for byte unchanged; the inverse control erases the login's own row in the same run.
+
+**Accepted consequence.** The refused sign-ins that typed the erased person's own name or address are
+now kept with their address and user agent: they identify nobody the panel verified, and they are the
+evidence a credential sweep is read from. The operator documentation must say so.
+
+**Second review: OUTSTANDING (#331).** A reviewer must check the sealing of a row with a present
+`SubjectUserId` against `AuditChainVerifier` on a real database, that no other writer sets the column
+from text, and the migration on PostgreSQL 13. The author ran the unit suites only.
 
 ## 12. What the author could not verify
 

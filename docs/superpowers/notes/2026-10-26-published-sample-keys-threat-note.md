@@ -583,3 +583,36 @@ No blocking or major findings. Minor findings:
 
 **OUTSTANDING.** Reviewer, date and verdict to be recorded here by a human. Until they are, this
 branch does not merge to `main`.
+
+## Addendum: the published setup token (issue #461)
+
+**What was wrong.** `Setup__Token=dev-setup-token` is published in `.env.example`, and `SetupOptions` had no
+validation at all, so a host whose `panel.env` was hand-seeded from that file (config-management template,
+hand-built image) booted in Production once the operator had replaced the two keys the refusal above named,
+and accepted `dev-setup-token` at `/setup`. Anyone who has read the repository could post it before the
+operator did and become the administrator (root-equivalent through the agent). The precondition is the one
+the note recorded under "What the change does not close": the installer regenerates the token on every run,
+so the sample reaches a server only through a `panel.env` the installer never touched. The same gap let a
+one- or two-character token through.
+
+**What changed.** `Maran.SharedKernel/Security/SetupTokenPolicy` (beside `SecretKeyPolicy`, the only copy of
+the published value in `backend/src`) answers two questions about a non-empty token: is it a published sample,
+and is it weak (under 32 characters, or under 10 distinct characters). `AddPanelConfiguration` validates
+`SetupOptions` with both, with `ValidateOnStart`, in every environment except Development and Testing (the
+same `AdmitsDevelopmentKeys` allow-list as the keys). An empty token is still allowed: a finished panel has
+none. Each refusal names `Setup:Token` and the remedy and never a character of the token.
+
+**Why it is safe now.** Outside the allow-list the panel does not start with the sample or a guessable token,
+so the window "booted, no user yet, public token" no longer exists. The installer's token is
+`openssl rand -hex 24` (48 characters), above the floor, and `installer/lib/60-config.sh` writes only that
+value into `panel.env`; `installer/panel.env.example` ships `Setup__Token=` empty and nothing in the
+installer reads `.env.example` (tests: `SecretKeyPolicySampleFilesTests`, `SetupTokenPolicyTests`,
+`ConfigurationExtensionsTests`, `DevelopmentKeyRefusalTests`, the last booting the real `Program` in
+Production with the sample).
+
+**What it cannot see.** A random-looking token copied from another server or a template. The allow-list is
+operator-controlled, as for the keys.
+
+**Second review: OUTSTANDING (#331).** A human reviewer must confirm the allow-list reuse and the floor
+(32 characters, 10 distinct) against the installer's generator. The author could not verify a real installed
+host booting with a generated token (polygon not run).

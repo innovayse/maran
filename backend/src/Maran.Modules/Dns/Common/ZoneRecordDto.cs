@@ -18,7 +18,7 @@ namespace Maran.Modules.Dns.Common;
 /// <param name="OriginName">The origin as a person reads it, in the viewer's language.</param>
 /// <param name="Editable">
 /// Whether the record may be changed or removed through the record endpoints, which only a customer's own
-/// record may. A screen shows the others read-only; the server refuses an edit of them either way.
+/// record and one a template created may. A screen shows the others read-only; the server refuses an edit of them either way.
 /// </param>
 /// <param name="CreatedAt">When the record was created.</param>
 public sealed record ZoneRecordDto(

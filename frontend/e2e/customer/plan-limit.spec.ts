@@ -1,13 +1,18 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubMyAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubDatabases } from '../fixtures/stub-databases-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubModules } from '../fixtures/stub-modules-route'
-import { stubSites } from '../fixtures/stub-sites-routes'
+import { stubMyAccount } from '../fixtures/stub-my-account-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
+import { stubPhpVersions, stubSites } from '../fixtures/stub-sites-routes'
+import type { MyAccount } from '../../src/types/account'
 import type { AccountResourceSummary, AccountResourceUsage } from '../../src/types/accountResourceSummary'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 // Issue #312: at a plan limit the create action is withheld and the reason is shown in its place.
 // Advice only — the endpoint refuses a create past the plan whatever the screen offers — so every
@@ -19,6 +24,23 @@ const CUSTOMER: AuthenticatedUser = {
   email: 'olive@example.com',
   role: 'customer',
   accountId: '11111111-1111-1111-1111-111111111111',
+}
+
+const OWN_ACCOUNT: MyAccount = {
+  id: CUSTOMER.accountId ?? '',
+  name: 'olive',
+  primaryDomain: 'olive.example.com',
+  status: 'active',
+  statusName: 'Active',
+  plan: {
+    displayName: 'Starter',
+    diskQuotaMb: 1024,
+    maxSites: 2,
+    maxDatabases: 2,
+    maxSftpUsers: 2,
+    maxFtpUsers: 2,
+    maxCronEntries: 2,
+  },
 }
 
 const MODULES: PanelModule[] = [
@@ -39,9 +61,13 @@ const signIn = async (page: Page, sitesUsed: number, databasesUsed: number): Pro
   }
   await stubSignedIn(page, CUSTOMER)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubModules(page, MODULES)
+  await stubLandingReads(page, 'customer')
+  await stubMyAccount(page, OWN_ACCOUNT)
   await stubMyAccountResources(page, summary)
   await stubSites(page, [])
+  await stubPhpVersions(page, [])
   await stubDatabases(page, [])
 }
 

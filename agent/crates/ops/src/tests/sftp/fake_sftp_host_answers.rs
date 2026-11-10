@@ -175,10 +175,46 @@ impl SftpHost for FakeSftpHost {
 
     /// Records the directory and its mode.
     fn create_directory(&self, path: &Path, mode: u32) -> Result<(), SftpError> {
+        // A `chmod` by path goes through a live bind mount onto its source.
+        if self
+            .home_mounted_at
+            .lock()
+            .unwrap()
+            .contains(&path.display().to_string())
+        {
+            *self.home_mode.lock().unwrap() = mode;
+            return Ok(());
+        }
+
         self.directories
             .lock()
             .unwrap()
             .push((path.display().to_string(), mode));
+
+        Ok(())
+    }
+
+    /// Records the mount point and its mode, unless the home is mounted there —
+    /// in which case there is no mode of the mount point to set.
+    fn ensure_mount_point(
+        &self,
+        mount_point: &Path,
+        _home: &Path,
+        mode: u32,
+    ) -> Result<(), SftpError> {
+        if self
+            .home_mounted_at
+            .lock()
+            .unwrap()
+            .contains(&mount_point.display().to_string())
+        {
+            return Ok(());
+        }
+
+        self.directories
+            .lock()
+            .unwrap()
+            .push((mount_point.display().to_string(), mode));
 
         Ok(())
     }

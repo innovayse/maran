@@ -162,7 +162,8 @@ public sealed class SmtpMailer : IMailer
     /// Written out rather than cast, and the default arm is the STRICTER of the two encrypted modes
     /// rather than <see cref="SecureSocketOptions.None"/>: an unrecognised value must never
     /// downgrade a connection to plain text, which would hand the submission credential to anybody
-    /// on the path.
+    /// on the path. That includes the value 0, which the enum no longer names: a row written by a
+    /// release that did, or a bug, is read as STARTTLS and never as the cleartext mode (issue #491).
     /// </remarks>
     private static SecureSocketOptions ToSocketOptions(SmtpSecurity security)
     {

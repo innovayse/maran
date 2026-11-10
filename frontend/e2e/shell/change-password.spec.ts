@@ -1,12 +1,19 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn, stubbedAdministrator } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
+import { stubQuietOwnAccount } from '../fixtures/stub-quiet-own-account'
 import { stubProfile } from '../fixtures/stub-profile-route'
 import type { ChangePasswordRequest, UserRole } from '../../src/types/auth'
+import type { Page } from '@playwright/test'
 
 /** The password the stubbed panel accepts as the caller's current one. */
 const CURRENT_PASSWORD = 'the old password'
+
+/** The account a signed-in customer owns. */
+const CUSTOMER_ACCOUNT_ID = '00000000-0000-0000-0000-0000000000a1'
 
 /** The refusal the stubbed panel words for a wrong current password. */
 const WRONG_PASSWORD_DETAIL = 'The current password is not correct.'
@@ -22,16 +29,23 @@ const stubPanel = async (page: Page, role: UserRole): Promise<ChangePasswordRequ
   await stubSignedIn(page, {
     ...stubbedAdministrator,
     role,
-    accountId: role === 'customer' ? '00000000-0000-0000-0000-0000000000a1' : null,
+    accountId: role === 'customer' ? CUSTOMER_ACCOUNT_ID : null,
   })
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
+  await stubLandingReads(page, role === 'customer' ? 'customer' : 'administrator')
+  if (role === 'customer') {
+    await stubQuietOwnAccount(page, CUSTOMER_ACCOUNT_ID)
+  }
   await stubProfile(page, {
     username: stubbedAdministrator.username,
     email: stubbedAdministrator.email,
     role,
     isTwoFactorEnabled: false,
     activeSessionCount: 2,
+    // A customer owns their account; an administrator has no standing on one, which the panel reports as null.
+    accountAccess: role === 'customer' ? { role: 'owner', roleDisplayName: 'Owner', features: [] } : null,
   })
   const received: ChangePasswordRequest[] = []
   await page.route(/\/api\/v1\/auth\/change-password$/, async (route) => {
@@ -96,7 +110,9 @@ for (const role of ['admin', 'customer'] as const) {
     await expect(page.getByLabel('Current password', { exact: true })).toHaveValue('')
   })
 
-  test(`${role}: a wrong current password shows the panel's own refusal`, async ({ page }) => {
+  test(`${role}: a wrong current password shows the panel's own refusal`, async ({ page, guard }) => {
+    // The refusal is the subject: the panel words it and the page shows it.
+    guard.allow(400, /\/api\/v1\/auth\/change-password$/)
     await stubPanel(page, role)
     await openProfile(page)
 

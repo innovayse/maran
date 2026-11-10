@@ -385,6 +385,52 @@ public sealed class CreateBackupCommandHandlerTests
         Assert.Equal([theirs], world.Accounts.Lookups);
     }
 
+    /// <summary>
+    /// An account that already holds the most manual and pre-restore backups it may is refused with a
+    /// typed conflict, and nothing is written or asked of the agent (issue #478).
+    /// </summary>
+    [Fact]
+    public async Task An_account_at_its_allowance_is_refused_before_anything_is_written()
+    {
+        var accountId = Guid.NewGuid();
+        var world = World.Owning(accountId, [Created]);
+        await world.SeedAsync(Enumerable.Range(0, 7)
+            .Select(_ => { return BackupsTestContext.CompletedRow(accountId); })
+            .Concat(Enumerable.Range(0, 3)
+                .Select(_ => { return BackupsTestContext.CompletedRow(accountId, kind: BackupKind.PreRestore); })));
+
+        var result = await world.Handler.HandleAsync(Command(accountId), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("BackupAllowanceReached", result.Error!.Code);
+        Assert.Equal(ErrorType.Conflict, result.Error.Type);
+        Assert.Equal(10, await world.Read().Backups.CountAsync());
+        Assert.Empty(world.Agent.Creates);
+    }
+
+    /// <summary>
+    /// The inverse control: one backup below the allowance the same command creates the backup, and the
+    /// rows that do not count (scheduled, failed) never push an account over it.
+    /// </summary>
+    [Fact]
+    public async Task An_account_below_its_allowance_creates_the_backup_and_uncounted_rows_do_not_fill_it()
+    {
+        var accountId = Guid.NewGuid();
+        var world = World.Owning(accountId, [Created]);
+        var failed = new Backup(Guid.NewGuid(), accountId, destinationId: null, BackupKind.Manual, Now);
+        failed.Failed("BackupTruncated", Now);
+        await world.SeedAsync(Enumerable.Range(0, 9)
+            .Select(_ => { return BackupsTestContext.CompletedRow(accountId); })
+            .Concat(Enumerable.Range(0, 30)
+                .Select(_ => { return BackupsTestContext.CompletedRow(accountId, kind: BackupKind.Scheduled); }))
+            .Append(failed));
+
+        var result = await world.Handler.HandleAsync(Command(accountId), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(BackupStatus.Completed, result.Value.Status);
+    }
+
     /// <summary>Builds a command naming <paramref name="accountId"/>.</summary>
     /// <param name="accountId">The account to back up.</param>
     /// <returns>The command.</returns>
@@ -480,6 +526,16 @@ public sealed class CreateBackupCommandHandlerTests
         public static World Owning(Guid ownedAccountId, IReadOnlyList<BackupCreateEvent> events)
         {
             return new World(ownedAccountId, events);
+        }
+
+        /// <summary>Writes rows into the database before the handler runs.</summary>
+        /// <param name="rows">The backup rows to seed.</param>
+        /// <returns>Resolves when the rows are saved.</returns>
+        public async Task SeedAsync(IEnumerable<Backup> rows)
+        {
+            await using var seed = BackupsTestContext.Create(_currentUser, _database);
+            seed.Backups.AddRange(rows);
+            await seed.SaveChangesAsync();
         }
 
         /// <summary>Opens a second context over the same database, to read what the handler wrote.</summary>

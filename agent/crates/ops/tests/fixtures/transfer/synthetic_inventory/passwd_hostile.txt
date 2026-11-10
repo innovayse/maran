@@ -1,0 +1,9 @@
+# SYNTHETIC FIXTURE: hand-written text, not captured from a real host.
+Alice:x:1010:1010::/home/Alice:/bin/bash
+john-doe:x:1011:1011::/home/john-doe:/bin/bash
+spacey:x:1012:1012::/home/with space:/bin/bash
+ab:x:1013:1013::/home/ab:/bin/bash
+goodacct:x:1014:1014::/home/goodacct:/bin/bash
+short:line
+broken:x:notanumber:1:x:/home/broken:/bin/bash
+goodacct:x:1015:1015::/home/other:/bin/bash

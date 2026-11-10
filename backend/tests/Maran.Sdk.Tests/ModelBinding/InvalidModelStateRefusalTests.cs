@@ -35,6 +35,45 @@ public sealed class InvalidModelStateRefusalTests
         Assert.Equal("PageSize", failure.PropertyName);
     }
 
+    /// <summary>
+    /// A JSON body whose number cannot be read is refused naming the FIELD the formatter's exception
+    /// carries the path of (<c>lockoutMinutes</c>), not the action's parameter name (<c>command</c>).
+    /// </summary>
+    [Fact]
+    public void An_unreadable_json_field_is_refused_naming_that_field_and_not_the_parameter()
+    {
+        var modelState = new ModelStateDictionary();
+        var metadata = new EmptyModelMetadataProvider().GetMetadataForType(typeof(int));
+        var unreadable = new System.Text.Json.JsonException("The JSON value could not be converted.", "$.lockoutMinutes", 1, 40);
+        modelState.AddModelError("command", new InvalidOperationException("formatter", unreadable), metadata);
+
+        var refusal = Assert.Throws<ValidationException>(() =>
+        {
+            return InvalidModelStateRefusal.Refuse(ContextOf(modelState));
+        });
+
+        var failure = Assert.Single(refusal.Errors);
+        Assert.Equal("lockoutMinutes", failure.PropertyName);
+    }
+
+    /// <summary>
+    /// An entry that carries no JSON path keeps its own key, so the accepting side of the rule above
+    /// still names the query or route value MVC refused.
+    /// </summary>
+    [Fact]
+    public void An_entry_without_a_json_path_keeps_its_own_key()
+    {
+        var modelState = new ModelStateDictionary();
+        modelState.AddModelError("command", "The request body could not be read.");
+
+        var refusal = Assert.Throws<ValidationException>(() =>
+        {
+            return InvalidModelStateRefusal.Refuse(ContextOf(modelState));
+        });
+
+        Assert.Equal("command", Assert.Single(refusal.Errors).PropertyName);
+    }
+
     /// <summary>Builds an action context over the given model state.</summary>
     /// <param name="modelState">The model state the action was bound into.</param>
     private static ActionContext ContextOf(ModelStateDictionary modelState)

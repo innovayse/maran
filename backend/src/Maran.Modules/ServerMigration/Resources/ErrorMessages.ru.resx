@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="RemoteServerNotFound">
+    <value>Такой удалённый сервер не найден.</value>
+  </data>
+  <data name="RemoteServerNameTaken">
+    <value>Другой удалённый сервер уже носит это имя.</value>
+  </data>
+  <data name="RemoteServerEndpointTaken">
+    <value>Удалённый сервер с таким хостом, портом и логином уже зарегистрирован.</value>
+  </data>
+  <data name="RemoteServerHostKeyUnconfirmed">
+    <value>Сначала подтвердите ключ хоста сервера. Пока вы не сверили отпечаток, подключения не выполняются.</value>
+  </data>
+  <data name="RemoteServerHostKeyChanged">
+    <value>Сервер предъявил ключ хоста, отличный от подтверждённого вами, поэтому ничего не было прочитано. Просканируйте ключи хоста заново и подтвердите новый отпечаток, только если ожидали такой замены.</value>
+  </data>
+  <data name="RemoteServerHostKeyFingerprintMismatch">
+    <value>Этот отпечаток не совпадает ни с одним из предложенных сервером. Сверьте его с отпечатком на самом сервере и введите точно.</value>
+  </data>
+  <data name="RemoteServerAuthRefused">
+    <value>Сервер отклонил ключ панели. Добавьте открытый ключ в authorized_keys этого пользователя на сервере и повторите проверку.</value>
+  </data>
+  <data name="RemoteServerUnreachable">
+    <value>Сервер недоступен. Проверьте хост и порт и убедитесь, что на нём работает SSH.</value>
+  </data>
+  <data name="RemoteServerAddressRefused">
+    <value>Панель не подключается к этому адресу. Это сам этот сервер либо петлевой, локальный для канала или иной зарезервированный адрес.</value>
+  </data>
+  <data name="RemoteServerNotReady">
+    <value>Чтобы читать сервер, нужен подтверждённый ключ хоста и отсутствие нерешённых проблем с подключением. Сначала проверьте подключение.</value>
+  </data>
+  <data name="MigrationAgentUnavailable">
+    <value>Панель не смогла связаться со своим агентом, чтобы обратиться к удалённому серверу. Повторите попытку чуть позже.</value>
+  </data>
+  <data name="MigrationDiscoveryFailed">
+    <value>Не удалось выполнить операцию на удалённом сервере. Проверьте подключение и повторите попытку.</value>
+  </data>
+  <data name="MigrationAccountNotFound">
+    <value>Такого аккаунта нет.</value>
+  </data>
+  <data name="MigrationExportNotFound">
+    <value>Такого экспорта нет или срок его действия истёк.</value>
+  </data>
+  <data name="MigrationImportNotFound">
+    <value>Такого импорта нет.</value>
+  </data>
+  <data name="MigrationGrantNotFound">
+    <value>Такого разрешения нет.</value>
+  </data>
+  <data name="MigrationBackupsUnavailable">
+    <value>В этой панели нет службы резервного копирования, поэтому перенос аккаунта невозможен.</value>
+  </data>
+  <data name="MigrationPackageMalformed">
+    <value>Пакет повреждён или создан не сервером Maran.</value>
+  </data>
+  <data name="MigrationPackageTooLarge">
+    <value>Пакет больше, чем принимает этот сервер.</value>
+  </data>
+  <data name="MigrationPackageSchemaUnknown">
+    <value>Пакет создан версией Maran, которую этот сервер не умеет читать.</value>
+  </data>
+  <data name="MigrationSignatureInvalid">
+    <value>Подпись пакета не подтверждена. Ничего не импортировано.</value>
+  </data>
+  <data name="MigrationFingerprintMismatch">
+    <value>Отпечаток ключа не совпадает с тем, который вы подтвердили на отправляющем сервере. Ничего не импортировано.</value>
+  </data>
+  <data name="MigrationAccountNameConfirmationMismatch">
+    <value>Введённое имя аккаунта не совпадает. Импорт не запущен.</value>
+  </data>
+  <data name="MigrationImportNotReady">
+    <value>Этот импорт не ожидает запуска.</value>
+  </data>
+  <data name="MigrationImportHasConflicts">
+    <value>Пробный запуск нашёл конфликты. Устраните их и повторите.</value>
+  </data>
+  <data name="MigrationInitiatorGone">
+    <value>Администратор, запустивший импорт, больше не может действовать, поэтому импорт остановлен до создания чего-либо.</value>
+  </data>
+  <data name="MigrationImportFaulted">
+    <value>Импорт неожиданно завершился ошибкой и был отменён.</value>
+  </data>
+  <data name="MigrationRollbackUnavailable">
+    <value>Импорт не удался, а эта панель не может удалить созданный им аккаунт. Удалите его вручную.</value>
+  </data>
+  <data name="MigrationSecretsAlreadyClaimed">
+    <value>Сгенерированные пароли уже были показаны один раз и больше не хранятся.</value>
+  </data>
+  <data name="MigrationSectionNotImportable">
+    <value>На этом сервере нет модуля, способного импортировать эту часть пакета, поэтому она будет пропущена.</value>
+  </data>
+  <data name="MigrationPullUnreachable">
+    <value>Не удалось связаться с другим сервером, или он перестал отвечать. Проверьте адрес и повторите попытку.</value>
+  </data>
+  <data name="MigrationPullAddressRefused">
+    <value>Этот адрес нельзя использовать для получения пакета: это сам этот сервер, адрес loopback или link-local, либо имя разрешается только в такие адреса.</value>
+  </data>
+  <data name="MigrationPullRefused">
+    <value>Другой сервер не принял разрешение. Оно может быть неверным, просроченным, уже использованным или привязанным к другому адресу; выпустите новое там.</value>
+  </data>
+  <data name="MigrationJobNotFound">
+    <value>Такой миграции не существует.</value>
+  </data>
+  <data name="MigrationJobAccountNotFound">
+    <value>Такого аккаунта нет в этой миграции.</value>
+  </data>
+  <data name="MigrationJobNotEditable">
+    <value>Сопоставление можно менять только до запуска миграции.</value>
+  </data>
+  <data name="MigrationJobStateInvalid">
+    <value>Состояние миграции этого не допускает.</value>
+  </data>
+  <data name="MigrationJobNoAccounts">
+    <value>Выберите хотя бы один аккаунт для переноса.</value>
+  </data>
+  <data name="MigrationJobHasConflicts">
+    <value>В миграции есть конфликты. Устраните их по результатам пробного прогона перед запуском.</value>
+  </data>
+  <data name="MigrationAccountStateInvalid">
+    <value>Состояние аккаунта этого не допускает.</value>
+  </data>
+  <data name="MigrationMappingIncomplete">
+    <value>Выберите тариф, e-mail владельца и основной домен для этого аккаунта.</value>
+  </data>
+  <data name="MigrationLimitInvalid">
+    <value>Параллельность: от 1 до 8, а ограничение скорости: положительное число.</value>
+  </data>
+  <data name="MigrationDuplicateInJob">
+    <value>Два аккаунта в этой миграции претендуют на один домен.</value>
+  </data>
+  <data name="MigrationDatabaseNameNotImportable">
+    <value>Эта база данных не может сохранить имя здесь. Имена не меняются: переименуйте её на источнике или исключите.</value>
+  </data>
+  <data name="MigrationSiteProxyNotImported">
+    <value>Этот сайт: обратный прокси, его апстрим неизвестен, поэтому он пропущен. Создайте его вручную.</value>
+  </data>
+  <data name="MigrationCronNotMigrated">
+    <value>Задачи по расписанию на источнике только подсчитываются и не переносятся. Создайте их заново после переноса.</value>
+  </data>
+  <data name="MigrationMailNotMigrated">
+    <value>Почта не переносится. Перенесите ящики отдельно.</value>
+  </data>
+  <data name="MigrationGrantMissing">
+    <value>Источнику-панели Maran нужны его адрес, подтверждённый отпечаток ключа и разрешение на получение для каждого аккаунта.</value>
+  </data>
+  <data name="MigrationTransferFaulted">
+    <value>Перенос остановлен из-за сбоя на этом сервере. Подробности в журнале сервера.</value>
+  </data>
+  <data name="MigrationDiskInsufficient">
+    <value>На этом сервере недостаточно свободного места на диске для переноса.</value>
+  </data>
+  <data name="MigrationPullFailed">
+    <value>Не удалось скопировать файлы. На источнике могут быть нечитаемые файлы или оборвалась связь.</value>
+  </data>
+  <data name="MigrationPullIncomplete">
+    <value>Копирование файлов не завершилось за отведённое время. Повторите, чтобы продолжить с места остановки.</value>
+  </data>
+  <data name="MigrationDumpFailed">
+    <value>Не удалось выгрузить базу данных на источнике.</value>
+  </data>
+  <data name="MigrationDumpTooLarge">
+    <value>Дамп базы данных превышает допустимый размер.</value>
+  </data>
+  <data name="MigrationDumpRefused">
+    <value>Дамп базы данных содержит то, что пользователь одной базы не может загрузить (триггер, процедуру, событие или представление), и отклонён. Ничего не загружено с повышенными правами.</value>
+  </data>
+  <data name="MigrationDumpLoadFailed">
+    <value>Сервер отклонил инструкцию из дампа базы данных.</value>
+  </data>
+  <data name="MigrationAccountCancelled">
+    <value>Аккаунт отменён.</value>
+  </data>
+  <data name="RemoteServerInUse">
+    <value>Этот сервер ещё используется миграцией. Сначала удалите или завершите миграцию.</value>
+  </data>
+</root>

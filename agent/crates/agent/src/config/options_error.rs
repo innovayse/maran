@@ -2,6 +2,7 @@
 
 use maran_agent_core::validation::fleet::listen_address_error::ListenAddressError;
 use maran_agent_core::validation::fleet::node_address_error::NodeAddressError;
+use maran_agent_core::validation::web::domain_error::DomainError;
 
 /// Rejection reasons for [`super::invocation::Invocation::parse`].
 ///
@@ -107,5 +108,14 @@ pub enum OptionsError {
     FleetFlagMissing {
         /// The fleet flag that was not given.
         missing: &'static str,
+    },
+    /// The value of `--reserved-host-names` is not a comma-separated list of host names.
+    ///
+    /// Refused rather than skipped: an entry that could not be read would otherwise stop being
+    /// reserved without anyone being told.
+    #[error("--reserved-host-names: {reason}")]
+    InvalidReservedHostNames {
+        /// Why the list was refused.
+        reason: DomainError,
     },
 }

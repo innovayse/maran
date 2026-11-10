@@ -1,13 +1,16 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from './fixtures/guarded-test'
 import { stubSignedIn } from './fixtures/stub-auth-routes'
 import { ALERT_DELIVERY_OK, loaded, stubDashboard, SYNCHRONIZED_CLOCK } from './fixtures/stub-dashboard-route'
 import { stubHealthy } from './fixtures/stub-health-route'
+import { stubIdleLiveDashboard } from './fixtures/stub-live-dashboard-stream'
 import { stubModules } from './fixtures/stub-modules-route'
 import { stubMonitoring } from './fixtures/stub-monitoring-routes'
+import { stubShellReads } from './fixtures/stub-shell-reads'
 import { formatBytes } from '../src/utils/formatBytes'
 import type { Dashboard } from '../src/types/dashboard'
 import type { PanelModule } from '../src/types/module'
 import type { HostMetrics } from '../src/types/monitoring'
+import type { Locator, Page } from '@playwright/test'
 
 // Issue #77: the root filesystem is reported as three figures that sum to its size — used (df's
 // Used), reserved for the system (the root reserve, 0 on xfs) and available (df's Avail). The panel
@@ -74,8 +77,10 @@ const dashboardWith = (metrics: HostMetrics): Dashboard => {
 const openLanding = async (page: Page, metrics: HostMetrics): Promise<void> => {
   await stubModules(page, LICENSED)
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubDashboard(page, dashboardWith(metrics))
+  await stubIdleLiveDashboard(page)
   await stubMonitoring(page, { lastDay: [], lastWeek: [] }, [], [], metrics)
   await page.goto('/')
 }
@@ -156,8 +161,10 @@ test('an xfs root keeps the reserved row and shows it as zero on both screens', 
   await expect(card.getByRole('listitem').filter({ hasText: 'Reserved for the system' })).toContainText('0 B')
 })
 
-test('a refused live reading is an alert in the disk card and leaves the charts drawn', async ({ page }) => {
+test('a refused live reading is an alert in the disk card and leaves the charts drawn', async ({ page, guard }) => {
   await openLanding(page, EXT4)
+  // The refused reading is the subject of this test.
+  guard.allow(500, /\/api\/v1\/monitoring\/metrics$/)
   await page.route(/\/api\/v1\/monitoring\/metrics$/, async (route) => {
     await route.fulfill({
       status: 500,

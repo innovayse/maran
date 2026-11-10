@@ -93,7 +93,8 @@ remove_update_schedule() {
 }
 
 # remove_update_request: takes back the units through which the panel's "Update now" button started
-# `maran update --requested` and the request directory (issue #382).
+# `maran update --requested` and its "Check for updates" button started `maran update --check`, and the
+# request directory both put their marker in (issues #382 and #516).
 #
 # The path unit is disabled and stopped first, so a marker cannot start the service while the wrapper
 # it runs is being removed. A run already in progress is stopped too, for the reason
@@ -101,17 +102,20 @@ remove_update_schedule() {
 # snippet that builds it.
 remove_update_request() {
   echo "Removing the panel-requested update..."
-  systemctl disable --now maran-update-request.path 2>/dev/null || true
-  systemctl stop maran-update-request.service 2>/dev/null || true
+  systemctl disable --now maran-update-request.path maran-update-check.path 2>/dev/null || true
+  systemctl stop maran-update-request.service maran-update-check.service 2>/dev/null || true
   rm -f /etc/systemd/system/maran-update-request.path /etc/systemd/system/maran-update-request.service
+  rm -f /etc/systemd/system/maran-update-check.path /etc/systemd/system/maran-update-check.service
   rm -f /etc/tmpfiles.d/maran-update-request.conf
   rm -rf -- /run/maran-update-request
   systemctl daemon-reload 2>/dev/null || true
-  systemctl reset-failed maran-update-request.path maran-update-request.service 2>/dev/null || true
+  systemctl reset-failed maran-update-request.path maran-update-request.service \
+    maran-update-check.path maran-update-check.service 2>/dev/null || true
 }
 
-# remove_os_security_updates: takes back the one configuration file step 68 wrote, and nothing else
-# (issue #163).
+# remove_os_security_updates: takes back the configuration file step 68 wrote, and nothing else
+# (issue #163); on the SUSE family also the timer and service that step wrote, see
+# remove_suse_os_security_updates below.
 #
 # It does NOT remove `unattended-upgrades` or `dnf-automatic` and does NOT disable the distribution's
 # timers: after the install they are the customer's system, and an uninstall that silently stopped
@@ -144,6 +148,54 @@ remove_os_security_updates() {
     echo "        (apt-daily*.timer, dnf-automatic-install.timer) are NOT removed or disabled: they are"
     echo "        this server's, not Maran's. Without this file they run with the package's own settings."
     echo "        This uninstaller does not restore a package default for /etc/dnf/automatic.conf."
+  fi
+  remove_suse_os_security_updates "$marker"
+}
+
+# remove_suse_os_security_updates: takes back the SUSE family's own service and timer, and the locks
+# file and private zypp.conf they read (step 68 writes all four there, because that distribution ships
+# no unattended updater; the Debian and RHEL families' timers are the distribution's and stay).
+#
+# Unlike the distribution's timers above, THESE are Maran's: leaving the timer would keep a root job
+# running `zypper patch` on a server Maran no longer manages, from a unit whose hold list is gone. Each
+# file is removed only when it carries the marker (same words as MARAN_OS_UPDATES_MARKER in
+# installer/lib/68-os-updates.sh); the units are stopped first so the timer cannot fire mid-removal.
+# Harmless on a host without them. $1 = the marker.
+remove_suse_os_security_updates() {
+  local marker="$1" file removed=0
+  # The two units are named by their literal paths, one `rm` each, so the uninstall census can see
+  # that every file the installer places is removed; each still goes only when it carries the marker.
+  if [ -f /etc/systemd/system/maran-os-security-updates.timer ]; then
+    if grep -qF -- "$marker" /etc/systemd/system/maran-os-security-updates.timer; then
+      systemctl disable --now maran-os-security-updates.timer 2>/dev/null || true
+      rm -f -- /etc/systemd/system/maran-os-security-updates.timer
+      removed=1
+    else
+      echo "NOTE: /etc/systemd/system/maran-os-security-updates.timer was not written by Maran and is left in place."
+    fi
+  fi
+  if [ -f /etc/systemd/system/maran-os-security-updates.service ]; then
+    if grep -qF -- "$marker" /etc/systemd/system/maran-os-security-updates.service; then
+      systemctl stop maran-os-security-updates.service 2>/dev/null || true
+      rm -f -- /etc/systemd/system/maran-os-security-updates.service
+      removed=1
+    else
+      echo "NOTE: /etc/systemd/system/maran-os-security-updates.service was not written by Maran and is left in place."
+    fi
+  fi
+  for file in /etc/zypp/maran-unattended-zypp.conf /etc/zypp/maran-unattended.locks; do
+    [ -f "$file" ] || continue
+    if grep -qF -- "$marker" "$file"; then
+      rm -f -- "$file"
+      removed=1
+    else
+      echo "NOTE: ${file} was not written by Maran and is left in place."
+    fi
+  done
+  if [ "$removed" -eq 1 ]; then
+    systemctl daemon-reload 2>/dev/null || true
+    systemctl reset-failed maran-os-security-updates.service 2>/dev/null || true
+    echo "Removed the unattended OS security update timer, service, hold list and zypper configuration."
   fi
 }
 
@@ -201,7 +253,42 @@ remove_nginx_vhost() {
   # include naming a directory that no longer exists makes every later `nginx -t` on this
   # host fail — including ones that have nothing to do with Maran.
   rm -f /etc/nginx/conf.d/maran-sites.conf
+  remove_conf_d_include_from_nginx_conf
   systemctl reload nginx 2>/dev/null || true
+}
+
+# remove_conf_d_include_from_nginx_conf: takes back the two lines step 80 adds to /etc/nginx/nginx.conf
+# on the SUSE family (a comment and `include /etc/nginx/conf.d/*.conf;`), whose stock file does not
+# include conf.d. A no-op everywhere else, because the comment line is Maran's own text and no other
+# family's file carries it.
+#
+# Only that exact pair is dropped, by awk into a staging file beside nginx.conf, renamed over it, and
+# kept only if `nginx -t` accepts the result; otherwise the file is put back as it was and the
+# operator is told. The pristine copy step 80 kept (`nginx.conf.maran-previous`) is removed only after
+# the edit has been validated. UNVERIFIED: the SUSE nginx.conf shape; confirm with
+# `grep -n 'Maran' /etc/nginx/nginx.conf` after an install in the pinned Leap image.
+remove_conf_d_include_from_nginx_conf() {
+  local conf="/etc/nginx/nginx.conf" comment staged
+  comment="# Maran: the vhosts live in conf.d, which the stock file of this family does not include."
+  [ -f "$conf" ] && grep -qF -- "$comment" "$conf" || return 0
+  staged="$(mktemp "${conf}.maran-staging.XXXXXX")"
+  awk -v comment="    ${comment}" '
+    $0 == comment { skip = 1; next }
+    skip && $0 == "    include /etc/nginx/conf.d/*.conf;" { skip = 0; next }
+    { skip = 0; print }
+  ' "$conf" > "$staged"
+  chmod --reference="$conf" "$staged"
+  chown --reference="$conf" "$staged"
+  cp -p -- "$conf" "${conf}.maran-restore"
+  sync "$staged"
+  mv -f -- "$staged" "$conf"
+  if nginx -t >/dev/null 2>&1; then
+    rm -f -- "${conf}.maran-restore" "${conf}.maran-previous"
+    echo "Removed the conf.d include Maran added to ${conf}."
+  else
+    mv -f -- "${conf}.maran-restore" "$conf"
+    echo "NOTE: nginx rejected ${conf} without the Maran include (for a reason of this host's own); the file is back as it was. The original is at ${conf}.maran-previous."
+  fi
 }
 
 # The directory installer/lib/87-firewall.sh renders into, and the two files it renders, named

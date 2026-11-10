@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
 use maran_agent_core::validation::system::local_backup_root::LocalBackupRoot;
-use maran_ops::backup::{self, BackupHost, CreationRequest};
+use maran_ops::backup::{self, BackupHost, CreationRequest, JailMounts};
 use maran_ops::db::DbHost;
 use tokio::sync::mpsc;
 use tokio_stream::Stream;
@@ -77,6 +77,10 @@ pub struct BackupServiceImpl<B, D> {
     /// The database server the account's databases are listed from and
     /// reloaded into.
     db_host: Arc<D>,
+    /// What mounts an account's SFTP and FTPS jails onto its home again after a
+    /// restore replaced it (issue #487), wired from both protocols' areas by the
+    /// composition root.
+    jails: Arc<dyn JailMounts>,
     /// Where platform facts come from. The one fact this service asks for is
     /// the web server's group, which a restore re-applies to the home root; a
     /// service never branches on a distribution itself (rules/rust.md).
@@ -87,18 +91,21 @@ pub struct BackupServiceImpl<B, D> {
 }
 
 impl<B: BackupHost + 'static, D: DbHost + 'static> BackupServiceImpl<B, D> {
-    /// Creates the service around the two hosts it runs operations against
-    /// and the free-space floor it refuses below.
+    /// Creates the service around the two hosts it runs operations against,
+    /// the seam that refreshes the file-transfer jails after a restore, and the
+    /// free-space floor it refuses below.
     #[must_use]
     pub fn new(
         host: B,
         db_host: D,
+        jails: Arc<dyn JailMounts>,
         distro: &'static dyn maran_distro::DistroAdapter,
         floor: FreeSpaceFloor,
     ) -> Self {
         Self {
             host: Arc::new(host),
             db_host: Arc::new(db_host),
+            jails,
             distro,
             floor,
         }
@@ -217,6 +224,7 @@ impl<B: BackupHost + 'static, D: DbHost + 'static> BackupService for BackupServi
             Ok((account, input, group)) => {
                 audit.account(&account);
                 let host = Arc::clone(&self.host);
+                let jails = Arc::clone(&self.jails);
                 let progress = sender.clone();
                 let floor = self.floor;
 
@@ -233,6 +241,7 @@ impl<B: BackupHost + 'static, D: DbHost + 'static> BackupService for BackupServi
                         group,
                         &floor,
                         input.key.as_ref(),
+                        jails.as_ref(),
                         &mut sink,
                     );
 

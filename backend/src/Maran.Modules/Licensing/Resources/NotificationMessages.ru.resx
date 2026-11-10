@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="LeaseRenewalFailedAlertSubject">
+    <value>Не удалось продлить аренду лицензии</value>
+  </data>
+  <data name="LeaseRenewalFailedAlertBody">
+    <value>Панели не удалось продлить аренду лицензии {0} раз подряд ({1}). Пока действует текущая аренда, платные модули остаются доступными; после её окончания они перестанут работать до успешного продления. Проверьте, что этот сервер может связаться со службой лицензий, или обратитесь к тому, кто выдал лицензию.</value>
+  </data>
+  <data name="LeaseRenewalReasonUnreachable">
+    <value>служба лицензий недоступна</value>
+  </data>
+  <data name="LeaseRenewalReasonRefused">
+    <value>служба лицензий отказалась выдать аренду</value>
+  </data>
+  <data name="LeaseRenewalReasonAnswerRejected">
+    <value>ответ службы лицензий не является действительной арендой для этой лицензии</value>
+  </data>
+  <data name="LeaseRenewalReasonNotNewer">
+    <value>служба лицензий вернула аренду, которая не продлевает текущую</value>
+  </data>
+  <data name="LeaseRenewalReasonWriteFailed">
+    <value>аренду не удалось сохранить на этом сервере</value>
+  </data>
+  <data name="LeaseRenewalRecoveredAlertSubject">
+    <value>Аренда лицензии продлена</value>
+  </data>
+  <data name="LeaseRenewalRecoveredAlertBody">
+    <value>Панель продлила аренду лицензии после повторных неудач. Платные модули снова доступны на весь срок новой аренды.</value>
+  </data>
+</root>

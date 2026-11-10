@@ -1,7 +1,8 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedOut } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import type { Page } from '@playwright/test'
 
 // Issue #213: the signed-out forms catch what can never succeed before a request leaves the
 // browser. These checks are advice only — the backend re-validates every one of them — so each
@@ -85,8 +86,10 @@ test('an invitation link without a token states that it is incomplete and offers
   await expect(page.getByRole('button', { name: 'Set the password' })).toHaveCount(0)
 })
 
-test('a short invitation password is flagged once before it is sent', async ({ page }) => {
+test('a short invitation password is flagged once before it is sent', async ({ page, guard }) => {
   await stubSignedOutShell(page)
+  // The second press reaches the endpoint, which the stub refuses: the refusal is the subject.
+  guard.allow(400, /\/api\/v1\/auth\/accept-invitation$/)
   const accepts = await countRequests(page, '**/api/v1/auth/accept-invitation')
 
   await page.goto('/accept-invitation?token=fresh')
@@ -105,8 +108,9 @@ test('a short invitation password is flagged once before it is sent', async ({ p
   expect(accepts()).toBe(1)
 })
 
-test('a refused invitation does not carry its error to the sign-in screen', async ({ page }) => {
+test('a refused invitation does not carry its error to the sign-in screen', async ({ page, guard }) => {
   await stubSignedOutShell(page)
+  guard.allow(400, /\/api\/v1\/auth\/accept-invitation$/)
   await countRequests(page, '**/api/v1/auth/accept-invitation')
 
   await page.goto('/accept-invitation?token=spent')
@@ -123,8 +127,9 @@ test('a refused invitation does not carry its error to the sign-in screen', asyn
   await expect(page.getByText('Refused by the stub.')).toHaveCount(0)
 })
 
-test('a refused reset link does not carry its error to the sign-in screen', async ({ page }) => {
+test('a refused reset link does not carry its error to the sign-in screen', async ({ page, guard }) => {
   await stubSignedOutShell(page)
+  guard.allow(400, /\/api\/v1\/auth\/reset-password$/)
   await countRequests(page, '**/api/v1/auth/reset-password')
 
   await page.goto('/reset-password?token=spent')

@@ -101,12 +101,19 @@ public sealed class SslModule : IPanelModule
         // personal-data export, an allow-list of fields and never a secret.
         services.AddScoped<IPersonalDataProvider, SslPersonalDataProvider>();
 
+        // Moving an account to another server (issue #127): what the module says about its certificates, as
+        // metadata, and the dry-run notes for what the administrator issues or uploads again afterwards.
+        services.AddScoped<IAccountMigrationExporter, SslMigrationExporter>();
+        services.AddScoped<IAccountMigrationImporter, SslMigrationImporter>();
+
         services.AddScoped<CertificateAuditJournal>();
         services.AddScoped<CertificateInstaller>();
         services.AddScoped<ISslAlertMailer, SslAlertMailer>();
         services.AddScoped<CertificateRenewalFailureMessages>();
         services.AddScoped<AcmeAccountStore>();
         services.AddScoped<IAcmeChallengeWriter, AcmeChallengeWriter>();
+        services.AddScoped<IAcmeDnsChallengeWriter, AcmeDnsChallengeWriter>();
+        services.AddScoped<WildcardAvailabilityCheck>();
         services.AddScoped<IAcmeClient, AcmeClient>();
         services.AddScoped<CertificateRenewalHandler>();
         services.AddScoped<PanelCertificateIssuer>();

@@ -79,4 +79,30 @@ public sealed class PublicUrlRuleTests
 
         Assert.False(PublicUrlRule.IsPublicUrl($"https://{host}.example.com"));
     }
+
+    /// <summary>The host of an origin whose host is a DNS name is handed out lower-cased, port dropped.</summary>
+    [Theory]
+    [InlineData("https://panel.example.com", "panel.example.com")]
+    [InlineData("HTTPS://Panel.Example.COM:8443/", "panel.example.com")]
+    public void The_dns_host_of_an_acceptable_origin_is_handed_out(string value, string expected)
+    {
+        Assert.True(PublicUrlRule.TryGetDnsName(value, out var hostName));
+        Assert.Equal(expected, hostName);
+    }
+
+    /// <summary>A refused origin, an address and localhost hand out no host name.</summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("http://panel.example.com")]
+    [InlineData("https://user@panel.example.com")]
+    [InlineData("https://panel.example.com/path")]
+    [InlineData("https://203.0.113.7:8443")]
+    [InlineData("https://[2001:db8::1]:8443")]
+    [InlineData("https://localhost:8443")]
+    public void No_host_name_is_handed_out_for_a_refused_origin_an_address_or_localhost(string? value)
+    {
+        Assert.False(PublicUrlRule.TryGetDnsName(value, out var hostName));
+        Assert.Null(hostName);
+    }
 }

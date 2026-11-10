@@ -53,6 +53,7 @@ import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
 import UiSkeleton from '../../components/ui/UiSkeleton.vue'
 import AccountResourcesCard from '../../components/accounts/AccountResourcesCard.vue'
 import AccountStatusBadge from '../../components/accounts/AccountStatusBadge.vue'
+import { useViewingAs } from '../../composables/useViewingAs'
 import MembershipOffersCard from '../../components/sub-users/MembershipOffersCard.vue'
 import { useAccountMembershipsStore } from '../../stores/accountMemberships'
 import { useAccountsStore } from '../../stores/accounts'
@@ -103,6 +104,7 @@ const { t } = useI18n()
 const store = useAccountsStore()
 const offersStore = useMembershipOffersStore()
 const membershipsStore = useAccountMembershipsStore()
+const viewingAs = useViewingAs()
 
 /** The success toast's text, or `null` while none is showing. */
 const notice: Ref<string | null> = ref(null)
@@ -160,7 +162,13 @@ const dismissNotice = (): void => {
 }
 
 onMounted(async () => {
-  await Promise.all([store.loadMine(), store.loadMineResourceSummary(), offersStore.load()])
+  // Offers are addressed to the person who signs in, and answering one is theirs alone: a view-as
+  // session is refused the whole offers endpoint, so an operator viewing is not even asked (issue #513).
+  await Promise.all([
+    store.loadMine(),
+    store.loadMineResourceSummary(),
+    viewingAs.value ? Promise.resolve() : offersStore.load(),
+  ])
 })
 </script>
 

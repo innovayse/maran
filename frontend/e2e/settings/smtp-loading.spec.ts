@@ -1,14 +1,16 @@
-import { test, type Page } from '@playwright/test'
 import {
   expectRegionFastLoad,
   expectRegionSlowFailure,
   expectRegionSlowLoad,
   type RegionLoadingScenario,
 } from '../fixtures/expect-region-loading'
+import { test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { storedSmtpSettings, stubSmtpSettings } from '../fixtures/stub-smtp-routes'
+import type { Page } from '@playwright/test'
 
 // The mail settings form while the settings are on the way (#243): real labels over placeholder controls.
 
@@ -20,6 +22,7 @@ const REFUSAL = 'The mail settings could not be read.'
 const shell = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubEmptyModules(page)
 }
 
@@ -31,6 +34,8 @@ const MAIL_SETTINGS_SCENARIO: RegionLoadingScenario = {
   },
   stubFailure: async (page) => {
     await shell(page)
+    // The security modes the form offers are their own read and stay answered; only the settings fail.
+    await stubSmtpSettings(page, storedSmtpSettings)
     await page.route(SMTP_PATTERN, async (route) => {
       await route.fulfill({
         status: 500,
@@ -57,6 +62,7 @@ test('mail settings: a fast answer shows no placeholder', async ({ page }) => {
   await expectRegionFastLoad(page, MAIL_SETTINGS_SCENARIO)
 })
 
-test('mail settings: a slow failure is an alert, never a skeleton', async ({ page }) => {
+test('mail settings: a slow failure is an alert, never a skeleton', async ({ page, guard }) => {
+  guard.allow(500, /\/api\/v1\/notifications\/smtp$/)
   await expectRegionSlowFailure(page, MAIL_SETTINGS_SCENARIO)
 })

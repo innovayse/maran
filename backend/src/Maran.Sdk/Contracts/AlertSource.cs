@@ -11,4 +11,7 @@ public enum AlertSource
 
     /// <summary>The Ssl module: a certificate close to expiring.</summary>
     Ssl = 3,
+
+    /// <summary>The Licensing module: the licence lease could not be renewed.</summary>
+    Licensing = 4,
 }

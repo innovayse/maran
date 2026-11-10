@@ -1,3 +1,4 @@
+using Maran.Agent.Client.Errors;
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Ftp.Common;
 using Maran.Modules.Ftp.Domain.Entities;
@@ -47,14 +48,6 @@ namespace Maran.Modules.Ftp.Commands.EnableFtps;
 /// </remarks>
 public sealed class EnableFtpsCommandHandler
 {
-    /// <summary>The stable code <c>AgentErrorTranslator</c> produces for the agent's NOT_FOUND.</summary>
-    /// <remarks>
-    /// A private constant rather than a reference to the agent client's generated resource class,
-    /// which is that project's internal detail. The string is the contract between the two
-    /// projects and is asserted by this module's own tests.
-    /// </remarks>
-    private const string AgentNotFoundCode = "AgentNotFound";
-
     /// <summary>The Ftp module's database context.</summary>
     private readonly FtpDbContext _dbContext;
 
@@ -172,7 +165,7 @@ public sealed class EnableFtpsCommandHandler
     /// </remarks>
     private static Error TranslateAgentFailure(Error error)
     {
-        if (string.Equals(error.Code, AgentNotFoundCode, StringComparison.Ordinal))
+        if (string.Equals(error.Code, AgentErrorCodes.NotFound, StringComparison.Ordinal))
         {
             return Error.Of(nameof(ErrorMessages.FtpsCertificateMissing), ErrorType.Conflict);
         }

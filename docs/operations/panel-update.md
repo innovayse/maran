@@ -84,6 +84,16 @@ server without waiting for someone to run `maran update`. A systemd timer does t
   reboot, an installer run and an update. The one exception: a server installed before this feature
   gets the timer enabled by the first installer run that brings the units, because for that server the
   units are new.
+- **Servers that were updated, not installed.** `maran update` replaces the code only; it never
+  installs or changes a systemd unit. The two units arrive with the installer (step 69), so a server
+  that was moved to this release by `maran update` has no timer until the installer is run on it again
+  (the installer re-run then enables the timer, because for that server the units are new).
+  `maran update-schedule status` says `not-installed` on such a server.
+- **Which `maran` runs.** The unit runs the installed command (`/usr/local/sbin/maran`), which an
+  update does not replace, against whichever release it fetches. The command and the releases it
+  fetches are kept compatible by the same rule as for an operator's update.
+- **The interval is fixed.** Daily with a random delay; there is no setting for it, so that nothing
+  you type reaches a unit. The switch is on, off or status.
 - **Switching it.** `sudo maran update-schedule enable|disable|status`. `status` shows whether the timer
   is enabled and active, when it fires next, how the last run ended and the installed version.
 - **When it fails.** A failed run rolls the code back (never the database), and is recorded in four
@@ -102,7 +112,11 @@ server without waiting for someone to run `maran update`. A systemd timer does t
   legitimately signed security release that starts but misbehaves is caught only if the health gate
   notices. The dump taken before each update is kept for that case. The threat note is
   `docs/superpowers/notes/2026-11-07-security-patch-updates-threat-note.md`; the second review of this
-  privileged change is outstanding.
+  privileged change is outstanding. The call is the second documented exception to the no-new-outbound-call
+  rule (`rules/security.md` item 10); the owner's written approval of that exception is not recorded yet.
+  What the installer polygon observes is the units' text and what step 69 leaves and keeps; it boots no
+  systemd, so a run of the unit under its sandbox, a reboot and the catch-up of a missed run are not
+  observed there.
 
 ## Updating from the panel
 
@@ -132,12 +146,40 @@ What the button does, and does not do:
   report never arrived, is closed by the panel after a few minutes with a reason of its own.
 
 "The last check" is the last time this server fetched the signed manifest, whether by
-`maran update --check`, by an update, or by the daily security-patch timer. The panel itself never
-contacts the release host. On a server where none of those has run yet, the screen says "Not checked
-yet" and offers no button; run `sudo maran update --check` once, or leave the timer on.
+`maran update --check`, by an update, by the daily security-patch timer, or by the **Check for updates**
+button below. The panel itself never contacts the release host. On a server where none of those has
+run yet, the screen says "Not checked yet" and offers no update button; press **Check for updates**,
+run `sudo maran update --check` once, or leave the timer on.
 
 To switch the button off, disable the path unit: `sudo systemctl disable --now maran-update-request.path`.
 The screen then still shows the versions, and a press is closed by the panel as "never started".
+
+### Checking for updates from the panel
+
+The **Check for updates** button asks the server to look for a newer release now. It installs nothing:
+
+- It runs the fixed command `maran update --check` as root, which takes the update lock, verifies the
+  signed manifest and records the result in `/etc/maran/update-check.state`, which is what the screen
+  reads. The request carries nothing; there is no channel, address or version to send.
+- The mechanism is the update button's own: the panel creates a marker file in the same root-owned
+  directory (`/run/maran-update-request/check-requested`) and a root-owned path unit
+  (`maran-update-check.path`) starts `maran-update-check.service`, which removes the marker when the
+  check has ended, whatever its outcome. The marker is what the screen shows as "Checking for
+  updates"; the screen re-reads the state every two seconds while it exists.
+- The screen ends the check by comparing the **last checked** time with what it was before: a new time
+  means the check recorded a result; the same time means the server could not finish the check (the
+  release host was unreachable, or an update held the lock), and the screen says so. The reason is in
+  the unit's journal: `journalctl -u maran-update-check.service`.
+- It is for administrators only, audited (`PanelUpdateCheckRequested`), and limited to ten requests an
+  hour per administrator (`RateLimiting__UpdateCheckMaxRequests` and
+  `RateLimiting__UpdateCheckWindowSeconds`, a 429 beyond it). It is refused while an update is queued or
+  running, and while another check is.
+- A marker nobody took within five minutes (the path unit is off, or the service is not installed)
+  stops counting as a check in progress, and the next press replaces it.
+
+To switch it off, disable its path unit: `sudo systemctl disable --now maran-update-check.path`. The
+threat note is `docs/superpowers/notes/2026-11-09-panel-update-check-threat-note.md`; the second review of
+this privileged path is outstanding.
 
 The second review of this privileged path is outstanding
 (`docs/superpowers/notes/2026-11-07-panel-update-from-panel-threat-note.md`), and the panel does not

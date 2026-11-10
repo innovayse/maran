@@ -1,13 +1,15 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubDatabaseActions, stubDatabases } from '../fixtures/stub-databases-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { Database } from '../../src/types/database'
 import type { PanelModule } from '../../src/types/module'
+import type { Locator, Page } from '@playwright/test'
 
 // Where keyboard focus goes when an overlay lets go of it.
 //
@@ -75,6 +77,7 @@ const openDatabasesScreen = async (page: Page, databases: Database[]): Promise<v
   await setPersistedLocale(page, 'en')
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubDatabases(page, databases)
   await stubDatabaseActions(page, DATABASES[0].dbUserName)

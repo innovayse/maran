@@ -1,5 +1,6 @@
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
+using Maran.SharedKernel.Results;
 
 namespace Maran.Host.Modules;
 
@@ -49,6 +50,14 @@ public sealed class RuntimeModuleRegistry : IModuleRegistry
         _loader = loader;
     }
 
+    /// <summary>Whether a composed module arrived as a package rather than shipping with the panel.</summary>
+    /// <param name="module">A module from <see cref="Modules"/>.</param>
+    /// <returns>True for a module composed from a package.</returns>
+    public bool IsPackaged(IPanelModule module)
+    {
+        return _composition.Packaged.Contains(module);
+    }
+
     /// <inheritdoc />
     public async Task<IReadOnlyList<RegisteredModule>> ListAsync(CancellationToken cancellationToken)
     {
@@ -62,15 +71,18 @@ public sealed class RuntimeModuleRegistry : IModuleRegistry
         {
             var manifest = module.Manifest;
             var state = ModuleLifecycleState.Active;
+            Error? failure = null;
 
-            if (_composition.Packaged.Contains(module)
+            if (IsPackaged(module)
                 && reported.TryGetValue(manifest.Id, out var info)
                 && info.State is ModuleLifecycleState.Degraded or ModuleLifecycleState.Failed)
             {
                 state = info.State;
+                failure = info.Failure;
             }
 
-            registered.Add(new RegisteredModule(manifest.Id, manifest.Version, manifest.Kind, manifest.Tier, state));
+            registered.Add(
+                new RegisteredModule(manifest.Id, manifest.Version, manifest.Kind, manifest.Tier, state, failure));
         }
 
         foreach (var refusal in _composition.Refused)
@@ -84,7 +96,7 @@ public sealed class RuntimeModuleRegistry : IModuleRegistry
             }
 
             registered.Add(new RegisteredModule(
-                manifest.Id, manifest.Version, manifest.Kind, manifest.Tier, ModuleLifecycleState.Failed));
+                manifest.Id, manifest.Version, manifest.Kind, manifest.Tier, ModuleLifecycleState.Failed, refusal.Reason));
         }
 
         return registered;

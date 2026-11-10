@@ -35,6 +35,7 @@ pub(crate) mod fake_site_host;
 pub(crate) mod fake_site_log_host;
 mod follow_log;
 mod inspect_account_sites;
+mod is_site_log_name;
 pub(crate) mod is_suspended_vhost;
 mod log_file_identity;
 pub mod model;
@@ -49,6 +50,7 @@ mod prune_site_logs;
 mod read_traffic_file;
 mod reconcile_orphan_auth_files;
 mod reload_web_server;
+mod remove_site_logs;
 mod remove_vhost;
 // Visible to the crate, not to the world: `crate::ssl` rewires a site's vhost
 // when it installs or removes a certificate, and it must produce the SAME text
@@ -112,6 +114,7 @@ pub use process_site_log_host::ProcessSiteLogHost;
 pub use prune_site_logs::prune_site_logs;
 pub use reconcile_orphan_auth_files::reconcile_orphan_auth_files;
 pub use reload_web_server::reload_web_server;
+pub use remove_site_logs::remove_site_logs;
 pub use site_host::SiteHost;
 pub use site_log_directory::SiteLogDirectory;
 pub use site_log_file::SiteLogFile;

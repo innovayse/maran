@@ -43,3 +43,62 @@
 ## What the author could not verify
 
 sshd behaviour for an unchrooted account user per family; presence of `pam_limits` in the sshd stack per family; that both families accept the same `limits.d` `nofile` syntax; the exact `setquota` inode semantics on XFS project quota hosts.
+
+## Amendment 2026-11-09: a login that cannot be made is refused, not swallowed (#485)
+
+**What was wrong.** `AccountCreatedHandler` treated every PostgreSQL unique violation raised by its save
+as a concurrent duplicate delivery and returned quietly. Only `UX_AccountMemberships_AccountId_Owner`
+means that; `IX_Users_Email` and `IX_Users_Username` are unique too. A new account whose owner e-mail
+(or whose name, as a login name) another login already held ended with no login, no invitation, no
+journal entry and a success answer, and with an initial password the creator handed over a credential for
+a login that did not exist. This is the "silent fall-through to a passwordless login" the note rules out.
+
+**What changed.**
+- `IOwnerLoginDirectory` (Sdk window, implemented by Identity's `OwnerLoginDirectory`) names which of the
+  name and the e-mail another login holds. `CreateAccountCommandHandler` asks it right after the password
+  policy and BEFORE the agent is called or a row is written, and refuses with `AccountOwnerEmailTaken` or
+  `AccountLoginNameTaken` (Conflict, en/ru/hy). Nothing exists on the host for a refused creation.
+- `ConcurrentOwnerLoginPolicy` is the one place that decides which violation is a repeat: a unique
+  violation whose constraint name is `UX_AccountMemberships_AccountId_Owner`. Any other violation is
+  rethrown by `AccountCreatedHandler`, which `CreateAccountCommandHandler` already answers as
+  `AccountLoginIssuanceFailed`; this is the backstop for a clash that appears between the question and
+  the insert.
+
+**Why it is safe now.** The answer discloses only which of the two values clashes, never whose login
+holds it, and only to a caller already allowed to create accounts. The unique indexes stay the guarantee.
+
+**Stated limits.** The comparison is exact, as the indexes are: two addresses differing only in case are
+two logins. The question and the insert are two round trips, hence the backstop.
+
+**Second review: OUTSTANDING (#331).**
+
+## Correction (issue #488): a reseller may use neither option
+
+The note above names an administrator as the one who sets the first password and grants the shell,
+but `POST /api/v1/accounts` is open to a reseller and to a reseller's API key (`accounts.write`), and
+`CreateAccountCommand` had no check on who was asking. A reseller could therefore create an account
+with a bash login shell and a password it chose: a shell on the shared server under that account,
+and a credential the reseller knows for the customer's sign-in. The envelope limits bound how many
+accounts and how much disk, not that.
+
+**Decision.** Both options are the administrator's alone. `CreateAccountCommandHandler` reads the
+caller's identity (`ResellerScope.CallerResellerId`, which counts a reseller's API key as that
+reseller and an administrator's key as no reseller), and for a reseller refuses `ShellAccess` with
+`AccountShellAccessAdministratorOnly` and any login mode other than the invitation, or any stated
+password, with `AccountInitialPasswordAdministratorOnly`, both 403 and journalled as a refused
+creation, before the policy check, the login check or the agent. A reseller's account therefore has
+the `nologin` shell, and its owner chooses the password through the invitation.
+
+**What was deliberately not built.** An envelope flag that lets an administrator grant a particular
+reseller the shell. It would be a new column, a migration, a validator, a DTO and a screen, and the
+refusal is the safe default; the flag can follow if a product need appears, as a field of
+`ResellerEnvelope` checked in the same place. The first password stays unavailable to a reseller
+even then: there is no case in which the party who sells the account should know the customer's
+password.
+
+**Tests.** `CreateAccountResellerPrivilegeTests` (refused for a reseller and for a reseller's key,
+nothing provisioned, refusal journalled; the accepting controls are the invitation by a reseller and
+both options by an administrator), `AccountResellerPrivilegeEndpointTests` over HTTP, and
+`e2e/accounts/reseller-privileges.spec.ts` (the reseller's form shows the invitation only).
+
+**Second review: OUTSTANDING (#331)**

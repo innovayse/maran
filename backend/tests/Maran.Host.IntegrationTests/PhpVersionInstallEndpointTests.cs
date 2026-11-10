@@ -108,6 +108,7 @@ public sealed class PhpVersionInstallEndpointTests : IAsyncLifetime
     /// <param name="expected">The status the endpoint must answer.</param>
     [Theory]
     [InlineData("AgentPackageSourceRefused", ErrorType.UpstreamRefused, HttpStatusCode.BadGateway)]
+    [InlineData("AgentPackageNotAvailable", ErrorType.Conflict, HttpStatusCode.Conflict)]
     [InlineData("AgentNotImplemented", ErrorType.Unavailable, HttpStatusCode.ServiceUnavailable)]
     [InlineData("AgentSystemFailure", ErrorType.Failure, HttpStatusCode.InternalServerError)]
     public async Task A_failed_install_answers_the_status_of_its_kind_and_is_journalled_as_a_failure(

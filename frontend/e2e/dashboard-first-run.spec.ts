@@ -1,14 +1,19 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from './fixtures/guarded-test'
 import { FULL_CATALOGUE } from './fixtures/open-full-shell'
+import { stubAccounts } from './fixtures/stub-accounts-route'
 import { setPersistedLocale } from './fixtures/set-locale'
 import { stubSignedIn } from './fixtures/stub-auth-routes'
 import { ALERT_DELIVERY_OK, loaded, stubDashboard, SYNCHRONIZED_CLOCK, UNAVAILABLE, WITHHELD_DASHBOARD } from './fixtures/stub-dashboard-route'
 import { stubHealthy } from './fixtures/stub-health-route'
+import { stubIdleLiveDashboard } from './fixtures/stub-live-dashboard-stream'
 import { COMPLETE_CHECKLIST, stubFirstRun } from './fixtures/stub-notification-routes'
 import { stubModules } from './fixtures/stub-modules-route'
+import { stubQuietOwnAccount } from './fixtures/stub-quiet-own-account'
+import { stubShellReads } from './fixtures/stub-shell-reads'
 import type { AuthenticatedUser } from '../src/types/auth'
 import type { Dashboard } from '../src/types/dashboard'
 import type { FirstRunChecklist, FirstRunStep } from '../src/types/firstRun'
+import type { Page } from '@playwright/test'
 
 // Issue #164: the administrator's dashboard carries a first-run checklist while a new server still
 // lacks something. The panel decides which steps exist, whether each is done and whether the whole
@@ -75,9 +80,11 @@ const PARTLY_DONE: FirstRunChecklist = {
 const openDashboard = async (page: Page, checklist: FirstRunChecklist): Promise<void> => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, FULL_CATALOGUE)
   await stubDashboard(page, DASHBOARD)
+  await stubIdleLiveDashboard(page)
   await stubFirstRun(page, checklist)
   await page.goto('/')
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
@@ -106,6 +113,7 @@ test('a step the panel could not check is shown as that, not as to do', async ({
 
 test('a step that is not done links to the screen where it is done', async ({ page }) => {
   await openDashboard(page, PARTLY_DONE)
+  await stubAccounts(page, [])
 
   const card = page.getByTestId('first-run-checklist')
   // A finished step has nothing left to open; an open one does.
@@ -128,12 +136,16 @@ test('the card appears for an unfinished list and not for a finished one, so the
   await expect(page.getByTestId('first-run-checklist')).toBeVisible()
 })
 
-test('a checklist that cannot be read draws no card and leaves the rest of the screen up', async ({ page }) => {
+test('a checklist that cannot be read draws no card and leaves the rest of the screen up', async ({ page, guard }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, FULL_CATALOGUE)
   await stubDashboard(page, DASHBOARD)
+  await stubIdleLiveDashboard(page)
+  // The unreadable checklist is the subject of this test.
+  guard.allow(500, /\/api\/v1\/dashboard\/first-run$/)
   await page.route(/\/api\/v1\/dashboard\/first-run(\?.*)?$/, async (route) => {
     await route.fulfill({ status: 500, contentType: 'application/problem+json', body: JSON.stringify({ title: 'Failed', status: 500 }) })
   })
@@ -152,6 +164,8 @@ test('a customer\'s dashboard never asks for the checklist', async ({ page }) =>
   })
   await page.setViewportSize({ width: 1440, height: 900 })
   await stubSignedIn(page, CUSTOMER)
+  await stubShellReads(page)
+  await stubQuietOwnAccount(page, CUSTOMER.accountId ?? '')
   await stubHealthy(page)
   await stubModules(page, FULL_CATALOGUE)
   await stubDashboard(page, WITHHELD_DASHBOARD)

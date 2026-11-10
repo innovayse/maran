@@ -1,7 +1,7 @@
 # Certificates and the ACME directory
 
 How the panel obtains and renews site certificates, what an operator sets, and what the panel shows
-when something goes wrong (issue #161, partial).
+when something goes wrong (issue #161).
 
 ## The ACME directory URL
 
@@ -78,9 +78,56 @@ was: 3 for a refusal (no host name), 69 when the agent or the authority could no
 failure. The run is written to the audit journal as `CertificateIssued`, with the operator named by
 `SUDO_USER` recorded as an unverified claim.
 
+## Wildcard certificates
+
+A wildcard certificate covers the domain and every name directly under it (`example.com` and
+`*.example.com`). It can only be proven over DNS, so the panel proves it through **the name server
+this server runs** (the DNS module) and through no other provider: it never calls a third-party DNS
+API.
+
+### What has to be true
+
+1. The account's plan includes DNS zones.
+2. The name server is switched on (Administration, DNS).
+3. The account owns a **zone** on this server that contains the domain (`example.com`, or a parent
+   such as `example.com` for `www.example.com`).
+4. The domain's name servers, at the registrar, point at this server. The panel does not check this
+   itself and makes no DNS lookup of its own: the certificate authority is the judge. If it cannot
+   see the validation record the order fails, and the message says what to check.
+5. If the domain has a CAA record, it must allow wildcard issuance for the authority
+   (`issuewild`). A CAA record that only has an `issue` tag does not.
+
+When any of the first three is missing, the SSL tab of the site does not offer the wildcard choice and
+says why in the panel's language, and a request for it is refused with the same reason before anything
+is ordered.
+
+### What the panel does
+
+The order names two identifiers, the domain and `*.domain`. For each the panel publishes a TXT record
+at `_acme-challenge.<domain>` in the account's zone (time to live 60 seconds, shown in the zone as a
+panel-managed record that cannot be edited or deleted by hand), asks the authority to look, waits, and
+removes the records again whether the order succeeded, failed or was cancelled. Both records exist
+before the authority is asked to look. The zone is locked only while a record is written, never while
+the authority validates. A record that outlives a panel crash is swept within the hour.
+
+These challenge records do not count against the zone's record limit. At most two sit under one name.
+
+### Renewal
+
+Renewal repeats the way a certificate was ordered. A wildcard certificate is renewed through DNS
+every time; a plain certificate through the site's document root. If the zone was deleted or the
+domain's name servers were moved away, the renewal fails and shows its reason like any other renewal
+failure. Check this after moving a domain's DNS.
+
+### Rolling back
+
+The choice is stored in a new column, `Certificates."IsWildcard"` (additive). If an update is rolled
+back to a release that does not know it, that release renews a wildcard certificate as a **single-name**
+certificate, and a name that relied on the wildcard loses its certificate at the next renewal. Re-issue
+the wildcard after updating again.
+
 ## What is not done
 
-- **DNS-01 and wildcard certificates.** The panel validates domains over HTTP only. Wildcards need
-  DNS-01, which needs a hook into a DNS provider. No DNS module exists and the choice of provider,
-  and the outbound DNS API call it implies, is an owner decision (rules/security.md item 10), so
-  this is deferred and #161 stays open.
+- **DNS providers other than this server's own name server.** Wildcards are proven only through the
+  zones this panel serves. Another provider would be a new outbound call under rules/security.md
+  item 10 and needs its own decision.

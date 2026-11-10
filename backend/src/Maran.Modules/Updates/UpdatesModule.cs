@@ -66,6 +66,7 @@ public sealed class UpdatesModule : IPanelModule
         // The reaper, which is a singleton, needs them as such.
         services.AddSingleton<PanelUpdateStateReader>();
         services.AddSingleton<PanelUpdateRequestMarker>();
+        services.AddSingleton<PanelUpdateCheckMarker>();
         services.AddSingleton<PanelUpdateTaskLedger>();
 
         // Scoped, like every journal: it carries ICurrentUser, which is per request.

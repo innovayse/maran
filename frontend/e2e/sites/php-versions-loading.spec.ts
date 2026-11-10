@@ -1,15 +1,17 @@
-import { test, type Page } from '@playwright/test'
 import {
   expectTableFastLoad,
   expectTableSlowFailure,
   expectTableSlowLoad,
   type TableLoadingScenario,
 } from '../fixtures/expect-table-loading'
+import { test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubInstallablePhpVersions, stubPhpVersions } from '../fixtures/stub-sites-routes'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 // The installed PHP versions while the list is on the way (#243): drawn from the table's own
 // column schema. The screen belongs to the sites module, so its spec lives beside the sites list's.
@@ -29,6 +31,7 @@ const REFUSAL = 'The PHP versions could not be read.'
  */
 const signIn = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
 }
@@ -66,6 +69,8 @@ test('PHP versions: a fast answer shows no placeholder', async ({ page }) => {
   await expectTableFastLoad(page, PHP_VERSIONS_SCENARIO)
 })
 
-test('PHP versions: a slow failure is an alert, never a skeleton', async ({ page }) => {
+test('PHP versions: a slow failure is an alert, never a skeleton', async ({ page, guard }) => {
+  // The scenario answers the list read with a 500 on purpose: the failure is what is under test.
+  guard.allow(500, /\/api\/v1\/sites\/php-versions$/)
   await expectTableSlowFailure(page, PHP_VERSIONS_SCENARIO)
 })

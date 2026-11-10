@@ -7,6 +7,12 @@
 # packageable module may fall (as screens move to the manifest) and may never rise. When it falls,
 # lower the number here in the same change; a number higher than the router holds fails the test.
 #
+# A rise is a reviewed decision, never an accident, and each one is recorded here with its reason:
+#   2026-11-09  dns   4 -> 7  the DNS template screens a v1 issue ships in the core bundle (list, new, edit).
+#   2026-11-09  mail  3 -> 4  the administrator's mail queue screen, in the core bundle for the same reason.
+# Both modules still compile their screens into the single SPA (rules/architecture.md "Where a module's UI
+# lives"); the ratchet falls when a module's screens move to its manifest, not before.
+#
 # One entry per line: <module id>|<count>. Read by PackageableSpaRouteTests. A line for a module that
 # is not packageable is ignored by that test and should be deleted.
 
@@ -14,12 +20,12 @@ accounts|13
 backups|4
 cron|2
 databases|3
-dns|4
+dns|7
 files|3
 firewall|3
 ftp|1
 identity|1
-mail|3
+mail|4
 monitoring|2
 sftp|1
 sites|4

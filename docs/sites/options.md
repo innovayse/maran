@@ -52,8 +52,8 @@ before options existed.
   `source_cidr`).
 - Rendering: `agent/crates/templates/templates/nginx/` (`site_access_rules`, `site_option_locations`,
   `site_request_limit`, `redirect_site`, `canonical_redirect_body`, `site_auth_file`) and the goldens beside them.
-- Credential files: `/etc/maran/nginx/auth/<domain>.htpasswd`, `root:<web server group>` mode `2750`
-  directory, `0640` files. Written before the vhost that names it, removed after it, and swept at
+- Credential files: `/etc/maran/nginx/auth/<domain>.htpasswd`, `root:<web server group>` mode `0750`
+  directory (no setgid bit: the agent's unit forbids one), `0644` files, which only the directory's group can reach. Written before the vhost that names it, removed after it, and swept at
   agent start when the vhost is gone. nginx reads the file on every request, so a change needs no
   reload.
 - Threat note: `docs/superpowers/notes/2026-11-07-site-options-threat-note.md`.

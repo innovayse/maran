@@ -1,16 +1,18 @@
-import { test, type Page } from '@playwright/test'
 import {
   expectTableFastLoad,
   expectTableSlowFailure,
   expectTableSlowLoad,
   type TableLoadingScenario,
 } from '../fixtures/expect-table-loading'
+import { test } from '../fixtures/guarded-test'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
-import { stubPhpVersions, stubSites, stubSitesProblem } from '../fixtures/stub-sites-routes'
+import { stubPhpVersions, stubSiteChoices, stubSites, stubSitesProblem } from '../fixtures/stub-sites-routes'
 import type { PanelModule } from '../../src/types/module'
 import type { Site } from '../../src/types/site'
+import type { Page } from '@playwright/test'
 
 // The sites table while its page is on the way (#243): drawn from its own column schema.
 
@@ -31,15 +33,17 @@ const ALPHA: Site = {
 }
 
 /**
- * Signs in with the sites module licensed and no PHP versions.
+ * Signs in with the sites module licensed, no PHP versions and the panel's default backend choices.
  * @param page The Playwright page.
  * @returns Resolves once the stubs are installed.
  */
 const signIn = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
   await stubPhpVersions(page, [])
+  await stubSiteChoices(page)
 }
 
 /** How the sites list screen is opened and answered. */
@@ -67,6 +71,7 @@ test('sites list: a fast answer shows no placeholder', async ({ page }) => {
   await expectTableFastLoad(page, SITES_LIST_SCENARIO)
 })
 
-test('sites list: a slow failure is an alert, never a skeleton', async ({ page }) => {
+test('sites list: a slow failure is an alert, never a skeleton', async ({ page, guard }) => {
+  guard.allow(500, /\/api\/v1\/sites(\?.*)?$/)
   await expectTableSlowFailure(page, SITES_LIST_SCENARIO)
 })

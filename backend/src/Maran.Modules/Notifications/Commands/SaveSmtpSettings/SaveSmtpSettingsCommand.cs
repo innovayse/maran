@@ -19,7 +19,11 @@ namespace Maran.Modules.Notifications.Commands.SaveSmtpSettings;
 /// </remarks>
 /// <param name="Host">Host name or address of the mail server.</param>
 /// <param name="Port">TCP port the mail server listens on.</param>
-/// <param name="Security">How the connection is to be protected.</param>
+/// <param name="Security">
+/// How the connection is to be protected. Required in effect: <see cref="SmtpSecurity"/> has no
+/// member with the value 0, so a body that omits the field deserializes to a value the validator
+/// refuses, and no omission can select the cleartext mode (issue #491).
+/// </param>
 /// <param name="Username">The submission user name, or empty when the server takes no credentials.</param>
 /// <param name="Password">
 /// The new password, or <c>null</c> to keep the stored one. The distinction is what makes the

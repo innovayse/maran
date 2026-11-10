@@ -22,6 +22,9 @@ public static class AnonymousEndpointPin
         new("GET /health/live", "Process liveness for a supervisor that holds no credential."),
         new("GET /health/ready", "Readiness for a supervisor that holds no credential."),
         new("GET /api/v1/modules", "Describes what this build composed; the sign-in screen needs it before anyone is signed in."),
+        new(
+            "GET /module-frames/{id}/{version}/{**path}",
+            "The sandboxed frame of a packaged module has an opaque origin and sends no credential; it is served only the signed, non-secret files of an active module, and answers 404 for everything else."),
         new("GET /api/v1/setup/state", "First run: reports whether an administrator exists; nobody can sign in yet."),
         new("POST /api/v1/setup", "First run: creates the first administrator; refuses once any user exists."),
         new("POST /api/v1/auth/login", "Sign-in: the caller has no credential yet."),

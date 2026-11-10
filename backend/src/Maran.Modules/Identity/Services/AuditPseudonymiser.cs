@@ -25,10 +25,10 @@ namespace Maran.Modules.Identity.Services;
 /// own transaction, because its caller is the maintenance job and has none.
 /// </para>
 /// <para>
-/// <b>What each rule changes.</b> A person's rows are matched by the actor id, the impersonator id, and
-/// a subject that EQUALS the person's login name, e-mail address or id (case-insensitively). Equality,
-/// not containment: a subject that merely mentions the name inside a sentence is kept, and the
-/// operator documentation says so. The column changes themselves are the entity's own methods
+/// <b>What each rule changes.</b> A person's rows are matched by the identity recorded on them: the
+/// actor id, the impersonator id, and the subject login id. Never by text: a row that only carries a
+/// typed name (a refused sign-in) is kept whoever's erasure names that text. Within a matched row, a
+/// subject equal to the person's login name, address or id is replaced when the person acted in it. The column changes themselves are the entity's own methods
 /// (<see cref="AuditEvent.ErasePerson"/>, <see cref="AuditEvent.EraseAccount"/>), which also destroy
 /// the commitment salt that keeps the hash chain verifiable; this type decides WHICH rows, never what
 /// a row becomes.
@@ -109,8 +109,8 @@ public sealed class AuditPseudonymiser
     /// <summary>Pseudonymises the journal rows of one login that is being deleted.</summary>
     /// <param name="userId">The login being deleted.</param>
     /// <param name="identifiers">
-    /// The login name and e-mail address the person was known by. A subject equal to any of them, or to
-    /// the id itself, is replaced. Empty entries are ignored.
+    /// The login name and e-mail address the person was known by. In a row the person acted in, a subject
+    /// equal to any of them, or to the id itself, is replaced. Empty entries are ignored.
     /// </param>
     /// <param name="cancellationToken">Cancels the erasure.</param>
     /// <returns>The pseudonym that now stands in for the person, and how many rows were matched.</returns>
@@ -281,7 +281,7 @@ public sealed class AuditPseudonymiser
 
         // The ids first and the rows in chunks after: the set to change is fixed before the first row
         // changes, so the loop ends by construction and cannot revisit a row it has just rewritten.
-        var matched = await MatchPersonAsync(userId, names, cancellationToken);
+        var matched = await MatchPersonAsync(userId, cancellationToken);
 
         var now = _clock.UtcNow;
         var pseudonymName = AuditPseudonym.UserName(pseudonymId);
@@ -292,7 +292,7 @@ public sealed class AuditPseudonymiser
                 .ToListAsync(cancellationToken);
             foreach (var row in rows)
             {
-                row.ErasePerson(userId, now, pseudonymId, pseudonymName, replaceSubject: names.Contains(row.Subject));
+                row.ErasePerson(userId, now, pseudonymId, pseudonymName, names);
                 ForgetSalt(row);
             }
 
@@ -302,39 +302,24 @@ public sealed class AuditPseudonymiser
         return matched.Count;
     }
 
-    /// <summary>Finds the journal rows that name <paramref name="userId"/> as actor, operator or subject.</summary>
+    /// <summary>Finds the journal rows that carry <paramref name="userId"/> as actor, operator or subject login.</summary>
     /// <param name="userId">The login being erased.</param>
-    /// <param name="names">The id, login name and address a subject may equal; compared without regard to case.</param>
     /// <param name="cancellationToken">Cancels the search.</param>
     /// <returns>The ids of the matching rows, fixed before any of them is changed.</returns>
     /// <remarks>
-    /// A subject is matched twice over in one query: EXACTLY as stored (a plain parameterised equality, which
-    /// every provider and every database collation answers the same way), and in LOWER case on both sides
-    /// (which is what makes the match ignore case). The second form uses <c>ToLower</c>, because Npgsql has
-    /// no translation for <c>ToLowerInvariant</c>: a query written with it is refused at run time as one that
-    /// "could not be translated", and every erasure of a login (a sub-user, a reseller, an account's team)
-    /// ended in a server error. The exact form is kept beside it so a name the database cannot lower case
-    /// (a non-ASCII name under a collation that folds ASCII only) is still found when the journal spelled
-    /// it as the login does. <c>ToLower</c> is the one spelling that both Npgsql and the in-memory provider
-    /// the unit tests run on translate.
+    /// Matched by recorded identity only. The subject TEXT is never a selector: it is whatever the caller
+    /// typed, and a login's name is chosen by the account owner who invites it, so a text match would let
+    /// an owner pick (by naming a sub-user like a sprayed username, then removing it) which other people's
+    /// rows get their address and user agent wiped (issue #464).
     /// </remarks>
-    private async Task<List<Guid>> MatchPersonAsync(
-        Guid userId,
-        HashSet<string> names,
-        CancellationToken cancellationToken)
+    private async Task<List<Guid>> MatchPersonAsync(Guid userId, CancellationToken cancellationToken)
     {
-        var exact = names.ToList();
-        var lowered = names.Select(name => { return name.ToLowerInvariant(); }).ToList();
-
-#pragma warning disable CA1304, CA1311 // Npgsql translates ToLower only; the exact match covers the rest.
         return await _dbContext.AuditEvents
             .Where(auditEvent => auditEvent.ActorUserId == userId
                 || (auditEvent.Impersonator != null && auditEvent.Impersonator.OperatorId == userId)
-                || exact.Contains(auditEvent.Subject)
-                || lowered.Contains(auditEvent.Subject.ToLower()))
+                || auditEvent.SubjectUserId == userId)
             .Select(auditEvent => auditEvent.Id)
             .ToListAsync(cancellationToken);
-#pragma warning restore CA1304, CA1311
     }
 
     /// <summary>Makes sure the save of an erased row writes a destroyed salt, whatever the sealer did meanwhile.</summary>

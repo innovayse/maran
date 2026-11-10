@@ -54,6 +54,8 @@ public sealed class SaveSmtpSettingsCommandValidator : AbstractValidator<SaveSmt
             .WithErrorCode(nameof(ErrorMessages.SmtpPortInvalid))
             .WithMessage(nameof(ErrorMessages.SmtpPortInvalid));
 
+        // IsInEnum also refuses the value 0 a request gets by omitting the field, because the enum has
+        // no member with that value: the choice of a protection mode, cleartext included, is explicit.
         RuleFor(command => command.Security)
             .IsInEnum()
             .WithErrorCode(nameof(ErrorMessages.SmtpSecurityInvalid))

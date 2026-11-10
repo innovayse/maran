@@ -1,4 +1,5 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import { ONE_SHOT, stubDashboard } from '../fixtures/stub-dashboard-route'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import {
@@ -8,10 +9,13 @@ import {
   stubbedResetPassword,
 } from '../fixtures/stub-databases-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { DEFAULT_LAYOUT, installLiveStream, stubDashboardLayout } from '../fixtures/stub-live-dashboard-stream'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { Database } from '../../src/types/database'
 import type { PanelModule } from '../../src/types/module'
+import type { Locator, Page } from '@playwright/test'
 
 const LICENSED: PanelModule[] = [
   { name: 'databases', displayName: 'Databases', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -44,10 +48,24 @@ const openScreen = async (page: Page, databases: Database[], startAt = '/databas
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubDatabases(page, databases)
   await stubDatabaseActions(page, SHOP.dbUserName)
   await page.goto(startAt)
+}
+
+/**
+ * Answers every read the dashboard makes, for a case that starts there before it walks to the
+ * databases screen. The live stream is the controllable stand-in, so nothing is live and no
+ * request for it reaches the network.
+ * @param page The Playwright page.
+ * @returns Resolves once the stubs are installed.
+ */
+const stubDashboardReads = async (page: Page): Promise<void> => {
+  await installLiveStream(page)
+  await stubDashboard(page, ONE_SHOT)
+  await stubDashboardLayout(page, DEFAULT_LAYOUT)
 }
 
 /** Fills the create form and submits it, which is the path that mints a password. */
@@ -94,6 +112,7 @@ test('the generated password is shown once and is gone after a reload', async ({
 // The back button rather than a sidebar click on purpose: the dialog is modal, so it correctly
 // intercepts every pointer event on the shell behind it, and a click could not reach the sidebar.
 test('the generated password is gone after navigating away and back', async ({ page }) => {
+  await stubDashboardReads(page)
   await openScreen(page, [], '/')
   await page.getByRole('navigation').getByRole('link', { name: 'Databases' }).click()
   await createDatabase(page)

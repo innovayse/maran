@@ -1,14 +1,14 @@
 {
   "subUsers": {
-    "heading": "Пользователи",
+    "heading": "Субпользователи",
     "subtitle": "Люди, которым вы открыли доступ к этому аккаунту. Каждый входит под собственным паролем и видит только те функции, которые вы выбрали.",
-    "emptyTitle": "Пользователей пока нет",
+    "emptyTitle": "Субпользователей пока нет",
     "emptyDescription": "Пригласите первого человека выше. Он получит письмо и выберет собственный пароль.",
-    "noResultsTitle": "Пользователи не найдены",
+    "noResultsTitle": "Субпользователи не найдены",
     "noResultsDescription": "Измените запрос или очистите его, чтобы увидеть всех.",
-    "tableCaption": "Пользователи",
-    "searchLabel": "Поиск пользователей",
-    "searchPlaceholder": "Поиск по логину или e-mail…",
+    "tableCaption": "Субпользователи",
+    "searchLabel": "Поиск субпользователей",
+    "searchPlaceholder": "Поиск по логину или email…",
     "searchClear": "Очистить поиск",
     "noFeatures": "Нет",
     "neverSignedIn": "Никогда",
@@ -20,7 +20,7 @@
     "removed": "{name} удалён.",
     "columns": {
       "username": "Логин",
-      "email": "E-mail",
+      "email": "Email",
       "state": "Статус",
       "features": "Функции",
       "lastLogin": "Последний вход"
@@ -37,7 +37,7 @@
       "heading": "Пригласить человека",
       "fields": {
         "username": "Логин",
-        "email": "Адрес e-mail",
+        "email": "Адрес email",
         "features": "Функции"
       },
       "placeholders": {
@@ -49,8 +49,8 @@
       "errors": {
         "usernameRequired": "Укажите логин.",
         "usernameInvalid": "Используйте буквы, цифры, точки, подчёркивания и дефисы, не более 64 символов.",
-        "emailRequired": "Укажите адрес e-mail.",
-        "emailInvalid": "Введите корректный адрес e-mail."
+        "emailRequired": "Укажите адрес email.",
+        "emailInvalid": "Введите корректный адрес email."
       }
     },
     "featuresDialog": {
@@ -79,7 +79,7 @@
     "existing": {
       "heading": "Добавить существующий логин",
       "fields": {
-        "identifier": "Существующий логин или e-mail",
+        "identifier": "Существующий логин или email",
         "features": "Функции"
       },
       "placeholders": {
@@ -89,8 +89,8 @@
       "hint": "Человеку предложат принять приглашение в панели при следующем входе. Он добавляется, только если согласится, а вы не узнаете, существует ли такой логин.",
       "submit": "Отправить предложение",
       "errors": {
-        "identifierRequired": "Укажите логин или адрес e-mail.",
-        "identifierTooLong": "Слишком длинное значение для логина или адреса e-mail."
+        "identifierRequired": "Укажите логин или адрес email.",
+        "identifierTooLong": "Слишком длинное значение для логина или адреса email."
       }
     }
   }

@@ -39,13 +39,14 @@ usage: maran <command> [arguments]
   format     every language, or one; --check verifies without writing  (format.sh)
   agent      the Rust toolchain: build|test|lint|fmt|check            (agent.sh)
   test       whole-suite verdict: per-target totals vs a committed baseline (test-verdict.sh)
+  e2e-real   real-stack browser lane: no stubs, clicks only, per-role journeys vs a running panel (e2e-real.sh)
   mutate     break a protection on purpose and score the named test      (mutate.sh)
   lock       the tree write-lock: selftest proves it refuses AND proceeds (tree-lock-selftest.sh)
   operator-commands  the operator's verbs and flags vs installer/cli/commands.json and the docs; selftest (operator-commands.sh)
   update-selftest  panel self-update logic: verify, layout, unpack refusals; no root, no docker (update-selftest.sh)
   polygon    verify|stamp|build|selftest: score runs, rebuild an image (polygon-ci.sh)
   installer  the documented install path on a real systemd, both families (install-polygon.sh)
-  migrate    module migrations: add|apply|list|check|status|guard     (migrations.sh)
+  migrate    module migrations: add|apply|list|check|status|guard|selftest (migrations.sh)
   drift      is this database behind the migrations on disk; --apply fixes (schema-drift.sh)
   module     scaffold a new backend module                            (new-module.sh)
   ipm        module packages: package|sign|verify|selftest            (module-package.sh)
@@ -80,6 +81,7 @@ case "$command_name" in
   format)    exec bash "$root/scripts/lib/format.sh" "$@" ;;
   agent)     exec bash "$root/scripts/lib/agent.sh" "$@" ;;
   test)      exec bash "$root/scripts/lib/test-verdict.sh" "$@" ;;
+  e2e-real)  exec bash "$root/scripts/lib/e2e-real.sh" "$@" ;;
   mutate)    exec bash "$root/scripts/lib/mutate.sh" "$@" ;;
   lock)      exec bash "$root/scripts/lib/tree-lock-selftest.sh" "$@" ;;
   operator-commands) exec bash "$root/scripts/lib/operator-commands.sh" "$@" ;;

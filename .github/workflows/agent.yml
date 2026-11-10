@@ -38,6 +38,14 @@ on:
       # gate's inputs (scripts/lib/unit-security.sh, installer/systemd/**, and the ceilings file
       # installer/systemd/unit-security-ceilings.txt).
       - '.github/workflows/agent.yml'
+  # THE NIGHTLY RUN (issue #59, owner decision 223). It exists to carry the SUSE family's polygon, and
+  # only that: the pull-request smoke matrix is unchanged, so the family does not double the cost of a
+  # pull request. A scheduled workflow runs on the default branch only. `workflow_dispatch` runs the
+  # same three-image matrix by hand, which is how a change to the SUSE image is tried without waiting
+  # for the night.
+  schedule:
+    - cron: '17 4 * * *'
+  workflow_dispatch:
 
 # One run per pull request: a new push to the same PR cancels the run it supersedes. Pushes to
 # dev and main are never cancelled, and never even queued behind each other — their group carries
@@ -49,6 +57,9 @@ concurrency:
 
 jobs:
   ci:
+    # Not on the nightly: that run exists for the SUSE polygon below, and the unit suite, clippy and
+    # the doc build have already been scored on the push that put this tree on the default branch.
+    if: ${{ github.event_name != 'schedule' }}
     # Pinned rather than `ubuntu-latest`, which moves between major versions with
     # no diff in this file.
     runs-on: ubuntu-24.04
@@ -191,7 +202,9 @@ jobs:
   # never rolled anything back.
   #
   # Two images on a pull request, which is what the spec asks for (§16: Ubuntu 24
-  # and Alma 9 on PR, the full six-OS matrix nightly).
+  # and Alma 9 on PR, the full six-OS matrix nightly). The nightly (and a manual dispatch) adds the
+  # SUSE family's image, leap16, as a third leg of this same job, so it is built, stamped, run and
+  # scored by exactly the steps the other two use and a step added here reaches all three.
   polygon:
     # Pinned rather than `ubuntu-latest`: the runner only builds and runs the
     # polygon images, but "latest" moves under a suite whose whole claim is that
@@ -199,14 +212,25 @@ jobs:
     runs-on: ubuntu-24.04
     # Measured basis: the same three dev runs took 15.0/14.7/15.6 min (ubuntu24) and 19.0/17.6/18.7
     # min (alma9), image build included. 40 is the slowest leg roughly doubled.
-    timeout-minutes: 40
+    #
+    # THE NIGHTLY VALUE IS AN ESTIMATE, NOT A MEASUREMENT: the leap16 leg has never run, so there is no
+    # duration for it. 60 is the slowest measured leg (alma9, 19.0 min) taken up to an assumed 30 for an
+    # image whose package index and toolchain layers are cold in the weekly cache scope and whose
+    # package set (zypper) nobody has timed, then doubled the way the 40 above is. Re-measure it from
+    # the first scheduled runs and write their durations here; do not leave it as it stands. The pull
+    # request value is the measured one and is not reduced.
+    timeout-minutes: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 60 || 40 }}
     strategy:
       # Both families are reported, always. Cancelling the second the moment the
       # first fails is how a family-specific break gets attributed to the family
       # that happened to fail first.
       fail-fast: false
       matrix:
-        image: [ubuntu24, alma9]
+        # The pull-request smoke list is [ubuntu24, alma9] and stays that. The nightly and a manual
+        # dispatch add leap16. GitHub expressions have no ternary, so this is `condition && a || b`
+        # with the condition parenthesised: a non-empty string is truthy, so `a` is returned when the
+        # condition holds and `b` otherwise.
+        image: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '["ubuntu24","alma9","leap16"]' || '["ubuntu24","alma9"]') }}
     steps:
       # Pinned to the commit v4.2.2 resolves to: a tag is mutable, and an action
       # that checks out this repository runs before any gate could notice it had
@@ -282,20 +306,19 @@ jobs:
       # `CAP_SYS_ADMIN` cannot mount anything — so the suite now belongs to the
       # capability class this step does not have.
       #
-      # `restore_recovery_on_a_real_host` belongs HERE and not with
-      # `backup_on_a_real_host`, even though it is the other half of the same
-      # module: it mounts nothing. It needs a real account, the image's own
-      # MariaDB and a real `/home` — everything this step already has — plus a
-      # process it can KILL, which is a thing any container can do to its own
-      # children. It is the proof for privileges audit F-2: each case re-enters
-      # this test binary as a child, has the child run a real `restore_backup`,
-      # and kills that child with `SIGKILL` from inside the restore's own
-      # progress sink — once between the two renames that swap the account's
-      # home, and once after a rollback dump has been written — then runs the
-      # reconciliation the daemon performs before it binds its socket and
-      # asserts the customer's home came back. Nothing else in this repository
-      # observes a restore that stops existing halfway; a kill in that window
-      # used to leave an account with NO home directory, permanently.
+      # `restore_recovery_on_a_real_host` is NOT in this step, though it is the
+      # other half of the same module as `backup_on_a_real_host`: since issue
+      # #487 one of its cases (`after_a_whole_restore_the_sftp_jail_shows_the_restored_home_and_uploads_land_in_it`)
+      # creates a real SFTP login and so makes a real bind mount of the home,
+      # which a container without `CAP_SYS_ADMIN` cannot do (`JailFailed`, read
+      # as a code defect). It therefore runs in the mounting step below. Its
+      # other cases need only a real account, the image's own MariaDB and a real
+      # `/home`, plus a process they can KILL: each re-enters this test binary as
+      # a child, has the child run a real `restore_backup`, and kills that child
+      # with `SIGKILL` from inside the restore's own progress sink, then runs the
+      # reconciliation the daemon performs before it binds its socket and asserts
+      # the customer's home came back (privileges audit F-2: a kill in that
+      # window used to leave an account with NO home directory, permanently).
       #
       # Until this line existed the suite was in no `--test` list at all, and
       # that was not merely "the suite does not run": `maran polygon verify`
@@ -314,7 +337,7 @@ jobs:
       # a planted break in the privilege drop puts one named test plus 25 further
       # host tests red on each family, and only a run carrying this flag reports
       # more than the first of them.
-      - name: Sites, PHP pools, privileges, databases, monitoring, restore recovery and the panel certificate on a real host
+      - name: Sites, PHP pools, privileges, databases, monitoring and the panel certificate on a real host
         run: |
           # pipefail and an explicitly captured status: `docker run ... | tee` reports TEE's
           # exit status, which is 0 whatever the container did. Piping without this would add a
@@ -343,7 +366,6 @@ jobs:
             cargo test --test sites_on_a_real_host --test php_pools_on_a_real_host \
               --test privileges_on_a_real_host --test databases_on_a_real_host \
               --test monitor_on_a_real_host --test binary_paths_on_a_real_host \
-              --test restore_recovery_on_a_real_host \
               --test php_socket_migration_on_a_real_host \
               --test panel_certificate_on_a_real_host \
               --test account_limits_on_a_real_host \
@@ -428,6 +450,11 @@ jobs:
           scripts/maran polygon stamp ${{ matrix.image }} \
             maran-polygon-${{ matrix.image }} |
             tee -a "$RUNNER_TEMP/polygon-logs/step-2.log"
+          # The suites this image family does not run are declared in ONE place
+          # (POLYGON_FAMILY_SKIPS in scripts/lib/polygon.sh) and `maran polygon verify` reads the
+          # same declaration, so what runs here and what is expected below cannot drift. Only the
+          # SUSE family skips FTPS (the installer does not offer it); the other images still run it.
+          ftps_args=( $(. scripts/lib/polygon.sh; polygon_test_args "${{ matrix.image }}" ftps_on_a_real_host) )
           status=0
           docker run --rm --init --privileged \
             -v "$PWD:/maran" \
@@ -436,11 +463,13 @@ jobs:
             maran-polygon-${{ matrix.image }} \
             cargo test --test sftp_on_a_real_host --test sftp_suspension_on_a_real_host \
               --test sftp_key_sessions_on_a_real_host \
-              --test ftps_on_a_real_host \
+              "${ftps_args[@]}" \
               --test account_deletion_on_a_real_host \
               --test account_identity_on_a_real_host \
               --test account_leftovers_on_a_real_host \
               --test backup_on_a_real_host \
+              --test restore_recovery_on_a_real_host \
+              --test transfer_on_a_real_host \
               --test files_browse_on_a_real_host \
               --test files_browse_containment_on_a_real_host \
               --test files_browse_bounds_on_a_real_host \
@@ -601,6 +630,8 @@ jobs:
 
   # The systemd hardening score of every shipped unit, against a committed ceiling per unit.
   units:
+    # Not on the nightly, for the reason `ci` gives.
+    if: ${{ github.event_name != 'schedule' }}
     # Pinned for the same reason as the jobs above. It matters more here than there: the score
     # is a function of the systemd release, and `ubuntu-latest` would move it with no diff.
     runs-on: ubuntu-24.04

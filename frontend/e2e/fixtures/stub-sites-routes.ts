@@ -280,6 +280,24 @@ export const stubCreateSiteProblem = async (page: Page, detail: string): Promise
  * @returns Resolves once the route is installed.
  */
 export const stubSiteDetail = async (page: Page, detail: SiteDetail): Promise<void> => {
+  // A spec may hand over a list row (it carries `ownerName`, which the detail never does), so the
+  // answer is built field by field from the detail's own shape.
+  const wire: SiteDetail = {
+    id: detail.id,
+    accountId: detail.accountId,
+    domain: detail.domain,
+    aliases: detail.aliases,
+    backendType: detail.backendType,
+    backendTypeName: detail.backendTypeName,
+    phpVersion: detail.phpVersion,
+    proxyUpstream: detail.proxyUpstream,
+    documentRoot: detail.documentRoot,
+    hasCertificate: detail.hasCertificate,
+    status: detail.status,
+    statusName: detail.statusName,
+    createdAt: detail.createdAt,
+    logRetentionDays: detail.logRetentionDays,
+  }
   await page.route(SITE_PATTERN, async (route) => {
     if (COLLECTION_READS.test(new URL(route.request().url()).pathname)) {
       // `choices`, `limits` and `php-versions` are collection reads, not a site's id.
@@ -290,7 +308,7 @@ export const stubSiteDetail = async (page: Page, detail: SiteDetail): Promise<vo
       await route.fulfill({ status: 204, body: '' })
       return
     }
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(detail) })
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(wire) })
   })
 }
 

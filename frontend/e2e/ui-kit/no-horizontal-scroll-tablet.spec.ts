@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { expectNoHorizontalOverflow } from '../fixtures/measure-horizontal-extent'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { openScreen, prepareScreen, SCREENS } from '../screens/screen-list'

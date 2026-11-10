@@ -8,9 +8,12 @@ using Maran.Modules.Firewall;
 using Maran.Modules.Ftp;
 using Maran.Modules.Idempotency;
 using Maran.Modules.Identity;
+using Maran.Modules.Licensing;
 using Maran.Modules.Mail;
+using Maran.Modules.Marketplace;
 using Maran.Modules.Monitoring;
 using Maran.Modules.Notifications;
+using Maran.Modules.ServerMigration;
 using Maran.Modules.Sftp;
 using Maran.Modules.Sites;
 using Maran.Modules.Ssl;
@@ -37,16 +40,11 @@ public static class ModuleRegistry
         [
             new IdentityModule(),
 
-            // LICENSING IS DELIBERATELY NOT HERE, and this note is why rather than an oversight.
-            // It was registered second for a while — right after Identity, before every module its
-            // status could one day gate — and the SPA's own coverage check went red on it:
-            // "every module the backend composes has a sidebar destination that is not the upgrade
-            // wall". That check is right. A module in this list is a promise to the interface, and
-            // licence verification has no screen yet, so the promise could not be kept: an operator
-            // would have had a module they could never reach. It is wired instead as a hosted
-            // service (Program.cs, AddLicensingStartupCheck), which is what actually needs to run.
-            // When it grows a screen, it belongs here — and the ordering argument still holds then:
-            // registration order is a reading convenience, but a reviewer looks for licensing early.
+            // Licensing is here since it has a screen (Settings, Licence). Its start-up check is a hosted
+            // service the Host adds (Program.cs, AddLicensingStartupCheck), because a module cannot
+            // register one. Registration order is a reading convenience, but a reviewer looks for
+            // licensing early.
+            new LicensingModule(),
 
             new AccountsModule(),
             new SitesModule(),
@@ -67,5 +65,14 @@ public static class ModuleRegistry
             // The panel's own update screen (issue #382): administrator only, no menu entry because the
             // SPA reaches it from Settings, and no schema.
             new UpdatesModule(),
+
+            // The registry of remote servers an administrator reads from (issue #197): administrator only,
+            // the only module that drives the agent's outbound SSH connection.
+            new ServerMigrationModule(),
+
+            // The way a panel gets further modules (issues #186, #187): administrator only, no menu entry
+            // because the SPA reaches it from Settings, no agent capability, and inert until an
+            // administrator switches it on - it makes no call of its own at start-up.
+            new MarketplaceModule(),
         ];
 }

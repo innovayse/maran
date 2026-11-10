@@ -47,6 +47,7 @@ use maran_agent::proto::GetAgentInfoRequest;
 use maran_agent::proto::get_agent_info_response;
 use maran_agent::proto::system_service_client::SystemServiceClient;
 use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
+use maran_agent_core::validation::web::panel_host_names::PanelHostNames;
 
 use captured_log::CapturedLog;
 use test_certificates::{TestCertificate, valid_client_certificate, valid_server_certificate};
@@ -119,8 +120,14 @@ async fn start_node(with_fleet: bool, limits: FleetLimits) -> Option<Node> {
     let policy = PeerPolicy::new(maran_agent_core::utils::current_uid::current_uid().unwrap());
     let server_path = socket_path.clone();
     let mut server = tokio::spawn(async move {
-        maran_agent::server::serve(&server_path, policy, FreeSpaceFloor::default_floor(), fleet)
-            .await
+        maran_agent::server::serve(
+            &server_path,
+            policy,
+            FreeSpaceFloor::default_floor(),
+            PanelHostNames::none(),
+            fleet,
+        )
+        .await
     });
 
     let deadline = Instant::now() + PATIENCE;

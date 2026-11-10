@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { expectNoHorizontalOverflow } from '../fixtures/measure-horizontal-extent'
 import { FULL_CATALOGUE } from '../fixtures/open-full-shell'
 import { setPersistedLocale } from '../fixtures/set-locale'
@@ -27,6 +27,7 @@ import type { CronEntry } from '../../src/types/cronEntry'
 import type { CronRun, CronRunSummary } from '../../src/types/cronRun'
 import type { PanelCertificateReading } from '../../src/types/panelCertificate'
 import type { ResellerDetail } from '../../src/types/reseller'
+import type { Page } from '@playwright/test'
 
 /*
  * Issue #82's acceptance criterion, "no horizontal scroll at 390 px on any screen, in all three
@@ -175,6 +176,7 @@ const RESELLER_EVENT: AuditEvent = {
   action: 'AccountCreated',
   actionName: 'AccountCreated',
   subject: 'customer-account-with-a-rather-long-name',
+  subjectName: 'customer-account-with-a-rather-long-name',
   ipAddress: '2001:0db8:85a3:0000:0000:8a2e:0370:7334',
   succeeded: true,
   outcomeName: 'Succeeded',
@@ -323,6 +325,7 @@ const SCREENS: Screen[] = [
       await stubSignedIn(page, CUSTOMER)
       await stubHealthy(page)
       await stubModules(page, FULL_CATALOGUE)
+      await stubShellReads(page)
       await stubMyAccount(page, OWN_ACCOUNT)
       await stubSubUsers(page, [
         subUserRow('deployment-pipeline-service-user', ['databases']),

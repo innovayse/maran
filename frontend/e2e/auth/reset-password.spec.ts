@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedOut } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
@@ -7,7 +7,9 @@ import { stubResetPasswordRefused } from '../fixtures/stub-password-reset-routes
 /** The panel's single refusal, worded so it says nothing about which token this was. */
 const REFUSAL = 'This reset link is no longer valid. Ask for a new one.'
 
-test('a spent or expired token shows the panel’s refusal and a way back', async ({ page }) => {
+test('a spent or expired token shows the panel’s refusal and a way back', async ({ page, guard }) => {
+  // The refusal is the subject of this test.
+  guard.allow(400, /\/api\/v1\/auth\/reset-password$/)
   await stubSignedOut(page)
   await stubHealthy(page)
   await stubEmptyModules(page)

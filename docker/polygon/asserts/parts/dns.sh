@@ -14,8 +14,31 @@
 readonly DNS_UNIT_SOURCE="${INSTALLER_ROOT}/systemd/maran-dns.service"
 
 # dns_image_family: the family of THIS image, in the spelling step 89-dns.sh keys on.
+#
+# Asked of the image itself and not of MARAN_OS_FAMILY, so the answer is an observation: a Dockerfile
+# that exported the wrong family would otherwise make every assertion below agree with itself. The
+# SUSE family is told by its os-release (`ID` or `ID_LIKE` naming it), the one file every systemd
+# distribution ships; anything that is neither Debian nor SUSE is the RHEL family, as before.
 dns_image_family() {
-  if [ -f /etc/debian_version ]; then echo debian; else echo rhel; fi
+  if [ -f /etc/debian_version ]; then
+    echo debian
+  elif ( . /etc/os-release && case "${ID:-} ${ID_LIKE:-}" in *suse*) exit 0 ;; *) exit 1 ;; esac ); then
+    echo suse
+  else
+    echo rhel
+  fi
+}
+
+# dns_agent_services_file <family>: the agent source file that answers the DNS names for a family.
+# The SUSE adapter keeps them in a file of their own (suse_dns_services.rs); the other two keep every
+# platform answer in one services file.
+dns_agent_services_file() {
+  case "$1" in
+    debian) printf '%s' "$AGENT_DEBIAN_SERVICES" ;;
+    rhel) printf '%s' "$AGENT_RHEL_SERVICES" ;;
+    suse) printf '%s' "$AGENT_SUSE_DNS_SERVICES" ;;
+    *) fail "dns_agent_services_file knows the families debian, rhel and suse, not '$1'" ;;
+  esac
 }
 
 # dns_remove_unit_link <unit>: take a unit file or mask link out of the unit directory. The target
@@ -106,9 +129,18 @@ assert_the_installer_and_the_agent_spell_the_dns_names_the_same() {
   [ "$(agent_string_after 'fn dns_user()' "$planted")" = "polygon-planted-name" ] \
     || fail "the Rust literal extractor does not read a planted value out of a copy of debian_services.rs, so its agreements mean nothing."
   rm -f -- "${planted:?}"
+  # And the same control on the SUSE file, which is a different file with the same function names: an
+  # extractor proved on the Debian file says nothing about one that reads a file it was never pointed at.
+  value="$(agent_string_after 'fn dns_user()' "$AGENT_SUSE_DNS_SERVICES")"
+  [ -n "$value" ] \
+    || fail "no string literal could be read out of dns_user() in ${AGENT_SUSE_DNS_SERVICES}; the SUSE agreements below would be between two empty strings (rules/testing.md)"
+  sed "s/\"${value}\"/\"polygon-planted-name\"/" "$AGENT_SUSE_DNS_SERVICES" > "$planted"
+  [ "$(agent_string_after 'fn dns_user()' "$planted")" = "polygon-planted-name" ] \
+    || fail "the Rust literal extractor does not read a planted value out of a copy of suse_dns_services.rs, so its SUSE agreements mean nothing."
+  rm -f -- "${planted:?}"
 
-  for family in debian rhel; do
-    if [ "$family" = debian ]; then services_file="$AGENT_DEBIAN_SERVICES"; else services_file="$AGENT_RHEL_SERVICES"; fi
+  for family in debian rhel suse; do
+    services_file="$(dns_agent_services_file "$family")"
 
     value="$(agent_string_after 'fn dns_user()' "$services_file")"
     installer_value="$(MARAN_OS_FAMILY="$family" dns_user_for_family)"
@@ -130,6 +162,16 @@ assert_the_installer_and_the_agent_spell_the_dns_names_the_same() {
     value="$(agent_string_after 'fn dns_zone_directory()' "$services_file")"
     [ "$value" = "${installer_value}/zones" ] \
       || fail "the DNS zone directory has drifted on ${family}: 89-dns.sh creates '${installer_value}/zones' and ${services_file} answers '${value}'."
+    compared=$((compared + 1))
+
+    value="$(agent_string_after 'fn dns_signed_zone_directory()' "$services_file")"
+    [ "$value" = "${installer_value}/${MARAN_DNS_SIGNED_ZONES_SUBDIR}" ] \
+      || fail "the DNS signed-zone directory has drifted on ${family}: 89-dns.sh creates '${installer_value}/${MARAN_DNS_SIGNED_ZONES_SUBDIR}' and ${services_file} answers '${value}'."
+    compared=$((compared + 1))
+
+    value="$(agent_string_after 'fn dns_key_directory()' "$services_file")"
+    [ "$value" = "${installer_value}/${MARAN_DNS_KEYS_SUBDIR}" ] \
+      || fail "the DNS key directory has drifted on ${family}: 89-dns.sh creates '${installer_value}/${MARAN_DNS_KEYS_SUBDIR}' and ${services_file} answers '${value}'."
     compared=$((compared + 1))
 
     for function_name in dns_checkconf_binary dns_checkzone_binary dns_control_binary; do
@@ -187,5 +229,43 @@ assert_the_installer_and_the_agent_spell_the_dns_names_the_same() {
   fi
   compared=$((compared + 1))
 
-  echo "The installer and the agent spell the DNS names identically, compared and not assumed: ${compared} agreements (user, group, state and zone directories and the three binaries on BOTH families, the configuration directory and path, the control key path and name, the unit name, and the unit's ExecStart and EnvironmentFile). UNOBSERVED HERE: that the packages install those binaries at those paths — 89-dns.sh requires it after the install and fails by name."
+  echo "The installer and the agent spell the DNS names identically, compared and not assumed: ${compared} agreements (user, group, state, zone, signed-zone and key directories and the three binaries on ALL THREE families, the configuration directory and path, the control key path and name, the unit name, and the unit's ExecStart and EnvironmentFile). UNOBSERVED HERE: that the packages install those binaries at those paths — 89-dns.sh requires it after the install and fails by name."
+}
+
+# assert_the_dns_writable_directories_are_made_with_the_owner_and_mode_the_daemon_needs: the two
+# directories signed zones use (issue #452) are `root:<group> 0770`, a planted symbolic link at
+# their name is replaced by a directory and never followed, and a correct directory is KEPT with
+# what is in it.
+#
+# It drives ensure_dns_writable_subdirectory (the function ensure_dns_directories calls for both)
+# on a scratch path with the group `root`, because the daemon's real group exists only where the
+# BIND package is installed. The inverse control is the last case: a function mutated to remove
+# every directory it is given would pass the first two and fail that one.
+assert_the_dns_writable_directories_are_made_with_the_owner_and_mode_the_daemon_needs() {
+  local scratch target victim
+  scratch="$(mktemp -d)"
+  target="${scratch}/${MARAN_DNS_SIGNED_ZONES_SUBDIR}"
+  victim="${scratch}/victim"
+
+  ensure_dns_writable_subdirectory "$target" root
+  [ "$(stat -c '%U:%G %a' "$target")" = "root:root 770" ] \
+    || fail "ensure_dns_writable_subdirectory left ${target} as '$(stat -c '%U:%G %a' "$target")', not 'root:root 770'"
+
+  rm -rf -- "${target:?}"
+  mkdir -p -- "$victim"
+  chmod 0755 "$victim"
+  ln -s "$victim" "$target"
+  ensure_dns_writable_subdirectory "$target" root
+  { [ -d "$target" ] && [ ! -L "$target" ]; } \
+    || fail "a symbolic link planted at ${target} was not replaced by a directory"
+  [ "$(stat -c '%a' "$victim")" = "755" ] \
+    || fail "ensure_dns_writable_subdirectory followed a planted link and changed the mode of its target to $(stat -c '%a' "$victim")"
+
+  : > "${target}/kept.signed"
+  ensure_dns_writable_subdirectory "$target" root
+  [ -e "${target}/kept.signed" ] \
+    || fail "ensure_dns_writable_subdirectory removed a correct directory's contents; a re-run of the installer would discard the daemon's signed copies"
+
+  rm -rf -- "${scratch:?}"
+  echo "The signed-zone and key directories are made root:<group> 0770, a planted link at their name is replaced and not followed, and a correct directory keeps its contents. UNOBSERVED HERE: ensure_dns_directories at the real state path with the real daemon group (the BIND package's group is not what this case ran with), and whether AppArmor or SELinux lets a running named write them."
 }

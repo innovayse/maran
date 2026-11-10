@@ -439,6 +439,14 @@ impl SiteHost for FakeSiteHost {
     ) -> Result<(), SitesOpError> {
         *self.writes.lock().unwrap() += 1;
         self.enter_protocol(validator, reload)?;
+
+        let (status, stderr) = self.validation.lock().unwrap().clone();
+        if status != 0 {
+            // The real removal puts the file back when the tree it leaves is refused, so
+            // the fake leaves the map untouched, as `accept` does for a write.
+            return Err(SitesOpError::NginxValidation { stderr });
+        }
+
         self.files.lock().unwrap().remove(target);
         Ok(())
     }

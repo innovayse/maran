@@ -2,9 +2,11 @@ import type { Page } from '@playwright/test'
 import { stubAccountNames, stubAccounts } from './stub-accounts-route'
 import { stubSignedIn } from './stub-auth-routes'
 import { stubDns, type DnsStubState } from './stub-dns-routes'
+import { stubFirewall, type StubbedFirewall } from './stub-firewall-routes'
 import { stubHealthy } from './stub-health-route'
 import { stubModules } from './stub-modules-route'
 import { stubMyAccount } from './stub-my-account-route'
+import { stubShellReads } from './stub-shell-reads'
 import type { Account, MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { DnsZone } from '../../src/types/dns'
@@ -75,6 +77,7 @@ export const EXAMPLE_ZONE: DnsZone = {
   createdAt: '2026-08-01T10:00:00Z',
   updatedAt: '2026-11-07T09:00:00Z',
   nameservers: ['ns1.panel.example', 'ns2.panel.example'],
+  dnssecState: 'off',
 }
 
 /** Bob's zone. */
@@ -90,23 +93,39 @@ export const SHOP_ZONE: DnsZone = {
   updatedAt: '2026-11-05T09:00:00Z',
 }
 
+/** The firewall the DNS screens start with: TCP and UDP 53 open to everyone, nothing else. */
+export const firewallWithDnsOpen = (): StubbedFirewall => {
+  return {
+    rules: [
+      { port: 53, portTo: null, protocol: 'tcp', sourceCidr: '' },
+      { port: 53, portTo: null, protocol: 'udp', sourceCidr: '' },
+    ],
+    bans: [],
+    whitelist: [],
+  }
+}
+
 /**
  * Signs a person in and installs the stubs every DNS screen reads.
  * @param page The Playwright page under test.
  * @param seed What the panel holds; see {@link stubDns}.
  * @param user The signed-in user; the administrator when omitted.
+ * @param firewall What the firewall reports and a write mutates; port 53 open when omitted.
  * @returns The stub's live state.
  */
 export const openDnsScreen = async (
   page: Page,
   seed: Partial<DnsStubState> = {},
   user?: AuthenticatedUser,
+  firewall: StubbedFirewall = firewallWithDnsOpen(),
 ): Promise<DnsStubState> => {
   await stubSignedIn(page, user)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubModules(page, DNS_MODULES)
   await stubAccounts(page, [ALICE, BOB])
   await stubAccountNames(page, [ALICE, BOB])
   await stubMyAccount(page, OWN_ACCOUNT)
+  await stubFirewall(page, firewall)
   return stubDns(page, seed)
 }

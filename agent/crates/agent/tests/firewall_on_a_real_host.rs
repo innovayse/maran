@@ -56,7 +56,8 @@ use maran_agent_core::validation::web::source_cidr::SourceCidr;
 use maran_distro::{DistroAdapter, DistroFamily, adapter_for, detect};
 use maran_ops::firewall::{
     FirewallError, FirewallRule, NftablesProtocol, PortSpan, ProcessFirewallHost, RulesetPorts,
-    RulesetState, allow_port, ban_address, deny_port, list_bans, list_rules, unban_address,
+    RulesetState, allow_port, ban_address, deny_port, ensure_bans_table, list_bans, list_rules,
+    unban_address,
 };
 
 use polygon_firewall::{BANS_TABLE, PolygonFirewall, RULES_TABLE};
@@ -485,6 +486,57 @@ fn an_operator_rule_for_the_ssh_port_displaces_the_fallback_and_removing_it_brin
 }
 
 #[test]
+#[ignore = "loads real rulesets and reads the ssh rules back after one of two is removed: polygon only"]
+fn removing_one_of_two_ssh_rules_leaves_the_port_open_to_the_other_source_only() {
+    // The fact the panel's removal guard (issue #459) rests on: the unconditional
+    // SSH accept returns only when the LAST rule for the port goes. With two
+    // rules, removing the operator's own leaves the port open to the other
+    // source alone, so the agent cannot be relied on to keep the operator in.
+    let firewall = PolygonFirewall::start();
+    let operator = rule(SSH_PORT, NftablesProtocol::Tcp, "203.0.113.7/32");
+    let colleague = rule(SSH_PORT, NftablesProtocol::Tcp, "198.51.100.0/24");
+    allow(&operator);
+    allow(&colleague);
+
+    deny_port(
+        &ProcessFirewallHost::new(),
+        polygon_distro(),
+        &ports(),
+        &operator,
+    )
+    .expect("denying one of two ssh rules must succeed");
+
+    let left = firewall.listing(RULES_TABLE);
+    assert!(
+        left.contains("tcp dport 22 ip saddr 198.51.100.0/24 accept"),
+        "the remaining ssh rule must be live:\n{left}"
+    );
+    assert_eq!(
+        PolygonFirewall::count(&left, SSH_FALLBACK),
+        0,
+        "the unconditional accept must NOT return while a rule for the port remains:\n{left}"
+    );
+    assert!(
+        !left.contains("203.0.113.7"),
+        "the removed rule must be gone from the kernel:\n{left}"
+    );
+
+    // The ban table sits ahead of the rules table, so a ban on the operator's
+    // own address would drop SSH whatever the accepts say; this is why the
+    // panel refuses it (the ordering itself is asserted by the ban test).
+    // Allowing and denying never load the bans table (the installer seeds it,
+    // and the first ban ensures it), so this test loads it the way a ban does
+    // before it reads the table back.
+    ensure_bans_table(&ProcessFirewallHost::new(), polygon_distro())
+        .expect("loading the bans table must succeed");
+    let bans = firewall.listing(BANS_TABLE);
+    assert!(
+        bans.contains("priority filter - 5") || bans.contains("priority -5"),
+        "the bans chain must hook ahead of the rules chain:\n{bans}"
+    );
+}
+
+#[test]
 #[ignore = "loads real rulesets carrying a udp and an ipv6 restriction: polygon only"]
 fn a_source_restricted_udp_allow_and_an_ipv6_allow_reach_the_kernel_as_written() {
     let firewall = PolygonFirewall::start();
@@ -885,6 +937,7 @@ fn installer_step(script: &str) -> std::process::Output {
     let family = match polygon_distro().family() {
         DistroFamily::Debian => "debian",
         DistroFamily::Rhel => "rhel",
+        DistroFamily::Suse => "suse",
     };
     // From the crate rather than from a mount point: the suite must not care
     // where the repository is mounted in the container.

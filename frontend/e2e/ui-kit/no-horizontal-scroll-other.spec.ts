@@ -1,21 +1,27 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
 import { expectTablesAsCards, type CardActions } from '../fixtures/expect-table-cards'
+import { expect, test } from '../fixtures/guarded-test'
 import { expectNoHorizontalOverflow } from '../fixtures/measure-horizontal-extent'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubLogin, stubSetupState, stubSignedIn, stubSignedOut } from '../fixtures/stub-auth-routes'
+import { stubMyAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubMembershipOffers } from '../fixtures/stub-membership-offers-routes'
 import { stubSessions } from '../fixtures/stub-sessions-route'
 import { stubEmptyModules, stubModules } from '../fixtures/stub-modules-route'
 import { stubSteeredAdministrator } from '../fixtures/stub-password-reset-routes'
+import { stubRequiredPasswordChange } from '../fixtures/stub-required-password-change-routes'
+import { stubMyAccount } from '../fixtures/stub-my-account-route'
 import { stubProfile } from '../fixtures/stub-profile-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubSmtpSettings, storedSmtpSettings } from '../fixtures/stub-smtp-routes'
 import { stubAudit } from '../fixtures/stub-audit-routes'
 import type { AuthenticatedUser, Session } from '../../src/types/auth'
 import type { AuditEvent } from '../../src/types/audit'
 import type { MyAccount } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
-import { completePhpVersion, type PhpVersionStub } from '../fixtures/stub-sites-routes'
+import { completePhpVersion, stubInstallablePhpVersions, type PhpVersionStub } from '../fixtures/stub-sites-routes'
 import type { SecurityPolicy } from '../../src/types/securityPolicy'
+import type { Locator, Page } from '@playwright/test'
 
 /**
  * Protects the redesign's phone-width contract (issue #82, acceptance criterion "no horizontal
@@ -94,6 +100,8 @@ interface Screen {
   ready: (page: Page) => Promise<void>
   /** For a list screen: its tables must be cards, with or without a row-actions column (#217). */
   cards?: CardActions
+  /** A refusal the screen's subject is, which the network guard is told to expect rather than count. */
+  refusal?: { status: number; urlPattern: RegExp }
 }
 
 /** A customer, who owns an account and sees none of the administrator's screens. */
@@ -120,6 +128,7 @@ const AUDIT_EVENTS: AuditEvent[] = [
     action: 'BackupRestoredFromRemoteDestination',
     actionName: 'BackupRestoredFromRemoteDestination',
     subject: 'customer-account-with-a-rather-long-name',
+    subjectName: 'customer-account-with-a-rather-long-name',
     ipAddress: '2001:0db8:85a3:0000:0000:8a2e:0370:7334',
     succeeded: true,
     outcomeName: 'Succeeded',
@@ -132,6 +141,7 @@ const AUDIT_EVENTS: AuditEvent[] = [
     action: 'LoginFailed',
     actionName: 'LoginFailed',
     subject: 'admin',
+    subjectName: 'admin',
     ipAddress: '198.51.100.4',
     succeeded: false,
     outcomeName: 'Failed',
@@ -251,6 +261,7 @@ const signedInAdministrator = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
 }
 
 /**
@@ -300,6 +311,7 @@ const SCREENS: Screen[] = [
       await signedOut(page)
       await stubLogin(page, { status: 401, code: 'InvalidCredentials', detail: LONG_REFUSAL })
     },
+    refusal: { status: 401, urlPattern: /\/api\/v1\/auth\/login(\?.*)?$/ },
     ready: async (page): Promise<void> => {
       await submitSignIn(page)
       await expect(page.getByRole('main').getByText('ERR_UPSTREAM_REFUSED', { exact: false })).toBeVisible()
@@ -365,6 +377,17 @@ const SCREENS: Screen[] = [
     },
   },
   {
+    name: 'required password change',
+    path: '/change-password',
+    layout: 'auth',
+    prepare: async (page): Promise<void> => {
+      await stubRequiredPasswordChange(page)
+      await stubHealthy(page)
+      await stubEmptyModules(page)
+    },
+    ready: headingReady(2),
+  },
+  {
     name: 'audit journal',
     path: '/settings/audit',
     layout: 'shell',
@@ -406,6 +429,8 @@ const SCREENS: Screen[] = [
     layout: 'shell',
     prepare: async (page): Promise<void> => {
       await signedInAdministrator(page)
+      // The page also lists the versions the host could install; this spec has none to offer.
+      await stubInstallablePhpVersions(page, () => {return []})
       await page.route('**/api/v1/sites/php-versions', async (route) => {
         await route.fulfill({
           status: 200,
@@ -466,13 +491,10 @@ const SCREENS: Screen[] = [
       await stubSignedIn(page, CUSTOMER)
       await stubHealthy(page)
       await stubEmptyModules(page)
-      await page.route('**/api/v1/accounts/me', async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(MY_ACCOUNT),
-        })
-      })
+      await stubShellReads(page)
+      await stubMyAccount(page, MY_ACCOUNT)
+      await stubMyAccountResources(page, { accountId: MY_ACCOUNT.id, resources: [] })
+      await stubMembershipOffers(page, [])
     },
     ready: textReady(MY_ACCOUNT.primaryDomain),
   },
@@ -484,6 +506,7 @@ const SCREENS: Screen[] = [
       await stubSignedIn(page)
       await stubHealthy(page)
       await stubModules(page, LOCKED_MODULES)
+      await stubShellReads(page)
     },
     ready: headingReady(1),
   },
@@ -517,7 +540,11 @@ const expectInsideViewport = async (page: Page, locator: Locator): Promise<void>
 
 for (const screen of SCREENS) {
   for (const locale of LOCALES) {
-    test(`${screen.name} does not scroll sideways at 390px in ${locale}`, async ({ page }) => {
+    test(`${screen.name} does not scroll sideways at 390px in ${locale}`, async ({ page, guard }) => {
+      if (screen.refusal !== undefined) {
+        // The refusal is what this screen is measured showing.
+        guard.allow(screen.refusal.status, screen.refusal.urlPattern)
+      }
       await page.setViewportSize(PHONE)
       await setPersistedLocale(page, locale)
       await screen.prepare(page)

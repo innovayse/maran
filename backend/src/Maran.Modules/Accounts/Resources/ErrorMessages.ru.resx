@@ -60,6 +60,9 @@
   <data name="AccountSuspensionNotObserved">
     <value>Аккаунт не приостановлен: не удалось убедиться, что сервер действительно его остановил. Ничего не изменено, попробуйте ещё раз.</value>
   </data>
+  <data name="AccountSuspendedByAdministrator">
+    <value>Этот аккаунт приостановлен администратором, поэтому возобновить его может только администратор. Обратитесь к вашему хостинг-провайдеру.</value>
+  </data>
   <data name="AccountResumptionFailed">
     <value>Аккаунт не возобновлён: не удалось снова запустить то, что он выполняет. Ничего не изменено, попробуйте ещё раз.</value>
   </data>
@@ -146,6 +149,27 @@
   </data>
   <data name="AccountInitialPasswordInvalid">
     <value>Выберите, как владелец войдёт в панель: отправьте приглашение или задайте начальный пароль и укажите его.</value>
+  </data>
+  <data name="AccountInitialPasswordTooShort">
+    <value>Начальный пароль короче минимальной длины, заданной политикой безопасности панели. Введите более длинный.</value>
+  </data>
+  <data name="AccountInitialPasswordTooLong">
+    <value>Начальный пароль слишком длинный. Введите более короткий.</value>
+  </data>
+  <data name="AccountInitialPasswordSameAsName">
+    <value>Начальный пароль не должен совпадать с именем аккаунта. Введите другой.</value>
+  </data>
+  <data name="AccountShellAccessAdministratorOnly">
+    <value>Только администратор может выдать аккаунту оболочку для входа. Создайте аккаунт без доступа к оболочке.</value>
+  </data>
+  <data name="AccountInitialPasswordAdministratorOnly">
+    <value>Только администратор может задать первый пароль аккаунта. Выберите приглашение, чтобы владелец задал пароль сам.</value>
+  </data>
+  <data name="AccountOwnerEmailTaken">
+    <value>Адрес электронной почты владельца уже используется другим логином. Ничего не создано; укажите другой адрес.</value>
+  </data>
+  <data name="AccountLoginNameTaken">
+    <value>Имя аккаунта уже используется как имя логина. Ничего не создано; выберите другое имя аккаунта.</value>
   </data>
   <data name="AccountProcessLimitInvalid">
     <value>Лимит процессов должен быть целым числом от 1 до 4194304. Оставьте поле пустым, чтобы использовать значение тарифа.</value>

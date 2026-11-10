@@ -62,7 +62,7 @@ pub fn write_config_set(
     validator: &Validator<'_>,
     reload: &Reload<'_>,
 ) -> Result<(), SafeWriteError> {
-    swap_set(host, files, validator, Some(reload))
+    swap_set(host, files, Some(validator), Some(reload))
 }
 
 /// The set protocol itself, shared by [`write_config_set`] and
@@ -74,6 +74,11 @@ pub fn write_config_set(
 /// authentication — so there is nothing to reload, and inventing a command to
 /// stand in that place would be a second meaning for the field.
 ///
+/// `validator` is `None` only for a file no tool can check and whose bytes a
+/// validated type already proves (`write_unchecked_config`): a command passed
+/// there to make the slot non-empty would be decoration, and the census in
+/// `validator_tests.rs` exists to keep a validator a check.
+///
 /// # Errors
 ///
 /// As [`write_config_set`]; with `reload` absent, the two reload errors cannot
@@ -81,7 +86,7 @@ pub fn write_config_set(
 pub(super) fn swap_set(
     host: &dyn ConfigHost,
     files: &[ConfigFile<'_>],
-    validator: &Validator<'_>,
+    validator: Option<&Validator<'_>>,
     reload: Option<&Reload<'_>>,
 ) -> Result<(), SafeWriteError> {
     // Held for the whole sequence below, capture included. See
@@ -126,17 +131,19 @@ pub(super) fn swap_set(
         }
     }
 
-    let validation = match host.run(validator.program, validator.arguments, validator.class) {
-        Ok(outcome) => outcome,
-        Err(error) => return finish_with_rollback(&mut guards, error),
-    };
-    if validation.status != 0 {
-        return finish_with_rollback(
-            &mut guards,
-            SafeWriteError::ValidationFailed {
-                stderr: validation.stderr,
-            },
-        );
+    if let Some(validator) = validator {
+        let validation = match host.run(validator.program, validator.arguments, validator.class) {
+            Ok(outcome) => outcome,
+            Err(error) => return finish_with_rollback(&mut guards, error),
+        };
+        if validation.status != 0 {
+            return finish_with_rollback(
+                &mut guards,
+                SafeWriteError::ValidationFailed {
+                    stderr: validation.stderr,
+                },
+            );
+        }
     }
 
     let Some(reload) = reload else {

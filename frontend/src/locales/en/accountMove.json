@@ -1,0 +1,265 @@
+{
+  "accountMove": {
+    "export": {
+      "heading": "Export an account",
+      "subtitle": "Make a package of one account to bring it to another Maran server.",
+      "form": {
+        "account": "Account",
+        "accountPlaceholder": "Choose an account",
+        "accountRequired": "Choose the account to export.",
+        "hint": "Exporting takes a backup of the account first, which can take as long as a backup does. The account keeps running.",
+        "submit": "Export account",
+        "submitting": "Exporting…"
+      },
+      "detail": {
+        "title": "Account export",
+        "heading": "Export of {name}",
+        "subtitle": "Carry the key fingerprint to the other server, then take the package there.",
+        "notFoundTitle": "This export is not available",
+        "notFoundDescription": "It has expired or never existed. Export the account again to make a new package.",
+        "backToForm": "Export another account"
+      },
+      "package": {
+        "title": "The package",
+        "account": "Account",
+        "size": "Size",
+        "databases": "Databases",
+        "sections": "Modules in the package",
+        "createdAt": "Made",
+        "expiresAt": "Available until",
+        "sha256": "SHA-256",
+        "plaintext": "The package is not encrypted. It holds the account's files and database contents until it expires, so keep it where only you can read it and delete it once the import is done.",
+        "download": "Download package",
+        "downloading": "Preparing the download…"
+      },
+      "fingerprint": {
+        "title": "Key fingerprint",
+        "intro": "The receiving server accepts the package only if it was signed by the key with this fingerprint. Type it there yourself; do not send it together with the package.",
+        "copy": "Copy fingerprint"
+      },
+      "grants": {
+        "title": "Pull grants",
+        "intro": "A grant lets one other panel pull this package once, without you handing over the file. Its token is shown once.",
+        "allowedFrom": "Allowed from (addresses or ranges)",
+        "allowedFromHint": "Leave empty to allow any address.",
+        "allowedFromInvalid": "Enter addresses or ranges such as 203.0.113.10 or 203.0.113.0/24, separated by commas.",
+        "lifetime": "Lifetime in minutes",
+        "lifetimeHint": "Up to {max}. Leave empty for the panel's default.",
+        "lifetimeInvalid": "Enter a whole number of minutes from 1 to {max}.",
+        "issue": "Issue grant",
+        "issuing": "Issuing…",
+        "fromAnyShort": "Any address",
+        "revoke": "Revoke",
+        "revokeTitle": "Revoke this grant?",
+        "revokeQuestion": "A panel holding its token can no longer pull the package.",
+        "revokeAction": "Revoke grant",
+        "revokedNotice": "The grant was revoked.",
+        "heading": "Pull grants",
+        "subtitle": "The single-use grants with which another panel pulls an exported package. A grant's token was shown once and is not kept.",
+        "seeGrants": "See the grants of {name}",
+        "emptyTitle": "No pull grants yet",
+        "emptyDescription": "Open an export and issue a grant so that another panel can pull its package.",
+        "toExports": "Go to the exports",
+        "tableCaption": "Pull grants",
+        "rowActions": "Actions for the grant of {name}",
+        "columns": {
+          "account": "Account",
+          "state": "State",
+          "allowedFrom": "Allowed from",
+          "reads": "Head reads",
+          "createdAt": "Issued",
+          "expiresAt": "Works until"
+        },
+        "states": {
+          "Live": "Live",
+          "Used": "Used",
+          "Revoked": "Revoked",
+          "Expired": "Expired"
+        },
+        "filters": {
+          "state": "State"
+        },
+        "searchLabel": "Search pull grants",
+        "searchPlaceholder": "Search by account name…",
+        "searchClear": "Clear the search",
+        "noResultsTitle": "No grants match",
+        "noResultsDescription": "Change the search or the filter, or clear them to see every grant."
+      },
+      "token": {
+        "title": "Pull grant issued",
+        "warning": "Copy the token now. It is shown only once; the panel keeps only a digest of it and cannot show it again.",
+        "tokenLabel": "Token",
+        "expiresLabel": "Works until",
+        "fromLabel": "Allowed from",
+        "copy": "Copy token",
+        "done": "I have copied it"
+      },
+      "list": {
+        "heading": "Account exports",
+        "subtitle": "The packages you made to bring accounts to another Maran server. A package is served until it expires.",
+        "addAction": "Export an account",
+        "grantsLink": "Pull grants",
+        "emptyTitle": "No exports yet",
+        "emptyDescription": "Export an account to make a package another Maran server can import.",
+        "tableCaption": "Account exports",
+        "columns": {
+          "account": "Account",
+          "size": "Size",
+          "databases": "Databases",
+          "createdAt": "Made",
+          "expiresAt": "Available until"
+        },
+        "searchLabel": "Search exports",
+        "searchPlaceholder": "Search by account name…",
+        "searchClear": "Clear the search",
+        "noResultsTitle": "No exports match",
+        "noResultsDescription": "Change the search, or clear it to see every export."
+      }
+    },
+    "import": {
+      "heading": "Import an account",
+      "subtitle": "Bring in an account from a package another Maran server exported.",
+      "form": {
+        "file": "Package file",
+        "fileHint": "The .maranpkg file the export on the other server produced. It is verified before anything is created.",
+        "fileRequired": "Choose the package file.",
+        "fingerprint": "Key fingerprint of the sending server",
+        "fingerprintHint": "Read it on the sending server's export screen and type it here. The package is accepted only if that key signed it.",
+        "fingerprintRequired": "Enter the key fingerprint.",
+        "hint": "A large package takes a while to upload. Keep this page open until it is verified.",
+        "submit": "Upload and verify",
+        "submitting": "Uploading and verifying…"
+      },
+      "states": {
+        "Staged": "Waiting to start",
+        "Running": "Running",
+        "Completed": "Completed",
+        "RolledBack": "Rolled back",
+        "RolledBackIncomplete": "Rolled back incompletely",
+        "Discarded": "Discarded"
+      },
+      "detail": {
+        "title": "Account import",
+        "heading": "Import of {name}",
+        "subtitle": "From {host}",
+        "notFoundTitle": "This import is not available",
+        "notFoundDescription": "It never existed or its package was removed. Upload the package again.",
+        "backToForm": "Import another account"
+      },
+      "summary": {
+        "title": "The package",
+        "state": "State",
+        "account": "Account",
+        "domain": "Primary domain",
+        "sourceHost": "Sending server",
+        "size": "Package size",
+        "home": "Home directory",
+        "databases": "Databases",
+        "sections": "Modules in the package",
+        "acceptedAt": "Accepted",
+        "finishedAt": "Finished",
+        "fingerprint": "Key fingerprint"
+      },
+      "plan": {
+        "title": "Dry run",
+        "intro": "Choose the plan the account is created against, then judge the package against this server. Nothing is created.",
+        "reseller": "Reseller (optional)",
+        "resellerPlaceholder": "The administrator's own account",
+        "plan": "Plan",
+        "planPlaceholder": "Choose a plan",
+        "run": "Run dry run",
+        "running": "Judging the package…"
+      },
+      "report": {
+        "title": "Dry-run report",
+        "canStart": "No conflicts. The import can start.",
+        "blocked": "The import cannot start while a conflict remains. Resolve them, then run the dry run again.",
+        "none": "Nothing in the package conflicts with this server.",
+        "listLabel": "Findings of the dry run",
+        "severities": {
+          "Conflict": "Conflict",
+          "Warning": "Warning",
+          "Info": "Note"
+        }
+      },
+      "confirm": {
+        "title": "Start the import",
+        "intro": "Type the account's name and the sending server's key fingerprint again, so you create the account you checked from the server you checked.",
+        "nameLabel": "Account name",
+        "nameHint": "Type {name}.",
+        "fingerprintLabel": "Key fingerprint",
+        "fingerprintHint": "Type the fingerprint you entered when you uploaded the package.",
+        "mismatch": "This does not match.",
+        "start": "Start import",
+        "starting": "Starting…",
+        "discard": "Discard package",
+        "discardTitle": "Discard this package?",
+        "discardQuestion": "The uploaded package is deleted. Nothing was created on this server.",
+        "discardAction": "Discard package"
+      },
+      "progress": {
+        "title": "Import in progress",
+        "intro": "The account is being created. This page updates by itself.",
+        "starting": "Starting the import…",
+        "stage": "Working on: {stage}",
+        "tasks": "Follow it in the background tasks"
+      },
+      "stages": {
+        "accounts": "the account",
+        "databases": "databases",
+        "sites": "sites",
+        "ftp": "FTPS logins",
+        "sftp": "SFTP logins",
+        "cron": "cron entries",
+        "ssl": "certificates",
+        "restore": "restoring files and database contents"
+      },
+      "outcome": {
+        "completed": "The account {name} was imported.",
+        "openAccount": "Open the account",
+        "afterTitle": "What to know after the import",
+        "secretsTitle": "Generated credentials",
+        "secretsIntro": "The import generated credentials for the databases and logins it created. They can be shown once.",
+        "reveal": "Show the credentials once",
+        "revealing": "Fetching…",
+        "rolledBack": "The import failed and was rolled back. Nothing was left on this server. Fix the cause and upload the package again.",
+        "rolledBackIncomplete": "The import failed and could not be rolled back completely. The account {name} remains on this server; review it and delete it if you do not want it.",
+        "openRemaining": "Open the remaining account",
+        "discarded": "This package was discarded. Nothing was created.",
+        "failureCode": "Code: {code}"
+      },
+      "secrets": {
+        "title": "Generated credentials",
+        "warning": "Copy these now. They are shown only once and the panel cannot show them again.",
+        "none": "The import generated no credentials.",
+        "copy": "Copy the credential for {subject}",
+        "done": "I have copied them"
+      },
+      "list": {
+        "heading": "Account imports",
+        "subtitle": "The packages you accepted from other Maran servers, and how each import went.",
+        "addAction": "Import an account",
+        "emptyTitle": "No imports yet",
+        "emptyDescription": "Upload a package, or pull one from another panel, to start the first import.",
+        "tableCaption": "Account imports",
+        "columns": {
+          "account": "Account",
+          "source": "Sending server",
+          "state": "State",
+          "size": "Size",
+          "createdAt": "Accepted"
+        },
+        "filters": {
+          "state": "State"
+        },
+        "task": "Open its task",
+        "taskLabel": "Open the background task of the import of {name}",
+        "searchLabel": "Search imports",
+        "searchPlaceholder": "Search by account or server name…",
+        "searchClear": "Clear the search",
+        "noResultsTitle": "No imports match",
+        "noResultsDescription": "Change the search or the filter, or clear them to see every import."
+      }
+    }
+  }
+}

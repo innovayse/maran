@@ -1,4 +1,6 @@
 {
   "title": "Hello",
-  "greeting": "Hello from a packaged module"
+  "greeting": "Hello from a packaged module",
+  "loading": "Loading the greeting...",
+  "failed": "The greeting could not be loaded (status {status})."
 }

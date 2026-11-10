@@ -45,5 +45,11 @@ public abstract record LicenceStatus
 
     /// <summary>Something WAS installed and it did not verify.</summary>
     /// <param name="Reason">The specific, actionable reason it was refused.</param>
-    public sealed record Refused(LicenceRefusalReason Reason) : LicenceStatus;
+    /// <param name="LapsedLicence">
+    /// The licence whose signature held and whose validity then ended, set only for
+    /// <see cref="LicenceRefusalReason.Expired"/>; null for every other reason. It lets the licence
+    /// window say which modules LAPSED instead of calling every module uncovered. It is read for that
+    /// and for nothing else: an expired licence grants nothing.
+    /// </param>
+    public sealed record Refused(LicenceRefusalReason Reason, Licence? LapsedLicence = null) : LicenceStatus;
 }

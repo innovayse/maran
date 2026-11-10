@@ -197,6 +197,16 @@ pub(crate) struct FakeSftpHost {
     /// the count a test installed and exits as the tool does: zero when it
     /// matched, one when it matched nothing.
     pkill_answer: Mutex<(i32, String)>,
+    /// The mount points the account's real home is mounted at (issue #483).
+    ///
+    /// A `chmod` of one of these goes through the mount and lands on the HOME,
+    /// which is what makes the real defect expressible: see
+    /// [`Self::home_mode`].
+    home_mounted_at: Mutex<Vec<String>>,
+    /// The mode of the account's real home, `0750` as an account's is, and
+    /// changed by the one thing that can change it here: a mode applied to a
+    /// path the home is mounted at.
+    home_mode: Mutex<u32>,
 }
 
 impl FakeSftpHost {
@@ -230,7 +240,24 @@ impl FakeSftpHost {
             account_home: Mutex::new(None),
             passwd_unreadable: Mutex::new(false),
             pkill_answer: Mutex::new((1, "0\n".to_owned())),
+            home_mounted_at: Mutex::new(Vec::new()),
+            home_mode: Mutex::new(0o750),
         }
+    }
+
+    /// Puts the account's real home under `mount_point`, as a second login
+    /// finds it: a mode applied to that path reaches the home.
+    pub(crate) fn with_home_mounted_at(self, mount_point: &str) -> Self {
+        self.home_mounted_at
+            .lock()
+            .unwrap()
+            .push(mount_point.to_owned());
+        self
+    }
+
+    /// The mode of the account's real home now.
+    pub(crate) fn home_mode(&self) -> u32 {
+        *self.home_mode.lock().unwrap()
     }
 
     /// Makes the password database unreadable as a list of logins.

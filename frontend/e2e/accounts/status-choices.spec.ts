@@ -1,11 +1,15 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import { ONE_SHOT, stubDashboard } from '../fixtures/stub-dashboard-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubIdleLiveDashboard } from '../fixtures/stub-live-dashboard-stream'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubPlans } from '../fixtures/stub-plans-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import type { Account } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 // Issue #330: the account states the list filters by and prints come from the panel, named by it.
 // Every name below is deliberately NOT the SPA's old wording, so a name that shows up on screen can
@@ -55,6 +59,7 @@ const openWith = async (
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_ACCOUNTS)
+  await stubShellReads(page)
   await stubPlans(page)
   const requests = await stubAccounts(page, ACCOUNTS)
   // Installed after the shared stub, so it answers first.
@@ -80,6 +85,9 @@ const PANEL_NAMES = [
 
 test('the badges, the filter options and the chip use the names the panel gave', async ({ page }) => {
   const requests = await openWith(page, PANEL_NAMES)
+  // The test starts on the home screen, which reads the dashboard, its layout and its live stream.
+  await stubDashboard(page, ONE_SHOT)
+  await stubIdleLiveDashboard(page)
   await page.goto('/')
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Accounts' }).click()
 
@@ -119,7 +127,9 @@ test('a link naming a state the panel lists is honoured and shown as a chip', as
   expect(requests().at(-1)?.searchParams.get('status')).toBe('suspended')
 })
 
-test('an unreadable state list leaves the filter at "Any" and does not discard a linked state', async ({ page }) => {
+test('an unreadable state list leaves the filter at "Any" and does not discard a linked state', async ({ page, guard }) => {
+  // The refusal is the subject: the state list answers 500.
+  guard.allow(500, /\/api\/v1\/accounts\/statuses$/)
   const requests = await openWith(page, 'unreadable')
 
   await page.goto('/accounts?status=suspended')

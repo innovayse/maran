@@ -40,6 +40,16 @@ namespace Maran.Modules.Firewall.Commands.BanAddress;
 /// the sentence, in all three locales, saying what to ban instead.
 /// </para>
 /// <para>
+/// <b>A ban the administrator could not recover from is refused, and so is a ban of a whitelisted
+/// address.</b> The bans table hooks ahead of the ruleset, so a ban drops the SSH and panel traffic
+/// whatever the accepts say; banning the address the request arrived from therefore ends the session
+/// with no way back, and is refused with <c>BanAddressIsCaller</c>. A whitelisted range is the list of
+/// addresses that must never be cut off; banning inside it is refused with
+/// <c>BanAddressWhitelisted</c>, and the way out is to remove the range first. This reverses the
+/// earlier position that an administrator may ban a whitelisted address deliberately: the whitelist is
+/// now exempt from manual bans too.
+/// </para>
+/// <para>
 /// <b>A ban on an address already banned MOVES the standing episode; it does not add a second.</b>
 /// The host's ban set is keyed by address, so the agent's second <c>add element</c> replaces the
 /// timeout and one element remains. Two rows would then disagree about that one element, and the
@@ -64,17 +74,23 @@ public sealed class BanAddressCommandHandler
     /// <summary>This module's audit journal.</summary>
     private readonly FirewallAuditJournal _journal;
 
+    /// <summary>The one place this module asks whether an address is whitelisted.</summary>
+    private readonly WhitelistGuard _whitelist;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Firewall module's database context.</param>
     /// <param name="agent">The agent client that installs the ban.</param>
     /// <param name="clock">The panel's clock.</param>
     /// <param name="journal">This module's audit journal.</param>
+    /// <param name="whitelist">The guard that answers whether an address is whitelisted.</param>
     public BanAddressCommandHandler(
         FirewallDbContext dbContext,
         IAgentFirewallClient agent,
         IClock clock,
-        FirewallAuditJournal journal)
+        FirewallAuditJournal journal,
+        WhitelistGuard whitelist)
     {
+        _whitelist = whitelist;
         _dbContext = dbContext;
         _agent = agent;
         _clock = clock;
@@ -84,7 +100,10 @@ public sealed class BanAddressCommandHandler
     /// <summary>Bans the address.</summary>
     /// <param name="command">Which address to ban, and for how long.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
-    /// <returns>Success, or <c>BanAddressInvalid</c>, or the agent's own typed failure.</returns>
+    /// <returns>
+    /// Success; <c>BanAddressInvalid</c>; <c>BanAddressLoopback</c>; <c>BanAddressIsCaller</c> or
+    /// <c>BanAddressWhitelisted</c> (both 409); or the agent's own typed failure.
+    /// </returns>
     public async Task<Result> HandleAsync(BanAddressCommand command, CancellationToken cancellationToken)
     {
         if (!IpAddressNormalizer.TryNormalize(command.Address, out var address))
@@ -109,6 +128,19 @@ public sealed class BanAddressCommandHandler
                 cancellationToken);
 
             return Result.Fail(Error.Of(nameof(ErrorMessages.BanAddressLoopback), ErrorType.Validation));
+        }
+
+        // A ban is dropped ahead of every accept, so it closes SSH and the panel port at once. Banning
+        // the address this request came from ends the administrator's own way in; banning a
+        // whitelisted address contradicts the list that names the addresses never to be cut off.
+        if (FirewallLockoutPolicy.BansCaller(address, command.IpAddress))
+        {
+            return await RefuseAsync(command, address, nameof(ErrorMessages.BanAddressIsCaller), cancellationToken);
+        }
+
+        if (await _whitelist.ExemptsAsync(address, cancellationToken))
+        {
+            return await RefuseAsync(command, address, nameof(ErrorMessages.BanAddressWhitelisted), cancellationToken);
         }
 
         var subject = address.ToString();
@@ -165,5 +197,27 @@ public sealed class BanAddressCommandHandler
             FirewallAuditActions.AddressBanned, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result.Ok();
+    }
+
+    /// <summary>Journals a ban refused for lock-out reasons and builds the conflict.</summary>
+    /// <param name="command">The command, which carries the caller's address and user agent.</param>
+    /// <param name="address">The normalised address that was asked for.</param>
+    /// <param name="code">The error code naming the reason.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    /// <returns>The failed result.</returns>
+    private async Task<Result> RefuseAsync(
+        BanAddressCommand command,
+        IPAddress address,
+        string code,
+        CancellationToken cancellationToken)
+    {
+        await _journal.RecordFailureAsync(
+            FirewallAuditActions.AddressBanned,
+            address.ToString(),
+            command.IpAddress,
+            command.UserAgent,
+            cancellationToken);
+
+        return Result.Fail(Error.Of(code, ErrorType.Conflict));
     }
 }

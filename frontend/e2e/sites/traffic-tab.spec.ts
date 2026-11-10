@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { expectNoHorizontalOverflow } from '../fixtures/measure-horizontal-extent'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubHealthy } from '../fixtures/stub-health-route'
@@ -15,6 +15,7 @@ import {
 import type { PanelModule } from '../../src/types/module'
 import type { SiteChoices, SiteDetail } from '../../src/types/site'
 import type { SiteTraffic } from '../../src/types/siteTraffic'
+import type { Page } from '@playwright/test'
 
 const LICENSED_SITES: PanelModule[] = [
   { name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -230,7 +231,8 @@ test('a complete summary shows no incompleteness notice', async ({ page }) => {
   await expect(page.getByText('may be incomplete')).toHaveCount(0)
 })
 
-test('a refused window shows the panels own message', async ({ page }) => {
+test('a refused window shows the panels own message', async ({ page, guard }) => {
+  guard.allow(400, /\/api\/v1\/sites\/[^/]+\/traffic/)
   await stubTraffic(page, () => {
     return POPULATED
   })

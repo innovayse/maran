@@ -119,9 +119,14 @@ const remove = (): void => {
           {{ props.read.state === "loaded" ? props.read.certificate.domain : "" }}
         </UiDescriptionItem>
         <UiDescriptionItem :term="t('certificates.sourceLabel')">
-          <UiBadge v-if="props.read.state === 'loaded'" variant="info">
-            {{ t(`certificates.source.${props.read.certificate.source}`) }}
-          </UiBadge>
+          <span v-if="props.read.state === 'loaded'" class="flex flex-wrap items-center gap-2">
+            <UiBadge variant="info">
+              {{ t(`certificates.source.${props.read.certificate.source}`) }}
+            </UiBadge>
+            <UiBadge v-if="props.read.certificate.wildcard" variant="neutral">
+              {{ t("certificates.wildcard.badge", { domain: props.read.certificate.domain }) }}
+            </UiBadge>
+          </span>
         </UiDescriptionItem>
         <UiDescriptionItem :term="t('certificates.issuedAtLabel')" mono>
           {{ props.read.state === "loaded" ? formatDate(props.read.certificate.issuedAt, props.locale) : "" }}

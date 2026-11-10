@@ -1,13 +1,10 @@
 //! CreateSftpUser: the account's jail, then the login that lands in it.
 
-use std::path::Path;
-
 use maran_agent_core::utils::call_class::CallClass;
 use maran_distro::DistroAdapter;
-use maran_templates::systemd::unit::MountUnit;
 
 use crate::accounts::take_account_lock;
-use crate::safe_write::model::{Reload, Validator};
+use crate::sftp::ensure_account_jail::ensure_account_jail;
 use crate::sftp::model::account_jail::AccountJail;
 use crate::sftp::model::login_key_file::LoginKeyFile;
 use crate::sftp::model::sftp_user_request::SftpUserRequest;
@@ -16,15 +13,6 @@ use crate::sftp::set_sftp_password::write_password;
 use crate::sftp::sftp_error::SftpError;
 use crate::sftp::sftp_host::SftpHost;
 use maran_agent_core::end_of_options::END_OF_OPTIONS;
-
-/// The mode the jail and its mount point are created with.
-///
-/// `0755`, root-owned: OpenSSH refuses to chroot into a directory that is
-/// group- or world-writable, and it refuses one that is not owned by root. The
-/// login still has to be able to list the jail to find `home` in it, which is
-/// what the read and execute bits are for. This is the only mode that satisfies
-/// both, so it is a constant rather than a parameter.
-const JAIL_MODE: u32 = 0o755;
 
 /// Tells `useradd` not to create or touch the home directory it is given.
 ///
@@ -60,15 +48,6 @@ const GID: &str = "--gid";
 /// [`AccountOwnership`](crate::sftp::model::account_ownership::AccountOwnership)
 /// for why the login is given the account's identity instead of one of its own.
 const NON_UNIQUE: &str = "--non-unique";
-
-/// The subcommand that makes the service manager re-read its unit files.
-const DAEMON_RELOAD: &str = "daemon-reload";
-
-/// The subcommand that turns a unit on at boot.
-const ENABLE: &str = "enable";
-
-/// The flag that also starts the unit now, rather than at the next boot only.
-const START_NOW: &str = "--now";
 
 /// Creates `request`'s SFTP login, jailed to its account's home.
 ///
@@ -193,7 +172,7 @@ pub(crate) fn create_sftp_user_under_lock(
     let ownership = host.account_ownership(&request.account)?;
 
     let jail = AccountJail::for_account(&request.account, distro.systemd_unit_directory());
-    ensure_jail(host, distro, &jail)?;
+    ensure_account_jail(host, distro, &jail)?;
 
     // Asked AGAIN, immediately before the login is created, and compared with
     // what was read before the jail work. The lock above excludes this agent's
@@ -249,66 +228,6 @@ pub(crate) fn create_sftp_user_under_lock(
     // ago is `!`, so it would lock the credential this operation exists to hand
     // out. A login that did not exist has no prior state worth restoring.
     write_password(host, distro, &request.user, &request.password)
-}
-
-/// Brings `jail` to the state an SFTP login needs, whether or not it was there.
-///
-/// The mount is a systemd unit rather than a `mount` call, and that is the one
-/// decision in this function worth arguing. A mount made imperatively is gone at
-/// the next boot: every SFTP login for the account would then land in an empty
-/// jail, with nothing in the panel's records to say why and nothing that would
-/// put it back short of re-creating a user. An enabled unit is re-established by
-/// the service manager on every boot, so the jail is correct by construction
-/// rather than for as long as the host stays up.
-///
-/// The unit goes through the config-write protocol like every other
-/// configuration this agent writes, with `daemon-reload` as the validator and
-/// `enable --now` as the reload. If the unit cannot be parsed or the mount
-/// refuses to start, the previous unit file is restored and this fails —
-/// leaving no half-installed mount behind.
-///
-/// # Errors
-///
-/// Returns [`SftpError::JailFailed`] when a directory cannot be created, the
-/// unit cannot be rendered, or the protocol refuses it. Returns
-/// [`SftpError::Bound`] when the service manager outruns its deadline.
-fn ensure_jail(
-    host: &dyn SftpHost,
-    distro: &dyn DistroAdapter,
-    jail: &AccountJail,
-) -> Result<(), SftpError> {
-    host.create_directory(Path::new(jail.directory()), JAIL_MODE)?;
-    host.create_directory(Path::new(jail.mount_point()), JAIL_MODE)?;
-
-    let contents = MountUnit {
-        account: jail.account(),
-        source_directory: jail.source_directory(),
-        mount_point: jail.mount_point(),
-    }
-    .render_config()
-    .map_err(|_| SftpError::JailFailed)?;
-
-    // The absolute path of the service manager, from the adapter. `ops` names no
-    // binary path of its own, and a bare `"systemctl"` would be worse than the
-    // literal it replaced: a root process would resolve the program through
-    // `PATH`.
-    let service_manager = distro.service_manager();
-    let validator = Validator {
-        program: &service_manager,
-        arguments: &[DAEMON_RELOAD],
-        // `daemon-reload` mutates the service manager's state, so it is a
-        // `Reload` and not a pure validation.
-        class: CallClass::Reload,
-    };
-    // `systemctl` honours the end-of-options marker (`getopt_long`), so the unit
-    // name after it can never be read as an option.
-    let reload_arguments = [ENABLE, START_NOW, END_OF_OPTIONS, jail.unit_name()];
-    let reload = Reload {
-        program: &service_manager,
-        arguments: &reload_arguments,
-    };
-
-    host.write_config(Path::new(jail.unit_path()), &contents, &validator, &reload)
 }
 
 /// Removes any key file already sitting at the names a login about to be

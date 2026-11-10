@@ -1,5 +1,5 @@
+import { expect, test } from '../fixtures/guarded-test'
 import { answerBeforeDelay, earlySkeletons, recordSkeletonFlashes, runPastDelay } from '../fixtures/skeleton-flash'
-import { expect, test, type Page } from '@playwright/test'
 import { delayRoute } from '../fixtures/delay-route'
 import { holdRoute } from '../fixtures/hold-route'
 import {
@@ -13,8 +13,10 @@ import { stubAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubInvitation } from '../fixtures/stub-invitation-routes'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { AccountDetail } from '../../src/types/account'
 import type { AccountResourceSummary } from '../../src/types/accountResourceSummary'
+import type { Page } from '@playwright/test'
 
 // The account page while its reads are on the way (#243): the heading and the details card keep
 // their real terms over placeholder values, and the resources card is its own region.
@@ -47,6 +49,12 @@ const ACCOUNT_PATTERN = `**/api/v1/accounts/${ACCOUNT.id}`
 /** The resource-summary read. */
 const SUMMARY_PATTERN = `**/api/v1/accounts/${ACCOUNT.id}/resource-summary`
 
+/** The account read as the guard sees its URL, for announcing the refusal the failure cases answer with. */
+const ACCOUNT_URL = new RegExp(`/api/v1/accounts/${ACCOUNT.id}$`)
+
+/** The resource-summary read as the guard sees its URL. */
+const SUMMARY_URL = new RegExp(`/api/v1/accounts/${ACCOUNT.id}/resource-summary$`)
+
 /**
  * Answers one read with a 500 problem carrying {@link REFUSAL}.
  * @param page The Playwright page.
@@ -72,6 +80,7 @@ const stubShell = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
+  await stubShellReads(page)
   await stubInvitation(page, ACCOUNT.id, 'pending')
 }
 
@@ -119,7 +128,9 @@ test('account detail: a fast answer shows no placeholder', async ({ page }) => {
   await expectRegionFastLoad(page, ACCOUNT_DETAIL_SCENARIO)
 })
 
-test('account detail: a slow failure is an alert, never a skeleton', async ({ page }) => {
+test('account detail: a slow failure is an alert, never a skeleton', async ({ page, guard }) => {
+  // The refusal is the subject: the account read answers 500.
+  guard.allow(500, ACCOUNT_URL)
   await expectRegionSlowFailure(page, ACCOUNT_DETAIL_SCENARIO)
 })
 
@@ -170,7 +181,9 @@ test('resources: a fast summary shows no placeholder', async ({ page }) => {
   expect(await earlySkeletons(page)).toEqual([])
 })
 
-test('resources: a slow refused summary is the card alert, never a skeleton', async ({ page }) => {
+test('resources: a slow refused summary is the card alert, never a skeleton', async ({ page, guard }) => {
+  // The refusal is the subject: the summary read answers 500.
+  guard.allow(500, SUMMARY_URL)
   await stubShell(page)
   await stubAccount(page)
   await refuse(page, SUMMARY_PATTERN)

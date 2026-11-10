@@ -79,6 +79,100 @@ polygon_suites() {
   done < <(find "$root"/agent/crates/*/tests -maxdepth 1 -name '*.rs' 2>/dev/null | sort)
 }
 
+# POLYGON_FAMILY_SKIPS: the ONE declaration of which polygon suites a family does not run, and why.
+#
+# Each row is `image-family|suite|installer step|sentence|OS family`. A suite listed here has nothing
+# to run against on that image (FTPS on the SUSE family: vsftpd is not packaged), so the run does not
+# pass `--test` for it and `maran polygon verify` expects it ABSENT for that family and for no other.
+# Only the image family named in the row is exempt: ubuntu24 and alma9 have no row, so the same suite
+# is still required there (polygon_selftest_skips proves it). The installer step and sentence are the
+# agreement with the adapter: the row is valid only while that step prints that sentence for that OS
+# family, checked by polygon_skips_agree_with_installer.
+# Image family `leap16` is installer family `suse`.
+POLYGON_FAMILY_SKIPS=(
+  "leap16|ftps_on_a_real_host|installer/lib/89-ftps.sh|FTPS is not available on this OS family|suse"
+)
+
+# polygon_family_skipped_suites <image-family>: the suites that family does not run, one per line.
+polygon_family_skipped_suites() {
+  local row
+  for row in "${POLYGON_FAMILY_SKIPS[@]}"; do
+    [ "${row%%|*}" = "$1" ] || continue
+    row="${row#*|}"
+    printf '%s\n' "${row%%|*}"
+  done
+}
+
+# polygon_test_args <image-family> <suite>...: `--test <suite>` for every suite the family runs, one
+# word per line. The run steps use this so the list they run and the list verify expects come from
+# the declaration above and nowhere else.
+polygon_test_args() {
+  local family="$1" suite
+  shift
+  for suite in "$@"; do
+    if polygon_family_skipped_suites "$family" | grep -Fxq -- "$suite"; then
+      continue
+    fi
+    printf -- '--test\n%s\n' "$suite"
+  done
+}
+
+# polygon_family_from_log <log>: the image family the log's stamp lines name, when they name exactly
+# one. Nothing otherwise (no stamp, or several families), and the caller then exempts NOTHING: a log
+# that cannot say which family it came from is held to every suite.
+polygon_family_from_log() {
+  local families
+  families="$(grep -ao "$POLYGON_STAMP_PREFIX family=[A-Za-z0-9._-]*" "$1" 2>/dev/null \
+    | sed 's/.* family=//' | sort -u)"
+  [ "$(printf '%s' "$families" | grep -c . || true)" -eq 1 ] || return 1
+  printf '%s' "$families"
+}
+
+# polygon_step_declares_unoffered <step-file> <sentence> <os-family>: 0 when the installer step prints
+# the sentence and has the OS family's arm returning 1 from its `*_is_offered_on_family` gate.
+polygon_step_declares_unoffered() {
+  [ -r "$1" ] || return 1
+  grep -qF -- "$2" "$1" || return 1
+  grep -Eq "^[[:space:]]*$3\)[[:space:]]+return 1" "$1"
+}
+
+# polygon_skips_agree_with_installer <root>: every declared skip is backed by the installer, and the
+# declaration is non-empty only for the family that has rows. Prints the problems; status 1 on any.
+# Controls: the checker is shown to refuse a file lacking the sentence and to accept the real step,
+# and the exemption is shown absent for the two PR families.
+polygon_skips_agree_with_installer() {
+  local root="$1" row family suite step sentence os problems="" planted fake
+  planted="$(mktemp)"
+  printf 'no such sentence here\n    suse) return 1 ;;\n' >"$planted"
+  if polygon_step_declares_unoffered "$planted" "FTPS is not available on this OS family" suse; then
+    problems="$problems
+  the agreement checker ACCEPTED a file that lacks the sentence, so its acceptance of the installer means nothing."
+  fi
+  rm -f "$planted"
+  [ "${#POLYGON_FAMILY_SKIPS[@]}" -gt 0 ] || problems="$problems
+  POLYGON_FAMILY_SKIPS is empty, so nothing was checked."
+  for fake in ubuntu24 alma9; do
+    if [ -n "$(polygon_family_skipped_suites "$fake")" ]; then
+      problems="$problems
+  $fake is declared to skip a suite; only a family whose installer does not offer the feature may."
+    fi
+  done
+  for row in "${POLYGON_FAMILY_SKIPS[@]}"; do
+    IFS='|' read -r family suite step sentence os <<<"$row"
+    if [ "$os" != suse ]; then
+      problems="$problems
+  $family|$suite: only the SUSE family is declared not to offer a feature."
+    fi
+    polygon_step_declares_unoffered "$root/$step" "$sentence" "$os" || problems="$problems
+  $family|$suite: $step does not print '$sentence' with an '$os) return 1' gate, so this suite would be skipped for a family whose installer still offers the feature."
+    [ -r "$root/agent/crates/agent/tests/$suite.rs" ] || [ -n "$(find "$root"/agent/crates/*/tests -name "$suite.rs" 2>/dev/null)" ] || problems="$problems
+  $family|$suite: no such suite in agent/crates/*/tests, so the declaration is stale."
+  done
+  [ -z "$problems" ] && return 0
+  printf '%s\n' "$problems"
+  return 1
+}
+
 # polygon_fingerprint: the sha256 of everything a polygon image is built FROM.
 #
 # Currency is asked as a content question, not as a timestamp question, because a timestamp answers

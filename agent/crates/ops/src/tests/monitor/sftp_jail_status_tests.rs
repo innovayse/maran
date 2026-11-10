@@ -34,6 +34,7 @@ PermitRootLogin no
 # BEGIN Maran SFTP \u{2014} managed by installer/lib/86-sftp.sh, do not edit between markers
 Match Group maran-sftp
     ChrootDirectory %h
+    AuthorizedKeysFile /etc/ssh/maran-sftp-keys/%u
     ForceCommand internal-sftp
     AllowTcpForwarding no
     X11Forwarding no
@@ -113,6 +114,7 @@ fn a_block_missing_only_forcecommand_names_that_one_directive() {
 # BEGIN Maran SFTP \u{2014} managed by installer/lib/86-sftp.sh, do not edit between markers
 Match Group maran-sftp
     ChrootDirectory %h
+    AuthorizedKeysFile /etc/ssh/maran-sftp-keys/%u
     AllowTcpForwarding no
     X11Forwarding no
 # END Maran SFTP
@@ -134,6 +136,7 @@ fn a_forcecommand_changed_to_a_shell_is_drifted_on_that_directive() {
 # BEGIN Maran SFTP \u{2014} managed by installer/lib/86-sftp.sh, do not edit between markers
 Match Group maran-sftp
     ChrootDirectory %h
+    AuthorizedKeysFile /etc/ssh/maran-sftp-keys/%u
     ForceCommand /bin/bash
     AllowTcpForwarding no
     X11Forwarding no
@@ -153,6 +156,7 @@ fn a_chrootdirectory_removed_is_drifted_on_that_directive_alone() {
     let config = "\
 # BEGIN Maran SFTP \u{2014} managed by installer/lib/86-sftp.sh, do not edit between markers
 Match Group maran-sftp
+    AuthorizedKeysFile /etc/ssh/maran-sftp-keys/%u
     ForceCommand internal-sftp
     AllowTcpForwarding no
     X11Forwarding no
@@ -173,6 +177,7 @@ fn allowtcpforwarding_turned_on_is_drifted() {
 # BEGIN Maran SFTP \u{2014} managed by installer/lib/86-sftp.sh, do not edit between markers
 Match Group maran-sftp
     ChrootDirectory %h
+    AuthorizedKeysFile /etc/ssh/maran-sftp-keys/%u
     ForceCommand internal-sftp
     AllowTcpForwarding yes
     X11Forwarding no
@@ -193,6 +198,7 @@ fn x11forwarding_turned_on_is_drifted() {
 # BEGIN Maran SFTP \u{2014} managed by installer/lib/86-sftp.sh, do not edit between markers
 Match Group maran-sftp
     ChrootDirectory %h
+    AuthorizedKeysFile /etc/ssh/maran-sftp-keys/%u
     ForceCommand internal-sftp
     AllowTcpForwarding no
     X11Forwarding yes
@@ -215,6 +221,7 @@ fn a_match_group_line_naming_a_different_group_is_drifted() {
 # BEGIN Maran SFTP \u{2014} managed by installer/lib/86-sftp.sh, do not edit between markers
 Match Group some-other-group
     ChrootDirectory %h
+    AuthorizedKeysFile /etc/ssh/maran-sftp-keys/%u
     ForceCommand internal-sftp
     AllowTcpForwarding no
     X11Forwarding no
@@ -246,10 +253,109 @@ Match Group maran-sftp
         missing,
         vec![
             "chrootdirectory %h".to_owned(),
+            "authorizedkeysfile /etc/ssh/maran-sftp-keys/%u".to_owned(),
             "forcecommand internal-sftp".to_owned(),
             "allowtcpforwarding no".to_owned(),
             "x11forwarding no".to_owned(),
         ]
+    );
+}
+
+/// **The planted break for the key directory.** Without `AuthorizedKeysFile`
+/// the group falls back to the per-user `authorized_keys` in the customer's
+/// own home, so a customer could add a key of their own and a suspended
+/// login's parked key file would stop nothing; the old check read this as
+/// intact because it never looked for the line.
+#[test]
+fn a_block_without_authorizedkeysfile_is_drifted_on_that_directive_alone() {
+    let config = "\
+# BEGIN Maran SFTP \u{2014} managed by installer/lib/86-sftp.sh, do not edit between markers
+Match Group maran-sftp
+    ChrootDirectory %h
+    ForceCommand internal-sftp
+    AllowTcpForwarding no
+    X11Forwarding no
+# END Maran SFTP
+";
+
+    let status = SftpJailStatus::evaluate(config, GROUP);
+
+    let SftpJailStatus::Drifted { missing } = status else {
+        panic!("a block with no AuthorizedKeysFile must not read as intact");
+    };
+    assert_eq!(
+        missing,
+        vec!["authorizedkeysfile /etc/ssh/maran-sftp-keys/%u".to_owned()]
+    );
+}
+
+/// The line is there but points at the home's own file: the override case.
+#[test]
+fn an_authorizedkeysfile_pointing_at_the_customers_home_is_drifted() {
+    let config = "\
+# BEGIN Maran SFTP \u{2014} managed by installer/lib/86-sftp.sh, do not edit between markers
+Match Group maran-sftp
+    ChrootDirectory %h
+    AuthorizedKeysFile .ssh/authorized_keys
+    ForceCommand internal-sftp
+    AllowTcpForwarding no
+    X11Forwarding no
+# END Maran SFTP
+";
+
+    let status = SftpJailStatus::evaluate(config, GROUP);
+
+    let SftpJailStatus::Drifted { missing } = status else {
+        panic!("an overridden AuthorizedKeysFile must not read as intact");
+    };
+    assert_eq!(
+        missing,
+        vec!["authorizedkeysfile /etc/ssh/maran-sftp-keys/%u".to_owned()]
+    );
+}
+
+/// sshd keeps the FIRST value it obtains for a keyword, so a wrong line that
+/// comes before the right one wins, and the right one after it must not rescue
+/// the block.
+#[test]
+fn a_wrong_authorizedkeysfile_before_the_right_one_is_drifted() {
+    let config = "\
+# BEGIN Maran SFTP \u{2014} managed by installer/lib/86-sftp.sh, do not edit between markers
+Match Group maran-sftp
+    ChrootDirectory %h
+    AuthorizedKeysFile .ssh/authorized_keys
+    AuthorizedKeysFile /etc/ssh/maran-sftp-keys/%u
+    ForceCommand internal-sftp
+    AllowTcpForwarding no
+    X11Forwarding no
+# END Maran SFTP
+";
+
+    assert!(matches!(
+        SftpJailStatus::evaluate(config, GROUP),
+        SftpJailStatus::Drifted { .. }
+    ));
+}
+
+/// The inverse control for the case above: the right line first, a harmless
+/// repeat after it, is what sshd obeys and is still intact.
+#[test]
+fn the_right_authorizedkeysfile_first_is_intact_even_when_repeated() {
+    let config = "\
+# BEGIN Maran SFTP \u{2014} managed by installer/lib/86-sftp.sh, do not edit between markers
+Match Group maran-sftp
+    ChrootDirectory %h
+    AuthorizedKeysFile /etc/ssh/maran-sftp-keys/%u
+    AuthorizedKeysFile .ssh/authorized_keys
+    ForceCommand internal-sftp
+    AllowTcpForwarding no
+    X11Forwarding no
+# END Maran SFTP
+";
+
+    assert_eq!(
+        SftpJailStatus::evaluate(config, GROUP),
+        SftpJailStatus::Intact
     );
 }
 
@@ -261,6 +367,7 @@ fn directive_keywords_are_compared_case_insensitively() {
 # BEGIN Maran SFTP \u{2014} managed by installer/lib/86-sftp.sh, do not edit between markers
 match group maran-sftp
     chrootdirectory %h
+    authorizedkeysfile /etc/ssh/maran-sftp-keys/%u
     forcecommand internal-sftp
     allowtcpforwarding no
     x11forwarding no
@@ -282,6 +389,7 @@ fn the_group_name_itself_is_compared_case_sensitively() {
 # BEGIN Maran SFTP \u{2014} managed by installer/lib/86-sftp.sh, do not edit between markers
 Match Group MARAN-SFTP
     ChrootDirectory %h
+    AuthorizedKeysFile /etc/ssh/maran-sftp-keys/%u
     ForceCommand internal-sftp
     AllowTcpForwarding no
     X11Forwarding no

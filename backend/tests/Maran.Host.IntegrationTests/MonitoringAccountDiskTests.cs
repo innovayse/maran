@@ -6,6 +6,7 @@ using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.MonitorService;
 using Maran.Host.IntegrationTests.Fixtures;
 using Maran.Modules.Accounts.Domain.Entities;
+using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
@@ -344,11 +345,11 @@ public sealed class MonitoringAccountDiskTests : IAsyncLifetime
         var bob = new Account(Guid.NewGuid(), "bob", "bob.example.com", planId, now);
         if (suspend == "alice")
         {
-            alice.Suspend();
+            alice.Suspend(SuspensionActor.Administrator);
         }
         else if (suspend == "bob")
         {
-            bob.Suspend();
+            bob.Suspend(SuspensionActor.Administrator);
         }
 
         accounts.Accounts.AddRange(alice, bob);

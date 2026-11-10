@@ -24,6 +24,10 @@ public static class SeedingExtensions
         services.AddHostedService<FirewallWhitelistSeedingStartupTask>();
         services.AddHostedService<BackupDestinationSeedingStartupTask>();
 
+        // The Dns module's built-in zone templates and the default one. Not part of the demo's reference
+        // data: the demo's own seeding builds the zones it needs.
+        services.AddHostedService<ZoneTemplateSeedingStartupTask>();
+
         // Not reference data: it records the dedicated user of each database that has no user row yet, and
         // is why the demo's three reference seeds do not include it.
         services.AddHostedService<DatabaseUserBackfillStartupTask>();

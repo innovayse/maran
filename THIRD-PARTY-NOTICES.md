@@ -86,6 +86,7 @@ Resolved by cargo from `agent/Cargo.lock`.
 | `futures-util` | 0.3.34 | MIT OR Apache-2.0 |
 | `generic-array` | 0.14.7 | MIT |
 | `getrandom` | 0.2.17 | MIT OR Apache-2.0 |
+| `getrandom` | 0.3.4 | MIT OR Apache-2.0 |
 | `getrandom` | 0.4.3 | MIT OR Apache-2.0 |
 | `h2` | 0.4.19 | MIT |
 | `hashbrown` | 0.17.1 | MIT OR Apache-2.0 |
@@ -164,8 +165,10 @@ Resolved by cargo from `agent/Cargo.lock`.
 | `poly1305` | 0.9.1 | Apache-2.0 OR MIT |
 | `potential_utf` | 0.1.6 | Unicode-3.0 |
 | `powerfmt` | 0.2.1 | MIT OR Apache-2.0 |
+| `ppv-lite86` | 0.2.21 | MIT OR Apache-2.0 |
 | `prettyplease` | 0.2.37 | MIT OR Apache-2.0 |
 | `proc-macro2` | 1.0.107 | MIT OR Apache-2.0 |
+| `proptest` | 1.11.0 | MIT OR Apache-2.0 |
 | `prost` | 0.13.5 | Apache-2.0 |
 | `prost-build` | 0.13.5 | Apache-2.0 |
 | `prost-derive` | 0.13.5 | Apache-2.0 |
@@ -175,10 +178,15 @@ Resolved by cargo from `agent/Cargo.lock`.
 | `quinn-proto` | 0.11.19 | MIT OR Apache-2.0 |
 | `quinn-udp` | 0.5.15 | MIT OR Apache-2.0 |
 | `quote` | 1.0.47 | MIT OR Apache-2.0 |
+| `r-efi` | 5.3.0 | MIT OR Apache-2.0 OR LGPL-2.1-or-later |
 | `r-efi` | 6.0.0 | MIT OR Apache-2.0 OR LGPL-2.1-or-later |
 | `rand` | 0.10.2 | MIT OR Apache-2.0 |
+| `rand` | 0.9.5 | MIT OR Apache-2.0 |
+| `rand_chacha` | 0.9.0 | MIT OR Apache-2.0 |
 | `rand_core` | 0.10.1 | MIT OR Apache-2.0 |
+| `rand_core` | 0.9.5 | MIT OR Apache-2.0 |
 | `rand_pcg` | 0.10.2 | MIT OR Apache-2.0 |
+| `rand_xorshift` | 0.4.0 | MIT OR Apache-2.0 |
 | `rcgen` | 0.14.10 | MIT OR Apache-2.0 |
 | `redox_syscall` | 0.5.18 | MIT |
 | `regex` | 1.13.1 | MIT OR Apache-2.0 |
@@ -257,6 +265,7 @@ Resolved by cargo from `agent/Cargo.lock`.
 | `try-lock` | 0.2.5 | MIT |
 | `typed-path` | 0.13.0 | MIT OR Apache-2.0 |
 | `typenum` | 1.20.1 | MIT OR Apache-2.0 |
+| `unarray` | 0.1.4 | MIT OR Apache-2.0 |
 | `unicase` | 2.9.0 | MIT OR Apache-2.0 |
 | `unicode-ident` | 1.0.24 | (MIT OR Apache-2.0) AND Unicode-3.0 |
 | `universal-hash` | 0.6.1 | MIT OR Apache-2.0 |
@@ -269,6 +278,7 @@ Resolved by cargo from `agent/Cargo.lock`.
 | `walkdir` | 2.5.0 | Unlicense/MIT |
 | `want` | 0.3.1 | MIT |
 | `wasi` | 0.11.1+wasi-snapshot-preview1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
+| `wasip2` | 1.0.4+wasi-0.2.12 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | `wasm-bindgen` | 0.2.128 | MIT OR Apache-2.0 |
 | `wasm-bindgen-futures` | 0.4.78 | MIT OR Apache-2.0 |
 | `wasm-bindgen-macro` | 0.2.128 | MIT OR Apache-2.0 |
@@ -296,11 +306,14 @@ Resolved by cargo from `agent/Cargo.lock`.
 | `windows_x86_64_gnu` | 0.52.6 | MIT OR Apache-2.0 |
 | `windows_x86_64_gnullvm` | 0.52.6 | MIT OR Apache-2.0 |
 | `windows_x86_64_msvc` | 0.52.6 | MIT OR Apache-2.0 |
+| `wit-bindgen` | 0.57.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | `writeable` | 0.6.4 | Unicode-3.0 |
 | `x509-parser` | 0.18.1 | MIT OR Apache-2.0 |
 | `yasna` | 0.6.0 | MIT OR Apache-2.0 |
 | `yoke` | 0.8.3 | Unicode-3.0 |
 | `yoke-derive` | 0.8.2 | Unicode-3.0 |
+| `zerocopy` | 0.8.63 | BSD-2-Clause OR Apache-2.0 OR MIT |
+| `zerocopy-derive` | 0.8.63 | BSD-2-Clause OR Apache-2.0 OR MIT |
 | `zerofrom` | 0.1.8 | Unicode-3.0 |
 | `zerofrom-derive` | 0.1.7 | Unicode-3.0 |
 | `zeroize` | 1.9.0 | Apache-2.0 OR MIT |
@@ -531,6 +544,27 @@ Runtime dependencies only; build and test tooling is not distributed.
 | `@babel/helper-validator-identifier` | 7.29.7 | MIT |
 | `@babel/parser` | 7.29.8 | MIT |
 | `@babel/types` | 7.29.8 | MIT |
+| `@codemirror/autocomplete` | 6.20.4 | MIT |
+| `@codemirror/commands` | 6.11.1 | MIT |
+| `@codemirror/lang-css` | 6.3.1 | MIT |
+| `@codemirror/lang-html` | 6.4.12 | MIT |
+| `@codemirror/lang-javascript` | 6.2.5 | MIT |
+| `@codemirror/lang-json` | 6.0.2 | MIT |
+| `@codemirror/lang-markdown` | 6.5.2 | MIT |
+| `@codemirror/lang-php` | 6.0.2 | MIT |
+| `@codemirror/lang-python` | 6.2.1 | MIT |
+| `@codemirror/lang-sass` | 6.0.2 | MIT |
+| `@codemirror/lang-sql` | 6.10.0 | MIT |
+| `@codemirror/lang-vue` | 0.1.3 | MIT |
+| `@codemirror/lang-xml` | 6.1.0 | MIT |
+| `@codemirror/lang-yaml` | 6.1.3 | MIT |
+| `@codemirror/language` | 6.13.1 | MIT |
+| `@codemirror/legacy-modes` | 6.5.5 | MIT |
+| `@codemirror/lint` | 6.9.7 | MIT |
+| `@codemirror/search` | 6.7.2 | MIT |
+| `@codemirror/state` | 6.7.6 | MIT |
+| `@codemirror/streamparser` | 6.0.0 | MIT |
+| `@codemirror/view` | 6.43.15 | MIT |
 | `@intlify/core-base` | 11.4.16 | MIT |
 | `@intlify/devtools-types` | 11.4.16 | MIT |
 | `@intlify/message-compiler` | 11.4.16 | MIT |
@@ -540,6 +574,20 @@ Runtime dependencies only; build and test tooling is not distributed.
 | `@jridgewell/resolve-uri` | 3.1.2 | MIT |
 | `@jridgewell/sourcemap-codec` | 1.6.0 | MIT |
 | `@jridgewell/trace-mapping` | 0.3.31 | MIT |
+| `@lezer/common` | 1.5.5 | MIT |
+| `@lezer/css` | 1.3.9 | MIT |
+| `@lezer/highlight` | 1.2.5 | MIT |
+| `@lezer/html` | 1.3.13 | MIT |
+| `@lezer/javascript` | 1.5.6 | MIT |
+| `@lezer/json` | 1.0.3 | MIT |
+| `@lezer/lr` | 1.4.12 | MIT |
+| `@lezer/markdown` | 1.8.1 | MIT |
+| `@lezer/php` | 1.0.6 | MIT |
+| `@lezer/python` | 1.1.19 | MIT |
+| `@lezer/sass` | 1.1.0 | MIT |
+| `@lezer/xml` | 1.0.6 | MIT |
+| `@lezer/yaml` | 1.0.4 | MIT |
+| `@marijn/find-cluster-break` | 1.0.4 | MIT |
 | `@oxc-project/types` | 0.156.0 | MIT |
 | `@rolldown/binding-linux-x64-gnu` | 1.2.16 | MIT |
 | `@rolldown/binding-linux-x64-musl` | 1.2.16 | MIT |
@@ -564,6 +612,7 @@ Runtime dependencies only; build and test tooling is not distributed.
 | `birpc` | 2.9.0 | MIT |
 | `chokidar` | 5.0.0 | MIT |
 | `confbox` | 0.2.4 | MIT |
+| `crelt` | 1.0.7 | MIT |
 | `csstype` | 3.2.3 | MIT |
 | `date-fns` | 4.4.0 | MIT |
 | `detect-libc` | 2.1.2 | Apache-2.0 |
@@ -596,6 +645,7 @@ Runtime dependencies only; build and test tooling is not distributed.
 | `rolldown` | 1.2.16 | MIT |
 | `scule` | 1.3.0 | MIT |
 | `source-map-js` | 1.2.2 | BSD-3-Clause |
+| `style-mod` | 4.1.4 | MIT |
 | `tinyglobby` | 0.2.17 | MIT |
 | `typescript` | 5.9.3 | Apache-2.0 |
 | `ufo` | 1.6.4 | MIT |
@@ -607,6 +657,7 @@ Runtime dependencies only; build and test tooling is not distributed.
 | `vue` | 3.5.43 | MIT |
 | `vue-i18n` | 11.4.16 | MIT |
 | `vue-router` | 5.3.1 | MIT |
+| `w3c-keyname` | 2.2.8 | MIT |
 | `webpack-virtual-modules` | 0.6.2 | MIT |
 
 ## Typefaces — the application

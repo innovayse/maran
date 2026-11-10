@@ -57,6 +57,24 @@
   <data name="AcmeChallengeUnavailable">
     <value>Վկայագրման կենտրոնը չառաջարկեց ստուգում, որին այս սերվերը կարող է պատասխանել։</value>
   </data>
+  <data name="AcmeDnsChallengeFailed">
+    <value>Սերտիֆիկացման կենտրոնը չկարողացավ ստուգել DNS գրառումը։ Դոմենի անունների սերվերները պետք է ցույց տան այս սերվերին, իսկ CAA գրառումը, եթե կա, պետք է թույլ տա wildcard վկայագրեր (issuewild)։</value>
+  </data>
+  <data name="AcmeDnsChallengeWriteFailed">
+    <value>Ստուգման գրառումը չհաջողվեց տեղադրել այս դոմենի DNS գոտում։</value>
+  </data>
+  <data name="WildcardDnsNotAvailable">
+    <value>Wildcard վկայագրերի համար անհրաժեշտ է DNS մոդուլը, որը այս վահանակում չկա։</value>
+  </data>
+  <data name="WildcardDnsNotEnabled">
+    <value>Wildcard վկայագրերի համար անհրաժեշտ է այս սերվերի DNS սերվերը, որը դեռ միացված չէ։</value>
+  </data>
+  <data name="WildcardFeatureNotIncluded">
+    <value>Ձեր սակագինը չի ներառում DNS գոտիներ, որոնք անհրաժեշտ են wildcard վկայագրերի համար։</value>
+  </data>
+  <data name="WildcardZoneNotServed">
+    <value>Այս սերվերը չի սպասարկում այս դոմենի DNS գոտին։ Wildcard վկայագիր պահանջելու համար ստեղծեք գոտին այստեղ և դոմենի անունների սերվերները ուղղեք այս սերվերին։</value>
+  </data>
   <data name="AcmeChallengeWriteFailed">
     <value>Ստուգման ֆայլը չհաջողվեց տեղադրել կայքի արմատային պանակում։</value>
   </data>

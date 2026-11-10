@@ -1,21 +1,26 @@
-import { test, type Page } from '@playwright/test'
 import {
   expectTableFastLoad,
   expectTableSlowFailure,
   expectTableSlowLoad,
   type TableLoadingScenario,
 } from '../fixtures/expect-table-loading'
+import { test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubFirewall, stubFirewallRefusal } from '../fixtures/stub-firewall-routes'
 import type { Ban, WhitelistEntry } from '../../src/types/firewall'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 // The firewall's three tables while their lists are on the way (#243), each on its own page: the
 // rules whole, the bans and the whitelist one server page at a time.
 
 const LICENSED: PanelModule[] = [{ name: 'firewall', displayName: 'Firewall', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }]
+
+/** Every firewall endpoint, which is what the stubbed refusals of the failure scenarios answer. */
+const FIREWALL_URL = /\/api\/v1\/firewall\//
 
 const BAN: Ban = {
   id: '00000000-0000-0000-0000-0000000000b1',
@@ -42,6 +47,7 @@ const signIn = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
 }
 
 /** How the firewall rules screen is opened and answered. */
@@ -73,7 +79,8 @@ test('firewall rules: a fast answer shows no placeholder', async ({ page }) => {
   await expectTableFastLoad(page, FIREWALL_RULES_SCENARIO)
 })
 
-test('firewall rules: a slow failure is an alert, never a skeleton', async ({ page }) => {
+test('firewall rules: a slow failure is an alert, never a skeleton', async ({ page, guard }) => {
+  guard.allow(502, FIREWALL_URL)
   await expectTableSlowFailure(page, FIREWALL_RULES_SCENARIO)
 })
 
@@ -102,7 +109,8 @@ test('firewall bans: a fast answer shows no placeholder', async ({ page }) => {
   await expectTableFastLoad(page, FIREWALL_BANS_SCENARIO)
 })
 
-test('firewall bans: a slow failure is an alert, never a skeleton', async ({ page }) => {
+test('firewall bans: a slow failure is an alert, never a skeleton', async ({ page, guard }) => {
+  guard.allow(502, FIREWALL_URL)
   await expectTableSlowFailure(page, FIREWALL_BANS_SCENARIO)
 })
 
@@ -133,6 +141,7 @@ test('firewall whitelist: a fast answer shows no placeholder', async ({ page }) 
   await expectTableFastLoad(page, FIREWALL_WHITELIST_SCENARIO)
 })
 
-test('firewall whitelist: a slow failure is an alert, never a skeleton', async ({ page }) => {
+test('firewall whitelist: a slow failure is an alert, never a skeleton', async ({ page, guard }) => {
+  guard.allow(502, FIREWALL_URL)
   await expectTableSlowFailure(page, FIREWALL_WHITELIST_SCENARIO)
 })

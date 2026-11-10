@@ -1,21 +1,22 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubInvitation } from '../fixtures/stub-invitation-routes'
+import { stubAccountResources, stubMyAccountResources  } from '../fixtures/stub-account-resources-route'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubDashboard, WITHHELD_DASHBOARD } from '../fixtures/stub-dashboard-route'
-import { stubSites, stubPhpVersions } from '../fixtures/stub-sites-routes'
+import { stubSites, stubPhpVersions, stubSiteChoices } from '../fixtures/stub-sites-routes'
 import { stubDatabases } from '../fixtures/stub-databases-routes'
 import { mainNavigation } from '../fixtures/open-full-shell'
 import { stubViewAs, stubViewAsRefused } from '../fixtures/stub-view-as-routes'
 import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
-import { stubMyAccountResources } from '../fixtures/stub-account-resources-route'
 import type { Account, MyAccount } from '../../src/types/account'
 import type { AccountResourceSummary } from '../../src/types/accountResourceSummary'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { ViewingAs } from '../../src/types/viewAs'
+import type { Page } from '@playwright/test'
 
 // Issues #317 and #314: an administrator views the panel as an account's login from the account's
 // page, the "You are viewing as" banner follows them from page to page, Back returns them to their
@@ -94,6 +95,8 @@ const stubPanel = async (page: Page): Promise<void> => {
   await stubShellReads(page)
   await stubMyAccount(page, OWN_ACCOUNT)
   await stubMyAccountResources(page, OWN_RESOURCES)
+  // The administrator's own read of the account's page, before and after the view-as session.
+  await stubAccountResources(page, { accountId: ACME.id, resources: [] })
   await stubModules(page, [
     { name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
     { name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -104,6 +107,7 @@ const stubPanel = async (page: Page): Promise<void> => {
   await stubDashboard(page, WITHHELD_DASHBOARD)
   await stubSites(page, [])
   await stubPhpVersions(page, [])
+  await stubSiteChoices(page)
   await stubDatabases(page, [])
   await page.route(`**/api/v1/accounts/${ACME.id}`, async (route) => {
     if (route.request().method() !== 'GET') {
@@ -172,7 +176,9 @@ test('the banner follows the panel: a token the panel no longer reports as viewi
   await expect(banner(page)).toHaveCount(0)
 })
 
-test('a refused start shows the panel sentence and changes nothing', async ({ page }) => {
+test('a refused start shows the panel sentence and changes nothing', async ({ page, guard }) => {
+  // The refusal is the subject: the panel answers a start for an account it will not show with a 404.
+  guard.allow(404, /\/api\/v1\/view-as$/)
   await stubPanel(page)
   await stubViewAsRefused(page, 'That account was not found, or it has no login to view as.')
 

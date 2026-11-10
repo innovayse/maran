@@ -1,17 +1,21 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
+import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { stubBackups } from '../fixtures/stub-backups-routes'
 import { stubDatabases } from '../fixtures/stub-databases-routes'
+import { stubFirewall } from '../fixtures/stub-firewall-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubPlans } from '../fixtures/stub-plans-route'
 import { stubSftpUsers } from '../fixtures/stub-sftp-routes'
 import { runningFtpsStatus, stubFtpUsers, stubFtpsServer } from '../fixtures/stub-ftp-routes'
-import { stubPhpVersions, stubSites } from '../fixtures/stub-sites-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
+import { stubPhpVersions, stubSiteLimits, stubSites } from '../fixtures/stub-sites-routes'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import type { Account } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 // Every select in the panel that opens with nothing chosen is asserted here on ITS EXACT TRIGGER
 // TEXT, not on presence. The defect this file exists for rendered `00000000-0000-0000-0000-
@@ -43,6 +47,7 @@ const stubShell = async (page: Page, modules: PanelModule[]): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, modules)
+  await stubShellReads(page)
 }
 
 test('the plan chooser prompts for a choice instead of showing an identifier', async ({ page }) => {
@@ -80,8 +85,12 @@ test('the account pickers of every create form prompt for a choice instead of st
   // File transfer is two pages, one per module, and each has its own create form.
   await stubFtpUsers(page, [])
   await stubFtpsServer(page, runningFtpsStatus)
+  // The FTPS page reads the firewall rules that open its ports.
+  await stubFirewall(page, { rules: [], bans: [], whitelist: [] })
+  await stubBackupOptions(page)
   await stubBackups(page, [])
   await stubSites(page, [])
+  await stubSiteLimits(page, { maximumAliases: 20 })
   await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
 
   for (const path of ['/databases', '/file-transfer/sftp', '/file-transfer/ftps', '/backups', '/sites/new']) {
@@ -111,8 +120,12 @@ test('the account pickers of every create form are named after the account in Ar
   await stubSftpUsers(page, [])
   await stubFtpUsers(page, [])
   await stubFtpsServer(page, runningFtpsStatus)
+  // The FTPS page reads the firewall rules that open its ports.
+  await stubFirewall(page, { rules: [], bans: [], whitelist: [] })
+  await stubBackupOptions(page)
   await stubBackups(page, [])
   await stubSites(page, [])
+  await stubSiteLimits(page, { maximumAliases: 20 })
   await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
 
   for (const path of ['/databases', '/file-transfer/sftp', '/file-transfer/ftps', '/backups', '/sites/new']) {
@@ -128,6 +141,7 @@ test('the PHP version picker prompts for a choice instead of standing blank', as
   await stubShell(page, [{ name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
   await stubAccounts(page, [ALICE])
   await stubSites(page, [])
+  await stubSiteLimits(page, { maximumAliases: 20 })
   await stubPhpVersions(page, [
     { version: '8.2', defaultStatus: 'notDefault' },
     { version: '8.3', defaultStatus: 'default' },

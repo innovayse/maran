@@ -1,8 +1,12 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubEmptySearch } from '../fixtures/stub-search-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 /**
  * Protects the command palette's keyboard and screen-reader contract (issue #82): the search field
@@ -60,8 +64,12 @@ const MODULES: PanelModule[] = [
  */
 const openPalette = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
   await stubHealthy(page)
   await stubModules(page, MODULES)
+  // Typing into the palette asks the panel's search too; it finds nothing, the page list is the subject.
+  await stubEmptySearch(page)
 
   await page.goto('/')
   await page.getByRole('button', { name: 'Search or jump to…' }).click()

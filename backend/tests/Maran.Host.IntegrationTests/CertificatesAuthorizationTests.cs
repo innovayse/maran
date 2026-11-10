@@ -68,6 +68,7 @@ public sealed class CertificatesAuthorizationTests : IAsyncLifetime
         {
             { "GET", "/api/v1/certificates" },
             { "GET", "/api/v1/certificates/acme-directory" },
+            { "GET", "/api/v1/certificates/issuance-options" },
             { "POST", "/api/v1/certificates" },
             { "POST", "/api/v1/certificates/custom" },
             { "DELETE", "/api/v1/certificates/{id}" },
@@ -195,6 +196,22 @@ public sealed class CertificatesAuthorizationTests : IAsyncLifetime
 
         var response = await client.PostAsJsonAsync(
             "/api/v1/certificates", new { domain = "stranger.example.com" });
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.NotEqual(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    /// <summary>Asking what a domain the caller does not own can be issued is answered not found and never forbidden.</summary>
+    [Fact]
+    public async Task Asking_for_the_issuance_options_of_a_domain_the_caller_does_not_own_is_answered_not_found()
+    {
+        // Like issuing, the route takes a DOMAIN and not an id, so it is the site directory that hides the row.
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        await SeedAsync(factory);
+        using var client = await SignInAsync(factory, "customer");
+
+        var response = await client.GetAsync("/api/v1/certificates/issuance-options?domain=stranger.example.com");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.NotEqual(HttpStatusCode.Forbidden, response.StatusCode);

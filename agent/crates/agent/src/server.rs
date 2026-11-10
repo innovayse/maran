@@ -1,9 +1,11 @@
 //! Server assembly: socket preparation, peer-cred enforcement, service registry.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::utils::free_space_floor::FreeSpaceFloor;
+use maran_agent_core::validation::web::panel_host_names::PanelHostNames;
 use maran_ops::accounts::{AccountOperations, ProcessSystemHost};
 use maran_ops::backup::{ProcessBackupHost, ProcessRestrictedDumpHost};
 use maran_ops::cron::ProcessCronHost;
@@ -19,6 +21,7 @@ use maran_ops::php::ProcessPhpHost;
 use maran_ops::sftp::ProcessSftpHost;
 use maran_ops::sites::ProcessSiteHost;
 use maran_ops::ssl::{ProcessPanelChallengeHost, ProcessSslHost};
+use maran_ops::transfer::{ProcessTransferHost, ProcessTransferWorkHost};
 use tonic::transport::Server;
 
 use crate::audit::audit_layer::AuditLayer;
@@ -45,6 +48,7 @@ use crate::proto::system_service_server::SystemServiceServer;
 use crate::proto::transfer_service_server::TransferServiceServer;
 use crate::services::accounts::accounts_service::AccountsServiceImpl;
 use crate::services::backup::backup_service::BackupServiceImpl;
+use crate::services::backup::file_transfer_jails::FileTransferJails;
 use crate::services::cron::cron_service::CronServiceImpl;
 use crate::services::db::db_service::DbServiceImpl;
 use crate::services::dns::dns_service::DnsServiceImpl;
@@ -58,6 +62,7 @@ use crate::services::sftp::sftp_service::SftpServiceImpl;
 use crate::services::sites::sites_service::SitesServiceImpl;
 use crate::services::ssl::ssl_service::SslServiceImpl;
 use crate::services::system::system_service::SystemServiceImpl;
+use crate::services::transfer::restricted_database_loader::RestrictedDatabaseLoader;
 use crate::services::transfer::transfer_service::TransferServiceImpl;
 use crate::shutdown::{StopSignals, drain_deadline};
 use crate::startup::bind_socket::bind_socket;
@@ -77,6 +82,10 @@ use crate::startup::reconcile_web_tree::reconcile_web_tree;
 /// services here and to the monitor service, which reports it so the panel can
 /// warn before the refusals begin.
 ///
+/// `panel_host_names` are the names the panel itself is served under, as the installer recorded
+/// them. The sites, SSL and DNS services refuse to give a site, an alias, a certificate or a zone
+/// one of them (issue #468); an empty set refuses nothing beyond the fixed reserved set.
+///
 /// `fleet` is the TCP listener of fleet mode (issue #180), and `None` is the
 /// shipped default: no second socket, no TLS code run, nothing listening but the
 /// unix socket. When it is given, the same router and the same services answer
@@ -92,6 +101,7 @@ pub async fn serve(
     socket_path: &Path,
     policy: PeerPolicy,
     floor: FreeSpaceFloor,
+    panel_host_names: PanelHostNames,
     fleet: Option<FleetListener>,
 ) -> Result<(), StartupError> {
     // Detection first: refusing an unsupported host before the socket exists
@@ -119,7 +129,20 @@ pub async fn serve(
     // It answers a tally rather than nothing, and the tally is logged: an
     // operator reconciling the panel's row against the host reads it here, and
     // it is the only place that will say a customer's home was put back.
-    let recovery = maran_ops::backup::recover_restores();
+    //
+    // On the blocking pool, because a restore finished here also mounts the
+    // account's file-transfer jails onto the restored home (issue #487), which
+    // waits on the service manager and takes `safe_write::config_tree_lock`.
+    let adapter = maran_distro::adapter_for(distro.family);
+    let recovery = tokio::task::spawn_blocking(move || {
+        maran_ops::backup::recover_restores(&FileTransferJails::new(
+            ProcessSftpHost::new(),
+            ProcessFtpsHost::new(),
+            adapter,
+        ))
+    })
+    .await
+    .unwrap_or_else(|failure| std::panic::resume_unwind(failure.into_panic()));
     tracing::info!(
         swaps_completed = recovery.swaps_completed,
         swaps_rolled_back = recovery.swaps_rolled_back,
@@ -149,11 +172,11 @@ pub async fn serve(
     // it says so here as well as on `StopSignals::install`.
     let stop_signals = StopSignals::install();
 
-    // Read here rather than after the bind, because the web-tree reconciliation
-    // below needs it and that has to run before any connection is accepted. The
-    // `DistroInfo` is handed to the system service further down, which takes
-    // ownership of it, so the family is read while it is still here.
-    let adapter = maran_distro::adapter_for(distro.family);
+    // The adapter was read above, before the restore reconciliation, because
+    // that and the web-tree reconciliation below both need it and both have to
+    // run before any connection is accepted. The `DistroInfo` is handed to the
+    // system service further down, which takes ownership of it, so the family
+    // was read while it was still here.
     // The release, for the same reason: the system service below takes the
     // `DistroInfo` whole, and mail's Dovecot generation is a fact of the release.
     let release = distro.version_id.clone();
@@ -310,7 +333,12 @@ pub async fn serve(
             PeerGuard::new(policy),
         ))
         .add_service(SitesServiceServer::with_interceptor(
-            SitesServiceImpl::new(ProcessSslHost::new(), ProcessPhpHost::new(), adapter),
+            SitesServiceImpl::new(
+                ProcessSslHost::new(),
+                ProcessPhpHost::new(),
+                adapter,
+                panel_host_names.clone(),
+            ),
             PeerGuard::new(policy),
         ))
         .add_service(SslServiceServer::with_interceptor(
@@ -319,6 +347,7 @@ pub async fn serve(
                 ProcessPanelChallengeHost::new(),
                 floor,
                 adapter,
+                panel_host_names.clone(),
             ),
             PeerGuard::new(policy),
         ))
@@ -372,7 +401,7 @@ pub async fn serve(
         // control client and the service manager; the daemon arrives switched
         // off and `EnableDns` is the only thing that starts it.
         .add_service(DnsServiceServer::with_interceptor(
-            DnsServiceImpl::new(ProcessDnsHost::new(), adapter, floor),
+            DnsServiceImpl::new(ProcessDnsHost::new(), adapter, floor, panel_host_names),
             PeerGuard::new(policy),
         ))
         // The host's mail stack. The adapter carries the daemons' programs, units
@@ -414,16 +443,37 @@ pub async fn serve(
             BackupServiceImpl::new(
                 ProcessBackupHost::new(adapter),
                 ProcessDbHost::new(adapter),
+                Arc::new(FileTransferJails::new(
+                    ProcessSftpHost::new(),
+                    ProcessFtpsHost::new(),
+                    adapter,
+                )),
                 adapter,
                 floor,
             ),
             PeerGuard::new(policy),
         ))
-        // Moves a backup artifact in and out (issue #127). It needs only the backup
-        // host and the floor: the agent opens no connection for it, and no database
-        // is touched (restoring a received artifact is the BackupService's own call).
+        // Moves a backup artifact in and out (issue #127) and registers and reads a
+        // remote server to migrate from (issue #197). The two backup rpcs need only the
+        // backup host and the floor: they open no connection, and no database is
+        // touched (restoring a received artifact is the BackupService's own call).
+        // The four source rpcs are the agent's only outbound client: they run the SSH
+        // client through the transfer host, and the adapter names `ssh`, `ssh-keyscan`
+        // and `ssh-keygen`. The two transfer rpcs of issue #197 phase 2 add `rsync`,
+        // run AS the receiving account by the work host, and the restricted loader a
+        // dump takes (the same one an imported backup takes).
         .add_service(TransferServiceServer::with_interceptor(
-            TransferServiceImpl::new(ProcessBackupHost::new(adapter), floor),
+            TransferServiceImpl::new(
+                ProcessBackupHost::new(adapter),
+                ProcessTransferHost::new(),
+                ProcessTransferWorkHost::new(floor),
+                RestrictedDatabaseLoader::new(ProcessRestrictedDumpHost::new(
+                    adapter,
+                    PathBuf::from(AgentPaths::BULK_SCRATCH_ROOT),
+                )),
+                adapter,
+                floor,
+            ),
             PeerGuard::new(policy),
         ))
         .serve_with_incoming_shutdown(agent_incoming(listener, fleet), async move {

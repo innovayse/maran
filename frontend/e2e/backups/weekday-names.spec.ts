@@ -1,14 +1,16 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { stubBackupSchedules } from '../fixtures/stub-backup-schedule-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import type { Account } from '../../src/types/account'
 import type { BackupSchedule } from '../../src/types/backupSchedule'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 const LICENSED: PanelModule[] = [
   { name: 'backups', displayName: 'Backups', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -74,6 +76,7 @@ const openSchedule = async (page: Page): Promise<void> => {
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubBackupSchedules(page, { host: WEEKLY })
   await page.goto('/backups/schedule')

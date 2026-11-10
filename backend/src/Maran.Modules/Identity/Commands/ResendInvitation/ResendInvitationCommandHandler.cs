@@ -116,8 +116,9 @@ public sealed class ResendInvitationCommandHandler
         // ICurrentUser, so passing the administrator's own id here is what makes the entry read
         // "administrator X resent an invitation to customer Y" rather than naming the customer as
         // having verified themselves, which they never did.
-        await _journal.RecordIdentifiedAsync(
+        await _journal.RecordOnUserAsync(
             SignedInCallerPolicy.Require(_currentUser).UserId,
+            invitation.UserId,
             IdentityAuditActions.CustomerInvited,
             invitation.Username,
             command.IpAddress,

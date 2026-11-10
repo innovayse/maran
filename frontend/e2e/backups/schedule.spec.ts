@@ -1,4 +1,4 @@
-import { expect, test, type ConsoleMessage, type Locator } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
@@ -7,12 +7,14 @@ import {
   stubBackupScheduleRefusal,
   stubBackupSchedules,
 } from '../fixtures/stub-backup-schedule-routes'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubModules } from '../fixtures/stub-modules-route'
 import type { Account } from '../../src/types/account'
 import type { BackupSchedule } from '../../src/types/backupSchedule'
 import type { PanelModule } from '../../src/types/module'
+import type { ConsoleMessage, Locator } from '@playwright/test'
 
 // The summary card prints instants; in UTC they read the same on every machine running the suite.
 test.use({ timezoneId: 'UTC' })
@@ -55,6 +57,7 @@ test('a server with no schedule is told so, and every field is left blank', asyn
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubBackupSchedules(page, {})
 
@@ -122,6 +125,7 @@ test('the host-wide policy is named as a scope of its own and is read with no ac
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   const traffic = await stubBackupSchedules(page, {})
 
@@ -141,6 +145,7 @@ test("choosing an account reads that account's own schedule and shows it", async
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   const traffic = await stubBackupSchedules(page, { [ALICE.id]: ALICE_SCHEDULE })
 
@@ -170,6 +175,7 @@ test('saving sends exactly the members the command binds, and no weekday on a da
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   const traffic = await stubBackupSchedules(page, {})
 
@@ -200,12 +206,14 @@ test('saving sends exactly the members the command binds, and no weekday on a da
 // the CODE is for behaviour only, and here the behaviour is which field is marked invalid. One
 // refusal must read as one refusal — the message on the field it names, and not also in the
 // banner above it.
-test('a refusal about the retained count is shown on that field, once', async ({ page }) => {
+test('a refusal about the retained count is shown on that field, once', async ({ page, guard }) => {
+  guard.allow(400, /\/api\/v1\/backup-schedules$/)
   const backendDetail = 'Keep between 1 and 365 copies.'
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubBackupSchedules(page, {})
   await stubBackupScheduleRefusal(page, 'BackupScheduleRetainOutOfRange', backendDetail)
@@ -235,6 +243,7 @@ test('the screen says what retention does not cover', async ({ page }) => {
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubBackupSchedules(page, {})
 
@@ -261,9 +270,11 @@ test('an operator reaches the schedule through the shell, without typing a URL',
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubBackups(page, [])
   await stubBackupSchedules(page, {})
+  await stubLandingReads(page)
 
   await page.goto('/')
   await page.getByRole('navigation').getByRole('link', { name: 'Backups' }).click()
@@ -304,6 +315,7 @@ test('the summary card shows the next run and that a just-enabled schedule has n
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubBackupSchedules(page, {
     host: JUST_ENABLED,
@@ -338,6 +350,7 @@ test('the hour and the number of copies are chosen from the lists the panel supp
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubBackupSchedules(page, {})
 

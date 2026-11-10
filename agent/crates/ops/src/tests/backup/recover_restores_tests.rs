@@ -11,6 +11,7 @@ use tempfile::TempDir;
 use maran_agent_core::validation::system::backup_id::BackupId;
 
 use crate::backup::model::restore_marker::RESTORE_MARKER_VERSION;
+use crate::backup::recording_jail_mounts::RecordingJailMounts;
 use crate::backup::restore_marker_file::restore_marker_path;
 
 use super::*;
@@ -137,11 +138,17 @@ impl Host {
 
     /// Reconciles, as the daemon would at startup.
     fn reconcile(&self) -> RestoreRecovery {
+        self.reconcile_with(&RecordingJailMounts::new())
+    }
+
+    /// Reconciles with `jails` as the seam that mounts the file-transfer jails.
+    fn reconcile_with(&self, jails: &RecordingJailMounts) -> RestoreRecovery {
         recover_in(
             &self.staging_root(),
             &self.home_root(),
             &self.scratch_root(),
             own_uid(),
+            jails,
         )
     }
 
@@ -192,6 +199,74 @@ fn a_swap_killed_between_the_two_renames_is_finished_forward_and_the_home_comes_
     assert_eq!(host.home_contents(), RESTORED_BYTES);
     assert!(!host.previous().exists(), "the parked tree is reclaimed");
     assert!(!host.marker().exists(), "the marker is spent");
+}
+
+/// Issue #487: a swap finished at startup mounts the account's jails onto the
+/// restored home first, while the parked tree is still there.
+#[test]
+fn a_swap_finished_at_startup_mounts_the_jails_before_the_parked_tree_goes() {
+    let host = Host::new("recovjailone");
+    host.mark();
+    host.tree(&host.previous(), LIVE_BYTES);
+    host.tree(&host.staging(), RESTORED_BYTES);
+    let jails = RecordingJailMounts::new().watching(&host.previous());
+
+    let recovery = host.reconcile_with(&jails);
+
+    assert_eq!(recovery.swaps_completed, 1);
+    assert_eq!(jails.refreshed(), vec!["recovjailone".to_owned()]);
+    assert_eq!(jails.watched_existed(), vec![true]);
+    assert!(!host.previous().exists());
+}
+
+/// The same for a restore killed after its second rename.
+#[test]
+fn a_swap_found_already_in_place_mounts_the_jails_too() {
+    let host = Host::new("recovjailtwo");
+    host.mark();
+    host.tree(&host.home(), RESTORED_BYTES);
+    host.tree(&host.previous(), LIVE_BYTES);
+    let jails = RecordingJailMounts::new();
+
+    let recovery = host.reconcile_with(&jails);
+
+    assert_eq!(recovery.swaps_completed, 1);
+    assert_eq!(jails.refreshed(), vec!["recovjailtwo".to_owned()]);
+}
+
+/// A jail that cannot follow keeps the parked tree and the marker, so the next
+/// start tries again.
+#[test]
+fn a_jail_that_cannot_follow_keeps_the_parked_tree_and_the_marker() {
+    let host = Host::new("recovjailthree");
+    host.mark();
+    host.tree(&host.home(), RESTORED_BYTES);
+    host.tree(&host.previous(), LIVE_BYTES);
+    let jails = RecordingJailMounts::new().failing();
+
+    let recovery = host.reconcile_with(&jails);
+
+    assert_eq!(recovery.swaps_completed, 0);
+    assert_eq!(recovery.refused, 1);
+    assert!(host.previous().exists(), "the parked tree is kept");
+    assert!(
+        host.marker().exists(),
+        "the marker stays so the next start retries"
+    );
+    assert_eq!(host.home_contents(), RESTORED_BYTES);
+}
+
+/// The inverse control: a healthy, finished restore refreshes no jail.
+#[test]
+fn a_finished_restore_mounts_no_jail() {
+    let host = Host::new("recovjailfour");
+    host.mark();
+    host.tree(&host.home(), RESTORED_BYTES);
+    let jails = RecordingJailMounts::new();
+
+    host.reconcile_with(&jails);
+
+    assert!(jails.refreshed().is_empty(), "{:?}", jails.refreshed());
 }
 
 #[test]
@@ -374,6 +449,7 @@ fn a_root_owned_by_somebody_else_is_refused_which_is_what_makes_the_check_observ
         &host.home_root(),
         &host.scratch_root(),
         own_uid() + 1,
+        &RecordingJailMounts::new(),
     );
 
     assert_eq!(recovery.swaps_completed, 0);

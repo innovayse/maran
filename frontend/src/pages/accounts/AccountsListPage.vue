@@ -50,6 +50,7 @@ import UiSearchInput from '../../components/ui/UiSearchInput.vue'
 import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiTable from '../../components/ui/UiTable.vue'
+import UiToolbar from '../../components/ui/UiToolbar.vue'
 import type { UiTableColumn } from '../../types/tableColumn'
 import AccountStatusBadge from '../../components/accounts/AccountStatusBadge.vue'
 import type { AccountPickerState } from '../../composables/useAccountChoice'
@@ -275,7 +276,7 @@ useReloadOnLocale(statusesStore.load)
 
     <UiCard v-else>
       <div class="flex flex-col gap-4">
-        <div class="flex flex-wrap items-end gap-3">
+        <UiToolbar>
           <UiSearchInput
             v-model="table.search.value"
             class="min-w-55 max-w-85 flex-1"
@@ -289,7 +290,7 @@ useReloadOnLocale(statusesStore.load)
             :active-label="t('common.list.filtersApplied', { n: table.activeFilterCount.value }, table.activeFilterCount.value)"
             @click="openFilters"
           />
-        </div>
+        </UiToolbar>
 
         <UiActiveFilter
           v-if="chips.length > 0"

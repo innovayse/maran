@@ -210,3 +210,46 @@ fn enabling_never_runs_a_firewall_program() {
         host.spawns()
     );
 }
+
+#[test]
+fn a_daemon_that_accepts_a_policy_is_rendered_with_the_policy_and_reported_able_to_sign() {
+    let host = FakeDnsHost::new();
+    let state = enable_dns(&host, distro()).unwrap();
+
+    assert!(state.dnssec_supported);
+    assert!(
+        host.live_config()
+            .unwrap()
+            .lines()
+            .any(|line| line.starts_with("dnssec-policy \"maran-csk\"")),
+        "the supported daemon's configuration states no policy"
+    );
+}
+
+#[test]
+fn a_daemon_that_refuses_a_policy_is_rendered_without_one_and_reported_unable_to_sign() {
+    // The planted failure: a build without the statement. Rendering the policy
+    // unconditionally would make the daemon's checker refuse the whole file.
+    let host = FakeDnsHost::new().with_dnssec_unsupported();
+    let state = enable_dns(&host, distro()).unwrap();
+
+    assert!(!state.dnssec_supported);
+    assert!(
+        !host.live_config().unwrap().contains("dnssec-policy"),
+        "an unsupported daemon's configuration still states a policy"
+    );
+}
+
+#[test]
+fn the_support_is_probed_before_the_configuration_is_written() {
+    let host = FakeDnsHost::new();
+    enable_dns(&host, distro()).unwrap();
+
+    let probed = position_of(&host, "/etc/maran/bind/dnssec-probe.conf");
+    let written = position_of(&host, AgentPaths::DNS_CONFIG_PATH);
+    assert!(probed < written, "the probe ran after the real file");
+    assert!(
+        host.probes()[0].contains("dnssec-policy \"maran-csk\""),
+        "the probe does not state the policy"
+    );
+}

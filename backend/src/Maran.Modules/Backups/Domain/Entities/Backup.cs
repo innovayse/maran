@@ -1,4 +1,5 @@
 using Maran.Modules.Backups.Domain.Enums;
+using Maran.Modules.Backups.Domain.Policies;
 
 namespace Maran.Modules.Backups.Domain.Entities;
 
@@ -385,6 +386,46 @@ public sealed class Backup
     {
         return Status == BackupStatus.Completed
             && (Kind == BackupKind.Manual || Kind == BackupKind.Scheduled);
+    }
+
+    /// <summary>Whether the bounded pass over an account's pre-restore copies may remove this backup.</summary>
+    /// <returns><c>true</c> only for a completed <see cref="BackupKind.PreRestore"/> copy.</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>A sibling of <see cref="MayBeRetentionPruned"/>, not a widening of it.</b> The schedule's
+    /// retain figure counts the ordinary backups a customer chose to keep; a pre-restore copy is a
+    /// by-product of restoring, a customer can make one every time they restore, and it has to be
+    /// bounded on its own count (<see cref="AccountBackupAllowance.MaximumPreRestoreCopies"/>) or
+    /// restoring over and over fills the shared backup volume (issue #479). Folding the kind into the
+    /// ordinary predicate would make the schedule's figure expire a customer's real history to make
+    /// room for safety copies, and would make the two counts impossible to state separately.
+    /// </para>
+    /// <para>
+    /// Only completed copies, for the same reason as the ordinary rule: a failed or running row pins
+    /// no archive worth keeping and must not count against the newest ones. <see cref="BackupKind.PreDeletion"/>
+    /// stays out of both predicates — it is the last copy of a deleted account.
+    /// </para>
+    /// </remarks>
+    public bool MayBeSafetyCopyPruned()
+    {
+        return Status == BackupStatus.Completed && Kind == BackupKind.PreRestore;
+    }
+
+    /// <summary>Whether this backup occupies room in the account's own backup allowance.</summary>
+    /// <returns>
+    /// <c>true</c> for a manual or a pre-restore backup that is running or completed.
+    /// </returns>
+    /// <remarks>
+    /// A scheduled backup is bounded by its schedule's retain figure and a pre-deletion copy belongs to
+    /// an account that is gone, so neither is the customer's to spend. A failed row is not counted: it
+    /// holds no usable copy, and a bad night must not lock a customer out of making a backup by hand.
+    /// A running row IS counted, so a burst of creations cannot start before the first has finished.
+    /// See <see cref="AccountBackupAllowance"/>.
+    /// </remarks>
+    public bool CountsAgainstAllowance()
+    {
+        return (Kind == BackupKind.Manual || Kind == BackupKind.PreRestore)
+            && (Status == BackupStatus.Running || Status == BackupStatus.Completed);
     }
 
     /// <summary>Whether this row must be kept when the account it names is deleted.</summary>

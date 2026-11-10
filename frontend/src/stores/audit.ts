@@ -100,6 +100,16 @@ export const useAuditStore = defineStore('audit', () => {
   }
 
   /**
+   * Forgets the outcome of the last export. Feedback belongs to the visit that caused it: the audit
+   * page calls this when it opens, so a refusal from an earlier visit (possibly in another language)
+   * is not shown as if it were current.
+   * @returns Nothing; the state is reset synchronously.
+   */
+  const clearFeedback = (): void => {
+    exportState.value = { state: 'idle' }
+  }
+
+  /**
    * Downloads the journal narrowed by the given search and filters, and hands the file to the
    * browser. The panel caps the size and refuses a larger export instead of truncating it; that
    * refusal is kept in {@link exportMessage} for the menu to show.
@@ -126,6 +136,7 @@ export const useAuditStore = defineStore('audit', () => {
     exportState,
     exportMessage,
     exporting,
+    clearFeedback,
     list,
     loadActions,
     loadOutcomes,

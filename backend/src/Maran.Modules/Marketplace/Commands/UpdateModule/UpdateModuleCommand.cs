@@ -1,0 +1,29 @@
+using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+
+namespace Maran.Modules.Marketplace.Commands.UpdateModule;
+
+/// <summary>
+/// Asks the panel to update one version of a module from the marketplace. The administrator confirms they
+/// read what the module may do and proves their password again, because the module will run in the panel
+/// process.
+/// </summary>
+/// <param name="Version">The exact version to update.</param>
+/// <param name="Acknowledged">True when the administrator confirmed the manifest summary shown before the dialog.</param>
+/// <param name="Password">The administrator's current password.</param>
+/// <param name="Id">
+/// The module id, from the route. Server-established: <c>JsonIgnore</c> closes the JSON body and the bare
+/// <c>BindNever</c> closes the query string, the form and the route, so the id in the URL is the only one
+/// there is (rules/csharp.md "Server-established members of a command").
+/// </param>
+/// <param name="UserId">The administrator, from their own access token; guarded as <paramref name="Id"/> is.</param>
+/// <param name="IpAddress">The caller's address, for the audit journal; guarded as <paramref name="Id"/> is.</param>
+/// <param name="UserAgent">The caller's user agent, for the audit journal; guarded as <paramref name="Id"/> is.</param>
+public sealed record UpdateModuleCommand(
+    string Version,
+    bool Acknowledged,
+    string Password,
+    [property: JsonIgnore][property: BindNever][BindNever] string Id = "",
+    [property: JsonIgnore][property: BindNever][BindNever] Guid UserId = default,
+    [property: JsonIgnore][property: BindNever][BindNever] string IpAddress = "",
+    [property: JsonIgnore][property: BindNever][BindNever] string UserAgent = "");

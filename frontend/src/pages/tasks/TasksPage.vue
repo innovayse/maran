@@ -33,6 +33,7 @@ import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiPagination from '../../components/ui/UiPagination.vue'
 import UiSearchInput from '../../components/ui/UiSearchInput.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
+import UiToolbar from '../../components/ui/UiToolbar.vue'
 import TaskFilterSheet from '../../components/tasks/TaskFilterSheet.vue'
 import TaskLivePane from '../../components/tasks/TaskLivePane.vue'
 import TaskTable from '../../components/tasks/TaskTable.vue'
@@ -188,7 +189,7 @@ onMounted(async () => {
       <UiSectionHeading class="mb-4" :title="t('tasks.list.recentHeading')" />
 
       <div class="flex flex-col gap-4">
-        <div class="flex flex-wrap items-end gap-3">
+        <UiToolbar>
           <UiSearchInput
             v-model="table.search.value"
             class="min-w-55 max-w-85 flex-1"
@@ -202,7 +203,7 @@ onMounted(async () => {
             :active-label="t('common.list.filtersApplied', { n: table.activeFilterCount.value }, table.activeFilterCount.value)"
             @click="openFilters"
           />
-        </div>
+        </UiToolbar>
 
         <UiActiveFilter
           v-if="chips.length > 0"

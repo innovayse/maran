@@ -36,6 +36,7 @@ import { useI18n } from "vue-i18n";
 import UiAlert from "../../components/ui/UiAlert.vue";
 import UiButton from "../../components/ui/UiButton.vue";
 import UiCard from "../../components/ui/UiCard.vue";
+import UiCheckbox from "../../components/ui/UiCheckbox.vue";
 import UiConfirm from "../../components/ui/UiConfirm.vue";
 import UiEmptyState from "../../components/ui/UiEmptyState.vue";
 import UiLoadingRegion from "../../components/ui/UiLoadingRegion.vue";
@@ -99,6 +100,19 @@ const { isAdmin } = useCallerRole();
 
 /** Whether the upload form is open. */
 const isUploading: Ref<boolean> = ref(false);
+
+/** Whether the operator ticked the wildcard choice; only ever acted on while the panel offers it. */
+const wantsWildcard: Ref<boolean> = ref(false);
+
+/** Whether the panel said a wildcard certificate can be requested for this domain now. */
+const wildcardOffered: ComputedRef<boolean> = computed(() => {
+  return store.issuanceOptions?.wildcardAvailable === true;
+});
+
+/** The panel's sentence for why a wildcard cannot be requested, or `null` when it can or the panel did not say. */
+const wildcardUnavailableMessage: ComputedRef<string | null> = computed(() => {
+  return store.issuanceOptions?.wildcardUnavailableMessage ?? null;
+});
 
 /** The certificate awaiting a confirmed removal, or `null` when none is. */
 const pendingRemovalId: Ref<string | null> = ref(null);
@@ -208,6 +222,7 @@ const load = async (): Promise<void> => {
   if (isAdmin.value) {
     void store.loadAcmeDirectory();
   }
+  void store.loadIssuanceOptions(props.domain);
   await store.load(props.siteId);
 };
 
@@ -216,7 +231,9 @@ const load = async (): Promise<void> => {
  * @returns Resolves once the request has settled.
  */
 const issue = async (): Promise<void> => {
-  await store.issue({ domain: props.domain });
+  // The tick is advice from the SPA: it is sent only while the panel still offers the choice, and
+  // the panel re-checks it on the request either way.
+  await store.issue({ domain: props.domain, wildcard: wildcardOffered.value && wantsWildcard.value });
 };
 
 /**
@@ -376,6 +393,15 @@ onMounted(load);
         </UiButton>
       </div>
       <p class="mt-3 text-sm text-text-muted">{{ t("certificates.issueHint") }}</p>
+      <!-- The choice is drawn only when the panel says it can work: it serves this domain's DNS
+           zone. Otherwise the panel's own reason is shown, so the operator learns what is missing. -->
+      <div v-if="wildcardOffered" class="mt-3 flex flex-col gap-1">
+        <UiCheckbox v-model="wantsWildcard" :label="t('certificates.wildcard.label')" :disabled="store.acting" />
+        <p class="text-sm text-text-muted">{{ t("certificates.wildcard.hint", { domain: props.domain }) }}</p>
+      </div>
+      <p v-else-if="wildcardUnavailableMessage !== null" class="mt-3 text-sm text-text-muted wrap-anywhere">
+        {{ wildcardUnavailableMessage }}
+      </p>
     </UiCard>
 
     <CustomCertificateForm

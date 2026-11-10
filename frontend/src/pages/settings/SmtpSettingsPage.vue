@@ -28,6 +28,7 @@ import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
 import UiSkeleton from '../../components/ui/UiSkeleton.vue'
 import { useSmtpSettingsStore } from '../../stores/smtpSettings'
 import type { SmtpSecurity, SmtpSettings } from '../../types/smtpSettings'
+import { readOptionalWholeNumber } from '../../utils/optionalWholeNumber'
 
 const { t } = useI18n()
 const smtpStore = useSmtpSettingsStore()
@@ -67,6 +68,22 @@ const fromName: Ref<string> = ref('')
 
 /** Where a test message should be sent, as typed. */
 const testRecipient: Ref<string> = ref('')
+
+/** Whether a save was attempted since the page opened, so the port is faulted only once the person has tried. */
+const attempted: Ref<boolean> = ref(false)
+
+/**
+ * The problem with the port as typed, once a save was attempted: it must be a whole number. Only the
+ * shape is checked here; the range stays the server's, which refuses a port outside it in the
+ * administrator's language.
+ */
+const portError: ComputedRef<string | null> = computed(() => {
+  if (!attempted.value) {
+    return null
+  }
+
+  return readOptionalWholeNumber(port.value).kind === 'figure' ? null : t('app.smtp.portInvalid')
+})
 
 /** True when the panel holds a submission password, which is all the screen may know about it. */
 const hasStoredPassword: ComputedRef<boolean> = computed(() => {
@@ -121,6 +138,12 @@ const fill = (settings: SmtpSettings | null): void => {
  * @returns Resolves once the request has settled.
  */
 const submit = async (): Promise<void> => {
+  attempted.value = true
+  if (portError.value !== null) {
+    // The body would carry text where the server reads a number; say so beside the field instead.
+    return
+  }
+
   await smtpStore.save({
     host: host.value,
     port: Number(port.value),
@@ -154,6 +177,8 @@ watch(
   { immediate: true },
 )
 
+// Feedback belongs to the visit (issue #508): clear what an earlier visit left before anything shows.
+smtpStore.clearFeedback()
 void smtpStore.load()
 void smtpStore.loadSecurityModes()
 </script>
@@ -192,7 +217,14 @@ void smtpStore.loadSecurityModes()
                 <!-- Host and port are machine text: the mono face, never uppercased. -->
                 <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_8rem]">
                   <UiInput v-model="host" :label="t('app.smtp.hostLabel')" mono required />
-                  <UiInput v-model="port" :label="t('app.smtp.portLabel')" mono required />
+                  <UiInput
+                    v-model="port"
+                    :label="t('app.smtp.portLabel')"
+                    :error="portError"
+                    inputmode="numeric"
+                    mono
+                    required
+                  />
                 </div>
 
                 <UiSelect

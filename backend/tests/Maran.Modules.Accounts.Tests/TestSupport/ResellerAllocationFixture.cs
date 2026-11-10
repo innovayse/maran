@@ -1,4 +1,5 @@
 using Maran.Modules.Accounts.Domain.Entities;
+using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Domain.ValueObjects;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Services;
@@ -70,7 +71,7 @@ public sealed class ResellerAllocationFixture : IAsyncDisposable
             resellerId: ownerId);
         if (suspended)
         {
-            account.Suspend();
+            account.Suspend(SuspensionActor.Administrator);
         }
 
         DbContext.Accounts.Add(account);

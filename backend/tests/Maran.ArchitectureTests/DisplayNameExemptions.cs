@@ -102,6 +102,13 @@ public static class DisplayNameExemptions
             "The same administrator-or-customer vocabulary as AuthenticatedUserDto.Role, shown on "
             + "the profile page through the same keys."),
         new(
+            "Maran.Modules.ServerMigration.Common.DiscoveryWarningDto",
+            "Kind",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/types/migrationSource.ts",
+            "The kind is the closed machine name of the warning, carried so the screen can group and "
+            + "badge warnings; the sentence the operator reads is the dto's own localized message."),
+        new(
             "Maran.Modules.Monitoring.Common.MetricsChartDto",
             "Range",
             DisplayNameExemptionKind.NotAnOperatorFacingName,
@@ -184,6 +191,14 @@ public static class DisplayNameExemptions
             "Decides whether a module's entries are drawn open or locked and is never printed as a name: "
             + "the locked badge's text is the shell's own chrome, and the module's own name travels "
             + "beside it as DisplayName."),
+        new(
+            "Maran.Host.Modules.ModuleDto",
+            "Lifecycle",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/types/module.ts",
+            "Decides whether the shell registers a packaged module's routes and frames its screen, and is "
+            + "never printed as a name: the sentence an operator reads for a degraded or failed module "
+            + "travels beside it, localized, as FailureDisplay."),
         new(
             "Maran.Modules.Identity.Common.SubUserDto",
             "State",
@@ -273,12 +288,6 @@ public static class DisplayNameExemptions
             "An observation of the host (yes, no, or not observed) that only the administrator's mail server screen reads; the screen and its wording arrive with it, in the same change as the SPA locale keys."),
         new(
             "Maran.Modules.Mail.Common.MailQueueEntryDto",
-            "Queue",
-            DisplayNameExemptionKind.PendingFix,
-            "the administrator's mail server screen, which is not built yet",
-            "A closed vocabulary of the mail stack that only the administrator's mail server screen reads; the screen and its wording arrive with it."),
-        new(
-            "Maran.Modules.Mail.Common.MailQueueEntryDto",
             "DeferralClass",
             DisplayNameExemptionKind.PendingFix,
             "the administrator's mail server screen, which is not built yet",
@@ -344,6 +353,36 @@ public static class DisplayNameExemptions
             "frontend/src/components/dns/DnsRecordDialog.vue",
             "The record type as DNS itself spells it (A, MX), the value the picker sends back; the words an operator reads are the sibling Label and Description of the same catalogue row, resolved by the panel for the request's culture."),
         new(
+            "Maran.Modules.Dns.Common.ZoneDnssecDto",
+            "State",
+            DisplayNameExemptionKind.SpaOwnedVocabulary,
+            "dns.dnssec.states.{member}",
+            "Not signed, signed and withdrawing are the three steps of a zone's DNSSEC life, a set the server closes; the zone's DNSSEC panel words each one next to the registrar instructions that go with it."),
+        new(
+            "Maran.Modules.Dns.Common.ZoneDnssecObservationDto",
+            "Mode",
+            DisplayNameExemptionKind.SpaOwnedVocabulary,
+            "dns.dnssec.states.{member}",
+            "The step the name server reports for the zone is one of the same three steps, worded by the same keys as the zone's own."),
+        new(
+            "Maran.Modules.Dns.Common.ZoneDnssecObservationDto",
+            "ModeObserved",
+            DisplayNameExemptionKind.SpaOwnedVocabulary,
+            "dns.dnssec.observed.reports.{member}",
+            "Not observed, in force and not in force are the three answers of an observation, worded as an admission when the agent did not look rather than as off; the set is closed by the agent's own three-valued answer."),
+        new(
+            "Maran.Modules.Dns.Common.ZoneDnssecObservationDto",
+            "PublishedKeyObserved",
+            DisplayNameExemptionKind.SpaOwnedVocabulary,
+            "dns.dnssec.observed.reports.{member}",
+            "The same three-valued answer as ModeObserved, drawn through the same keys."),
+        new(
+            "Maran.Modules.Dns.Common.ZoneDto",
+            "DnssecState",
+            DisplayNameExemptionKind.SpaOwnedVocabulary,
+            "dns.dnssec.states.{member}",
+            "The zone's DNSSEC step as the zone list and the delete confirmation show it, worded by the same keys as the zone's DNSSEC panel."),
+        new(
             "Maran.Modules.Dns.Common.ZoneRecordDto",
             "Type",
             DisplayNameExemptionKind.NotAnOperatorFacingName,
@@ -397,5 +436,41 @@ public static class DisplayNameExemptions
             DisplayNameExemptionKind.NotAnOperatorFacingName,
             "frontend/src/components/sites/SiteRedirectsEditor.vue",
             "The current value echoed into the rule's picker, whose choices and their names are the panel's own (SiteOptionsChoicesDto.RedirectStatuses); the editor never prints this field as a name."),
+        new(
+            "Maran.Modules.Marketplace.Common.MarketplaceModuleDto",
+            "State",
+            DisplayNameExemptionKind.SpaOwnedVocabulary,
+            "marketplace.states.{member}",
+            "Available, installed, update available, revoked and incompatible are the five things a catalogue row can be on this panel, a set the panel closes; the badge words each one, and the entry's tone repeats it."),
+        new(
+            "Maran.Modules.Marketplace.Common.InstalledModuleDto",
+            "Lifecycle",
+            DisplayNameExemptionKind.SpaOwnedVocabulary,
+            "marketplace.lifecycle.{member}",
+            "Installed, active, degraded, failed and removed are the loader's five steps for a module, a set the Sdk closes; the installed list words each one in its state badge."),
+        new(
+            "Maran.Modules.ServerMigration.Common.MigrationFindingDto",
+            "Code",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/components/migration/MigrationFindingList.vue",
+            "Read only to tell the cron notice from the other findings and as the row's key, and never printed: the sentence an operator reads is the sibling Message, resolved by the panel for the reader's culture."),
+        new(
+            "Maran.Modules.ServerMigration.Common.MigrationAccountFindingDto",
+            "Code",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/components/migration/MigrationFindingList.vue",
+            "The same finding as MigrationFindingDto, about one source account, drawn by the same list: the code tells the cron notice apart and is never printed, the sentence is the sibling Message."),
+        new(
+            "Maran.Modules.ServerMigration.Common.MigrationSummaryFileDto",
+            "ContentType",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/composables/useApi.ts",
+            "The media type of a file the controller streams back, set on the response header and read by the client as the saved blob's type; it is not part of any JSON body and no screen prints it."),
+        new(
+            "Maran.Modules.Ssl.Common.IssuanceOptionsDto",
+            "WildcardUnavailableCode",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/types/certificate.ts",
+            "Carried for scripts and support beside the sentence; no screen reads it. What the SSL tab shows is the sibling WildcardUnavailableMessage, resolved by the panel in the reader's language."),
     ];
 }

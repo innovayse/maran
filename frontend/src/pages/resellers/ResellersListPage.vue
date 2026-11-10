@@ -34,6 +34,7 @@ import UiPagination from '../../components/ui/UiPagination.vue'
 import UiSearchInput from '../../components/ui/UiSearchInput.vue'
 import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
 import UiTable from '../../components/ui/UiTable.vue'
+import UiToolbar from '../../components/ui/UiToolbar.vue'
 import ResellerStatusBadge from '../../components/resellers/ResellerStatusBadge.vue'
 import { useListLabels } from '../../composables/useListLabels'
 import { useServerTable } from '../../composables/useServerTable'
@@ -155,7 +156,7 @@ const clearAll = async (): Promise<void> => {
 
     <UiCard v-else>
       <div class="flex flex-col gap-4">
-        <div class="flex flex-wrap items-end gap-3">
+        <UiToolbar>
           <UiSearchInput
             v-model="table.search.value"
             class="min-w-55 max-w-85 flex-1"
@@ -169,7 +170,7 @@ const clearAll = async (): Promise<void> => {
             :active-label="t('common.list.filtersApplied', { n: table.activeFilterCount.value }, table.activeFilterCount.value)"
             @click="openFilters"
           />
-        </div>
+        </UiToolbar>
 
         <UiActiveFilter
           v-if="chips.length > 0"

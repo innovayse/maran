@@ -91,8 +91,9 @@ public sealed class ChangeSubUserGrantsCommandHandler
         membership.ChangeGrants(command.Features.ToSet());
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        await _journal.RecordIdentifiedAsync(
+        await _journal.RecordOnUserAsync(
             SignedInCallerPolicy.Require(_currentUser).UserId,
+            user.Id,
             IdentityAuditActions.SubUserGrantsChanged,
             user.Username,
             command.IpAddress,

@@ -18,6 +18,7 @@ import UiSearchInput from '../ui/UiSearchInput.vue'
 import UiSpinner from '../ui/UiSpinner.vue'
 import { useDebouncedSearch } from '../../composables/useDebouncedSearch'
 import { childPath, parentPath } from '../../utils/filePath'
+import { SEARCH_TERM_MAX_LENGTH } from '../../utils/searchTermLimit'
 import type { FileEntry } from '../../types/file'
 
 /** What the picker shows of the folder being looked at: the folders read so far and how the read stands. */
@@ -57,10 +58,19 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-/** The name search box: its text is sent once typing pauses. */
-const search = useDebouncedSearch((term: string): void => {
-  emit('search', term)
-}, SEARCH_DELAY_MS)
+/** The name search box: its text is sent once typing pauses, unless it is too long. */
+const search = useDebouncedSearch(
+  (term: string): void => {
+    emit('search', term)
+  },
+  SEARCH_DELAY_MS,
+  true,
+)
+
+/** The message under the search box while its text is longer than the list accepts. */
+const searchError: ComputedRef<string | null> = computed(() => {
+  return search.tooLong.value ? t('common.list.searchTooLong', { max: SEARCH_TERM_MAX_LENGTH }) : null
+})
 
 /** How the folder being looked at is named: the home reads as a word, any other as its path. */
 const currentLabel: ComputedRef<string> = computed(() => {
@@ -93,6 +103,7 @@ const browse = (next: string): void => {
       :label="t('filesDialogs.picker.searchLabel')"
       :placeholder="t('filesDialogs.picker.searchPlaceholder')"
       :clear-label="t('filesDialogs.picker.searchClear')"
+      :error="searchError"
       @update:model-value="search.type"
     />
     <UiAlert v-if="listing.errorMessage !== null" variant="error">{{ listing.errorMessage }}</UiAlert>

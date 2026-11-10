@@ -20,6 +20,34 @@ declare module 'vue-router' {
      */
     title?: string
     /**
+     * The screen's name as TEXT, already localized, read live when it is needed. For the one kind of
+     * route whose names are not known when this bundle is built: a packaged module's, which the
+     * backend localizes per request and the catalogue carries. It is a function so a language
+     * switch (which re-reads the catalogue) changes the title of the screen on display without a
+     * navigation. A route declares `title` (a key) or `titleFrom` (text), never both; the tab title
+     * and the breadcrumb read either through `utils/routeTitleText.ts`, so there is one place that
+     * decides what a screen is called.
+     */
+    titleFrom?: () => string
+    /**
+     * Set on the layout record of a packaged module's routes (`/m/<id>`), and so on every route
+     * under it: the module's id. The router registration finds the records it owns by it, to
+     * replace or remove them when the catalogue changes, and the navigation places the screen in
+     * the group of installed modules.
+     */
+    packaged?: string
+    /**
+     * Set with `packaged`: a fingerprint of what the registered routes were built from (version,
+     * frame address and declared routes), so a catalogue refetch that changed none of it leaves
+     * the routes alone.
+     */
+    packagedSignature?: string
+    /**
+     * Key of the navigation entry a packaged module's screen is the destination of, so the
+     * breadcrumb and the page eyebrow place it in the "Modules" group under the entry's name.
+     */
+    packagedEntry?: string
+    /**
      * The screen is for administrators only, and for nobody else: a reseller and a customer are both
      * turned away. Advice, never enforcement: the endpoints behind it refuse every other role on
      * their own. The role guard uses it to send them to the "not available" screen instead of
@@ -37,6 +65,13 @@ declare module 'vue-router' {
      * it refuses every other role on its own (issue #179).
      */
     resellerOnly?: boolean
+    /**
+     * The screen's endpoints refuse a view-as session (`ViewAsAccess.Refused`, issue #334), so an
+     * operator viewing as a login is sent to the "not available" screen instead of a page made of
+     * refused requests (issue #513). Advice, never enforcement: the panel refuses regardless, and the
+     * flag errs permissive (until the panel has confirmed the session nothing is turned away).
+     */
+    viewAsRefused?: boolean
     /**
      * Route name of the navigation destination this screen sits beneath, for a screen the
      * navigation does not list itself (a record, a form under a list). It places the screen in the

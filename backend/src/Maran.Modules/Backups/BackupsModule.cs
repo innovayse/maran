@@ -113,6 +113,10 @@ public sealed class BackupsModule : IPanelModule
         // that contract or not at all — and "not at all" is a state it is built to observe.
         services.AddScoped<IAccountBackupService, AccountBackupService>();
 
+        // The backup an account export is made from and the restore of an imported artifact (issue #127): the
+        // act-window the Migration module calls, so it never reaches the destination or its credentials.
+        services.AddScoped<IMigrationArtifactService, MigrationArtifactService>();
+
         // This module's answer to how many backups an account owns, for the Accounts module's resource
         // summary. Scoped, because it reads through the request-scoped, tenant-filtered context.
         services.AddScoped<IAccountResourceCounter, BackupAccountResourceCounter>();

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="MarketplaceModuleDisplayName">
+    <value>Marketplace</value>
+  </data>
+  <data name="SentItemPanelVersion">
+    <value>The version of this panel.</value>
+  </data>
+  <data name="SentItemChannel">
+    <value>The release channel you use, for example stable.</value>
+  </data>
+  <data name="SentItemLanguage">
+    <value>The language of the panel interface.</value>
+  </data>
+  <data name="SentItemLeaseCredential">
+    <value>Your licence credential, only when checking whether you may install a module or when asking to download it. Browsing the catalogue never sends it.</value>
+  </data>
+  <data name="SentItemInstalledModules">
+    <value>When you check for updates: the id, version and fingerprint of each installed module.</value>
+  </data>
+  <data name="SentItemNothingElse">
+    <value>Nothing else: no host name, accounts, sites, users or customer data. Like any web request, it does show the marketplace this server's network address.</value>
+  </data>
+  <data name="EntitlementNotRequired">
+    <value>Included</value>
+  </data>
+  <data name="EntitlementEntitled">
+    <value>Licensed</value>
+  </data>
+  <data name="EntitlementNotPurchased">
+    <value>Not purchased</value>
+  </data>
+  <data name="EntitlementLeaseExpired">
+    <value>Licence expired</value>
+  </data>
+  <data name="EntitlementUnknown">
+    <value>Unknown</value>
+  </data>
+  <data name="MarketplaceTierIncluded">
+    <value>Included</value>
+  </data>
+  <data name="MarketplaceTierAddOn">
+    <value>Add-on</value>
+  </data>
+  <data name="MarketplaceTierPlanGated">
+    <value>Plan feature</value>
+  </data>
+</root>

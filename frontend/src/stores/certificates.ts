@@ -7,6 +7,7 @@ import type {
   AcmeDirectory,
   Certificate,
   InstallCustomCertificateRequest,
+  IssuanceOptions,
   IssueCertificateRequest,
 } from '../types/certificate'
 
@@ -36,6 +37,12 @@ export const useCertificatesStore = defineStore('certificates', () => {
    * failed read leaves it `null` and shows nothing: the line is advice, not a result to report.
    */
   const acmeDirectory: Ref<AcmeDirectory | null> = ref(null)
+
+  /**
+   * What the panel can issue for the site's domain, or `null` until the read succeeds. A failed
+   * read leaves it `null`: the wildcard choice is simply not offered, and the plain request still is.
+   */
+  const issuanceOptions: Ref<IssuanceOptions | null> = ref(null)
 
   /** True while an issue, install or remove request is in flight. */
   const acting: Ref<boolean> = ref(false)
@@ -132,6 +139,21 @@ export const useCertificatesStore = defineStore('certificates', () => {
   }
 
   /**
+   * Loads which kinds of certificate the panel can issue for one domain.
+   * @param domain The domain to ask about.
+   * @returns Resolves once the request has settled, successfully or not.
+   */
+  const loadIssuanceOptions = async (domain: string): Promise<void> => {
+    try {
+      issuanceOptions.value = await api.issuanceOptions(domain)
+    } catch {
+      // Quiet on purpose: the wildcard choice is an extra, and its absence must not raise an
+      // error over a plain request that works.
+      issuanceOptions.value = null
+    }
+  }
+
+  /**
    * Issues a certificate for the site's domain over ACME.
    * @param request The site to certify.
    * @returns True when the panel issued and installed it.
@@ -183,10 +205,12 @@ export const useCertificatesStore = defineStore('certificates', () => {
     listState,
     acting,
     acmeDirectory,
+    issuanceOptions,
     errorMessage,
     errorCode,
     load,
     loadAcmeDirectory,
+    loadIssuanceOptions,
     issue,
     installCustom,
     remove,

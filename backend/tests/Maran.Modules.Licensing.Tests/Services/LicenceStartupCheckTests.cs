@@ -29,7 +29,7 @@ public sealed class LicenceStartupCheckTests
     {
         var services = new ServiceCollection();
         services.AddSingleton(rawTextSource);
-        services.AddSingleton<ILicenceSignatureVerifier, Ed25519LicenceSignatureVerifier>();
+        services.AddSingleton<ILicenceSignatureVerifier>(new Ed25519LicenceSignatureVerifier(TestKeys.TrustedKey));
         services.AddSingleton<LicenceVerifier>();
         services.AddScoped<LicenceStatusDisplayNames>(_ => { return LicensingTestContext.StatusText(); });
 

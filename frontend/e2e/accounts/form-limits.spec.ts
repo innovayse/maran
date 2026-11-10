@@ -1,12 +1,14 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubCreateRefused, recordCreateRequests, submitCreate } from '../fixtures/stub-account-create'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubPlans, THE_PLAN } from '../fixtures/stub-plans-route'
 import { stubResellerSession } from '../fixtures/stub-reseller-session'
 import type { Plan } from '../../src/types/account'
+import type { Page } from '@playwright/test'
 
 // Issue #194: a new account can carry its own process, inode and open-files limits. An empty field
 // follows the plan, a figure is sent, a process limit of zero is refused, and a reseller can only
@@ -14,6 +16,9 @@ import type { Plan } from '../../src/types/account'
 
 /** The plan the specs choose: it caps processes at 50, so "Plan: 50" is the process field's default. */
 const LIMITED_PLAN: Plan = { ...THE_PLAN, maxProcesses: { kind: 'limited', maximum: 50 } }
+
+/** The create request as the guard sees its URL: the stubbed refusal below answers it 400. */
+const CREATE_URL = /\/api\/v1\/accounts$/
 
 /**
  * Opens the create form with a plan that states a process ceiling, as an administrator or a reseller.
@@ -28,6 +33,7 @@ const openForm = async (page: Page, asReseller: boolean): Promise<void> => {
     await stubSignedIn(page)
     await stubHealthy(page)
     await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
+    await stubShellReads(page)
   }
   await stubAccounts(page, [])
   await stubPlans(page, [LIMITED_PLAN])
@@ -41,7 +47,9 @@ const openForm = async (page: Page, asReseller: boolean): Promise<void> => {
   await page.getByLabel('Owner email').fill('owner@alpha.example.com')
 }
 
-test('an untouched limits section adds nothing to the body and shows the plan figure', async ({ page }) => {
+test('an untouched limits section adds nothing to the body and shows the plan figure', async ({ page, guard }) => {
+  // The create is refused on purpose so the sent body can be read.
+  guard.allow(400, CREATE_URL)
   await openForm(page, false)
 
   await expect(page.getByLabel('Process limit')).toHaveAttribute('placeholder', 'Plan: 50')
@@ -53,7 +61,9 @@ test('an untouched limits section adds nothing to the body and shows the plan fi
   expect(body).not.toHaveProperty('openFilesLimit')
 })
 
-test('typed limits are sent as whole numbers', async ({ page }) => {
+test('typed limits are sent as whole numbers', async ({ page, guard }) => {
+  // The create is refused on purpose so the sent body can be read.
+  guard.allow(400, CREATE_URL)
   await openForm(page, false)
   await page.getByLabel('Process limit').fill('20')
   await page.getByLabel('Inode limit').fill('100000')
@@ -76,7 +86,9 @@ test('a process limit of zero is refused on the form and nothing is sent', async
   expect(createRequests).toEqual([])
 })
 
-test('zero is accepted for inodes and open files, where it means no limit', async ({ page }) => {
+test('zero is accepted for inodes and open files, where it means no limit', async ({ page, guard }) => {
+  // The create is refused on purpose so the sent body can be read.
+  guard.allow(400, CREATE_URL)
   await openForm(page, false)
   await page.getByLabel('Inode limit').fill('0')
   await page.getByLabel('Open files limit').fill('0')
@@ -95,7 +107,9 @@ test('text that is not a whole number is refused', async ({ page }) => {
   await expect(page.getByText('Enter a whole number, or leave the field empty.')).toBeVisible()
 })
 
-test('an administrator may set a process limit above the plan', async ({ page }) => {
+test('an administrator may set a process limit above the plan', async ({ page, guard }) => {
+  // The create is refused on purpose so the sent body can be read.
+  guard.allow(400, CREATE_URL)
   await openForm(page, false)
   await page.getByLabel('Process limit').fill('500')
 
@@ -116,7 +130,9 @@ test('a reseller is told it can only lower a limit, and a figure above the plan 
   expect(createRequests).toEqual([])
 })
 
-test('a reseller lowering the process limit below the plan is sent', async ({ page }) => {
+test('a reseller lowering the process limit below the plan is sent', async ({ page, guard }) => {
+  // The create is refused on purpose so the sent body can be read.
+  guard.allow(400, CREATE_URL)
   await openForm(page, true)
   await page.getByLabel('Process limit').fill('50')
 

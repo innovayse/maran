@@ -8,6 +8,7 @@ use crate::adapter::DistroAdapter;
 use crate::debian::DebianAdapter;
 use crate::family::DistroFamily;
 use crate::rhel::RhelAdapter;
+use crate::suse::SuseAdapter;
 
 /// The process-wide adapter for `family`.
 ///
@@ -18,6 +19,7 @@ pub fn adapter_for(family: DistroFamily) -> &'static dyn DistroAdapter {
     match family {
         DistroFamily::Debian => &DebianAdapter,
         DistroFamily::Rhel => &RhelAdapter,
+        DistroFamily::Suse => &SuseAdapter,
     }
 }
 

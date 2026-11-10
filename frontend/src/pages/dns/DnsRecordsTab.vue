@@ -26,6 +26,7 @@ import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiPagination from '../../components/ui/UiPagination.vue'
 import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
 import UiSearchInput from '../../components/ui/UiSearchInput.vue'
+import UiToolbar from '../../components/ui/UiToolbar.vue'
 import DnsRecordDialog from '../../components/dns/DnsRecordDialog.vue'
 import DnsRecordsFilterSheet from '../../components/dns/DnsRecordsFilterSheet.vue'
 import DnsRecordsTable from '../../components/dns/DnsRecordsTable.vue'
@@ -251,7 +252,7 @@ onMounted(() => {
 
     <UiCard>
       <div class="flex flex-col gap-4">
-        <div class="flex flex-wrap items-end gap-3">
+        <UiToolbar>
           <UiSearchInput
             v-model="table.search.value"
             class="min-w-55 max-w-85 flex-1"
@@ -266,7 +267,7 @@ onMounted(() => {
             @click="openFilters"
           />
           <UiButton :disabled="!canEdit" @click="startAdd">{{ t('dns.records.addAction') }}</UiButton>
-        </div>
+        </UiToolbar>
 
         <UiActiveFilter
           v-if="chips.length > 0"

@@ -23,11 +23,14 @@ use maran_agent_core::end_of_options::END_OF_OPTIONS;
 /// `home`, which is what the read and execute bits are for. This is the only
 /// mode that satisfies both, so it is a constant rather than a parameter.
 ///
-/// It is applied to the mount point too, and that is the load-bearing half: the
+/// It is applied to the mount point too, through
+/// [`FtpsHost::ensure_mount_point`] and NEVER through `create_directory`: the
 /// mount point's mode is only ever VISIBLE while the mount is down, because a
-/// live bind mount covers it with the account's own `0750` home. So a client
-/// that lands in a root-owned `home` it cannot write is looking at the
-/// signature of a failed mount, rather than at a mystery.
+/// live bind mount covers it with the account's own `0750` home — and a
+/// `chmod` by path goes through that mount onto the home itself (issue #483).
+/// So the mode is set while nothing is mounted, and a client that lands in a
+/// root-owned `home` it cannot write is looking at the signature of a failed
+/// mount, rather than at a mystery.
 const JAIL_MODE: u32 = 0o755;
 
 /// The mode the jail BASE — the directory every account's jail hangs under —
@@ -145,7 +148,13 @@ pub(crate) fn ensure_account_jail(
     // an assertion rather than an assumption about which installer ran.
     host.create_directory(Path::new(AgentPaths::FTPS_JAIL_ROOT), JAIL_BASE_MODE)?;
     host.create_directory(Path::new(jail.directory()), JAIL_MODE)?;
-    host.create_directory(Path::new(jail.mount_point()), JAIL_MODE)?;
+    // The mount point is not the jail: once the unit is up it IS the account's
+    // home, and this runs on every login creation. See `ensure_mount_point`.
+    host.ensure_mount_point(
+        Path::new(jail.mount_point()),
+        Path::new(jail.source_directory()),
+        JAIL_MODE,
+    )?;
 
     let contents = MountUnit {
         account: jail.account(),

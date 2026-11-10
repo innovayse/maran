@@ -128,7 +128,7 @@ const STOP_TIMEOUT_SETTING: &str = "TimeoutStopSec=";
 const WHOLE_SECONDS_SUFFIX: char = 's';
 
 /// The one startup reconciliation `server::serve` performs today.
-const THE_ONLY_RECONCILER: &str = "recover_restores()";
+const THE_ONLY_RECONCILER: &str = "recover_restores(";
 
 /// `main`'s handling of a `serve` that returned an error, read for the same
 /// reason [`UNIT_FILE`] is: the property below is about what `serve` must NOT
@@ -286,6 +286,63 @@ fn the_drain_budget_stays_below_the_unit_files_stop_timeout() {
          {stop_timeout:?}: systemd's SIGKILL would arrive before the drain had \
          finished, so no request would ever be given the budget this constant \
          promises"
+    );
+}
+
+/// The setting that decides WHICH processes of the unit systemd signals first.
+const KILL_MODE_SETTING: &str = "KillMode=";
+
+/// The one value that lets the drain finish: the stop `SIGTERM` reaches the
+/// main process only, and the remaining processes of the cgroup are killed when
+/// `TimeoutStopSec` expires.
+const MAIN_PROCESS_FIRST: &str = "mixed";
+
+/// What a unit file's text sets `KillMode=` to, ignoring comments; `None` when
+/// it sets nothing, which systemd reads as its default, `control-group`.
+fn kill_mode_of(unit_text: &str) -> Option<&str> {
+    unit_text
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.starts_with('#'))
+        .find_map(|line| line.strip_prefix(KILL_MODE_SETTING))
+        .map(str::trim)
+}
+
+/// A stop signals the agent alone, so the programs an in-flight operation is
+/// running are still alive while the drain waits for it (issue #476).
+///
+/// With systemd's default `KillMode=control-group`, `SIGTERM` goes to EVERY
+/// process of the unit's cgroup at once: `useradd`, `setquota`, `nginx -t`,
+/// `tar` and the forked setuid children all die at the instant the agent starts
+/// draining, the operations they belong to fail half-way, and the drain waits
+/// for work already ended. `mixed` signals the main process first and kills the
+/// rest only at `TimeoutStopSec`, which is what the drain was written for.
+#[test]
+fn the_unit_file_signals_only_the_main_process_when_it_stops() {
+    assert_eq!(
+        kill_mode_of(UNIT_FILE),
+        Some(MAIN_PROCESS_FIRST),
+        "the agent's unit must set KillMode=mixed: the default, control-group, \
+         signals every child program together with the agent and the bounded \
+         drain protects nothing"
+    );
+}
+
+/// The reader above refuses what it must refuse and accepts what it must
+/// accept: a unit that leaves `KillMode` at its default, one that names
+/// `control-group`, and one that mentions the setting only in a comment are each
+/// not `mixed`, while a real `mixed` line is read as such.
+#[test]
+fn the_kill_mode_reader_tells_mixed_from_the_default_and_from_a_comment() {
+    assert_eq!(kill_mode_of("[Service]\nTimeoutStopSec=45\n"), None);
+    assert_eq!(
+        kill_mode_of("[Service]\nKillMode=control-group\n"),
+        Some("control-group")
+    );
+    assert_eq!(kill_mode_of("[Service]\n# KillMode=mixed\n"), None);
+    assert_eq!(
+        kill_mode_of("[Service]\n  KillMode=mixed\n"),
+        Some(MAIN_PROCESS_FIRST)
     );
 }
 

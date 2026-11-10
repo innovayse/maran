@@ -270,7 +270,7 @@ useRevealCurrentRow(scroller, (): readonly NavigationEntry[] => {
   <component
     :is="compact ? 'div' : 'aside'"
     class="flex min-h-0 flex-col"
-    :class="compact ? 'flex-1' : 'w-54 flex-none rounded-panel border border-border-subtle bg-surface-1 p-2.5'"
+    :class="compact ? 'flex-1' : 'w-60 flex-none rounded-panel border border-border-subtle bg-surface-1 p-2.5'"
   >
     <!-- The scroll container clips whatever leaves its padding box, and the active row's glow
          (`--glow`: 30px blur, 8px down, -8px spread) reaches about 22px out sideways and 30px

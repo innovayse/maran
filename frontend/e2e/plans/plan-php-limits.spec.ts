@@ -1,9 +1,11 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { MANAGED_PLANS, stubManagedPlans, type PlanRequests } from '../fixtures/stub-plans-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 /** Catalogue every spec here starts from: the accounts module licensed, which is what owns plans. */
 const LICENSED_ACCOUNTS: PanelModule[] = [
@@ -32,6 +34,7 @@ const open = async (page: Page, path: string, refusal?: string): Promise<PlanReq
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_ACCOUNTS)
+  await stubShellReads(page)
   const requests = await stubManagedPlans(page, undefined, refusal === undefined ? {} : { update: refusal })
   await page.goto(path)
   return requests
@@ -74,7 +77,8 @@ test('a PHP bound that is zero or not a number is caught and nothing is sent', a
   expect(requests.updated).toEqual([])
 })
 
-test('a ceiling refusal from the server is rendered verbatim', async ({ page }) => {
+test('a ceiling refusal from the server is rendered verbatim', async ({ page, guard }) => {
+  guard.allow(409, /\/api\/v1\/plans\/[0-9a-f-]{36}$/)
   const detail = 'The PHP memory limit may be at most 512 MB.'
   await open(page, `/plans/${BUSINESS.id}`, detail)
 

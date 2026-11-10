@@ -71,7 +71,9 @@ use tokio::sync::oneshot::Receiver;
 /// # What therefore actually kills work halfway, and what it costs
 ///
 /// Not this budget: systemd's `SIGKILL` at `TimeoutStopSec=45`, with
-/// `KillMode=control-group`, so the forked setuid children die with it. Only
+/// `KillMode=mixed`: the stop `SIGTERM` reaches the agent alone, so the programs
+/// and forked setuid children of in-flight work keep running while it drains
+/// (issue #476), and the `SIGKILL` then takes everything left in the cgroup. Only
 /// work still running fifteen seconds after the budget reaches it — which is
 /// every account, site, SSL, PHP, cron and firewall operation almost never, and
 /// a backup, a restore or a PHP install almost always.

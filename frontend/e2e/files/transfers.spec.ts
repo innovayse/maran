@@ -1,12 +1,14 @@
-import { expect, test, type Page } from '@playwright/test'
 import { Buffer } from 'node:buffer'
-import { stubAccounts } from '../fixtures/stub-accounts-route'
+import { expect, test } from '../fixtures/guarded-test'
+import { stubAccountNames, stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubFileEditorRoutes, type FileEditorStub } from '../fixtures/stub-file-editor-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 const LICENSED: PanelModule[] = [{ name: 'files', displayName: 'File manager', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }]
 
@@ -31,7 +33,9 @@ const openManager = async (page: Page): Promise<FileEditorStub> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
+  await stubAccountNames(page, [ALICE])
   await page.route(/\/api\/v1\/files\/entries(\?.*)?$/, async (route) => {
     await route.fulfill({
       status: 200,
@@ -73,7 +77,9 @@ test('Several chosen files each upload into the folder and are marked uploaded',
 
 test('A file that already exists is refused with the server sentence, and Replace sends it over the old one', async ({
   page,
+  guard,
 }) => {
+  guard.allow(409, /\/api\/v1\/files\/upload(\?.*)?$/)
   const stub = await openManager(page)
   stub.existing.add('taken.txt')
 

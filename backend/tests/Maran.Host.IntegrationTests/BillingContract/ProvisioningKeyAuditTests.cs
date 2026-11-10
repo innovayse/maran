@@ -170,8 +170,11 @@ public sealed class ProvisioningKeyAuditTests : IAsyncLifetime
         var finalBackup = Assert.Single(entries, entry => { return entry.Action == AccountAuditActions.FinalBackupTaken; });
         Assert.True(finalBackup.Succeeded);
 
-        // Its subject was the account's name, which the deletion erased as the name of the account's login.
-        Assert.StartsWith(AuditPseudonym.UserNamePrefix, finalBackup.Subject, StringComparison.Ordinal);
+        // Its subject is the account's name, and it stays: a key carries no account id, so the account rule
+        // does not reach the entry, and no login is recorded on it, so the person rule does not either (rows
+        // are matched by an identity recorded on them, never by the text of their subject, issue #464). Like
+        // the deletion entry, it is the name left to search for once the deletion has finished.
+        Assert.Equal("auditone", finalBackup.Subject);
         Assert.Contains(world.Backup.Creates, create => { return create.AccountUsername == "auditone"; });
 
         foreach (var entry in entries)

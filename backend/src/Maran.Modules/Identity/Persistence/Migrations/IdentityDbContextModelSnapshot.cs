@@ -261,6 +261,9 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
+                    b.Property<Guid?>("SubjectUserId")
+                        .HasColumnType("uuid");
+
                     b.Property<bool>("Succeeded")
                         .HasColumnType("boolean");
 
@@ -288,6 +291,9 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                     b.HasIndex("OccurredAt")
                         .IsDescending()
                         .HasDatabaseName("IX_AuditEvents_OccurredAt");
+
+                    b.HasIndex("SubjectUserId")
+                        .HasDatabaseName("IX_AuditEvents_SubjectUserId");
 
                     b.HasIndex(new[] { "OccurredAt" }, "IX_AuditEvents_Unsealed")
                         .HasDatabaseName("IX_AuditEvents_Unsealed")

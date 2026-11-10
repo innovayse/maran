@@ -11,12 +11,14 @@ use sha2::{Digest as _, Sha256};
 use tempfile::TempDir;
 
 use crate::backup::MANIFEST_VERSION;
+use crate::backup::jail_mounts::JailMounts;
 use crate::backup::model::account_identity::AccountIdentity;
 use crate::backup::model::backup_manifest::BackupManifest;
 use crate::backup::model::backup_summary::BackupSummary;
 use crate::backup::model::manifest_database::ManifestDatabase;
 use crate::backup::model::restore_stage::RestoreStage;
 use crate::backup::recording_backup_host::{FIXED_NOW, RecordingBackupHost};
+use crate::backup::recording_jail_mounts::RecordingJailMounts;
 
 use super::super::*;
 
@@ -279,6 +281,30 @@ pub(super) fn run(
     run_scoped(fixture, host, allowed, &RestoreScope::Whole, sink)
 }
 
+/// Runs one whole restore over `fixture` with `jails` as the seam that mounts
+/// the file-transfer jails onto the new home.
+pub(super) fn run_with_jails(
+    fixture: &Fixture,
+    host: &RecordingBackupHost,
+    allowed: &[DatabaseName],
+    jails: &dyn JailMounts,
+    sink: &mut RecordingSink,
+) -> Result<RestoreOutcome, BackupError> {
+    restore_in(
+        &fixture.placement(),
+        host,
+        &account(),
+        &backup_id(),
+        &fixture.directory(),
+        allowed,
+        &RestoreScope::Whole,
+        &digest(ARTIFACT_BYTES),
+        None,
+        jails,
+        sink,
+    )
+}
+
 /// Runs one restore of `scope` over `fixture`, with the panel allowing `allowed`
 /// databases.
 pub(super) fn run_scoped(
@@ -298,6 +324,7 @@ pub(super) fn run_scoped(
         scope,
         &digest(ARTIFACT_BYTES),
         None,
+        &RecordingJailMounts::new(),
         sink,
     )
 }

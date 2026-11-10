@@ -1,5 +1,5 @@
-import { expect, test, type Page } from '@playwright/test'
 import { expectNoSeriousViolations, seriousViolations } from '../fixtures/expect-no-serious-violations'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubAlertSettings } from '../fixtures/stub-alert-routes'
 import { stubSignedIn, stubSignedOut } from '../fixtures/stub-auth-routes'
@@ -7,6 +7,17 @@ import { ALERT_DELIVERY_OK, loaded, stubDashboard, SYNCHRONIZED_CLOCK } from '..
 import { stubDatabases } from '../fixtures/stub-databases-routes'
 import { stubDatabaseUsers } from '../fixtures/stub-database-users-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { VALID_LICENCE, stubLicenceRoutes } from '../fixtures/stub-licence-routes'
+import { stubIdleLiveDashboard } from '../fixtures/stub-live-dashboard-stream'
+import { MARKETPLACE_MODULE } from '../fixtures/open-marketplace'
+import {
+  catalogueModule,
+  detailOf,
+  enabledWorld,
+  installedModule,
+  stubMarketplace,
+} from '../fixtures/stub-marketplace-routes'
+import { queuedMessage, stubMailQueue } from '../fixtures/stub-mail-queue-routes'
 import { stubEmptyModules, stubModules } from '../fixtures/stub-modules-route'
 import { feedEntry, feedState, stubFirstRun, stubNotificationFeed } from '../fixtures/stub-notification-routes'
 import { stubPendingUpdates } from '../fixtures/stub-monitoring-routes'
@@ -22,6 +33,7 @@ import type { Database } from '../../src/types/database'
 import type { PanelModule } from '../../src/types/module'
 import type { Site } from '../../src/types/site'
 import type { ViewingAs } from '../../src/types/viewAs'
+import type { Page } from '@playwright/test'
 
 // Issue #149 (and #179 for the reseller screens): axe runs on the sign-in screen, the dashboard and the main lists, and finds no
 // serious or critical violation. Each screen is scanned with real rows in it, in both themes,
@@ -118,6 +130,7 @@ const DASHBOARD: Dashboard = {
       action: 'AccountCreated',
       actionName: 'Account created',
       subject: 'alice',
+      subjectName: 'alice',
       ipAddress: '203.0.113.9',
       succeeded: true,
       outcomeName: 'Succeeded',
@@ -130,6 +143,7 @@ const DASHBOARD: Dashboard = {
       action: 'SignInFailed',
       actionName: 'Sign-in failed',
       subject: 'admin',
+      subjectName: 'admin',
       ipAddress: '203.0.113.9',
       succeeded: false,
       outcomeName: 'Failed',
@@ -167,9 +181,11 @@ const VIEWING_RESELLER: ViewingAs = {
 const signInWithData = async (page: Page): Promise<void> => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
   await stubDashboard(page, DASHBOARD)
+  await stubIdleLiveDashboard(page)
   await stubPlans(page)
   await stubAccounts(page, [ALICE, SUSPENDED])
   await stubResellers(page)
@@ -327,11 +343,62 @@ for (const theme of ['dark', 'light'] as const) {
       await expectNoSeriousViolations(page)
     })
 
+    test('the mail queue list has no serious accessibility violation', async ({ page }) => {
+      await signInWithData(page)
+      // The mail module is not in the shared catalogue; the later stub wins.
+      await stubModules(page, [
+        ...LICENSED,
+        { name: 'mail', displayName: 'Mail', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
+      ])
+      await stubMailQueue(page, [queuedMessage('AAAA1111BBBB', 'news@example.net')])
+
+      await page.goto('/mail/queue')
+      await expect(page.getByRole('cell', { name: 'AAAA1111BBBB', exact: true })).toBeVisible()
+
+      await expectNoSeriousViolations(page)
+    })
+
     test('the pending updates list has no serious accessibility violation', async ({ page }) => {
       await signInWithData(page)
 
       await page.goto('/servers/updates')
       await expect(page.getByRole('cell', { name: 'openssl', exact: true })).toBeVisible()
+
+      await expectNoSeriousViolations(page)
+    })
+
+    test('the marketplace has no serious accessibility violation', async ({ page }) => {
+      await signInWithData(page)
+      // The marketplace module is not in the shared catalogue; the later stub wins.
+      await stubModules(page, [...LICENSED, MARKETPLACE_MODULE])
+      const weather = catalogueModule('weather', 'Weather widgets')
+      const world = enabledWorld({
+        details: { weather: detailOf(weather) },
+        installed: [installedModule('clock', 'Clock')],
+      })
+      world.catalogue = { ...world.catalogue, items: [weather] }
+      await stubMarketplace(page, world)
+
+      await page.goto('/marketplace')
+      await expect(page.getByTestId('module-card-weather')).toBeVisible()
+      await expectNoSeriousViolations(page)
+
+      await page.getByRole('tab', { name: 'Installed' }).click()
+      await expect(page.getByRole('cell', { name: /^Clock/ })).toBeVisible()
+      await expectNoSeriousViolations(page)
+
+      await page.getByRole('tab', { name: 'Available' }).click()
+      await page.getByRole('button', { name: 'Install Weather widgets' }).click()
+      await expect(page.getByRole('dialog', { name: 'Install Weather widgets' }).getByTestId('module-manifest')).toBeVisible()
+      await expectNoSeriousViolations(page)
+    })
+
+    test('the licence page has no serious accessibility violation', async ({ page }) => {
+      await signInWithData(page)
+      await stubLicenceRoutes(page, VALID_LICENCE)
+
+      await page.goto('/settings/licence')
+      await expect(page.getByTestId('licence-status')).toBeVisible()
 
       await expectNoSeriousViolations(page)
     })

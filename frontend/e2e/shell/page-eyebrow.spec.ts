@@ -1,5 +1,6 @@
-import { expect, test, type Locator } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { mainNavigation, openFullShell, openSection } from '../fixtures/open-full-shell'
+import type { Locator } from '@playwright/test'
 
 // Issue #209, point 5: page eyebrows were written by hand per page and disagreed with the sidebar
 // (Tasks said SYSTEM under Overview, the audit journal SECURITY under System, Backups PROTECTION

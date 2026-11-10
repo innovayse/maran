@@ -1,12 +1,15 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubAccountNames, stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubMailAliases, stubMailboxes, stubMailChoices, stubMailDomains } from '../fixtures/stub-mail-routes'
+import { MAIL_ON, stubMailServer } from '../fixtures/stub-mail-server-routes'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 // Issue #177 and rules/vue.md: no screen scrolls horizontally at 390px in any of the three
 // languages. The Armenian labels are the long ones and the usual cause.
@@ -36,10 +39,12 @@ const openWithRows = async (page: Page): Promise<void> => {
   await page.setViewportSize({ width: 390, height: 844 })
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubAccountNames(page, [ALICE])
   await stubMailChoices(page)
+  await stubMailServer(page, MAIL_ON)
   await stubMailDomains(page, [
     {
       id: DOMAIN_ID,

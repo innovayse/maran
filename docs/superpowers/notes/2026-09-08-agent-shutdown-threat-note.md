@@ -146,3 +146,40 @@ through — those are not the same person.
 
 The verdict for all twenty-eight notes is tabulated in
 `docs/superpowers/notes/2026-09-22-second-review-packet.md`.
+
+---
+
+## Correction, 2026-11-09 — `KillMode=control-group` defeated the drain (issue #476)
+
+**What was wrong.** The note asserted, without observing it, that systemd's cgroup kill only
+concerned the forked setuid children. With the default `KillMode=control-group`, `systemctl stop`
+sends the stop `SIGTERM` to EVERY process in the unit's cgroup at once, so `useradd`, `usermod`,
+`setquota`, `nginx -t`, `crontab`, `tar`, `mysqldump` and the setuid children of an in-flight
+operation died at the instant the agent began draining. The drain then waited for operations whose
+programs were already dead, which failed half-way: the half-created-account state this change was
+written to remove, with the budget reported as the mitigation.
+
+**What changed.** `installer/systemd/maran-agent.service` sets `KillMode=mixed`: `SIGTERM` reaches
+the agent alone, the drain runs while the programs it started keep running, and `SIGKILL` goes to
+everything left in the cgroup when `TimeoutStopSec=45` expires or the agent has exited. The 45 s
+still covers `DRAIN_BUDGET` (30 s; asserted by `the_drain_budget_stays_below_the_unit_files_stop_timeout`).
+`maran units` is unchanged (maran-agent.service 3.6, ceiling 3.6): `KillMode` is not a scored
+directive.
+
+**Why it is safe now.** A forked setuid child still never outlives the daemon: the final `SIGKILL`
+takes the whole cgroup, so nothing keeps writing into a home whose daemon is gone. What is lost is
+only the instant death of the programs, which is the defect. An operation that outruns the budget
+ends in the same `SIGKILL` as before. The sentences naming `KillMode=control-group` in
+`2026-10-26-agent-bounded-spawn-threat-note.md` (point 18), `2026-10-26-agent-unit-hardening-threat-note.md`
+(point 1) and `2026-10-26-php-package-install-unit-threat-note.md` describe the final cgroup
+`SIGKILL`, which `mixed` keeps; read them as that, not as the stop signal.
+
+**Tests.** `the_unit_file_signals_only_the_main_process_when_it_stops` and
+`the_kill_mode_reader_tells_mixed_from_the_default_and_from_a_comment` (agent crate,
+`src/tests/shutdown/drain_deadline_tests.rs`: a unit without the line, with `control-group`, or with
+the line only in a comment is refused, a real `mixed` accepted), and the polygon unit check
+(`assert_the_agent_unit_keeps_its_measured_hardening`) with a planted `control-group` break.
+UNOBSERVED HERE: neither boots systemd, so that a real `systemctl stop` leaves a slow child running
+until the drain ends is asserted from `systemd.kill(5)` and still NOT observed on a booted machine.
+
+Second review: OUTSTANDING (#331).

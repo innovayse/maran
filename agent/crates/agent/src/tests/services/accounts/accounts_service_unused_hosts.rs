@@ -156,6 +156,16 @@ impl SftpHost for UnusedSftpHost {
     }
 
     /// Unreachable: see [`UnusedSftpHost`].
+    fn ensure_mount_point(
+        &self,
+        _mount_point: &Path,
+        _home: &Path,
+        _mode: u32,
+    ) -> Result<(), SftpError> {
+        unreachable!("no rpc in this file reaches the sftp host")
+    }
+
+    /// Unreachable: see [`UnusedSftpHost`].
     fn write_config(
         &self,
         _target: &Path,
@@ -319,6 +329,16 @@ impl FtpsHost for UnusedFtpsHost {
 
     /// Unreachable: see [`UnusedFtpsHost`].
     fn create_directory(&self, _path: &Path, _mode: u32) -> Result<(), FtpsError> {
+        unreachable!("no rpc in this file reaches the ftps host")
+    }
+
+    /// Unreachable: see [`UnusedFtpsHost`].
+    fn ensure_mount_point(
+        &self,
+        _mount_point: &Path,
+        _home: &Path,
+        _mode: u32,
+    ) -> Result<(), FtpsError> {
         unreachable!("no rpc in this file reaches the ftps host")
     }
 

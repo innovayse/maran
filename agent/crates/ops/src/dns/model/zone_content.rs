@@ -10,6 +10,7 @@ use crate::dns::model::record_data::RecordData;
 use crate::dns::model::zone_content_fault::ZoneContentFault;
 use crate::dns::model::zone_limits::ZoneLimits;
 use crate::dns::model::zone_record::ZoneRecord;
+use crate::dns::model::zone_signing::ZoneSigning;
 use crate::dns::model::zone_soa::ZoneSoa;
 
 /// Everything a zone file is rendered from: the apex, the SOA, the apex name
@@ -21,7 +22,9 @@ use crate::dns::model::zone_soa::ZoneSoa;
 /// for one name, no CNAME and no NS record at the apex, one TTL per set, no
 /// repeated record, and the count and name-length ceilings. The rendered size is
 /// checked by the renderer, which is the only place it is known.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// There is deliberately no `PartialEq`: the signing key it may carry has none.
+#[derive(Debug, Clone)]
 pub struct ZoneContent {
     /// The zone apex.
     zone: ZoneName,
@@ -31,6 +34,8 @@ pub struct ZoneContent {
     nameservers: Vec<DnsName>,
     /// The other records, in the order written.
     records: Vec<ZoneRecord>,
+    /// Whether and how the zone is signed.
+    signing: ZoneSigning,
 }
 
 impl ZoneContent {
@@ -112,7 +117,19 @@ impl ZoneContent {
             soa,
             nameservers,
             records,
+            signing: ZoneSigning::Unsigned,
         })
+    }
+
+    /// The same zone, signed (or not) as `signing` says.
+    ///
+    /// A separate step and not a parameter of [`Self::new`]: the rules `new`
+    /// checks concern a record's neighbours and know nothing of signing, and
+    /// every caller that does not sign keeps the constructor it had.
+    #[must_use]
+    pub fn with_signing(mut self, signing: ZoneSigning) -> Self {
+        self.signing = signing;
+        self
     }
 
     /// The zone apex.
@@ -137,6 +154,12 @@ impl ZoneContent {
     #[must_use]
     pub fn records(&self) -> &[ZoneRecord] {
         &self.records
+    }
+
+    /// Whether and how the zone is signed.
+    #[must_use]
+    pub fn signing(&self) -> &ZoneSigning {
+        &self.signing
     }
 }
 

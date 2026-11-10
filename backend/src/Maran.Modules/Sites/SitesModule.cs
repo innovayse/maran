@@ -157,6 +157,11 @@ public sealed class SitesModule : IPanelModule
         // SiteLogMaintenanceRequested every hour.
         services.AddScoped<SiteLogMaintenanceHandler>();
 
+        // Moving an account to another Maran server (issue #127): what this module hands over, and how it
+        // creates what it is handed. The Migration module gathers every implementation through the Sdk.
+        services.AddScoped<IAccountMigrationExporter, SitesMigrationExporter>();
+        services.AddScoped<IAccountMigrationImporter, SitesMigrationImporter>();
+
         services.AddSingleton(new ResourceManager(ErrorMessagesResourceBaseName, typeof(SitesModule).Assembly));
         services.AddSingleton(new ResourceManager(DisplayNamesResourceBaseName, typeof(SitesModule).Assembly));
     }

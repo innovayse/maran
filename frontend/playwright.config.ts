@@ -34,7 +34,9 @@ export default defineConfig({
   // smoke suite (e2e/demo/) likewise needs a running demo, so it has playwright.demo.config.ts. The screenshot
   // set (e2e/screens/) is a tool with its own config (playwright.screens.config.ts): it asserts
   // nothing about layout and would only add rows to the baseline.
-  testIgnore: ['**/e2e/install/**', '**/e2e/screens/**', '**/e2e/demo/**'],
+  // The real-stack lane (e2e/real/, playwright.real.config.ts, `maran e2e-real`) signs in to a running
+  // panel and agent and stubs nothing, so it never joins this suite or its per-spec-file baseline.
+  testIgnore: ['**/e2e/install/**', '**/e2e/screens/**', '**/e2e/demo/**', '**/e2e/real/**'],
   fullyParallel: true,
   forbidOnly: isCi,
   retries: isCi ? 1 : 0,

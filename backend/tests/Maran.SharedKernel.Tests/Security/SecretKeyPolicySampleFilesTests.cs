@@ -50,6 +50,38 @@ public sealed partial class SecretKeyPolicySampleFilesTests
         Assert.Contains("Jwt__SigningKey=", lines);
     }
 
+    /// <summary>The setup token the root sample publishes is one the policy refuses; the installer sample ships none.</summary>
+    [Fact]
+    public void The_setup_token_a_sample_publishes_is_refused_and_the_installer_sample_ships_none()
+    {
+        var root = RepositoryRoot();
+        var published = File.ReadAllLines(Path.Combine(root, ".env.example"))
+            .Single(line =>
+            {
+                return line.StartsWith("Setup__Token=", StringComparison.Ordinal);
+            })["Setup__Token=".Length..];
+
+        Assert.NotEmpty(published);
+        Assert.True(SetupTokenPolicy.IsPublishedSample(published));
+        Assert.Contains(
+            "Setup__Token=",
+            File.ReadAllLines(Path.Combine(root, "installer", "panel.env.example")));
+    }
+
+    /// <summary>The installer generates the setup token itself, long enough for the policy, and never copies a sample.</summary>
+    [Fact]
+    public void The_installer_generates_a_setup_token_the_policy_accepts()
+    {
+        var root = RepositoryRoot();
+        var config = File.ReadAllText(Path.Combine(root, "installer", "lib", "60-config.sh"));
+
+        // 24 random bytes as hex: 48 characters, above the floor, from the installer's own generator.
+        Assert.Contains("openssl rand -hex 24", config, StringComparison.Ordinal);
+        Assert.True(48 >= SetupTokenPolicy.MinimumLength);
+        Assert.Contains("Setup__Token=${setup_token}", config, StringComparison.Ordinal);
+        Assert.DoesNotContain("dev-setup-token", config, StringComparison.Ordinal);
+    }
+
     /// <summary>The published literal lives in the policy and nowhere else in production code.</summary>
     [Fact]
     public void The_published_key_is_written_once_in_production_code()

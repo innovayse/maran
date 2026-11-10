@@ -1,10 +1,12 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubFirewall } from '../fixtures/stub-firewall-routes'
 import type { FirewallPreset, FirewallRule } from '../../src/types/firewall'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 const LICENSED: PanelModule[] = [
   { name: 'firewall', displayName: 'Firewall', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -40,6 +42,7 @@ const openScreen = async (
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubFirewall(page, { rules, bans: [], whitelist: [], presets })
   page.on('request', (request) => {
     const method = request.method()
@@ -216,7 +219,9 @@ test('turning the MySQL toggle off removes every rule open on that port, each na
 test('a preset only the panel knows is drawn and sends exactly the rules the panel listed', async ({ page }) => {
   const changes = await openScreen(page, [], [
     {
-      key: 'gameServer',
+      // The contract's key enumeration has two members, so the stand-in borrows one: the card is drawn
+      // from the name and the rules the panel sent, and the key is only the list's identity.
+      key: 'web',
       name: 'Game server lobby range',
       closable: false,
       rules: [{ port: 27000, portTo: 27050, protocol: 'udp', sourceCidr: '0.0.0.0/0' }],

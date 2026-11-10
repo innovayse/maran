@@ -345,7 +345,7 @@ ipm_refused() {
   if output="$(ipm_host module-verify "$package" --pubkey "$pubkey" --panel-version "$IPM_SELFTEST_PANEL_VERSION" 2>&1)"; then
     ipm_failed "selftest: verify ACCEPTED ${description}."
   fi
-  if ! printf '%s' "$output" | grep -qE "$pattern"; then
+  if ! grep -qE "$pattern" <<<"$output"; then
     ipm_failed "selftest: ${description} was refused for another reason than expected (wanted /${pattern}/): ${output}"
   fi
   echo "${VERDICT_PREFIX}: OK, ${description} REFUSED (expected)."

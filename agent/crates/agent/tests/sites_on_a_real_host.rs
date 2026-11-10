@@ -47,8 +47,8 @@ use maran_ops::files::model::buffered_upload::BufferedUpload;
 use maran_ops::files::{ProcessFilesHost, WriteFileInput};
 use maran_ops::php::ProcessPhpHost;
 use maran_ops::sites::{
-    CreateSiteInput, ProcessSiteHost, SiteCertificate, SiteHost, SiteIdentity, SiteKind, SitePaths,
-    SiteServing, SitesOpError, create_site,
+    CreateSiteInput, ProcessSiteHost, ProcessSiteLogHost, SiteCertificate, SiteHost, SiteIdentity,
+    SiteKind, SitePaths, SiteServing, SitesOpError, create_site,
 };
 use maran_ops::ssl::{ProcessSslHost, delete_site_with_certificate, generate_self_signed};
 
@@ -56,7 +56,10 @@ use in_process_agent::InProcessAgent;
 use polygon_account::PolygonAccount;
 use polygon_config_file::PolygonConfigFile;
 
-/// The PHP version both polygon images install: 8.3 on Sury, 83 on Remi.
+/// The PHP version the Debian and RHEL polygon images install: 8.3 on Sury, 83 on Remi.
+///
+/// On the SUSE family it is a label: that family ships one distribution minor (8.4, UNVERIFIED)
+/// under unversioned paths, so its adapter answers the same pool directory for any version.
 ///
 /// The agent writes it in the one form the panel uses, and the adapter turns it
 /// into whatever the family spells it as — which is the reason a site can name a
@@ -739,6 +742,7 @@ fn deleting_a_site_takes_its_private_key_off_the_disk() {
     delete_site_with_certificate(
         &host,
         &ProcessPhpHost::new(),
+        &ProcessSiteLogHost::new(),
         polygon_distro(),
         &SiteIdentity {
             account: account.name().clone(),
@@ -764,6 +768,79 @@ fn deleting_a_site_takes_its_private_key_off_the_disk() {
     // and it does not announce itself — it waits for the next reload, which may
     // belong to an unrelated site. So nginx is asked now, about its whole tree.
     assert_valid_nginx_tree("after a site and its certificate were deleted");
+}
+
+#[test]
+#[ignore = "writes a real vhost and root-owned logs under /var/log/maran: polygon only"]
+fn deleting_a_site_takes_its_visitor_logs_so_a_recreated_pair_starts_empty() {
+    // Issue #477: the logs are named by the account and the domain, both of which the panel
+    // recycles, and nginx appends to a file that exists. Observed on the disk, with the files
+    // nginx would have written and the neighbouring site's own, which must survive.
+    PolygonAccount::require_polygon();
+    ensure_nginx_is_running();
+    let account = PolygonAccount::create("polysitelog");
+    let domain = Domain::parse("polysitelog.example.com").expect("a valid domain");
+    let neighbour = Domain::parse("polysitelog-keep.example.com").expect("a valid domain");
+    let host = ProcessSslHost::new();
+    let input = php_site(&account, &domain);
+
+    create_site(
+        &host,
+        &ProcessPhpHost::new(),
+        polygon_distro(),
+        &input,
+        POLYGON_WORKERS,
+        &[],
+    )
+    .expect("the site must be created");
+
+    let directory = AgentPaths::account_site_log_dir(account.name());
+    assert!(
+        directory.is_dir(),
+        "creating a site makes its account's log directory, or the planting below proves nothing"
+    );
+    let planted = [
+        format!("{}.access.log", domain.as_str()),
+        format!("{}.error.log", domain.as_str()),
+        format!("{}.access.log.1", domain.as_str()),
+        format!("{}.access.log.2.gz", domain.as_str()),
+    ];
+    for name in &planted {
+        std::fs::write(
+            directory.join(name),
+            "203.0.113.9 GET /?sid=previous-tenant\n",
+        )
+        .expect("a log can be planted");
+    }
+    let kept = directory.join(format!("{}.access.log", neighbour.as_str()));
+    std::fs::write(&kept, "another site\n").expect("the neighbour's log can be planted");
+
+    delete_site_with_certificate(
+        &host,
+        &ProcessPhpHost::new(),
+        &ProcessSiteLogHost::new(),
+        polygon_distro(),
+        &SiteIdentity {
+            account: account.name().clone(),
+            domain: domain.clone(),
+        },
+        Some(&PhpVersion::parse(POLYGON_PHP_VERSION).expect("a valid PHP version")),
+    )
+    .expect("the deletion must succeed");
+
+    for name in &planted {
+        assert!(
+            !directory.join(name).exists(),
+            "the deleted site's log {name} must not be on the disk"
+        );
+    }
+    let neighbour_survived = kept.exists();
+    let _ = std::fs::remove_file(&kept);
+    assert!(
+        neighbour_survived,
+        "another site's log in the same directory must survive"
+    );
+    assert_valid_nginx_tree("after a site and its logs were deleted");
 }
 
 /// The body a suspended account's own page would serve if the stub were not

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="LeaseRenewalFailedAlertSubject">
+    <value>Լիցենզիայի վարձակալությունը չհաջողվեց երկարաձգել</value>
+  </data>
+  <data name="LeaseRenewalFailedAlertBody">
+    <value>Վահանակին {0} անգամ անընդմեջ չհաջողվեց երկարաձգել լիցենզիայի վարձակալությունը ({1})։ Մինչ ընթացիկ վարձակալության ավարտը վճարովի մոդուլները շարունակում են աշխատել, դրանից հետո կդադարեն մինչև հաջող երկարաձգումը։ Ստուգեք, որ այս սերվերը կարող է կապվել լիցենզիաների ծառայության հետ, կամ դիմեք լիցենզիան տրամադրողին։</value>
+  </data>
+  <data name="LeaseRenewalReasonUnreachable">
+    <value>լիցենզիաների ծառայությանը հնարավոր չէ կապվել</value>
+  </data>
+  <data name="LeaseRenewalReasonRefused">
+    <value>լիցենզիաների ծառայությունը հրաժարվեց վարձակալություն տրամադրել</value>
+  </data>
+  <data name="LeaseRenewalReasonAnswerRejected">
+    <value>լիցենզիաների ծառայության պատասխանը այս լիցենզիայի համար վավեր վարձակալություն չէ</value>
+  </data>
+  <data name="LeaseRenewalReasonNotNewer">
+    <value>լիցենզիաների ծառայությունը վերադարձրեց վարձակալություն, որը չի երկարաձգում ընթացիկը</value>
+  </data>
+  <data name="LeaseRenewalReasonWriteFailed">
+    <value>վարձակալությունը չհաջողվեց պահպանել այս սերվերում</value>
+  </data>
+  <data name="LeaseRenewalRecoveredAlertSubject">
+    <value>Լիցենզիայի վարձակալությունը երկարաձգվեց</value>
+  </data>
+  <data name="LeaseRenewalRecoveredAlertBody">
+    <value>Վահանակը կրկնվող անհաջողություններից հետո երկարաձգեց լիցենզիայի վարձակալությունը։ Վճարովի մոդուլները նորից հասանելի են նոր վարձակալության ողջ ժամկետով։</value>
+  </data>
+</root>

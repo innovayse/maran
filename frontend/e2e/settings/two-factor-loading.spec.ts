@@ -1,14 +1,16 @@
-import { test, type Page } from '@playwright/test'
 import {
   expectRegionFastLoad,
   expectRegionSlowFailure,
   expectRegionSlowLoad,
   type RegionLoadingScenario,
 } from '../fixtures/expect-region-loading'
+import { test } from '../fixtures/guarded-test'
 import { stubSignedIn, stubbedAdministrator } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubProfile } from '../fixtures/stub-profile-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
+import type { Page } from '@playwright/test'
 
 // Two-step verification while the profile is on the way (#243). Which flow the page offers is not
 // known until the profile answers, so the wait holds a generic card under the real heading.
@@ -21,6 +23,7 @@ const REFUSAL = 'The profile could not be read.'
 const shell = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubEmptyModules(page)
 }
 
@@ -63,6 +66,7 @@ test('two-step verification: a fast answer shows no placeholder', async ({ page 
   await expectRegionFastLoad(page, TWO_STEP_VERIFICATION_SCENARIO)
 })
 
-test('two-step verification: a slow failure is an alert, never a skeleton', async ({ page }) => {
+test('two-step verification: a slow failure is an alert, never a skeleton', async ({ page, guard }) => {
+  guard.allow(500, PROFILE_PATTERN)
   await expectRegionSlowFailure(page, TWO_STEP_VERIFICATION_SCENARIO)
 })

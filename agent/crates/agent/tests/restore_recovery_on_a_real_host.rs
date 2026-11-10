@@ -46,6 +46,10 @@ mod polygon_account;
 #[allow(dead_code)]
 #[path = "fixtures/polygon_mariadb.rs"]
 mod polygon_mariadb;
+// The SFTP login the jail case restores behind; the recovery cases use none of it.
+#[allow(dead_code)]
+#[path = "fixtures/polygon_sftp_login.rs"]
+mod polygon_sftp_login;
 
 use std::fs::{create_dir_all, metadata, read_dir, read_to_string, remove_dir_all, write};
 use std::os::unix::fs::MetadataExt as _;
@@ -54,6 +58,7 @@ use std::process::{Command, Output};
 use std::sync::Arc;
 
 use maran_agent::services::backup::db_host_catalog::DbHostCatalog;
+use maran_agent::services::backup::file_transfer_jails::FileTransferJails;
 use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::privs::group_id::GroupId;
 use maran_agent_core::validation::db::database_name::DatabaseName;
@@ -68,9 +73,12 @@ use maran_ops::backup::{
     RestoreStage, create_backup, recover_restores, restore_backup,
 };
 use maran_ops::db::{CreateDatabaseRequest, ProcessDbHost, create_database};
+use maran_ops::ftps::ProcessFtpsHost;
+use maran_ops::sftp::ProcessSftpHost;
 
 use polygon_account::PolygonAccount;
 use polygon_mariadb::PolygonMariadb;
+use polygon_sftp_login::PolygonSftpLogin;
 
 /// The environment variable each polygon image sets, naming itself.
 const POLYGON_MARKER: &str = "MARAN_POLYGON";
@@ -119,6 +127,17 @@ fn polygon_distro() -> &'static dyn DistroAdapter {
         detect()
             .expect("a polygon image is a supported host")
             .family,
+    )
+}
+
+/// The seam a restore mounts the file-transfer jails through, composed the way
+/// the daemon composes it (issue #487). The accounts here hold no login, so it
+/// finds no jail to refresh.
+fn jails() -> FileTransferJails<ProcessSftpHost, ProcessFtpsHost> {
+    FileTransferJails::new(
+        ProcessSftpHost::new(),
+        ProcessFtpsHost::new(),
+        polygon_distro(),
     )
 }
 
@@ -367,6 +386,7 @@ fn restored_as_the_child() -> bool {
         &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
             .expect("a one-mebibyte floor"),
         None,
+        &jails(),
         &mut SuicideSink { at },
     );
 
@@ -435,7 +455,7 @@ fn a_restore_killed_between_its_two_renames_gives_the_home_back_at_the_next_star
 
     // The next start of the daemon, exactly as `server::serve` runs it before
     // it binds the socket.
-    let recovery = recover_restores();
+    let recovery = recover_restores(&jails());
 
     assert_eq!(
         recovery.swaps_completed, 1,
@@ -515,7 +535,7 @@ fn a_restore_killed_after_its_rollback_dumps_keeps_them_across_the_next_start() 
         "the rollback dump must hold the row the restore dropped"
     );
 
-    let recovery = recover_restores();
+    let recovery = recover_restores(&jails());
 
     assert_eq!(
         recovery.rollback_sets_kept, 1,
@@ -581,6 +601,7 @@ fn a_completed_restore_is_not_recovered_by_the_next_start() {
         &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
             .expect("a one-mebibyte floor"),
         None,
+        &jails(),
         &mut QuietSink,
     )
     .unwrap_or_else(|error| panic!("the restore must succeed: {error}"));
@@ -588,7 +609,7 @@ fn a_completed_restore_is_not_recovered_by_the_next_start() {
     let before = read_to_string(account.home().join("index.html")).expect("the restored file");
     let ownership = stat_of(account.home());
 
-    let recovery = recover_restores();
+    let recovery = recover_restores(&jails());
 
     // The tally is the assertion. "The home is still there" would pass just as
     // well against a reconciler that moved it away and put it back, and a
@@ -646,6 +667,7 @@ fn a_normal_restore_still_puts_the_home_and_the_database_back() {
         &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
             .expect("a one-mebibyte floor"),
         None,
+        &jails(),
         &mut QuietSink,
     )
     .unwrap_or_else(|error| panic!("the restore must succeed: {error}"));
@@ -692,4 +714,74 @@ fn a_normal_restore_still_puts_the_home_and_the_database_back() {
     // Not part of the proposition, but the suite must not depend on a directory
     // it never created existing.
     let _ = create_dir_all(AgentPaths::RESTORE_STAGING_ROOT);
+}
+
+/// Issue #487: a bind mount follows the INODE it was made from, so after a
+/// whole-account restore renamed a different directory into the home's place an
+/// SFTP jail kept showing the displaced home, which the restore then emptied, and
+/// every file the customer uploaded afterwards landed in a tree nothing serves.
+///
+/// Asserted on the real mount, through the jail's own path, with the real
+/// composition the daemon uses: the jail must show the restored file, and a file
+/// written through the jail must be in the account's live home.
+#[test]
+#[ignore = "restores a real account that has a real SFTP bind mount: polygon only"]
+fn after_a_whole_restore_the_sftp_jail_shows_the_restored_home_and_uploads_land_in_it() {
+    if restored_as_the_child() {
+        return;
+    }
+    require_polygon();
+
+    let server = PolygonMariadb::start();
+    let account = PolygonAccount::create("polyrecovjail");
+    let (database, digest) = take_the_backup(&server, &account);
+    let login = PolygonSftpLogin::create(&account);
+    let seen_through_the_jail = Path::new(login.jail.mount_point()).join("index.html");
+
+    // The premise: before the restore the jail shows the live home, the one the
+    // customer worked in after the backup was taken.
+    assert_eq!(
+        read_to_string(&seen_through_the_jail).expect("the jail shows the home"),
+        LIVE_BYTES,
+        "the premise: the jail's bind mount is up and shows the account's home"
+    );
+
+    let group = GroupId::resolve(polygon_distro().web_server_group())
+        .expect("the polygon has the web server's group")
+        .gid();
+    restore_backup(
+        &ProcessBackupHost::new(polygon_distro()),
+        account.name(),
+        &fixture_id(),
+        &root(),
+        std::slice::from_ref(&database),
+        &RestoreScope::Whole,
+        &digest,
+        group,
+        &maran_agent_core::utils::free_space_floor::FreeSpaceFloor::from_mebibytes(1)
+            .expect("a one-mebibyte floor"),
+        None,
+        &jails(),
+        &mut QuietSink,
+    )
+    .unwrap_or_else(|error| panic!("the restore must succeed: {error}"));
+
+    assert_eq!(
+        read_to_string(account.home().join("index.html")).expect("the home was restored"),
+        BACKED_UP_BYTES
+    );
+    assert_eq!(
+        read_to_string(&seen_through_the_jail).expect("the jail still shows a home"),
+        BACKED_UP_BYTES,
+        "the jail must show the RESTORED home: a bind mount that kept the displaced \
+         inode shows nothing the customer has"
+    );
+
+    let uploaded = Path::new(login.jail.mount_point()).join("uploaded-after-the-restore.txt");
+    write(&uploaded, "uploaded through the jail\n").expect("the jail is writable by root here");
+    assert_eq!(
+        read_to_string(account.home().join("uploaded-after-the-restore.txt"))
+            .expect("a file written through the jail must be in the live home"),
+        "uploaded through the jail\n"
+    );
 }

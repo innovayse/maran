@@ -15,12 +15,13 @@
  *
  * **What belongs to a signed-in identity leaves with it.** Stores never reach into one another
  * (rules/vue.md "State"), so when the auth store stops being signed in — a sign-out, a sign-out
- * everywhere, a refused renewal — this component clears the module catalogue and the devices list,
+ * everywhere, a refused renewal — this component clears the module catalogue, the recorded module-frame failures and the devices list,
  * which a different identity signing in on the same tab must not inherit.
  */
 import { watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from './stores/auth'
+import { useModuleBridgeStore } from './stores/moduleBridge'
 import { useModulesStore } from './stores/modules'
 import { usePasswordLinksStore } from './stores/passwordLinks'
 import { useSessionsStore } from './stores/sessions'
@@ -29,6 +30,7 @@ import { useTwoFactorStore } from './stores/twoFactor'
 
 const route = useRoute()
 const authStore = useAuthStore()
+const moduleBridgeStore = useModuleBridgeStore()
 const modulesStore = useModulesStore()
 const passwordLinksStore = usePasswordLinksStore()
 const sessionsStore = useSessionsStore()
@@ -59,6 +61,7 @@ watch(
   (isAuthenticated: boolean): void => {
     if (!isAuthenticated) {
       modulesStore.clear()
+      moduleBridgeStore.clear()
       sessionsStore.clear()
     }
   },

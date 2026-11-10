@@ -1,4 +1,5 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import { stubMyAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubAccountNames, stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubFirewall } from '../fixtures/stub-firewall-routes'
@@ -6,10 +7,12 @@ import { runningFtpsStatus, stubFtpUsers, stubFtpUsersProblem, stubFtpsServer } 
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account, MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { PanelModule } from '../../src/types/module'
 import type { FtpUser } from '../../src/types/ftpUser'
+import type { Locator, Page } from '@playwright/test'
 
 // The FTPS logins page (#196): one module's logins, one server page at a time. The page, its size,
 // the search, the sort and the account filter live in the URL; the panel answers one page and the
@@ -85,7 +88,8 @@ const catalogue = (count: number): FtpUser[] => {
       name: `login${number}`,
       fullName: `${owner.name}_login${number}`,
       protocol: 'Ftps',
-      createdAt: `2026-08-${number}T10:00:00Z`,
+      // A real calendar day per row: a day number past the month would be no date-time at all.
+      createdAt: new Date(Date.UTC(2026, 7, index + 1, 10)).toISOString(),
     }
   })
 }
@@ -101,9 +105,11 @@ const openWith = async (page: Page, users: FtpUser[], user?: AuthenticatedUser):
   await stubSignedIn(page, user)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE, BOB])
   await stubAccountNames(page, [ALICE, BOB])
   await stubMyAccount(page, OWN_ACCOUNT)
+  await stubMyAccountResources(page, { accountId: OWN_ACCOUNT.id, resources: [] })
   // The administrator's service card reads these two; a customer's page never asks.
   await stubFirewall(page, { rules: [], bans: [], whitelist: [] })
   await stubFtpsServer(page, runningFtpsStatus)
@@ -226,7 +232,8 @@ test('a search matching nothing is the no-results state, not the empty state', a
 // This is also where a REFUSAL lands. When the agent refuses because the account is busy, the wire
 // carries no code that tells it apart from a host failure, so the screen renders the server's own
 // sentence and states no distinction of its own.
-test('a failed list renders the backend RFC 7807 detail verbatim and adds no copy of its own', async ({ page }) => {
+test('a failed list renders the backend RFC 7807 detail verbatim and adds no copy of its own', async ({ page, guard }) => {
+  guard.allow(500, /\/api\/v1\/ftp-users(\?.*)?$/)
   const backendDetail = 'The account is busy with another operation. Try again in a moment.'
   await openWith(page, [])
   await stubFtpUsersProblem(page, backendDetail)

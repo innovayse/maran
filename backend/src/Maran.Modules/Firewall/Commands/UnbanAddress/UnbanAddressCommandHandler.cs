@@ -1,3 +1,4 @@
+using Maran.Agent.Client.Errors;
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Firewall.Domain.Policies;
 using Maran.Modules.Firewall.Persistence;
@@ -27,14 +28,6 @@ namespace Maran.Modules.Firewall.Commands.UnbanAddress;
 /// </remarks>
 public sealed class UnbanAddressCommandHandler
 {
-    /// <summary>
-    /// The agent client's code for "there was no active ban". Spelled out because the generated
-    /// resource class it comes from is internal to <c>Maran.Agent.Client</c> and cannot be
-    /// referenced from a module; pinned by a test so a rename over there does not turn this branch
-    /// silently off.
-    /// </summary>
-    private const string AgentNotFoundCode = "AgentNotFound";
-
     /// <summary>The Firewall module's database context, which is the durable store of every ban.</summary>
     private readonly FirewallDbContext _dbContext;
 
@@ -103,7 +96,7 @@ public sealed class UnbanAddressCommandHandler
         }
 
         var lifted = await _agent.UnbanAsync(subject, cancellationToken);
-        if (!lifted.IsSuccess && !string.Equals(lifted.Error!.Code, AgentNotFoundCode, StringComparison.Ordinal))
+        if (!lifted.IsSuccess && !string.Equals(lifted.Error!.Code, AgentErrorCodes.NotFound, StringComparison.Ordinal))
         {
             await _journal.RecordFailureAsync(
                 FirewallAuditActions.AddressUnbanned, subject, command.IpAddress, command.UserAgent, cancellationToken);

@@ -202,11 +202,42 @@ fn the_install_unit_name_follows_the_rhel_adapter_too() {
 }
 
 #[test]
+fn the_install_unit_name_follows_the_suse_adapter_too() {
+    // The SUSE family offers one PHP minor under the unversioned `php8-fpm` package, so the
+    // distribution's own version, 8.4, names that package and any other version names a
+    // dotted package no repository carries. UNVERIFIED: read from the distribution
+    // documentation; confirm with `zypper --non-interactive --no-refresh info php8-fpm` in the
+    // pinned Leap image.
+    let suse = adapter_for(DistroFamily::Suse);
+
+    let offered = FakePhpHost::empty();
+    offered.installs_on_start("8.4");
+    install_reporting(&offered, suse, "8.4").0.unwrap();
+    assert_eq!(
+        offered.commands()[0],
+        vec![
+            suse.service_manager().to_string(),
+            "start".to_owned(),
+            "--".to_owned(),
+            "maran-php-install@php8-fpm.service".to_owned(),
+        ]
+    );
+
+    let not_offered = FakePhpHost::empty();
+    not_offered.installs_on_start("8.3");
+    install_reporting(&not_offered, suse, "8.3").0.unwrap();
+    assert_eq!(
+        not_offered.commands()[0][3],
+        "maran-php-install@php8.3-fpm.service"
+    );
+}
+
+#[test]
 fn installing_never_runs_the_package_manager_inside_the_agent() {
     // The agent's own sandbox keeps /usr read-only, so a package manager
-    // spawned from it fails on the first file. Both families, and both a run
+    // spawned from it fails on the first file. Every family, and both a run
     // that succeeds and one that fails.
-    for family in [DistroFamily::Debian, DistroFamily::Rhel] {
+    for family in [DistroFamily::Debian, DistroFamily::Rhel, DistroFamily::Suse] {
         let adapter = adapter_for(family);
 
         let succeeding = FakePhpHost::empty();
@@ -328,7 +359,7 @@ fn every_instance_the_agent_can_produce_is_a_plain_unit_name() {
     // The instance reaches the service manager as one argv element and the
     // unit hands it to the package manager as the whole package argument, so
     // it must not be able to become an option, a path, a pin or a removal.
-    for family in [DistroFamily::Debian, DistroFamily::Rhel] {
+    for family in [DistroFamily::Debian, DistroFamily::Rhel, DistroFamily::Suse] {
         let adapter = adapter_for(family);
         for version in SUPPORTED_VERSIONS {
             let host = FakePhpHost::empty();
@@ -534,4 +565,58 @@ fn an_install_unit_whose_mirror_refused_the_archives_is_a_refused_package_source
         }
         other => panic!("expected PackageSourceRefused, got {other:?}"),
     }
+}
+
+#[test]
+fn an_install_of_a_package_no_source_carries_is_not_available_and_names_the_package() {
+    // Issue #466, end to end through the operation: Ubuntu 24.04 carries php8.3
+    // only, the unit for php8.2-fpm fails with apt's recorded `E: Unable to locate
+    // package`, and the failure is its own typed refusal and not a system fault.
+    let host = FakePhpHost::empty();
+    host.answer(
+        "start",
+        1,
+        "",
+        "Job for maran-php-install@php8.2-fpm.service failed because the control process exited with error code.",
+    );
+    host.answer(
+        "show",
+        0,
+        "InvocationID=0f1e2d3c4b5a69788796a5b4c3d2e1f0\nExecMainStatus=100\n",
+        "",
+    );
+    host.answer(
+        "--output=cat",
+        0,
+        include_str!("../../../../distro/tests/fixtures/package_manager/apt_package_missing.txt"),
+        "",
+    );
+
+    match install(&host, "8.2") {
+        Err(PhpOpError::PackageNotAvailable { package, stderr }) => {
+            assert_eq!(package, "php8.2-fpm");
+            assert!(stderr.contains("journalctl -u maran-php-install@php8.2-fpm.service"));
+        }
+        other => panic!("expected PackageNotAvailable, got {other:?}"),
+    }
+}
+
+#[test]
+fn an_install_unit_that_fails_for_a_local_reason_is_not_reported_as_not_available() {
+    // Inverse control to the test above: the same failed unit with a journal that
+    // carries no missing-package line stays a package-manager failure.
+    let host = FakePhpHost::empty();
+    host.answer("start", 1, "", "Job failed");
+    host.answer(
+        "show",
+        0,
+        "InvocationID=0f1e2d3c4b5a69788796a5b4c3d2e1f0\nExecMainStatus=100\n",
+        "",
+    );
+    host.answer("--output=cat", 0, "E: dpkg was interrupted\n", "");
+
+    assert!(matches!(
+        install(&host, "8.2"),
+        Err(PhpOpError::PackageManager { .. })
+    ));
 }

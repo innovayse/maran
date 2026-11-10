@@ -1,6 +1,7 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import {
   logEndFrame,
@@ -13,6 +14,7 @@ import {
 } from '../fixtures/stub-sites-routes'
 import type { PanelModule } from '../../src/types/module'
 import type { SiteDetail } from '../../src/types/site'
+import type { Page } from '@playwright/test'
 
 const LICENSED_SITES: PanelModule[] = [
   { name: 'sites', displayName: 'Sites', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -43,6 +45,7 @@ const SITE: SiteDetail = {
  */
 const stubLogsTab = async (page: Page, streamBody: string): Promise<void> => {
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_SITES)
   await stubSites(page, [])
@@ -170,6 +173,7 @@ test('the pane says so once its own scrollback has dropped the oldest lines', as
 // end it, and the pane must say the tail stopped rather than leaving the operator to guess.
 test('leaving the logs tab ends the open stream instead of leaving it running', async ({ page }) => {
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_SITES)
   await stubSites(page, [])

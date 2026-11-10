@@ -61,15 +61,6 @@ public sealed class PebbleAcmeIssuanceTests
     /// <summary>Where pebble's directory document lives, per its unmodified default config.</summary>
     private const string DirectoryUrl = "https://localhost:14000/dir";
 
-    /// <summary>Where pebble's management API — and its root certificate — live.</summary>
-    /// <summary>
-    /// Path, relative to the repository root, of the root that signs pebble's OWN directory and
-    /// management HTTPS endpoints (test/certs/pebble.minica.pem inside the image — a fixed file
-    /// baked into every build of it, unlike the issuance root pebble generates fresh on every
-    /// start). Copied out with <c>docker cp</c> once; see docker/docker-compose.pebble.yml.
-    /// </summary>
-    private const string PebbleServerRootRelativePath = "docker/pebble/pebble-minica.pem";
-
     /// <summary>The domain requested. Real DNS resolves it to the loopback pebble itself runs on.</summary>
     private const string Domain = "localhost";
 
@@ -100,35 +91,14 @@ public sealed class PebbleAcmeIssuanceTests
         // blanket ServerCertificateCustomValidationCallback => true. This can only ever affect the
         // "acme" named HttpClient this test builds for itself below; it is never wired into
         // Maran.Host's real HttpClient registration, so it cannot leak into a production install.
-        var repositoryRoot = FindRepositoryRoot();
-        var pebbleRootPath = Path.Combine(repositoryRoot, PebbleServerRootRelativePath);
+        var repositoryRoot = PebbleServerTrust.FindRepositoryRoot();
+        var pebbleRootPath = Path.Combine(repositoryRoot, PebbleServerTrust.ServerRootRelativePath);
         using var pebbleRoot = X509Certificate2.CreateFromPem(File.ReadAllText(pebbleRootPath));
         Log($"[trust] read pebble's server root from {pebbleRootPath}");
         Log($"[trust] pinned root: subject={pebbleRoot.Subject} issuer={pebbleRoot.Issuer} thumbprint={pebbleRoot.Thumbprint}");
 
         using var pinnedRoot = new X509Certificate2(pebbleRoot);
-        var acmeHandler = new HttpClientHandler
-        {
-            // Re-builds the chain against ONLY the fetched-and-pinned pebble root as a custom trust
-            // anchor — not "accept anything", and not the machine's real trust store either: a
-            // pebble server presenting a DIFFERENT root (or a leaf with no path to this one) is
-            // still refused. This is the "by configuration" trust the task asked to distinguish from
-            // disabling verification.
-            ServerCertificateCustomValidationCallback = (_, certificate, _, _) =>
-            {
-                if (certificate is null)
-                {
-                    return false;
-                }
-
-                using var leafCertificate = new X509Certificate2(certificate);
-                using var validationChain = new X509Chain();
-                validationChain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
-                validationChain.ChainPolicy.CustomTrustStore.Add(pinnedRoot);
-                validationChain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
-                return validationChain.Build(leafCertificate);
-            },
-        };
+        var acmeHandler = PebbleServerTrust.PinnedHandler(pinnedRoot);
 
         // Serve the HTTP-01 challenge file for real, from a real temp directory, over a real
         // HttpListener on the exact port pebble's default config validates against (5002). This is
@@ -162,6 +132,7 @@ public sealed class PebbleAcmeIssuanceTests
                 factory,
                 options,
                 new AcmeChallengeWriter(files, new RecordingAgentSslClient()),
+                new AcmeDnsChallengeWriter([]),
                 new AcmeAccountStore(dbContext, clock, NullLogger<AcmeAccountStore>.Instance),
                 clock,
                 NullLogger<AcmeClient>.Instance);
@@ -213,19 +184,6 @@ public sealed class PebbleAcmeIssuanceTests
         }
     }
 
-    /// <summary>Walks up from the test binary's directory to the repository root (marked by `.git`).</summary>
-    /// <returns>The repository root's absolute path.</returns>
-    private static string FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !Directory.Exists(Path.Combine(directory.FullName, ".git")))
-        {
-            directory = directory.Parent;
-        }
-
-        return directory?.FullName ?? throw new DirectoryNotFoundException("Repository root (.git) not found above " + AppContext.BaseDirectory);
-    }
-
     /// <summary>Where this run's transcript is written, for the report to quote verbatim.</summary>
     private static string TranscriptPath()
     {
@@ -271,28 +229,6 @@ public sealed class PebbleAcmeIssuanceTests
             }
 
             context.Response.OutputStream.Close();
-        }
-    }
-
-    /// <summary>An <see cref="IHttpClientFactory"/> handing out one client over one handler.</summary>
-    private sealed class SingleHandlerHttpClientFactory : IHttpClientFactory
-    {
-        private readonly HttpMessageHandler _handler;
-
-        public SingleHandlerHttpClientFactory(HttpMessageHandler handler)
-        {
-            _handler = handler;
-        }
-
-        public HttpClient CreateClient(string name)
-        {
-            var client = new HttpClient(_handler, disposeHandler: false) { Timeout = Timeout.InfiniteTimeSpan };
-
-            // Mirrors the real registration this test does not go through (Maran.Modules.Ssl's
-            // SslModule.AddHttpClient(AcmeOptions.HttpClientName, ...)): pebble refuses every request
-            // with no User-Agent as "malformed", which is the gap this test surfaced.
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("Maran-Panel-Acme-Client/1.0");
-            return client;
         }
     }
 

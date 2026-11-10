@@ -21,6 +21,7 @@ use maran_agent_core::validation::system::sftp_user_name::SftpUserName;
 use maran_distro::AdapterBinary;
 
 use crate::accounts::read_managed_account;
+use crate::logins::ensure_mount_point::ensure_mount_point;
 use crate::safe_write::model::{ConfigFile, Reload, Validator};
 use crate::safe_write::{ConfigHost, SafeWriteError, write_config, write_unreloaded_config};
 use crate::sftp::model::account_ownership::AccountOwnership;
@@ -180,6 +181,21 @@ impl SftpHost for ProcessSftpHost {
             .map_err(|_| SftpError::JailFailed)?;
 
         Ok(())
+    }
+
+    /// Delegates to `ensure_mount_point`, which sets the mode only on a
+    /// directory that is not the account's mounted home.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SftpError::JailFailed`] for every failure.
+    fn ensure_mount_point(
+        &self,
+        mount_point: &Path,
+        home: &Path,
+        mode: u32,
+    ) -> Result<(), SftpError> {
+        ensure_mount_point(mount_point, home, mode).map_err(|_| SftpError::JailFailed)
     }
 
     /// Delegates to the one config-write protocol and adds nothing of its own.

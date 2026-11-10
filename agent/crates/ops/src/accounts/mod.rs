@@ -25,6 +25,7 @@ mod remove_account_at_jobs;
 mod remove_account_mail_spool;
 mod remove_account_open_files_limit;
 mod remove_account_shared_files;
+mod remove_account_site_logs;
 mod remove_account_sysv_ipc;
 mod set_account_open_files_limit;
 mod set_account_resource_limits;

@@ -361,7 +361,7 @@
           "name": "bg{{suffix}}",
           "primaryDomain": "bg{{suffix}}.example.com",
           "planId": "{{fullPoolPlanId}}",
-          "ownerEmail": "owner-{{suffix}}@example.com",
+          "ownerEmail": "owner-pool-{{suffix}}@example.com",
           "ownerLanguage": "en"
         }
       },

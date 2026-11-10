@@ -10,8 +10,8 @@
 
 use super::{
     PENDING_UPDATES_ARGUMENTS, REBOOT_PROBE_ARGUMENTS, SECURITY_PENDING_UPDATES_ARGUMENTS,
-    classify_package_failure, installable_php_versions, mark_security_updates, package_manager,
-    read_pending_updates, read_reboot_probe_run,
+    classify_package_failure, mark_security_updates, package_manager, read_pending_updates,
+    read_reboot_probe_run,
 };
 use crate::{
     PackageFailure, PendingUpdate, PendingUpdatesFailure, RebootProbeFailure, RebootRequirement,
@@ -61,9 +61,29 @@ fn a_connection_the_mirror_refused_is_an_unreachable_source_and_not_a_refusal() 
 }
 
 #[test]
-fn a_package_no_repository_carries_is_a_local_failure() {
+fn a_package_no_repository_carries_is_not_available() {
     assert_eq!(
         classify_package_failure(1, PACKAGE_MISSING),
+        PackageFailure::NotAvailable
+    );
+}
+
+#[test]
+fn a_missing_package_beside_a_curl_failure_stays_the_sources_fault() {
+    // Inverse control: a repository that could not be reached may be the
+    // reason the package was not found.
+    let both = format!("{SOURCE_UNREACHABLE}{PACKAGE_MISSING}");
+
+    assert_eq!(
+        classify_package_failure(1, &both),
+        PackageFailure::SourceUnreachable
+    );
+}
+
+#[test]
+fn a_missing_package_under_a_status_dnf_does_not_use_is_local() {
+    assert_eq!(
+        classify_package_failure(100, PACKAGE_MISSING),
         PackageFailure::Local
     );
 }
@@ -101,14 +121,6 @@ fn a_status_code_line_without_a_three_digit_status_is_not_a_refusal() {
 #[test]
 fn the_package_manager_is_dnf() {
     assert_eq!(package_manager(), "/usr/bin/dnf");
-}
-
-#[test]
-fn the_installable_php_versions_run_from_seven_four_to_eight_four_oldest_first() {
-    assert_eq!(
-        installable_php_versions(),
-        &["7.4", "8.0", "8.1", "8.2", "8.3", "8.4"]
-    );
 }
 
 // The pending-updates tests read what `dnf check-update -C -q` printed in

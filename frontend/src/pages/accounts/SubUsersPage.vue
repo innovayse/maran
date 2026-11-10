@@ -27,6 +27,7 @@ import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiPagination from '../../components/ui/UiPagination.vue'
 import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
 import UiSearchInput from '../../components/ui/UiSearchInput.vue'
+import UiToolbar from '../../components/ui/UiToolbar.vue'
 import SubUserAddExistingForm from '../../components/sub-users/SubUserAddExistingForm.vue'
 import SubUserFeaturesDialog from '../../components/sub-users/SubUserFeaturesDialog.vue'
 import SubUserInviteForm from '../../components/sub-users/SubUserInviteForm.vue'
@@ -239,13 +240,15 @@ onMounted(store.loadFeatures)
 
       <UiCard v-else>
         <div class="flex flex-col gap-4">
-          <UiSearchInput
-            v-model="table.search.value"
-            class="min-w-55 max-w-85"
-            :label="t('subUsers.searchLabel')"
-            :placeholder="t('subUsers.searchPlaceholder')"
-            :clear-label="t('subUsers.searchClear')"
-          />
+          <UiToolbar>
+            <UiSearchInput
+              v-model="table.search.value"
+              class="min-w-55 max-w-85"
+              :label="t('subUsers.searchLabel')"
+              :placeholder="t('subUsers.searchPlaceholder')"
+              :clear-label="t('subUsers.searchClear')"
+            />
+          </UiToolbar>
 
           <UiLoadingRegion :state="table.loadingState.value">
             <template #error>

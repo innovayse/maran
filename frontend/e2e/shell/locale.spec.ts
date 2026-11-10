@@ -1,14 +1,18 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { setPersistedLocale } from '../fixtures/set-locale'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 
 test('shell renders the status heading in English when English is the persisted locale', async ({ page }) => {
   await stubSignedIn(page)
   await setPersistedLocale(page, 'en')
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
 
   await page.goto('/')
 
@@ -20,6 +24,8 @@ test('shell renders the status heading in Russian when Russian is the persisted 
   await setPersistedLocale(page, 'ru')
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
 
   await page.goto('/')
 
@@ -33,6 +39,8 @@ test('shell renders the status heading in Armenian when Armenian is the persiste
   await setPersistedLocale(page, 'hy')
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
 
   await page.goto('/')
 
@@ -44,6 +52,8 @@ test('shell renders the navigation aria label in the persisted locale', async ({
   await setPersistedLocale(page, 'hy')
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
 
   await page.goto('/')
 

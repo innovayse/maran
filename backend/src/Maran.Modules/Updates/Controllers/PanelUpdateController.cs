@@ -1,3 +1,4 @@
+using Maran.Modules.Updates.Commands.RequestPanelUpdateCheck;
 using Maran.Modules.Updates.Commands.StartPanelUpdate;
 using Maran.Modules.Updates.Common;
 using Maran.Modules.Updates.Queries.GetPanelUpdate;
@@ -11,7 +12,8 @@ namespace Maran.Modules.Updates.Controllers;
 
 /// <summary>
 /// HTTP surface for the panel's own update (issue #382): the facts the "Panel updates" screen shows, and
-/// the request that makes the root update service run <c>maran update</c>. Thin by design: binds the
+/// the request that makes the root update service run <c>maran update</c>, and the request that makes the
+/// root check service fetch the release manifest (issue #516). Thin by design: binds the
 /// request, dispatches through Wolverine, translates the <see cref="Result{T}"/>.
 /// </summary>
 /// <remarks>
@@ -23,7 +25,7 @@ namespace Maran.Modules.Updates.Controllers;
 /// update state. This resource is server-wide, so the tenant IDOR test does not apply.
 /// </para>
 /// <para>
-/// <b>The POST takes no body.</b> The command holds only members the server establishes, so there is
+/// <b>The POSTs take no body.</b> The command holds only members the server establishes, so there is
 /// nothing a caller could put in the request that reaches root. CSRF is the panel-wide
 /// <c>X-Maran-Request</c> header check on every cookie-bearing state change.
 /// </para>
@@ -82,5 +84,29 @@ public sealed class PanelUpdateController : BaseApiController
         }
 
         return new ObjectResult(result.Value) { StatusCode = StatusCodes.Status202Accepted, DeclaredType = typeof(PanelUpdateRequestedDto) };
+    }
+
+    /// <summary>Asks the root check service to fetch the signed release manifest and record what it names.</summary>
+    /// <remarks>
+    /// Answers 202 with no body: the check runs after the answer and its result is what the next read
+    /// of <c>GET /api/v1/panel-update</c> shows (<c>checkInProgress</c>, then <c>lastCheckedAt</c> and
+    /// <c>available</c>). Rate-limited by its own policy because every accepted request makes the
+    /// server contact the release host; the request carries nothing.
+    /// </remarks>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpPost("check")]
+    [EnableRateLimiting(RateLimitPolicies.UpdateCheck)]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> CheckAsync(CancellationToken cancellationToken)
+    {
+        var command = new RequestPanelUpdateCheckCommand(ClientIpAddress, CallerUserAgent);
+        var result = await _bus.InvokeAsync<Result>(command, cancellationToken);
+
+        return result.IsSuccess ? Accepted() : ToActionResult(result);
     }
 }

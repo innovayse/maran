@@ -46,6 +46,9 @@ public sealed class PanelUpdateEndpointTests : IAsyncLifetime
     /// <summary>The endpoint under test.</summary>
     private const string Path = "/api/v1/panel-update";
 
+    /// <summary>The check route (issue #516).</summary>
+    private const string CheckPath = "/api/v1/panel-update/check";
+
     /// <summary>The PostgreSQL this class boots the host against.</summary>
     private readonly TestDatabase _pg;
 
@@ -123,12 +126,13 @@ public sealed class PanelUpdateEndpointTests : IAsyncLifetime
             return property.Name;
         }).Order().ToArray();
         Assert.Equal(
-            ["available", "canStart", "channel", "currentVersion", "lastCheckedAt", "previousVersion", "updateInProgress"],
+            ["available", "canStart", "channel", "checkInProgress", "currentVersion", "lastCheckedAt", "previousVersion", "updateInProgress"],
             names);
         Assert.False(string.IsNullOrEmpty(body.RootElement.GetProperty("currentVersion").GetString()));
         Assert.Equal("stable", body.RootElement.GetProperty("channel").GetString());
         Assert.True(body.RootElement.GetProperty("canStart").GetBoolean());
         Assert.False(body.RootElement.GetProperty("updateInProgress").GetBoolean());
+        Assert.False(body.RootElement.GetProperty("checkInProgress").GetBoolean());
         Assert.Equal(JsonValueKind.Null, body.RootElement.GetProperty("available").ValueKind);
     }
 
@@ -238,13 +242,82 @@ public sealed class PanelUpdateEndpointTests : IAsyncLifetime
                 .PanelTasks.IgnoreQueryFilters().CountAsync(row => row.Kind == TaskKinds.PanelUpdate));
     }
 
+    /// <summary>The check route refuses an anonymous caller with 401 and a customer with 403, and creates no marker.</summary>
+    [Fact]
+    public async Task The_check_route_refuses_an_anonymous_caller_and_a_customer_and_creates_no_marker()
+    {
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        await SeedUsersAsync(factory);
+        using var anonymous = factory.CreateClient();
+        using var customer = await SignInAsync(factory, "customer");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.PostAsync(CheckPath, null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await customer.PostAsync(CheckPath, null)).StatusCode);
+        Assert.False(CheckMarkerExists());
+    }
+
+    /// <summary>An administrator's check is accepted with no body, creates only the check marker, is journalled, and the state then reports it in progress.</summary>
+    [Fact]
+    public async Task A_check_is_accepted_creates_only_the_check_marker_and_is_journalled()
+    {
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        await SeedUsersAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+
+        var response = await client.PostAsync(CheckPath, null);
+
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        Assert.Equal("check\n", File.ReadAllText(CheckMarkerPath()));
+        Assert.False(MarkerExists(), "a check must never create the update marker");
+        using var state = JsonDocument.Parse(await client.GetStringAsync(Path));
+        Assert.True(state.RootElement.GetProperty("checkInProgress").GetBoolean());
+        Assert.False(state.RootElement.GetProperty("updateInProgress").GetBoolean());
+        using var scope = factory.Services.CreateScope();
+        var entry = Assert.Single(await scope.ServiceProvider.GetRequiredService<IdentityDbContext>().AuditEvents
+            .AsNoTracking()
+            .Where(row => row.Action == UpdatesAuditActions.PanelUpdateCheckRequested)
+            .ToListAsync());
+        Assert.Equal("request=check", entry.Subject);
+        Assert.True(entry.Succeeded);
+    }
+
+    /// <summary>A second check while one is queued is refused with 409.</summary>
+    [Fact]
+    public async Task A_second_check_while_one_is_queued_is_refused_as_a_conflict()
+    {
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        await SeedUsersAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+        Assert.Equal(HttpStatusCode.Accepted, (await client.PostAsync(CheckPath, null)).StatusCode);
+
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsync(CheckPath, null)).StatusCode);
+    }
+
+    /// <summary>A check on a server whose request directory is missing is refused with 503.</summary>
+    [Fact]
+    public async Task A_check_on_a_server_without_the_request_directory_is_unavailable()
+    {
+        Directory.Delete(System.IO.Path.Combine(_root, "request"));
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        await SeedUsersAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, (await client.PostAsync(CheckPath, null)).StatusCode);
+    }
+
     /// <summary>Every route the controller declares is covered by this class, so a new route cannot ship without a role test.</summary>
     [Fact]
     public void Every_panel_update_route_is_covered_by_this_class()
     {
         var declared = ControllerRoutes.Declared<PanelUpdateController>();
 
-        Assert.Equal(["GET /api/v1/panel-update", "POST /api/v1/panel-update"], declared.Order().ToArray());
+        Assert.Equal(
+            ["GET /api/v1/panel-update", "POST /api/v1/panel-update", "POST /api/v1/panel-update/check"],
+            declared.Order().ToArray());
     }
 
     /// <summary>The full path of the request marker the host under test is configured with.</summary>
@@ -252,6 +325,20 @@ public sealed class PanelUpdateEndpointTests : IAsyncLifetime
     private string MarkerPath()
     {
         return System.IO.Path.Combine(_root, "request", "requested");
+    }
+
+    /// <summary>The full path of the check request marker the host under test is configured with.</summary>
+    /// <returns>The marker's path.</returns>
+    private string CheckMarkerPath()
+    {
+        return System.IO.Path.Combine(_root, "request", "check-requested");
+    }
+
+    /// <summary>Whether the check request marker exists.</summary>
+    /// <returns>True when something is at the check marker's name.</returns>
+    private bool CheckMarkerExists()
+    {
+        return File.Exists(CheckMarkerPath());
     }
 
     /// <summary>Whether the request marker exists.</summary>

@@ -108,7 +108,16 @@ pub const MUTATING_RPCS: &[&str] = &[
     // host, but customer data leaving it is the event the trail exists for
     // (issue #127, decision D12).
     "/maran.agent.v1.TransferService/ExportBackup",
+    "/maran.agent.v1.TransferService/GenerateSourceKey",
     "/maran.agent.v1.TransferService/ImportBackup",
+    "/maran.agent.v1.TransferService/PullAccountFiles",
+    // The four rpcs of a registered migration source (issue #197): a credential
+    // that can open a shell elsewhere is minted, and the agent opens an outbound
+    // connection to a host an administrator named.
+    "/maran.agent.v1.TransferService/ReadSourceInventory",
+    "/maran.agent.v1.TransferService/ScanHostKey",
+    "/maran.agent.v1.TransferService/StreamRemoteDatabase",
+    "/maran.agent.v1.TransferService/TestSource",
 ];
 
 #[cfg(test)]

@@ -1,9 +1,10 @@
-import { expect, test } from '@playwright/test'
-import { CUSTOMER, openDnsScreen } from '../fixtures/open-dns-screen'
+import { expect, test } from '../fixtures/guarded-test'
+import { CUSTOMER, firewallWithDnsOpen, openDnsScreen } from '../fixtures/open-dns-screen'
 import { DNS_SERVER, DNS_SETTINGS } from '../fixtures/stub-dns-routes'
 
 // The name server settings (issue #178, administrators only): the name server's state and switch,
-// and the values written into every zone. Turning the server on opens port 53, so it asks first.
+// and the values written into every zone. Turning the server on or off never touches the firewall, so the screen says so and shows whether
+// the panel firewall lets port 53 through, with a one-click fix.
 
 test('the page shows the name server\'s state and the saved settings', async ({ page }) => {
   await openDnsScreen(page)
@@ -98,7 +99,8 @@ test('a name that is not a host name is refused as a name server', async ({ page
   await expect(page.getByText('A name server must be a host name such as ns1.example.net.')).toBeVisible()
 })
 
-test('the server\'s refusal of the settings is shown in its own words', async ({ page }) => {
+test('the server\'s refusal of the settings is shown in its own words', async ({ page, guard }) => {
+  guard.allow(409, /\/api\/v1\/dns-settings$/)
   await openDnsScreen(page, {
     refusals: { 'PUT dns-settings': { detail: 'ns1.example.net does not resolve to this server.' } },
   })
@@ -109,7 +111,7 @@ test('the server\'s refusal of the settings is shown in its own words', async ({
   await expect(page.getByText('ns1.example.net does not resolve to this server.')).toBeVisible()
 })
 
-test('turning the name server on asks first and says that it opens port 53', async ({ page }) => {
+test('turning the name server on asks first and says that it does not open port 53', async ({ page }) => {
   const state = await openDnsScreen(page, {
     server: { ...DNS_SERVER, enabled: false, running: false, listening: false },
   })
@@ -118,7 +120,7 @@ test('turning the name server on asks first and says that it opens port 53', asy
   await page.getByRole('button', { name: 'Turn on' }).click()
 
   const dialog = page.getByRole('dialog', { name: 'Turn the name server on?' })
-  await expect(dialog).toContainText('opens port 53 to the internet')
+  await expect(dialog).toContainText('It does not open port 53 in the firewall')
   expect(
     state.requests.some((request) => {
       return request.url.pathname.endsWith('/enable')
@@ -128,6 +130,52 @@ test('turning the name server on asks first and says that it opens port 53', asy
 
   await expect(page.getByText('The name server was turned on.')).toBeVisible()
   await expect(page.getByText('Answering', { exact: true })).toBeVisible()
+})
+
+test('a running server with port 53 shut in the firewall says so and opens it in one click', async ({ page }) => {
+  const firewall = firewallWithDnsOpen()
+  firewall.rules = []
+  await openDnsScreen(page, {}, undefined, firewall)
+
+  await page.goto('/dns/nameservers')
+
+  await expect(page.getByTestId('dns-port-blocked')).toContainText('does not open the port')
+  await expect(page.getByText('Not open', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Open port 53' }).click()
+
+  await expect(page.getByTestId('dns-port-blocked')).toHaveCount(0)
+  await expect(page.getByText('Open (TCP and UDP)')).toBeVisible()
+  expect(firewall.rules.map((rule) => {
+    return `${rule.protocol}/${rule.port}`
+  })).toEqual(['tcp/53', 'udp/53'])
+})
+
+test('a running server whose port is open in the firewall shows no warning', async ({ page }) => {
+  await openDnsScreen(page)
+
+  await page.goto('/dns/nameservers')
+
+  await expect(page.getByText('Open (TCP and UDP)')).toBeVisible()
+  await expect(page.getByTestId('dns-port-blocked')).toHaveCount(0)
+  await expect(page.getByTestId('dns-port-lingering')).toHaveCount(0)
+})
+
+test('a stopped server whose port is still open says so and closes the rules in one click', async ({ page }) => {
+  const firewall = firewallWithDnsOpen()
+  await openDnsScreen(
+    page,
+    { server: { ...DNS_SERVER, enabled: false, running: false, listening: false } },
+    undefined,
+    firewall,
+  )
+
+  await page.goto('/dns/nameservers')
+
+  await expect(page.getByTestId('dns-port-lingering')).toContainText('does not close the port')
+  await page.getByRole('button', { name: 'Close port 53' }).click()
+
+  await expect(page.getByTestId('dns-port-lingering')).toHaveCount(0)
+  expect(firewall.rules).toEqual([])
 })
 
 test('turning the name server off asks first and says that the zones are kept', async ({ page }) => {
@@ -144,7 +192,8 @@ test('turning the name server off asks first and says that the zones are kept', 
   await expect(page.getByText('Not answering', { exact: true })).toBeVisible()
 })
 
-test('a refused switch keeps the state and shows the panel\'s reason', async ({ page }) => {
+test('a refused switch keeps the state and shows the panel\'s reason', async ({ page, guard }) => {
+  guard.allow(409, /\/api\/v1\/dns-server\/enable$/)
   await openDnsScreen(page, {
     server: { ...DNS_SERVER, enabled: false, running: false, listening: false },
     refusals: { 'POST dns-server/enable': { detail: 'Port 53 is already used by another service on this host.' } },
@@ -158,7 +207,8 @@ test('a refused switch keeps the state and shows the panel\'s reason', async ({ 
   await expect(page.getByText('Not answering', { exact: true })).toBeVisible()
 })
 
-test('a failed read shows the panel\'s reason and no form', async ({ page }) => {
+test('a failed read shows the panel\'s reason and no form', async ({ page, guard }) => {
+  guard.allow(503, /\/api\/v1\/dns-settings$/)
   await openDnsScreen(page, {
     refusals: { 'GET dns-settings': { detail: 'The DNS module is switched off on this host.', status: 503 } },
   })

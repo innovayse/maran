@@ -19,7 +19,10 @@ namespace Maran.Agent.Client.Services.DnsService;
 /// </para>
 /// <para>
 /// Every wire error goes through <see cref="AgentErrorTranslator"/> and there is no second path around it.
-/// Nothing here carries a secret: a zone's records are public data the name server publishes.
+/// The one secret that does travel is a signed zone's private key: it is a
+/// <see cref="Maran.SharedKernel.Security.SensitiveString"/> in the definition, revealed only while the wire
+/// request is built, nothing here logs a request, and a failure of the publication is logged with that key
+/// removed in case the agent quoted it back.
 /// </para>
 /// </remarks>
 public sealed class AgentDnsClient : IAgentDnsClient
@@ -112,7 +115,8 @@ public sealed class AgentDnsClient : IAgentDnsClient
             PutZoneResponse.ResultOneofCase.Ok => Result<DnsZoneServedDto>.Ok(
                 new DnsZoneServedDto(zone.Name, response.Ok.Serial)),
             PutZoneResponse.ResultOneofCase.Error => Result<DnsZoneServedDto>.Fail(
-                AgentErrorTranslator.ToError(_logger, response.Error, nameof(PutZoneAsync))),
+                AgentErrorTranslator.ToError(
+                    _logger, response.Error, nameof(PutZoneAsync), zone.Signing?.Key?.PrivateKey)),
             _ => Result<DnsZoneServedDto>.Fail(
                 Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
@@ -140,7 +144,7 @@ public sealed class AgentDnsClient : IAgentDnsClient
         return response.ResultCase switch
         {
             GetZoneResponse.ResultOneofCase.Ok when response.Ok.Served => Result<DnsZoneServedDto>.Ok(
-                new DnsZoneServedDto(zoneName, response.Ok.Serial)),
+                new DnsZoneServedDto(zoneName, response.Ok.Serial, DnsZoneMapper.ToObserved(response.Ok.Signing))),
             GetZoneResponse.ResultOneofCase.Ok => Result<DnsZoneServedDto>.Fail(
                 Error.Of(nameof(ErrorMessages.AgentNotFound), ErrorType.NotFound)),
             GetZoneResponse.ResultOneofCase.Error => Result<DnsZoneServedDto>.Fail(

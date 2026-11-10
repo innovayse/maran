@@ -153,7 +153,7 @@ public sealed class InvitationIssuer
         return Result<InvitationIssueOutcome>.Ok(
             new InvitationIssued(
                 new IssuedInvitation(
-                    user.Username, user.Email, minted.Token, minted.ExpiresAt, account.OwnerLanguage)));
+                    user.Id, user.Username, user.Email, minted.Token, minted.ExpiresAt, account.OwnerLanguage)));
     }
 
     /// <summary>

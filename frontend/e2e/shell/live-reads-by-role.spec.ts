@@ -1,13 +1,15 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { FULL_CATALOGUE, mainNavigation } from '../fixtures/open-full-shell'
+import { stubAccountResources, stubMyAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubDashboard, WITHHELD_DASHBOARD, loaded } from '../fixtures/stub-dashboard-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubInvitation } from '../fixtures/stub-invitation-routes'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubModules } from '../fixtures/stub-modules-route'
-import { stubMyAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
+import { stubPlans } from '../fixtures/stub-plans-route'
 import { stubResellerSession } from '../fixtures/stub-reseller-session'
 import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubViewAs } from '../fixtures/stub-view-as-routes'
@@ -15,6 +17,7 @@ import type { Account, MyAccount } from '../../src/types/account'
 import type { AccountResourceSummary } from '../../src/types/accountResourceSummary'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { ViewingAs } from '../../src/types/viewAs'
+import type { Page } from '@playwright/test'
 
 // Issue #415: the shell polls and streams only what the signed-in role may call. A reseller has no
 // tasks screen and no server-wide figures, so it makes none of those requests; an administrator who
@@ -132,6 +135,7 @@ test('an administrator session asks for the tasks stream and the figures, so the
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubShellReads(page)
+  await stubLandingReads(page)
   await stubModules(page, FULL_CATALOGUE)
 
   await page.goto('/')
@@ -154,7 +158,10 @@ test('after view-as the customer shell has no attention badge and asks for no at
   await stubMyAccount(page, OWN_ACCOUNT)
   await stubMyAccountResources(page, OWN_RESOURCES)
   await stubModules(page, FULL_CATALOGUE)
+  await stubPlans(page)
   await stubAccounts(page, [ACME])
+  // The administrator's detail screen of the account reads its use of the plan and its invitation.
+  await stubAccountResources(page, { accountId: ACME.id, resources: [] })
   await stubInvitation(page, ACME.id, 'accepted')
   await stubDashboard(page, WITHHELD_DASHBOARD)
   await page.route(`**/api/v1/accounts/${ACME.id}`, async (route) => {

@@ -51,6 +51,10 @@ readonly MARAN_NGINX_INCLUDE_CONF="/etc/nginx/conf.d/maran-sites.conf"
 # edit, and a policy naming a log nothing writes any more is the failure mode to avoid.
 readonly MARAN_PANEL_LOGROTATE_DEST="/etc/logrotate.d/maran-panel"
 
+# The distribution's own rotation stanza for /var/log/nginx/*.log, shipped by the nginx package on
+# every supported family. See make_distro_nginx_logrotate_reload for why this step edits it.
+readonly MARAN_DISTRO_NGINX_LOGROTATE="/etc/logrotate.d/nginx"
+
 # The two names the panel's own vhost passes through for the length of one install: the
 # rendered candidate before it is swapped in, and the copy of whatever was there before,
 # kept only until the swap is known to be good.
@@ -159,7 +163,109 @@ nginx_conf_dest() {
   case "$MARAN_OS_FAMILY" in
     debian) echo "/etc/nginx/conf.d/maran.conf" ;;
     rhel)   echo "/etc/nginx/conf.d/maran.conf" ;;
+    # The same directory, but ONLY once ensure_conf_d_include_in_nginx_conf has made the stock
+    # nginx.conf glob it: the SUSE package may ship `vhosts.d/*.conf` instead (UNVERIFIED, see that
+    # function), and a vhost in a directory nothing includes passes `nginx -t` and is never served.
+    suse)   echo "/etc/nginx/conf.d/maran.conf" ;;
   esac
+}
+
+# nginx_conf_includes_conf_d: whether the tree nginx actually reads has an ACTIVE `include` of
+# conf.d/*.conf, read from `nginx -T` (the whole tree, comments included, which is why the pattern
+# is anchored on whitespace and then `include`: a commented-out line starts with `#` and cannot match).
+#
+# UNVERIFIED: the dump's grammar. Confirm in the pinned Leap image with `nginx -T | grep -n include`.
+# Both the relative and the absolute spelling are accepted because the prefix is resolved by nginx.
+nginx_conf_includes_conf_d() {
+  nginx -T 2>/dev/null | grep -Eq '^[[:space:]]*include[[:space:]]+(/etc/nginx/)?conf\.d/\*\.conf[[:space:]]*;'
+}
+
+# render_nginx_conf_with_conf_d_include: the host's nginx.conf with one line added, to stdout: an
+# `include /etc/nginx/conf.d/*.conf;` as the LAST directive of the http block, so every http-level
+# setting the vhosts rely on (log formats, map blocks) is defined before the vhosts are parsed.
+#
+# awk tracks brace depth over the text with `#` comments removed. The include goes immediately before
+# the line that closes the http block, and only when that line is a lone `}`. It exits 3 when no http
+# block was found or its end was not a lone brace: a file this step cannot place the line in is a
+# refusal, never a guess.
+render_nginx_conf_with_conf_d_include() {
+  awk '
+    { code = $0; sub(/#.*/, "", code) }
+    !inhttp && code ~ /^[[:space:]]*http[[:space:]]*\{/ { inhttp = 1; depth = 0 }
+    inhttp && !done {
+      opens = gsub(/\{/, "{", code)
+      closes = gsub(/\}/, "}", code)
+      if (depth + opens - closes == 0 && code ~ /^[[:space:]]*\}[[:space:]]*$/) {
+        print "    # Maran: the vhosts live in conf.d, which the stock file of this family does not include."
+        print "    include /etc/nginx/conf.d/*.conf;"
+        done = 1
+      }
+      depth += opens - closes
+    }
+    { print }
+    END { if (!done) exit 3 }
+  ' "$1"
+}
+
+# ensure_conf_d_include_in_nginx_conf: the SUSE family's step, run before anything is written under
+# conf.d. Does nothing when the tree already includes conf.d/*.conf.
+#
+# UNVERIFIED: that openSUSE's nginx.conf does NOT glob conf.d (it is believed to include
+# `vhosts.d/*.conf`). Confirm with `grep -n include /etc/nginx/nginx.conf` right after
+# `zypper install nginx` in the pinned Leap image. If the stock file already includes conf.d this
+# function changes nothing, and if it includes it some other way the check below fails the install
+# rather than editing a file whose shape was not understood.
+#
+# The edit follows the discipline this file's vhost swap follows: render in memory, a staging file
+# BESIDE nginx.conf with the original's owner and mode, fsync of the file and the directory, atomic
+# rename, THEN `nginx -t` against the real tree, and on a refusal the original bytes are renamed back
+# and the install stops. The original is kept once as `nginx.conf.maran-previous` (never overwritten,
+# so a re-run cannot replace the true original with an edited copy). The staging and previous names
+# end in nothing nginx globs.
+ensure_conf_d_include_in_nginx_conf() {
+  local conf="/etc/nginx/nginx.conf" staged previous
+  previous="${conf}.maran-previous"
+  if nginx_conf_includes_conf_d; then
+    echo "nginx.conf already includes conf.d/*.conf; left as it is."
+    return 0
+  fi
+  [ -f "$conf" ] || { echo "80-nginx.sh: ${conf} does not exist; cannot make nginx read conf.d." >&2; exit 1; }
+  staged="$(mktemp "${conf}.maran-staging.XXXXXX")"
+  if ! render_nginx_conf_with_conf_d_include "$conf" > "$staged"; then
+    rm -f "$staged"
+    echo "80-nginx.sh: could not place an include of conf.d/*.conf in ${conf} (no http block ending in a lone brace)." >&2
+    echo "  Add 'include /etc/nginx/conf.d/*.conf;' inside its http block by hand and re-run." >&2
+    exit 1
+  fi
+  chmod --reference="$conf" "$staged"
+  chown --reference="$conf" "$staged"
+  if [ ! -e "$previous" ]; then
+    cp -p -- "$conf" "$previous"
+    sync "$previous"
+    echo "Saved the previous nginx.conf to ${previous}."
+  fi
+  move_into_place "$staged" "$conf" || { rm -f "$staged"; echo "80-nginx.sh: could not replace ${conf}." >&2; exit 1; }
+  if ! nginx -t 2>&1 || ! nginx_conf_includes_conf_d; then
+    echo "80-nginx.sh: nginx refused ${conf} with the conf.d include (its message is above), or does not list the include; restoring the original." >&2
+    cp -p -- "$previous" "${conf}.maran-restore"
+    move_into_place "${conf}.maran-restore" "$conf" \
+      || echo "80-nginx.sh: could not restore ${conf}; the original is at ${previous}." >&2
+    exit 1
+  fi
+  echo "Added 'include /etc/nginx/conf.d/*.conf;' to ${conf}."
+}
+
+# assert_vhost_in_loaded_tree: the observation the SUSE family's vhost placement stands on. `nginx -T`
+# prints a `# configuration file <path>:` header for every file it loaded, so a vhost in a directory
+# nothing includes is ABSENT from it even though `nginx -t` passed. Fails the install when $1 is not
+# listed. UNVERIFIED: the header's exact spelling; confirm with `nginx -T | grep '# configuration file'`.
+assert_vhost_in_loaded_tree() {
+  local dest="$1"
+  nginx -T 2>/dev/null | grep -qF -- "# configuration file ${dest}:" || {
+    echo "80-nginx.sh: 'nginx -T' does not list ${dest} among the files it loaded, so nginx would never serve the panel." >&2
+    echo "  Check that nginx.conf includes /etc/nginx/conf.d/*.conf ('nginx -T | grep include')." >&2
+    exit 1
+  }
 }
 
 # panel_certificate_extra_san: the subjectAltName entry for the address the panel is reached at
@@ -1218,8 +1324,57 @@ install_panel_logrotate_policy() {
   install -D -o root -g root -m 0644 "$source" "$MARAN_PANEL_LOGROTATE_DEST"
 }
 
+# make_distro_nginx_logrotate_reload: make the distribution's nginx rotation reload nginx instead
+# of sending it SIGUSR1 (issue #490).
+#
+# The distro stanza rotates /var/log/nginx/*.log and then signals USR1 (`invoke-rc.d nginx rotate`
+# on Debian, `kill -USR1` on RHEL). nginx answers USR1 by reopening EVERY log it holds open, not
+# only the ones that stanza rotated — and the workers reopen them by path as the worker user, which
+# cannot traverse /var/log/maran (root:<service group> 0750, on purpose). Every night each worker
+# logged `[emerg] open() "/var/log/maran/..." failed (13: Permission denied)` and kept writing into
+# the file that had been renamed away. Our own two stanzas already reload; this one is the third
+# sender, so leaving it would keep the error. The cure is not to loosen the directories.
+#
+# Only the BODY of the postrotate script is replaced; the glob, the options and the owner of the
+# files it creates stay the distribution's. The file is a package conffile, so a later package
+# upgrade keeps this edit (dpkg and rpm both preserve a locally modified conffile and write the new
+# one beside it) and, if the package ships its own new stanza, the next install run edits that
+# one too. Idempotent. A host without the stanza (nginx not packaged by the distribution) is left
+# alone; a stanza whose postrotate cannot be rewritten stops the install, because the alternative
+# is shipping the nightly error. The optional argument names another file, for the polygon.
+make_distro_nginx_logrotate_reload() {
+  local file="${1:-$MARAN_DISTRO_NGINX_LOGROTATE}" staged
+  [ -f "$file" ] || return 0
+  staged="$(mktemp "${file}.maran-staging.XXXXXX")"
+  awk '
+    /^[[:space:]]*postrotate[[:space:]]*$/ { print; print "\t\tnginx -s reload"; skipping = 1; replaced++; next }
+    skipping && /^[[:space:]]*endscript[[:space:]]*$/ { skipping = 0 }
+    !skipping { print }
+    END { if (!replaced) exit 3 }
+  ' "$file" > "$staged" || {
+    rm -f "$staged"
+    echo "80-nginx.sh: ${file} has no postrotate script to rewrite. The distribution's rotation" >&2
+    echo "  would keep signalling USR1 and nginx would log [emerg] on every rotation. Stopping." >&2
+    exit 1
+  }
+  if grep -Eq 'USR1|nginx rotate' "$staged"; then
+    rm -f "$staged"
+    echo "80-nginx.sh: ${file} still signals USR1 after the rewrite. Stopping." >&2
+    exit 1
+  fi
+  chmod --reference="$file" "$staged"
+  chown --reference="$file" "$staged"
+  sync "$staged"
+  mv -f -- "$staged" "$file"
+}
+
 step_nginx() {
   echo "Installing nginx vhost on port ${MARAN_PANEL_PORT}..."
+  # The SUSE family first of all: the include of conf.d is what makes everything written under it
+  # visible to nginx at all. A no-op on the other families, whose nginx.conf includes it already.
+  if [ "$MARAN_OS_FAMILY" = "suse" ]; then
+    ensure_conf_d_include_in_nginx_conf
+  fi
   # First, so that the validation below parses a tree that already includes the agent's
   # directory: a validation that passes without it has proved nothing about the
   # configuration nginx will actually run.
@@ -1234,11 +1389,15 @@ step_nginx() {
   # so this line is what cleans up after the successful one.
   install_validated_vhost "$tmp" "$dest"
   rm -f "$tmp"
+  if [ "$MARAN_OS_FAMILY" = "suse" ]; then
+    assert_vhost_in_loaded_tree "$dest"
+  fi
 
   # After the vhost is installed and validated, not before: the policy names the two files that
   # vhost tells nginx to open, so installing it over a vhost that was refused would leave a
   # rotation policy for logs this host never writes.
   install_panel_logrotate_policy
+  make_distro_nginx_logrotate_reload
 
   # AFTER install_validated_vhost has returned, and nowhere else. A reload between the rename and
   # the end of the validation is the one way unvalidated configuration reaches a running server,

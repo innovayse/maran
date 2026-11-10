@@ -59,7 +59,9 @@ host_display_name() {
 # The single source of the list. Space-separated glob patterns of lowercase letters, digits and
 # hyphens with an optional trailing `*`, which are the same words on both families: step 68 writes
 # them as dnf's `exclude=` under [base] on the RHEL family and, turned into anchored regular
-# expressions, as `Unattended-Upgrade::Package-Blacklist` on the Debian family. It is a plain
+# expressions, as `Unattended-Upgrade::Package-Blacklist` on the Debian family and, one glob lock each, in
+# the locks file only the unattended service reads on the SUSE family. No SUSE spelling is needed: the
+# SUSE names (`php8-fpm`, `postgresql17-server`, `nginx`, `mariadb`) all begin with these words. It is a plain
 # assignment (this file carries no readonly state) and is never expanded as a glob by the step.
 #
 # Why these: an unattended restart of any of them drops every customer's connections, and a version

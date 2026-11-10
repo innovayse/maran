@@ -184,6 +184,37 @@ fn creating_an_sftp_user_makes_the_jail_and_its_mount_point_before_the_login() {
     );
 }
 
+/// Issue #483: with the real home mounted at the mount point, a creation must
+/// not apply the jail's `0755` to it.
+#[test]
+fn creating_a_second_sftp_user_leaves_the_accounts_home_at_its_own_mode() {
+    let host = FakeSftpHost::new().with_home_mounted_at("/var/lib/maran-sftp/alice/home");
+
+    create_sftp_user_under_lock(&host, distro(), &web_request()).expect("created");
+
+    assert_eq!(
+        host.home_mode(),
+        0o750,
+        "a chmod of the mount point goes through the live mount onto the account's \
+         home, which other tenants must not be able to traverse"
+    );
+}
+
+/// The inverse control: with nothing mounted the mount point does get its mode.
+#[test]
+fn an_unmounted_mount_point_is_still_given_the_jail_mode() {
+    let host = FakeSftpHost::new();
+
+    create_sftp_user_under_lock(&host, distro(), &web_request()).expect("created");
+
+    assert!(
+        host.directories()
+            .contains(&("/var/lib/maran-sftp/alice/home".to_owned(), 0o755)),
+        "{:?}",
+        host.directories()
+    );
+}
+
 /// The mount is a unit file, named as systemd names one, and it mounts the
 /// real home into the jail.
 #[test]

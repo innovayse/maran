@@ -174,3 +174,28 @@ fn the_rhel_adapter_writes_into_its_own_directory() {
     ));
     assert!(host.config(&expected).is_some());
 }
+
+#[test]
+fn the_suse_adapter_writes_into_its_own_directory() {
+    // UNVERIFIED: the directory is read from the distribution documentation (`/etc/php8/conf.d`,
+    // the one PHP the family offers); confirm with `php-fpm -i | grep -i 'Scan this dir'`.
+    let suse = adapter_for(DistroFamily::Suse);
+    let host = FakePhpHost::with_installed(&[]);
+    host.create_directory(
+        std::path::Path::new(&suse.php_fpm_pool_directory("8.3")),
+        0o755,
+    )
+    .unwrap();
+
+    write_opcache_drop_in(&host, suse, &version()).unwrap();
+
+    let expected = PathBuf::from(format!(
+        "{}/99-maran-opcache.ini",
+        suse.php_ini_drop_in_directory(&version())
+    ));
+    assert!(host.config(&expected).is_some());
+    assert_eq!(
+        expected.parent().unwrap(),
+        std::path::Path::new("/etc/php8/conf.d")
+    );
+}

@@ -1,14 +1,16 @@
-import { test, type Page } from '@playwright/test'
 import {
   expectRegionFastLoad,
   expectRegionSlowFailure,
   expectRegionSlowLoad,
   type RegionLoadingScenario,
 } from '../fixtures/expect-region-loading'
+import { test } from '../fixtures/guarded-test'
 import { stubSignedIn, stubbedAdministrator } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubProfile } from '../fixtures/stub-profile-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
+import type { Page } from '@playwright/test'
 
 // The profile while it is on the way (#243): the cards keep their real terms over placeholder values.
 
@@ -20,6 +22,7 @@ const REFUSAL = 'The profile could not be read.'
 const shell = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubEmptyModules(page)
 }
 
@@ -62,6 +65,7 @@ test('profile: a fast answer shows no placeholder', async ({ page }) => {
   await expectRegionFastLoad(page, PROFILE_SCENARIO)
 })
 
-test('profile: a slow failure is an alert, never a skeleton', async ({ page }) => {
+test('profile: a slow failure is an alert, never a skeleton', async ({ page, guard }) => {
+  guard.allow(500, PROFILE_PATTERN)
   await expectRegionSlowFailure(page, PROFILE_SCENARIO)
 })

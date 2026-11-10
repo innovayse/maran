@@ -6,7 +6,7 @@ import { defineConfig, loadEnv } from 'vite'
 /**
  * Vite build/dev configuration for the Maran SPA shell.
  *
- * Dev server proxies `/health` and `/api` to the Maran.Host backend,
+ * Dev server proxies `/health`, `/api` and `/module-frames` to the Maran.Host backend,
  * which listens on http://localhost:5000 when run without a launch profile
  * (verified by running the Host locally and observing Kestrel's bound URL).
  */
@@ -28,6 +28,13 @@ const API_PROXY = {
     changeOrigin: true,
   },
   '/api': {
+    target: API_ORIGIN,
+    changeOrigin: true,
+  },
+  // The documents and assets of a packaged module's isolated frame (#185). The frame cannot reach
+  // `/api` (its CSP forbids every request), but its own page and script are loaded from here, so
+  // dev and preview must forward the prefix exactly as nginx does in production.
+  '/module-frames': {
     target: API_ORIGIN,
     changeOrigin: true,
   },
@@ -73,6 +80,9 @@ export default defineConfig(({ mode }) => {return {
         // The loading kit's Playwright-only mount point (e2e/fixtures/skeleton-harness.html), for
         // the same reason.
         skeletonHarness: fileURLToPath(new URL('./e2e/fixtures/skeleton-harness.html', import.meta.url)),
+        // The toolbar's Playwright-only mount point (e2e/fixtures/toolbar-harness.html), for the
+        // same reason.
+        toolbarHarness: fileURLToPath(new URL('./e2e/fixtures/toolbar-harness.html', import.meta.url)),
       },
     },
   },

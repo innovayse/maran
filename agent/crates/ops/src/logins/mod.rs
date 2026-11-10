@@ -46,6 +46,7 @@
 mod account_logins;
 mod account_passwd_row;
 mod end_account_sessions;
+pub(crate) mod ensure_mount_point;
 #[cfg(test)]
 #[path = "../tests/logins/fake_logins_host.rs"]
 pub(crate) mod fake_logins_host;

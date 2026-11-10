@@ -1,10 +1,12 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { STUBBED_HOST_METRICS, stubMonitoring } from '../fixtures/stub-monitoring-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { ClockSync } from '../../src/types/monitoring'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 const LICENSED: PanelModule[] = [
   { name: 'monitoring', displayName: 'Monitoring', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -25,6 +27,7 @@ const openWithClock = async (page: Page, clock: ClockSync): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubMonitoring(page, { lastDay: [], lastWeek: [] }, [], [], STUBBED_HOST_METRICS, clock)
   await page.goto('/monitoring')
   await expect(page.getByTestId('clock-sync-card')).toBeVisible({ timeout: 20_000 })

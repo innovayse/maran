@@ -104,15 +104,18 @@ public static class IdempotencyHost
     /// <summary>A creation body whose only variable is the account name.</summary>
     /// <param name="name">The account name to ask for.</param>
     /// <param name="planId">An existing plan.</param>
+    /// <param name="ownerEmail">
+    /// The owner's address. One address is one login, so two accounts created in one test need two.
+    /// </param>
     /// <returns>The body.</returns>
-    public static object CreateBody(string name, Guid planId)
+    public static object CreateBody(string name, Guid planId, string ownerEmail = "owner@example.com")
     {
         return new
         {
             Name = name,
             PrimaryDomain = $"{name}.example.com",
             PlanId = planId,
-            OwnerEmail = "owner@example.com",
+            OwnerEmail = ownerEmail,
         };
     }
 

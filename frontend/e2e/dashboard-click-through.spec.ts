@@ -1,20 +1,22 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures/guarded-test'
 import { FULL_CATALOGUE } from './fixtures/open-full-shell'
 import { goLive, openLiveDashboard } from './fixtures/open-live-dashboard'
 import { loaded } from './fixtures/stub-dashboard-route'
 import { pushFrame, reading, totals } from './fixtures/stub-live-dashboard-stream'
+import { stubMonitoring } from './fixtures/stub-monitoring-routes'
 
 // Issue #199 (slice S1): every widget leads somewhere. A number on a dashboard is only useful if
 // the reader can reach the screen that holds the detail in one step, by mouse or by keyboard, so
 // each destination is asserted as a LINK with its address, never by a click that merely happened
 // to land. A destination the licence does not permit is not drawn as a link at all.
 //
-// BLIND SPOT: the destination screens are not rendered here (their reads are not stubbed); only
-// the address the link carries, and, for two of them, that following it reaches that address.
+// BLIND SPOT: the destination screens are not rendered end to end here; only the address the link
+// carries, and, for the monitoring screen (whose reads are stubbed), that following it reaches that address.
 
 test.describe('the dashboard click-through', () => {
   test('the resource widgets open the monitoring screen on their own metric', async ({ page }) => {
     await openLiveDashboard(page)
+    await stubMonitoring(page, { lastDay: [], lastWeek: [] }, [], [])
     await goLive(page)
     await pushFrame(page, 'metrics', reading(6))
 
@@ -28,6 +30,7 @@ test.describe('the dashboard click-through', () => {
 
   test('picking a point in a chart offers a link to that instant, which a keyboard can follow', async ({ page }) => {
     await openLiveDashboard(page)
+    await stubMonitoring(page, { lastDay: [], lastWeek: [] }, [], [])
     await goLive(page)
     await pushFrame(page, 'metrics', reading(6))
 

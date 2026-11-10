@@ -21,6 +21,9 @@ public sealed class AccountOptionMessagesTests
     private static readonly string[] Keys =
     [
         "AccountInitialPasswordInvalid",
+        "AccountInitialPasswordTooShort",
+        "AccountInitialPasswordTooLong",
+        "AccountInitialPasswordSameAsName",
         "AccountProcessLimitInvalid",
         "AccountInodeLimitInvalid",
         "AccountOpenFilesLimitInvalid",
@@ -60,6 +63,9 @@ public sealed class AccountOptionMessagesTests
     /// <param name="key">The resource key.</param>
     [Theory]
     [InlineData("AccountInitialPasswordInvalid")]
+    [InlineData("AccountInitialPasswordTooShort")]
+    [InlineData("AccountInitialPasswordTooLong")]
+    [InlineData("AccountInitialPasswordSameAsName")]
     [InlineData("AccountProcessLimitInvalid")]
     [InlineData("AccountInodeLimitInvalid")]
     [InlineData("AccountOpenFilesLimitInvalid")]

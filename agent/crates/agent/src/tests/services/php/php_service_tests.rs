@@ -31,6 +31,12 @@ use crate::proto::{
 };
 use crate::services::php::php_service::PhpServiceImpl;
 
+/// What `apt-cache policy` prints for the six php-fpm packages on a stock
+/// Ubuntu 24.04: only `php8.3-fpm` has a candidate.
+const UBUNTU_ONLY_8_3_POLICY: &str = include_str!(
+    "../../../../../distro/tests/fixtures/package_manager/apt_policy_ubuntu_php83_only.txt"
+);
+
 /// The adapter every test here runs against.
 fn adapter() -> &'static dyn DistroAdapter {
     adapter_for(DistroFamily::Debian)
@@ -86,6 +92,27 @@ impl ConfigHost for InstallHost {
         let mut command = vec![program.to_string()];
         command.extend(arguments.iter().map(|argument| (*argument).to_owned()));
         self.calls.lock().unwrap().push(command);
+
+        // The package metadata of a stock Ubuntu 24.04, which carries only
+        // php8.3-fpm (recorded in the distro crate's fixtures).
+        match arguments.first().copied() {
+            Some("indextargets") => {
+                return Ok(CommandOutcome {
+                    status: 0,
+                    stdout: "/var/lib/apt/lists/archive.ubuntu.com_ubuntu_dists_noble_main_binary-amd64_Packages\n"
+                        .to_owned(),
+                    stderr: String::new(),
+                });
+            }
+            Some("policy") => {
+                return Ok(CommandOutcome {
+                    status: 0,
+                    stdout: UBUNTU_ONLY_8_3_POLICY.to_owned(),
+                    stderr: String::new(),
+                });
+            }
+            _ => {}
+        }
 
         if arguments.first() == Some(&"start") {
             if !self.start_succeeds {
@@ -271,7 +298,7 @@ async fn a_malformed_version_ends_the_stream_with_invalid_input_and_starts_nothi
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn the_installable_list_names_every_supported_version_and_flags_the_installed_one() {
+async fn the_installable_list_names_only_what_the_host_offers_and_flags_the_installed_one() {
     let calls = Arc::new(Mutex::new(Vec::new()));
     let host = InstallHost::installing(&calls);
     host.directories
@@ -294,7 +321,8 @@ async fn the_installable_list_names_every_supported_version_and_flags_the_instal
         .iter()
         .map(|item| item.version.as_str())
         .collect();
-    assert_eq!(versions, vec!["8.4", "8.3", "8.2", "8.1", "8.0", "7.4"]);
+    // The host carries php8.3-fpm and nothing else: 8.2 must not be offered.
+    assert_eq!(versions, vec!["8.3"]);
     let installed: Vec<&str> = ok
         .versions
         .iter()
@@ -302,7 +330,20 @@ async fn the_installable_list_names_every_supported_version_and_flags_the_instal
         .map(|item| item.version.as_str())
         .collect();
     assert_eq!(installed, vec!["8.3"]);
-    assert!(calls.lock().unwrap().is_empty(), "listing runs no command");
+    let programs: Vec<String> = calls
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|command| command[0].clone())
+        .collect();
+    assert_eq!(
+        programs,
+        vec![
+            "/usr/bin/apt-get".to_owned(),
+            "/usr/bin/apt-cache".to_owned()
+        ],
+        "listing asks the catalogue probe, then one candidate query"
+    );
 }
 
 // The two extension rpcs, driven through the same service on a host that

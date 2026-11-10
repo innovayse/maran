@@ -91,8 +91,9 @@ public sealed class PasswordResetEndpointTests : IAsyncLifetime
     /// from one address on purpose, and a 429 in the middle of a round-trip test would be a failure
     /// about the limiter rather than about the thing under test.
     /// </param>
+    /// <param name="completionLimit">Completions of a reset the limiter allows per window, raised for the same reason.</param>
     /// <returns>The configured factory.</returns>
-    private WebApplicationFactory<Program> CreateFactory(int passwordResetLimit = 50)
+    private WebApplicationFactory<Program> CreateFactory(int passwordResetLimit = 50, int completionLimit = 50)
     {
         return new ConfiguredHostFactory(builder =>
         {
@@ -108,6 +109,9 @@ public sealed class PasswordResetEndpointTests : IAsyncLifetime
             builder.UseSetting(
                 "RateLimiting:PasswordResetMaxRequests",
                 passwordResetLimit.ToString(CultureInfo.InvariantCulture));
+            builder.UseSetting(
+                "RateLimiting:PasswordResetCompletionMaxRequests",
+                completionLimit.ToString(CultureInfo.InvariantCulture));
 
             foreach (var setting in FirewallSettings.Required())
             {
@@ -508,5 +512,47 @@ public sealed class PasswordResetEndpointTests : IAsyncLifetime
         var third = await ForgotAsync(client, KnownEmail);
 
         Assert.Equal(HttpStatusCode.TooManyRequests, third.Status);
+    }
+
+    /// <summary>
+    /// Exhausting the forgot-password budget does not consume the reset-password budget (issue #492).
+    /// </summary>
+    /// <remarks>Fails against one shared bucket: the reset call would be answered 429.</remarks>
+    [Fact]
+    public async Task Exhausting_the_forgot_password_budget_leaves_reset_password_answerable()
+    {
+        await using var factory = CreateFactory(passwordResetLimit: 1);
+        await SeedAdministratorAsync(factory);
+        using var client = factory.CreateClient();
+
+        await ForgotAsync(client, KnownEmail);
+        var refused = await ForgotAsync(client, KnownEmail);
+        var reset = await client.PostAsJsonAsync(
+            "/api/v1/auth/reset-password", new { Token = "not-a-real-token", NewPassword });
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, refused.Status);
+        Assert.NotEqual(HttpStatusCode.TooManyRequests, reset.StatusCode);
+    }
+
+    /// <summary>Reset-password calls beyond their own budget are refused, and forgot-password is unaffected.</summary>
+    /// <remarks>
+    /// The accepting half doubles as the inverse control: the call inside the budget is answered, and
+    /// the other endpoint still answers after the completion bucket is spent.
+    /// </remarks>
+    [Fact]
+    public async Task Reset_password_calls_beyond_their_own_budget_are_refused_without_touching_forgot_password()
+    {
+        await using var factory = CreateFactory(completionLimit: 2);
+        await SeedAdministratorAsync(factory);
+        using var client = factory.CreateClient();
+
+        var first = await client.PostAsJsonAsync("/api/v1/auth/reset-password", new { Token = "x", NewPassword });
+        await client.PostAsJsonAsync("/api/v1/auth/reset-password", new { Token = "x", NewPassword });
+        var third = await client.PostAsJsonAsync("/api/v1/auth/reset-password", new { Token = "x", NewPassword });
+        var forgot = await ForgotAsync(client, KnownEmail);
+
+        Assert.NotEqual(HttpStatusCode.TooManyRequests, first.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, third.StatusCode);
+        Assert.NotEqual(HttpStatusCode.TooManyRequests, forgot.Status);
     }
 }

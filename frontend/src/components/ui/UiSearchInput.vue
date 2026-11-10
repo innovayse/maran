@@ -35,7 +35,8 @@
  * ignores it, never on the `<input>` that owns the relationship. All four default to the
  * plain search box (`role="searchbox"`, no `aria-*`), so every existing caller is unchanged.
  */
-import { computed, ref, useId, type ComputedRef, type Ref } from 'vue'
+import { computed, inject, ref, useId, type ComputedRef, type Ref } from 'vue'
+import { TOOLBAR_KEY } from '../../utils/toolbarKey'
 import UiIcon from './UiIcon.vue'
 
 /** Props accepted by {@link UiSearchInput}. */
@@ -45,6 +46,11 @@ const props = withDefaults(
     modelValue: string
     /** Visible label text, always rendered — never omitted for a placeholder instead. */
     label: string
+    /**
+     * Hides the label visually while keeping it as the field's accessible name. Inside a
+     * `UiToolbar` the label is always hidden, whatever this says.
+     */
+    hideLabel?: boolean
     /** Placeholder text shown when the field is empty. */
     placeholder?: string
     /** Accessible name for the clear button, already translated by the caller. */
@@ -64,6 +70,7 @@ const props = withDefaults(
     error?: string | null
   }>(),
   {
+    hideLabel: false,
     placeholder: undefined,
     inputRole: 'searchbox',
     ariaControls: undefined,
@@ -81,6 +88,9 @@ const emit = defineEmits<{
   (e: 'search', value: string): void
 }>()
 
+/** Whether the field sits on a `UiToolbar`, whose one line has no room for a stacked label. */
+const inToolbar: boolean = inject(TOOLBAR_KEY, false)
+
 /** Stable, unique id pair for this instance's `<label for>`/`<input id>`. */
 const fieldId: string = useId()
 
@@ -89,6 +99,11 @@ const errorId: string = `${fieldId}-error`
 
 /** The underlying input element, needed to restore focus after the clear button is used. */
 const inputElement: Ref<HTMLInputElement | null> = ref(null)
+
+/** Whether the label is drawn for screen readers only. */
+const labelHidden: ComputedRef<boolean> = computed(() => {
+  return props.hideLabel || inToolbar
+})
 
 /** Whether the field is currently in an error state. */
 const hasError: ComputedRef<boolean> = computed(() => {
@@ -151,7 +166,7 @@ const onClear = (): void => {
     <label
       :for="fieldId"
       class="text-xs font-bold wrap-anywhere"
-      :class="hasError ? 'text-danger' : 'text-text-muted'"
+      :class="[hasError ? 'text-danger' : 'text-text-muted', labelHidden ? 'sr-only' : '']"
       >{{ label }}</label
     >
     <div class="relative flex items-center">

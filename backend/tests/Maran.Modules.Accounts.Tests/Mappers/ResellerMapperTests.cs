@@ -1,4 +1,5 @@
 using Maran.Modules.Accounts.Common;
+using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Domain.ValueObjects;
 using Maran.Modules.Accounts.Mappers;
@@ -17,7 +18,9 @@ public sealed class ResellerMapperTests
     /// <summary>The state names the tests register, so a state reads as its localized word.</summary>
     private static readonly StubDisplayNames DisplayNames = new StubDisplayNames()
         .With("ResellerStatusActive", "Live")
-        .With("ResellerStatusSuspended", "Paused");
+        .With("ResellerStatusSuspended", "Paused")
+        .With("OwnerLanguageEN", "English")
+        .With("OwnerLanguageRU", "Русский");
 
     /// <summary>A reseller's list row carries its identity, state name, creation time and usage.</summary>
     [Fact]
@@ -61,6 +64,28 @@ public sealed class ResellerMapperTests
         Assert.Equal([AccountFeature.Sites], dto.Envelope.Features);
         Assert.Equal(0, dto.AccountCount);
         Assert.Equal("Live", dto.StatusName);
+    }
+
+    /// <summary>The detail names the language by its name, beside the code the edit form sends back (issue #511).</summary>
+    /// <remarks>
+    /// The pinned defect: the detail card printed the raw code <c>en</c> while every other field was
+    /// human text. The code stays on the wire because the edit form selects by it; the name is what the
+    /// card prints. A Russian reseller gets its own name, which the English one's name cannot satisfy.
+    /// </remarks>
+    [Fact]
+    public void The_detail_names_the_language_beside_its_code()
+    {
+        var english = ResellerMapper.ToDetailDto(ResellerTestData.Reseller("acme"), ResellerUsage.None, DisplayNames);
+        var russian = ResellerMapper.ToDetailDto(
+            new Reseller(
+                Guid.NewGuid(), "volga", "volga@example.com", "ru", ResellerTestData.Envelope(), ResellerTestData.CreatedAt),
+            ResellerUsage.None,
+            DisplayNames);
+
+        Assert.Equal("en", english.Language);
+        Assert.Equal("English", english.LanguageName);
+        Assert.Equal("ru", russian.Language);
+        Assert.Equal("Русский", russian.LanguageName);
     }
 
     /// <summary>An envelope survives the trip to the wire and back with every figure and ceiling intact.</summary>

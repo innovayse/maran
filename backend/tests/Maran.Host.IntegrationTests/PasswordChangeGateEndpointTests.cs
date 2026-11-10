@@ -145,7 +145,11 @@ public sealed class PasswordChangeGateEndpointTests : IAsyncLifetime
 
         foreach (var endpoint in factory.Services.GetRequiredService<EndpointDataSource>().Endpoints.OfType<RouteEndpoint>())
         {
-            if (endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null || IsApiKeyOnly(endpoint))
+            // The endpoints that answer to another credential (an API key, a single-use export grant) never
+            // see a session, so the gate has nothing to say about them.
+            if (endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null
+                || IsApiKeyOnly(endpoint)
+                || MigrationGrantEndpoint.IsGrantOnly(endpoint))
             {
                 continue;
             }

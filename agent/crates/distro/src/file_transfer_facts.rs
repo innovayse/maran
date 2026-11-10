@@ -92,10 +92,46 @@ pub trait FileTransferFacts: Send + Sync {
 
     /// Absolute path of `ssh-keygen`, for the process-execution allow-list.
     ///
-    /// Used only as the VALIDATOR of an SFTP login's key file (`ops::sftp`'s
+    /// Used as the VALIDATOR of an SFTP login's key file (`ops::sftp`'s
     /// `set_sftp_authorized_keys`): `ssh-keygen -l -f <file>` is OpenSSH's own
-    /// parser reading the file sshd will read, and it writes nothing.
+    /// parser reading the file sshd will read, and it writes nothing. Since issue
+    /// #197 it is also the generator of a migration source's key pair
+    /// (`ssh-keygen -t ed25519`, into a root-only scratch directory removed on
+    /// every path).
     fn ssh_keygen_binary(&self) -> AdapterBinary;
+
+    /// Absolute path of the OpenSSH client `ssh`, for the process-execution
+    /// allow-list (issue #197).
+    ///
+    /// The one program that opens the agent's outbound connection to a host an
+    /// administrator registered as a migration source. It is spawned with an argv
+    /// array that pins the host key, the identity file, the user and the port and
+    /// never through a shell. The OpenSSH CLIENT package is a different package
+    /// from the server on both families (`openssh-client` on the Debian family,
+    /// `openssh-clients` on the RHEL family), so the installer installs it as a
+    /// step of its own.
+    fn ssh_binary(&self) -> AdapterBinary;
+
+    /// Absolute path of `ssh-keyscan`, for the process-execution allow-list
+    /// (issue #197).
+    ///
+    /// Reads the host keys a source offers, with no authentication, so the
+    /// administrator can compare a fingerprint against the source's own console
+    /// before anything is trusted. Shipped by the same OpenSSH client package as
+    /// [`Self::ssh_binary`].
+    fn ssh_keyscan_binary(&self) -> AdapterBinary;
+
+    /// Absolute path of `rsync`, for the process-execution allow-list (issue #197,
+    /// phase 2).
+    ///
+    /// The program that copies an account's files from a registered migration
+    /// source. It is the only local program the transfer area runs as a customer
+    /// (inside `fork_as_account`, so the account's own uid writes every byte) and
+    /// it is given the `ssh` of [`Self::ssh_binary`] as its transport, with the same
+    /// pinned options the connection operations use. Shipped by the `rsync`
+    /// package on every family, at `/usr/bin/rsync` (merged `/usr`, read from the
+    /// package's file list).
+    fn rsync_binary(&self) -> AdapterBinary;
 
     /// Name of the OpenSSH server's service unit.
     ///

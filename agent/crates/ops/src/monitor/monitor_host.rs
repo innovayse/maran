@@ -144,19 +144,20 @@ pub trait MonitorHost: Send + Sync {
     ///   and the safe direction: it pages an operator to go look rather than
     ///   staying quiet.
     /// - An `Include`d drop-in can still change what governs a connection
-    ///   without touching this file at all: both families load
-    ///   `Include sshd_config.d/*.conf` from the TOP of `sshd_config`, and an
-    ///   OpenSSH `Match` block that is not closed by another `Match` line
-    ///   before its own file ends keeps applying to whatever text follows it
-    ///   after the `Include` splices back in — which could be this file's
-    ///   own appended block. This check reads only the block's own literal
-    ///   text and would report it Intact in that case, because the text IS
-    ///   unchanged; what actually governs a connection could differ. This is
-    ///   the FALSE NEGATIVE direction, and it is the accepted gap named in
-    ///   this feature's threat note — closing it means re-implementing
-    ///   OpenSSH's own `Include` resolution and `Match` precedence, which was
-    ///   judged out of proportion to the README's actual defect (a REMOVED
-    ///   block, not a shadowed one).
+    ///   without touching this file at all. `sshd_config(5)` keeps, for each
+    ///   keyword, the FIRST value it obtains, and a `Match` block applies on
+    ///   top of the global section; so a LATER block cannot undo ours, but an
+    ///   EARLIER one can. Both families load `Include sshd_config.d/*.conf`
+    ///   from the TOP of `sshd_config` while the installer appends its block
+    ///   at the END, so a drop-in whose `Match` matches the sftp group (for
+    ///   example `Match all`, or `Match Group` naming it) with
+    ///   `ChrootDirectory none` or `ForceCommand none` wins over the block.
+    ///   This check reads only the block's own literal text and would report
+    ///   it Intact in that case, because the text IS unchanged; what actually
+    ///   governs a connection could differ. This is the FALSE NEGATIVE
+    ///   direction, and it is the accepted gap named in this feature's threat
+    ///   note — closing it means re-implementing OpenSSH's own `Include`
+    ///   resolution and `Match` precedence.
     ///
     /// Asking sshd itself for its effective configuration (`sshd -T -C
     /// user=…`) was tried first and rejected — it evaluates a `Match Group`

@@ -1,12 +1,15 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAudit, viewedAs } from '../fixtures/stub-audit-routes'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
-import { ALERT_DELIVERY_OK, loaded, stubDashboard, SYNCHRONIZED_CLOCK, UNAVAILABLE } from '../fixtures/stub-dashboard-route'
+import { ALERT_DELIVERY_OK, loaded, ONE_SHOT, stubDashboard, SYNCHRONIZED_CLOCK, UNAVAILABLE } from '../fixtures/stub-dashboard-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
+import { DEFAULT_LAYOUT, installLiveStream, stubDashboardLayout } from '../fixtures/stub-live-dashboard-stream'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import type { AuditEvent } from '../../src/types/audit'
 import type { Dashboard } from '../../src/types/dashboard'
+import type { Page } from '@playwright/test'
 
 // An entry written while an administrator was viewing the panel as someone else names that
 // administrator on the journal and on the dashboard's latest-activity card (issue #327).
@@ -20,6 +23,7 @@ const SELF_ACTED: AuditEvent = {
   action: 'SiteCreated',
   actionName: 'Site created',
   subject: 'carol.example',
+  subjectName: 'carol.example',
   ipAddress: '203.0.113.21',
   succeeded: true,
   outcomeName: 'Succeeded',
@@ -33,6 +37,7 @@ const VIEWED_AS: AuditEvent = viewedAs(
     occurredAt: '2026-09-10T08:00:00+00:00',
     actorUsername: 'dave',
     subject: 'dave.example',
+    subjectName: 'dave.example',
     ipAddress: '198.51.100.22',
   },
   'operator',
@@ -42,7 +47,7 @@ const VIEWED_AS: AuditEvent = viewedAs(
 const LOCALES = [
   { code: 'en', navigation: 'Main navigation', expand: 'Show the Monitoring pages', journal: 'Audit journal', via: 'via operator' },
   { code: 'ru', navigation: 'Основная навигация', expand: 'Показать разделы «Мониторинг»', journal: 'Журнал аудита', via: 'через operator' },
-  { code: 'hy', navigation: 'Հիմնական նավիգացիա', expand: 'Ցույց տալ «Մոնիտորինգ» բաժինները', journal: 'Աուդիտ', via: 'operator-ի միջոցով' },
+  { code: 'hy', navigation: 'Հիմնական նավիգացիա', expand: 'Ցույց տալ «Մոնիտորինգ» բաժինները', journal: 'Աուդիտի մատյան', via: 'operator-ի միջոցով' },
 ] as const
 
 /**
@@ -56,6 +61,11 @@ const openShell = async (page: Page, locale: 'en' | 'ru' | 'hy'): Promise<void> 
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
+  // The panel opens on the system status screen before the journal is reached by a click.
+  await stubDashboard(page, ONE_SHOT)
+  await stubDashboardLayout(page, DEFAULT_LAYOUT)
+  await installLiveStream(page)
   await stubAudit(page, [SELF_ACTED, VIEWED_AS])
 }
 
@@ -114,7 +124,11 @@ test('the dashboard card names the operator on an entry written while viewing as
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
   await stubDashboard(page, dashboard)
+  // The server's dashboard reads the person's layout and opens its live stream; neither is the subject.
+  await stubDashboardLayout(page, DEFAULT_LAYOUT)
+  await installLiveStream(page)
 
   await page.goto('/')
 

@@ -1,6 +1,6 @@
 using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Tests.TestSupport;
-using Microsoft.EntityFrameworkCore;
+using Maran.SharedKernel.Results;
 
 namespace Maran.Modules.Accounts.Tests.Commands.ReactivateAccount;
 
@@ -58,7 +58,7 @@ public sealed class ReactivateAccountResellerTests : IDisposable
         Assert.Empty(_harness.Agent.Calls);
         Assert.Equal(
             AccountStatus.Suspended,
-            (await _harness.Seeder.Accounts.SingleAsync(row => row.Id == foreign.Id)).Status);
+            (await _harness.StoredAccountAsync(foreign.Id)).Status);
     }
 
     /// <summary>An account the administrator owns is not found for a reseller.</summary>
@@ -87,7 +87,7 @@ public sealed class ReactivateAccountResellerTests : IDisposable
         Assert.Empty(_harness.Agent.Calls);
         Assert.Equal(
             AccountStatus.Suspended,
-            (await _harness.Seeder.Accounts.SingleAsync(row => row.Id == account.Id)).Status);
+            (await _harness.StoredAccountAsync(account.Id)).Status);
     }
 
     /// <summary>A reseller whose row is gone is refused as not found, never allowed to write.</summary>
@@ -120,5 +120,82 @@ public sealed class ReactivateAccountResellerTests : IDisposable
         var failure = _harness.Audit.Entries[1];
         Assert.Equal("acme-reseller", failure.ActorUsername);
         Assert.False(failure.Succeeded);
+    }
+
+    /// <summary>
+    /// A reseller cannot lift a suspension an administrator placed (issue #493): the account stays
+    /// suspended, nothing on the host is touched, and the refusal is journaled as a failed reactivation.
+    /// </summary>
+    [Fact]
+    public async Task A_reseller_cannot_reactivate_an_account_an_administrator_suspended()
+    {
+        await _harness.SeedResellerAsync(OwnReseller, "acme-reseller");
+        var account = await _harness.SeedAccountAsync(
+            "alpha", OwnReseller, suspended: true, suspendedBy: SuspensionActor.Administrator);
+
+        var result = await _harness.ReactivateAsync(account.Id);
+
+        Assert.Equal("AccountSuspendedByAdministrator", result.Error!.Code);
+        Assert.Equal(ErrorType.Forbidden, result.Error.Type);
+        Assert.Empty(_harness.Agent.Calls);
+        var stored = await _harness.StoredAccountAsync(account.Id);
+        Assert.Equal(AccountStatus.Suspended, stored.Status);
+        Assert.Equal(SuspensionActor.Administrator, stored.SuspendedBy);
+        var entry = Assert.Single(_harness.Audit.Entries);
+        Assert.Equal("acme-reseller", entry.ActorUsername);
+        Assert.Equal("alpha", entry.Subject);
+        Assert.False(entry.Succeeded);
+    }
+
+    /// <summary>
+    /// A suspension whose origin was never recorded is read as an administrator's, because the other
+    /// reading lets a reseller undo one.
+    /// </summary>
+    [Fact]
+    public async Task A_suspension_with_no_recorded_origin_is_not_a_resellers_to_lift()
+    {
+        await _harness.SeedResellerAsync(OwnReseller, "acme-reseller");
+        var account = await _harness.SeedAccountAsync("alpha", OwnReseller, suspended: true);
+        _harness.Seeder.Entry(account).Property(row => row.SuspendedBy).CurrentValue = null;
+        await _harness.Seeder.SaveChangesAsync();
+
+        var result = await _harness.ReactivateAsync(account.Id);
+
+        Assert.Equal("AccountSuspendedByAdministrator", result.Error!.Code);
+        Assert.Empty(_harness.Agent.Calls);
+    }
+
+    /// <summary>
+    /// The accepting control of the refusal above: the same reseller lifts a suspension it placed
+    /// itself, and the record of who suspended is cleared.
+    /// </summary>
+    [Fact]
+    public async Task A_reseller_reactivates_an_account_it_suspended_itself_and_the_origin_is_cleared()
+    {
+        await _harness.SeedResellerAsync(OwnReseller, "acme-reseller");
+        var account = await _harness.SeedAccountAsync("alpha", OwnReseller);
+        Assert.True((await _harness.SuspendAsync(account.Id)).IsSuccess);
+        Assert.Equal(
+            SuspensionActor.Reseller,
+            (await _harness.StoredAccountAsync(account.Id)).SuspendedBy);
+
+        var result = await _harness.ReactivateAsync(account.Id);
+
+        Assert.True(result.IsSuccess, result.Error?.Code);
+        var stored = await _harness.StoredAccountAsync(account.Id);
+        Assert.Equal(AccountStatus.Active, stored.Status);
+        Assert.Null(stored.SuspendedBy);
+    }
+
+    /// <summary>A reseller reactivating an account that is not suspended is the idempotent no-op, not a refusal.</summary>
+    [Fact]
+    public async Task A_reseller_reactivating_an_active_account_is_not_refused()
+    {
+        await _harness.SeedResellerAsync(OwnReseller, "acme-reseller");
+        var account = await _harness.SeedAccountAsync("alpha", OwnReseller);
+
+        var result = await _harness.ReactivateAsync(account.Id);
+
+        Assert.True(result.IsSuccess, result.Error?.Code);
     }
 }

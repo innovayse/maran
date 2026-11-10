@@ -678,6 +678,7 @@ fn debian(host: RecordingHost) -> AccountOperations<RecordingHost> {
     )
     .with_shared_files_step(Box::new(|_| Ok(())))
     .with_mail_spool_step(Box::new(|_| Ok(())))
+    .with_site_logs_step(Box::new(|_| Ok(())))
 }
 
 fn name() -> AccountName {
@@ -1682,9 +1683,16 @@ fn the_nologin_shell_comes_from_the_distribution_and_not_from_a_literal() {
     on_rhel
         .create(&name(), &NewAccountSettings::with_quota(0))
         .expect("creation succeeds");
+    // UNVERIFIED on SUSE: the `shadow` package is read to install `nologin` in `/usr/sbin`;
+    // confirm with `rpm -qf /usr/sbin/nologin` in the pinned Leap image.
+    let on_suse = suse(RecordingHost::new());
+    on_suse
+        .create(&name(), &NewAccountSettings::with_quota(0))
+        .expect("creation succeeds");
 
     assert!(operations_calls(&on_debian, "useradd")[0].contains(&"/usr/sbin/nologin".to_owned()));
     assert!(operations_calls(&on_rhel, "useradd")[0].contains(&"/sbin/nologin".to_owned()));
+    assert!(operations_calls(&on_suse, "useradd")[0].contains(&"/usr/sbin/nologin".to_owned()));
 }
 
 #[test]
@@ -1765,6 +1773,24 @@ fn the_web_server_group_is_the_familys_own_never_a_literal() {
         chgrp[0],
         vec![
             tool_path(&on_rhel, "chgrp").as_str(),
+            "--no-dereference",
+            "--",
+            "nginx",
+            "/home/acme"
+        ]
+    );
+
+    // UNVERIFIED on SUSE: the `nginx` package is read to run as `nginx:nginx`; confirm with
+    // `getent group nginx` after installing it in the pinned Leap image.
+    let on_suse = suse(RecordingHost::new());
+    on_suse
+        .create(&name(), &NewAccountSettings::with_quota(0))
+        .expect("creation succeeds");
+    let chgrp = operations_calls(&on_suse, "chgrp");
+    assert_eq!(
+        chgrp[0],
+        vec![
+            tool_path(&on_suse, "chgrp").as_str(),
             "--no-dereference",
             "--",
             "nginx",
@@ -4075,6 +4101,78 @@ fn a_mail_spool_that_remains_stops_the_deletion_before_userdel() {
     );
 }
 
+#[test]
+fn site_logs_that_remain_stop_the_deletion_before_userdel() {
+    let operations =
+        debian(RecordingHost::new().with_user("acme")).with_site_logs_step(Box::new(|account| {
+            Err(AccountError::SiteLogsRemain {
+                username: account.name().as_str().to_owned(),
+            })
+        }));
+
+    let refusal = delete_acme(&operations);
+
+    assert!(
+        matches!(refusal, Err(AccountError::SiteLogsRemain { .. })),
+        "expected SiteLogsRemain, got {refusal:?}"
+    );
+    assert!(
+        operations_calls(&operations, "userdel").is_empty(),
+        "userdel must not have run: the account stays, which is the state that can be retried"
+    );
+}
+
+#[test]
+fn the_site_logs_are_removed_after_the_open_files_drop_in_and_before_userdel() {
+    // Named by the account, so a directory that outlived it would hand the previous
+    // tenant's visitor logs to whoever is given the name next (issue #477). The
+    // accepting control for the refusal above: the same step, succeeding, lets the
+    // deletion reach userdel and runs exactly once.
+    let host = RecordingHost::new().with_user("acme").with_stdout("");
+    let events = host.events_handle();
+    let marker = Arc::clone(&events);
+    let operations = debian(host).with_site_logs_step(Box::new(move |_| {
+        marker
+            .lock()
+            .expect("the fixture lock is never poisoned")
+            .push("site-logs".to_owned());
+        Ok(())
+    }));
+
+    delete_acme(&operations).expect("deletion succeeds");
+
+    let events = operations.host().events();
+    let limits = first_event(
+        &events,
+        "limits-removed:/etc/security/limits.d/maran-acme.conf",
+    );
+    let logs = first_event(&events, "site-logs");
+    let userdel = first_event(
+        &events,
+        &format!("run:{}", tool_path(&operations, "userdel")),
+    );
+    assert!(
+        limits < logs && logs < userdel,
+        "expected limits drop-in < site logs < userdel, got {events:?}"
+    );
+    assert_eq!(
+        events
+            .iter()
+            .filter(|event| event.as_str() == "site-logs")
+            .count(),
+        1
+    );
+}
+
+/// Operations for the SUSE family over `host`.
+fn suse(host: RecordingHost) -> AccountOperations<RecordingHost> {
+    AccountOperations::new(
+        host,
+        adapter_for(DistroFamily::Suse),
+        maran_agent_core::utils::free_space_floor::FreeSpaceFloor::default_floor(),
+    )
+}
+
 /// A pair of operations, one per family, over fresh hosts that hold `acme`.
 fn both_families_holding_acme() -> (
     AccountOperations<RecordingHost>,
@@ -4132,6 +4230,18 @@ fn an_account_created_with_a_bash_login_gets_the_distributions_bash() {
             .any(|pair| pair == ["--shell", "/bin/bash"])
     );
     assert!(!debian_useradd[0].contains(&"/usr/sbin/nologin".to_owned()));
+
+    // UNVERIFIED on SUSE: the usr-merged layout puts bash at `/usr/bin/bash`; confirm with
+    // `grep bash /etc/shells` in the pinned Leap image.
+    let on_suse = suse(RecordingHost::new());
+    on_suse
+        .create(&name(), &settings)
+        .expect("creation succeeds");
+    assert!(
+        operations_calls(&on_suse, "useradd")[0]
+            .windows(2)
+            .any(|pair| pair == ["--shell", "/usr/bin/bash"])
+    );
 }
 
 #[test]
@@ -4258,6 +4368,43 @@ fn unsuspending_with_the_nologin_shell_restores_nologin_as_it_always_did() {
         call.windows(2)
             .any(|pair| pair == ["--shell", "/sbin/nologin"])
     }));
+
+    let on_suse = suse(
+        RecordingHost::new()
+            .with_user("acme")
+            .with_stdout(&shadow_entry("!")),
+    );
+    on_suse
+        .unsuspend(&name(), LoginShell::Nologin)
+        .expect("unsuspension succeeds");
+    assert!(operations_calls(&on_suse, "usermod").iter().any(|call| {
+        call.windows(2)
+            .any(|pair| pair == ["--shell", "/usr/sbin/nologin"])
+    }));
+}
+
+#[test]
+fn unsuspending_restores_the_bash_shell_the_suse_family_names() {
+    let on_suse = suse(
+        RecordingHost::new()
+            .with_user("acme")
+            .with_stdout(&shadow_entry("!")),
+    );
+
+    on_suse
+        .unsuspend(&name(), LoginShell::Bash)
+        .expect("unsuspension succeeds");
+
+    let shell_calls: Vec<Vec<String>> = operations_calls(&on_suse, "usermod")
+        .into_iter()
+        .filter(|call| call.contains(&"--shell".to_owned()))
+        .collect();
+    assert_eq!(shell_calls.len(), 1);
+    assert!(
+        shell_calls[0]
+            .windows(2)
+            .any(|pair| pair == ["--shell", "/usr/bin/bash"])
+    );
 }
 
 #[test]

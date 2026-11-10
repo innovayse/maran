@@ -1,5 +1,7 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Backups.Domain.Entities;
+using Maran.Modules.Backups.Domain.Policies;
+using Maran.Modules.Backups.Models;
 using Maran.Modules.Backups.Persistence;
 using Maran.Modules.Backups.Services;
 using Maran.Sdk.Contracts;
@@ -123,34 +125,105 @@ public sealed class RetentionHandler
     /// <param name="message">Which account to prune, and how many backups to keep.</param>
     /// <param name="cancellationToken">Cancels the pass between deletions.</param>
     /// <returns>How many backups were removed; zero is the ordinary outcome until the count is exceeded.</returns>
+    /// <remarks>
+    /// The account's pre-restore copies are bounded in the same pass, so a restore whose own request
+    /// to do that was lost with the process still has it done at the next scheduled run. That second
+    /// part is skipped when the first stopped on a refusal: a refusing agent refuses every deletion.
+    /// </remarks>
     public async Task<int> HandleAsync(RetentionRequested message, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(message);
 
-        var accounts = await _accounts.ListAsync(cancellationToken);
-        var account = accounts.FirstOrDefault(row => { return row.Id == message.AccountId; });
+        var account = await FindAccountAsync(message.AccountId, cancellationToken);
         if (account is null)
         {
-            LogAccountMissing(_logger, message.AccountId, null);
             return 0;
         }
 
-        var prunable = (await OwnedBackupsAsync(message.AccountId, cancellationToken))
-            .Where(backup => { return backup.MayBeRetentionPruned(); })
-            .OrderByDescending(backup => { return backup.StartedAt; })
-            .Skip(message.RetainCount)
-            .ToList();
+        var owned = await OwnedBackupsAsync(message.AccountId, cancellationToken);
+        var ordinary = await PruneAsync(
+            account,
+            owned.Where(backup => { return backup.MayBeRetentionPruned(); })
+                .OrderByDescending(backup => { return backup.StartedAt; })
+                .Skip(message.RetainCount),
+            cancellationToken);
+        if (ordinary.Stopped)
+        {
+            return ordinary.Pruned;
+        }
 
+        var safety = await PruneAsync(account, SurplusSafetyCopies(owned), cancellationToken);
+
+        return ordinary.Pruned + safety.Pruned;
+    }
+
+    /// <summary>Bounds one account's pre-restore copies to the newest few (issue #479).</summary>
+    /// <param name="message">Which account to prune.</param>
+    /// <param name="cancellationToken">Cancels the pass between deletions.</param>
+    /// <returns>How many pre-restore copies were removed.</returns>
+    public async Task<int> HandleAsync(PreRestoreRetentionRequested message, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+
+        var account = await FindAccountAsync(message.AccountId, cancellationToken);
+        if (account is null)
+        {
+            return 0;
+        }
+
+        var owned = await OwnedBackupsAsync(message.AccountId, cancellationToken);
+
+        return (await PruneAsync(account, SurplusSafetyCopies(owned), cancellationToken)).Pruned;
+    }
+
+    /// <summary>The pre-restore copies beyond the newest few, newest of the surplus first.</summary>
+    /// <param name="owned">Every backup row of the account.</param>
+    /// <returns>The completed pre-restore copies the account holds beyond the bound.</returns>
+    private static IEnumerable<Backup> SurplusSafetyCopies(IEnumerable<Backup> owned)
+    {
+        return owned
+            .Where(backup => { return backup.MayBeSafetyCopyPruned(); })
+            .OrderByDescending(backup => { return backup.StartedAt; })
+            .Skip(AccountBackupAllowance.MaximumPreRestoreCopies);
+    }
+
+    /// <summary>Finds the account a pass is about, logging when it no longer exists.</summary>
+    /// <param name="accountId">The account.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    /// <returns>The account, or <c>null</c> when it is gone and its archives cannot be addressed.</returns>
+    private async Task<AccountSnapshot?> FindAccountAsync(Guid accountId, CancellationToken cancellationToken)
+    {
+        var accounts = await _accounts.ListAsync(cancellationToken);
+        var account = accounts.FirstOrDefault(row => { return row.Id == accountId; });
+        if (account is null)
+        {
+            LogAccountMissing(_logger, accountId, null);
+        }
+
+        return account;
+    }
+
+    /// <summary>Removes the given backups, archive first and row second, oldest first.</summary>
+    /// <param name="account">The account that owns them.</param>
+    /// <param name="prunable">The backups to remove, newest first.</param>
+    /// <param name="cancellationToken">Cancels the pass between deletions.</param>
+    /// <returns>How many were removed, and whether the pass stopped on an agent refusal.</returns>
+    private async Task<PruneResult> PruneAsync(
+        AccountSnapshot account,
+        IEnumerable<Backup> prunable,
+        CancellationToken cancellationToken)
+    {
         var pruned = 0;
         var unreachable = 0;
+        var stopped = false;
 
-        // Oldest first, so a pass interrupted partway — a cancellation, a host shutting down — has
+        // Oldest first, so a pass interrupted partway - a cancellation, a host shutting down - has
         // already removed the longest-overdue archives rather than an arbitrary subset.
-        foreach (var backup in Enumerable.Reverse(prunable))
+        foreach (var backup in Enumerable.Reverse(prunable.ToList()))
         {
             // Resolved per backup, from the row, because two backups of one account can name two
             // destinations. A destination this build cannot act on leaves the row alone and is
-            // COUNTED rather than skipped silently — the count is what tells an operator that
+            // COUNTED rather than skipped silently - the count is what tells an operator that
             // retention is not keeping the promise the schedule's retain figure makes.
             var destination = await _destinations.ResolveAsync(backup.DestinationId, cancellationToken);
             if (!destination.IsSuccess)
@@ -164,7 +237,7 @@ public sealed class RetentionHandler
 
             // A NotFound is the state the pass wanted: the bytes are gone, so the row may go too.
             // Decided on the error's KIND rather than on the code's spelling, as the customer's own
-            // deletion path decides it — a code is a module-owned string that can be renamed.
+            // deletion path decides it - a code is a module-owned string that can be renamed.
             if (!deleted.IsSuccess && deleted.Error!.Type != ErrorType.NotFound)
             {
                 LogRefused(_logger, backup.Id, deleted.Error!.Code, null);
@@ -172,6 +245,7 @@ public sealed class RetentionHandler
                 await _journal.RecordSystemAsync(
                     BackupAuditActions.BackupRetentionPruned, account.Username, succeeded: false, cancellationToken);
 
+                stopped = true;
                 break;
             }
 
@@ -186,9 +260,9 @@ public sealed class RetentionHandler
             pruned++;
         }
 
-        LogPruned(_logger, pruned, message.AccountId, unreachable, null);
+        LogPruned(_logger, pruned, account.Id, unreachable, null);
 
-        return pruned;
+        return new PruneResult(pruned, stopped);
     }
 
     /// <summary>Reads every backup of one account, ignoring the tenant filter this pass cannot satisfy.</summary>

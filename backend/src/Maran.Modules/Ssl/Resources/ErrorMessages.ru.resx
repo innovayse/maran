@@ -57,6 +57,24 @@
   <data name="AcmeChallengeUnavailable">
     <value>Центр сертификации не предложил проверки, которую этот сервер может пройти.</value>
   </data>
+  <data name="AcmeDnsChallengeFailed">
+    <value>Центр сертификации не смог проверить DNS-запись. Серверы имён домена должны указывать на этот сервер, а CAA-запись, если она есть, должна разрешать wildcard-сертификаты (issuewild).</value>
+  </data>
+  <data name="AcmeDnsChallengeWriteFailed">
+    <value>Не удалось поместить проверочную запись в DNS-зону этого домена.</value>
+  </data>
+  <data name="WildcardDnsNotAvailable">
+    <value>Для wildcard-сертификатов нужен модуль DNS, которого в этой панели нет.</value>
+  </data>
+  <data name="WildcardDnsNotEnabled">
+    <value>Для wildcard-сертификатов нужен DNS-сервер этого сервера, который ещё не включён.</value>
+  </data>
+  <data name="WildcardFeatureNotIncluded">
+    <value>Ваш тариф не включает DNS-зоны, которые нужны для wildcard-сертификатов.</value>
+  </data>
+  <data name="WildcardZoneNotServed">
+    <value>Этот сервер не обслуживает DNS-зону этого домена. Создайте зону здесь и направьте серверы имён домена на этот сервер, чтобы запросить wildcard-сертификат.</value>
+  </data>
   <data name="AcmeChallengeWriteFailed">
     <value>Не удалось поместить проверочный файл в корневую папку сайта.</value>
   </data>

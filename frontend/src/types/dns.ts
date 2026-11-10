@@ -1,3 +1,4 @@
+import type { DnsDnssecState } from './dnsDnssec'
 import type { DnsRecordTypeKey } from './dnsRecord'
 import type { ListRequest, Paged } from './list'
 
@@ -77,6 +78,8 @@ export interface DnsZone {
    * empty while none is stated.
    */
   nameservers: string[]
+  /** Where the zone's DNSSEC signing stands, so a list or a delete confirmation can warn about the DS record. */
+  dnssecState: DnsDnssecState
 }
 
 /** What `POST /api/v1/dns-zones` takes. */
@@ -85,6 +88,8 @@ export interface CreateDnsZoneRequest {
   accountId: string
   /** The apex name. The panel accepts only a name one of the account's sites claims. */
   name: string
+  /** The template the zone starts from, or `null` for an empty zone. */
+  templateId: string | null
 }
 
 /**

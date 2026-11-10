@@ -36,6 +36,9 @@
   <data name="TaskKindBackupRestore">
     <value>Վերականգնում պահուստային պատճենից</value>
   </data>
+  <data name="TaskKindAccountImport">
+    <value>Հաշվի ներմուծում մեկ այլ սերվերից</value>
+  </data>
   <data name="TaskStatusRunning">
     <value>Կատարվում է</value>
   </data>

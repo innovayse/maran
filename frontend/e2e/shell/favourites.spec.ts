@@ -1,11 +1,16 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { FULL_CATALOGUE, mainNavigation, openSection } from '../fixtures/open-full-shell'
 import { stubPinnedPages, type PinnedPagesState } from '../fixtures/stub-pinned-pages-route'
 import { stubbedAdministrator, stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubQuietOwnAccount } from '../fixtures/stub-quiet-own-account'
+import { stubQuietScreens } from '../fixtures/stub-quiet-screens'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 // Favourites (issue #318): a person pins pages from the sidebar or the phone drawer, reaches them
 // from the app bar's Favourites menu, and finds the same pins on another device. Pages that cannot
@@ -43,15 +48,15 @@ const openShell = async (
   viewport: { width: number; height: number } = { width: 1440, height: 900 },
 ): Promise<void> => {
   await page.setViewportSize(viewport)
-  // Anything no narrower stub answers is an empty 404: these specs are about the shell around a page.
-  await page.route(/\/api\/v1\//, async (route) => {
-    await route.fulfill({
-      status: 404,
-      contentType: 'application/problem+json',
-      body: JSON.stringify({ title: 'Not found', status: 404 }),
-    })
-  })
+  // Anything no narrower stub answers gets the quietest body its contract allows: these specs are
+  // about the shell around a page, and the screens a favourite leads to are not the subject.
+  await stubQuietScreens(page)
   await stubSignedIn(page, user)
+  await stubShellReads(page)
+  await stubLandingReads(page, user.role === 'customer' ? 'customer' : 'administrator')
+  if (user.accountId !== null) {
+    await stubQuietOwnAccount(page, user.accountId)
+  }
   await stubHealthy(page)
   await stubModules(page, modules)
   await stubPinnedPages(page, state)

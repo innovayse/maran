@@ -118,7 +118,7 @@ public sealed class ResellerInvitationIssuer
         var minted = await _issuer.MintAsync(login, now, cancellationToken);
 
         return Result<IssuedInvitation>.Ok(
-            new IssuedInvitation(login.Username, login.Email, minted.Token, minted.ExpiresAt, reseller.Language));
+            new IssuedInvitation(login.Id, login.Username, login.Email, minted.Token, minted.ExpiresAt, reseller.Language));
     }
 
     /// <summary>Finds the reseller's login by the reseller id it carries.</summary>

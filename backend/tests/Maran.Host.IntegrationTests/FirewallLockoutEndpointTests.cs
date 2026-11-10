@@ -3,7 +3,9 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Maran.Agent.Client.Interfaces;
+using Maran.Agent.Client.Services.FirewallService;
 using Maran.Host.IntegrationTests.Fixtures;
+using Maran.Modules.Firewall.Persistence;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
@@ -130,7 +132,91 @@ public sealed class FirewallLockoutEndpointTests : IAsyncLifetime
         Assert.Equal(["tcp/22 from 203.0.113.0/24"], refusals);
     }
 
-    /// <summary>Applies the migrations these tests need and seeds the one administrator.</summary>
+    /// <summary>Removing the rule that admits the caller, with another rule left for the port, is refused with a 409.</summary>
+    /// <returns>Resolves once the refusal and the untouched agent have been read back.</returns>
+    [Fact]
+    public async Task Removing_the_rule_that_admits_the_caller_while_another_remains_is_refused_and_removes_nothing()
+    {
+        var agent = new StubAgentFirewallClient
+        {
+            Rules =
+            [
+                new AgentFirewallRule(22, null, AgentFirewallProtocol.Tcp, "198.51.100.0/24"),
+                new AgentFirewallRule(22, null, AgentFirewallProtocol.Tcp, "192.0.2.0/24"),
+            ],
+        };
+        await using var factory = CreateFactory(agent);
+        await MigrateAndSeedAsync(factory);
+        using var client = await SignInAsync(factory);
+
+        var response = await client.DeleteAsync(
+            "/api/v1/firewall/rules?port=22&protocol=1&sourceCidr=198.51.100.0%2F24");
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("FirewallRuleLocksOutCaller", body.RootElement.GetProperty("code").GetString());
+        Assert.Null(agent.RulePorts);
+    }
+
+    /// <summary>The inverse control: removing the other rule, which leaves the caller admitted, goes through.</summary>
+    /// <returns>Resolves once the agent has been read back.</returns>
+    [Fact]
+    public async Task Removing_a_rule_that_leaves_the_caller_admitted_is_sent_to_the_agent()
+    {
+        var agent = new StubAgentFirewallClient
+        {
+            Rules =
+            [
+                new AgentFirewallRule(22, null, AgentFirewallProtocol.Tcp, "198.51.100.0/24"),
+                new AgentFirewallRule(22, null, AgentFirewallProtocol.Tcp, "192.0.2.0/24"),
+            ],
+        };
+        await using var factory = CreateFactory(agent);
+        await MigrateAndSeedAsync(factory);
+        using var client = await SignInAsync(factory);
+
+        var response = await client.DeleteAsync(
+            "/api/v1/firewall/rules?port=22&protocol=1&sourceCidr=192.0.2.0%2F24");
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal((22, (int?)null), agent.RulePorts);
+    }
+
+    /// <summary>Banning the address the request arrived from is refused with a 409 and reaches no agent.</summary>
+    /// <returns>Resolves once the refusal and the untouched agent have been read back.</returns>
+    [Fact]
+    public async Task Banning_the_callers_own_address_is_refused_and_bans_nothing()
+    {
+        var agent = new StubAgentFirewallClient();
+        await using var factory = CreateFactory(agent);
+        await MigrateAndSeedAsync(factory);
+        using var client = await SignInAsync(factory);
+
+        var response = await client.PostAsJsonAsync("/api/v1/firewall/bans", new { address = CallerAddress });
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("BanAddressIsCaller", body.RootElement.GetProperty("code").GetString());
+        Assert.Empty(agent.Bans);
+    }
+
+    /// <summary>The inverse control: banning another address is installed.</summary>
+    /// <returns>Resolves once the agent has been read back.</returns>
+    [Fact]
+    public async Task Banning_another_address_is_installed()
+    {
+        var agent = new StubAgentFirewallClient();
+        await using var factory = CreateFactory(agent);
+        await MigrateAndSeedAsync(factory);
+        using var client = await SignInAsync(factory);
+
+        var response = await client.PostAsJsonAsync("/api/v1/firewall/bans", new { address = "203.0.113.9" });
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(["203.0.113.9"], agent.Bans);
+    }
+
+    /// <summary>Applies the migrations these tests need (the Identity and Firewall modules') and seeds the one administrator.</summary>
     /// <param name="factory">The booted host.</param>
     /// <returns>Resolves once the tables and the row exist.</returns>
     private static async Task MigrateAndSeedAsync(WebApplicationFactory<Program> factory)
@@ -138,6 +224,9 @@ public sealed class FirewallLockoutEndpointTests : IAsyncLifetime
         using var scope = factory.Services.CreateScope();
         var identity = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         await identity.Database.MigrateAsync();
+
+        // A ban is recorded as an episode and judged against the whitelist, both of this module's tables.
+        await scope.ServiceProvider.GetRequiredService<FirewallDbContext>().Database.MigrateAsync();
 
         var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
         var now = scope.ServiceProvider.GetRequiredService<IClock>().UtcNow;

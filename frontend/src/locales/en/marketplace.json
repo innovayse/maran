@@ -1,0 +1,204 @@
+{
+  "marketplace": {
+    "title": "Marketplace",
+    "subtitle": "Find, install and update modules for this panel.",
+    "detail": {
+      "title": "Module",
+      "back": "Back to the marketplace",
+      "summaryTitle": "About this module",
+      "offTitle": "The marketplace is off",
+      "offDescription": "Turn on the marketplace on its page to see this module."
+    },
+    "tabs": {
+      "label": "Marketplace sections",
+      "available": "Available",
+      "installed": "Installed",
+      "updates": "Updates"
+    },
+    "switch": {
+      "title": "Connection to the marketplace",
+      "description": "The marketplace is off. While it is off, the panel makes no request to it.",
+      "descriptionOn": "The marketplace is on. The panel contacts it only when you open this page or press a button on it.",
+      "stateOn": "On",
+      "stateOff": "Off",
+      "hostLabel": "Marketplace host",
+      "hostNotConfigured": "No marketplace host is configured on this server.",
+      "sentTitle": "What the panel sends",
+      "turnOn": "Turn on the marketplace",
+      "turnOff": "Turn off the marketplace",
+      "confirmOnTitle": "Turn on the marketplace",
+      "confirmOnQuestion": "Enter your password to let the panel contact the marketplace.",
+      "confirmOffTitle": "Turn off the marketplace",
+      "confirmOffQuestion": "Enter your password to stop the panel from contacting the marketplace. Installed modules keep working.",
+      "working": "Saving…"
+    },
+    "password": {
+      "label": "Your current password",
+      "hint": "The panel asks for your password again before it changes modules."
+    },
+    "cancel": "Cancel",
+    "close": "Close",
+    "available": {
+      "searchLabel": "Search modules",
+      "searchPlaceholder": "Search by name or summary…",
+      "searchClear": "Clear the search",
+      "listLabel": "Modules in the marketplace",
+      "emptyTitle": "No modules available",
+      "emptyDescription": "The marketplace has no modules to offer this panel right now.",
+      "noResultsTitle": "No modules match",
+      "noResultsDescription": "Change the search, or clear it to see every module.",
+      "loadMore": "Show more modules",
+      "loadingMore": "Loading more modules…",
+      "fetchedAt": "Catalogue fetched {time}"
+    },
+    "unverified": {
+      "title": "The catalogue could not be verified",
+      "installsOff": "Installing and updating are unavailable until the catalogue can be verified. Installed modules are not affected."
+    },
+    "unreachable": {
+      "title": "The marketplace could not be reached",
+      "description": "The panel and the installed modules are not affected. Try again in a moment.",
+      "retry": "Try again"
+    },
+    "card": {
+      "publisher": "Publisher",
+      "price": "Price",
+      "latestVersion": "Latest version",
+      "installedVersion": "Installed version",
+      "details": "Details",
+      "detailsFor": "Details of {name}",
+      "install": "Install",
+      "update": "Update",
+      "buyFor": "Get a licence for {name}",
+      "licence": "Licence",
+      "licenceUntil": "Valid until {date}",
+      "installFor": "Install {name}"
+    },
+    "states": {
+      "available": "Available",
+      "installed": "Installed",
+      "updateAvailable": "Update available",
+      "revoked": "Withdrawn",
+      "incompatible": "Not compatible"
+    },
+    "lifecycle": {
+      "installed": "Restart required",
+      "active": "Running",
+      "degraded": "Degraded",
+      "failed": "Failed",
+      "removed": "Removed"
+    },
+    "installed": {
+      "listLabel": "Installed modules",
+      "emptyTitle": "No modules installed from the marketplace",
+      "emptyDescription": "Modules you install appear here with their version and state.",
+      "version": "Version",
+      "origin": "Origin",
+      "installedAt": "Installed",
+      "dataKept": "The module is removed and its data is kept.",
+      "revoked": "This version was withdrawn by the marketplace.",
+      "remove": "Remove",
+      "removeFor": "Remove {name}",
+      "rollback": "Roll back",
+      "rollbackFor": "Roll back {name}",
+      "name": "Module",
+      "state": "State",
+      "previousVersionValue": "Previous version: {version}"
+    },
+    "updates": {
+      "check": "Check for updates",
+      "checking": "Checking for updates…",
+      "notChecked": "Updates are checked only when you press Check for updates.",
+      "checkedAt": "Last checked {time}",
+      "listLabel": "Available module updates",
+      "upToDateTitle": "All modules are up to date",
+      "upToDateDescription": "No newer version was found for the installed modules.",
+      "installedVersion": "Installed",
+      "availableVersion": "Available",
+      "updateFor": "Update {name}",
+      "name": "Module",
+      "status": "State"
+    },
+    "versions": {
+      "title": "Versions",
+      "version": "Version",
+      "size": "Size",
+      "publishedAt": "Published",
+      "minPanel": "Panel from",
+      "maxPanel": "Panel up to",
+      "noMax": "No limit",
+      "notes": "Release notes",
+      "noNotes": "No release notes published",
+      "revoked": "Withdrawn",
+      "installable": "Can be installed",
+      "tableCaption": "Published versions",
+      "installThis": "Install this version",
+      "installThisFor": "Install version {version}",
+      "status": "State"
+    },
+    "manifest": {
+      "title": "What this module can do",
+      "publisher": "Publisher",
+      "tier": "Licence tier",
+      "minPanel": "Needs panel version",
+      "schema": "Database schema",
+      "noSchema": "None",
+      "dependencies": "Needs these modules",
+      "agentCapabilities": "Parts of the server it reaches",
+      "permissions": "Permissions",
+      "none": "None"
+    },
+    "install": {
+      "title": "Install {name}",
+      "versionLabel": "Version to install",
+      "warning": "A module runs inside the panel with the panel's own access. Check what it declares before you install it.",
+      "acknowledge": "I understand that this module runs inside the panel and can reach the parts of the server listed above.",
+      "submit": "Install",
+      "manifestMissing": "The panel has no summary of this module's manifest to show."
+    },
+    "update": {
+      "title": "Update {name}",
+      "versionLabel": "Version to update to",
+      "acknowledge": "I understand that the new version runs inside the panel and can reach the parts of the server listed above.",
+      "submit": "Update"
+    },
+    "remove": {
+      "title": "Remove {name}",
+      "question": "The module stops after the next restart of the panel. Its data is kept, and installing the module again brings it back.",
+      "submit": "Remove module"
+    },
+    "rollback": {
+      "title": "Roll back {name}",
+      "question": "The module returns to its previous version after the next restart of the panel.",
+      "submit": "Roll back module"
+    },
+    "operation": {
+      "install": "Installing {name}",
+      "update": "Updating {name}",
+      "remove": "Removing {name}",
+      "rollback": "Rolling back {name}",
+      "progressLabel": "Progress of the operation on {name}",
+      "logLabel": "Log of the operation",
+      "failedTitle": "The operation failed",
+      "failedKept": "Modules that were running keep running.",
+      "code": "Code: {code}",
+      "dismiss": "Dismiss",
+      "openTasks": "Open in tasks",
+      "retry": "Try again",
+      "done": "The operation finished."
+    },
+    "restart": {
+      "title": "Restart required",
+      "description": "{name} is installed and starts after the panel restarts.",
+      "action": "Restart the panel",
+      "confirmTitle": "Restart the panel",
+      "confirmQuestion": "The panel is unavailable for a short time while it restarts.",
+      "confirmAction": "Restart now",
+      "restarting": "Restarting the panel…",
+      "restartingDescription": "This page checks the panel until {name} is ready. It can take up to two minutes.",
+      "timeoutTitle": "The panel has not come back yet",
+      "timeoutDescription": "Wait a little and reload the page. If it stays unavailable, check the server.",
+      "ready": "{name} is ready."
+    }
+  }
+}

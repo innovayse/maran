@@ -29,12 +29,16 @@ public static class RateLimitingExtensions
                 options,
                 services.BuildServiceProvider().GetRequiredService<IOptions<DashboardStreamOptions>>().Value);
             PasswordResetRateLimitPolicy.Configure(options, limits);
+            PasswordResetCompletionRateLimitPolicy.Configure(options, limits);
+            SessionRefreshRateLimitPolicy.Configure(options, limits);
             InvitationRateLimitPolicy.Configure(options, limits);
             InvitationSendingRateLimitPolicy.Configure(options, limits);
+            MigrationPullRateLimitPolicy.Configure(options, limits);
             BackupRestoreRateLimitPolicy.Configure(options, limits);
             BackupVerifyRateLimitPolicy.Configure(options, limits);
             DnsRateLimitPolicy.Configure(options, limits);
             AuditExportRateLimitPolicy.Configure(options, limits);
+            UpdateCheckRateLimitPolicy.Configure(options, limits);
             SearchRateLimitPolicy.Configure(options, limits);
             FilesRateLimitPolicy.Configure(options, limits);
             ProvisioningRateLimitPolicy.Configure(options, limits);

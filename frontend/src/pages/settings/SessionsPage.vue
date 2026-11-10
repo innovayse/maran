@@ -46,6 +46,7 @@ import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiPagination from '../../components/ui/UiPagination.vue'
 import UiSearchInput from '../../components/ui/UiSearchInput.vue'
 import UiTable from '../../components/ui/UiTable.vue'
+import UiToolbar from '../../components/ui/UiToolbar.vue'
 import type { UiTableColumn } from '../../types/tableColumn'
 import { useCallerRole } from '../../composables/useCallerRole'
 import { useListLabels } from '../../composables/useListLabels'
@@ -229,14 +230,15 @@ const signOutEverywhere = async (): Promise<void> => {
     <UiCard>
       <div class="flex flex-col gap-4">
         <!-- No search has anything to narrow on a list with nothing in it. -->
-        <UiSearchInput
-          v-if="!answeredNothing || isNarrowed"
-          v-model="table.search.value"
-          class="min-w-55 max-w-85"
-          :label="t('app.sessions.searchLabel')"
-          :placeholder="t('app.sessions.searchPlaceholder')"
-          :clear-label="t('app.sessions.searchClear')"
-        />
+        <UiToolbar v-if="!answeredNothing || isNarrowed">
+          <UiSearchInput
+            v-model="table.search.value"
+            class="min-w-55 max-w-85"
+            :label="t('app.sessions.searchLabel')"
+            :placeholder="t('app.sessions.searchPlaceholder')"
+            :clear-label="t('app.sessions.searchClear')"
+          />
+        </UiToolbar>
 
         <UiLoadingRegion :state="table.loadingState.value">
           <template #error>

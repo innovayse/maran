@@ -132,6 +132,7 @@ async fn main() {
         options.socket_path(),
         PeerPolicy::new(options.allow_uid),
         options.free_space_floor,
+        options.panel_host_names.clone(),
         fleet,
     )
     .await

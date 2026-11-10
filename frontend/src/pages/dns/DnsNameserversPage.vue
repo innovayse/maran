@@ -4,9 +4,10 @@
  * the values the panel writes into every zone it serves. Renders a `<section>`, not a `<main>`.
  * State comes from the DNS settings store; the page never touches the API layer (rules/vue.md).
  *
- * **Turning the name server on opens port 53 to the internet**, and turning it off closes it, so
- * both ask first and say which. The setting and the host's answer are two facts and are shown as
- * two (see {@link DnsServerPanel}).
+ * **Turning the name server on or off does not touch the firewall.** The daemon listens on every
+ * address, so both switches ask first and say so, and the card shows whether the panel firewall
+ * lets port 53 through with a one-click fix (see {@link DnsServerPanel}). The setting and the host's
+ * answer are two facts and are shown as two.
  *
  * Every refusal is the server's own localized sentence, shown as it was sent. `adminOnly` on the
  * route is advice; the endpoints refuse every other role on their own (rules/security.md).
@@ -24,12 +25,15 @@ import DnsNameserversForm from '../../components/dns/DnsNameserversForm.vue'
 import DnsServerPanel from '../../components/dns/DnsServerPanel.vue'
 import { useDnsCatalogStore } from '../../stores/dnsCatalog'
 import { useDnsSettingsStore } from '../../stores/dnsSettings'
+import { useFirewallStore } from '../../stores/firewall'
+import type { FirewallRule } from '../../types/firewall'
 import type { SaveDnsSettingsRequest } from '../../types/dnsSettings'
 import type { LoadingState } from '../../types/loading'
 
 const { t } = useI18n()
 const store = useDnsSettingsStore()
 const catalogStore = useDnsCatalogStore()
+const firewallStore = useFirewallStore()
 
 /** The success toast's text, or `null` while none is showing. */
 const notice: Ref<string | null> = ref(null)
@@ -43,6 +47,18 @@ const regionState: ComputedRef<LoadingState> = computed(() => {
     return 'loading'
   }
   return store.settings === null || store.server === null ? 'error' : 'loaded'
+})
+
+/**
+ * The confirmation's question, worded for the pending direction with the port the panel supplied. The
+ * dialog is only open once the server has been read, so an unread server yields an empty question.
+ */
+const confirmQuestion: ComputedRef<string> = computed(() => {
+  if (store.server === null) {
+    return ''
+  }
+  const key = pendingSwitch.value === true ? 'dns.server.confirmOn' : 'dns.server.confirmOff'
+  return t(key, { port: store.server.port })
 })
 
 /**
@@ -92,6 +108,24 @@ const confirmSwitch = async (): Promise<void> => {
 }
 
 /**
+ * Opens the name server's port in the firewall.
+ * @param rules The rules the card derived from the port the panel supplied.
+ * @returns Resolves once the change has settled.
+ */
+const openPort = async (rules: FirewallRule[]): Promise<void> => {
+  await firewallStore.allowPorts(rules)
+}
+
+/**
+ * Removes the rules a stopped name server left letting its port through.
+ * @param rules The rules the card derived from the listing.
+ * @returns Resolves once the change has settled.
+ */
+const closePort = async (rules: FirewallRule[]): Promise<void> => {
+  await firewallStore.denyPorts(rules)
+}
+
+/**
  * Hides the success toast.
  * @returns Nothing.
  */
@@ -103,6 +137,7 @@ onMounted(() => {
   // The catalogue bounds the TTL the form checks; it fills without holding the page back.
   void catalogStore.load()
   void store.load()
+  void firewallStore.load()
 })
 </script>
 
@@ -112,6 +147,9 @@ onMounted(() => {
 
     <UiAlert v-if="store.switchErrorMessage !== null" variant="error">{{ store.switchErrorMessage }}</UiAlert>
     <UiAlert v-if="store.saveErrorMessage !== null" variant="error">{{ store.saveErrorMessage }}</UiAlert>
+    <UiAlert v-if="firewallStore.ruleErrorMessage !== null" variant="error">
+      {{ firewallStore.ruleErrorMessage }}
+    </UiAlert>
 
     <UiLoadingRegion :state="regionState">
       <template #error>
@@ -120,7 +158,14 @@ onMounted(() => {
 
       <div v-if="store.settings !== null && store.server !== null" class="flex min-w-0 flex-col gap-4">
         <UiAlert v-if="!store.settings.complete" variant="info">{{ t('dns.nameservers.incomplete') }}</UiAlert>
-        <DnsServerPanel :server="store.server" :acting="store.switching" @switch="askSwitch" />
+        <DnsServerPanel
+          :server="store.server"
+          :rules="firewallStore.loadState === 'loaded' ? firewallStore.rules : null"
+          :acting="store.switching || firewallStore.acting"
+          @switch="askSwitch"
+          @open-port="openPort"
+          @close-port="closePort"
+        />
         <DnsNameserversForm
           :settings="store.settings"
           :catalog="catalogStore.catalog"
@@ -136,7 +181,7 @@ onMounted(() => {
     <UiConfirm
       :open="pendingSwitch !== null"
       :title="pendingSwitch === true ? t('dns.server.confirmOnTitle') : t('dns.server.confirmOffTitle')"
-      :question="pendingSwitch === true ? t('dns.server.confirmOn') : t('dns.server.confirmOff')"
+      :question="confirmQuestion"
       :confirm-label="pendingSwitch === true ? t('dns.server.turnOn') : t('dns.server.turnOff')"
       :cancel-label="t('common.cancel')"
       :close-label="t('common.close')"

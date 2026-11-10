@@ -1,10 +1,13 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { FULL_CATALOGUE, mainNavigation, openSection } from '../fixtures/open-full-shell'
 import { storedAlertRecipients, stubAlertRecipientsRefused, stubAlertSettings } from '../fixtures/stub-alert-routes'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
+import type { Page } from '@playwright/test'
 
 // The alert settings screen (administrators only): a recipient list edited as a draft and saved
 // whole, and the thresholds with the bounds the panel states. Every spec reaches the page through
@@ -21,6 +24,8 @@ const SWEPT_SCREEN = { path: '/settings/alerts' }
 const openAlertSettings = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
   await stubModules(page, FULL_CATALOGUE)
   await page.goto('/')
   await openSection(page, 'Settings')
@@ -59,7 +64,8 @@ test('an invalid or repeated address is refused before it joins the list', async
   await expect(page.getByText('That address is already in the list.')).toBeVisible()
 })
 
-test('a save the panel refuses shows its sentence verbatim', async ({ page }) => {
+test('a save the panel refuses shows its sentence verbatim', async ({ page, guard }) => {
+  guard.allow(400, /\/api\/v1\/notifications\/alert-recipients$/)
   await stubAlertSettings(page)
   await stubAlertRecipientsRefused(page, 'The address ops@example.net is not accepted by the mail policy.')
   await openAlertSettings(page)
@@ -124,6 +130,7 @@ test('the page fits a 390px screen in Armenian', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubModules(page, FULL_CATALOGUE)
   await page.goto(SWEPT_SCREEN.path)
 

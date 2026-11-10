@@ -24,6 +24,11 @@ const TABLE_MODE: u32 = 0o644;
 /// built. So a host enabled before any customer has a domain starts with empty
 /// tables, and the data plane replaces them whole as domains arrive.
 ///
+/// The table of users allowed to submit mail locally (issue #500) is seeded empty
+/// like the rest, and an empty one is the closed state: `authorized_submit_users`
+/// then admits only root and the Postfix owner, so no customer process can use
+/// `sendmail` or `postdrop` until the data plane lists its account.
+///
 /// **A table that already exists is never touched.** The tables are derivable
 /// from the panel's database and are re-pushed by it, but an enable is not the
 /// operation that re-pushes them: rewriting a populated table to empty here would
@@ -46,11 +51,16 @@ const TABLE_MODE: u32 = 0o644;
 pub fn seed_mail_maps(host: &dyn MailHost, distro: &dyn DistroAdapter) -> Result<(), MailError> {
     let postmap = distro.postmap_binary();
     let map_type = distro.postfix_map_type();
+    let local_submit_users =
+        AgentPaths::mail_local_submit_users_path(distro.postfix_config_directory())
+            .to_string_lossy()
+            .into_owned();
     for path in [
         AgentPaths::MAIL_VIRTUAL_DOMAINS_PATH,
         AgentPaths::MAIL_VIRTUAL_MAILBOXES_PATH,
         AgentPaths::MAIL_VIRTUAL_ALIASES_PATH,
         AgentPaths::MAIL_SENDER_LOGIN_MAPS_PATH,
+        local_submit_users.as_str(),
     ] {
         let target = Path::new(path);
         if host.read_config(target)?.is_some() {

@@ -1,7 +1,8 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import {
   EMPTY_SITE_OPTIONS,
   OPTIONS_SITE_ID,
@@ -13,6 +14,7 @@ import { stubPhpVersions, stubSiteDetail, stubSites } from '../fixtures/stub-sit
 import type { PanelModule } from '../../src/types/module'
 import type { SiteDetail } from '../../src/types/site'
 import type { SiteOptions } from '../../src/types/siteOptions'
+import type { Page } from '@playwright/test'
 
 // The request limit on a site's Options tab (issue #159): how many requests per second one visitor
 // address may make, and a burst on top. An empty rate is "no limit". The bounds come from the panel.
@@ -47,6 +49,7 @@ const LIMITED: SiteOptions = { ...EMPTY_SITE_OPTIONS, requestRate: { perSecond: 
  */
 const stubOptionsTab = async (page: Page, options: SiteOptions = EMPTY_SITE_OPTIONS): Promise<SiteOptionsStub> => {
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_SITES)
   await stubSites(page, [])
@@ -152,8 +155,10 @@ test('a rate that is not a whole number is not sent and is explained', async ({ 
   expect(stub.saved).toHaveLength(0)
 })
 
-test('the panel refusal of a rate is shown under the rate with its own words', async ({ page }) => {
+test('the panel refusal of a rate is shown under the rate with its own words', async ({ page, guard }) => {
+  guard.allow(400, /\/api\/v1\/sites\/[^/]+\/options$/)
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_SITES)
   await stubSites(page, [])

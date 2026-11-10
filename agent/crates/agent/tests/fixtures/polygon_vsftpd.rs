@@ -31,14 +31,14 @@ use std::time::{Duration, Instant};
 
 use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::validation::web::domain::Domain;
-use maran_distro::{DistroAdapter, adapter_for, detect};
+use maran_distro::{DistroAdapter, DistroFamily, adapter_for, detect};
 use maran_ops::ftps::{FtpsConfiguration, FtpsError, FtpsState, ProcessFtpsHost, enable_ftps};
 use maran_ops::sites::SiteCertificate;
 
 /// The environment variable each polygon image sets, naming itself.
 const POLYGON_MARKER: &str = "MARAN_POLYGON";
 
-/// The daemon, at the path both families install it to and the unit names.
+/// The daemon, at the path the Debian and RHEL families install it to and the unit names.
 const VSFTPD_BINARY: &str = "/usr/sbin/vsftpd";
 
 /// The one option the unit passes on the command line rather than in the file.
@@ -92,9 +92,17 @@ impl PolygonVsftpd {
     /// and a suite that never spoke to a vsftpd would count as coverage of one
     /// (rules/testing.md).
     ///
+    /// It also refuses a family that does not offer FTPS. The SUSE family has no vsftpd package
+    /// (issue #59, decision 222), so a suite that starts a real vsftpd has nothing to start there;
+    /// the refusal is loud and names the reason instead of letting the first test fail on a
+    /// missing file, and a quiet `return` would report a suite that measured nothing as a pass.
+    /// That the family really offers no daemon is asserted, against the disk, by the suite's
+    /// `ftps_is_offered_where_the_adapter_declares_a_daemon_and_is_not_offered_on_suse`.
+    ///
     /// # Panics
     ///
-    /// Panics when the polygon marker is absent or the process is not root.
+    /// Panics when the polygon marker is absent, the process is not root, or the family does not
+    /// offer FTPS.
     pub fn require_polygon() {
         let marker = std::env::var(POLYGON_MARKER).unwrap_or_default();
         assert!(
@@ -108,6 +116,13 @@ impl PolygonVsftpd {
             0,
             "creating a login and starting a daemon both require root"
         );
+        match Self::distro().family() {
+            DistroFamily::Debian | DistroFamily::Rhel => {}
+            DistroFamily::Suse => panic!(
+                "FTPS is not offered on the SUSE family (vsftpd is not packaged for Leap 16), \
+                 so this suite has no daemon to start there and must not be run on that image"
+            ),
+        }
     }
 
     /// Applies `configuration` through `enable_ftps` and starts the daemon on the

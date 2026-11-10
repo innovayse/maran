@@ -1,13 +1,17 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
-import { stubBackups } from '../fixtures/stub-backups-routes'
+import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
+import { stubBackupRestoreChoices, stubBackups } from '../fixtures/stub-backups-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubInvitation } from '../fixtures/stub-invitation-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { Backup } from '../../src/types/backup'
+import type { Page } from '@playwright/test'
 
 // The two most destructive dialogs in the product were not operable from a keyboard at all.
 //
@@ -103,6 +107,8 @@ test('the account-deletion dialog takes focus, closes on Escape, and gives focus
   await stubModules(page, [
     { name: 'accounts', displayName: 'Аккаунты', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
   ])
+  await stubShellReads(page)
+  await stubAccountResources(page, { accountId: ALICE.id, resources: [] })
   await stubInvitation(page, ALICE.id, 'pending')
   await page.route(`**/api/v1/accounts/${ALICE.id}`, async (route) => {
     if (route.request().method() !== 'GET') {
@@ -136,8 +142,11 @@ test('the backup-restore dialog takes focus, closes on Escape, and gives focus b
   await stubModules(page, [
     { name: 'backups', displayName: 'Резервные копии', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
   ])
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubBackups(page, [COMPLETED])
+  await stubBackupOptions(page)
+  await stubBackupRestoreChoices(page, { databases: [], sites: [] })
 
   await page.goto('/backups')
   await page.getByRole('button', { name: 'Действия для резервной копии alice' }).click()

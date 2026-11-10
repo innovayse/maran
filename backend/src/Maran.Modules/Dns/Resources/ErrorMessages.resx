@@ -96,6 +96,18 @@
   <data name="RecordNotEditable">
     <value>This record is managed by the panel and cannot be edited here.</value>
   </data>
+  <data name="DnsChallengeValuesFull">
+    <value>A name can hold only two certificate validation values at once.</value>
+  </data>
+  <data name="DnsChallengeValueInvalid">
+    <value>A certificate validation value must be 43 characters of letters, digits, hyphens and underscores.</value>
+  </data>
+  <data name="DnsChallengeHostnameInvalid">
+    <value>A certificate validation record can be placed only under a plain lower-case host name.</value>
+  </data>
+  <data name="DnsChallengeZoneNotFound">
+    <value>This server does not serve a DNS zone of this account that contains the name.</value>
+  </data>
   <data name="DnsNameserverInvalid">
     <value>A name server must be a host name such as ns1.example.com.</value>
   </data>
@@ -107,5 +119,56 @@
   </data>
   <data name="DnsDefaultTtlOutOfRange">
     <value>The default time to live must be between 60 seconds and one week.</value>
+  </data>
+  <data name="ZoneTemplateNotFound">
+    <value>This zone template could not be found.</value>
+  </data>
+  <data name="ZoneTemplateNameInvalid">
+    <value>A template name must be 1 to 64 characters with no control characters.</value>
+  </data>
+  <data name="ZoneTemplateNameTaken">
+    <value>A zone template with this name already exists.</value>
+  </data>
+  <data name="ZoneTemplateDescriptionInvalid">
+    <value>A template description must be at most 256 characters with no control characters.</value>
+  </data>
+  <data name="ZoneTemplateTooManyRecords">
+    <value>This template holds more records than a zone may hold on this server.</value>
+  </data>
+  <data name="ZoneTemplateTokenUnknown">
+    <value>A record value names a variable that does not exist. Use only the variables the editor lists.</value>
+  </data>
+  <data name="ZoneTemplateTokenUnbalanced">
+    <value>A record value has a brace that is not part of a variable. Braces are used only to write a variable.</value>
+  </data>
+  <data name="ZoneTemplateTokenNotAllowed">
+    <value>A record value names a variable that this record type does not allow.</value>
+  </data>
+  <data name="ZoneTemplateBuiltIn">
+    <value>A template that ships with the panel can be edited but not deleted.</value>
+  </data>
+  <data name="ZoneTemplateIsDefault">
+    <value>This is the default template. Make another template the default first.</value>
+  </data>
+  <data name="ZoneTemplateInvalid">
+    <value>This template no longer produces valid records for this zone. Ask your administrator to fix it, or create the zone without it.</value>
+  </data>
+  <data name="ZoneSigningHostCannotSign">
+    <value>This server's name server software cannot sign zones, so DNSSEC is not available here.</value>
+  </data>
+  <data name="ZoneSigningNotOff">
+    <value>DNSSEC is already switched on for this zone.</value>
+  </data>
+  <data name="ZoneSigningNotSigning">
+    <value>This zone is not signed, so there is no signing to withdraw.</value>
+  </data>
+  <data name="ZoneSigningNotWithdrawing">
+    <value>This zone is not being withdrawn from DNSSEC.</value>
+  </data>
+  <data name="ZoneSigningWithdrawalTooEarly">
+    <value>DNSSEC cannot be switched off yet. Wait at least 48 hours after the withdrawal began so that the DS record you removed at your registrar has expired everywhere.</value>
+  </data>
+  <data name="ZoneSigningDsRemovalNotConfirmed">
+    <value>Confirm that you removed the DS record at your registrar before DNSSEC is switched off. Switching it off while the record is still published makes the domain unreachable for validating resolvers.</value>
   </data>
 </root>

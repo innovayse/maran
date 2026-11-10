@@ -418,6 +418,13 @@ jobs:
       # Expand-contract: no migration on this branch destroys or renames what the previous
       # release still reads. The installer promises an update is reversible by restoring a dump,
       # and that promise is only keepable while the old code runs against the new schema.
+      #
+      # The guard's own selftest runs first: it plants every destructive call and every kind of bad
+      # marker (an expand phase no release tag contains, a never-shipped claim a tag contradicts) and
+      # requires each refused, each beside an accepting control. It needs no toolchain.
+      - name: Migration guard selftest
+        run: bash scripts/maran migrate selftest
+
       - name: Migrations are additive
         run: bash scripts/maran migrate guard
 

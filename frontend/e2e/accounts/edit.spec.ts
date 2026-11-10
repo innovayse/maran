@@ -1,11 +1,14 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubInvitation } from '../fixtures/stub-invitation-routes'
+import { stubAccountResources } from '../fixtures/stub-account-resources-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubPlans, THREE_PLANS } from '../fixtures/stub-plans-route'
 import type { Account, AccountDetail } from '../../src/types/account'
+import type { Page } from '@playwright/test'
 
 /** The plan the account starts on, and the one it is moved to. */
 const [CURRENT_PLAN, OTHER_PLAN] = THREE_PLANS
@@ -47,6 +50,8 @@ const openAccount = async (page: Page, account: AccountDetail, refusal?: string)
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
+  await stubShellReads(page)
+  await stubAccountResources(page, { accountId: account.id, resources: [] })
   await stubInvitation(page, account.id, 'pending')
   await stubPlans(page, THREE_PLANS)
   await page.route(`**/api/v1/accounts/${account.id}`, async (route) => {
@@ -110,7 +115,9 @@ test('keeping the same plan is caught in the dialog and sends nothing', async ({
   expect(requests.plan).toEqual([])
 })
 
-test('a plan change the panel refuses keeps the dialog open over the panel sentence', async ({ page }) => {
+test('a plan change the panel refuses keeps the dialog open over the panel sentence', async ({ page, guard }) => {
+  // The refusal is the subject: the plan change answers 409 with the panel's own sentence.
+  guard.allow(409, new RegExp(`/api/v1/accounts/${ACCOUNT.id}/plan$`))
   const refusal =
     "The plan was not changed: this account already uses more disk than the new plan's quota allows."
   await openAccount(page, ACCOUNT, refusal)
@@ -182,6 +189,7 @@ test('the accounts list narrowed to a plan shows only the accounts on it, and ca
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
+  await stubShellReads(page)
   await stubPlans(page, THREE_PLANS)
   await stubAccounts(page, [onPlan, offPlan])
 

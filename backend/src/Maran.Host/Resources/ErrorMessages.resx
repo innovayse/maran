@@ -33,4 +33,7 @@
   <data name="HostViewAsNotAllowed">
     <value>This action is not available while you are viewing as this account.</value>
   </data>
+  <data name="ModuleFrameOutOfScope">
+    <value>This request is not available to the module screen that sent it.</value>
+  </data>
 </root>

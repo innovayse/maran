@@ -289,6 +289,54 @@ suite_parse rust "$work/combined.log" >"$work/observed.tsv"
 
 status="$(aggregate_status "$statuses")"
 
+# THE FAMILY'S DECLARED SKIPS (polygon.sh POLYGON_FAMILY_SKIPS). The family is read from the log's own
+# stamp lines, never from an argument, so a log cannot be scored under a family it did not run on.
+# A log naming no family, or several, exempts nothing. Four guards:
+#   - the declaration agrees with the installer (polygon_skips_agree_with_installer);
+#   - a declared suite must exist in the tree (a stale row is a finding);
+#   - a declared suite that DID start is a failure: it was meant not to run here;
+#   - the exemption is only for the log's own family, so ubuntu24 and alma9 logs still require it.
+skipped_suites=()
+log_family=""
+if log_family="$(polygon_family_from_log "$work/combined.log")"; then
+  mapfile -t skipped_suites < <(polygon_family_skipped_suites "$log_family")
+fi
+skip_problems=""
+if ! skip_agreement="$(polygon_skips_agree_with_installer "$root")"; then
+  skip_problems="$skip_problems$skip_agreement"
+fi
+required_suites=()
+for suite in "${suites[@]}"; do
+  is_skipped=0
+  for skipped in ${skipped_suites[@]+"${skipped_suites[@]}"}; do
+    [ "$skipped" = "$suite" ] && is_skipped=1
+  done
+  [ "$is_skipped" -eq 1 ] || required_suites+=("$suite")
+done
+for skipped in ${skipped_suites[@]+"${skipped_suites[@]}"}; do
+  case " ${suites[*]} " in
+    *" $skipped "*) ;;
+    *) skip_problems="$skip_problems
+  $log_family is declared not to run '$skipped' and the tree has no such suite (a stale declaration)." ;;
+  esac
+  if polygon_banner_seen "$work/combined.log" "$skipped"; then
+    skip_problems="$skip_problems
+  suite '$skipped' RAN on $log_family although it is declared not to run there."
+  fi
+done
+if [ -n "$skip_problems" ]; then
+  echo "-- declared skips: FINDINGS$skip_problems"
+  echo
+  echo "POLYGON VERDICT: ABORTED — the family's declared skips do not hold, so the suite list this run"
+  echo "was scored against is not the one the installer and the tree support."
+  exit 1
+fi
+if [ "${#skipped_suites[@]}" -gt 0 ]; then
+  echo "-- declared skips for $log_family: ${skipped_suites[*]} (the installer does not offer the feature; they did not run, and are not required)"
+else
+  echo "-- declared skips: none for ${log_family:-an unidentified family}; every discovered suite is required"
+fi
+
 echo "-- polygon suites discovered from the tree (${#suites[@]}): ${suites[*]}"
 echo "   Derived, never written down here or in the workflow. A suite added to agent/crates/*/tests"
 echo "   is required to have spoken in these logs by the next run."
@@ -335,7 +383,7 @@ echo
 
 failed=1
 if ! ran="$(polygon_verify_ran "$work/combined.log" "$status" "$work/observed.tsv" \
-  "$work/baseline.tsv" "${suites[@]}")"; then
+  "$work/baseline.tsv" "${required_suites[@]}")"; then
   echo "$ran"
   echo
   echo "Last lines of the container output:"

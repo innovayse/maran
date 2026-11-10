@@ -69,7 +69,7 @@ done < <(sources | grep -E '/I[A-Z][A-Za-z0-9_]*\.cs$')
 
 # 4. Namespace must mirror the folder path.
 while IFS= read -r file; do
-  ns=$(grep -oE '^namespace [A-Za-z0-9_.]+' "$file" | head -1 | cut -d' ' -f2)
+  ns=$(grep -oE '^namespace [A-Za-z0-9_.]+' "$file" | sed -n 1p | cut -d' ' -f2)
   [ -z "$ns" ] && continue
   expected_dir=$(dirname "$file" | sed -E 's|^backend/(src\|tests)/||')
   ns_path=$(echo "$ns" | tr '.' '/')
@@ -211,7 +211,7 @@ registered_types_in_common() {
       | while IFS= read -r type_name; do
           [ -n "$type_name" ] || continue
           found="$(find "$module_dir/Common" -name "$type_name.cs" \
-            -not -path '*/obj/*' -not -path '*/bin/*' | sort | head -1)"
+            -not -path '*/obj/*' -not -path '*/bin/*' | sort | sed -n 1p)"
           if [ -n "$found" ]; then
             printf '%s\t%s\n' "$found" "$(basename "$module_file")"
           fi
@@ -244,11 +244,11 @@ http_surface_pattern='using[[:space:]]+Microsoft\.AspNetCore\.|\b(HttpResponse|H
 # Inverse: a DTO member named StatusCodes must be accepted, or the check would refuse the member again.
 for planted in 'using Microsoft.AspNetCore.Http;' 'int x = StatusCodes.Status404NotFound;' 'var y = Status200OK;' \
   'void F(HttpContext c) {}'; do
-  printf '%s\n' "$planted" | grep -qE "$http_surface_pattern" \
+  grep -qE "$http_surface_pattern" <<<"$planted" \
     || report "scripts/lib/check-structure.sh: check 6e's pattern did not match the planted \`${planted}\`, so it is blind (rules/testing.md)"
 done
 for accepted in 'IReadOnlyList<SiteTrafficStatusDto> StatusCodes,' 'public int StatusCodes { get; init; }' 'var n = dto.StatusCodes.Count;'; do
-  if printf '%s\n' "$accepted" | grep -qE "$http_surface_pattern"; then
+  if grep -qE "$http_surface_pattern" <<<"$accepted"; then
     report "scripts/lib/check-structure.sh: check 6e's pattern flagged \`${accepted}\`, a DTO member named StatusCodes, so it would refuse the member (rules/testing.md)"
   fi
 done
@@ -265,7 +265,7 @@ done < <(find backend/src/Maran.Modules -mindepth 3 -path '*/Common/*.cs' \
     #     the whole gate. `using Microsoft.AspNetCore.` is the one observation that cannot be
     #     spelt around — inert furniture references the web framework not at all — and the type
     #     list stays beside it for a file reaching the surface through a global using.
-    if sed -E 's://.*::g' "$file" | grep -qE "$http_surface_pattern"; then
+    if grep -qE "$http_surface_pattern" <<<"$(sed -E 's://.*::g' "$file")"; then
       printf '%s\n' "$file"
     fi
   done)
@@ -492,11 +492,12 @@ done < <(registered_types_in_common)
 #    home for every path/package/service fact of their concern, so each answers several
 #    related platform-fact functions rather than growing a file per function. Listed here
 #    rather than inferred, same as the subject-named single-item exceptions below.
-concern_files='debian_paths|debian_packages|debian_services|debian_php_extensions|rhel_paths|rhel_packages|rhel_services|rhel_php_extensions'
+concern_files='debian_paths|debian_packages|debian_package_candidates|debian_services|debian_php_extensions|rhel_paths|rhel_packages|rhel_package_candidates|rhel_services|rhel_php_extensions'
+concern_files="$concern_files|suse_paths|suse_packages|suse_package_candidates|suse_services|suse_account_programs|suse_mail_services|suse_dns_services|suse_php_extensions"
 while IFS= read -r file; do
   units=$(grep -cE '^pub (struct|enum|trait|fn|async fn) ' "$file")
   base="$(basename "$file" .rs)"
-  if printf '%s' "$base" | grep -qE "^($concern_files)$"; then
+  if grep -qE "^($concern_files)$" <<<"$base"; then
     continue
   fi
   if [ "$units" -gt 1 ]; then
@@ -552,10 +553,10 @@ done < <(find agent/crates -name '*_tests.rs' -not -path '*/target/*' 2>/dev/nul
 #     evasion a call-site pattern cannot see.
 while IFS= read -r file; do
   code="$(sed -e 's://.*$::' "$file")"
-  if printf '%s\n' "$code" | grep -qE '(^|[^_[:alnum:]])exit[[:space:]]*\('; then
+  if grep -qE '(^|[^_[:alnum:]])exit[[:space:]]*\(' <<<"$code"; then
     report "$file: a forked child leaves through libc::_exit, never exit — exit flushes the parent's stdio and runs its atexit handlers (rules/rust.md \"Privileges\")"
   fi
-  if printf '%s\n' "$code" | grep -qE '^[[:space:]]*(pub[[:space:]]+)?use[[:space:]].*(^|[^_[:alnum:]])exit([^_[:alnum:]]|$)'; then
+  if grep -qE '^[[:space:]]*(pub[[:space:]]+)?use[[:space:]].*(^|[^_[:alnum:]])exit([^_[:alnum:]]|$)' <<<"$code"; then
     report "$file: importing exit — under any alias — is the same violation as calling it; the child leaves through libc::_exit (rules/rust.md \"Privileges\")"
   fi
 done < <(find agent/crates/agent-core/src/privs -name '*.rs' 2>/dev/null | sort)
@@ -665,8 +666,10 @@ done < <(find frontend/src \( -name '*.vue' -o -name '*.ts' \) 2>/dev/null | sor
 #      the translator never wrote (`ԱՎԱՐՏՎԱԾ` for `Ավարտված`). The match is the class or the CSS
 #      value, not prose: comment lines are skipped, so a doc comment may still say "uppercase".
 while IFS= read -r file; do
-  if grep -vE '^[[:space:]]*(\*|//|/\*|<!--)' "$file" \
-    | grep -qE '(^|[[:space:]"'"'"'`:])(uppercase|tracking-caps|tracking-wide[a-z]*)([[:space:]"'"'"'`;]|$)'; then
+  # A command substitution, not a pipe: `grep -q` stops reading at its first match, and a producer
+  # still writing into a closed pipe dies of SIGPIPE, which `pipefail` reports as "no match".
+  css_text="$(grep -vE '^[[:space:]]*(\*|//|/\*|<!--)' "$file" || true)"
+  if grep -qE '(^|[[:space:]"'"'"'`:])(uppercase|tracking-caps|tracking-wide[a-z]*)([[:space:]"'"'"'`;]|$)' <<<"$css_text"; then
     report "$file: text is set in capitals by CSS — sentence case, no uppercase or caps tracking (rules/vue.md)"
   fi
 done < <(find frontend/src \( -name '*.vue' -o -name '*.ts' -o -name '*.css' \) 2>/dev/null | sort)
@@ -682,7 +685,8 @@ done < <(find frontend/src \( -name '*.vue' -o -name '*.ts' -o -name '*.css' \) 
 subject_named='adapter|adapter_for|detect|distro_info|os_release|family|path|name|domain|port'
 subject_named="$subject_named|directory|current_uid|unit|pool|error|server"
 subject_named="$subject_named|agent_options|options_error|peer_policy|peer_guard|render_validate_swap|rollback_guard"
-subject_named="$subject_named|debian_paths|debian_packages|debian_services|debian_php_extensions|rhel_paths|rhel_packages|rhel_services|rhel_php_extensions"
+subject_named="$subject_named|debian_paths|debian_packages|debian_package_candidates|debian_services|debian_php_extensions|rhel_paths|rhel_packages|rhel_package_candidates|rhel_services|rhel_php_extensions"
+subject_named="$subject_named|suse_paths|suse_packages|suse_package_candidates|suse_services|suse_account_programs|suse_mail_services|suse_dns_services|suse_php_extensions"
 
 # 16b. Every name in that list still has a file. An exemption for a file that does not exist is
 #      not harmless housekeeping: it is a named hole, and the day somebody adds a file of that
@@ -708,7 +712,7 @@ subject_named_count=0
 while IFS= read -r exempt_name; do
   [ -n "$exempt_name" ] || continue
   subject_named_count=$((subject_named_count + 1))
-  if ! printf '%s\n' "$subject_named_files" | grep -qxF "$exempt_name"; then
+  if ! grep -qxF "$exempt_name" <<<"$subject_named_files"; then
     report "scripts/lib/check-structure.sh: check 16 exempts '$exempt_name' from the file-name law and no agent/crates/**/$exempt_name.rs exists -- an exemption for a file that does not exist is a hole the next file of that name falls into (rules/security.md)"
   fi
 done < <(printf '%s\n' "$subject_named" | tr '|' '\n')
@@ -726,12 +730,30 @@ if [ -z "$subject_named_files" ]; then
   report "scripts/lib/check-structure.sh: no .rs files were found under agent/crates for check 16's staleness guard to look an exemption up in, so nothing below is a statement about the exemptions (rules/testing.md)"
 fi
 
+# 16c. Selftest: a lookup in a LARGE set must find an entry that sits at its very top. The
+#      reader (`grep -q`) exits on that first match while the producer still has megabytes to
+#      write; had the lookup been `printf ... | grep -q`, the producer would die of SIGPIPE and
+#      `pipefail` would report the pipeline as "not found" -- a violation reported for a file that
+#      exists (issue #497), intermittently, which is the worst shape a gate can fail in. The set is
+#      far larger than a pipe buffer (64 KiB), so the old shape fails here on every run, not on a
+#      lucky one. Planted: the entry at the top, which must be FOUND. Control: an entry the set does
+#      not hold, which must be REFUSED -- a lookup mutated to accept everything passes the planted
+#      case alone (rules/testing.md "a refusing gate needs an inverse control").
+sigpipe_set="$(printf 'planted_first_entry\n'; seq -f 'filler_entry_%.0f' 1 200000)"
+if ! grep -qxF 'planted_first_entry' <<<"$sigpipe_set"; then
+  report "scripts/lib/check-structure.sh: check 16's lookup did not find an entry at the top of a large set, so an early-exiting reader still turns a match into a miss (issue #497, rules/testing.md)"
+fi
+if grep -qxF 'absent_entry' <<<"$sigpipe_set"; then
+  report "scripts/lib/check-structure.sh: check 16's lookup found an entry the set does not hold, so it would accept every name (rules/testing.md)"
+fi
+unset sigpipe_set
+
 while IFS= read -r file; do
   base="$(basename "$file" .rs)"
   case "$base" in
     mod|lib|main|build) continue ;;
   esac
-  if printf '%s' "$base" | grep -qE "^($subject_named)$"; then
+  if grep -qE "^($subject_named)$" <<<"$base"; then
     continue
   fi
 
@@ -761,7 +783,7 @@ while IFS= read -r file; do
   offenders="$(grep -nE '"(/usr/s?bin|/s?bin|/etc)/[a-z]|"(apt|apt-get|dnf|yum|zypper)"' "$file" |
                grep -v '^\s*//' || true)"
   if [ -n "$offenders" ]; then
-    line="$(printf '%s' "$offenders" | head -1 | cut -d: -f1)"
+    line="$(sed -n 1p <<<"$offenders" | cut -d: -f1)"
     report "$file:$line: platform literal in ops — ask the DistroAdapter (rules/architecture.md)"
   fi
 done < <(find agent/crates/ops/src -name '*.rs' -not -path '*/tests/*' 2>/dev/null | sort)
@@ -780,7 +802,7 @@ while IFS= read -r file; do
   offenders="$(grep -nE '(Command::new|\.run|\.run_with_stdin|expect_success)\("[^/]' "$file" |
                grep -v '^[0-9]*:\s*//' || true)"
   if [ -n "$offenders" ]; then
-    line="$(printf '%s' "$offenders" | head -1 | cut -d: -f1)"
+    line="$(sed -n 1p <<<"$offenders" | cut -d: -f1)"
     report "$file:$line: program spawned by a bare name — as root, PATH decides which binary that is; ask the DistroAdapter (rules/security.md)"
   fi
 done < <(find agent/crates/ops/src agent/crates/agent/src -name '*.rs' -not -path '*/tests/*' 2>/dev/null | sort)
@@ -817,8 +839,8 @@ done < <(find agent/crates/ops/src agent/crates/agent/src -name '*.rs' -not -pat
 #      matching fails the stale-entry check below instead of passing silently:
 #        grep -rlE '\b(spawn_argv|run_bounded|run_unthreaded|run_for_window|run_discarding)\(|SpawnRequest \{' \
 #          agent/crates/ops/src agent/crates/agent/src | grep -v /tests/
-spawn_call_re='\b(spawn_argv|run_bounded|run_unthreaded|run_for_window|run_discarding)\(|SpawnRequest \{'
-spawn_literal_re='\b(spawn_argv|run_bounded|run_unthreaded|run_for_window|run_discarding|run_archiver|run_client)\([[:space:]]*Path(Buf)?::(new|from)\(|program:[[:space:]]*Path(Buf)?::(new|from)\('
+spawn_call_re='\b(spawn_argv|run_bounded|run_unthreaded|run_unthreaded_to_file|run_for_window|run_discarding)\(|SpawnRequest \{'
+spawn_literal_re='\b(spawn_argv|run_bounded|run_unthreaded|run_unthreaded_to_file|run_for_window|run_discarding|run_archiver|run_client)\([[:space:]]*Path(Buf)?::(new|from)\(|program:[[:space:]]*Path(Buf)?::(new|from)\('
 sanctioned_spawn_hosts=(
   agent/crates/ops/src/accounts/process_system_host.rs
   agent/crates/ops/src/backup/list_archive_members.rs
@@ -838,6 +860,8 @@ sanctioned_spawn_hosts=(
   agent/crates/ops/src/sftp/process_sftp_host.rs
   agent/crates/ops/src/sites/process_site_host.rs
   agent/crates/ops/src/ssl/process_ssl_host.rs
+  agent/crates/ops/src/transfer/process_transfer_host.rs
+  agent/crates/ops/src/transfer/process_transfer_work_host.rs
 )
 
 # The lines of a file that CALL the core: a match that is not a comment line and not a `fn`/`use`
@@ -850,13 +874,13 @@ spawn_call_lines() {
 # Self-controls on the two patterns, run before they are trusted. Positive: a line the check must
 # flag. Inverse: the sanctioned shape it must not. A pattern that matched everything or nothing
 # would otherwise read as a clean tree.
-if ! printf '%s\n' '    spawn_argv(Path::new("/bin/sh"), arguments, class)' | grep -qE "$spawn_literal_re"; then
+if ! grep -qE "$spawn_literal_re" <<<'    spawn_argv(Path::new("/bin/sh"), arguments, class)'; then
   report "scripts/lib/check-structure.sh: check 17d's literal pattern did not match \`spawn_argv(Path::new(\"/bin/sh\"), ...)\` -- the control that proves it can see a violation failed (rules/testing.md)"
 fi
-if ! printf '%s\n' '    run_bounded(SpawnRequest { program: PathBuf::from("/bin/sh"), ..request })' | grep -qE "$spawn_literal_re"; then
+if ! grep -qE "$spawn_literal_re" <<<'    run_bounded(SpawnRequest { program: PathBuf::from("/bin/sh"), ..request })'; then
   report "scripts/lib/check-structure.sh: check 17d's literal pattern did not match a \`program: PathBuf::from(...)\` field -- the control that proves it can see a violation failed (rules/testing.md)"
 fi
-if printf '%s\n' '        spawn_argv(program.as_path(), arguments, class)' | grep -qE "$spawn_literal_re"; then
+if grep -qE "$spawn_literal_re" <<<'        spawn_argv(program.as_path(), arguments, class)'; then
   report "scripts/lib/check-structure.sh: check 17d's literal pattern matched the sanctioned \`spawn_argv(program.as_path(), ...)\` -- the inverse control failed, so the check would flag every host (rules/testing.md)"
 fi
 # The call pattern must see a known real call: agent-core's own spawn_argv hands its request to
@@ -889,7 +913,7 @@ while IFS= read -r file; do
     [ "$file" = "$host" ] && is_host=1
   done
   if [ "$is_host" -eq 0 ]; then
-    first="$(spawn_call_lines "$file" | head -1 | cut -d: -f1)"
+    first="$(spawn_call_lines "$file" | sed -n 1p | cut -d: -f1)"
     if [ -n "$first" ]; then
       report "$file:$first: calls the bounded spawn core outside a process host -- the program must come from an AdapterBinary in a host listed in check 17d (add the host to that list and to rules/rust.md first)"
     fi
@@ -898,7 +922,7 @@ while IFS= read -r file; do
   # (b) a program built from a path literal, in any production file.
   offenders="$(grep -nE "$spawn_literal_re" "$file" | grep -vE '^[0-9]+:[[:space:]]*//' || true)"
   if [ -n "$offenders" ]; then
-    line="$(printf '%s' "$offenders" | head -1 | cut -d: -f1)"
+    line="$(sed -n 1p <<<"$offenders" | cut -d: -f1)"
     report "$file:$line: a program built from a path literal reaches the bounded spawn core -- a root spawn takes its program from an AdapterBinary (rules/security.md item 3)"
   fi
 done < <(find agent/crates/ops/src agent/crates/agent/src agent/crates/distro/src agent/crates/templates/src \
@@ -920,9 +944,9 @@ fi
 #      read" — the first version of this check matched a literal of exactly 67 characters and told
 #      an honest mismatch it could not find the value at all.
 csharp_alphabet="$(grep -A2 'public const string Alphabet' backend/src/Maran.SharedKernel/Security/ProvisionedPasswordGenerator.cs 2>/dev/null |
-                   grep -oE '"[^"]*"' | head -1 | tr -d '"')"
+                   grep -oE '"[^"]*"' | sed -n 1p | tr -d '"')"
 spa_alphabet="$(grep -E "^const ALPHABET = " frontend/src/utils/generate.ts 2>/dev/null |
-                grep -oE "'[^']*'" | head -1 | tr -d "'")"
+                grep -oE "'[^']*'" | sed -n 1p | tr -d "'")"
 if [ -z "$csharp_alphabet" ] || [ -z "$spa_alphabet" ]; then
   report "frontend/src/utils/generate.ts: the password alphabet could not be read from both the SPA and the backend — one of them moved, and the two can no longer be compared"
 elif [ "$csharp_alphabet" != "$spa_alphabet" ]; then
@@ -1090,7 +1114,7 @@ done < <(grep -oE -- '--test [A-Za-z0-9_]+' docker/README.md 2>/dev/null | sed '
 unit_file="installer/systemd/maran-agent.service"
 paths_file="agent/crates/agent-core/src/agent_paths.rs"
 if [ -f "$unit_file" ] && [ -f "$paths_file" ]; then
-  unit_line="$(grep '^ReadWritePaths=' "$unit_file" | head -1 | sed 's/^ReadWritePaths=//')"
+  unit_line="$(grep '^ReadWritePaths=' "$unit_file" | sed -n 1p | sed 's/^ReadWritePaths=//')"
   if [ -z "$unit_line" ]; then
     report "$unit_file: no ReadWritePaths= line — this check cannot observe the unit's writable set (rules/testing.md)"
   fi
@@ -1176,7 +1200,7 @@ fi
 while IFS= read -r file; do
   hits="$(grep -n '\.superpowers' "$file" || true)"
   if [ -n "$hits" ]; then
-    line="$(printf '%s' "$hits" | head -1 | cut -d: -f1)"
+    line="$(sed -n 1p <<<"$hits" | cut -d: -f1)"
     report "$file:$line: cites .superpowers/, which no clone contains (its .gitignore is \`*\`) — put the argument in the doc comment, a threat note under docs/superpowers/notes/, or rules/ (rules/architecture.md)"
   fi
 done < <(find agent backend frontend installer scripts docker rules docs \
@@ -1323,6 +1347,36 @@ if [ ! -f agent/crates/distro/src/detection/os_release.rs ]; then
   report "scripts/lib/check-structure.sh: check 25 found no agent/crates/distro/src/detection/os_release.rs, so it is not a statement about the agent's detection (rules/testing.md)"
 fi
 
+# 25b. The other direction. The loop above proves the agent knows every id the matrix accepts; it
+#      says nothing about an id the agent resolves that the matrix refuses (a family the agent would
+#      serve and the installer would never put the panel on). The agent's ids are the quoted strings
+#      on the `=> DistroFamily::` arms of its detection, read from the file itself. Ids and the
+#      matrix are compared as sets, so the SUSE ids `opensuse-leap` and `sles` are held in both
+#      directions like every other.
+agent_detection_ids() {
+  grep -E '=> DistroFamily::' "$1" 2>/dev/null | grep -oE '"[a-z0-9._-]+"' | tr -d '"' | sort -u
+}
+matrix_ids_text="$(grep '^readonly MARAN_SUPPORTED_MATRIX=' installer/lib/10-preflight.sh 2>/dev/null \
+                    | sed 's/.*="//; s/"$//' | tr ' ' '\n' | sed 's/:.*//' | sort -u)"
+while read -r agent_id; do
+  [ -n "$agent_id" ] || continue
+  grep -qxF "$agent_id" <<<"$matrix_ids_text" && continue
+  report "installer/lib/10-preflight.sh: MARAN_SUPPORTED_MATRIX does not list '${agent_id}', which the agent's detection resolves to a family — the agent would serve a host the installer refuses, or the id is stale (check 25)"
+done < <(agent_detection_ids agent/crates/distro/src/detection/os_release.rs)
+
+# The vacuity guard on the axis that can go blind: the extraction of the agent's ids. A detection
+# file whose arms were reformatted reads as zero ids, which is exactly a clean answer.
+if [ "$(agent_detection_ids agent/crates/distro/src/detection/os_release.rs | wc -l)" -lt 4 ]; then
+  report "scripts/lib/check-structure.sh: check 25b read fewer than 4 distribution ids from the agent's detection, so it is not a statement about the two lists (rules/testing.md)"
+fi
+# Positive control: a planted arm must be read. Inverse control: a line that is not an arm must not be.
+detection_control="$(mktemp)"
+printf '%s\n' '        "plantedone" | "plantedtwo" => DistroFamily::Debian,' \
+  '        let note = "notanarm";' >"$detection_control"
+[ "$(agent_detection_ids "$detection_control" | tr '\n' ' ')" = "plantedone plantedtwo " ] \
+  || report "scripts/lib/check-structure.sh: check 25b did not read exactly the two ids of a planted detection arm, so it is blind or reads lines that are not arms (rules/testing.md)"
+rm -f "$detection_control"
+
 # 26. Everything that mints a session or an access token asks whether the login may be used.
 #
 # The question has one definition — `User.MayAuthenticate` — and the reason it is a named member
@@ -1360,7 +1414,7 @@ fi
 # The agent's side is read from the string constant in ops/src/php/run_install_unit.rs (shared by the version install and the extension switch, issue #157), so this
 # check follows a rename there instead of holding a fifth copy of the name.
 php_unit_rust="agent/crates/ops/src/php/run_install_unit.rs"
-php_unit_prefix="$(sed -n 's/^const INSTALL_UNIT_PREFIX: &str = "\(.*\)";$/\1/p' "$php_unit_rust" 2>/dev/null | head -1)"
+php_unit_prefix="$(sed -n 's/^const INSTALL_UNIT_PREFIX: &str = "\(.*\)";$/\1/p' "$php_unit_rust" 2>/dev/null | sed -n 1p)"
 if [ -z "$php_unit_prefix" ]; then
   report "scripts/lib/check-structure.sh: check 27 could not read INSTALL_UNIT_PREFIX from ${php_unit_rust}, so it is not a statement about the package-install unit's name (rules/testing.md)"
 else
@@ -1406,8 +1460,8 @@ if [ ! -f "$ftps_unit" ]; then
   report "scripts/lib/check-structure.sh: checks 28-30 found no ${ftps_unit}, so they are not a statement about the FTPS unit (rules/testing.md)"
 else
   ftps_text="$(ftps_effective < "$ftps_unit")"
-  if ! printf '%s\n' "$ftps_text" | grep -qE '^\[Service\]$' \
-     || ! printf '%s\n' "$ftps_text" | grep -qE '^ExecStart='; then
+  if ! grep -qE '^\[Service\]$' <<<"$ftps_text" \
+     || ! grep -qE '^ExecStart=' <<<"$ftps_text"; then
     report "${ftps_unit}: has no [Service] section or no ExecStart= line after comments are stripped, so checks 28-30 read nothing (rules/testing.md)"
   fi
   # Positive controls: each matcher must find a planted violation, or it is blind.
@@ -1424,11 +1478,11 @@ else
   done < <(printf '%s\n' "$ftps_text" | ftps_banned_rejections)
 
   # 29. The capability bound is one positive, non-empty line naming none of the kernel-level set.
-  caps_lines="$(printf '%s\n' "$ftps_text" | grep -cE '^[[:space:]]*CapabilityBoundingSet[[:space:]]*=')"
+  caps_lines="$(grep -cE '^[[:space:]]*CapabilityBoundingSet[[:space:]]*=' <<<"$ftps_text")"
   if [ "$caps_lines" -ne 1 ]; then
     report "${ftps_unit}: has ${caps_lines} CapabilityBoundingSet= lines, expected exactly 1 — absent means the full root set, and several lines are merged (issue #92)"
   fi
-  if printf '%s\n' "$ftps_text" | grep -qE '^[[:space:]]*CapabilityBoundingSet[[:space:]]*=[[:space:]]*(~|$)'; then
+  if grep -qE '^[[:space:]]*CapabilityBoundingSet[[:space:]]*=[[:space:]]*(~|$)' <<<"$ftps_text"; then
     report "${ftps_unit}: CapabilityBoundingSet= is empty or a negated list, expected an enumerated positive set (issue #92)"
   fi
   while IFS= read -r cap; do
@@ -1437,13 +1491,13 @@ else
 
   # 30. The start line is the harness's, with no extra exec hooks and no unreplaced token.
   want_exec='ExecStart=/usr/sbin/vsftpd /etc/maran/vsftpd/vsftpd.conf -obackground=NO'
-  [ "$(printf '%s\n' "$ftps_text" | grep -c '^ExecStart=')" -eq 1 ] \
-    && printf '%s\n' "$ftps_text" | grep -qxF "$want_exec" \
+  [ "$(grep -c '^ExecStart=' <<<"$ftps_text")" -eq 1 ] \
+    && grep -qxF "$want_exec" <<<"$ftps_text" \
     || report "${ftps_unit}: ExecStart= is not exactly one line '${want_exec}', which the polygon runs directly (issue #92)"
-  if printf '%s\n' "$ftps_text" | grep -qE '^(ExecStartPre|ExecStartPost|ExecStop|ExecReload)[[:space:]]*='; then
+  if grep -qE '^(ExecStartPre|ExecStartPost|ExecStop|ExecReload)[[:space:]]*=' <<<"$ftps_text"; then
     report "${ftps_unit}: carries an ExecStartPre/ExecStartPost/ExecStop/ExecReload hook, which the shipped unit must not (issue #92)"
   fi
-  if printf '%s\n' "$ftps_text" | grep -qE '__[A-Z_]+__'; then
+  if grep -qE '__[A-Z_]+__' <<<"$ftps_text"; then
     report "${ftps_unit}: carries an unreplaced __TOKEN__ placeholder, and nothing renders this unit (issue #92)"
   fi
 fi
@@ -1482,7 +1536,7 @@ else
     || report "${units_ceilings}: holds no ceiling line, so no shipped unit is judged (issue #107)"
   while IFS= read -r unit; do
     [ -n "$unit" ] || continue
-    count="$(printf '%s\n' "$ceiling_names" | grep -cxF "$unit")"
+    count="$(grep -cxF "$unit" <<<"$ceiling_names")"
     [ "$count" -eq 1 ] \
       || report "${units_ceilings}: has ${count} lines for ${units_dir}/${unit}, expected exactly 1 — a unit without a ceiling is never scored (issue #107)"
   done <<< "$shipped_units"
@@ -1517,6 +1571,75 @@ mkdir -p "${requests_control}/planted/Controllers/Requests" "${requests_control}
 [ -z "$(requests_folders "${requests_control}/clean")" ] \
   || report "scripts/lib/check-structure.sh: check 32 flagged a Controllers/ folder with no Requests/, so it would refuse every module (rules/testing.md)"
 rm -rf "$requests_control"
+
+# 33. Every family the installer can resolve has an adapter in the agent, and every family the agent
+#     has an adapter for is one the installer can resolve (issue #59). Check 25 holds the distribution
+#     IDS together; this holds the FAMILIES together, the level above. Adding a family is "one new
+#     folder plus one arm in adapter_for" (rules/architecture.md), and the installer's detect_os is
+#     the other half of that sentence: a family it names with no folder installs a panel whose agent
+#     cannot start, and a variant of `DistroFamily` no installer path produces is an adapter nothing
+#     can reach.
+#
+#     Reads three files and keeps no list of its own: the `MARAN_OS_FAMILY="<x>"` assignments of
+#     installer/install.sh (other than `unknown`, the refusal), the variants of `DistroFamily` in
+#     family.rs, and the arms of adapter_for.rs. Names are compared lowercased, so `Suse` is `suse`.
+#
+#     Vacuity guard on the axis that can go blind: the installer extraction, which reads as an empty
+#     set (a clean answer) the day detect_os is reformatted or moved. Controls below prove both
+#     extractions and the arm test, and each has its inverse.
+installer_families() {
+  grep -vE '^[[:space:]]*#' "$1" 2>/dev/null | grep -oE 'MARAN_OS_FAMILY="[a-z]+"' \
+    | sed 's/.*="//; s/"$//' | grep -vx unknown | sort -u
+}
+family_variants() {
+  sed -n '/^pub enum DistroFamily/,/^}/p' "$1" 2>/dev/null | grep -E '^    [A-Z][A-Za-z]*,' \
+    | tr -d ' ,' | tr 'A-Z' 'a-z' | sort -u
+}
+adapter_arm_present() {
+  grep -qE "DistroFamily::$(printf '%s' "${1:0:1}" | tr 'a-z' 'A-Z')${1:1}[[:space:]]*=>" "$2" 2>/dev/null
+}
+installer_family_names="$(installer_families installer/install.sh)"
+variant_names="$(family_variants agent/crates/distro/src/family.rs)"
+while read -r family_name; do
+  [ -n "$family_name" ] || continue
+  [ -d "agent/crates/distro/src/${family_name}" ] \
+    || report "agent/crates/distro/src/${family_name}/: installer/install.sh resolves family '${family_name}' and the distro crate has no folder for it — the panel would install and the agent could not serve it (rules/architecture.md, check 33)"
+  adapter_arm_present "$family_name" agent/crates/distro/src/adapter_for.rs \
+    || report "agent/crates/distro/src/adapter_for.rs: no arm for family '${family_name}', which installer/install.sh resolves (rules/architecture.md, check 33)"
+  grep -qxF "$family_name" <<<"$variant_names" \
+    || report "agent/crates/distro/src/family.rs: DistroFamily has no variant '${family_name}', which installer/install.sh resolves (check 33)"
+done <<<"$installer_family_names"
+while read -r variant_name; do
+  [ -n "$variant_name" ] || continue
+  grep -qxF "$variant_name" <<<"$installer_family_names" \
+    || report "installer/install.sh: detect_os never resolves family '${variant_name}', a DistroFamily variant — an adapter the installer can never select (check 33)"
+done <<<"$variant_names"
+
+if [ "$(printf '%s\n' "$installer_family_names" | grep -c .)" -lt 3 ]; then
+  report "scripts/lib/check-structure.sh: check 33 read fewer than 3 families from installer/install.sh's detect_os, so it is not a statement about the installer's families (rules/testing.md)"
+fi
+if [ "$(printf '%s\n' "$variant_names" | grep -c .)" -lt 3 ]; then
+  report "scripts/lib/check-structure.sh: check 33 read fewer than 3 variants of DistroFamily from family.rs, so it is not a statement about the agent's families (rules/testing.md)"
+fi
+
+# Controls, run before the check is trusted. Positive: planted assignments, a comment and the
+# refusal are read as exactly the real ones; a planted enum is read as its variants. Inverse: an
+# arm that is present is accepted, and one that is absent is refused (a test that accepts everything
+# passes every control that only hands it a present arm).
+family_control="$(mktemp -d)"
+printf '%s\n' '      MARAN_OS_FAMILY="debian"' '      MARAN_OS_FAMILY="rhel"' '  # MARAN_OS_FAMILY="commented"' \
+  '        *) MARAN_OS_FAMILY="unknown" ;;' '      MARAN_OS_FAMILY="suse"' >"${family_control}/install.sh"
+printf '%s\n' 'pub enum DistroFamily {' '    /// Doc.' '    Debian,' '    Rhel,' '    Suse,' '}' >"${family_control}/family.rs"
+printf '%s\n' '        DistroFamily::Debian => &DebianAdapter,' '        DistroFamily::Suse => &SuseAdapter,' >"${family_control}/adapter_for.rs"
+[ "$(installer_families "${family_control}/install.sh" | tr '\n' ' ')" = "debian rhel suse " ] \
+  || report "scripts/lib/check-structure.sh: check 33's installer reader did not return exactly the planted families (and not the comment or unknown), so it is blind or too wide (rules/testing.md)"
+[ "$(family_variants "${family_control}/family.rs" | tr '\n' ' ')" = "debian rhel suse " ] \
+  || report "scripts/lib/check-structure.sh: check 33's variant reader did not return exactly the planted variants, so it is blind (rules/testing.md)"
+adapter_arm_present suse "${family_control}/adapter_for.rs" \
+  || report "scripts/lib/check-structure.sh: check 33's arm test refused a planted present arm, so it would refuse every family (rules/testing.md)"
+! adapter_arm_present rhel "${family_control}/adapter_for.rs" \
+  || report "scripts/lib/check-structure.sh: check 33's arm test accepted an arm that is absent, so it would accept every family (rules/testing.md)"
+rm -rf "$family_control"
 
 if [ "$violations" -gt 0 ]; then
   echo

@@ -1,16 +1,19 @@
-import { test, type Page } from '@playwright/test'
 import {
   expectRegionFastLoad,
   expectRegionSlowFailure,
   expectRegionSlowLoad,
   type RegionLoadingScenario,
 } from './fixtures/expect-region-loading'
+import { test } from './fixtures/guarded-test'
+import { stubIdleLiveDashboard } from './fixtures/stub-live-dashboard-stream'
 import { stubSignedIn } from './fixtures/stub-auth-routes'
 import { ALERT_DELIVERY_OK, loaded, stubDashboard, stubDashboardProblem, SYNCHRONIZED_CLOCK } from './fixtures/stub-dashboard-route'
 import { stubHealthy } from './fixtures/stub-health-route'
 import { stubModules } from './fixtures/stub-modules-route'
+import { stubShellReads } from './fixtures/stub-shell-reads'
 import type { Dashboard } from '../src/types/dashboard'
 import type { PanelModule } from '../src/types/module'
+import type { Page } from '@playwright/test'
 
 // The landing page while the dashboard is on the way (#243): the count tiles and the resource
 // tiles are drawn with their real labels and a placeholder for every figure.
@@ -68,7 +71,9 @@ const REFUSAL = 'The agent is not answering on this server.'
 const signIn = async (page: Page): Promise<void> => {
   await stubModules(page, LICENSED)
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
+  await stubIdleLiveDashboard(page)
 }
 
 /** How the dashboard screen is opened and answered. */
@@ -101,6 +106,8 @@ test('dashboard: a fast answer shows no placeholder', async ({ page }) => {
   await expectRegionFastLoad(page, DASHBOARD_SCENARIO)
 })
 
-test('dashboard: a slow failure is an alert, never a skeleton', async ({ page }) => {
+test('dashboard: a slow failure is an alert, never a skeleton', async ({ page, guard }) => {
+  // The refused dashboard read is the subject of this test.
+  guard.allow(503, /\/api\/v1\/dashboard$/)
   await expectRegionSlowFailure(page, DASHBOARD_SCENARIO)
 })

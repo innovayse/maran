@@ -397,6 +397,24 @@ pub enum AccountError {
         username: String,
     },
 
+    /// The visitor logs of the account's sites could not be removed, or something
+    /// the site area never writes sits in their directory, so the deletion
+    /// stopped before `userdel` (issue #477).
+    ///
+    /// The directory is named by the account and holds a file per site domain, and
+    /// the panel recycles both names: whoever holds them next would read the
+    /// previous tenant's visitor addresses and request targets through the log
+    /// tail. Raised when the account's entry or an entry in it is a symlink, a
+    /// directory or a special file (never followed, and nothing is removed after
+    /// it), or when the emptied directory could not be unlinked. Retryable like
+    /// [`Self::MailSpoolRemains`]. Carries the name only: no path reaches a
+    /// customer-facing message.
+    #[error("the site logs of account '{username}' are still present after being removed")]
+    SiteLogsRemain {
+        /// The account whose log directory survived.
+        username: String,
+    },
+
     /// An account's `pam_limits` drop-in (issue #194) could not be written,
     /// validated or removed.
     ///

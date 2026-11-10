@@ -1,0 +1,270 @@
+{
+  "migration": {
+    "list": {
+      "heading": "Remote servers",
+      "subtitle": "The servers you migrate accounts from. The panel reaches each one over SSH with a key it generates for that server alone.",
+      "addAction": "Add a server",
+      "emptyTitle": "No remote servers yet",
+      "emptyDescription": "Add the server you want to migrate from. The panel generates a key for it and shows you the one line to put on that server.",
+      "tableCaption": "Remote servers",
+      "columns": {
+        "name": "Server",
+        "address": "Address",
+        "state": "State",
+        "lastTested": "Last tested",
+        "accounts": "Accounts"
+      },
+      "never": "Never",
+      "rowActions": "Actions for the server {name}",
+      "removeAction": "Remove",
+      "searchLabel": "Search remote servers",
+      "searchPlaceholder": "Search by name or address…",
+      "searchClear": "Clear the search",
+      "noResultsTitle": "No servers match",
+      "noResultsDescription": "Change the search or the filter, or clear them to see every server.",
+      "filters": {
+        "state": "State"
+      },
+      "removed": "The server {name} was removed."
+    },
+    "states": {
+      "hostKeyUnconfirmed": "Host key to confirm",
+      "pinned": "Host key confirmed",
+      "ready": "Ready",
+      "hostKeyChanged": "Host key changed",
+      "authRefused": "Key refused",
+      "unreachable": "Unreachable"
+    },
+    "kinds": {
+      "genericLinux": "Linux server",
+      "maran": "Maran panel"
+    },
+    "form": {
+      "headingNew": "Add a remote server",
+      "headingEdit": "Edit a remote server",
+      "subtitleNew": "Tell the panel where the server is. It then generates a key for it and reads the server's host keys.",
+      "subtitleEdit": "Change how the panel reaches the server.",
+      "notFoundTitle": "No such server",
+      "notFoundDescription": "This remote server does not exist, or it was removed.",
+      "fields": {
+        "name": "Name",
+        "host": "Host name or address",
+        "port": "SSH port",
+        "sshUser": "Login on the server",
+        "allowedFrom": "Limit the key to these addresses"
+      },
+      "placeholders": {
+        "name": "Old shared hosting",
+        "host": "old.example.com",
+        "port": "22",
+        "sshUser": "root",
+        "allowedFrom": "203.0.113.10, 2001:db8::/32"
+      },
+      "hints": {
+        "name": "A name only you see, unique among the remote servers.",
+        "host": "A name or an address the panel can reach. Private and loopback addresses of this host are refused.",
+        "sshUser": "The panel connects as this user. Root sees every account; another user sees only what it can read.",
+        "allowedFrom": "Optional. Addresses or ranges separated by commas. They go in front of the key on the server, so only this panel's address can use it.",
+        "retarget": "Changing the host, the port or the login forgets the confirmed host key. You confirm it again."
+      },
+      "errors": {
+        "nameRequired": "Enter a name.",
+        "hostRequired": "Enter the host name or address.",
+        "hostInvalid": "Enter a host name or an IP address without spaces or a scheme.",
+        "portInvalid": "The port is a whole number from 1 to 65535.",
+        "sshUserRequired": "Enter the login on the server.",
+        "sshUserInvalid": "A login starts with a lowercase letter or an underscore and holds lowercase letters, digits, hyphens and underscores.",
+        "allowedFromInvalid": "Enter addresses or ranges such as 203.0.113.10 or 10.0.0.0/8, separated by commas."
+      },
+      "submitNew": "Add the server",
+      "submitEdit": "Save changes",
+      "workingNew": "Adding and scanning…",
+      "workingEdit": "Saving…",
+      "created": "The server {name} was added. Put its key on the server, then confirm the host key.",
+      "saved": "The server {name} was saved."
+    },
+    "detail": {
+      "heading": "Remote server",
+      "subtitle": "How the panel reaches this server, and what it found there.",
+      "backToList": "Back to the servers",
+      "notFoundTitle": "No such server",
+      "notFoundDescription": "This remote server does not exist, or it was removed.",
+      "tabs": {
+        "label": "Remote server",
+        "connection": "Connection",
+        "accounts": "Accounts"
+      },
+      "editAction": "Edit",
+      "removeAction": "Remove",
+      "overview": {
+        "title": "Server",
+        "address": "Address",
+        "sshUser": "Login",
+        "state": "State",
+        "kind": "Kind",
+        "allowedFrom": "Key limited to",
+        "noLimit": "No limit",
+        "createdAt": "Added"
+      }
+    },
+    "key": {
+      "title": "Authorize the panel on the server",
+      "intro": "Add this one line to the login's authorized keys on the remote server. The matching private key never leaves this panel and is not shown anywhere.",
+      "steps": {
+        "open": "Sign in to the remote server as the login you entered.",
+        "append": "Append the line below to the file ~/.ssh/authorized_keys of that login (create the file with mode 600 if it does not exist).",
+        "test": "Come back here, confirm the host key, and test the connection."
+      },
+      "lineLabel": "Line for authorized_keys",
+      "copy": "Copy the line",
+      "copied": "Copied",
+      "limit": "This key cannot be limited to read-only. The restrictions in the line stop forwarding and terminals, but whoever holds the key can run commands as that login. The panel itself only reads. Remove the line when the migration is finished.",
+      "limitedFrom": "The key works only from {addresses}.",
+      "notLimitedFrom": "The key is not limited to any address."
+    },
+    "hostKey": {
+      "title": "Confirm the host key",
+      "intro": "The panel read these host keys from the server. Check one against the server itself, so you know you reach the machine you mean and not an impostor.",
+      "compare": "On the remote server run ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub (or the file of the algorithm you choose) and compare the fingerprint it prints with the one you pick below.",
+      "legend": "Scanned host keys",
+      "optionLabel": "{algorithm}: {fingerprint}",
+      "typeLabel": "Type or paste the fingerprint you chose",
+      "typeHint": "The confirm button stays off until what you typed is exactly the chosen fingerprint.",
+      "mismatch": "This is not the chosen fingerprint.",
+      "chooseFirst": "Choose a host key first.",
+      "confirmAction": "Confirm this host key",
+      "confirming": "Confirming…",
+      "rescanAction": "Scan the host keys again",
+      "rescanning": "Scanning…",
+      "noCandidates": "The panel holds no scanned host key for this server. Scan again.",
+      "changedWarning": "The server now presents a different host key than the one you confirmed. This can be a reinstall of the server, or someone standing between the panel and the server. Do not confirm a new key unless you know why it changed.",
+      "pinnedTitle": "Confirmed host key",
+      "pinnedAlgorithm": "Algorithm",
+      "pinnedFingerprint": "Fingerprint",
+      "pinnedAt": "Confirmed",
+      "changeAction": "Review the host keys again",
+      "closeReview": "Keep the confirmed key",
+      "confirmedNotice": "The host key was confirmed."
+    },
+    "test": {
+      "title": "Connection",
+      "runAction": "Test the connection",
+      "running": "Testing…",
+      "needsKey": "Confirm the host key before the connection can be tested.",
+      "neverTested": "The connection was never tested.",
+      "lastTested": "Last tested",
+      "readyNotice": "The connection works.",
+      "failureTitle": "The last test failed",
+      "failure": {
+        "hostKeyChanged": "The server presented a different host key than the one you confirmed.",
+        "authRefused": "The server refused the panel's key. Check that the line is in the right authorized_keys file and that the login is correct.",
+        "unreachable": "The server could not be reached. Check the address, the port and any firewall in front of it.",
+        "addressRefused": "The panel refuses to connect to this address (a loopback, link-local or own address)."
+      },
+      "facts": {
+        "title": "What the panel found",
+        "release": "System",
+        "kind": "Kind",
+        "login": "Login",
+        "loginRoot": "root",
+        "loginUser": "not root, sees only what it can read",
+        "homeSpace": "Home disk",
+        "homeSpaceValue": "{free} free of {total}",
+        "databaseServer": "Database server",
+        "webServer": "Web server",
+        "mail": "Mail",
+        "mailFound": "Mail storage found. Mail is not migrated.",
+        "mailNotFound": "No mail storage found",
+        "maranVersion": "Maran version"
+      },
+      "databaseServers": {
+        "MariaDb": "MariaDB",
+        "MySql": "MySQL"
+      },
+      "webServers": {
+        "Nginx": "nginx",
+        "Apache": "Apache"
+      }
+    },
+    "accounts": {
+      "title": "Accounts on the server",
+      "subtitle": "What discovery found. Discovery only reads; nothing on the remote server changes.",
+      "discoverAction": "Discover accounts",
+      "rediscoverAction": "Discover again",
+      "discovering": "Reading the server…",
+      "needsPin": "Confirm the host key before the panel can read the server.",
+      "discoveredAt": "Discovered",
+      "discoveredNotice": "Discovery finished. Accounts found: {count}.",
+      "neverDiscovered": "Nothing was discovered yet",
+      "neverDiscoveredDescription": "Discovery reads the accounts, sites, databases and cron entries from the server.",
+      "noneFoundTitle": "No accounts found",
+      "noneFoundDescription": "Discovery found no account with a home under /home on this server.",
+      "tableCaption": "Accounts discovered on the server",
+      "columns": {
+        "name": "Account",
+        "home": "Home",
+        "disk": "Disk",
+        "sites": "Sites",
+        "databases": "Databases",
+        "cron": "Cron",
+        "mailboxes": "Mailboxes"
+      },
+      "diskUnknown": "Unknown",
+      "rowOpen": "Details of the account {name}",
+      "searchLabel": "Search accounts",
+      "searchPlaceholder": "Search by account or domain…",
+      "searchClear": "Clear the search",
+      "noResultsTitle": "No accounts match",
+      "noResultsDescription": "Change the search or the filter, or clear them to see every account.",
+      "filters": {
+        "has": "Has"
+      },
+      "has": {
+        "sites": "Sites",
+        "databases": "Databases",
+        "cron": "Cron entries",
+        "mail": "Mailboxes"
+      },
+      "warningsTitle": "What discovery could not read",
+      "warningsSubtitle": "These items are skipped or incomplete. They do not stop the rest."
+    },
+    "account": {
+      "title": "Account {name}",
+      "home": "Home",
+      "disk": "Disk used",
+      "cron": "Cron entries",
+      "mailboxes": "Mailboxes",
+      "mailNotMigrated": "Mail is not migrated.",
+      "sitesTitle": "Sites",
+      "noSites": "No sites were found for this account.",
+      "aliases": "Aliases",
+      "backend": "Served as",
+      "backends": {
+        "unknown": "Unknown",
+        "static": "Static files",
+        "php": "PHP",
+        "proxy": "Proxy"
+      },
+      "php": "PHP version",
+      "documentRoot": "Document root",
+      "databasesTitle": "Databases",
+      "noDatabases": "No databases were found for this account.",
+      "databaseSize": "Size",
+      "sizeUnknown": "Unknown",
+      "loadFailed": "The account could not be read."
+    },
+    "remove": {
+      "confirmTitle": "Remove the server {name}?",
+      "confirmQuestion": "The panel forgets the server, its confirmed host key and everything discovered on it. Nothing on the remote server changes, so its authorized_keys still holds the panel's key until you remove it yourself.",
+      "confirmAction": "Remove server",
+      "reminderTitle": "Remove the panel's key from {name}",
+      "reminderIntro": "The server is removed from the panel. Now take the panel's key off the remote server, so it can no longer be used to sign in:",
+      "reminderStep": "Delete the line holding this key from ~/.ssh/authorized_keys of the login the panel used.",
+      "keyLabel": "Public key to remove",
+      "copy": "Copy the key",
+      "copied": "Copied",
+      "fingerprint": "The host key that was confirmed: {fingerprint}",
+      "done": "I removed it"
+    }
+  }
+}

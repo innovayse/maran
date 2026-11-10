@@ -33,6 +33,8 @@ tokio = { workspace = true, features = ["sync"] }
 [dev-dependencies]
 # tempfile: path containment is only meaningfully tested against a real filesystem.
 tempfile.workspace = true
+# proptest: the property tests of the validation types (src/tests/validation/**/*_property_tests.rs).
+proptest.workspace = true
 
 [lints]
 workspace = true

@@ -70,6 +70,10 @@ public sealed class AuditEventConfiguration : IEntityTypeConfiguration<AuditEven
         // (AuditEvent.HashLength, AuditEvent.SaltLength); bytea cannot state a length, so the entity's
         // Seal is what holds it.
         builder.Property(e => e.AccountId);
+
+        // The login a row is ABOUT (an owner changing a sub-user's grants). Nullable, so this too is an
+        // expand-only change, and indexed because erasing a login looks its rows up by this column.
+        builder.Property(e => e.SubjectUserId);
         builder.Property(e => e.ChainIndex);
         builder.Property(e => e.RowHash).HasColumnType("bytea");
         builder.Property(e => e.ErasableCommitment).HasColumnType("bytea");
@@ -90,6 +94,7 @@ public sealed class AuditEventConfiguration : IEntityTypeConfiguration<AuditEven
         // filters by actor; both get an index so the journal stays readable as it grows.
         builder.HasIndex(e => e.OccurredAt).IsDescending().HasDatabaseName("IX_AuditEvents_OccurredAt");
         builder.HasIndex(e => e.ActorUserId).HasDatabaseName("IX_AuditEvents_ActorUserId");
+        builder.HasIndex(e => e.SubjectUserId).HasDatabaseName("IX_AuditEvents_SubjectUserId");
 
         // The journal screen filters by one action and its action filter lists the distinct actions
         // the journal holds (ListAuditActionChoicesQuery). The table only grows, so both would be a

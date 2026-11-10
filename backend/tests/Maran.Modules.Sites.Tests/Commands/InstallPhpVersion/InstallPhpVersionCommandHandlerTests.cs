@@ -78,6 +78,7 @@ public sealed class InstallPhpVersionCommandHandlerTests
     [Theory]
     [InlineData("AgentPackageSourceRefused", ErrorType.UpstreamRefused)]
     [InlineData("AgentPackageSourceUnreachable", ErrorType.Unavailable)]
+    [InlineData("AgentPackageNotAvailable", ErrorType.Conflict)]
     [InlineData("AgentNotImplemented", ErrorType.Unavailable)]
     [InlineData("AgentUnavailable", ErrorType.Unavailable)]
     [InlineData("AgentSystemFailure", ErrorType.Failure)]

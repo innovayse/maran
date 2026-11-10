@@ -1,6 +1,7 @@
 import type { RouteLocationRaw } from 'vue-router'
 import { NO_LANDING_ROUTE, moduleLandingRoute } from '../router/moduleLandingRoute'
 import { FALLBACK_GROUP, MODULES_WITHOUT_ITEM, NAVIGATION_TREE } from '../router/navigationTree'
+import { packagedEntries } from './packagedNavigation'
 import type {
   NavigationContext,
   NavigationEntry,
@@ -52,7 +53,10 @@ const stateOf = (page: NavigationPageSpec, context: NavigationContext): Navigati
   const granted =
     access.state !== 'member' || page.planFeature === null || access.features.has(page.planFeature)
   const ownerOffered = !page.ownerOnly || access.state !== 'member'
-  if (!page.roles.includes(context.role) || !featureOffered || !granted || !ownerOffered) {
+  // A page whose endpoints refuse a view-as session is not offered while viewing: the visit would
+  // only be a column of refused requests (issue #513).
+  const viewAsOffered = !page.viewAsRefused || !context.viewingAs
+  if (!page.roles.includes(context.role) || !featureOffered || !granted || !ownerOffered || !viewAsOffered) {
     return null
   }
   if (page.availability.state === 'planned') {
@@ -104,6 +108,7 @@ const pageEntry = (
     label: { kind: 'key', key: page.labelKey },
     icon,
     badge,
+    searchTermsKey: page.searchTermsKey,
     children: [],
   }
 }
@@ -164,6 +169,8 @@ const nodeEntries = (node: NavigationNodeSpec, groupKey: string, context: Naviga
       label: { kind: 'key', key: node.labelKey },
       icon: node.icon,
       badge,
+      // A section drawn as one row stands for its only page, so it is found by that page's words.
+      searchTermsKey: children.length === 1 ? first.searchTermsKey : null,
       children: submenu ? children : [],
     },
   ]
@@ -177,6 +184,10 @@ const nodeEntries = (node: NavigationNodeSpec, groupKey: string, context: Naviga
  */
 const catalogueEntries = (context: NavigationContext): NavigationEntry[] => {
   return context.catalogue.flatMap((module): NavigationEntry[] => {
+    // An installed module declares its own menu and is drawn from it (`packagedNavigation.ts`).
+    if (module.isPackaged === true) {
+      return []
+    }
     // A module without an item of its own still shows while the licence does not permit it: a
     // locked module stays visible and leads to its upgrade page, rather than hiding the product.
     if (TREE_MODULES.has(module.name) || (module.state === 'enabled' && MODULES_WITHOUT_ITEM.has(module.name))) {
@@ -198,6 +209,7 @@ const catalogueEntries = (context: NavigationContext): NavigationEntry[] => {
         label: { kind: 'text', text: module.displayName ?? module.name },
         icon: 'grid',
         badge: null,
+        searchTermsKey: null,
         children: [],
       },
     ]
@@ -207,7 +219,8 @@ const catalogueEntries = (context: NavigationContext): NavigationEntry[] => {
 /**
  * Builds the navigation for one caller from the tree (`router/navigationTree.ts`): the tree filtered
  * by role, plan feature and the caller's grants on the account, each page resolved against the
- * module catalogue and the router, then any catalogue module the tree does not know. Pure, so the
+ * module catalogue and the router, then any catalogue module the tree does not know, then the entries
+ * installed modules declare. Pure, so the
  * role filter is the same function for every role.
  * @param context What the shell knows about the caller and the panel.
  * @returns The entries in drawing order.
@@ -218,5 +231,8 @@ export const buildNavigation = (context: NavigationContext): NavigationEntry[] =
       return nodeEntries(node, group.key, context)
     })
   })
-  return [...treeEntries, ...catalogueEntries(context)]
+  const installedEntries = context.catalogue.flatMap((module): NavigationEntry[] => {
+    return module.isPackaged === true ? packagedEntries(module, context) : []
+  })
+  return [...treeEntries, ...catalogueEntries(context), ...installedEntries]
 }

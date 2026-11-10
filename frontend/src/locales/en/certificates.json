@@ -41,6 +41,11 @@
     },
     "lastRenewalAttemptLabel": "Last renewal attempt",
     "noRenewalAttempt": "Not tried yet",
-    "failedAttempts": "Failed attempts in a row: {count}"
+    "failedAttempts": "Failed attempts in a row: {count}",
+    "wildcard": {
+      "label": "Also cover every name under this domain (wildcard)",
+      "hint": "Adds *.{domain} to the certificate. The panel proves control through the DNS zone this server serves for the domain, so the domain's name servers must point at this server.",
+      "badge": "Wildcard: *.{domain}"
+    }
   }
 }

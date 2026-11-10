@@ -169,6 +169,35 @@ public sealed class DevelopmentKeyRefusalTests
         Assert.Contains("contains", failure, StringComparison.Ordinal);
     }
 
+    /// <summary>A Production host started with the setup token the sample file publishes refuses to start.</summary>
+    [Fact]
+    public void A_production_host_with_the_published_setup_token_refuses_to_start()
+    {
+        var failures = StartAndCollectFailures("Production", GoodEncryptionKey, GoodSigningKey, setupToken: "dev-setup-token");
+
+        var failure = Assert.Single(failures);
+        Assert.Contains("Setup:Token", failure, StringComparison.Ordinal);
+        Assert.Contains("published", failure, StringComparison.Ordinal);
+        Assert.DoesNotContain("dev-setup-token", failure, StringComparison.Ordinal);
+    }
+
+    /// <summary>Inverse control: Production boots with a random setup token, with none, and the sample boots in Development.</summary>
+    /// <param name="environment">The environment name.</param>
+    /// <param name="token">The setup token, or empty.</param>
+    [Theory]
+    [InlineData("Production", "")]
+    [InlineData("Production", "5f0a3c9d1e7b42a8c6d4e2f1a9b8c7d65e4f3a2b1c0d9e8f")]
+    [InlineData("Development", "dev-setup-token")]
+    public async Task A_host_with_an_acceptable_setup_token_boots(string environment, string token)
+    {
+        using var factory = CreateFactory(environment, GoodEncryptionKey, GoodSigningKey, signingFirst: false, token);
+
+        using var client = factory.CreateClient();
+        using var response = await client.GetAsync("/health/live");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
     /// <summary>The inverse control: two independent random keys boot in Production.</summary>
     [Fact]
     public async Task A_production_host_with_two_independent_random_keys_boots()
@@ -320,16 +349,19 @@ public sealed class DevelopmentKeyRefusalTests
     /// <param name="encryptionKey">The encryption key to configure.</param>
     /// <param name="signingKey">The signing key to configure.</param>
     /// <param name="signingFirst">Whether the signing key is applied before the encryption key.</param>
+    /// <param name="setupToken">The setup token to configure; empty for a finished panel.</param>
     /// <returns>The factory; the host starts when its services are first touched.</returns>
     private static WebApplicationFactory<Program> CreateFactory(
         string environment,
         string encryptionKey,
         string signingKey,
-        bool signingFirst)
+        bool signingFirst,
+        string setupToken = "")
     {
         return new PanelTestFactory().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment(environment);
+            builder.UseSetting("Setup:Token", setupToken);
             if (signingFirst)
             {
                 builder.UseSetting(SigningPath, signingKey);
@@ -351,14 +383,16 @@ public sealed class DevelopmentKeyRefusalTests
     /// <param name="encryptionKey">The encryption key to configure.</param>
     /// <param name="signingKey">The signing key to configure.</param>
     /// <param name="signingFirst">Whether the signing key is applied before the encryption key.</param>
+    /// <param name="setupToken">The setup token to configure; empty for a finished panel.</param>
     /// <returns>The failure messages; the call fails when the host started.</returns>
     private static List<string> StartAndCollectFailures(
         string environment,
         string encryptionKey,
         string signingKey,
-        bool signingFirst = false)
+        bool signingFirst = false,
+        string setupToken = "")
     {
-        using var factory = CreateFactory(environment, encryptionKey, signingKey, signingFirst);
+        using var factory = CreateFactory(environment, encryptionKey, signingKey, signingFirst, setupToken);
 
         var thrown = Record.Exception(() =>
         {

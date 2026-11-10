@@ -155,7 +155,7 @@ public sealed class ResendSubUserInvitationCommandHandler
 
         var minted = await _issuer.MintAsync(user, _clock.UtcNow, cancellationToken);
 
-        await JournalAsync(command, user.Username, succeeded: true, cancellationToken);
+        await JournalAsync(command, user.Username, user.Id, succeeded: true, cancellationToken);
 
         // Published after the token is saved, to the address stored on the login and never to one the
         // request carried. The token is in the message body for this one hop and is stored nowhere.
@@ -176,22 +176,40 @@ public sealed class ResendSubUserInvitationCommandHandler
     {
         // The subject is the id the caller named: a refused attempt on somebody else's sub-user still
         // leaves a trace of what was probed.
-        await JournalAsync(command, command.UserId.ToString("D"), succeeded: false, cancellationToken);
+        await JournalAsync(command, command.UserId.ToString("D"), null, succeeded: false, cancellationToken);
         return Result.Fail(error);
     }
 
     /// <summary>Journals the resend with the owner as actor and the sub-user as subject; never the token.</summary>
     /// <param name="command">The request.</param>
     /// <param name="subject">The sub-user's login name, or the id the caller named when none matched.</param>
+    /// <param name="userId">The sub-user's login when one matched, or <c>null</c> when the subject is only what the caller named.</param>
     /// <param name="succeeded">Whether a new invitation was issued.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <returns>A task that completes once the entry is written.</returns>
     private async Task JournalAsync(
         ResendSubUserInvitationCommand command,
         string subject,
+        Guid? userId,
         bool succeeded,
         CancellationToken cancellationToken)
     {
+        var actorUserId = SignedInCallerPolicy.Require(_currentUser).UserId;
+        if (userId is { } resent)
+        {
+            await _journal.RecordOnUserAsync(
+                actorUserId,
+                resent,
+                IdentityAuditActions.SubUserInvitationResent,
+                subject,
+                command.IpAddress,
+                command.UserAgent,
+                succeeded,
+                cancellationToken);
+
+            return;
+        }
+
         await _journal.RecordIdentifiedAsync(
             SignedInCallerPolicy.Require(_currentUser).UserId,
             IdentityAuditActions.SubUserInvitationResent,

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
@@ -6,9 +6,11 @@ import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubCronOptions } from '../fixtures/stub-cron-options-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubCronEntries, stubCronEnvironment } from '../fixtures/stub-cron-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { CronEntry } from '../../src/types/cronEntry'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 // #222: an entry reads in words next to its expression, the builder asks for the hour before the
 // minute, and adding an entry is confirmed by a toast.
@@ -57,6 +59,7 @@ const IRREGULAR: CronEntry = {
 const openCronPage = async (page: Page, entries: CronEntry[]): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubCronOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
@@ -111,6 +114,7 @@ test('an entry describes its schedule in Armenian', async ({ page }) => {
   await setPersistedLocale(page, 'hy')
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubCronOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])

@@ -1,10 +1,8 @@
 //! The startup pass that makes the DNS daemon serve every zone the agent has a
 //! file for.
 
-use std::path::Path;
-
 use maran_distro::DistroAdapter;
-use maran_ops::dns::{ZoneHost, ZoneReconciliation, reconcile_zone_files};
+use maran_ops::dns::{ZoneDirectories, ZoneHost, ZoneReconciliation, reconcile_zone_files};
 
 /// Adds to the DNS daemon every zone that has a file and that it does not serve,
 /// at startup, and logs what it found.
@@ -16,6 +14,10 @@ use maran_ops::dns::{ZoneHost, ZoneReconciliation, reconcile_zone_files};
 /// backup, a daemon reinstalled — the files are still there and the zones are not
 /// served. This pass puts them back from the files, asking the daemon for each
 /// zone and never reading its private list.
+///
+/// It looks in the plain directory and the signed one: a signed zone with its key
+/// files is re-added SIGNED, so a rebuilt host does not serve unsigned a zone whose
+/// DS record the registrar holds (issue #452).
 ///
 /// # Why it never refuses the start
 ///
@@ -31,9 +33,9 @@ pub(crate) fn reconcile_dns_zones(
     host: &dyn ZoneHost,
     distro: &dyn DistroAdapter,
 ) -> Option<ZoneReconciliation> {
-    let directory = Path::new(distro.dns_zone_directory());
+    let directories = ZoneDirectories::of(distro);
 
-    match reconcile_zone_files(host, distro, directory) {
+    match reconcile_zone_files(host, distro, &directories) {
         Ok(ZoneReconciliation::DaemonNotAnswering) => {
             tracing::debug!(
                 "the DNS daemon does not answer, so no zone file was compared with it \

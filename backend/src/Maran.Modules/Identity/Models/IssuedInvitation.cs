@@ -14,6 +14,7 @@ namespace Maran.Modules.Identity.Models;
 /// the administrator who asked for the link (<c>IssueInvitationLinkCommandHandler</c>), and only
 /// there does anything call <see cref="SensitiveString.Reveal"/>.
 /// </remarks>
+/// <param name="UserId">The invited login's id, which a journal entry about the invitation records as its subject login.</param>
 /// <param name="Username">The login's name, which is also the hosting account's system user.</param>
 /// <param name="RecipientEmail">
 /// The invited login's own stored address, where a mail would be sent: the account owner's for an
@@ -26,6 +27,7 @@ namespace Maran.Modules.Identity.Models;
 /// for an account invitation, the reseller contact's for a reseller invitation.
 /// </param>
 public sealed record IssuedInvitation(
+    Guid UserId,
     string Username,
     string RecipientEmail,
     SensitiveString Token,

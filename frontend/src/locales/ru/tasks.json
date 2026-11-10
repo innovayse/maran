@@ -36,12 +36,17 @@
       "CertificateIssue": "Выпуск сертификата",
       "CertificateRenewal": "Обновление сертификата",
       "AccountDeletion": "Удаление аккаунта",
+      "AccountImport": "Импорт аккаунта",
       "AccountSuspension": "Приостановка аккаунта",
       "AccountResumption": "Возобновление аккаунта",
       "BackupCreate": "Создание резервной копии",
       "BackupRestore": "Восстановление из копии",
       "PhpVersionInstall": "Установка версии PHP",
-      "PhpExtensionChange": "Изменение расширения PHP"
+      "PhpExtensionChange": "Изменение расширения PHP",
+      "ModuleInstall": "Установка модуля",
+      "ModuleUpdate": "Обновление модуля",
+      "ModuleRemove": "Удаление модуля",
+      "ModuleRollback": "Откат модуля"
     },
     "pane": {
       "correlationId": "Идентификатор запроса",

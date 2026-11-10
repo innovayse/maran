@@ -4,8 +4,8 @@ use maran_agent_core::validation::db::database_name::DatabaseName;
 
 use crate::db::db_error::DbError;
 use crate::db::db_host::DbHost;
-use crate::db::grant_pattern::grant_pattern_for;
 use crate::db::grant_rows::grant_rows;
+use maran_agent_core::validation::db::grant_pattern_for::grant_pattern_for;
 
 /// Whether `character` may appear in a user name read back from the server.
 ///

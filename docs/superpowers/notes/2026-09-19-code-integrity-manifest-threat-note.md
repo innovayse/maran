@@ -52,11 +52,25 @@ repository's threat surface; this note cannot and does not assess it.
   `manifest.json` build — this tooling assumes the machine running `maran release build`/`sign` is
   not already compromised, out of scope here as it was there.
 - **A build that produces an empty or truncated hash list**: this is the specific failure this
-  change adds a NEW check against — `write_integrity_manifest`'s vacuity floor
-  (`INTEGRITY_MANIFEST_MIN_FILES`), which refuses the build (`release_failed`) below a fixed file
-  count. Without it, an empty list would sign successfully, verify successfully, and report `Clean`
-  forever on every installed host — the single most dangerous failure mode this whole feature has,
-  because it looks identical to health.
+  change adds a NEW check against — `write_integrity_manifest`'s vacuity floor, which refuses the
+  build (`release_failed`) when a component is thin. Without it, an empty list would sign
+  successfully, verify successfully, and report `Clean` forever on every installed host — the
+  single most dangerous failure mode this whole feature has, because it looks identical to health.
+  **The floor is per component (amended 2026-11-09, #473).** It was one total
+  (`INTEGRITY_MANIFEST_MIN_FILES=50`) summed over every staged directory, and the self-contained API
+  publish alone clears that: a build whose `frontend-<arch>` was an empty directory, or whose agent
+  or one architecture's directory was missing, was signed with a list naming no file of that
+  component, so a planted asset in it could never differ from the list. Now each of `api`, `agent`
+  and `frontend` must (1) be staged at all, (2) be staged for the same set of architectures as the
+  others, and (3) hold at least its own minimum in every staged directory
+  (`integrity_manifest_min_files`: api 10, frontend 10, agent 1 — the single binary). A staged path
+  containing a quote, backslash or control character is refused instead of being written unescaped
+  into the signed JSON. The `selftest` plants each break (every component empty, every component
+  absent, one component missing one architecture, a hostile file name) on bundles that clear the old
+  total, and an accepting control. **Not covered:** the minimum is a count, not a proof of
+  completeness; a build that drops half of a component's files still above its floor is signed, and
+  the installer is not a bundle component, so it carries no entry in this list. Second review:
+  OUTSTANDING (#331).
 - **A signed-but-internally-wrong hash list** — one entry's sha256 corrupted before signing, the
   rest correct: **not defeated by the signature, and this note says so rather than implying
   otherwise.** Signature verification proves the FILE was not altered after signing; it does not

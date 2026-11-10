@@ -1,18 +1,20 @@
-import { test, type Page  } from '@playwright/test'
 import {
   expectRegionFastLoad,
   expectRegionSlowFailure,
   expectRegionSlowLoad,
   type RegionLoadingScenario,
 } from '../fixtures/expect-region-loading'
+import { test } from '../fixtures/guarded-test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubBackupSchedules } from '../fixtures/stub-backup-schedule-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { BackupSchedule } from '../../src/types/backupSchedule'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 // The schedule form while the scope's schedule is on the way (#243): real labels over placeholders.
 
@@ -47,6 +49,7 @@ const shell = async (page: Page): Promise<void> => {
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [])
 }
 
@@ -84,6 +87,7 @@ test('backup schedule: a fast answer shows no placeholder', async ({ page }) => 
   await expectRegionFastLoad(page, BACKUP_SCHEDULE_SCENARIO)
 })
 
-test('backup schedule: a slow failure is an alert, never a skeleton', async ({ page }) => {
+test('backup schedule: a slow failure is an alert, never a skeleton', async ({ page, guard }) => {
+  guard.allow(500, /\/api\/v1\/backup-schedules(\?.*)?$/)
   await expectRegionSlowFailure(page, BACKUP_SCHEDULE_SCENARIO)
 })

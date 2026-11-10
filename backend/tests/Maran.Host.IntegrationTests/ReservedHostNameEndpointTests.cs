@@ -11,6 +11,7 @@ using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Ssl.Persistence;
+using Maran.Sdk.Interfaces;
 using Maran.SharedKernel.Interfaces;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -52,6 +53,15 @@ public sealed class ReservedHostNameEndpointTests : IAsyncLifetime
 
     /// <summary>The panel name the tests that configure one use.</summary>
     private const string PanelName = "panel.example.com";
+
+    /// <summary>The name the vhost serves in the tests where it differs from the advertised one (<c>hostname -f</c>).</summary>
+    private const string VhostName = "srv1.provider.net";
+
+    /// <summary>The name the operator advertises as the panel's address, the host of <see cref="AdvertisedUrl"/>.</summary>
+    private const string AdvertisedName = "advertised.example.com";
+
+    /// <summary>The <c>Panel__PublicUrl</c> the tests that configure an advertised address use.</summary>
+    private const string AdvertisedUrl = "https://" + AdvertisedName + ":8443";
 
     /// <summary>The Russian resx text of the site-name refusal.</summary>
     private const string SiteDomainReservedRussian = "Это имя нельзя использовать для сайта.";
@@ -213,6 +223,116 @@ public sealed class ReservedHostNameEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal("SiteAliasReserved", await CodeOfAsync(response));
         Assert.Equal(0, agent.CreateCalls);
+    }
+
+    /// <summary>
+    /// The host of <c>Panel__PublicUrl</c> is refused as a site's domain although it is not the vhost's
+    /// name (issue #468); the vhost's name stays refused beside it and an unrelated name is created.
+    /// </summary>
+    /// <param name="domain">The advertised name in one of its spellings.</param>
+    [Theory]
+    [InlineData(AdvertisedName)]
+    [InlineData("www." + AdvertisedName)]
+    [InlineData("ADVERTISED.Example.COM")]
+    [InlineData(VhostName)]
+    public async Task Posting_a_site_named_after_the_advertised_address_is_answered_400_and_never_reaches_the_agent(
+        string domain)
+    {
+        var agent = new BarrierSitesAgent(expectedCallers: 1);
+        await using var factory = CreateFactory(agent, ("Panel:HostName", VhostName), ("Panel:PublicUrl", AdvertisedUrl));
+        await MigrateAsync(factory);
+        var world = await SeedAsync(factory);
+        using var client = await SignInAsync(factory, "customer");
+
+        var response = await PostSiteAsync(client, world.AccountId, domain, []);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("SiteDomainReserved", await CodeOfAsync(response));
+        Assert.Equal(0, agent.CreateCalls);
+    }
+
+    /// <summary>The advertised address's host is refused as an alias, with the alias key.</summary>
+    [Fact]
+    public async Task Posting_a_site_with_the_advertised_address_as_an_alias_is_answered_400_and_never_reaches_the_agent()
+    {
+        var agent = new BarrierSitesAgent(expectedCallers: 1);
+        await using var factory = CreateFactory(agent, ("Panel:HostName", VhostName), ("Panel:PublicUrl", AdvertisedUrl));
+        await MigrateAsync(factory);
+        var world = await SeedAsync(factory);
+        using var client = await SignInAsync(factory, "customer");
+
+        var response = await PostSiteAsync(client, world.AccountId, "shop.example.com", [AdvertisedName]);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("SiteAliasReserved", await CodeOfAsync(response));
+        Assert.Equal(0, agent.CreateCalls);
+    }
+
+    /// <summary>Inverse control: with both names configured an unrelated site and alias are still created.</summary>
+    [Fact]
+    public async Task Posting_an_unrelated_site_beside_both_panel_names_is_still_created()
+    {
+        var agent = new BarrierSitesAgent(expectedCallers: 1);
+        await using var factory = CreateFactory(agent, ("Panel:HostName", VhostName), ("Panel:PublicUrl", AdvertisedUrl));
+        await MigrateAsync(factory);
+        var world = await SeedAsync(factory);
+        using var client = await SignInAsync(factory, "customer");
+
+        var response = await PostSiteAsync(client, world.AccountId, "shop.example.com", ["www.shop.example.com"]);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.Equal(1, agent.CreateCalls);
+    }
+
+    /// <summary>The advertised address's host is refused as a certificate domain, ahead of the site lookup.</summary>
+    [Fact]
+    public async Task Issuing_a_certificate_for_the_advertised_address_is_answered_400()
+    {
+        await using var factory = CreateFactory(
+            new BarrierSitesAgent(expectedCallers: 1), ("Panel:HostName", VhostName), ("Panel:PublicUrl", AdvertisedUrl));
+        await MigrateAsync(factory);
+        await SeedAsync(factory);
+        using var client = await SignInAsync(factory, "customer");
+
+        var response = await client.PostAsJsonAsync("/api/v1/certificates", new { domain = AdvertisedName });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("CertificateDomainReserved", await CodeOfAsync(response));
+    }
+
+    /// <summary>The advertised address's host is refused as the domain of custom certificate material.</summary>
+    [Fact]
+    public async Task Installing_custom_material_for_the_advertised_address_is_answered_400()
+    {
+        await using var factory = CreateFactory(
+            new BarrierSitesAgent(expectedCallers: 1), ("Panel:HostName", VhostName), ("Panel:PublicUrl", AdvertisedUrl));
+        await MigrateAsync(factory);
+        await SeedAsync(factory);
+        using var client = await SignInAsync(factory, "customer");
+
+        var response = await PostCustomAsync(client, AdvertisedName);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("CertificateDomainReserved", await CodeOfAsync(response));
+    }
+
+    /// <summary>
+    /// The one directory every module asks (sites and their aliases, both certificate doors and zone
+    /// create) is the composed host's, and it answers for the advertised host. DNS zone create is not
+    /// driven over HTTP here: it asks this same registration, and its own handler test holds the refusal.
+    /// </summary>
+    [Fact]
+    public async Task The_composed_hosts_reserved_directory_refuses_the_advertised_address_and_accepts_an_unrelated_name()
+    {
+        await using var factory = CreateFactory(
+            new BarrierSitesAgent(expectedCallers: 1), ("Panel:HostName", VhostName), ("Panel:PublicUrl", AdvertisedUrl));
+
+        var directory = factory.Services.GetRequiredService<IReservedHostDirectory>();
+
+        Assert.True(directory.IsPanelHostName(AdvertisedName));
+        Assert.True(directory.IsPanelHostName("www." + AdvertisedName));
+        Assert.True(directory.IsPanelHostName(VhostName));
+        Assert.False(directory.IsPanelHostName("shop.example.com"));
     }
 
     /// <summary>A name under the panel's domain is not the panel's own and is created: only the exact name and www are reserved.</summary>

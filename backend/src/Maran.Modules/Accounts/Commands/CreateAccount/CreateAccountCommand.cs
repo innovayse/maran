@@ -88,6 +88,12 @@ namespace Maran.Modules.Accounts.Commands.CreateAccount;
 /// Whether the account is included in scheduled backups. On by default; carried to the Backups module
 /// on <see cref="Maran.Sdk.Events.AccountCreated"/>, which records the opt-out.
 /// </param>
+/// <param name="SuppressInvitationMail">
+/// Server-established, never bound from a request: true only when an import creates the account (issue
+/// #127, decision D7), so the owner's invitation is made but not mailed to a server that is not live yet.
+/// It is carried to Identity on <see cref="Maran.Sdk.Events.AccountCreated"/>. Guarded like the caller's
+/// address, because a body that could set it would let any creator leave an owner without a mail.
+/// </param>
 public sealed record CreateAccountCommand(
     string Name,
     string PrimaryDomain,
@@ -103,4 +109,5 @@ public sealed record CreateAccountCommand(
     int? ProcessLimit = null,
     int? OpenFilesLimit = null,
     bool ShellAccess = false,
-    bool BackupEnabled = true);
+    bool BackupEnabled = true,
+    [property: JsonIgnore][property: BindNever][BindNever] bool SuppressInvitationMail = false);

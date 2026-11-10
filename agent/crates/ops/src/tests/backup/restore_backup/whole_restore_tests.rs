@@ -8,11 +8,12 @@ use maran_agent_core::utils::floor_refusal::FloorRefusal;
 use crate::backup::model::extract_identity::ExtractIdentity;
 use crate::backup::model::restore_stage::RestoreStage;
 use crate::backup::recording_backup_host::{ARCHIVE_PROGRAM, LIST_PROGRAM, RecordingBackupHost};
+use crate::backup::recording_jail_mounts::RecordingJailMounts;
 
 use super::super::*;
 use super::restore_fixture::{
     ARTIFACT_BYTES, Fixture, LIVE_FILE, account, backup_id, databases, digest, host_with, manifest,
-    run, sink,
+    run, run_with_jails, sink,
 };
 
 /// A whole restore reports every database restored and the files swapped — the
@@ -32,6 +33,65 @@ fn a_whole_restore_swaps_the_home_and_replaces_every_database() {
     assert!(!fixture.home().join("live.txt").exists());
     assert!(!fixture.previous().exists());
     assert!(!fixture.scratch().exists());
+}
+
+/// Issue #487: the file-transfer jails are a bind mount of the displaced home's
+/// inode, so the restore mounts them onto the new one — and does it while the
+/// parked tree still exists, because removing it first would empty what a stale
+/// jail shows.
+#[test]
+fn a_whole_restore_mounts_the_jails_onto_the_new_home_before_the_parked_tree_goes() {
+    let fixture = Fixture::new(1);
+    let host = host_with(&fixture, 1);
+    let jails = RecordingJailMounts::new().watching(&fixture.previous());
+
+    run_with_jails(&fixture, &host, &databases(1), &jails, &mut sink()).unwrap();
+
+    assert_eq!(jails.refreshed(), vec!["alice".to_owned()]);
+    assert_eq!(
+        jails.watched_existed(),
+        vec![true],
+        "the displaced home must still be on disk when the jails are mounted again"
+    );
+    assert!(
+        !fixture.previous().exists(),
+        "and it is removed once they are"
+    );
+}
+
+/// A jail that cannot be mounted onto the new home keeps the displaced tree and
+/// the restore says so; the customer's files are nonetheless restored.
+#[test]
+fn a_jail_that_cannot_follow_the_new_home_keeps_the_parked_tree_and_fails_the_restore() {
+    let fixture = Fixture::new(1);
+    let host = host_with(&fixture, 1);
+    let jails = RecordingJailMounts::new().failing();
+
+    let error = run_with_jails(&fixture, &host, &databases(1), &jails, &mut sink()).unwrap_err();
+
+    assert_eq!(error, BackupError::JailsNotRefreshed);
+    assert!(
+        fixture.home().join("public").join("index.php").is_file(),
+        "the restored files are in place"
+    );
+    assert!(
+        fixture.previous().join("live.txt").is_file(),
+        "the displaced home is kept so a stale jail does not show an emptied tree"
+    );
+}
+
+/// The inverse control for the two above: a restore that refuses before the
+/// swap never touches a jail.
+#[test]
+fn a_restore_refused_before_the_swap_mounts_no_jail() {
+    let fixture = Fixture::new(1);
+    let host = host_with(&fixture, 1);
+    let jails = RecordingJailMounts::new();
+
+    let error = run_with_jails(&fixture, &host, &[], &jails, &mut sink());
+
+    assert!(error.is_err());
+    assert!(jails.refreshed().is_empty(), "{:?}", jails.refreshed());
 }
 
 /// A member the archive's layout has no place for is refused before anything at
@@ -108,6 +168,7 @@ fn an_archive_whose_checksum_does_not_match_is_refused_before_the_pre_restore_ba
         &RestoreScope::Whole,
         &digest("bytes this panel never took"),
         None,
+        &RecordingJailMounts::new(),
         &mut sink(),
     )
     .unwrap_err();

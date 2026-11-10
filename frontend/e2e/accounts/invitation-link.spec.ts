@@ -1,13 +1,16 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubAccountResources } from '../fixtures/stub-account-resources-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubPlans } from '../fixtures/stub-plans-route'
 import { stubInvitation, type InvitationStub } from '../fixtures/stub-invitation-routes'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import type { Account } from '../../src/types/account'
 import type { InvitationState } from '../../src/types/invitation'
+import type { Page } from '@playwright/test'
 
 // #78: an account created on an install with no mail server could never be signed into, because
 // the invitation's plaintext token existed only inside a mail that was never sent. The panel now
@@ -37,6 +40,8 @@ const openDetailWith = async (page: Page, state: InvitationState): Promise<Invit
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
+  await stubShellReads(page)
+  await stubAccountResources(page, { accountId: ACCOUNT.id, resources: [] })
   await page.route(`**/api/v1/accounts/${ACCOUNT.id}`, async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ACCOUNT) })
   })
@@ -53,6 +58,8 @@ test('creating an account opens its page, where the invitation link is created, 
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
+  await stubShellReads(page)
+  await stubAccountResources(page, { accountId: ACCOUNT.id, resources: [] })
   await stubAccounts(page, [])
   await stubPlans(page)
   await page.route(`**/api/v1/accounts/${ACCOUNT.id}`, async (route) => {

@@ -21,12 +21,23 @@ If the panel cannot read the host's current rules, or cannot tell which address 
 from, it does not guess: an unreadable rule list stops the change with the agent's own error, and an
 unreadable caller address is treated as outside every restricted range.
 
+## Removing a rule, and banning an address
+
+Removing a rule is judged on the rules that would be left. `DELETE /api/v1/firewall/rules` answers
+**409** `FirewallRuleLocksOutCaller` when the rule is a single-port TCP rule for an SSH port, other
+rules for that port would remain, and none of them contains the address the request came from. (The
+agent's unconditional SSH accept returns only when the last rule for the port is removed, so removing
+the rule that admits you while another remains cuts you off.) Removing the last rule is allowed.
+
+`POST /api/v1/firewall/bans` answers **409** `BanAddressIsCaller` for the address the request came
+from, and **409** `BanAddressWhitelisted` for an address inside a whitelisted range (remove the range
+from the whitelist first). A ban is applied before every other rule, so it would cut you off from SSH
+and the panel at once.
+
 ## What it does not refuse, and why
 
 - **The panel's own port.** The agent always accepts it, and no rule can close it, so there is
   nothing to guard.
-- **A removal.** Removing the last rule for an SSH port brings the agent's unconditional SSH accept
-  back, so a removal cannot close anything. The page still asks you to confirm every removal.
 - **A range, a UDP rule, or a rule for a port that is not an SSH port.** Only a single-port TCP rule
   for an SSH port replaces the unconditional accept; the others leave it where it was.
 - **A rule next to an existing rule for the same SSH port.** It only widens who is admitted.

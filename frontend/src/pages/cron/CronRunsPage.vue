@@ -29,6 +29,7 @@ import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiPagination from '../../components/ui/UiPagination.vue'
 import UiSearchInput from '../../components/ui/UiSearchInput.vue'
+import UiToolbar from '../../components/ui/UiToolbar.vue'
 import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
 import CronRunResultDialog from '../../components/cron/CronRunResultDialog.vue'
 import CronRunsTable from '../../components/cron/CronRunsTable.vue'
@@ -200,7 +201,7 @@ onMounted(async () => {
 
     <UiCard v-else>
       <div class="flex flex-col gap-4">
-        <div class="flex flex-wrap items-end gap-3">
+        <UiToolbar>
           <UiSearchInput
             v-model="table.search.value"
             class="min-w-55 max-w-85 flex-1"
@@ -214,7 +215,7 @@ onMounted(async () => {
             :active-label="t('common.list.filtersApplied', { n: table.activeFilterCount.value }, table.activeFilterCount.value)"
             @click="openFilters"
           />
-        </div>
+        </UiToolbar>
 
         <UiActiveFilter
           v-if="chips.length > 0"

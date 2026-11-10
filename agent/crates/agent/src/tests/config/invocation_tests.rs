@@ -633,3 +633,77 @@ fn the_usage_text_documents_the_fleet_flags_and_the_identity_mode() {
     assert!(USAGE.contains("--node-address"));
     assert!(USAGE.contains("--replace"));
 }
+
+#[test]
+fn without_the_reserved_host_names_flag_no_panel_name_is_reserved() {
+    let options = running(Invocation::parse(&arguments(&[]), DEFAULT_UID).unwrap());
+
+    assert_eq!(
+        options.panel_host_names,
+        maran_agent_core::validation::web::panel_host_names::PanelHostNames::none()
+    );
+}
+
+#[test]
+fn the_reserved_host_names_flag_carries_every_name_of_its_list() {
+    let options = running(
+        Invocation::parse(
+            &arguments(&["--reserved-host-names=srv1.provider.net,panel.example.com"]),
+            DEFAULT_UID,
+        )
+        .unwrap(),
+    );
+
+    assert!(options.panel_host_names.refuses("srv1.provider.net"));
+    assert!(options.panel_host_names.refuses("panel.example.com"));
+    assert!(!options.panel_host_names.refuses("shop.example.com"));
+}
+
+#[test]
+fn an_empty_reserved_host_names_value_is_one_argument_that_reserves_nothing() {
+    // The shape the unit file produces on a host with no recorded name:
+    // `--reserved-host-names=${MARAN_AGENT_RESERVED_HOST_NAMES}` with the variable empty.
+    let options = running(
+        Invocation::parse(
+            &arguments(&["--allow-uid", "4242", "--reserved-host-names="]),
+            DEFAULT_UID,
+        )
+        .unwrap(),
+    );
+
+    assert!(!options.panel_host_names.refuses("panel.example.com"));
+    assert_eq!(options.allow_uid, 4242);
+}
+
+#[test]
+fn a_reserved_host_names_entry_that_is_not_a_host_name_is_refused() {
+    let error = Invocation::parse(
+        &arguments(&["--reserved-host-names=panel.example.com;}"]),
+        DEFAULT_UID,
+    )
+    .expect_err("a malformed name must not parse");
+
+    assert!(matches!(
+        error,
+        OptionsError::InvalidReservedHostNames { .. }
+    ));
+}
+
+#[test]
+fn the_reserved_host_names_flag_given_twice_is_refused() {
+    let error = Invocation::parse(
+        &arguments(&[
+            "--reserved-host-names=a.example.com",
+            "--reserved-host-names=b.example.com",
+        ]),
+        DEFAULT_UID,
+    )
+    .expect_err("a repeated flag must not parse");
+
+    assert_eq!(
+        error,
+        OptionsError::RepeatedFlag {
+            flag: "--reserved-host-names"
+        }
+    );
+}

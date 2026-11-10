@@ -26,6 +26,9 @@ public sealed class UpdatesWorld : IDisposable
     /// <summary>The real marker writer.</summary>
     public PanelUpdateRequestMarker Marker { get; }
 
+    /// <summary>The real check marker writer (issue #516).</summary>
+    public PanelUpdateCheckMarker CheckMarker { get; }
+
     /// <summary>The real ledger.</summary>
     public PanelUpdateTaskLedger Ledger { get; }
 
@@ -42,6 +45,7 @@ public sealed class UpdatesWorld : IDisposable
             ReleasesDirectory = Path.Combine(_root, "releases"),
             RequestDirectory = Path.Combine(_root, "request"),
             RequestMarkerName = "requested",
+            CheckRequestMarkerName = "check-requested",
             TaskLedgerPath = Path.Combine(_root, "panel-update-task"),
         };
         Directory.CreateDirectory(Options.ReleasesDirectory);
@@ -52,6 +56,7 @@ public sealed class UpdatesWorld : IDisposable
 
         Reader = new PanelUpdateStateReader(new OptionsWrapper<PanelUpdateOptions>(Options), Clock);
         Marker = new PanelUpdateRequestMarker(new OptionsWrapper<PanelUpdateOptions>(Options));
+        CheckMarker = new PanelUpdateCheckMarker(new OptionsWrapper<PanelUpdateOptions>(Options));
         Ledger = new PanelUpdateTaskLedger(new OptionsWrapper<PanelUpdateOptions>(Options), Clock);
     }
 
@@ -91,6 +96,14 @@ public sealed class UpdatesWorld : IDisposable
         File.SetLastWriteTimeUtc(Options.MarkerPath, Clock.UtcNow.UtcDateTime - age);
     }
 
+    /// <summary>Plants a check request marker of a given age.</summary>
+    /// <param name="age">How long ago it was created.</param>
+    public void PlantCheckMarker(TimeSpan age)
+    {
+        File.WriteAllText(Options.CheckMarkerPath, "check\n");
+        File.SetLastWriteTimeUtc(Options.CheckMarkerPath, Clock.UtcNow.UtcDateTime - age);
+    }
+
     /// <summary>Ages the ledger file.</summary>
     /// <param name="age">How long ago it was written.</param>
     public void AgeLedger(TimeSpan age)
@@ -103,6 +116,13 @@ public sealed class UpdatesWorld : IDisposable
     public bool MarkerExists()
     {
         return File.Exists(Options.MarkerPath);
+    }
+
+    /// <summary>Whether the check request marker exists.</summary>
+    /// <returns>True when something is at the check marker's name.</returns>
+    public bool CheckMarkerExists()
+    {
+        return File.Exists(Options.CheckMarkerPath);
     }
 
     /// <summary>Formats an instant the way root writes it.</summary>

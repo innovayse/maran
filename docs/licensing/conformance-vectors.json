@@ -1,0 +1,206 @@
+{
+  "about": "Conformance vectors for the licence window. TEST KEYS ONLY: the seeds that signed these fixtures are committed in backend/tests and are public. No production key appears here or can be derived from here. Any implementation of the licence window, open or closed, must give the verdict listed for every vector.",
+  "licenceVerificationPublicKeyHex": "706fa0f1e37d1013990d9538333b0d8a61b805c14e448dc2f62f846eeb73dd0e",
+  "leaseVerificationPublicKeyHex": "235766ae7f29c8d0c851df7b37c307679d09488f2c4f2825a2003fb9eb1928c5",
+  "hostMachineId": "0123456789abcdef0123456789abcdef",
+  "vectors": [
+    {
+      "name": "A valid licence under a fresh lease covers a listed module until the lease ends",
+      "now": "2026-03-01T01:00:00Z",
+      "licence": "{\"payload\":{\"id\":\"lic-001\",\"product\":\"maran\",\"tier\":\"business\",\"modules\":[\"mail\",\"dns\"],\"expiry\":\"2027-03-01T00:00:00Z\"},\"signature\":\"Ulnx2EUgMpx7BsfKrMh0S86LHG5d0OjrvcEACjoW/MM8RbcMERyG7lhti51VvZz0rtVndP4Mz2zlny3qSTphDg==\"}",
+      "lease": "{\"payload\":{\"kind\":\"lease\",\"licence\":\"lic-001\",\"issued\":\"2026-03-01T00:00:00Z\",\"validUntil\":\"2026-03-15T00:00:00Z\"},\"signature\":\"b3VO4Ex4pceC5zwt/mH8tqgjJCKwuN7JfYzUpevS32dwySLdfXnNQkXCoYaUPu12uZ/6kCwduB0wGFIUMP0nCA==\"}",
+      "module": "mail",
+      "expect": {
+        "verdict": "covered",
+        "validUntil": "2026-03-15T00:00:00Z"
+      }
+    },
+    {
+      "name": "A lease past its daily renewal but inside its life still covers",
+      "now": "2026-03-10T00:00:00Z",
+      "licence": "{\"payload\":{\"id\":\"lic-001\",\"product\":\"maran\",\"tier\":\"business\",\"modules\":[\"mail\",\"dns\"],\"expiry\":\"2027-03-01T00:00:00Z\"},\"signature\":\"Ulnx2EUgMpx7BsfKrMh0S86LHG5d0OjrvcEACjoW/MM8RbcMERyG7lhti51VvZz0rtVndP4Mz2zlny3qSTphDg==\"}",
+      "lease": "{\"payload\":{\"kind\":\"lease\",\"licence\":\"lic-001\",\"issued\":\"2026-03-01T00:00:00Z\",\"validUntil\":\"2026-03-15T00:00:00Z\"},\"signature\":\"b3VO4Ex4pceC5zwt/mH8tqgjJCKwuN7JfYzUpevS32dwySLdfXnNQkXCoYaUPu12uZ/6kCwduB0wGFIUMP0nCA==\"}",
+      "module": "mail",
+      "expect": {
+        "verdict": "covered",
+        "validUntil": "2026-03-15T00:00:00Z"
+      }
+    },
+    {
+      "name": "A lease covers up to the instant before its end",
+      "now": "2026-03-14T23:59:59Z",
+      "licence": "{\"payload\":{\"id\":\"lic-001\",\"product\":\"maran\",\"tier\":\"business\",\"modules\":[\"mail\",\"dns\"],\"expiry\":\"2027-03-01T00:00:00Z\"},\"signature\":\"Ulnx2EUgMpx7BsfKrMh0S86LHG5d0OjrvcEACjoW/MM8RbcMERyG7lhti51VvZz0rtVndP4Mz2zlny3qSTphDg==\"}",
+      "lease": "{\"payload\":{\"kind\":\"lease\",\"licence\":\"lic-001\",\"issued\":\"2026-03-01T00:00:00Z\",\"validUntil\":\"2026-03-15T00:00:00Z\"},\"signature\":\"b3VO4Ex4pceC5zwt/mH8tqgjJCKwuN7JfYzUpevS32dwySLdfXnNQkXCoYaUPu12uZ/6kCwduB0wGFIUMP0nCA==\"}",
+      "module": "dns",
+      "expect": {
+        "verdict": "covered",
+        "validUntil": "2026-03-15T00:00:00Z"
+      }
+    },
+    {
+      "name": "A lease that has just ended lapses the module",
+      "now": "2026-03-15T00:00:00Z",
+      "licence": "{\"payload\":{\"id\":\"lic-001\",\"product\":\"maran\",\"tier\":\"business\",\"modules\":[\"mail\",\"dns\"],\"expiry\":\"2027-03-01T00:00:00Z\"},\"signature\":\"Ulnx2EUgMpx7BsfKrMh0S86LHG5d0OjrvcEACjoW/MM8RbcMERyG7lhti51VvZz0rtVndP4Mz2zlny3qSTphDg==\"}",
+      "lease": "{\"payload\":{\"kind\":\"lease\",\"licence\":\"lic-001\",\"issued\":\"2026-03-01T00:00:00Z\",\"validUntil\":\"2026-03-15T00:00:00Z\"},\"signature\":\"b3VO4Ex4pceC5zwt/mH8tqgjJCKwuN7JfYzUpevS32dwySLdfXnNQkXCoYaUPu12uZ/6kCwduB0wGFIUMP0nCA==\"}",
+      "module": "mail",
+      "expect": {
+        "verdict": "lapsed",
+        "validUntil": "2026-03-15T00:00:00Z"
+      }
+    },
+    {
+      "name": "A licence with no lease at all lapses the module",
+      "now": "2026-03-01T01:00:00Z",
+      "licence": "{\"payload\":{\"id\":\"lic-001\",\"product\":\"maran\",\"tier\":\"business\",\"modules\":[\"mail\",\"dns\"],\"expiry\":\"2027-03-01T00:00:00Z\"},\"signature\":\"Ulnx2EUgMpx7BsfKrMh0S86LHG5d0OjrvcEACjoW/MM8RbcMERyG7lhti51VvZz0rtVndP4Mz2zlny3qSTphDg==\"}",
+      "lease": null,
+      "module": "mail",
+      "expect": {
+        "verdict": "lapsed",
+        "validUntil": null
+      }
+    },
+    {
+      "name": "A module the licence does not name is not covered",
+      "now": "2026-03-01T01:00:00Z",
+      "licence": "{\"payload\":{\"id\":\"lic-001\",\"product\":\"maran\",\"tier\":\"business\",\"modules\":[\"mail\",\"dns\"],\"expiry\":\"2027-03-01T00:00:00Z\"},\"signature\":\"Ulnx2EUgMpx7BsfKrMh0S86LHG5d0OjrvcEACjoW/MM8RbcMERyG7lhti51VvZz0rtVndP4Mz2zlny3qSTphDg==\"}",
+      "lease": "{\"payload\":{\"kind\":\"lease\",\"licence\":\"lic-001\",\"issued\":\"2026-03-01T00:00:00Z\",\"validUntil\":\"2026-03-15T00:00:00Z\"},\"signature\":\"b3VO4Ex4pceC5zwt/mH8tqgjJCKwuN7JfYzUpevS32dwySLdfXnNQkXCoYaUPu12uZ/6kCwduB0wGFIUMP0nCA==\"}",
+      "module": "fleet",
+      "expect": {
+        "verdict": "notCovered",
+        "validUntil": null
+      }
+    },
+    {
+      "name": "A lease for another licence covers nothing",
+      "now": "2026-03-01T01:00:00Z",
+      "licence": "{\"payload\":{\"id\":\"lic-001\",\"product\":\"maran\",\"tier\":\"business\",\"modules\":[\"mail\",\"dns\"],\"expiry\":\"2027-03-01T00:00:00Z\"},\"signature\":\"Ulnx2EUgMpx7BsfKrMh0S86LHG5d0OjrvcEACjoW/MM8RbcMERyG7lhti51VvZz0rtVndP4Mz2zlny3qSTphDg==\"}",
+      "lease": "{\"payload\":{\"kind\":\"lease\",\"licence\":\"lic-999\",\"issued\":\"2026-03-01T00:00:00Z\",\"validUntil\":\"2026-03-15T00:00:00Z\"},\"signature\":\"0NjpQ4GPAODnyLPBbPnU+rIMr+vGyYFfifzW7zcZxPSYOIVP31QU9hz+MkWsKOHifihiey2FCbVMCe39y61JCw==\"}",
+      "module": "mail",
+      "expect": {
+        "verdict": "notCovered",
+        "validUntil": null
+      }
+    },
+    {
+      "name": "A lease issued in the future beyond the skew bound covers nothing",
+      "now": "2026-03-01T01:00:00Z",
+      "licence": "{\"payload\":{\"id\":\"lic-001\",\"product\":\"maran\",\"tier\":\"business\",\"modules\":[\"mail\",\"dns\"],\"expiry\":\"2027-03-01T00:00:00Z\"},\"signature\":\"Ulnx2EUgMpx7BsfKrMh0S86LHG5d0OjrvcEACjoW/MM8RbcMERyG7lhti51VvZz0rtVndP4Mz2zlny3qSTphDg==\"}",
+      "lease": "{\"payload\":{\"kind\":\"lease\",\"licence\":\"lic-001\",\"issued\":\"2026-03-01T01:06:00Z\",\"validUntil\":\"2026-03-15T00:00:00Z\"},\"signature\":\"KpFzBBqfU9O+vIDs+kEOvDAlcBHni4YtcgXSblOj7Z9+zLVfoHdOc63r5J3gdH4KQnton/TiRmyEGLrpPrA1Cg==\"}",
+      "module": "mail",
+      "expect": {
+        "verdict": "notCovered",
+        "validUntil": null
+      }
+    },
+    {
+      "name": "A lease issued exactly at the skew bound is believed",
+      "now": "2026-03-01T01:00:00Z",
+      "licence": "{\"payload\":{\"id\":\"lic-001\",\"product\":\"maran\",\"tier\":\"business\",\"modules\":[\"mail\",\"dns\"],\"expiry\":\"2027-03-01T00:00:00Z\"},\"signature\":\"Ulnx2EUgMpx7BsfKrMh0S86LHG5d0OjrvcEACjoW/MM8RbcMERyG7lhti51VvZz0rtVndP4Mz2zlny3qSTphDg==\"}",
+      "lease": "{\"payload\":{\"kind\":\"lease\",\"licence\":\"lic-001\",\"issued\":\"2026-03-01T01:05:00Z\",\"validUntil\":\"2026-03-15T00:00:00Z\"},\"signature\":\"2WJG7fM4kOGct+AuPGrVJWHxClmpAusf5JHruYcbyoO2hrjQeY6eB1X+bqakT0intm0s5wbCF4/k93sStkDXDg==\"}",
+      "module": "mail",
+      "expect": {
+        "verdict": "covered",
+        "validUntil": "2026-03-15T00:00:00Z"
+      }
+    },
+    {
+      "name": "A lease signed by the licence key is refused: the keys are separate",
+      "now": "2026-03-01T01:00:00Z",
+      "licence": "{\"payload\":{\"id\":\"lic-001\",\"product\":\"maran\",\"tier\":\"business\",\"modules\":[\"mail\",\"dns\"],\"expiry\":\"2027-03-01T00:00:00Z\"},\"signature\":\"Ulnx2EUgMpx7BsfKrMh0S86LHG5d0OjrvcEACjoW/MM8RbcMERyG7lhti51VvZz0rtVndP4Mz2zlny3qSTphDg==\"}",
+      "lease": "{\"payload\":{\"kind\":\"lease\",\"licence\":\"lic-001\",\"issued\":\"2026-03-01T00:00:00Z\",\"validUntil\":\"2026-03-15T00:00:00Z\"},\"signature\":\"SMQ7HSzLCw5M9iAc+m8yq4rKIMFNhh5Nr/iWS8L9RhLWogB3WhZjYmFFevHz85qsikgbpHimGzLpSe+CCRgkBQ==\"}",
+      "module": "mail",
+      "expect": {
+        "verdict": "notCovered",
+        "validUntil": null
+      }
+    },
+    {
+      "name": "A lease bound to another server covers nothing",
+      "now": "2026-03-01T01:00:00Z",
+      "licence": "{\"payload\":{\"id\":\"lic-001\",\"product\":\"maran\",\"tier\":\"business\",\"modules\":[\"mail\",\"dns\"],\"expiry\":\"2027-03-01T00:00:00Z\"},\"signature\":\"Ulnx2EUgMpx7BsfKrMh0S86LHG5d0OjrvcEACjoW/MM8RbcMERyG7lhti51VvZz0rtVndP4Mz2zlny3qSTphDg==\"}",
+      "lease": "{\"payload\":{\"kind\":\"lease\",\"licence\":\"lic-001\",\"issued\":\"2026-03-01T00:00:00Z\",\"validUntil\":\"2026-03-15T00:00:00Z\",\"server\":\"fedcba9876543210fedcba9876543210\"},\"signature\":\"z4Es3JWAflo75xeBUdJFukL/g1tOWKchj3zwa7GD6u6TvzRSR3SAKCA3V3NMAq2D2hXf51d/hWu6+4HLiwYaCQ==\"}",
+      "module": "mail",
+      "expect": {
+        "verdict": "notCovered",
+        "validUntil": null
+      }
+    },
+    {
+      "name": "A lease bound to this server covers",
+      "now": "2026-03-01T01:00:00Z",
+      "licence": "{\"payload\":{\"id\":\"lic-001\",\"product\":\"maran\",\"tier\":\"business\",\"modules\":[\"mail\",\"dns\"],\"expiry\":\"2027-03-01T00:00:00Z\"},\"signature\":\"Ulnx2EUgMpx7BsfKrMh0S86LHG5d0OjrvcEACjoW/MM8RbcMERyG7lhti51VvZz0rtVndP4Mz2zlny3qSTphDg==\"}",
+      "lease": "{\"payload\":{\"kind\":\"lease\",\"licence\":\"lic-001\",\"issued\":\"2026-03-01T00:00:00Z\",\"validUntil\":\"2026-03-15T00:00:00Z\",\"server\":\"0123456789abcdef0123456789abcdef\"},\"signature\":\"TBjGJosCGem7HIzjYVRFwwHq/uzkdh7TX0ptyH8hVvhfh5h49fE3dCmB9hA5l49AjW4dy1VG/mK4iVZ4zRGbBg==\"}",
+      "module": "mail",
+      "expect": {
+        "verdict": "covered",
+        "validUntil": "2026-03-15T00:00:00Z"
+      }
+    },
+    {
+      "name": "An offline licence is covered by its own expiry with no lease",
+      "now": "2026-03-01T01:00:00Z",
+      "licence": "{\"payload\":{\"id\":\"lic-001\",\"product\":\"maran\",\"tier\":\"business\",\"modules\":[\"mail\",\"dns\"],\"expiry\":\"2027-03-01T00:00:00Z\",\"offline\":true},\"signature\":\"gLC+GkwQsjGs1FNpthqo7Ae3RxT9++7UFF9hXhC8rui5H8oYjd7vrYPMehrngnl2BIy81OiJaIqQluPiIvg1Cg==\"}",
+      "lease": null,
+      "module": "mail",
+      "expect": {
+        "verdict": "covered",
+        "validUntil": "2027-03-01T00:00:00Z"
+      }
+    },
+    {
+      "name": "An expired licence lapses the modules it named",
+      "now": "2027-03-02T00:00:00Z",
+      "licence": "{\"payload\":{\"id\":\"lic-001\",\"product\":\"maran\",\"tier\":\"business\",\"modules\":[\"mail\",\"dns\"],\"expiry\":\"2027-03-01T00:00:00Z\"},\"signature\":\"Ulnx2EUgMpx7BsfKrMh0S86LHG5d0OjrvcEACjoW/MM8RbcMERyG7lhti51VvZz0rtVndP4Mz2zlny3qSTphDg==\"}",
+      "lease": "{\"payload\":{\"kind\":\"lease\",\"licence\":\"lic-001\",\"issued\":\"2027-03-01T12:00:00Z\",\"validUntil\":\"2027-03-10T00:00:00Z\"},\"signature\":\"Tdz2s6VpVJUKPJfTHZf+qweg+SKyKqYd6AeCmhVSduE7IxuU2MmBgwM8+TOFAWsqjTOmDHsVxHFbCCW9GPeTDg==\"}",
+      "module": "mail",
+      "expect": {
+        "verdict": "lapsed",
+        "validUntil": "2027-03-01T00:00:00Z"
+      }
+    },
+    {
+      "name": "An expired licence does not lapse a module it never named",
+      "now": "2027-03-02T00:00:00Z",
+      "licence": "{\"payload\":{\"id\":\"lic-001\",\"product\":\"maran\",\"tier\":\"business\",\"modules\":[\"mail\",\"dns\"],\"expiry\":\"2027-03-01T00:00:00Z\"},\"signature\":\"Ulnx2EUgMpx7BsfKrMh0S86LHG5d0OjrvcEACjoW/MM8RbcMERyG7lhti51VvZz0rtVndP4Mz2zlny3qSTphDg==\"}",
+      "lease": null,
+      "module": "fleet",
+      "expect": {
+        "verdict": "notCovered",
+        "validUntil": null
+      }
+    },
+    {
+      "name": "Nothing installed covers nothing",
+      "now": "2026-03-01T01:00:00Z",
+      "licence": null,
+      "lease": null,
+      "module": "mail",
+      "expect": {
+        "verdict": "notCovered",
+        "validUntil": null
+      }
+    },
+    {
+      "name": "A licence signed by another key covers nothing",
+      "now": "2026-03-01T01:00:00Z",
+      "licence": "{\"payload\":{\"id\":\"lic-001\",\"product\":\"maran\",\"tier\":\"business\",\"modules\":[\"mail\",\"dns\"],\"expiry\":\"2027-03-01T00:00:00Z\"},\"signature\":\"VM/yyqc0eL1yQqCCQXyePoiWQvZ0hYBJSAalkEdYLv2WfHMdjkEkfgDej7kEmhIdlceHpPz4lXDATHzxh2oQAw==\"}",
+      "lease": "{\"payload\":{\"kind\":\"lease\",\"licence\":\"lic-001\",\"issued\":\"2026-03-01T00:00:00Z\",\"validUntil\":\"2026-03-15T00:00:00Z\"},\"signature\":\"b3VO4Ex4pceC5zwt/mH8tqgjJCKwuN7JfYzUpevS32dwySLdfXnNQkXCoYaUPu12uZ/6kCwduB0wGFIUMP0nCA==\"}",
+      "module": "mail",
+      "expect": {
+        "verdict": "notCovered",
+        "validUntil": null
+      }
+    },
+    {
+      "name": "A licence bound to another server covers nothing",
+      "now": "2026-03-01T01:00:00Z",
+      "licence": "{\"payload\":{\"id\":\"lic-001\",\"product\":\"maran\",\"tier\":\"business\",\"modules\":[\"mail\",\"dns\"],\"expiry\":\"2027-03-01T00:00:00Z\",\"server\":\"fedcba9876543210fedcba9876543210\"},\"signature\":\"zVLOBkMyqZNjvvYVY+H7DIFPVwkxb2UVa8m2XOHvhQ1GuO5bhAheQmM5YwCGRk8Ei4ks2MwdCpBGaOB6dBZsAw==\"}",
+      "lease": "{\"payload\":{\"kind\":\"lease\",\"licence\":\"lic-001\",\"issued\":\"2026-03-01T00:00:00Z\",\"validUntil\":\"2026-03-15T00:00:00Z\"},\"signature\":\"b3VO4Ex4pceC5zwt/mH8tqgjJCKwuN7JfYzUpevS32dwySLdfXnNQkXCoYaUPu12uZ/6kCwduB0wGFIUMP0nCA==\"}",
+      "module": "mail",
+      "expect": {
+        "verdict": "notCovered",
+        "validUntil": null
+      }
+    }
+  ]
+}

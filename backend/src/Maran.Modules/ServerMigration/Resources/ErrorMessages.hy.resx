@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="RemoteServerNotFound">
+    <value>Այդպիսի հեռավոր սերվեր գոյություն չունի։</value>
+  </data>
+  <data name="RemoteServerNameTaken">
+    <value>Մեկ այլ հեռավոր սերվեր արդեն ունի այդ անունը։</value>
+  </data>
+  <data name="RemoteServerEndpointTaken">
+    <value>Այդ հոսթով, պորտով և մուտքանունով հեռավոր սերվեր արդեն գրանցված է։</value>
+  </data>
+  <data name="RemoteServerHostKeyUnconfirmed">
+    <value>Նախ հաստատեք սերվերի հոսթի բանալին։ Մինչև մատնահետքը չհամեմատեք, կապ չի հաստատվում։</value>
+  </data>
+  <data name="RemoteServerHostKeyChanged">
+    <value>Սերվերը ներկայացրեց հոսթի այլ բանալի, քան դուք հաստատել էիք, ուստի ոչինչ չկարդացվեց։ Նորից սկանավորեք հոսթի բանալիները և հաստատեք նոր մատնահետքը միայն եթե այդ փոփոխությունը սպասում էիք։</value>
+  </data>
+  <data name="RemoteServerHostKeyFingerprintMismatch">
+    <value>Այդ մատնահետքը սերվերի առաջարկածներից չէ։ Համեմատեք այն հենց սերվերի վրա ցուցադրվածի հետ և մուտքագրեք ճշգրիտ։</value>
+  </data>
+  <data name="RemoteServerAuthRefused">
+    <value>Սերվերը մերժեց վահանակի բանալին։ Ավելացրեք բաց բանալին սերվերի վրա այդ օգտատիրոջ authorized_keys-ում և կրկին փորձարկեք։</value>
+  </data>
+  <data name="RemoteServerUnreachable">
+    <value>Սերվերին հնարավոր չէ միանալ։ Ստուգեք հոսթը և պորտը, և որ SSH ծառայությունն աշխատում է։</value>
+  </data>
+  <data name="RemoteServerAddressRefused">
+    <value>Վահանակը չի միանում այդ հասցեին։ Դա հենց այս սերվերն է կամ loopback, link-local կամ այլ վերապահված հասցե։</value>
+  </data>
+  <data name="RemoteServerNotReady">
+    <value>Սերվերը կարդալու համար պետք է հաստատված հոսթի բանալի և չլուծված կապի խնդիրների բացակայություն։ Նախ փորձարկեք կապը։</value>
+  </data>
+  <data name="MigrationAgentUnavailable">
+    <value>Վահանակը չկարողացավ կապվել իր գործակալի հետ հեռավոր սերվերին դիմելու համար։ Փորձեք կրկին մի փոքր ուշ։</value>
+  </data>
+  <data name="MigrationDiscoveryFailed">
+    <value>Հեռավոր սերվերի վրա գործողությունը կատարել չհաջողվեց։ Ստուգեք կապը և կրկին փորձեք։</value>
+  </data>
+  <data name="MigrationAccountNotFound">
+    <value>Այդպիսի հաշիվ գոյություն չունի։</value>
+  </data>
+  <data name="MigrationExportNotFound">
+    <value>Այդպիսի արտահանում գոյություն չունի կամ ժամկետն անցել է։</value>
+  </data>
+  <data name="MigrationImportNotFound">
+    <value>Այդպիսի ներմուծում գոյություն չունի։</value>
+  </data>
+  <data name="MigrationGrantNotFound">
+    <value>Այդպիսի թույլտվություն գոյություն չունի։</value>
+  </data>
+  <data name="MigrationBackupsUnavailable">
+    <value>Այս վահանակում պահուստավորման ծառայություն չկա, ուստի հաշիվը փոխադրել հնարավոր չէ։</value>
+  </data>
+  <data name="MigrationPackageMalformed">
+    <value>Փաթեթը վնասված է կամ ստեղծված չէ Maran սերվերի կողմից։</value>
+  </data>
+  <data name="MigrationPackageTooLarge">
+    <value>Փաթեթը ավելի մեծ է, քան այս սերվերը կընդունի։</value>
+  </data>
+  <data name="MigrationPackageSchemaUnknown">
+    <value>Փաթեթը ստեղծվել է Maran-ի այնպիսի տարբերակով, որը այս սերվերը չի կարող կարդալ։</value>
+  </data>
+  <data name="MigrationSignatureInvalid">
+    <value>Փաթեթի ստորագրությունը չի հաստատվում։ Ոչինչ չի ներմուծվել։</value>
+  </data>
+  <data name="MigrationFingerprintMismatch">
+    <value>Բանալու մատնահետքը չի համընկնում ուղարկող սերվերում հաստատվածի հետ։ Ոչինչ չի ներմուծվել։</value>
+  </data>
+  <data name="MigrationAccountNameConfirmationMismatch">
+    <value>Մուտքագրված հաշվի անունը չի համընկնում։ Ներմուծումը չի սկսվել։</value>
+  </data>
+  <data name="MigrationImportNotReady">
+    <value>Այս ներմուծումը չի սպասում մեկնարկի։</value>
+  </data>
+  <data name="MigrationImportHasConflicts">
+    <value>Փորձնական ստուգումը հակասություններ է գտել։ Լուծեք դրանք և կրկին փորձեք։</value>
+  </data>
+  <data name="MigrationInitiatorGone">
+    <value>Ներմուծումը սկսած ադմինիստրատորն այլևս չի կարող գործել, ուստի այն դադարեցվել է մինչև որևէ բան ստեղծելը։</value>
+  </data>
+  <data name="MigrationImportFaulted">
+    <value>Ներմուծումն անսպասելիորեն ձախողվեց և հետ վերցվեց։</value>
+  </data>
+  <data name="MigrationRollbackUnavailable">
+    <value>Ներմուծումը ձախողվեց, իսկ այս վահանակը չի կարող ջնջել ստեղծված հաշիվը։ Ջնջեք այն ձեռքով։</value>
+  </data>
+  <data name="MigrationSecretsAlreadyClaimed">
+    <value>Ստեղծված գաղտնաբառերն արդեն մեկ անգամ ցուցադրվել են և այլևս չեն պահվում։</value>
+  </data>
+  <data name="MigrationSectionNotImportable">
+    <value>Այս սերվերում չկա մոդուլ, որը կարող է ներմուծել փաթեթի այս մասը, ուստի այն բաց կթողնվի։</value>
+  </data>
+  <data name="MigrationPullUnreachable">
+    <value>Մյուս սերվերին չհաջողվեց միանալ, կամ այն դադարեց պատասխանել։ Ստուգեք հասցեն և կրկին փորձեք։</value>
+  </data>
+  <data name="MigrationPullAddressRefused">
+    <value>Այս հասցեն հնարավոր չէ օգտագործել փաթեթ ստանալու համար. դա հենց այս սերվերն է, loopback կամ link-local հասցե, կամ անունը վերծանվում է միայն այդպիսի հասցեների։</value>
+  </data>
+  <data name="MigrationPullRefused">
+    <value>Մյուս սերվերը չընդունեց թույլտվությունը։ Այն կարող է սխալ լինել, ժամկետանց, արդեն օգտագործված կամ կապված այլ հասցեի հետ. այնտեղ նոր թույլտվություն թողարկեք։</value>
+  </data>
+  <data name="MigrationJobNotFound">
+    <value>Այդպիսի միգրացիա գոյություն չունի։</value>
+  </data>
+  <data name="MigrationJobAccountNotFound">
+    <value>Այդ հաշիվը այս միգրացիայի մաս չէ։</value>
+  </data>
+  <data name="MigrationJobNotEditable">
+    <value>Համապատասխանեցումը կարելի է փոխել միայն միգրացիան սկսելուց առաջ։</value>
+  </data>
+  <data name="MigrationJobStateInvalid">
+    <value>Միգրացիայի վիճակը դա չի թույլատրում։</value>
+  </data>
+  <data name="MigrationJobNoAccounts">
+    <value>Ընտրեք առնվազն մեկ հաշիվ տեղափոխելու համար։</value>
+  </data>
+  <data name="MigrationJobHasConflicts">
+    <value>Միգրացիայում կան հակասություններ։ Լուծեք դրանք փորձնական անցումից հետո, նախքան սկսելը։</value>
+  </data>
+  <data name="MigrationAccountStateInvalid">
+    <value>Հաշվի վիճակը դա չի թույլատրում։</value>
+  </data>
+  <data name="MigrationMappingIncomplete">
+    <value>Ընտրեք այս հաշվի համար պլան, սեփականատիրոջ էլ. փոստ և հիմնական տիրույթ։</value>
+  </data>
+  <data name="MigrationLimitInvalid">
+    <value>Զուգահեռությունը պետք է լինի 1-ից 8, իսկ արագության սահմանը՝ դրական թիվ։</value>
+  </data>
+  <data name="MigrationDuplicateInJob">
+    <value>Այս միգրացիայի երկու հաշիվ հավակնում են նույն տիրույթին։</value>
+  </data>
+  <data name="MigrationDatabaseNameNotImportable">
+    <value>Այս տվյալների բազան այստեղ չի կարող պահպանել իր անունը։ Անունները չեն փոխվում․ վերանվանեք այն աղբյուրում կամ բաց թողեք։</value>
+  </data>
+  <data name="MigrationSiteProxyNotImported">
+    <value>Այս կայքը հակադարձ պրոքսի է, նրա upstream-ը հայտնի չէ, ուստի բաց է թողնվել։ Ստեղծեք այն ձեռքով։</value>
+  </data>
+  <data name="MigrationCronNotMigrated">
+    <value>Ժամանակացույցով առաջադրանքները աղբյուրում միայն հաշվվում են և չեն տեղափոխվում։ Վերստեղծեք դրանք տեղափոխումից հետո։</value>
+  </data>
+  <data name="MigrationMailNotMigrated">
+    <value>Փոստը չի տեղափոխվում։ Փոստարկղերը տեղափոխեք առանձին։</value>
+  </data>
+  <data name="MigrationGrantMissing">
+    <value>Maran վահանակ հանդիսացող աղբյուրին անհրաժեշտ են իր հասցեն, հաստատված բանալու մատնահետքը և ստացման թույլտվություն յուրաքանչյուր հաշվի համար։</value>
+  </data>
+  <data name="MigrationTransferFaulted">
+    <value>Տեղափոխումը կանգնեց այս սերվերի խափանման պատճառով։ Մանրամասները սերվերի մատյանում են։</value>
+  </data>
+  <data name="MigrationDiskInsufficient">
+    <value>Այս սերվերում տեղափոխման համար բավարար ազատ սկավառակի տարածք չկա։</value>
+  </data>
+  <data name="MigrationPullFailed">
+    <value>Ֆայլերի պատճենումը ձախողվեց։ Աղբյուրում կարող են լինել չընթերցվող ֆայլեր կամ կապը խզվել է։</value>
+  </data>
+  <data name="MigrationPullIncomplete">
+    <value>Ֆայլերի պատճենումը չավարտվեց տրված ժամանակում։ Կրկնեք՝ շարունակելու համար այնտեղից, որտեղ կանգնեց։</value>
+  </data>
+  <data name="MigrationDumpFailed">
+    <value>Աղբյուրում տվյալների բազայի արտահանումը ձախողվեց։</value>
+  </data>
+  <data name="MigrationDumpTooLarge">
+    <value>Տվյալների բազայի աղբը գերազանցում է թույլատրելի չափը։</value>
+  </data>
+  <data name="MigrationDumpRefused">
+    <value>Տվյալների բազայի աղբը պարունակում է մի բան, որը մեկ բազայի օգտատերը չի կարող բեռնել (տրիգեր, ընթացակարգ, իրադարձություն կամ դիտում), և մերժվեց։ Ոչինչ չի բեռնվել ավելի բարձր իրավունքներով։</value>
+  </data>
+  <data name="MigrationDumpLoadFailed">
+    <value>Սերվերը մերժեց տվյալների բազայի աղբի հրահանգներից մեկը։</value>
+  </data>
+  <data name="MigrationAccountCancelled">
+    <value>Հաշիվը չեղարկվեց։</value>
+  </data>
+  <data name="RemoteServerInUse">
+    <value>Այս սերվերը դեռ օգտագործվում է միգրացիայի կողմից։ Նախ ջնջեք կամ ավարտեք միգրացիան։</value>
+  </data>
+</root>

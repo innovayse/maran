@@ -1,3 +1,4 @@
+using Maran.Agent.Client.Errors;
 using Maran.Modules.Backups.Resources;
 
 namespace Maran.Modules.Backups.Mappers;
@@ -38,9 +39,6 @@ public static class BackupVerificationAgentErrorTranslator
     /// </summary>
     private const string AgentArchiveUnopenableCode = "AgentArchiveUnopenable";
 
-    /// <summary>The agent client's code for an artifact the agent could not find under the account.</summary>
-    private const string AgentNotFoundCode = "AgentNotFound";
-
     /// <summary>Names the finding an agent refusal states about the artifact, if it states one.</summary>
     /// <param name="error">The agent client's typed failure for the verification.</param>
     /// <returns>
@@ -64,7 +62,7 @@ public static class BackupVerificationAgentErrorTranslator
             return nameof(ErrorMessages.BackupVerificationArchiveKeyRejected);
         }
 
-        if (string.Equals(error.Code, AgentNotFoundCode, StringComparison.Ordinal))
+        if (string.Equals(error.Code, AgentErrorCodes.NotFound, StringComparison.Ordinal))
         {
             return nameof(ErrorMessages.BackupVerificationArtifactMissing);
         }

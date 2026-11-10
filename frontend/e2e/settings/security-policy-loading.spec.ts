@@ -1,14 +1,16 @@
-import { test, type Page } from '@playwright/test'
 import {
   expectRegionFastLoad,
   expectRegionSlowFailure,
   expectRegionSlowLoad,
   type RegionLoadingScenario,
 } from '../fixtures/expect-region-loading'
+import { test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { SecurityPolicy } from '../../src/types/securityPolicy'
+import type { Page } from '@playwright/test'
 
 // The security policy form while the policy is on the way (#243): real labels over placeholder controls.
 
@@ -28,6 +30,7 @@ const REFUSAL = 'The security policy could not be read.'
 const shell = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubEmptyModules(page)
 }
 
@@ -68,6 +71,7 @@ test('security policy: a fast answer shows no placeholder', async ({ page }) => 
   await expectRegionFastLoad(page, SECURITY_POLICY_SCENARIO)
 })
 
-test('security policy: a slow failure is an alert, never a skeleton', async ({ page }) => {
+test('security policy: a slow failure is an alert, never a skeleton', async ({ page, guard }) => {
+  guard.allow(500, /\/api\/v1\/security-policy$/)
   await expectRegionSlowFailure(page, SECURITY_POLICY_SCENARIO)
 })

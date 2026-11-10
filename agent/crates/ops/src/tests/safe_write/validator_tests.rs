@@ -134,6 +134,13 @@ fn every_validator_is_a_check_except_the_four_that_have_no_check_mode() {
             // not the validator (issue #178).
             row("dns/enable_dns.rs", "&checker", "CallClass::Validate"),
             row("dns/enable_dns.rs", "&checker", "CallClass::Validate"),
+            // Pure — the same checker over a throwaway probe configuration that states a
+            // dnssec-policy, asking whether this build can sign (issue #452).
+            row(
+                "dns/probe_dnssec_support.rs",
+                "&checker",
+                "CallClass::Validate"
+            ),
             // Pure — the zone checker reads the rendered zone and writes nothing.
             row("dns/put_zone.rs", "&checkzone", "CallClass::Validate"),
             // MUTATING — vsftpd.conf, twice. `systemctl restart`: vsftpd has no
@@ -214,7 +221,7 @@ fn every_validator_is_a_check_except_the_four_that_have_no_check_mode() {
             ),
             // MUTATING — the SFTP jail mount unit, for the same reason as FTPS's.
             row(
-                "sftp/create_sftp_user.rs",
+                "sftp/ensure_account_jail.rs",
                 "&service_manager",
                 "CallClass::Reload"
             ),

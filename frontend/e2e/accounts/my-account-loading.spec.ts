@@ -1,17 +1,20 @@
-import { test, type Page } from '@playwright/test'
 import {
   expectRegionFastLoad,
   expectRegionSlowFailure,
   expectRegionSlowLoad,
   type RegionLoadingScenario,
 } from '../fixtures/expect-region-loading'
+import { test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubMyAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubMembershipOffers } from '../fixtures/stub-membership-offers-routes'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
 import type { MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
+import type { Page } from '@playwright/test'
 
 // A customer's own account page while it is on the way (#243): the identity card keeps its terms
 // and the limit tiles their labels, over placeholder values.
@@ -48,15 +51,18 @@ const REFUSAL = 'Your account could not be read.'
 const MY_ACCOUNT_PATTERN = /\/api\/v1\/accounts\/me(\?.*)?$/
 
 /**
- * Signs the customer in and stubs the shell and the resource summary.
+ * Signs the customer in and stubs the shell, the resource summary and the membership offers.
  * @param page The Playwright page.
  * @returns Resolves once the routes are installed.
  */
 const stubShell = async (page: Page): Promise<void> => {
   await stubSignedIn(page, CUSTOMER)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, [])
   await stubMyAccountResources(page, { accountId: OWN_ACCOUNT.id, resources: [] })
+  // The page reads the membership offers addressed to the caller.
+  await stubMembershipOffers(page, [])
 }
 
 /** How the my account screen is opened and answered. */
@@ -92,6 +98,8 @@ test('my account: a fast answer shows no placeholder', async ({ page }) => {
   await expectRegionFastLoad(page, MY_ACCOUNT_SCENARIO)
 })
 
-test('my account: a slow failure is an alert, never a skeleton', async ({ page }) => {
+test('my account: a slow failure is an alert, never a skeleton', async ({ page, guard }) => {
+  // The refusal is the subject: the own-account read answers 500.
+  guard.allow(500, MY_ACCOUNT_PATTERN)
   await expectRegionSlowFailure(page, MY_ACCOUNT_SCENARIO)
 })

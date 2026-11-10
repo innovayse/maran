@@ -29,7 +29,11 @@ public sealed class ListRecentAuditEventsQueryHandlerTests : IDisposable
 
     private ListRecentAuditEventsQueryHandler Handler()
     {
-        return new ListRecentAuditEventsQueryHandler(_context, IdentityTestContext.ActionNames(), IdentityTestContext.OutcomeNames());
+        return new ListRecentAuditEventsQueryHandler(
+            _context,
+            IdentityTestContext.ActionNames(),
+            IdentityTestContext.OutcomeNames(),
+            IdentityTestContext.SubjectNames());
     }
 
     /// <summary>Listing returns the most recent events first.</summary>
@@ -45,6 +49,26 @@ public sealed class ListRecentAuditEventsQueryHandlerTests : IDisposable
         {
             return e.Subject;
         }));
+    }
+
+    /// <summary>A chain verdict row reaches the caller with its subject spelled, beside the stored line.</summary>
+    /// <remarks>
+    /// The pinned defect (issue #509): the dashboard's latest activity printed <c>intact rowsChecked=164</c>.
+    /// A login name beside it comes back untouched, which is the accepting control.
+    /// </remarks>
+    [Fact]
+    public async Task A_chain_verdict_row_carries_its_subject_spelled_beside_the_stored_line()
+    {
+        await WriteAsync(Now, "intact rowsChecked=164", IdentityAuditActions.AuditChainVerified);
+        await WriteAsync(Now.AddMinutes(1), "edgar");
+
+        var result = await Handler().HandleAsync(new ListRecentAuditEventsQuery(50), CancellationToken.None);
+
+        var login = result.Value[0];
+        var verdict = result.Value[1];
+        Assert.Equal("edgar", login.SubjectName);
+        Assert.Equal("intact rowsChecked=164", verdict.Subject);
+        Assert.DoesNotContain("rowsChecked", verdict.SubjectName, StringComparison.Ordinal);
     }
 
     /// <summary>Listing returns no more rows than the limit asks for.</summary>

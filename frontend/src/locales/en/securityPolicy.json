@@ -19,7 +19,8 @@
       "forceTwoFactorForResellersLabel": "Require two-step verification for resellers",
       "forceTwoFactorForResellersWarning": "Turn this on only once every reseller can complete enrolment. A reseller without a second factor is held on the enrolment screen and can reach nothing else, so a reseller who cannot enrol is locked out until an administrator intervenes.",
       "lockoutTitle": "Sign-in lockout",
-      "lockoutHint": "How many wrong passwords lock an account, and for how long."
+      "lockoutHint": "How many wrong passwords lock an account, and for how long.",
+      "wholeNumberInvalid": "Enter a whole number, digits only."
     }
   }
 }

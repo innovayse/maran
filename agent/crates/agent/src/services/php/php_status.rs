@@ -56,6 +56,17 @@ pub fn to_agent_error(error: &PhpOpError) -> AgentError {
         PhpOpError::PackageSourceUnreachable { stderr } => {
             (ErrorCode::PackageSourceUnreachable, stderr.clone())
         }
+        // The host's package sources do not carry the package (issue #466): the
+        // request was sound and the host works, so the panel answers it as a
+        // refusal that retrying cannot clear, naming the package in the
+        // operator's text.
+        PhpOpError::PackageNotAvailable { stderr, .. } => {
+            (ErrorCode::PackageNotAvailable, stderr.clone())
+        }
+        // What the host offers could not be read (issue #466): a fault of this
+        // host, with nothing to forward — the reason is an exit status or a
+        // line number and already travels in `message`.
+        PhpOpError::PackageCatalogueUnavailable { .. } => (ErrorCode::SystemFailure, String::new()),
         PhpOpError::Render { .. } | PhpOpError::ConfigWrite { .. } => {
             (ErrorCode::SystemFailure, String::new())
         }

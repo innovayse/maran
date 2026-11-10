@@ -68,6 +68,7 @@ import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
 import UiIcon from '../ui/UiIcon.vue'
+import ShellAccountMenu from './ShellAccountMenu.vue'
 import ShellAccountSelector from './ShellAccountSelector.vue'
 import ShellAvatar from './ShellAvatar.vue'
 import ShellBreadcrumb from './ShellBreadcrumb.vue'
@@ -134,7 +135,7 @@ const searchSwap: ComputedRef<{ field: string; icon: string; group: string }> = 
         <UiIcon name="menu" size="lg" />
       </UiButton>
 
-      <!-- On the desktop this cell is the sidebar column's own width (`w-54`, as in
+      <!-- On the desktop this cell is the sidebar column's own width (`w-60`, as in
            `ShellSidebar.vue`), so the search field starts at the same x as the content panel
            beside the sidebar. Compact, there is no column to line up with and the cell is as wide
            as its content. It is also as wide as its content on a bar too narrow to spare 13.5rem
@@ -143,7 +144,7 @@ const searchSwap: ComputedRef<{ field: string; icon: string; group: string }> = 
            and the first entry of the drawer, and the room is worth more to the four controls. -->
       <div
         class="shrink-0"
-        :class="compact ? '@max-[16rem]:hidden' : 'w-54 @max-[62rem]:w-auto @max-[16rem]:hidden'"
+        :class="compact ? '@max-[16rem]:hidden' : 'w-60 @max-[62rem]:w-auto @max-[16rem]:hidden'"
       >
         <RouterLink
           :to="{ name: 'system-status' }"
@@ -221,7 +222,18 @@ const searchSwap: ComputedRef<{ field: string; icon: string; group: string }> = 
           <ShellThemeSwitcher />
         </div>
         <ShellLocaleSwitcher />
-        <ShellAvatar size="sm" class="ml-1 @max-[30rem]:hidden" />
+        <!-- The avatar opens the same account menu as the sidebar's identity card, with a Sign out
+             row because the bar has no button of its own for it. Hidden on a narrow bar. -->
+        <ShellAccountMenu
+          class="ml-1 shrink-0 @max-[30rem]:hidden"
+          align="end"
+          with-sign-out
+          :trigger-label="t('app.shell.headerAccountMenu')"
+        >
+          <template #trigger>
+            <ShellAvatar size="sm" />
+          </template>
+        </ShellAccountMenu>
       </div>
     </div>
   </header>

@@ -1,7 +1,8 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { mainNavigation, openSection } from '../fixtures/open-full-shell'
 import { pagedAnswer } from '../fixtures/paged-answer'
 import { setPersistedLocale } from '../fixtures/set-locale'
+import { stubAccountStatuses } from '../fixtures/stub-account-statuses-route'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
@@ -9,7 +10,8 @@ import { stubModules } from '../fixtures/stub-modules-route'
 import { stubPlans } from '../fixtures/stub-plans-route'
 import { ACME_HOSTING, stubResellers } from '../fixtures/stub-resellers-routes'
 import { stubShellReads } from '../fixtures/stub-shell-reads'
-import type { ResellerDetail } from '../../src/types/reseller'
+import type { Reseller, ResellerDetail } from '../../src/types/reseller'
+import type { Locator, Page } from '@playwright/test'
 
 // Issue #414: text the backend localizes per request (here the reseller status name) must be
 // requested again when the interface language is switched live, without navigating away and back.
@@ -45,6 +47,26 @@ const localized = (language: string): ResellerDetail => {
 }
 
 /**
+ * Narrows a reseller to the row the list endpoint sends: the invitation language and the envelope
+ * belong to the detail only, and the list's contract forbids them.
+ * @param detail The reseller as its own page reads it.
+ * @returns The reseller as the list reads it.
+ */
+const listedRow = (detail: ResellerDetail): Reseller => {
+  return {
+    id: detail.id,
+    name: detail.name,
+    contactEmail: detail.contactEmail,
+    status: detail.status,
+    statusName: detail.statusName,
+    createdAt: detail.createdAt,
+    accountCount: detail.accountCount,
+    planCount: detail.planCount,
+    diskAllocatedMb: detail.diskAllocatedMb,
+  }
+}
+
+/**
  * Signs the administrator in and installs the reseller screens, then overrides the list and the
  * detail so their status name follows the request's Accept-Language. Routes registered later win.
  * @param page The Playwright page under test.
@@ -56,6 +78,7 @@ const installPanel = async (page: Page): Promise<void> => {
   await stubShellReads(page)
   await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
   await stubAccounts(page, [])
+  await stubAccountStatuses(page)
   await stubPlans(page)
   await stubResellers(page)
 
@@ -68,7 +91,12 @@ const installPanel = async (page: Page): Promise<void> => {
       sorts: {},
       filters: {},
     })
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(answer) })
+    const items: Reseller[] = answer.items.map(listedRow)
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ...answer, items }),
+    })
   })
 
   await page.route(DETAIL_PATTERN, async (route) => {

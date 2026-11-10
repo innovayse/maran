@@ -281,6 +281,75 @@ the vhost and the API's reserved name can now drift apart."
   echo "Panel__HostName is the lower-cased name the vhost serves; placeholders, injection shapes and over-long names record nothing."
 
   assert_the_panel_public_url_is_chosen_and_written_only_when_valid
+  assert_the_agent_is_told_every_name_the_panel_is_served_under
+}
+
+# agent_env_written_with: runs the installer's own write_agent_env, unmodified, against a scratch
+# directory with `$1` as the panel host name and `$2` as the panel public address, and prints the
+# agent.env it produced. Only what needs a real machine is a stand-in: the service identity check,
+# `id`, chown and chmod. The rendering and the list of names are the real ones.
+agent_env_written_with() {
+  local scratch output
+  scratch="$(mktemp -d)"
+  output="$(bash -c 'set -euo pipefail
+. "$1"
+. <(sed -e "s#^readonly MARAN_CONFIG_DIR=.*#readonly MARAN_CONFIG_DIR=\"$3\"#" "$2")
+MARAN_USER=maran
+MARAN_GROUP=maran
+require_service_identity() { :; }
+id() { echo 101; }
+chown() { :; }
+chmod() { :; }
+write_agent_env "$4" "$5"
+cat "$3/agent.env"' _ "$COMMON_LIB" "$CONFIG_STEP" "$scratch" "$1" "$2")" || { rm -rf "$scratch"; fail "write_agent_env failed when run for real"; }
+  rm -rf "$scratch"
+  printf '%s\n' "$output"
+}
+
+# assert_the_agent_is_told_every_name_the_panel_is_served_under: issue #468. The API reserves the
+# vhost's name AND the host of Panel__PublicUrl, and the agent refuses the same names at its own
+# boundary, learning them from agent.env. Propositions, each executed rather than grepped:
+#   1. both names reach agent.env, once each, whichever of them differ;
+#   2. an address, an IPv6 literal and localhost add no name (the fixed set refuses them), and a host
+#      with neither writes the key EMPTY, which the unit passes as one empty argument;
+#   3. the unit hands the key to the agent through `--reserved-host-names=`, glued with `=`;
+#   4. agent.env.example documents the key.
+# The positive control is the ALLOW_UID line, present in every run, so an empty result is not an
+# unread file. UNOBSERVED HERE: systemd's expansion of the unit line, and the agent's own parse of it
+# (the agent's invocation tests hold the empty and the repeated forms).
+assert_the_agent_is_told_every_name_the_panel_is_served_under() {
+  local written line
+
+  written="$(agent_env_written_with 'srv1.provider.net' 'https://Panel.Example.com:8443')"
+  printf '%s\n' "$written" | grep -q '^MARAN_AGENT_ALLOW_UID=101$' \
+    || fail "the executed write_agent_env produced no MARAN_AGENT_ALLOW_UID line, so this check cannot see what it reports on"
+  line="$(printf '%s\n' "$written" | grep '^MARAN_AGENT_RESERVED_HOST_NAMES=' || true)"
+  [ "$line" = "MARAN_AGENT_RESERVED_HOST_NAMES=srv1.provider.net,panel.example.com" ] \
+    || fail "agent.env carries '${line}' for a vhost name and a different public host; expected both names, once each"
+
+  written="$(agent_env_written_with 'panel.example.com' 'https://panel.example.com')"
+  line="$(printf '%s\n' "$written" | grep '^MARAN_AGENT_RESERVED_HOST_NAMES=' || true)"
+  [ "$line" = "MARAN_AGENT_RESERVED_HOST_NAMES=panel.example.com" ] \
+    || fail "agent.env carries '${line}' when the vhost name and the public host are the same; expected the name once"
+
+  for line in 'https://203.0.113.7:8443' 'https://[2001:db8::1]:8443' 'https://localhost:8443'; do
+    written="$(agent_env_written_with 'srv1.provider.net' "$line")"
+    printf '%s\n' "$written" | grep -qx 'MARAN_AGENT_RESERVED_HOST_NAMES=srv1.provider.net' \
+      || fail "agent.env gained a name from the public address '${line}', which the fixed reserved set already refuses"
+  done
+
+  written="$(agent_env_written_with '' '')"
+  printf '%s\n' "$written" | grep -q '^MARAN_AGENT_ALLOW_UID=101$' \
+    || fail "the executed write_agent_env produced no MARAN_AGENT_ALLOW_UID line for the empty run, so this check is blind"
+  printf '%s\n' "$written" | grep -qx 'MARAN_AGENT_RESERVED_HOST_NAMES=' \
+    || fail "agent.env must carry the key EMPTY when the host has no name; absent is a different state the unit also tolerates, but an empty one is what the installer promises"
+
+  grep -qF -- '--reserved-host-names=${MARAN_AGENT_RESERVED_HOST_NAMES}' "$AGENT_UNIT" \
+    || fail "$(basename "$AGENT_UNIT") no longer passes MARAN_AGENT_RESERVED_HOST_NAMES to the agent as --reserved-host-names=...; the agent would not refuse the panel's names"
+  grep -q '^MARAN_AGENT_RESERVED_HOST_NAMES=' "${INSTALLER_ROOT}/agent.env.example" \
+    || fail "agent.env.example no longer documents MARAN_AGENT_RESERVED_HOST_NAMES, which the installer writes"
+
+  echo "agent.env names every host name the panel is served under (the vhost's and the public address's), once each, and an empty host writes the key empty."
 }
 
 # assert_panel_port_has_one_authority: the panel's public port is decided in exactly one

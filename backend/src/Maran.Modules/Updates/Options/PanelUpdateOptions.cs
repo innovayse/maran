@@ -40,9 +40,23 @@ public sealed class PanelUpdateOptions
     [Required]
     public string RequestMarkerName { get; set; } = "requested";
 
+    /// <summary>The check request's marker file name inside <see cref="RequestDirectory"/>: the panel's "Check for updates" asks root for a release check by creating it (issue #516).</summary>
+    [Required]
+    public string CheckRequestMarkerName { get; set; } = "check-requested";
+
     /// <summary>The panel's own file naming the task an update request opened.</summary>
     [Required]
     public string TaskLedgerPath { get; set; } = "/var/lib/maran/panel-update-task";
+
+    /// <summary>The full path of the check request marker: <see cref="CheckRequestMarkerName"/> inside <see cref="RequestDirectory"/>.</summary>
+    /// <remarks>Derived, like <see cref="MarkerPath"/>.</remarks>
+    public string CheckMarkerPath
+    {
+        get
+        {
+            return Path.Combine(RequestDirectory, CheckRequestMarkerName);
+        }
+    }
 
     /// <summary>The full path of the request marker: <see cref="RequestMarkerName"/> inside <see cref="RequestDirectory"/>.</summary>
     /// <remarks>Derived, so it is not bound from configuration and the two parts can never disagree with it.</remarks>

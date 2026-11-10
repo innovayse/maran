@@ -10,6 +10,7 @@ namespace Maran.Modules.Updates.Common;
 /// <param name="LastCheckedAt">When the last manifest fetch by the root CLI ran, or null when none has.</param>
 /// <param name="PreviousVersion">The version a rollback would restore, or null when no rollback is possible.</param>
 /// <param name="UpdateInProgress">True while an update is queued or running.</param>
+/// <param name="CheckInProgress">True while a release check the panel asked for is queued or running (issue #516).</param>
 /// <param name="CanStart">Whether an update can be handed to the root update service on this server.</param>
 public sealed record PanelUpdateDto(
     string CurrentVersion,
@@ -18,4 +19,5 @@ public sealed record PanelUpdateDto(
     DateTimeOffset? LastCheckedAt,
     string? PreviousVersion,
     bool UpdateInProgress,
+    bool CheckInProgress,
     bool CanStart);

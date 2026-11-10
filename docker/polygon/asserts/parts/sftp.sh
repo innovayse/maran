@@ -51,10 +51,23 @@ assert_sftp_prerequisites() {
     '^    AuthorizedKeysFile /etc/ssh/maran-sftp-keys/%u$' \
     '^    ForceCommand internal-sftp$' \
     '^    AllowTcpForwarding no$' \
-    '^    X11Forwarding no$'; do
+    '^    X11Forwarding no$' \
+    '^    AllowAgentForwarding no$' \
+    '^    AllowStreamLocalForwarding no$' \
+    '^    PermitTunnel no$' \
+    '^    PermitTTY no$' \
+    '^    PermitUserRC no$' \
+    '^Match Group maran-ftps$' \
+    '^    DenyGroups maran-ftps$'; do
     grep -q "$directive" "$SSHD_CONFIG" \
       || fail "the Match block is missing a directive matching: ${directive}"
   done
+
+  # One FTPS block as well, after two runs: a re-run that duplicated either Match block is the
+  # failure the count above was written for.
+  blocks="$(grep -c '^Match Group maran-ftps$' "$SSHD_CONFIG" || true)"
+  [ "$blocks" -eq 1 ] \
+    || fail "sshd_config carries ${blocks} 'Match Group maran-ftps' blocks after two runs, not 1"
 
   # The public-key directory (issue #135): root-owned and 0711, because sshd
   # reads a login's key file with the login's uid and refuses one whose path a
@@ -63,6 +76,91 @@ assert_sftp_prerequisites() {
     || fail "/etc/ssh/maran-sftp-keys is $(stat -c '%U:%G %a' /etc/ssh/maran-sftp-keys), not root:root 711"
 
   sshd -t || fail "sshd rejects the config the installer produced"
+}
+
+# The throwaway logins assert_sshd_confines_every_jailed_login asks sshd about: one in each
+# file-transfer group and one in neither. Created for three `sshd -T` questions and removed.
+readonly SSHD_WITNESS_SFTP="sshdwitnesssftp"
+readonly SSHD_WITNESS_FTPS="sshdwitnessftps"
+readonly SSHD_WITNESS_NEITHER="sshdwitnessnone"
+
+# sshd_answer_for: the effective value of one sshd option for one login, as the daemon itself
+# resolves it from the file the installer wrote - `sshd -T` with the connection's user, so the
+# `Match` blocks are applied. `-C` needs host and addr to evaluate Match criteria at all.
+#
+# `|| true` for the usual pipefail reason: an empty answer is returned and every caller turns it
+# into a named failure.
+sshd_answer_for() {
+  local login="$1" option="$2"
+  { sshd -T -C "user=${login},host=localhost,addr=127.0.0.1" 2>/dev/null || true; } \
+    | { grep -i "^${option} " || true; } | head -1 | cut -d' ' -f2-
+}
+
+# assert_sshd_confines_every_jailed_login: the daemon's OWN answer, per login, to what a jailed
+# login may do (issue #484). An FTPS login is a system user with a real password, and sshd
+# authenticates any such user; the only thing that stops it is a `Match` block that applies to its
+# group. Asserted on the effective configuration for a user in each group rather than on the file,
+# because a directive in the wrong block reads identically in the file and does nothing.
+#
+# The inverse control is a login in NEITHER group: forwarding must be what the host's own
+# configuration says for it (`yes`), and the FTPS denial must be absent. Without it every refusal
+# below would also be produced by a daemon that denies everybody, and the file-transfer groups
+# would be indistinguishable from the rest of the host.
+#
+# UNOBSERVED HERE: an actual forwarded connection. This image boots no network peer to forward to,
+# so the denial is read from the daemon's resolved configuration, which is the value its channel
+# code consults; the live refusal of an FTPS credential is observed in
+# agent/crates/agent/tests/ftps_on_a_real_host.rs, against a running sshd.
+assert_sshd_confines_every_jailed_login() {
+  ensure_ftps_group
+  local login
+  for login in "$SSHD_WITNESS_SFTP" "$SSHD_WITNESS_FTPS" "$SSHD_WITNESS_NEITHER"; do
+    userdel -f "$login" >/dev/null 2>&1 || true
+  done
+  useradd -M -N -G maran-sftp "$SSHD_WITNESS_SFTP" \
+    || fail "could not create the throwaway SFTP witness ${SSHD_WITNESS_SFTP}"
+  useradd -M -N -G "$MARAN_FTPS_GROUP" "$SSHD_WITNESS_FTPS" \
+    || fail "could not create the throwaway FTPS witness ${SSHD_WITNESS_FTPS}"
+  useradd -M -N "$SSHD_WITNESS_NEITHER" \
+    || fail "could not create the throwaway control ${SSHD_WITNESS_NEITHER}"
+
+  local option value
+  for login in "$SSHD_WITNESS_SFTP" "$SSHD_WITNESS_FTPS"; do
+    for option in allowtcpforwarding allowstreamlocalforwarding x11forwarding allowagentforwarding \
+      permittunnel permittty permituserrc; do
+      value="$(sshd_answer_for "$login" "$option")"
+      case "$value" in
+        no | false) ;;
+        *) fail "sshd resolves ${option} to '${value}' for ${login}; a jailed file-transfer login must have it off (issue #484)" ;;
+      esac
+    done
+  done
+
+  value="$(sshd_answer_for "$SSHD_WITNESS_FTPS" denygroups)"
+  case " ${value} " in
+    *" ${MARAN_FTPS_GROUP} "*) ;;
+    *) fail "sshd resolves denygroups to '${value}' for ${SSHD_WITNESS_FTPS}, a member of ${MARAN_FTPS_GROUP}: the FTPS credential would authenticate to sshd (issue #484)" ;;
+  esac
+
+  value="$(sshd_answer_for "$SSHD_WITNESS_SFTP" denygroups)"
+  case " ${value} " in
+    *" ${MARAN_FTPS_GROUP} "*) fail "sshd denies ${MARAN_FTPS_GROUP} for an SFTP login too ('${value}'); the SFTP logins must still be able to authenticate" ;;
+  esac
+
+  # The inverse control: a login in neither group is not confined by these blocks.
+  value="$(sshd_answer_for "$SSHD_WITNESS_NEITHER" allowtcpforwarding)"
+  case "$value" in
+    no | false) fail "sshd resolves allowtcpforwarding to '${value}' for ${SSHD_WITNESS_NEITHER}, a login in neither group: the confinement is not scoped to the file-transfer groups, or this probe cannot tell a confined login from a free one" ;;
+  esac
+  value="$(sshd_answer_for "$SSHD_WITNESS_NEITHER" denygroups)"
+  case " ${value} " in
+    *" ${MARAN_FTPS_GROUP} "*) fail "sshd denies ${MARAN_FTPS_GROUP} for ${SSHD_WITNESS_NEITHER}, a login in neither group: the denial is not scoped to the FTPS group" ;;
+  esac
+
+  for login in "$SSHD_WITNESS_SFTP" "$SSHD_WITNESS_FTPS" "$SSHD_WITNESS_NEITHER"; do
+    userdel -f "$login" >/dev/null 2>&1 || true
+  done
+  echo "sshd resolves forwarding off for every jailed login and denies the FTPS group, and leaves a login in neither group alone."
 }
 
 # assert_sftp_validates_before_replacing: a broken sshd_config must survive the

@@ -1,7 +1,9 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 
 // `UiModal` gained a `dismissible` prop so the credential dialogs could refuse Escape, and the
 // default had to stay exactly what it was for every other dialog in the panel. Nothing pinned that
@@ -11,6 +13,8 @@ test('the command palette still closes on Escape, which is the kit default for e
   page,
 }) => {
   await stubSignedIn(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
 

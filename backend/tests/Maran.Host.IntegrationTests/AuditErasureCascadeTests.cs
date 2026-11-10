@@ -267,8 +267,8 @@ public sealed class AuditErasureCascadeTests : IAsyncLifetime
     /// <remarks>
     /// The sign-ins are real so that real rows exist with real columns; the planted rows cover what
     /// signing in cannot: a row that carries the account, a row by the administrator that names the
-    /// owner's address as its subject, and the owner's address and agent in columns a test server leaves
-    /// empty.
+    /// owner's address as its subject and the owner's login as its subject login (as an invitation
+    /// records it), and the owner's address and agent in columns a test server leaves empty.
     /// </remarks>
     private static async Task<SeededWorld> SeedAsync(WebApplicationFactory<Program> factory)
     {
@@ -300,7 +300,7 @@ public sealed class AuditErasureCascadeTests : IAsyncLifetime
                 PlantedAddress, PlantedAgent, succeeded: true, correlationId: null, accountId: accountId),
             new AuditEvent(
                 Guid.NewGuid(), at, administratorId, "admin", IdentityAuditActions.SubUserInvited, OwnerEmail,
-                string.Empty, string.Empty, succeeded: true, correlationId: null),
+                string.Empty, string.Empty, succeeded: true, correlationId: null, subjectUserId: ownerId),
             new AuditEvent(
                 Guid.NewGuid(), at, administratorId, "admin", AccountAuditActions.AccountSuspended, AccountName,
                 string.Empty, string.Empty, succeeded: true, correlationId: null, accountId: accountId));

@@ -135,7 +135,10 @@ public sealed class AccountsController : BaseApiController
         return ToActionResult(result);
     }
 
-    /// <summary>Creates a new hosting account row.</summary>
+    /// <summary>
+    /// Creates a new hosting account row. A reseller (or its API key) asking for a login shell or for a
+    /// first password of its own choosing is refused with 403: both are the administrator's alone.
+    /// </summary>
     /// <param name="command">
     /// The account's name, primary domain, and plan. The command is bound straight from the body —
     /// there is no request type in between — and the two audit fields it also carries are unbindable
@@ -148,6 +151,7 @@ public sealed class AccountsController : BaseApiController
     [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(AccountDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> CreateAsync(
         [FromBody] CreateAccountCommand command,
@@ -220,14 +224,19 @@ public sealed class AccountsController : BaseApiController
     /// <summary>
     /// Changes an account's owner address, and with it the address its login's invitation and
     /// password resets are mailed to. Refused with 409 when another login already holds the address.
+    /// Administrator only: a reseller is refused with 403 before the handler runs, because the address
+    /// decides where the customer's next password reset goes, and a reseller that could name it could
+    /// take over a customer who never agreed (issue #482).
     /// </summary>
     /// <param name="id">The account to change.</param>
     /// <param name="command">The new address. Its account id, address and agent are stamped here.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPut("{id:guid}/owner-email")]
+    [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
     [ViewAsAccess(ViewAsAccess.Refused)]
     [ProducesResponseType(typeof(AccountDetailDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> ChangeOwnerEmailAsync(

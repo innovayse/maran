@@ -55,6 +55,26 @@ const CHOICE_RULES: PagedRules<Account> = {
 }
 
 /**
+ * Reduces an account to what the list endpoint sends. A spec may hand the stub an account detail (the
+ * list shape plus plan name and owner address); the list never carries those two fields.
+ * @param account The account, possibly a detail.
+ * @returns The list row.
+ */
+const toListRow = (account: Account): Account => {
+  return {
+    id: account.id,
+    name: account.name,
+    primaryDomain: account.primaryDomain,
+    planId: account.planId,
+    status: account.status,
+    statusName: account.statusName,
+    createdAt: account.createdAt,
+    resellerId: account.resellerId,
+    resellerName: account.resellerName,
+  }
+}
+
+/**
  * Fulfils the accounts endpoints from one catalogue: `GET /api/v1/accounts` as a page honouring
  * `page`, `pageSize`, `search`, `sort`, `planId` and `status`; `GET /api/v1/accounts/choices` as a
  * page of identity and name; `GET /api/v1/accounts/owner-languages` as the three shipped languages;
@@ -94,10 +114,11 @@ export const stubAccounts = async (page: Page, accounts: Account[]): Promise<() 
     }
 
     listRequests.push(new URL(request.url()))
+    const answer = pagedAnswer(accounts, request.url(), ACCOUNT_RULES)
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(pagedAnswer(accounts, request.url(), ACCOUNT_RULES)),
+      body: JSON.stringify({ ...answer, items: answer.items.map(toListRow) }),
     })
   })
 

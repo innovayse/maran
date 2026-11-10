@@ -105,7 +105,8 @@ public sealed class DatabaseAuditWriter : IAuditWriter
             entry.Succeeded,
             correlationId is null ? null : ColumnText.Fit(correlationId, AuditEvent.CorrelationIdMaxLength),
             impersonator,
-            accountId));
+            accountId,
+            entry.SubjectUserId));
 
         await _dbContext.SaveChangesAsync(cancellationToken);
     }

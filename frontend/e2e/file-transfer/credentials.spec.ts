@@ -1,4 +1,5 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import { stubMyAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubFirewall } from '../fixtures/stub-firewall-routes'
@@ -11,6 +12,7 @@ import {
   stubbedCreatedFtpPassword,
 } from '../fixtures/stub-ftp-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
 import {
@@ -19,12 +21,14 @@ import {
   stubbedCreatedSftpPassword,
   stubbedResetSftpPassword,
 } from '../fixtures/stub-sftp-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account, MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { FtpUser } from '../../src/types/ftpUser'
 import type { FtpsStatus } from '../../src/types/ftpsStatus'
 import type { PanelModule } from '../../src/types/module'
 import type { SftpUser } from '../../src/types/sftpUser'
+import type { Locator, Page } from '@playwright/test'
 
 const LICENSED: PanelModule[] = [
   { name: 'sftp', displayName: 'File transfer', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -111,6 +115,11 @@ const openScreen = async (
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
+  if (startAt === '/') {
+    // The landing page is only a way to the sidebar here, but it still reads its own figures.
+    await stubLandingReads(page, 'administrator')
+  }
   await stubAccounts(page, [ALICE])
   await stubFirewall(page, { rules: [], bans: [], whitelist: [] })
   await stubFtpsServer(page, runningFtpsStatus)
@@ -234,6 +243,7 @@ test('the placeholder-certificate warning appears only when the status says the 
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubFirewall(page, { rules: [], bans: [], whitelist: [] })
   await stubFtpsServer(page, runningFtpsStatus)
@@ -248,6 +258,7 @@ test('the placeholder-certificate warning appears only when the status says the 
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubFirewall(page, { rules: [], bans: [], whitelist: [] })
   await stubFtpsServer(page, SELF_SIGNED)
@@ -268,7 +279,9 @@ test('a customer who may not read the status is told to ask, not given a guessed
   await stubSignedIn(page, CUSTOMER)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubMyAccount(page, OWN_ACCOUNT)
+  await stubMyAccountResources(page, { accountId: OWN_ACCOUNT.id, resources: [] })
   await stubFtpsServerForbidden(page)
   await stubFtpUsers(page, [])
   await page.goto(FTPS_PAGE)

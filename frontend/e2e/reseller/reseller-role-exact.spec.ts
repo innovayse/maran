@@ -1,14 +1,20 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import { installNetworkGuard } from '../fixtures/network-guard'
 import { mainNavigation, openSection } from '../fixtures/open-full-shell'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubMyAccount } from '../fixtures/stub-my-account-route'
 import { stubManagedPlans, stubPlans } from '../fixtures/stub-plans-route'
 import { ADMIN_MODULES, stubMyReseller, stubResellerSession } from '../fixtures/stub-reseller-session'
 import { ACME_HOSTING, stubResellers } from '../fixtures/stub-resellers-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
+import type { MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
+import type { Page } from '@playwright/test'
 
 // Issue #179, the critical check: the role flags are ROLE-EXACT. A reseller signed in never sees an
 // administrator's screen, route or menu item, and a customer never sees either the administrator's
@@ -24,6 +30,16 @@ const CUSTOMER: AuthenticatedUser = {
   email: 'olive@example.com',
   role: 'customer',
   accountId: '11111111-1111-1111-1111-111111111111',
+}
+
+/** The customer's own account, which the customer's menu is drawn from. */
+const OWN_ACCOUNT: MyAccount = {
+  id: '11111111-1111-1111-1111-111111111111',
+  name: 'olive',
+  primaryDomain: 'olive-shop.example.com',
+  status: 'active',
+  statusName: 'Active',
+  plan: { displayName: 'Starter', diskQuotaMb: 1024, maxSites: 1, maxDatabases: 1, maxSftpUsers: 1, maxFtpUsers: 1, maxCronEntries: 1 },
 }
 
 /** An address of a reseller's own detail and edit pages, which only an administrator may open. */
@@ -42,6 +58,7 @@ const ADMIN_ONLY_PATHS = [
   '/firewall/whitelist',
   '/monitoring',
   '/servers/updates',
+  '/mail/queue',
   '/settings/security-policy',
   '/settings/smtp',
   '/settings/alerts',
@@ -67,6 +84,7 @@ const ADMIN_ENTRIES: RegExp[] = [
   /^Firewall/,
   /^Servers/,
   /^Monitoring/,
+  /^Mail queue/,
   /^PHP versions/,
   /^Grant repair/,
   /^Panel/,
@@ -95,7 +113,8 @@ const countResellerListReads = (page: Page): (() => number) => {
 }
 
 /**
- * Signs a customer in with the administrator's catalogue.
+ * Signs a customer in with the administrator's catalogue, and answers what the customer's shell and
+ * landing screen read.
  * @param page The Playwright page under test.
  * @returns Resolves once the routes are installed.
  */
@@ -103,7 +122,26 @@ const signInAsCustomer = async (page: Page): Promise<void> => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await stubSignedIn(page, CUSTOMER)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubModules(page, ADMIN_MODULES)
+  await stubMyAccount(page, OWN_ACCOUNT)
+  await stubLandingReads(page, 'customer')
+}
+
+/**
+ * Signs an administrator in with the administrator's catalogue, and answers what the shell and the
+ * landing screen read: the one-shot dashboard, the saved layout and the live stream (which the page
+ * replaces in-process, so it makes no request).
+ * @param page The Playwright page under test.
+ * @returns Resolves once the routes and the init script are installed.
+ */
+const signInAsAdministrator = async (page: Page): Promise<void> => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubShellReads(page)
+  await stubModules(page, ADMIN_MODULES)
+  await stubLandingReads(page, 'administrator')
 }
 
 test('a reseller sidebar offers its own pages and none of an administrator', async ({ page }) => {
@@ -159,10 +197,7 @@ test('a reseller is offered its own audit journal, under Activity and not under 
 
 test('an administrator is still offered the entries a reseller is not', async ({ page }) => {
   // Positive control for the absences above: the same regexes find these entries for an administrator.
-  await page.setViewportSize({ width: 1440, height: 900 })
-  await stubSignedIn(page)
-  await stubHealthy(page)
-  await stubModules(page, ADMIN_MODULES)
+  await signInAsAdministrator(page)
   await page.goto('/')
 
   const navigation = mainNavigation(page)
@@ -217,6 +252,7 @@ test('an administrator still reaches the resellers list and a reseller page', as
   await page.setViewportSize({ width: 1440, height: 900 })
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubModules(page, ADMIN_MODULES)
   await stubResellers(page)
 
@@ -257,6 +293,7 @@ test('an administrator opening the reseller overview lands on the not-available 
   await page.setViewportSize({ width: 1440, height: 900 })
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubModules(page, ADMIN_MODULES)
   await stubMyReseller(page)
 
@@ -293,6 +330,8 @@ test('the role flags send a reseller away from the resellers screens in Russian 
   for (const locale of ['ru', 'hy'] as const) {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
     const page = await context.newPage()
+    // This page is not the fixture's, so it is guarded here: the same findings, asserted per language below.
+    const guard = await installNetworkGuard(page, 'stubbed')
     await setPersistedLocale(page, locale)
     await stubResellerSession(page, ACME_HOSTING, ADMIN_MODULES)
 
@@ -300,6 +339,7 @@ test('the role flags send a reseller away from the resellers screens in Russian 
 
     await expect(page).toHaveURL('/not-available')
     await expect(page.getByRole('heading', { level: 1, name: headings[locale] })).toBeVisible()
+    expect(await guard.problems(), `${locale}: the page asked for, or was given, something it should not have`).toEqual([])
     await context.close()
   }
 })

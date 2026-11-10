@@ -1,4 +1,5 @@
 using Maran.Agent.Client.Services.MailService;
+using Maran.Modules.Mail.Domain.Entities;
 using Maran.Modules.Mail.Domain.Enums;
 using Maran.Modules.Mail.Domain.Policies;
 using Maran.Modules.Mail.Mappers;
@@ -66,6 +67,34 @@ public sealed class MailServerStatusMapperTests
         var dto = MailServerStatusMapper.ToDto(Observation(), null);
 
         Assert.Equal(MailDefaults.ExpectedPorts, dto.Ports);
+    }
+
+    /// <summary>The status carries the module's starting values, so the interface holds no figure of its own.</summary>
+    [Fact]
+    public void The_status_carries_the_modules_starting_values()
+    {
+        var dto = MailServerStatusMapper.ToDto(Observation(), null);
+
+        Assert.Equal(MailDefaults.MessageSizeMib, dto.StartingValues.MaxMessageMib);
+        Assert.Equal(MailDefaults.SpamGreylistScore, dto.StartingValues.SpamGreylistScore);
+        Assert.Equal(MailDefaults.SpamAddHeaderScore, dto.StartingValues.SpamAddHeaderScore);
+        Assert.Equal(MailDefaults.SpamRejectScore, dto.StartingValues.SpamRejectScore);
+        Assert.Equal(MailDefaults.Pop3Enabled, dto.StartingValues.Pop3Enabled);
+        Assert.Equal(MailDefaults.AntivirusEnabled, dto.StartingValues.AntivirusEnabled);
+        Assert.Equal(MailDefaults.AllowExternalForwarding, dto.StartingValues.AllowExternalForwarding);
+    }
+
+    /// <summary>A server that has settings still states the starting values, never its own settings in their place.</summary>
+    [Fact]
+    public void A_status_with_settings_states_the_starting_values_apart_from_them()
+    {
+        var settings = new MailServerSettings(
+            "mail.example.com", true, true, true, 10, 1, 2, 3, DateTimeOffset.UnixEpoch);
+
+        var dto = MailServerStatusMapper.ToDto(Observation(), settings);
+
+        Assert.Equal(10, dto.Settings!.MaxMessageMib);
+        Assert.Equal(MailDefaults.MessageSizeMib, dto.StartingValues.MaxMessageMib);
     }
 
     /// <summary>The queue size is carried, and an unread one stays null instead of becoming zero.</summary>

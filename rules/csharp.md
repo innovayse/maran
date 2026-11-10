@@ -188,6 +188,16 @@ backend/
 │   │   │                                 #   offered, applied to a module and to each menu entry) and
 │   │   │                                 #   ModuleMenuLocalizer with ModuleMenuItemDto/ModuleRouteDto
 │   │   │                                 #   (a manifest's menu and routes as the catalogue sends them).
+│   │   │                                 #   The frame of a packaged module's screen (issue #185):
+│   │   │                                 #   ModuleFrameEndpoint (GET /module-frames/{id}/{version}/…,
+│   │   │                                 #   anonymous, 404 for everything unknown), ModuleFrameRule (the
+│   │   │                                 #   ONE judgement of whether a module is framed, shared by the
+│   │   │                                 #   catalogue and the route), ModuleFramePathRule (segments and
+│   │   │                                 #   the extension allow-list with fixed content types),
+│   │   │                                 #   ModuleFrameDocument (the generated host document, nothing
+│   │   │                                 #   inline), ModuleFrameHeaders (the ONE place the frame CSP is
+│   │   │                                 #   spelled), ModuleSpaDto, and ModuleEndpointOwners (which
+│   │   │                                 #   composed module owns which endpoint, for the scope check).
 │   │   ├── Resources/                   # the .resx tables the composition root itself owns, reached
 │   │   │                                 #   through IStringLocalizer<T> by an empty marker class per
 │   │   │                                 #   table: DisplayNames (names of things that are not
@@ -199,15 +209,23 @@ backend/
 │   │   ├── Extensions/                  # EVERY *Extensions type: Add<Concern>/Use<Concern>,
 │   │   │                                #   including each middleware's Use… method
 │   │   ├── Middleware/                  # <X>Middleware.cs — the middleware itself, one per file
-│   │   │                                #   (its Use… extension lives in Extensions/)
+│   │   │                                #   (its Use… extension lives in Extensions/). Includes
+│   │   │                                #   ModuleFrameScopeMiddleware: a call the shell relays for a
+│   │   │                                #   packaged module's screen (header X-Maran-Frame) may reach
+│   │   │                                #   only endpoints that module owns (rules/security.md item 14)
 │   │   ├── RateLimiting/                # one named policy per file (login, api, provisioning), and the
 │   │   │                                 #   one thing that is not a named policy: ApiKeyFailureLimiter, a
 │   │   │                                 #   singleton counting API-key authentication FAILURES per address,
 │   │   │                                 #   because authorization runs before the framework limiter
-│   │   ├── Resilience/                  # one pipeline per file (agent, acme, outbound http)
+│   │   ├── Resilience/                  # one pipeline per file (agent, acme, marketplace, outbound http).
+│   │   │                                 #   MarketplacePipeline is a timeout and nothing else: the retry of
+│   │   │                                 #   a GET lives in the module's transport, because only the
+│   │   │                                 #   transport can tell a repeatable GET from the single-use
+│   │   │                                 #   download-grant POST
 │   │   ├── Search/                      # the global search: SearchEndpoint (POST /api/v1/search), SearchFanOut
 │   │   │                                 #   (asks every ISearchProvider in turn, isolating failure and time),
-│   │   │                                 #   SearchModuleGate (a provider is asked only if its module is enabled)
+│   │   │                                 #   SearchModuleGate (a provider is asked only if its module is enabled: an
+│   │   │                                 #   included module always, a paid one while the licence window covers it)
 │   │   ├── Behaviors/                   # Wolverine message middleware (logging, tx, validation)
 │   │   ├── Idempotency/                 # deliberately holds nothing but its .gitkeep: Idempotency-Key
 │   │   │                                 #   handling is the Sdk's IdempotentAttribute filter over the
@@ -298,8 +316,14 @@ backend/
 │   │                                    #     ILIKE pattern: \ % _ escaped), CsvField (one RFC 4180
 │   │                                    #     field, spreadsheet formulas neutralised), OperatorClaim (the
 │   │                                    #     console's operator name tidied for a log-like column)
-│   │                                    #   Tokens/: RefreshTokenHasher, PasswordResetTokenHasher, ApiKeyHasher
-│   │                                    #     (mint a key, its shape check, digest, constant-time compare)
+│   │                                    #   Signatures/: EcdsaP384Signature (the one ECDSA P-384/SHA-384 DER
+│   │                                    #     verify and curve check; key bytes in, an answer out); also
+│   │                                    #     verifies a key given as an uncompressed SEC1 point, and
+│   │                                    #     PublicKeyFingerprint (the lowercase hex SHA-256 an operator
+│   │                                    #     compares to know whose key signed a package)
+│   │                                    #   Tokens/: RefreshTokenHasher, PasswordResetTokenHasher, ApiKeyHasher,
+│   │                                    #     (mint a key, its shape check, digest, constant-time compare);
+│   │                                    #     ExportGrantTokenHasher is the bearer token of a single-use export grant
 │   ├── Maran.Sdk/                   # the module contract consumed by paid modules too
 │   │   ├── DependencyInjection.cs       # AddSdk — the project's registrations
 │   │   ├── Interfaces/                  # IPanelModule.cs — the module contract — with
@@ -309,6 +333,13 @@ backend/
 │   │   │                                #   read-only windows one module opens onto another's data,
 │   │   │                                #   implemented by the OWNING module (IAccountDirectory,
 │   │   │                                #   ISiteDirectory, IAuditWriter, IAlertRecipientDirectory,
+│   │   │                                #   IDnsChallengeRecords (the one door the certificate module
+│   │   │                                #   writes a zone through: a digest-shaped TXT at _acme-challenge
+│   │   │                                #   in a zone of the named account, implemented by Dns),
+│   │   │                                #   ILicenceEntitlements (whether the installed licence, and
+│   │   │                                #   its lease where one is needed, covers a module: a verdict and
+│   │   │                                #   an end date, never the licence; implemented by Licensing),
+│   │   │                                #   ILicenceLeaseSource (where the panel reads its signed lease),
 │   │   │                                #   IPersonalDataProvider — each module holding an account's
 │   │   │                                #   rows answers what it holds about a person or an account,
 │   │   │                                #   by named fields only, for the administrator's export),
@@ -318,6 +349,13 @@ backend/
 │   │   │                                #   (IdempotencyFilter asks it; the Idempotency module answers) —
 │   │   │                                #   and ISystemAuditJournal, which every module's journal
 │   │   │                                #   implements so a shared facility writes into it.
+│   │   │                                #   The marketplace's seams: IVerifiedModulePackageSource (a package
+│   │   │                                #   source carrying what the signed catalogue promised, which the
+│   │   │                                #   loader compares with the package's own manifest),
+│   │   │                                #   ILeaseRequestAuthorizer (attaches the licence lease to an
+│   │   │                                #   outgoing request and reports whether it did; the caller never
+│   │   │                                #   sees the credential) and IReauthentication (a signed-in user
+│   │   │                                #   proves their password again; Identity answers it).
 │   │   │                                #   A seam holding a credential stays module-internal
 │   │   │                                #   (rules/architecture.md "A shared facility's contract").
 │   │   ├── Alerts/                      # OperatorAlertDispatcher — the ONE path an alert to the
@@ -343,9 +381,13 @@ backend/
 │   │   ├── Filters/                     # action filters modules may opt into: IdempotentAttribute (with
 │   │   │                                 #   IdempotencyFilter behind it and IdempotencyNoStoreAttribute for an
 │   │   │                                 #   action whose answer carries a secret), and
-│   │   │                                 #   RequiresAccountFeatureAttribute. IdempotencyFilter asks the container
-│   │   │                                 #   for the store at request time and passes the request through when
-│   │   │                                 #   none is registered: the Sdk's one sanctioned service location
+│   │   │                                 #   RequiresAccountFeatureAttribute and RequiresLicensedModuleAttribute
+│   │   │                                 #   (with its filter: refuses a request for a module the licence window
+│   │   │                                 #   does not report Covered, an administrator included). IdempotencyFilter
+│   │   │                                 #   asks the container for the store at request time and passes the request
+│   │   │                                 #   through when none is registered: the Sdk's first sanctioned service
+│   │   │                                 #   location; RequiresLicensedModuleFilter asks for ILicenceEntitlements the
+│   │   │                                 #   same way and refuses when none is registered: the second
 │   │   ├── Contracts/                   # cross-module contract types (incl. published messages
 │   │   │                                #   such as SendMailRequested, the closed ApiKeyAuthentication result
 │   │   │                                #   and the ApiKeyScopes vocabulary, the Idempotency* answers and codes)
@@ -380,6 +422,8 @@ backend/
 │   │   │                                #   failed (no answer from the agent) into its typed error;
 │   │   │                                #   AgentStreamGuard.cs ends a stream with that error as a
 │   │   │                                #   final event instead of an exception
+│   │   │                                #   AgentErrorCodes.cs spells once the codes a module has to
+│   │   │                                #   recognise by name (NotFound), so none keeps a private copy
 │   │   └── Services/<Proto>Service/      # one folder per proto service: client, seam, DTOs
 │   │                                    # (SystemService/, AccountsService/, SitesService/,
 │   │                                    #  SslService/, PhpService/, …), and the internal static
@@ -388,6 +432,14 @@ backend/
 │   │                                    #  "unspecified" becomes Unmeasured once, here). It sits
 │   │                                    #  beside its client because the generated wire types may
 │   │                                    #  not leave this project, so no module's Mappers/ can hold it
+│   │                                    #  TransferService/ (issue #197) carries a result type of its
+│   │                                    #  own, AgentSourceResult<T>: a call against a remote source
+│   │                                    #  fails for a reason the module acts on (host key changed,
+│   │                                    #  authentication refused, unreachable, address refused),
+│   │                                    #  and that reason travels in the typed result and is NOT a
+│   │                                    #  new ErrorCode. Its credential type redacts the private
+│   │                                    #  key in ToString; ResilientAgentTransferClient (Host)
+│   │                                    #  retries only a connect that failed, never a started call
 │   └── Maran.Modules/               # grouping folder for all module projects
 │       └── <Name>/                      # short folder (Sites/, Accounts/…); the project inside
 │                                        #   is the full Maran.Modules.<Name>.csproj. A facility more than
@@ -395,7 +447,52 @@ backend/
 │                                        #   Notifications (outgoing mail) and Idempotency (the store behind
 │                                        #   the Idempotency-Key header, schema `idempotency`, no agent
 │                                        #   capability, no endpoints — the Sdk filter reaches it only
-│                                        #   through IIdempotencyStore, so no module hosts another's keys)
+│                                        #   through IIdempotencyStore, so no module hosts another's keys),
+│                                        #   and Marketplace (Core, administrators only, schema `marketplace`,
+│                                        #   no agent capability: the one module that makes an outbound call to
+│                                        #   an Innovayse host, rules/security.md item 10. Its Services/ hold
+│                                        #   the only HTTP client in MarketplaceHttpTransport, the signature
+│                                        #   and freshness check, the package downloader and the installed-
+│                                        #   package ledger; Options/MarketplaceOptions is validated on first
+│                                        #   use and not at start-up, because a server that never switches the
+│                                        #   marketplace on must start whatever panel.env says)
+│                                        #   ServerMigration (issues #197 and #127: schema `servermigration`,
+│                                        #   administrator only, agent capability Transfer). Named for what it
+│                                        #   moves, because `Migration` shadowed EF Core's base class in every
+│                                        #   file under Maran.Modules.*. It holds the registry of remote
+│                                        #   servers a whole server is migrated from (RemoteServer with its
+│                                        #   host-key candidates, the per-source ed25519 key encrypted at
+│                                        #   rest and never in a DTO) and what discovery read from them
+│                                        #   (DiscoveredAccount, DiscoveredSite, DiscoveredDatabase,
+│                                        #   DiscoveryWarning), and the move of ONE account between Maran
+│                                        #   servers: the signing key (MigrationSigningKey, ECDSA P-384, the
+│                                        #   private half encrypted at rest), AccountExport, ExportGrant
+│                                        #   (digest only) and AccountImport, with the strict package
+│                                        #   reader and the writer in Services/ and the import job
+│                                        #   (Jobs/AccountImportRequested, Services/AccountImportOrchestrator).
+│                                        #   These are administrator bookkeeping and not tenant rows: none
+│                                        #   carries an AccountId (the account is held as SourceAccountId and
+│                                        #   TargetAccountId), so TenantScopeTests sees none and asks for no
+│                                        #   filter; REST under api/v1/remote-servers, api/v1/account-exports
+│                                        #   and api/v1/account-imports. The sections themselves are written
+│                                        #   by each owning module (Accounts, Sites, Databases, Sftp, Ftp,
+│                                        #   Cron: Services/<Module>MigrationExporter and Importer over the
+│                                        #   Sdk's IAccountMigrationExporter and IAccountMigrationImporter,
+│                                        #   payload records in the module's Models/); the Backups module
+│                                        #   answers IMigrationArtifactService, Accounts answers
+│                                        #   IAccountMigrationRollback and Identity IAdministratorCallerSource.
+│                                        #   The Host's Security/ holds the job-caller primitive
+│                                        #   (JobCallerAccessor, JobAwareCurrentUser, JobCallerScopes): a
+│                                        #   durable job acts as the administrator who started it, rebuilt
+│                                        #   from the user row on every step. The whole-server migration of
+│                                        #   #197 phase 2 is here too: MigrationJob and MigrationJobAccount (a
+│                                        #   job's accounts with their mapping and progress), Services/
+│                                        #   MigrationJobPlanner (the dry run), MigrationAccountTransfer (one
+│                                        #   account through its initial sync and its cut-over),
+│                                        #   MigrationJobScheduler (concurrency, re-read every tick),
+│                                        #   MigrationRunRegistry (workers of this process, the pause), the
+│                                        #   verifier and its loopback probe, and the DNS helper; REST under
+│                                        #   api/v1/migration-jobs
 │           ├── <Name>Module.cs          # IPanelModule: DI, permissions, menu, migrations. HTTP surface
 │           │                            #   arrives through the module's own controllers, discovered
 │           │                            #   by ASP.NET Core's controller model — IPanelModule has no
@@ -507,7 +604,8 @@ Rules that follow from the map:
 - **Schema changes are expand-then-contract.** A migration never drops, renames, or narrows what the
   previous release still reads; the removal is a later release, after the code that read it is gone.
   `maran migrate guard` fails CI otherwise, and the exemption is a `// contract-phase:` line in the
-  migration itself saying why no release reads it (rules/architecture.md).
+  migration itself naming the expand phase it follows (`expand: <migration id or commit>`, which a
+  release tag must contain, or `never-shipped: <ref>`, which none may) (rules/architecture.md).
 - **Tenant scoping is the global query filter, and `IgnoreQueryFilters` is banned in `backend/src`.**
   `backend/src/BannedSymbols.txt` makes it a build error, so every deliberate bypass is an `RS0030`
   suppression carrying its reason on the line — unattended renewal, retention, startup
@@ -905,8 +1003,12 @@ Maran.SharedKernel/Utilities/
 ├── Versions/
 │   ├── SemanticVersion.cs        # a strictly parsed Semantic Versioning 2.0.0 version and its precedence
 │   └── VersionRange.cs           # a dependency's accepted versions, `>=1.2.0 <2.0.0`, and whether one satisfies it
+├── Signatures/
+│   ├── EcdsaP384Signature.cs     # is this a valid ECDSA P-384 / SHA-384 DER signature, and is this key on P-384
+│   └── PublicKeyFingerprint.cs   # the lowercase hex SHA-256 of a public key, which an operator compares
 └── Tokens/
     ├── ApiKeyHasher.cs              # mint an API key, check its shape, digest it, compare digests
+    ├── ExportGrantTokenHasher.cs    # mint the bearer token of an export grant, and the digest stored beside it
     ├── PasswordResetTokenHasher.cs  # mint a reset token, and the digest stored beside it
     └── RefreshTokenHasher.cs        # mint a refresh token, and the digest stored beside a session
 ```
@@ -1299,7 +1401,8 @@ Maran.Host/
     ├── AgentCallPipeline.cs          # the handshake probe: short timeout + retry when unreachable
     ├── AgentOperationPipeline.cs     # agent work: retry only a failed connect, then a typed 503
     ├── AcmePipeline.cs               # retry with backoff, respects rate limits
-    └── OutboundHttpPipeline.cs       # licence server, S3, SMTP
+    ├── MarketplacePipeline.cs        # the marketplace client's timeout backstop (retry is in its transport)
+    └── OutboundHttpPipeline.cs       # the licence lease renewal's deadline (a timeout, no retry); S3, SMTP when they land
 ```
 
 Additional cross-cutting concerns, all mandatory:

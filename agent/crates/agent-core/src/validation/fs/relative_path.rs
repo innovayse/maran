@@ -137,3 +137,7 @@ impl RelativePath {
 #[cfg(test)]
 #[path = "../../tests/validation/fs/relative_path_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "../../tests/validation/fs/relative_path_property_tests.rs"]
+mod property_tests;

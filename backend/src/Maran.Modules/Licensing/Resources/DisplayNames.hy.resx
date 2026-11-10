@@ -67,4 +67,37 @@
   <data name="LicenceAdviceFingerprintMismatch" xml:space="preserve">
     <value>Տեղադրված լիցենզիան թողարկված է այլ սերվերի համար։ Վահանակի կազմի մեջ մտնող մոդուլներից ոչ մեկը չի ազդում։ Օգտագործեք լիցենզիայի ինքնասպասարկման փոխանցումը այս սերվերին տեղափոխելու համար, կամ դիմեք աջակցությանը, եթե սա սխալ եք համարում։</value>
   </data>
+  <data name="LicenceRefusalNoVerificationKey">
+    <value>Վահանակում լիցենզիայի բանալի չկա</value>
+  </data>
+  <data name="LicenceAdviceNoVerificationKey" xml:space="preserve">
+    <value>Վահանակի այս տարբերակը չի պարունակում լիցենզիաների ստուգման բանալի, ուստի ոչ մի լիցենզիա հնարավոր չէ ստուգել և ընդունել։ Վահանակի հետ ներառված մոդուլների վրա դա չի ազդում։ Տեղադրեք թողարկման տարբերակ, որը պարունակում է լիցենզիայի բանալին։</value>
+  </data>
+  <data name="LicenceLeaseMissing" xml:space="preserve">
+    <value>Վարձակալություն չկա</value>
+  </data>
+  <data name="LicenceLeaseRefused" xml:space="preserve">
+    <value>Վարձակալությանը չի կարելի վստահել</value>
+  </data>
+  <data name="LicenceLeaseFresh" xml:space="preserve">
+    <value>Վարձակալությունը գործում է</value>
+  </data>
+  <data name="LicenceLeaseRenewalOverdue" xml:space="preserve">
+    <value>Վարձակալության երկարաձգումը ուշանում է</value>
+  </data>
+  <data name="LicenceLeaseExpired" xml:space="preserve">
+    <value>Վարձակալության ժամկետը լրացել է</value>
+  </data>
+  <data name="LicenceLeaseFutureDated" xml:space="preserve">
+    <value>Վարձակալությունը ապագա ամսաթվով է</value>
+  </data>
+  <data name="LicenceLeaseWrongLicence" xml:space="preserve">
+    <value>Այլ լիցենզիայի վարձակալություն</value>
+  </data>
+  <data name="LicenceLeaseWrongMachine" xml:space="preserve">
+    <value>Այլ սերվերի վարձակալություն</value>
+  </data>
+  <data name="LicenceLeaseNotRequired" xml:space="preserve">
+    <value>Վարձակալություն պետք չէ (օֆլայն լիցենզիա)</value>
+  </data>
 </root>

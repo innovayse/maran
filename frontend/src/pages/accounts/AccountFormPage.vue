@@ -409,6 +409,7 @@ onMounted(async () => {
               v-model:mode="options.loginMode.value"
               v-model:password="options.initialPassword.value"
               :password-error="options.passwordError.value"
+              :invitation-only="!isAdmin"
             />
             <AccountLimitFields
               v-model:processes="options.processLimit.value"

@@ -69,6 +69,13 @@ public static class IdentityAuditActions
     public const string PasswordResetRefused = "PasswordResetRefused";
 
     /// <summary>
+    /// The outstanding invitation and password-reset tokens of a login were retired because the
+    /// login's address or password changed, so a mail sent before the change can no longer set a
+    /// password. The subject names the login and how many tokens were retired; never a token.
+    /// </summary>
+    public const string CredentialTokensRetired = "CredentialTokensRetired";
+
+    /// <summary>
     /// An administrator's access was recovered, or refused recovery, from the server's own console
     /// (<c>maran admin-reset-password</c>). Recorded with the panel as actor and the claimed operator
     /// name as an unverified hint; the subject is the administrator's user id, and neither the token
@@ -246,4 +253,11 @@ public static class IdentityAuditActions
     /// subject holds the pseudonym text and the number of rows; never the original id, name or address.
     /// </summary>
     public const string PersonalDataErased = "PersonalDataErased";
+
+    /// <summary>
+    /// An administrator was asked for their current password before a privileged action and it was
+    /// not accepted: wrong, or the login was locked. Recorded as failed; the subject is the user's own
+    /// id. The password never appears, and neither does which of the two reasons applied.
+    /// </summary>
+    public const string ReauthenticationFailed = "ReauthenticationFailed";
 }

@@ -1,9 +1,13 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubEmptyModules, stubModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn, stubSignedOut } from '../fixtures/stub-auth-routes'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
+import { stubPlans } from '../fixtures/stub-plans-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
+import type { Page } from '@playwright/test'
 
 /**
  * Switches the interface language from the header's locale menu, located by role and never by its
@@ -22,6 +26,8 @@ const chooseLanguage = async (page: Page, language: string): Promise<void> => {
 
 test('the dashboard names itself in the tab, and the name follows a language change', async ({ page }) => {
   await stubSignedIn(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
   await setPersistedLocale(page, 'en')
   await stubHealthy(page)
   await stubEmptyModules(page)
@@ -37,9 +43,11 @@ test('the dashboard names itself in the tab, and the name follows a language cha
 
 test('the accounts list has its own title', async ({ page }) => {
   await stubSignedIn(page)
+  await stubShellReads(page)
   await setPersistedLocale(page, 'en')
   await stubHealthy(page)
   await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
+  await stubPlans(page)
   await stubAccounts(page, [])
 
   await page.goto('/accounts')
@@ -64,6 +72,7 @@ test('the sign-in screen has its own title, in the persisted language', async ({
 
 test('an unknown path is titled as not found', async ({ page }) => {
   await stubSignedIn(page)
+  await stubShellReads(page)
   await setPersistedLocale(page, 'en')
   await stubHealthy(page)
   await stubEmptyModules(page)
@@ -79,6 +88,8 @@ test('the first Tab stop is the skip link, and activating it moves focus into th
   page,
 }) => {
   await stubSignedIn(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
   await setPersistedLocale(page, 'en')
   await stubHealthy(page)
   await stubEmptyModules(page)

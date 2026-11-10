@@ -1,0 +1,7 @@
+acme_wp	1048576
+acme_shop	2097152.0
+shopsite_blog	NULL
+acme_Bad	10
+mysql	0
+orphan	5
+bad name	7

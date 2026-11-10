@@ -39,3 +39,24 @@ fn a_release_the_adapter_has_no_answer_for_is_refused() {
 
     assert_eq!(refused.unwrap_err(), MailError::UnsupportedRelease);
 }
+
+#[test]
+fn the_suse_family_offers_no_mail_layout_on_any_release_and_the_adapter_says_so() {
+    // Mail is not offered on this family until it is measured (issue #59): the adapter answers
+    // `None` for the Dovecot generation and for the key-value server on every release, and
+    // laying the stack out for a guessed generation would write a file the daemon will not read.
+    // Both answers are asserted beside the refusal so the test fails on the adapter's change and
+    // not only on the operation's. The inverse control is the three tests above, where a family
+    // that does offer mail resolves.
+    let suse = adapter_for(DistroFamily::Suse);
+
+    for version_id in ["16.0", "16.1", "15.6"] {
+        assert!(suse.dovecot_major(version_id).is_none(), "{version_id}");
+        assert!(suse.key_value_server(version_id).is_none(), "{version_id}");
+        assert_eq!(
+            MailLayout::resolve(suse, version_id).unwrap_err(),
+            MailError::UnsupportedRelease,
+            "{version_id}"
+        );
+    }
+}

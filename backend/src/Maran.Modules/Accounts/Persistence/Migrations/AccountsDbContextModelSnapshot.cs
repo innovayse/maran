@@ -69,6 +69,10 @@ namespace Maran.Modules.Accounts.Persistence.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)");
 
+                    b.Property<string>("SuspendedBy")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Name")

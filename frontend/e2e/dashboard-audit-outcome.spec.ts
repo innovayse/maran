@@ -1,8 +1,10 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures/guarded-test'
 import { stubSignedIn } from './fixtures/stub-auth-routes'
 import { ALERT_DELIVERY_OK, loaded, stubDashboard, SYNCHRONIZED_CLOCK, UNAVAILABLE } from './fixtures/stub-dashboard-route'
 import { stubHealthy } from './fixtures/stub-health-route'
+import { stubIdleLiveDashboard } from './fixtures/stub-live-dashboard-stream'
 import { stubEmptyModules } from './fixtures/stub-modules-route'
+import { stubShellReads } from './fixtures/stub-shell-reads'
 import type { Dashboard } from '../src/types/dashboard'
 
 // The outcome badge of the dashboard's latest-activity card prints the word the entry carries, so
@@ -32,6 +34,7 @@ const WITH_REFUSAL: Dashboard = {
       action: 'LoginFailed',
       actionName: 'Sign-in refused',
       subject: 'mallory',
+      subjectName: 'mallory',
       ipAddress: '198.51.100.4',
       succeeded: false,
       outcomeName: 'Turned away at the dashboard',
@@ -41,9 +44,11 @@ const WITH_REFUSAL: Dashboard = {
 
 test('the latest-activity badge prints the outcome name the entry carries', async ({ page }) => {
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
   await stubDashboard(page, WITH_REFUSAL)
+  await stubIdleLiveDashboard(page)
 
   await page.goto('/')
 

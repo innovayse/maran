@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import {
   stubBackupDestinationEncryption,
@@ -9,7 +9,9 @@ import { stubBackups } from '../fixtures/stub-backups-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { setPersistedLocale } from '../fixtures/set-locale'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { BackupDestination } from '../../src/types/backupDestination'
 import type { PanelModule } from '../../src/types/module'
 
@@ -37,6 +39,7 @@ test('the recorded destination is shown with the directory its copies rest in', 
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubBackupDestinations(page, [DEFAULT_LOCAL])
 
   await page.goto('/backups/destinations')
@@ -60,6 +63,7 @@ test('a path the panel could not establish is said to be unestablished, not left
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubBackupDestinations(page, [{ ...DEFAULT_LOCAL, path: null }])
 
   await page.goto('/backups/destinations')
@@ -88,6 +92,7 @@ test('a server that has recorded nothing says so instead of reporting a failure'
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubBackupDestinations(page, [])
 
   await page.goto('/backups/destinations')
@@ -99,11 +104,13 @@ test('a server that has recorded nothing says so instead of reporting a failure'
 // Admin surfaces answer 403, never 404, and the sentence is the backend's own, already localized.
 // The SPA holds no copy of it (rules/vue.md): a frontend string here would be a second, untranslated
 // statement of a decision the server already made in the user's language.
-test("a refusal to read is rendered in the panel's own words", async ({ page }) => {
+test("a refusal to read is rendered in the panel's own words", async ({ page, guard }) => {
+  guard.allow(403, /\/api\/v1\/backup-destinations(\?.*)?$/)
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubBackupDestinationsRefusal(page, 403, 'Forbidden', 'This screen is for administrators.')
 
   await page.goto('/backups/destinations')
@@ -121,6 +128,7 @@ test('remote storage is described, marked unavailable, and offered by nothing', 
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubBackupDestinations(page, [DEFAULT_LOCAL])
 
   await page.goto('/backups/destinations')
@@ -142,23 +150,34 @@ test('remote storage is described, marked unavailable, and offered by nothing', 
 })
 
 // No destination on this build holds a credential, and the screen must not become the place one
-// first appears. `BackupDestination` names every field the page reads, so a key the panel started
-// sending would be dropped rather than printed.
-test('a credential the panel sent anyway is never rendered', async ({ page }) => {
+// first appears. The contract (`BackupDestinationDto`) names no credential member and the guard
+// refuses a body that carries one, so this is checked on what the screen does: it offers no field
+// that asks for a key or a secret, and it opens by reading and sending nothing.
+// UNOBSERVED HERE: a credential form that opens only after a click this spec does not make.
+test('the screen offers no place to type a storage credential and sends nothing but reads', async ({ page }) => {
+  const writes: string[] = []
+  page.on('request', (request) => {
+    // The shell renews its own session with a POST on any screen; that is not this screen sending.
+    if (request.url().includes('/api/') && !request.url().includes('/api/v1/auth/refresh') && request.method() !== 'GET') {
+      writes.push(`${request.method()} ${request.url()}`)
+    }
+  })
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
-  await stubBackupDestinations(page, [
-    { ...DEFAULT_LOCAL, accessKeyId: 'AKIAEXAMPLESECRET', secretAccessKey: 'AKIAEXAMPLESECRET' },
-  ])
+  await stubShellReads(page)
+  await stubBackupDestinations(page, [DEFAULT_LOCAL])
 
   await page.goto('/backups/destinations')
 
-  // Positive control: the row from that same payload IS on screen, so the absence below is the
-  // screen dropping an undeclared member rather than the row failing to render at all.
+  // Positive control: the row IS on screen, and the list's own search field IS a control the
+  // locators below can find, so their silence is about credentials and not about a blank page.
   await expect(page.getByRole('table').getByRole('cell', { name: /^This server( |$)/ })).toBeVisible()
-  await expect(page.getByText('AKIAEXAMPLESECRET')).toHaveCount(0)
+  await expect(page.getByRole('searchbox')).toBeVisible()
+  await expect(page.getByLabel(/access key|secret|password|token|credential/i)).toHaveCount(0)
+  await expect(page.locator('input[type="password"]')).toHaveCount(0)
+  expect(writes).toEqual([])
 })
 
 // 250-odd stubbed specs cannot see an unreachable route: a spec navigates by URL and an operator
@@ -168,8 +187,10 @@ test('an operator reaches the destinations screen through the shell', async ({ p
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubBackups(page, [])
   await stubBackupDestinations(page, [DEFAULT_LOCAL])
+  await stubLandingReads(page)
 
   await page.goto('/')
   await page.getByRole('navigation').getByRole('link', { name: 'Backups' }).click()
@@ -215,6 +236,7 @@ test('the seeded destination is headed in the operator language with its stored 
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubBackupDestinations(page, [SEEDED_IN_RUSSIAN])
 
   await page.goto('/backups/destinations')
@@ -237,6 +259,7 @@ test('a destination an operator named is not relabelled and gains no stored-name
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubBackupDestinations(page, [OPERATOR_NAMED])
 
   await page.goto('/backups/destinations')
@@ -269,6 +292,7 @@ test('the destinations list searches, filters by kind and sorts through the pane
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   const requests = await stubBackupDestinations(page, [DEFAULT_LOCAL, REMOTE])
 
   await page.goto('/backups/destinations')
@@ -306,6 +330,7 @@ test('a search matching no destination offers the way back to all of them', asyn
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubBackupDestinations(page, [DEFAULT_LOCAL])
 
   await page.goto('/backups/destinations?search=nothing')
@@ -325,6 +350,7 @@ test('turning encryption on asks first, warns about the key, and sends only afte
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubBackupDestinations(page, [DEFAULT_LOCAL])
   const sent = await stubBackupDestinationEncryption(page)
 
@@ -356,6 +382,7 @@ test('turning encryption off sends enabled false after the confirmation', async 
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubBackupDestinations(page, [{ ...DEFAULT_LOCAL, encryptArchives: true }])
   const sent = await stubBackupDestinationEncryption(page)
 

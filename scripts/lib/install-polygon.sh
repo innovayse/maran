@@ -28,7 +28,8 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 # Every version in installer/lib/10-preflight.sh's supported matrix has a folder under
-# docker/polygon/images/, and the folder's base.txt is the digest under test. Both families are
+# docker/polygon/images/, and the folder's base.txt is the digest under test (the SUSE row, leap16,
+# is pinned by tag until its digest is read; docker/polygon/images/README.md). The families are
 # exercised because the family-specific packaging splits are exactly where this project has been
 # bitten: `passwd` separate from `shadow-utils` on RHEL made every suspension fail there.
 os="ubuntu24"
@@ -128,6 +129,11 @@ done
 case "$os" in
   ubuntu22|ubuntu24|ubuntu26|debian12|debian13) family="debian"; web_group="www-data" ;;
   alma8|alma9|alma10|rocky8|rocky9|oracle8|oracle9|oracle10) family="rhel"; web_group="nginx" ;;
+  # The SUSE family's folder is named for the release under test, and its template is keyed on the
+  # family exactly as the other two are: `install-suse.Dockerfile`. UNVERIFIED: that the `nginx`
+  # package's group is `nginx` here (installer/install.sh detect_web_server_identity says so, and
+  # check_socket below reads the real group off the panel's socket, which is the observation).
+  leap16) family="suse"; web_group="nginx" ;;
   *)
     echo "install-polygon.sh: unknown --os '$os'. Known versions are the folders in docker/polygon/images:" >&2
     ls -d "${root}/docker/polygon/images"/*/ 2>/dev/null | sed 's#.*/images/##; s#/$##' | sed 's/^/  /' >&2
@@ -412,6 +418,10 @@ recovery_expect() {
 # because it is four concerns -- the panel's API, the S3 stand-in, the scheduled-backup half, the
 # restore half -- and this file is already the longest in scripts/lib. They share this file's globals
 # (container, note, recovery_expect) and nothing else.
+# What the SUSE family owes that the others do not (one firewall owner, nginx listing the vhost, FTPS
+# and mail skipped in plain words), observed on the served artefacts. Defines functions only.
+# shellcheck source=install-polygon-suse.sh
+. "${root}/scripts/lib/install-polygon-suse.sh"
 # shellcheck source=install-polygon-panel-api.sh
 . "${root}/scripts/lib/install-polygon-panel-api.sh"
 # shellcheck source=install-polygon-s3.sh
@@ -725,6 +735,9 @@ MINIMUM_UPDATE_CHECKS=150
 MINIMUM_ACCOUNT_RESTORE_CHECKS=100
 
 if [ "$failures" -eq 0 ]; then
+  if [ "$family" = "suse" ]; then
+    stage_suse_family
+  fi
   if [ "$browser" = "yes" ]; then
     stage_browser
   fi

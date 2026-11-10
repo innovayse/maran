@@ -35,10 +35,12 @@ public static class EndpointHarness
     /// <summary>Boots the host against <paramref name="database"/>.</summary>
     /// <param name="database">The test's own database.</param>
     /// <param name="configure">Extra service replacements for the test, or null for none.</param>
+    /// <param name="settings">Extra configuration values the test sets on the host, or null for none.</param>
     /// <returns>The factory, which the caller disposes.</returns>
     public static WebApplicationFactory<Program> CreateFactory(
         TestDatabase database,
-        Action<IServiceCollection>? configure = null)
+        Action<IServiceCollection>? configure = null,
+        IReadOnlyDictionary<string, string>? settings = null)
     {
         return new ConfiguredHostFactory(builder =>
         {
@@ -52,6 +54,11 @@ public static class EndpointHarness
             builder.UseSetting("Jwt:SigningKey", Key);
 
             foreach (var setting in FirewallSettings.Required())
+            {
+                builder.UseSetting(setting.Key, setting.Value);
+            }
+
+            foreach (var setting in settings ?? new Dictionary<string, string>())
             {
                 builder.UseSetting(setting.Key, setting.Value);
             }

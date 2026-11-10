@@ -16,6 +16,7 @@ pub fn to_wire_dns_status(state: &DnsState) -> DnsDaemonStatus {
         recursion_refused: to_wire_observation(state.recursion_refused) as i32,
         response_rate_limiting: to_wire_observation(state.response_rate_limiting) as i32,
         enabled_at_boot: state.enabled_at_boot,
+        dnssec_supported: state.dnssec_supported,
     }
 }
 

@@ -7,6 +7,8 @@
 
 pub mod backup_id;
 pub mod backup_id_error;
+pub mod bandwidth_limit;
+pub mod bandwidth_limit_error;
 pub mod cpu_quota_percent;
 pub mod cpu_quota_percent_error;
 pub mod cron_command;
@@ -37,6 +39,8 @@ pub mod open_files_limit;
 pub mod open_files_limit_error;
 pub mod sftp_user_name;
 pub mod sftp_user_name_error;
+pub mod source_user_name;
+pub mod source_user_name_error;
 pub mod ssh_public_key;
 pub mod ssh_public_key_error;
 pub mod tasks_max;

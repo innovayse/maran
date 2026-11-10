@@ -229,14 +229,25 @@ public static class IpmManifestValidator
     }
 
     /// <summary>
-    /// Checks the interface bundle: files under <c>spa/</c> exist only if the bundle is declared, its
-    /// entry is one of them, its integrity value is the entry's own pin, and every translation it
-    /// names, the fallback among them, is pinned.
+    /// Checks the interface bundle: no file under <c>spa/</c> is a document (the panel generates the
+    /// document the entry runs in), files under <c>spa/</c> exist only if the bundle is declared, its
+    /// entry is a classic script directly under <c>spa/</c> and pinned, its integrity value is the
+    /// entry's own pin, and every translation it names, the fallback among them, is pinned.
     /// </summary>
     /// <param name="manifest">The manifest to judge.</param>
     /// <returns>Null when consistent; otherwise the refusal.</returns>
     private static Error? CheckSpa(IpmManifest manifest)
     {
+        var document = manifest.Files.Any(file =>
+        {
+            return IsSpaDocument(file.Path);
+        });
+
+        if (document)
+        {
+            return Refuse(nameof(ErrorMessages.IpmSpaDocumentForbidden));
+        }
+
         var spa = manifest.Spa;
         var hasSpaFiles = manifest.Files.Any(file =>
         {
@@ -260,6 +271,11 @@ public static class IpmManifestValidator
             return Invalid();
         }
 
+        if (!IsClassicScriptEntry(spa.Entry))
+        {
+            return Refuse(nameof(ErrorMessages.IpmSpaEntryNotClassicScript));
+        }
+
         var locales = spa.Locales;
 
         if (!locales.Contains(IpmLayout.FallbackLocale)
@@ -274,6 +290,33 @@ public static class IpmManifestValidator
         })
             ? null
             : Invalid();
+    }
+
+    /// <summary>True when a path is a document under <c>spa/</c> (<c>.html</c> or <c>.htm</c>, in any letter case).</summary>
+    /// <param name="path">A contained entry name.</param>
+    /// <returns>True when the path is under <c>spa/</c> and ends in a document extension.</returns>
+    private static bool IsSpaDocument(string path)
+    {
+        return path.StartsWith(IpmLayout.SpaPrefix, StringComparison.Ordinal)
+            && IpmLayout.SpaDocumentExtensions.Any(extension =>
+            {
+                return path.EndsWith(extension, StringComparison.OrdinalIgnoreCase);
+            });
+    }
+
+    /// <summary>
+    /// True when the entry is a classic script directly under <c>spa/</c>: a plain file name ending in
+    /// <c>.js</c>, which is what the panel's generated document loads with a plain script tag.
+    /// </summary>
+    /// <param name="entry">The declared entry, already known to start with <c>spa/</c>.</param>
+    /// <returns>True when the entry is a <c>.js</c> file with no further folder.</returns>
+    private static bool IsClassicScriptEntry(string entry)
+    {
+        var name = entry[IpmLayout.SpaPrefix.Length..];
+
+        return name.Length > IpmLayout.SpaScriptExtension.Length
+            && !name.Contains('/')
+            && name.EndsWith(IpmLayout.SpaScriptExtension, StringComparison.Ordinal);
     }
 
     /// <summary>The Subresource Integrity value for a pinned file: <c>sha384-</c> and the digest in base64.</summary>

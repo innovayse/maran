@@ -2,9 +2,9 @@
 
 use crate::db::db_error::DbError;
 use crate::db::db_host::DbHost;
-use crate::db::grant_pattern::grant_pattern_for;
 use crate::db::list_databases::database_exists;
 use crate::db::model::create_database_request::CreateDatabaseRequest;
+use maran_agent_core::validation::db::grant_pattern_for::grant_pattern_for;
 
 /// The character set every database this agent creates is given.
 ///
@@ -47,7 +47,7 @@ const USER_HOST: &str = "localhost";
 /// as an identifier, where the `_` that every one of these names carries matches
 /// any single character — so a name that cannot break out of its quotes can still
 /// name databases it does not own. That is `grant_pattern_for`'s job — it lives
-/// in `grant_pattern.rs`, beside the repair that has to write the same escaped
+/// in `agent-core` (`validation/db/grant_pattern.rs`), beside the repair that has to write the same escaped
 /// form for grants an older agent issued — and it is separate from this paragraph's on purpose: one is about what a value can do to
 /// the statement, the other about what the statement does with a well-formed
 /// value.

@@ -159,6 +159,34 @@ fn max_execution_time_zero_is_refused_rather_than_read_as_unlimited() {
 }
 
 #[test]
+fn a_size_of_zero_is_refused_for_every_size_setting_rather_than_read_as_unlimited() {
+    // PHP documents `post_max_size = 0` as "no limit", so a ceiling that only
+    // compared the upper bound let zero walk under it. Every spelling of zero
+    // is named: the bare number and each suffix.
+    for setting in ["memory_limit", "upload_max_filesize", "post_max_size"] {
+        for zero in ["0", "0K", "0M", "0G", "00"] {
+            assert!(
+                matches!(
+                    PhpOverride::parse(setting, zero),
+                    Err(PhpOpError::OverrideMalformed { .. })
+                ),
+                "{setting}={zero} must be refused"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_size_of_one_byte_is_accepted_for_every_size_setting() {
+    // The inverse control: the floor sits at 1, so the smallest real size
+    // still passes and the refusal above is not a refusal of everything.
+    for setting in ["memory_limit", "upload_max_filesize", "post_max_size"] {
+        assert_eq!(PhpOverride::parse(setting, "1").unwrap().value(), "1");
+        assert_eq!(PhpOverride::parse(setting, "1K").unwrap().value(), "1K");
+    }
+}
+
+#[test]
 fn max_input_vars_zero_is_refused() {
     // Accepting no input variables at all breaks every form on the site, and
     // does so at the next request rather than at the settings page.

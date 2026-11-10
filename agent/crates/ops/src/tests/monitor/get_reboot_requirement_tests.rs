@@ -16,7 +16,7 @@ use maran_agent_core::utils::call_class::CallClass;
 use maran_distro::{RebootProbeFailure, RebootRequirement};
 
 use super::get_reboot_requirement;
-use crate::monitor::fake_monitor_host::{FakeMonitorHost, distro, rhel_distro};
+use crate::monitor::fake_monitor_host::{FakeMonitorHost, distro, rhel_distro, suse_distro};
 use crate::monitor::monitor_error::MonitorError;
 
 /// The one argument `needs-restarting` is given: the reboot question alone.
@@ -26,6 +26,27 @@ const RHEL_PROBE_ARGUMENT: &str = "-r";
 fn rhel_host_exiting(status: i32) -> FakeMonitorHost {
     FakeMonitorHost::from_alma_captures().with_exact_command_answer(
         &[RHEL_PROBE_ARGUMENT],
+        status,
+        "",
+    )
+}
+
+/// The one argument `zypper` is given by the SUSE family's probe: the reboot question alone.
+const SUSE_PROBE_ARGUMENT: &str = "needs-rebooting";
+
+/// The status `zypper needs-rebooting` is documented to exit with when a reboot is needed.
+///
+/// UNVERIFIED: read from `man zypper`, not measured; confirm with `zypper needs-rebooting; echo $?`
+/// on a container where a core package was just updated.
+const SUSE_REBOOT_NEEDED_STATUS: i32 = 102;
+
+/// A SUSE-family host whose probe program exited `status`.
+///
+/// The host's other captures are the AlmaLinux ones the fake already holds; this probe reads none
+/// of them, and the SUSE family has no capture of its own (nothing was recorded on that family).
+fn suse_host_exiting(status: i32) -> FakeMonitorHost {
+    FakeMonitorHost::from_alma_captures().with_exact_command_answer(
+        &[SUSE_PROBE_ARGUMENT],
         status,
         "",
     )
@@ -163,4 +184,69 @@ fn the_source_names_the_query_class_and_no_other() {
     ));
 
     assert_eq!(classes, vec![String::from("Query")]);
+}
+
+#[test]
+fn a_suse_probe_that_exits_zero_does_not_require_a_reboot() {
+    let host = suse_host_exiting(0);
+
+    let result = get_reboot_requirement(&host, suse_distro());
+
+    assert_eq!(result, Ok(RebootRequirement::NotRequired));
+}
+
+#[test]
+fn a_suse_probe_that_exits_one_hundred_and_two_requires_a_reboot() {
+    let host = suse_host_exiting(SUSE_REBOOT_NEEDED_STATUS);
+
+    let result = get_reboot_requirement(&host, suse_distro());
+
+    assert_eq!(result, Ok(RebootRequirement::Required));
+}
+
+/// Any other status is an error, and in particular 1, which is `needs-restarting`'s "reboot" on the
+/// RHEL family and means nothing of the kind to `zypper`: reading it across families would tell an
+/// operator a host needs a reboot on the strength of an error.
+#[test]
+fn a_suse_probe_that_exits_with_any_other_status_is_an_error_and_not_a_no() {
+    for status in [1, 2, 127, -1] {
+        let host = suse_host_exiting(status);
+
+        let result = get_reboot_requirement(&host, suse_distro());
+
+        assert_eq!(
+            result,
+            Err(MonitorError::RebootProbeFailed {
+                reason: RebootProbeFailure::Unsuccessful { status }
+            })
+        );
+        assert_ne!(result, Ok(RebootRequirement::NotRequired), "{status}");
+        assert_ne!(result, Ok(RebootRequirement::Required), "{status}");
+    }
+}
+
+#[test]
+fn a_suse_probe_that_cannot_be_started_is_an_error_and_not_a_no() {
+    let host = FakeMonitorHost::from_alma_captures().with_absent_service_manager();
+
+    let result = get_reboot_requirement(&host, suse_distro());
+
+    assert_eq!(result, Err(MonitorError::RebootProbeNotRun));
+    assert_ne!(result, Ok(RebootRequirement::NotRequired));
+}
+
+#[test]
+fn the_suse_probe_is_zypper_with_its_one_constant_argument_in_the_query_class() {
+    let host = suse_host_exiting(0);
+
+    get_reboot_requirement(&host, suse_distro()).unwrap();
+
+    assert_eq!(
+        host.commands(),
+        vec![vec![
+            String::from("/usr/bin/zypper"),
+            String::from(SUSE_PROBE_ARGUMENT),
+        ]]
+    );
+    assert_eq!(host.classes(), vec![CallClass::Query]);
 }

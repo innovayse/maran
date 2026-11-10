@@ -26,16 +26,19 @@ use maran_agent::proto::php_service_client::PhpServiceClient;
 use maran_agent::proto::sftp_service_client::SftpServiceClient;
 use maran_agent::proto::sites_service_client::SitesServiceClient;
 use maran_agent::proto::system_service_client::SystemServiceClient;
+use maran_agent::proto::transfer_service_client::TransferServiceClient;
 use maran_agent::proto::{
     AllowPortRequest, BackupDestination, BackupDestinationKind, CreateAccountRequest,
     CreateBackupRequest, CreateCronEntryRequest, CreateSiteRequest, CronSchedule,
     DropDatabaseRequest, ErrorCode, GetAgentInfoRequest, InstallPhpVersionRequest,
     ListCronEntriesRequest, ListDatabasesRequest, Protocol, PruneSiteLogsRequest,
-    SetSftpPasswordRequest, SiteBackendType, SummariseSiteTrafficRequest, WriteFileRequest,
-    allow_port_response, create_account_response, create_backup_response,
-    create_cron_entry_response, create_site_response, drop_database_response,
-    install_php_version_response, prune_site_logs_response, set_sftp_password_response,
-    write_file_response,
+    ReadSourceInventoryRequest, ScanHostKeyRequest, SetSftpPasswordRequest, SiteBackendType,
+    SourceCredential, SourceEndpoint, SourceFailureReason, SummariseSiteTrafficRequest,
+    TestSourceRequest, WriteFileRequest, allow_port_response, create_account_response,
+    create_backup_response, create_cron_entry_response, create_site_response,
+    drop_database_response, install_php_version_response, prune_site_logs_response,
+    read_source_inventory_response, scan_host_key_response, set_sftp_password_response,
+    test_source_response, write_file_response,
 };
 use tonic::transport::Channel;
 
@@ -515,5 +518,125 @@ async fn a_peer_the_guard_refuses_still_leaves_a_line_for_a_mutating_path() {
         0,
         "maran.agent.v1.AccountsService/CreateAccount",
         "transport:PermissionDenied",
+    );
+}
+
+/// A private key no real request carries; it must never reach a captured byte.
+const CANARY_SOURCE_KEY: &str = "CANARY-key-3b7d";
+
+/// A host the address policy refuses before anything is resolved or sent.
+const LOOPBACK_HOST: &str = "127.0.0.1";
+
+/// A documentation-range address: well formed, accepted by the grammar, never
+/// connected to because every request below is refused first.
+const ACCEPTED_HOST: &str = "192.0.2.10";
+
+/// An endpoint the request grammar accepts.
+fn source_endpoint(host: &str) -> SourceEndpoint {
+    SourceEndpoint {
+        host: host.to_owned(),
+        port: 22,
+        user: "migrator".to_owned(),
+    }
+}
+
+/// A credential the grammar refuses, with a canary in the key.
+fn canary_credential() -> SourceCredential {
+    SourceCredential {
+        private_key: CANARY_SOURCE_KEY.as_bytes().to_vec(),
+        host_key: "ssh-ed25519 AAAA".to_owned(),
+    }
+}
+
+#[tokio::test]
+async fn the_remote_source_rpcs_refused_at_the_start_yield_one_line_each_and_leak_no_key() {
+    let log = CapturedLog::start();
+    let agent = InProcessAgent::start().await;
+    let channel = agent.channel();
+    let mut client = TransferServiceClient::new(channel.clone());
+
+    // A forbidden address literal: refused as an invalid request, and told apart
+    // from the other refusals by its connection reason.
+    let scan = client
+        .scan_host_key(ScanHostKeyRequest {
+            endpoint: Some(source_endpoint(LOOPBACK_HOST)),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(
+        scan.failure_reason,
+        SourceFailureReason::AddressRefused as i32
+    );
+    let scan_code = refusal!(scan, scan_host_key_response);
+    audit_lines_after_waiting_for(&log, 1).await;
+
+    // A well-formed endpoint with a credential the grammar refuses: invalid input,
+    // and NO connection reason, because nothing was connected to.
+    let test = client
+        .test_source(TestSourceRequest {
+            endpoint: Some(source_endpoint(ACCEPTED_HOST)),
+            credential: Some(canary_credential()),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(test.failure_reason, SourceFailureReason::Unspecified as i32);
+    let test_code = refusal!(test, test_source_response);
+    audit_lines_after_waiting_for(&log, 2).await;
+
+    // The streaming rpc ends with one typed refusal and one audit line.
+    let mut stream = client
+        .read_source_inventory(ReadSourceInventoryRequest {
+            endpoint: Some(source_endpoint(ACCEPTED_HOST)),
+            credential: Some(canary_credential()),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    let mut stream_code = None;
+    let mut messages = 0;
+    while let Some(message) = stream.message().await.unwrap() {
+        messages += 1;
+        if let Some(read_source_inventory_response::Result::Error(error)) = message.result {
+            stream_code = Some(code_name(error.code));
+        }
+    }
+    assert_eq!(
+        messages, 1,
+        "a refused read sends only its terminal message"
+    );
+    let stream_code = stream_code.expect("the stream ends with a typed refusal");
+
+    let lines = audit_lines_after_waiting_for(&log, 3).await;
+    assert_eq!(lines.len(), 3, "one line per rpc, no more: {lines:?}");
+    assert_line(
+        &lines,
+        0,
+        "maran.agent.v1.TransferService/ScanHostKey",
+        &scan_code,
+    );
+    assert_line(
+        &lines,
+        1,
+        "maran.agent.v1.TransferService/TestSource",
+        &test_code,
+    );
+    assert_line(
+        &lines,
+        2,
+        "maran.agent.v1.TransferService/ReadSourceInventory",
+        &stream_code,
+    );
+    for line in &lines {
+        assert_ne!(field(line, "outcome"), "ok", "{line}");
+        assert_ne!(field(line, "outcome"), "unset", "{line}");
+    }
+
+    let captured = log.bytes();
+    assert!(!captured.is_empty(), "the probe has something to look at");
+    assert!(
+        !contains_bytes(&captured, CANARY_SOURCE_KEY.as_bytes()),
+        "the private key reached the captured output"
     );
 }

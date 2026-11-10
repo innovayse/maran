@@ -1,14 +1,17 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { FULL_CATALOGUE, mainNavigation } from '../fixtures/open-full-shell'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
+import { stubDashboard, WITHHELD_DASHBOARD } from '../fixtures/stub-dashboard-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
 import { MANAGED_PLANS, PLAN_FEATURE_CHOICES, stubManagedPlans, type PlanRequests } from '../fixtures/stub-plans-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubEmptyTasks } from '../fixtures/stub-tasks-routes'
 import type { AccountFeatureName } from '../../src/types/accountFeature'
 import type { MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
+import type { Page } from '@playwright/test'
 
 // Issue #316: a plan states which features it sells. The plan form offers the panel's own list as
 // checkboxes, and the customer's menu follows the plan. Navigation is by clicks only: each spec
@@ -65,6 +68,7 @@ const openPlans = async (page: Page): Promise<PlanRequests> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, FULL_CATALOGUE)
+  await stubShellReads(page)
   const requests = await stubManagedPlans(page)
   await page.goto('/plans')
   return requests
@@ -81,6 +85,9 @@ const openAsCustomer = async (page: Page, features: AccountFeatureName[]): Promi
   await stubHealthy(page)
   await stubModules(page, FULL_CATALOGUE)
   await stubEmptyTasks(page)
+  await stubShellReads(page)
+  // The customer lands on the status screen, whose one API read is the dashboard the panel withholds.
+  await stubDashboard(page, WITHHELD_DASHBOARD)
   await stubMyAccount(page, accountOn(features))
   await page.goto('/')
 }

@@ -21,8 +21,12 @@ public static class AuditEventMapper
     /// The row's outcome as an administrator reads it, already resolved for the request's culture by
     /// <c>AuditOutcomeDisplayNames</c>, for the same reason as the action's name.
     /// </param>
+    /// <param name="subjectName">
+    /// The row's subject as an operator reads it, already resolved for the request's culture by
+    /// <c>AuditSubjectDisplayNames</c>, for the same reason as the action's name.
+    /// </param>
     /// <returns>The entry as the audit screens see it.</returns>
-    public static AuditEventDto From(AuditEvent auditEvent, string actionName, string outcomeName)
+    public static AuditEventDto From(AuditEvent auditEvent, string actionName, string outcomeName, string subjectName)
     {
         ArgumentNullException.ThrowIfNull(auditEvent);
 
@@ -33,6 +37,7 @@ public static class AuditEventMapper
             auditEvent.Action,
             actionName,
             auditEvent.Subject,
+            subjectName,
             auditEvent.IpAddress,
             auditEvent.Succeeded,
             outcomeName,

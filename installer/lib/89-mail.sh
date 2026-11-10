@@ -361,7 +361,24 @@ refresh_managed_mail_stack() {
   allow_rspamd_to_reach_the_key_value_server
 }
 
+# mail_is_offered_on_family: 0 when this family can lay out the mail stack, 1 when it is not
+# offered. The SUSE family is not offered until measured: the agent's MailFacts answers `None`
+# for dovecot_major and key_value_server there, so it would refuse a stack this step installed.
+# UNVERIFIED: the Leap 16 mail packages (postfix, dovecot, rspamd, a key-value server) were not
+# inspected; confirm with `zypper info postfix dovecot rspamd valkey` in the pinned Leap image.
+mail_is_offered_on_family() {
+  case "${MARAN_OS_FAMILY:-}" in
+    suse) return 1 ;;
+    *)    return 0 ;;
+  esac
+}
+
 step_mail() {
+  if ! mail_is_offered_on_family; then
+    # Nothing is installed, masked or written, so there is nothing for the uninstaller to take back.
+    echo "Mail is not offered on this OS family; skipping. Nothing was installed or masked."
+    return 0
+  fi
   echo "Installing the mail stack (Postfix, Dovecot, Rspamd, key-value server), switched off..."
   # The order is the security property. Nothing below moves above the masks.
   if mail_stack_is_managed; then

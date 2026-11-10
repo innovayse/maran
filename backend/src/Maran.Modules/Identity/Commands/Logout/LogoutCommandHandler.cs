@@ -14,13 +14,18 @@ public sealed class LogoutCommandHandler
     /// <summary>Records the sign-out.</summary>
     private readonly IdentityAuditJournal _journal;
 
+    /// <summary>Reads the name the sign-out entry is about.</summary>
+    private readonly LoginNameReader _loginNames;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="sessionService">Revokes the session.</param>
     /// <param name="journal">Records the sign-out.</param>
-    public LogoutCommandHandler(ISessionService sessionService, IdentityAuditJournal journal)
+    /// <param name="loginNames">Reads the name the sign-out entry is about.</param>
+    public LogoutCommandHandler(ISessionService sessionService, IdentityAuditJournal journal, LoginNameReader loginNames)
     {
         _sessionService = sessionService;
         _journal = journal;
+        _loginNames = loginNames;
     }
 
     /// <summary>Revokes the session behind the presented token.</summary>
@@ -40,10 +45,13 @@ public sealed class LogoutCommandHandler
 
         if (userId is { } actorId)
         {
-            await _journal.RecordIdentifiedAsync(
+            // The subject is the login's name, as a sign-in's is, and the entry carries the login's id so
+            // that erasing the login finds it: a name in a subject column is personal data.
+            await _journal.RecordOnUserAsync(
+                actorId,
                 actorId,
                 IdentityAuditActions.LoggedOut,
-                actorId.ToString(),
+                await _loginNames.ReadAsync(actorId, cancellationToken),
                 command.IpAddress,
                 command.UserAgent,
                 succeeded: true,

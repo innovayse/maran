@@ -1,11 +1,13 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubPhpVersions, stubSiteDetail, stubSites } from '../fixtures/stub-sites-routes'
 import type { PanelModule } from '../../src/types/module'
 import type { Site, SiteDetail } from '../../src/types/site'
+import type { Page } from '@playwright/test'
 
 // The backend and serving-state words on a site's screens are the panel's own: the rows carry
 // them, so the bundle holds no copy of the vocabulary (issue #330).
@@ -53,6 +55,7 @@ const DETAIL: SiteDetail = {
  */
 const stubScreens = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
+  await stubShellReads(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_SITES)
   await stubAccounts(page, [])

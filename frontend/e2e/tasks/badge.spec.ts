@@ -1,7 +1,10 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import { ONE_SHOT, stubDashboard } from '../fixtures/stub-dashboard-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubIdleLiveDashboard } from '../fixtures/stub-live-dashboard-stream'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import {
   RUNNING_STREAM_PATTERN,
   runningFrame,
@@ -13,6 +16,7 @@ import {
 } from '../fixtures/stub-tasks-routes'
 import type { PanelModule } from '../../src/types/module'
 import type { PanelTask } from '../../src/types/panelTask'
+import type { Locator, Page } from '@playwright/test'
 
 const LICENSED: PanelModule[] = [
   { name: 'tasks', displayName: 'Background tasks', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -73,6 +77,7 @@ test('a task arriving on the running-tasks stream raises the header badge withou
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubTasks(page, [SETTLED])
   const tray = await stubRunningStreamSequence(page, runningStreamBody([]), runningStreamBody([RUNNING]))
 
@@ -100,7 +105,11 @@ test('the shell watches a running task from any screen and the badge falls when 
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubTasks(page, [RUNNING])
+  // The screen it stays on is the dashboard, which reads its figures and opens its own stream.
+  await stubDashboard(page, ONE_SHOT)
+  await stubIdleLiveDashboard(page)
   const tray = await stubRunningStreamSequence(
     page,
     runningStreamBody([RUNNING]),
@@ -120,11 +129,15 @@ test('the shell watches a running task from any screen and the badge falls when 
 // an error the shell shouts on every screen — and a refusal is not retried: signed out, forbidden or
 // absent does not change by asking again. The page clock is run a minute past the refusal, longer
 // than any reconnect wait, so a retry would have been made.
-test('a refused running-tasks stream gets no badge, no shell error and no retry', async ({ page }) => {
+test('a refused running-tasks stream gets no badge, no shell error and no retry', async ({ page, guard }) => {
+  guard.allow(404, RUNNING_STREAM_PATTERN)
   await page.clock.install()
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
+  await stubDashboard(page, ONE_SHOT)
+  await stubIdleLiveDashboard(page)
   let asked = 0
   await page.route(RUNNING_STREAM_PATTERN, async (route) => {
     asked += 1
@@ -154,6 +167,7 @@ test('the badge counts the running-tasks stream, not the rows of the page on scr
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubTasks(page, [RUNNING])
   await stubTaskStream(page, '')
 

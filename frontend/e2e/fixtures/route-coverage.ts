@@ -244,11 +244,13 @@ const parameterCount = (route: RouteEntry): number => {
 export const sweptPathsOf = (specSources: string[]): string[] => {
   const found = new Set<string>()
   for (const source of specSources) {
-    for (const match of source.matchAll(/\bpath:\s*(['"`])((?:\\.|(?!\1)[^\\])*)\1/g)) {
+    // The opening quote must be followed by the slash of an address. Without that, prose that names
+    // the key in backticks (a comment reading "the `path:` rows below") opens a template string at
+    // its own backtick, which runs on to the next backtick in the file and swallows the real rows
+    // between them: the spec then yields no address at all while still containing its rows.
+    for (const match of source.matchAll(/\bpath:\s*(['"`])(\/(?:\\.|(?!\1)[^\\])*)\1/g)) {
       const raw = (match[2] ?? '').replace(/\$\{[^}]*\}/g, 'x').split('?')[0] ?? ''
-      if (raw.startsWith('/')) {
-        found.add(raw)
-      }
+      found.add(raw)
     }
   }
   return [...found]

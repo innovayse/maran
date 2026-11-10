@@ -39,6 +39,11 @@ cli_status() {
     echo "  The panel's own report is unavailable (database or binary not working)."
     echo "  The service facts above are still accurate."
     healthy=1
+  else
+    # One read-only line; a licence that is absent or lapsed is information, not ill health, so a
+    # failure to print it never changes the exit status.
+    printf 'Licence: '
+    cli_dotnet licence-status || echo "unavailable"
   fi
   return "$healthy"
 }

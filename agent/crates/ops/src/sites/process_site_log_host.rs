@@ -52,6 +52,21 @@ impl SiteLogHost for ProcessSiteLogHost {
             uid: LOG_OWNER_UID,
         }))
     }
+
+    /// As [`SiteLogHost::open_directory`], with a directory that is not there
+    /// answered `None`. Only a name the kernel reports as absent counts: a
+    /// symlink or anything else at the path goes through the same checks, and
+    /// the same refusals, as an ordinary open.
+    fn open_directory_if_present(
+        &self,
+        account: &AccountName,
+    ) -> Result<Option<Box<dyn SiteLogDirectory>>, SitesOpError> {
+        let path = AgentPaths::account_site_log_dir(account);
+        match std::fs::symlink_metadata(&path) {
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+            _ => self.open_directory(account).map(Some),
+        }
+    }
 }
 
 /// An open site-log directory.

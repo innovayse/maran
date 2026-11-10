@@ -56,7 +56,7 @@ public sealed class AccountTests
     {
         var account = new Account(Guid.NewGuid(), "acme", "acme.example.com", Guid.NewGuid(), SomeInstant);
 
-        account.Suspend();
+        account.Suspend(SuspensionActor.Administrator);
 
         Assert.Equal(AccountStatus.Suspended, account.Status);
     }
@@ -66,9 +66,9 @@ public sealed class AccountTests
     public void Suspending_an_already_suspended_account_is_a_harmless_no_op()
     {
         var account = new Account(Guid.NewGuid(), "acme", "acme.example.com", Guid.NewGuid(), SomeInstant);
-        account.Suspend();
+        account.Suspend(SuspensionActor.Administrator);
 
-        account.Suspend();
+        account.Suspend(SuspensionActor.Administrator);
 
         Assert.Equal(AccountStatus.Suspended, account.Status);
     }
@@ -78,7 +78,7 @@ public sealed class AccountTests
     public void Reactivating_a_suspended_account_moves_it_to_active()
     {
         var account = new Account(Guid.NewGuid(), "acme", "acme.example.com", Guid.NewGuid(), SomeInstant);
-        account.Suspend();
+        account.Suspend(SuspensionActor.Administrator);
 
         account.Reactivate();
 
@@ -130,7 +130,7 @@ public sealed class AccountTests
     {
         var id = Guid.NewGuid();
         var account = new Account(id, "acme", "acme.example.com", Guid.NewGuid(), SomeInstant, "owner@example.com");
-        account.Suspend();
+        account.Suspend(SuspensionActor.Administrator);
 
         account.TransferTo(Guid.NewGuid(), Guid.NewGuid());
 
@@ -138,5 +138,51 @@ public sealed class AccountTests
         Assert.Equal("acme", account.Name);
         Assert.Equal(AccountStatus.Suspended, account.Status);
         Assert.Equal("owner@example.com", account.OwnerEmail);
+    }
+
+    /// <summary>An account records who suspended it, and reactivating clears the record (issue #493).</summary>
+    [Fact]
+    public void Suspending_records_who_did_it_and_reactivating_clears_the_record()
+    {
+        var account = new Account(Guid.NewGuid(), "acme", "acme.example.com", Guid.NewGuid(), SomeInstant);
+        Assert.Null(account.SuspendedBy);
+
+        account.Suspend(SuspensionActor.Reseller);
+        Assert.Equal(SuspensionActor.Reseller, account.SuspendedBy);
+
+        account.Reactivate();
+        Assert.Equal(AccountStatus.Active, account.Status);
+        Assert.Null(account.SuspendedBy);
+    }
+
+    /// <summary>The strongest hold wins: an administrator's suspension replaces a reseller's and is never weakened.</summary>
+    [Fact]
+    public void An_administrators_suspension_replaces_a_resellers_and_is_never_weakened_to_it()
+    {
+        var account = new Account(Guid.NewGuid(), "acme", "acme.example.com", Guid.NewGuid(), SomeInstant);
+
+        account.Suspend(SuspensionActor.Reseller);
+        account.Suspend(SuspensionActor.Administrator);
+        Assert.Equal(SuspensionActor.Administrator, account.SuspendedBy);
+
+        account.Suspend(SuspensionActor.Reseller);
+        Assert.Equal(SuspensionActor.Administrator, account.SuspendedBy);
+    }
+
+    /// <summary>Only an administrator may lift an administrator's suspension; a reseller lifts its own.</summary>
+    [Fact]
+    public void A_reseller_may_lift_only_a_suspension_a_reseller_placed()
+    {
+        var byAdministrator = new Account(Guid.NewGuid(), "alpha", "alpha.example.com", Guid.NewGuid(), SomeInstant);
+        byAdministrator.Suspend(SuspensionActor.Administrator);
+        var byReseller = new Account(Guid.NewGuid(), "beta", "beta.example.com", Guid.NewGuid(), SomeInstant);
+        byReseller.Suspend(SuspensionActor.Reseller);
+        var active = new Account(Guid.NewGuid(), "gamma", "gamma.example.com", Guid.NewGuid(), SomeInstant);
+
+        Assert.False(byAdministrator.IsReleasableBy(SuspensionActor.Reseller));
+        Assert.True(byAdministrator.IsReleasableBy(SuspensionActor.Administrator));
+        Assert.True(byReseller.IsReleasableBy(SuspensionActor.Reseller));
+        Assert.True(byReseller.IsReleasableBy(SuspensionActor.Administrator));
+        Assert.True(active.IsReleasableBy(SuspensionActor.Reseller));
     }
 }

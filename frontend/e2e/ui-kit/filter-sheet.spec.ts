@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import type { Page } from '@playwright/test'
 
 // `UiFilterSheet` through `e2e/fixtures/list-kit-harness.html`, a Playwright-only mount point
 // that renders the list kit without the router, shell or authentication (see that file).

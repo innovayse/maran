@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="RemoteServerNameRequired">
+    <value>Укажите имя сервера.</value>
+  </data>
+  <data name="RemoteServerNameMaxLength">
+    <value>Имя слишком длинное.</value>
+  </data>
+  <data name="RemoteServerHostRequired">
+    <value>Укажите имя хоста или адрес сервера.</value>
+  </data>
+  <data name="RemoteServerHostInvalid">
+    <value>Это не допустимое имя хоста или IP-адрес.</value>
+  </data>
+  <data name="RemoteServerPortInvalid">
+    <value>Порт должен быть числом от 1 до 65535.</value>
+  </data>
+  <data name="RemoteServerSshUserInvalid">
+    <value>Это не допустимое имя пользователя.</value>
+  </data>
+  <data name="RemoteServerAllowedFromInvalid">
+    <value>Укажите адреса или диапазоны, например 203.0.113.7 или 203.0.113.0/24, через запятую.</value>
+  </data>
+  <data name="FingerprintInvalid">
+    <value>Отпечаток выглядит как SHA256: и 43 символа после него.</value>
+  </data>
+  <data name="MigrationPullUrlInvalid">
+    <value>Введите адрес другой панели в виде https://хост или https://хост:порт, без чего-либо после.</value>
+  </data>
+  <data name="MigrationPullGrantInvalid">
+    <value>Введите разрешение точно так, как его показала другая панель.</value>
+  </data>
+</root>

@@ -1,14 +1,17 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccountNames, stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubMailChoices, stubMailDomains, stubMailRefusal, type MailStubRecorder } from '../fixtures/stub-mail-routes'
+import { MAIL_ON, stubMailServer } from '../fixtures/stub-mail-server-routes'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account, MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { PanelModule } from '../../src/types/module'
 import type { MailDnsRecord, MailDomain } from '../../src/types/mailDomain'
+import type { Page } from '@playwright/test'
 
 // The mail domains page (#177): one server page of domains at a time, the add form, and the DNS
 // records a domain needs published, in a dialog off its row. The panel computes the records and
@@ -90,11 +93,13 @@ const RECORDS: MailDnsRecord[] = [
 const openWith = async (page: Page, domains: MailDomain[], user?: AuthenticatedUser): Promise<MailStubRecorder> => {
   await stubSignedIn(page, user)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubAccountNames(page, [ALICE])
   await stubMyAccount(page, OWN_ACCOUNT)
   await stubMailChoices(page)
+  await stubMailServer(page, MAIL_ON)
   return await stubMailDomains(page, domains, RECORDS)
 }
 
@@ -171,7 +176,8 @@ test('an empty domain name is refused without asking the panel', async ({ page }
 
 // A domain that is not a hostname of the account's own sites is refused by the panel, and the
 // refusal is the backend's sentence, already localized, with nothing of the SPA's added to it.
-test('a domain the panel refuses shows the backend sentence verbatim and the list stays', async ({ page }) => {
+test('a domain the panel refuses shows the backend sentence verbatim and the list stays', async ({ page, guard }) => {
+  guard.allow(409, /\/api\/v1\/mail-domains$/)
   const detail = 'The domain is not a hostname of one of your sites.'
   await openWith(page, [ALPHA], CUSTOMER)
   await stubMailRefusal(page, 'mail-domains', 'POST', detail)

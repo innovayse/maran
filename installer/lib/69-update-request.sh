@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # Step 69 (the panel's half): install the units through which the panel's "Update now" button starts
-# `maran update --requested` (issue #382), build the directory the panel puts its request in, and turn
-# the path unit on. It runs with 69-update-schedule.sh, after the verb it runs (66) and before the
+# `maran update --requested` (issue #382) and its "Check for updates" button starts `maran update --check`
+# (issue #516), build the directory the panel puts its requests in, and turn both path units on. It runs with 69-update-schedule.sh, after the verb it runs (66) and before the
 # services start (70): the API unit names the request directory in ReadWritePaths=, and a unit whose
 # writable directory does not exist does not start (226/NAMESPACE).
-# Threat note, written first: docs/superpowers/notes/2026-11-07-panel-update-from-panel-threat-note.md
+# Threat notes, written first: docs/superpowers/notes/2026-11-07-panel-update-from-panel-threat-note.md
 # (second review OUTSTANDING; the privileged path is the plan's recommended option for decision D8,
-# which the owner has not yet confirmed in writing).
+# which the owner has not yet confirmed in writing) and
+# docs/superpowers/notes/2026-11-09-panel-update-check-threat-note.md for the check (second review
+# OUTSTANDING). The check is the lesser of the two: it installs nothing.
 #
 # THE DEFAULT IS ON, AND IT IS TOLD. With the path unit enabled an administrator signed in to the panel
 # can cause `maran update` to run as root, by pressing a button that sends no value: the root side
@@ -28,6 +30,10 @@ set -euo pipefail
 readonly MARAN_UPDATE_REQUEST_UNIT_DIR="/etc/systemd/system"
 readonly MARAN_UPDATE_REQUEST_PATH_UNIT="maran-update-request.path"
 readonly MARAN_UPDATE_REQUEST_SERVICE="maran-update-request.service"
+# The release check's pair (issue #516): the same directory, its own marker, and a unit that runs
+# `maran update --check` and nothing else.
+readonly MARAN_UPDATE_CHECK_PATH_UNIT="maran-update-check.path"
+readonly MARAN_UPDATE_CHECK_SERVICE="maran-update-check.service"
 readonly MARAN_UPDATE_REQUEST_TMPFILES_DIR="/etc/tmpfiles.d"
 readonly MARAN_UPDATE_REQUEST_TMPFILES_NAME="maran-update-request.conf"
 # The directory the panel's request goes in. The API unit's ReadWritePaths= and the path unit's
@@ -58,12 +64,12 @@ render_update_request_tmpfiles() {
   fi
 }
 
-# install_update_request_units: copies the path unit and the service to /etc/systemd/system, root:root
+# install_update_request_units: copies both path units and both services to /etc/systemd/system, root:root
 # 0644, as they stand. A source that is missing stops the install while the operator is watching, not at
 # the first press of the button.
 install_update_request_units() {
   local unit
-  for unit in "$MARAN_UPDATE_REQUEST_SERVICE" "$MARAN_UPDATE_REQUEST_PATH_UNIT"; do
+  for unit in "$MARAN_UPDATE_REQUEST_SERVICE" "$MARAN_UPDATE_REQUEST_PATH_UNIT" "$MARAN_UPDATE_CHECK_SERVICE" "$MARAN_UPDATE_CHECK_PATH_UNIT"; do
     [ -f "${LIB_DIR}/../systemd/${unit}" ] \
       || { echo "69-update-request.sh: ${LIB_DIR}/../systemd/${unit} is missing from the installer package." >&2; exit 1; }
     install -m 0644 -o root -g root "${LIB_DIR}/../systemd/${unit}" "${MARAN_UPDATE_REQUEST_UNIT_DIR}/${unit}"
@@ -88,7 +94,11 @@ step_update_request() {
   systemctl daemon-reload
   systemctl enable --now "$MARAN_UPDATE_REQUEST_PATH_UNIT" >/dev/null 2>&1 \
     || { echo "69-update-request.sh: could not enable ${MARAN_UPDATE_REQUEST_PATH_UNIT}; see: systemctl status ${MARAN_UPDATE_REQUEST_PATH_UNIT}" >&2; exit 1; }
+  systemctl enable --now "$MARAN_UPDATE_CHECK_PATH_UNIT" >/dev/null 2>&1 \
+    || { echo "69-update-request.sh: could not enable ${MARAN_UPDATE_CHECK_PATH_UNIT}; see: systemctl status ${MARAN_UPDATE_CHECK_PATH_UNIT}" >&2; exit 1; }
   echo "Updating the panel from the panel is ON: an administrator's \"Update now\" runs 'maran update' as root with the"
   echo "same dump, health check and rollback, and installs only the newer signed release. To turn it off:"
   echo "  systemctl disable --now ${MARAN_UPDATE_REQUEST_PATH_UNIT}"
+  echo "The same goes for \"Check for updates\", which runs 'maran update --check' as root and installs nothing:"
+  echo "  systemctl disable --now ${MARAN_UPDATE_CHECK_PATH_UNIT}"
 }

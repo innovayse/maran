@@ -57,6 +57,24 @@
   <data name="AcmeChallengeUnavailable">
     <value>The certificate authority offered no challenge this server can answer.</value>
   </data>
+  <data name="AcmeDnsChallengeFailed">
+    <value>The certificate authority could not verify the DNS record. The domain's name servers must point at this server, and any CAA record must allow wildcard issuance (issuewild).</value>
+  </data>
+  <data name="AcmeDnsChallengeWriteFailed">
+    <value>The verification record could not be placed in this domain's DNS zone.</value>
+  </data>
+  <data name="WildcardDnsNotAvailable">
+    <value>Wildcard certificates need the DNS module, which this panel does not have.</value>
+  </data>
+  <data name="WildcardDnsNotEnabled">
+    <value>Wildcard certificates need the name server of this server, which is not switched on yet.</value>
+  </data>
+  <data name="WildcardFeatureNotIncluded">
+    <value>Your plan does not include DNS zones, which wildcard certificates need.</value>
+  </data>
+  <data name="WildcardZoneNotServed">
+    <value>This server does not serve the DNS zone of this domain. Create the zone here and point the domain's name servers at this server to request a wildcard certificate.</value>
+  </data>
   <data name="AcmeChallengeWriteFailed">
     <value>The verification file could not be placed in this site's document root.</value>
   </data>

@@ -1,5 +1,5 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
-import { stubAccounts } from '../fixtures/stub-accounts-route'
+import { expect, test } from '../fixtures/guarded-test'
+import { stubAccountNames, stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import {
   stubDatabaseUsers,
@@ -9,9 +9,11 @@ import {
 } from '../fixtures/stub-database-users-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { DatabaseUser, GrantableDatabase } from '../../src/types/databaseUser'
 import type { PanelModule } from '../../src/types/module'
+import type { Locator, Page } from '@playwright/test'
 
 // Database users (#156): local MySQL users and their per-database privileges. The list is
 // server-paged, the privilege set and the presets are the panel's, and the password is shown once.
@@ -65,7 +67,10 @@ const openScreen = async (page: Page, users: DatabaseUser[]): Promise<DatabaseUs
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
+  // The account filter names the account it narrows to by reading it.
+  await stubAccountNames(page, [ALICE])
   const recording = await stubDatabaseUsers(page, users, [SHOP_DATABASE, BLOG_DATABASE])
   await page.goto(SWEPT_SCREEN.path)
   return recording
@@ -239,10 +244,12 @@ test('Save is unavailable until the ticked set differs from what the panel holds
 })
 
 // rules/vue.md: the backend's localized refusal is rendered verbatim.
-test('a refused list read renders the panel message verbatim', async ({ page }) => {
+test('a refused list read renders the panel message verbatim', async ({ page, guard }) => {
+  guard.allow(500, /\/api\/v1\/database-users(\?.*)?$/)
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await page.route(/\/api\/v1\/database-users(\?.*)?$/, async (route) => {
     await route.fulfill({

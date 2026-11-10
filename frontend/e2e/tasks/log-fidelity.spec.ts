@@ -1,10 +1,12 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubTaskStream, stubTasks, taskEndFrame, taskFrame } from '../fixtures/stub-tasks-routes'
 import type { PanelModule } from '../../src/types/module'
 import type { PanelTask } from '../../src/types/panelTask'
+import type { Page } from '@playwright/test'
 
 const LICENSED: PanelModule[] = [
   { name: 'tasks', displayName: 'Background tasks', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -47,6 +49,7 @@ const openLivePane = async (page: Page, body: string): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubTasks(page, [SUSPEND])
   await stubTaskStream(page, body)
 

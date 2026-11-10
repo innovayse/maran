@@ -1,32 +1,34 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { breadcrumbItems, mainNavigation, openSection } from '../fixtures/open-full-shell'
 import { CUSTOMER, EXAMPLE_ZONE, openDnsScreen } from '../fixtures/open-dns-screen'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { RESELLER_MODULES, stubResellerSession } from '../fixtures/stub-reseller-session'
 
-// The DNS menu (issue #178). The administrator is offered Zones and Nameservers, and Templates as a
-// "coming soon" row until its endpoints exist; the customer is offered My zones, and a reseller is
+// The DNS menu (issue #178, templates #452). The administrator is offered Zones, Templates and
+// Nameservers; the customer is offered My zones, and a reseller is
 // offered none of them, because the endpoints answer a reseller with no rows. The menu is advice;
 // every endpoint refuses by role on its own. Navigation is by clicks only.
 
-test('the administrator is offered Zones and Nameservers, and Templates only as a coming-soon row', async ({ page }) => {
+test('the administrator is offered Zones, Templates and Nameservers', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await openDnsScreen(page, { zones: [EXAMPLE_ZONE] })
+  await stubLandingReads(page)
   await page.goto('/')
   const nav = mainNavigation(page)
 
   await openSection(page, 'DNS')
   await expect(nav.getByRole('link', { name: 'Zones', exact: true })).toHaveAttribute('href', '/dns/zones')
   await expect(nav.getByRole('link', { name: 'Nameservers', exact: true })).toHaveAttribute('href', '/dns/nameservers')
-  // Neither built entry is the disabled "coming soon" row it used to be.
+  await expect(nav.getByRole('link', { name: 'Templates', exact: true })).toHaveAttribute('href', '/dns/templates')
+  // None of the built entries is a disabled "coming soon" row.
   await expect(nav.getByRole('link', { name: 'Zones Coming soon' })).toHaveCount(0)
-  // Templates has no page yet, so it is the disabled row: its endpoints are a later phase of the issue.
-  await expect(nav.getByRole('link', { name: 'Templates', exact: true })).toHaveCount(0)
-  await expect(nav.getByRole('link', { name: 'Templates Coming soon' })).toHaveAttribute('aria-disabled', 'true')
+  await expect(nav.getByRole('link', { name: 'Templates Coming soon' })).toHaveCount(0)
 })
 
 test('the administrator reaches a zone from the list and the breadcrumb names the zone', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await openDnsScreen(page, { zones: [EXAMPLE_ZONE] })
+  await stubLandingReads(page)
   await page.goto('/')
 
   await openSection(page, 'DNS')
@@ -41,6 +43,7 @@ test('the administrator reaches a zone from the list and the breadcrumb names th
 test('the customer is offered My zones and neither the templates nor the nameservers', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await openDnsScreen(page, { zones: [EXAMPLE_ZONE] }, CUSTOMER)
+  await stubLandingReads(page, 'customer')
   await page.goto('/')
   const nav = mainNavigation(page)
 

@@ -1,15 +1,17 @@
-import { test, type Page } from '@playwright/test'
 import {
   expectRegionFastLoad,
   expectRegionSlowFailure,
   expectRegionSlowLoad,
   type RegionLoadingScenario,
 } from '../fixtures/expect-region-loading'
+import { test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubbedBucket, stubMonitoring } from '../fixtures/stub-monitoring-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 // The monitoring screen while it is on the way (#243): every card keeps its heading and every
 // chart its label, over placeholders.
@@ -32,6 +34,7 @@ const stubScreen = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubMonitoring(
     page,
     { lastDay: [stubbedBucket(0, 11.5)], lastWeek: [stubbedBucket(0, 91.5)] },
@@ -70,6 +73,7 @@ test('monitoring: a fast answer shows no placeholder', async ({ page }) => {
   await expectRegionFastLoad(page, MONITORING_SCENARIO)
 })
 
-test('monitoring: a slow failure is an alert, never a skeleton', async ({ page }) => {
+test('monitoring: a slow failure is an alert, never a skeleton', async ({ page, guard }) => {
+  guard.allow(500, SERVICES_PATTERN)
   await expectRegionSlowFailure(page, MONITORING_SCENARIO)
 })

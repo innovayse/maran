@@ -90,7 +90,7 @@ public sealed class LoginCommandHandlerTests : IDisposable
                 _clock),
             new IdentityAuditJournal(_audit, new StubCurrentUser()),
             NewDetector(bruteForce),
-            TestSecurityPolicyCache.Over(_context),
+            new UnlockedFailedLoginRecorder(_context, TestSecurityPolicyCache.Over(_context)),
             _clock);
     }
 

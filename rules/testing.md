@@ -41,6 +41,16 @@ A PR missing any of these is incomplete, independent of code quality.
   The one exception is `e2e/install/`: specs that need a panel a real installer set up, run only
   through `playwright.install.config.ts` by `maran installer --browser` (docker/README.md), and
   ignored by the everyday config so `maran test spa` and its baseline never collect them.
+  The second exception is `e2e/real/` (issue #519): journeys per role against a panel and agent that are
+  really running, with no `page.route`, reached by clicks only, run through `playwright.real.config.ts` by
+  `maran e2e-real` (`maran test e2e-real` is the same command), ignored by the everyday config. A journey fails
+  on a 4xx/5xx it did not announce, a console error, a body that disagrees with `docs/api/openapi-baseline.json`
+  and English chrome on a Russian or Armenian page. A spec of the stubbed lane that imports `test` from
+  `e2e/fixtures/guarded-test.ts` gets the same guard (an unstubbed request, an unannounced refusal, a console
+  error and a drifted stub body fail it); new specs use it. The lane needs a running panel and six role logins
+  (`MARAN_REAL_*`, header of `scripts/lib/e2e-real.sh`); without them it prints `E2E-REAL VERDICT: DID NOT RUN`
+  and exits 2, never a pass. It runs nightly in `nightly.yml` when the repository variable `MARAN_E2E_REAL_URL`
+  is set, and by hand against a release candidate before release.
 
 ## Naming
 
@@ -441,7 +451,8 @@ Each row names the workflow that runs it, so this list can be checked against
   structurally always red, which is the exact failure mode the ruling above warns about. The branch
   question it resembles is already answered by two wired gates that need no live deployment:
   `maran migrate check` (the model against the migration files) and `maran migrate guard` (nothing
-  destructive). `drift` stays an ops-and-workstation tool, like `maran mutate` and `maran dev`.
+  destructive; `maran migrate selftest` plants each destructive call and each bad marker beside an
+  accepting control and runs first in `backend.yml`). `drift` stays an ops-and-workstation tool, like `maran mutate` and `maran dev`.
 - Two gates that are not about a stack at all, and are listed so this table matches the
   directory: CodeQL analysis of the backend (`codeql.yml`), and the branch policy that
   refuses any pull request into `main` whose head is not this repository's `dev`
@@ -473,7 +484,10 @@ Each row names the workflow that runs it, so this list can be checked against
   full history checked out so the branch can be diffed against its merge base). The guard reads
   **untracked** migration files too, because a migration that has not been committed yet is exactly
   the one about to land, and it scans `migrationBuilder.Sql(...)` for destructive verbs as well as
-  the typed `Drop*`/`Rename*`/`AlterColumn` calls. It prints what it cannot see.
+  the typed `Drop*`/`Rename*` calls (indexes, keys and constraints included) and any `AlterColumn`
+  that does not prove a widening. A `// contract-phase:` marker is checked against the release tags
+  (`expand: <ref>` needs a `v*` tag containing the ref, `never-shipped: <ref>` needs none), and a
+  migration already inside a release tag is skipped. It prints what it cannot see.
 - `maran units` — **the systemd hardening score of every shipped unit** (`agent.yml`, job `units`).
   It renders each `installer/systemd/*.service` the way the installer does, scores it with
   `systemd-analyze security --offline=yes`, and fails when a score exceeds its ceiling in
@@ -586,8 +600,17 @@ Each row names the workflow that runs it, so this list can be checked against
 
 **PR and nightly matrices**
 
-- PR smoke matrix: Ubuntu 24.04 + AlmaLinux 9 polygons. Nightly: full six-OS matrix +
-  fresh-container installer run + Playwright golden path.
+- PR smoke matrix: Ubuntu 24.04 + AlmaLinux 9 polygons (`agent.yml`). `nightly.yml` (owner
+  decision D10) builds one offline bundle signed with a throwaway key and runs the installer polygon
+  (`maran installer --mode offline --bundle`, every stage at its default) on Ubuntu 24.04 and
+  AlmaLinux 9 daily, and on the other twelve images under `docker/polygon/images/*` weekly (Sunday)
+  or by `workflow_dispatch`, each leg passing only on its printed `INSTALL-POLYGON-OK (...)` line.
+  It runs under a throwaway key, so it exercises the signature path and not which key the product
+  trusts. Still workstation-only, because nothing here can run them on a hosted runner: the
+  Playwright golden path (it needs a real backend), `maran installer --browser`, `--mode get` and
+  `--arch aarch64`. The openSUSE Leap 16 image (`leap16`, issue #59) is one of the twelve and also runs the
+  agent suite as a third leg of the agent workflow's nightly run; PR smoke stays Ubuntu 24.04 + AlmaLinux 9. The older sentence promising "full six-OS matrix + Playwright golden path"
+  nightly described no workflow and has been replaced by this one.
 
 ### Where this list is enforced, and the one place it is not
 

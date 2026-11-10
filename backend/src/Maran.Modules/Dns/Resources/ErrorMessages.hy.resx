@@ -96,6 +96,18 @@
   <data name="RecordNotEditable">
     <value>Այս գրառումը կառավարում է վահանակը և այստեղ չի խմբագրվում։</value>
   </data>
+  <data name="DnsChallengeValuesFull">
+    <value>Մեկ անվան տակ միաժամանակ կարող է պահվել վկայագրի ստուգման ամենաշատը երկու արժեք։</value>
+  </data>
+  <data name="DnsChallengeValueInvalid">
+    <value>Վկայագրի ստուգման արժեքը պետք է բաղկացած լինի 43 նիշից՝ տառեր, թվեր, գծիկներ և ընդգծումներ։</value>
+  </data>
+  <data name="DnsChallengeHostnameInvalid">
+    <value>Վկայագրի ստուգման գրառումը կարելի է տեղադրել միայն փոքրատառ սովորական հոսթի անվան տակ։</value>
+  </data>
+  <data name="DnsChallengeZoneNotFound">
+    <value>Այս սերվերը չի սպասարկում այս հաշվի DNS գոտի, որը պարունակում է այս անունը։</value>
+  </data>
   <data name="DnsNameserverInvalid">
     <value>Անվանային սերվերը պետք է լինի հոսթի անուն, օրինակ՝ ns1.example.com։</value>
   </data>
@@ -107,5 +119,56 @@
   </data>
   <data name="DnsDefaultTtlOutOfRange">
     <value>Լռելյայն կյանքի տևողությունը պետք է լինի 60 վայրկյանից մինչև մեկ շաբաթ։</value>
+  </data>
+  <data name="ZoneTemplateNotFound">
+    <value>Գոտու այս ձևանմուշը չի գտնվել։</value>
+  </data>
+  <data name="ZoneTemplateNameInvalid">
+    <value>Ձևանմուշի անունը պետք է լինի 1-ից 64 նիշ՝ առանց կառավարման նիշերի։</value>
+  </data>
+  <data name="ZoneTemplateNameTaken">
+    <value>Գոտու ձևանմուշ այդ անունով արդեն կա։</value>
+  </data>
+  <data name="ZoneTemplateDescriptionInvalid">
+    <value>Ձևանմուշի նկարագրությունը պետք է լինի առավելագույնը 256 նիշ՝ առանց կառավարման նիշերի։</value>
+  </data>
+  <data name="ZoneTemplateTooManyRecords">
+    <value>Այս ձևանմուշը պարունակում է ավելի շատ գրառումներ, քան սերվերը թույլ է տալիս մեկ գոտում։</value>
+  </data>
+  <data name="ZoneTemplateTokenUnknown">
+    <value>Գրառման արժեքում նշված է գոյություն չունեցող փոփոխական։ Օգտագործեք միայն խմբագրիչում նշված փոփոխականները։</value>
+  </data>
+  <data name="ZoneTemplateTokenUnbalanced">
+    <value>Գրառման արժեքում կա ձևավոր փակագիծ, որը փոփոխականի մաս չէ։ Ձևավոր փակագծերը օգտագործվում են միայն փոփոխական գրելու համար։</value>
+  </data>
+  <data name="ZoneTemplateTokenNotAllowed">
+    <value>Գրառման արժեքում նշված է փոփոխական, որը գրառման այս տեսակում թույլատրված չէ։</value>
+  </data>
+  <data name="ZoneTemplateBuiltIn">
+    <value>Վահանակի հետ եկող ձևանմուշը կարելի է խմբագրել, բայց ոչ ջնջել։</value>
+  </data>
+  <data name="ZoneTemplateIsDefault">
+    <value>Սա լռելյայն ձևանմուշն է։ Նախ մեկ այլ ձևանմուշ դարձրեք լռելյայն։</value>
+  </data>
+  <data name="ZoneTemplateInvalid">
+    <value>Այս ձևանմուշն այլևս վավեր գրառումներ չի տալիս այս գոտու համար։ Դիմեք ադմինիստրատորին կամ ստեղծեք գոտին առանց ձևանմուշի։</value>
+  </data>
+  <data name="ZoneSigningHostCannotSign">
+    <value>Այս սերվերի DNS ծրագիրը չի կարող ստորագրել գոտիները, ուստի DNSSEC-ն այստեղ հասանելի չէ։</value>
+  </data>
+  <data name="ZoneSigningNotOff">
+    <value>DNSSEC-ն այս գոտու համար արդեն միացված է։</value>
+  </data>
+  <data name="ZoneSigningNotSigning">
+    <value>Այս գոտին ստորագրված չէ, ուստի դուրս բերելու ստորագրում չկա։</value>
+  </data>
+  <data name="ZoneSigningNotWithdrawing">
+    <value>Այս գոտին DNSSEC-ից դուրս չի բերվում։</value>
+  </data>
+  <data name="ZoneSigningWithdrawalTooEarly">
+    <value>DNSSEC-ն դեռ հնարավոր չէ անջատել։ Սպասեք դուրս բերման սկսվելուց առնվազն 48 ժամ, որպեսզի գրանցողի մոտ հեռացված DS գրառումը ամենուր ժամկետանց դառնա։</value>
+  </data>
+  <data name="ZoneSigningDsRemovalNotConfirmed">
+    <value>Նախքան DNSSEC-ն անջատելը հաստատեք, որ DS գրառումը հեռացրել եք գրանցողի մոտ։ Եթե այն անջատեք գրառումը դեռ հրապարակված ժամանակ, դոմենը անհասանելի կդառնա ստուգող ռեզոլվերների համար։</value>
   </data>
 </root>

@@ -1,13 +1,16 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubDatabases } from '../fixtures/stub-databases-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { setPersistedLocale } from '../fixtures/set-locale'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubEmptyModules, stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { Database } from '../../src/types/database'
 import type { PanelModule } from '../../src/types/module'
+import type { Locator, Page } from '@playwright/test'
 
 // Where `UiDropdown` lands focus when it opens. Two menus in this panel are built from the same
 // component and want opposite answers, so both are driven here through their real screens:
@@ -85,6 +88,7 @@ const openDatabasesScreen = async (page: Page): Promise<void> => {
   await setPersistedLocale(page, 'en')
   await stubHealthy(page)
   await stubModules(page, DATABASES_LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubDatabases(page, [SHOP])
 
@@ -105,6 +109,8 @@ const openRussianShell = async (page: Page): Promise<void> => {
   await setPersistedLocale(page, 'ru')
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
 
   await page.goto('/')
   // The whole point of the spec is what a RUSSIAN interface does, so the language in force is

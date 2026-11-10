@@ -1,7 +1,8 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { expectNoHorizontalOverflow } from '../fixtures/measure-horizontal-extent'
 import { mainNavigation, openSection } from '../fixtures/open-full-shell'
 import { setPersistedLocale } from '../fixtures/set-locale'
+import { stubDashboard, WITHHELD_DASHBOARD } from '../fixtures/stub-dashboard-route'
 import { signInAsPhpCustomer, stubPhpSettings } from '../fixtures/stub-php-settings-route'
 
 // Issue #138: a customer sets the PHP limits of their account within the plan's bounds. The labels,
@@ -13,6 +14,8 @@ import { signInAsPhpCustomer, stubPhpSettings } from '../fixtures/stub-php-setti
 test('the customer opens the PHP settings from the Sites and domains menu', async ({ page }) => {
   await signInAsPhpCustomer(page)
   await stubPhpSettings(page)
+  // The walk starts on the customer's dashboard, which reads its own audience.
+  await stubDashboard(page, WITHHELD_DASHBOARD)
 
   await page.goto('/')
   await openSection(page, 'Sites and domains')
@@ -116,7 +119,8 @@ test('a number field that is not a whole number is caught and nothing is sent', 
   expect(traffic.writes()).toEqual([])
 })
 
-test('a refused save renders the backend sentence verbatim and keeps what was typed', async ({ page }) => {
+test('a refused save renders the backend sentence verbatim and keeps what was typed', async ({ page, guard }) => {
+  guard.allow(400, /\/api\/v1\/php-settings$/)
   const detail = 'The memory limit may be at most 256 MiB on your plan.'
   await signInAsPhpCustomer(page)
   await stubPhpSettings(page, undefined, 2, detail)

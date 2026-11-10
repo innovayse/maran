@@ -17,8 +17,18 @@
 #
 # Regenerate with `maran api --accept`, in its own reviewed commit.
 
-covered: 88 endpoints, 347 members
+covered: 110 endpoints, 430 members
 
+POST /api/v1/account-exports  ->  CreateAccountExportCommand
+  accountId: string
+POST /api/v1/account-exports/{}/grants  ->  IssueExportGrantCommand
+  allowedFrom: string?
+  lifetimeMinutes: number?
+POST /api/v1/account-imports/{}/start  ->  StartAccountImportCommand
+  planId: string
+  resellerId: string?
+  confirmAccountName: string
+  confirmKeyFingerprint: string
 POST /api/v1/accounts  ->  CreateAccountCommand
   name: string
   primaryDomain: string
@@ -88,6 +98,7 @@ POST /api/v1/backups/{}/restore  ->  RestoreBackupCommand
   siteDomain: string?
 POST /api/v1/certificates  ->  IssueCertificateCommand
   domain: string
+  wildcard: boolean
 POST /api/v1/certificates/custom  ->  InstallCustomCertificateCommand
   domain: string
   certificatePem: string
@@ -138,9 +149,38 @@ PUT /api/v1/dns-settings  ->  SaveDnsSettingsCommand
   publicIpv4: string
   publicIpv6: string
   defaultTtl: number
+POST /api/v1/dns-zone-templates  ->  SaveZoneTemplateCommand
+  name: string
+  description: string
+  records: object[]
+  records[].name: string
+  records[].type: enum(a|aaaa|caa|cname|mx|ns|srv|txt)
+  records[].ttl: number?
+  records[].value: string
+  records[].priority: number
+  records[].weight: number
+  records[].port: number
+  records[].flags: number
+  records[].tag: string
+PUT /api/v1/dns-zone-templates/{}  ->  SaveZoneTemplateCommand
+  name: string
+  description: string
+  records: object[]
+  records[].name: string
+  records[].type: enum(a|aaaa|caa|cname|mx|ns|srv|txt)
+  records[].ttl: number?
+  records[].value: string
+  records[].priority: number
+  records[].weight: number
+  records[].port: number
+  records[].flags: number
+  records[].tag: string
 POST /api/v1/dns-zones  ->  CreateZoneCommand
   accountId: string
   name: string
+  templateId: string?
+POST /api/v1/dns-zones/{}/dnssec/finish-withdrawal  ->  FinishZoneSigningWithdrawalCommand
+  dsRecordRemoved: boolean
 POST /api/v1/dns-zones/{}/records  ->  AddRecordCommand
   record: object
   record.name: string
@@ -226,6 +266,8 @@ POST /api/v1/ftp-users  ->  CreateFtpUserCommand
 POST /api/v1/ftps-server/enable  ->  EnableFtpsCommand
   hostname: string
   passiveAddress: string
+POST /api/v1/licence-status/install  ->  InstallLicenceCommand
+  rawLicenceText: string
 PUT /api/v1/log-level  ->  ChangeLogLevelCommand
   level: enum(debug|error|fatal|information|verbose|warning)
 POST /api/v1/mail-aliases  ->  CreateMailAliasCommand
@@ -238,6 +280,15 @@ PUT /api/v1/mail-aliases/{}  ->  UpdateMailAliasCommand
 POST /api/v1/mail-domains  ->  CreateMailDomainCommand
   accountId: string
   name: string
+POST /api/v1/mail-server/enable  ->  EnableMailServerCommand
+  hostname: string
+  pop3Enabled: boolean
+  antivirusEnabled: boolean
+  allowExternalForwarding: boolean
+  maxMessageMib: number
+  spamGreylistScore: number
+  spamAddHeaderScore: number
+  spamRejectScore: number
 POST /api/v1/mailboxes  ->  CreateMailboxCommand
   mailDomainId: string
   localPart: string
@@ -248,6 +299,22 @@ PUT /api/v1/mailboxes/{}  ->  UpdateMailboxCommand
   sendLimitPerHour: number
   enabled: boolean
 PUT /api/v1/mailboxes/{}/password  ->  ChangeMailboxPasswordCommand
+  password: string
+POST /api/v1/marketplace/modules/{}/install  ->  InstallModuleCommand
+  version: string
+  acknowledged: boolean
+  password: string
+POST /api/v1/marketplace/modules/{}/remove  ->  RemoveModuleCommand
+  password: string
+POST /api/v1/marketplace/modules/{}/restart  ->  RestartForModuleCommand
+POST /api/v1/marketplace/modules/{}/rollback  ->  RollbackModuleCommand
+  password: string
+POST /api/v1/marketplace/modules/{}/update  ->  UpdateModuleCommand
+  version: string
+  acknowledged: boolean
+  password: string
+PUT /api/v1/marketplace/settings  ->  SetMarketplaceEnabledCommand
+  enabled: boolean
   password: string
 POST /api/v1/me/active-account  ->  SwitchActiveAccountCommand
   accountId: string
@@ -275,6 +342,30 @@ PUT /api/v1/me/sub-users/{}/features  ->  ChangeSubUserGrantsCommand
 POST /api/v1/me/sub-users/existing  ->  OfferMembershipCommand
   identifier: string
   features: enum(backups|cron|databases|dns|fileTransfer|files|mail|php|sites|ssl|tasks)[]
+POST /api/v1/migration-jobs  ->  CreateMigrationJobCommand
+  serverId: string
+  name: string
+  discoveredAccountIds: string[]
+  concurrency: number?
+  bandwidthLimitKib: number?
+  sourceUrl: string?
+  expectedKeyFingerprint: string?
+POST /api/v1/migration-jobs/{}/accounts/{}/control  ->  ControlMigrationAccountCommand
+  action: enum(cancel|cutOver|retry)
+POST /api/v1/migration-jobs/{}/control  ->  ControlMigrationJobCommand
+  action: enum(cancel|pause|resume|start)
+PUT /api/v1/migration-jobs/{}/limits  ->  SetMigrationLimitsCommand
+  concurrency: number
+  bandwidthLimitKib: number?
+PUT /api/v1/migration-jobs/{}/mapping  ->  SaveMigrationMappingCommand
+  accountIds: string[]
+  planId: string?
+  resellerId: string? [not sent]
+  clearReseller: boolean [not sent]
+  ownerEmail: string?
+  ownerLanguage: string?
+  primaryDomain: string?
+  pullGrant: string?
 PUT /api/v1/monitoring/alert-thresholds  ->  SaveAlertThresholdsCommand
   diskPercent: number
   cpuPercent: number?
@@ -341,6 +432,20 @@ PUT /api/v1/plans/{}  ->  UpdatePlanCommand
   phpLimits.maxInputVars: number
   mailLimits: object? [not sent]
   maxDnsZones: number? [not sent]
+POST /api/v1/remote-servers  ->  AddRemoteServerCommand
+  name: string
+  host: string
+  port: number
+  sshUser: string
+  allowedFrom: string?
+PUT /api/v1/remote-servers/{}  ->  EditRemoteServerCommand
+  name: string
+  host: string
+  port: number
+  sshUser: string
+  allowedFrom: string?
+POST /api/v1/remote-servers/{}/host-key  ->  ConfirmRemoteServerHostKeyCommand
+  fingerprint: string
 POST /api/v1/reseller/api-keys  ->  CreateApiKeyCommand
   name: string
   scopes: string[]
@@ -456,6 +561,8 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   resellerId: string
 
 # not covered — no JSON body crosses here, so this check says nothing about it
+  DELETE /api/v1/account-exports/grants/{} — route-only call, no JSON body
+  DELETE /api/v1/account-imports/{} — route-only call, no JSON body
   DELETE /api/v1/accounts/{} — route-only call, no JSON body
   DELETE /api/v1/api-keys/{} — route-only call, no JSON body
   DELETE /api/v1/backups/{} — route-only call, no JSON body
@@ -463,6 +570,7 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   DELETE /api/v1/cron-entries/{} — query-string call, no JSON body
   DELETE /api/v1/database-users/{} — route-only call, no JSON body
   DELETE /api/v1/databases/{} — route-only call, no JSON body
+  DELETE /api/v1/dns-zone-templates/{} — route-only call, no JSON body
   DELETE /api/v1/dns-zones/{} — route-only call, no JSON body
   DELETE /api/v1/dns-zones/{}/records/{} — route-only call, no JSON body
   DELETE /api/v1/files/trash — query-string call, no JSON body
@@ -472,11 +580,13 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   DELETE /api/v1/ftp-users/{} — route-only call, no JSON body
   DELETE /api/v1/mail-aliases/{} — route-only call, no JSON body
   DELETE /api/v1/mail-domains/{} — route-only call, no JSON body
+  DELETE /api/v1/mail-queue/{} — route-only call, no JSON body
   DELETE /api/v1/mailboxes/{} — route-only call, no JSON body
   DELETE /api/v1/me/pinned-pages/{} — route-only call, no JSON body
   DELETE /api/v1/me/sub-users/{} — route-only call, no JSON body
   DELETE /api/v1/panel-certificate — route-only call, no JSON body
   DELETE /api/v1/plans/{} — route-only call, no JSON body
+  DELETE /api/v1/remote-servers/{} — route-only call, no JSON body
   DELETE /api/v1/reseller/api-keys/{} — route-only call, no JSON body
   DELETE /api/v1/resellers/{} — route-only call, no JSON body
   DELETE /api/v1/resellers/{}/api-keys/{} — route-only call, no JSON body
@@ -485,6 +595,7 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   DELETE /api/v1/sftp-users/{}/keys/{} — route-only call, no JSON body
   DELETE /api/v1/sites/{} — route-only call, no JSON body
   DELETE /api/v1/view-as — route-only call, no JSON body
+  POST /api/v1/account-imports/{}/secrets — route-only call, no JSON body
   POST /api/v1/accounts/{}/reactivate — route-only call, no JSON body
   POST /api/v1/accounts/{}/suspend — route-only call, no JSON body
   POST /api/v1/audit/chain/verification — route-only call, no JSON body
@@ -497,6 +608,9 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   POST /api/v1/databases/{}/password — route-only call, no JSON body
   POST /api/v1/dns-server/disable — route-only call, no JSON body
   POST /api/v1/dns-server/enable — route-only call, no JSON body
+  POST /api/v1/dns-zone-templates/{}/make-default — route-only call, no JSON body
+  POST /api/v1/dns-zones/{}/dnssec/enable — route-only call, no JSON body
+  POST /api/v1/dns-zones/{}/dnssec/withdraw — route-only call, no JSON body
   POST /api/v1/ftp-users/{}/password — route-only call, no JSON body
   POST /api/v1/ftps-server/disable — route-only call, no JSON body
   POST /api/v1/invitations/resellers/{}/link — route-only call, no JSON body
@@ -504,22 +618,35 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   POST /api/v1/invitations/{}/link — route-only call, no JSON body
   POST /api/v1/invitations/{}/resend — route-only call, no JSON body
   POST /api/v1/mail-domains/{}/dkim-rotation — route-only call, no JSON body
+  POST /api/v1/mail-queue/flush — route-only call, no JSON body
   POST /api/v1/me/membership-offers/{}/accept — route-only call, no JSON body
   POST /api/v1/me/membership-offers/{}/decline — route-only call, no JSON body
   POST /api/v1/me/sub-users/{}/invitation — route-only call, no JSON body
+  POST /api/v1/migration-jobs/{}/accounts/{}/secrets — route-only call, no JSON body
+  POST /api/v1/migration-jobs/{}/dry-run — route-only call, no JSON body
   POST /api/v1/notifications/feed/dismiss-all — route-only call, no JSON body
   POST /api/v1/notifications/feed/{}/dismiss — route-only call, no JSON body
   POST /api/v1/panel-certificate — route-only call, no JSON body
   POST /api/v1/panel-update — route-only call, no JSON body
+  POST /api/v1/panel-update/check — route-only call, no JSON body
+  POST /api/v1/remote-servers/{}/discover — route-only call, no JSON body
+  POST /api/v1/remote-servers/{}/host-keys/scan — route-only call, no JSON body
+  POST /api/v1/remote-servers/{}/test — route-only call, no JSON body
   POST /api/v1/resellers/{}/reactivate — route-only call, no JSON body
   POST /api/v1/resellers/{}/suspend — route-only call, no JSON body
   POST /api/v1/sftp-users/{}/password — route-only call, no JSON body
   POST /api/v1/sites/{}/disable — route-only call, no JSON body
   POST /api/v1/sites/{}/enable — route-only call, no JSON body
-  DELETE /api/v1/mail-queue/{}
   DELETE /api/v1/mailboxes/{}/autoresponder
   DELETE /api/v1/reseller-api/accounts/{}
+  GET /api/v1/account-exports
+  GET /api/v1/account-exports/grants
+  GET /api/v1/account-exports/{}
+  GET /api/v1/account-exports/{}/package
   GET /api/v1/account-home-groups
+  GET /api/v1/account-imports
+  GET /api/v1/account-imports/{}
+  GET /api/v1/account-imports/{}/report
   GET /api/v1/accounts
   GET /api/v1/accounts/choices
   GET /api/v1/accounts/me
@@ -551,6 +678,7 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   GET /api/v1/backups/{}/restore-choices
   GET /api/v1/certificates
   GET /api/v1/certificates/acme-directory
+  GET /api/v1/certificates/issuance-options
   GET /api/v1/cron-entries
   GET /api/v1/cron-entries/{}/output
   GET /api/v1/cron-entries/{}/runs
@@ -566,9 +694,14 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   GET /api/v1/demo/status
   GET /api/v1/dns-server
   GET /api/v1/dns-settings
+  GET /api/v1/dns-zone-templates
+  GET /api/v1/dns-zone-templates/variables
+  GET /api/v1/dns-zone-templates/{}
   GET /api/v1/dns-zones
   GET /api/v1/dns-zones/record-types
+  GET /api/v1/dns-zones/templates/choices
   GET /api/v1/dns-zones/{}
+  GET /api/v1/dns-zones/{}/dnssec
   GET /api/v1/dns-zones/{}/records
   GET /api/v1/files/content
   GET /api/v1/files/download
@@ -593,10 +726,16 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   GET /api/v1/mail-domains
   GET /api/v1/mail-domains/{}/dns-records
   GET /api/v1/mail-queue
+  GET /api/v1/mail-queue/count
   GET /api/v1/mail-server
   GET /api/v1/mail/choices
   GET /api/v1/mailboxes
   GET /api/v1/mailboxes/{}/autoresponder
+  GET /api/v1/marketplace/catalogue
+  GET /api/v1/marketplace/installed
+  GET /api/v1/marketplace/modules/{}
+  GET /api/v1/marketplace/status
+  GET /api/v1/marketplace/updates
   GET /api/v1/me/accounts
   GET /api/v1/me/backup-schedule
   GET /api/v1/me/dashboard-layout
@@ -604,6 +743,14 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   GET /api/v1/me/pinned-pages
   GET /api/v1/me/sub-users
   GET /api/v1/me/sub-users/features
+  GET /api/v1/migration-jobs
+  GET /api/v1/migration-jobs/{}
+  GET /api/v1/migration-jobs/{}/accounts
+  GET /api/v1/migration-jobs/{}/accounts/{}/report
+  GET /api/v1/migration-jobs/{}/dns
+  GET /api/v1/migration-jobs/{}/summary
+  GET /api/v1/migration-pull/head
+  GET /api/v1/migration-pull/package
   GET /api/v1/monitoring/accounts-disk
   GET /api/v1/monitoring/alert-thresholds
   GET /api/v1/monitoring/chart
@@ -630,6 +777,10 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   GET /api/v1/privacy/accounts/{}/export
   GET /api/v1/privacy/users/{}/export
   GET /api/v1/profile
+  GET /api/v1/remote-servers
+  GET /api/v1/remote-servers/{}
+  GET /api/v1/remote-servers/{}/accounts
+  GET /api/v1/remote-servers/{}/accounts/{}
   GET /api/v1/reseller-api/accounts
   GET /api/v1/reseller-api/accounts/{}
   GET /api/v1/reseller-api/accounts/{}/usage
@@ -673,12 +824,12 @@ POST /api/v1/view-as/reseller  ->  StartViewAsResellerCommand
   GET /api/v1/tasks/{}/stream
   GET /api/v1/view-as
   POST /api/v1/account-home-groups/repair (binds RepairAccountHomeGroupsCommand, no SPA caller)
+  POST /api/v1/account-imports
+  POST /api/v1/account-imports/pull (binds PullAccountImportCommand, no SPA caller)
+  POST /api/v1/account-imports/pull-preview (binds PreviewAccountPullCommand, no SPA caller)
   POST /api/v1/backup-destinations (binds SaveBackupDestinationCommand, no SPA caller)
   POST /api/v1/files/upload
-  POST /api/v1/licence-status/install (binds InstallLicenceCommand, no SPA caller)
-  POST /api/v1/mail-queue/flush
   POST /api/v1/mail-server/disable
-  POST /api/v1/mail-server/enable (binds EnableMailServerCommand, no SPA caller)
   POST /api/v1/reseller-api/accounts (binds CreateAccountCommand, no SPA caller)
   POST /api/v1/reseller-api/accounts/{}/reactivate
   POST /api/v1/reseller-api/accounts/{}/suspend

@@ -11,4 +11,7 @@ pub enum DistroFamily {
     Debian,
     /// AlmaLinux and Rocky: dnf, `nginx.service`, `/etc/nginx/conf.d`.
     Rhel,
+    /// openSUSE Leap and SLES: zypper, `nginx.service`, `/etc/nginx/conf.d`, SELinux, a
+    /// firewalld the installer masks so the agent's nftables is the only firewall.
+    Suse,
 }

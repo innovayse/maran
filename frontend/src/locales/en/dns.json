@@ -8,7 +8,8 @@
       "notFoundDescription": "This zone does not exist, or it belongs to another account.",
       "tabs": {
         "overview": "Overview",
-        "records": "Records"
+        "records": "Records",
+        "dnssec": "DNSSEC"
       }
     },
     "zones": {
@@ -36,22 +37,95 @@
       },
       "confirmDeleteTitle": "Delete the zone {name}?",
       "confirmDelete": "Every record in the zone is deleted and this server stops answering for the name. The domain stops resolving here until a zone is created again.",
+      "confirmDeleteSigned": "Every record in the zone is deleted and this server stops answering for the name. This zone is signed: remove the DS record at your registrar first, because a DS record that stays published for a zone that is no longer signed makes validating resolvers reject the name, and the domain stops resolving for them.",
       "confirmDeleteAction": "Delete zone",
       "deleted": "The zone {name} was deleted."
+    },
+    "templates": {
+      "heading": "Zone templates",
+      "subtitle": "The records a new zone starts with. Built-in templates can be changed but not deleted.",
+      "createAction": "New template",
+      "emptyTitle": "No templates yet",
+      "emptyDescription": "Create a template to give new zones a set of records to start from.",
+      "tableCaption": "Zone templates",
+      "columns": {
+        "name": "Template",
+        "description": "Description",
+        "records": "Records",
+        "updatedAt": "Last changed"
+      },
+      "badges": {
+        "default": "Default",
+        "builtIn": "Built in"
+      },
+      "rowActions": "Actions for the template {name}",
+      "makeDefault": "Make default",
+      "madeDefault": "The template {name} is now the default.",
+      "searchLabel": "Search templates",
+      "searchPlaceholder": "Search by name…",
+      "searchClear": "Clear the search",
+      "noResultsTitle": "No templates match",
+      "noResultsDescription": "Change the search or clear it to see every template.",
+      "confirmDeleteTitle": "Delete the template {name}?",
+      "confirmDelete": "Zones already created from it keep their records. New zones can no longer start from it.",
+      "confirmDeleteAction": "Delete template",
+      "deleted": "The template {name} was deleted.",
+      "form": {
+        "newHeading": "New template",
+        "editHeading": "Change template",
+        "subtitle": "A template is a named set of records. The server checks every record and every variable when you save.",
+        "backToList": "Back to the templates",
+        "notFoundTitle": "No such template",
+        "notFoundDescription": "This template does not exist.",
+        "fields": {
+          "name": "Name",
+          "description": "Description"
+        },
+        "placeholders": {
+          "name": "Web and mail",
+          "description": "What zones created from it are for"
+        },
+        "errors": {
+          "nameRequired": "Enter a name for the template."
+        },
+        "submit": "Save template",
+        "created": "The template {name} was created.",
+        "saved": "The template {name} was saved."
+      },
+      "records": {
+        "heading": "Records",
+        "subtitle": "The records a zone created from this template starts with.",
+        "emptyTitle": "No records yet",
+        "emptyDescription": "Add the records a new zone should start with.",
+        "tableCaption": "Template records",
+        "defaultTtl": "Default",
+        "addTitle": "Add a record to the template",
+        "editTitle": "Change a template record",
+        "keep": "Keep record",
+        "valueHint": "The value can use the variables listed below the form.",
+        "ttlHint": "Leave empty to use the default TTL of the name server settings."
+      },
+      "variables": {
+        "heading": "Variables",
+        "subtitle": "Written in a value, a variable is replaced with the real figure when a zone is created."
+      }
     },
     "zoneForm": {
       "heading": "New zone",
       "subtitle": "The panel checks these values before sending them, and the server checks them again.",
       "fields": {
         "account": "Account",
-        "name": "Domain name"
+        "name": "Domain name",
+        "template": "Start from"
       },
       "placeholders": {
         "account": "Choose an account",
-        "name": "example.com"
+        "name": "example.com",
+        "template": "Choose a template"
       },
       "hints": {
-        "name": "The domain of one of the account's sites. The server refuses a name no site of the account serves."
+        "name": "The domain of one of the account's sites. The server refuses a name no site of the account serves.",
+        "template": "A template adds its records to the new zone. Choose an empty zone to add them yourself."
       },
       "errors": {
         "accountRequired": "Choose the account that owns the zone.",
@@ -59,7 +133,8 @@
         "nameInvalid": "Enter a domain name of two or more parts, such as example.com."
       },
       "submit": "Create zone",
-      "created": "The zone {name} was created."
+      "created": "The zone {name} was created.",
+      "templateEmpty": "Empty zone"
     },
     "overview": {
       "name": "Zone",
@@ -173,25 +248,111 @@
       "enabledLabel": "Turned on",
       "on": "On",
       "off": "Off",
-      "onExplanation": "This server answers DNS queries on port 53 for the zones it holds.",
-      "offExplanation": "This server does not answer DNS queries and port 53 is closed. Zones are kept.",
+      "onExplanation": "This server answers DNS queries on port {port} for the zones it holds, to whoever the firewall lets reach it.",
+      "offExplanation": "This server does not answer DNS queries. Zones are kept.",
       "turnOn": "Turn on",
       "turnOff": "Turn off",
       "turnedOn": "The name server was turned on.",
       "turnedOff": "The name server was turned off.",
       "confirmOnTitle": "Turn the name server on?",
-      "confirmOn": "This opens port 53 to the internet. Domains start resolving here once their registrars delegate them to this server.",
+      "confirmOn": "This starts the name server, which listens on every address of this server. It does not open port {port} in the firewall: if the panel firewall does not let the port through, nobody outside can query it, and if no firewall is running the port is reachable at once. Domains start resolving here once their registrars delegate them to this server.",
       "confirmOffTitle": "Turn the name server off?",
-      "confirmOff": "This closes port 53. Every zone stops resolving from this server, and the zones are kept.",
+      "confirmOff": "This stops the name server. Every zone stops resolving from this server, and the zones are kept. Any firewall rule for port {port} stays until you remove it.",
       "agentUnreachable": "The panel could not reach the agent on this host, so the state below is what the panel last stored.",
       "answering": "Answering",
-      "listeningLabel": "Listening on port 53",
+      "listeningLabel": "Listening on its port",
       "no": "No",
       "notAnswering": "Not answering",
       "runningLabel": "Process running",
       "versionLabel": "Version",
       "yes": "Yes",
-      "zonesLabel": "Zones held"
+      "zonesLabel": "Zones held",
+      "firewall": {
+        "label": "Port {port} in the panel firewall",
+        "states": {
+          "unknown": "Not read",
+          "open": "Open (TCP and UDP)",
+          "partial": "Open for one protocol only",
+          "closed": "Not open"
+        },
+        "blocked": "The name server is turned on, but no panel firewall rule lets TCP and UDP port {port} through. Turning the server on does not open the port, so nobody outside this server can query it if the panel firewall is in force.",
+        "open": "Open port {port}",
+        "lingering": "The name server is turned off and the panel firewall still lets port {port} through. Turning the server off does not close the port.",
+        "close": "Close port {port}"
+      }
+    },
+    "dnssec": {
+      "stateTerm": "Signing",
+      "states": {
+        "off": "Not signed",
+        "signing": "Signed",
+        "withdrawing": "Withdrawing"
+      },
+      "descriptions": {
+        "off": "This zone is served unsigned. DNSSEC lets resolvers check that the answers for this name were not altered on the way.",
+        "signing": "This zone is served signed. Validating resolvers only trust it once the DS record below is published at your registrar.",
+        "withdrawing": "This zone is served unsigned while the signing is withdrawn. The DS record must be removed at your registrar before the withdrawal can be finished."
+      },
+      "noRollover": "There is no automatic key rollover. This panel uses one signing key and never replaces it by itself. To use a new key, withdraw the signing and enable it again, and publish the new DS record at the registrar.",
+      "rolloverAutomatic": "Keys roll over automatically.",
+      "withdrawalStarted": "The withdrawal began on {when}.",
+      "copy": "Copy {field}",
+      "copied": "{field} copied",
+      "observed": {
+        "mode": "Signing on the name server",
+        "publishedKey": "Key published by the name server",
+        "publishedKeyTag": "Key tag published by the name server",
+        "reports": {
+          "notObserved": "Not checked",
+          "inForce": "Confirmed by the name server",
+          "notInForce": "Not confirmed by the name server"
+        }
+      },
+      "registrar": {
+        "title": "Publish the DS record at your registrar",
+        "instructions": "Open the DNS or DNSSEC settings of this domain at your registrar and add a DS record with the four fields below. Some registrars ask for the DNSKEY instead; its fields follow the DS record. The panel cannot publish it for you. Until the registrar publishes it, resolvers treat the zone as unsigned.",
+        "removeTitle": "Remove the DS record at your registrar",
+        "removeInstructions": "Open the DNS or DNSSEC settings of this domain at your registrar and delete the DS record shown below. Do this first, and wait until the registrar has published its removal. Removing it last leaves a DS record for a zone that is not signed, and validating resolvers then reject the name."
+      },
+      "ds": {
+        "title": "DS record",
+        "subtitle": "Enter these four values at the registrar.",
+        "keyTag": "Key tag",
+        "algorithm": "Algorithm",
+        "digestType": "Digest type",
+        "digest": "Digest"
+      },
+      "dnskey": {
+        "title": "DNSKEY",
+        "subtitle": "For registrars that ask for the public key instead of the DS record.",
+        "flags": "Flags",
+        "protocol": "Protocol",
+        "algorithm": "Algorithm",
+        "publicKey": "Public key"
+      },
+      "enable": {
+        "title": "Sign this zone",
+        "subtitle": "The panel generates a signing key and the name server starts serving the zone signed.",
+        "action": "Enable DNSSEC",
+        "confirmTitle": "Enable DNSSEC for {name}?",
+        "confirm": "The panel generates a signing key and this server serves the zone signed. Then publish the DS record at your registrar. A DS record that does not match the zone's key makes validating resolvers reject the name, and the domain stops resolving for them."
+      },
+      "withdraw": {
+        "title": "Withdraw DNSSEC",
+        "subtitle": "Stops signing the zone. Remove the DS record at your registrar first.",
+        "action": "Withdraw DNSSEC",
+        "confirmTitle": "Withdraw DNSSEC from {name}?",
+        "confirm": "Remove the DS record at your registrar first, never last. If the DS record is still published once the zone is served unsigned, validating resolvers reject the name and the domain stops resolving for them. The zone is served unsigned from now on, and the withdrawal can be finished after a waiting period."
+      },
+      "finish": {
+        "title": "Finish the withdrawal",
+        "subtitle": "Deletes the signing key. Available after a waiting period, once the DS record is gone from the registrar.",
+        "action": "Finish withdrawal",
+        "earliest": "The withdrawal can be finished from {when}.",
+        "dsRemoved": "I removed the DS record at the registrar",
+        "confirmTitle": "Finish withdrawing DNSSEC from {name}?",
+        "confirm": "The signing key is deleted for good. If the DS record is still published at the registrar, validating resolvers reject the name and the domain stops resolving for them. Confirm only if you removed the DS record at the registrar first."
+      }
     }
   }
 }

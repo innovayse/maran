@@ -20,6 +20,10 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <!-- No page of this SPA ever names its address to another party: the nginx vhost sends the same
+         Referrer-Policy as a header, and this is the half that holds where the header does not
+         reach (the dev server, a copy served elsewhere). -->
+    <meta name="referrer" content="no-referrer" />
     <title>Maran</title>
   </head>
   <body>

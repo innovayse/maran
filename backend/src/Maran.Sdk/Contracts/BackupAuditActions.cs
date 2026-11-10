@@ -106,4 +106,7 @@ public static class BackupAuditActions
     /// The entry names the destination and never the key, nor whether one exists.
     /// </summary>
     public const string BackupDestinationEncryptionChanged = "BackupDestinationEncryptionChanged";
+
+    /// <summary>A backup was taken to be exported to another Maran server (issue #127).</summary>
+    public const string MigrationBackupTaken = "MigrationBackupTaken";
 }

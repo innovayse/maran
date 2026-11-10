@@ -148,3 +148,29 @@ through — those are not the same person.
 
 The verdict for all twenty-eight notes is tabulated in
 `docs/superpowers/notes/2026-09-22-second-review-packet.md`.
+
+## Addendum (issue #463): the verification endpoint now feeds and honours the per-login lockout
+
+What was wrong: `POST /api/v1/auth/two-factor` never checked `IsLockedOut` and never counted a wrong
+password or a wrong TOTP/recovery code against the login; only the per-address counter saw it. An
+attacker rotating source addresses could therefore guess the one-time code (two live values per 30 s
+step) or the password without ever tripping the account lockout, while the same guesses at `/login`
+would. It also answered 409 `TwoFactorNotEnabled` for a correct password on a login with no second
+factor, confirming the password.
+
+What changed: `VerifyTwoFactorCommandHandler` refuses a locked login first, with the same
+`InvalidCredentialsUnauthorized` a wrong password gets, before verifying anything; a wrong password,
+a failed state check, a login with no second factor and a wrong code each count through
+`IFailedLoginRecorder` (the atomic count of issue #469, the same counter `/login` feeds). A correct
+password on a login with no second factor now answers the 401 a wrong password does.
+
+Why it is safe now: the lockout is the control that does not depend on the source address, and this
+endpoint sits inside it, counted atomically. Reviewer item 5 above (rate limit on the verification
+endpoint) is now answered by both the per-address `login` policy and the per-login lockout.
+Unchanged by design: a wrong code still returns its own code (`InvalidTwoFactorCodeUnauthorized`),
+which tells a caller who already holds the password that the factor is what failed.
+Tests: `VerifyTwoFactorCommandHandlerTests` (counted wrong code, counted wrong password, lock at the
+threshold then refused with a correct attempt, an inverse control one failure short, the no-factor
+401).
+
+**Second review: OUTSTANDING (#331).**

@@ -188,6 +188,8 @@ agent/
     │   │       │              wrapped into the arm of the terminal message that carries it) ·
     │   │       │              validated_verification.rs (the account, backup id and
     │   │       │              destination a VerifyBackup request carries) ·
+    │   │       │              file_transfer_jails.rs (the SFTP and FTPS areas answering
+    │   │       │              the backup area's JailMounts seam, issue #487) ·
     │   │       │              reported_verify_backup.rs (the outcome on the wire: an ok
     │   │       │              only for what the operation established, never an empty
     │   │       │              one for something it did not read, issue #134)
@@ -197,7 +199,25 @@ agent/
     │   │       │              machine) · validated_export.rs · validated_import.rs ·
     │   │       │              exported_backup.rs · terminal_of_export.rs · reported_import.rs ·
     │   │       │              import_failure.rs · refusal_reason_of.rs (which refusals the
-    │   │       │              panel tells apart; a host fault is never one of them)
+    │   │       │              panel tells apart; a host fault is never one of them) ·
+    │   │       │              issue #197, the four rpcs of a registered migration source
+    │   │       │              (GenerateSourceKey · ScanHostKey · TestSource · ReadSourceInventory):
+    │   │       │              transfer_status.rs (TransferOpError onto the wire error) ·
+    │   │       │              source_failure_reason_of.rs (which of host-key-changed, auth-refused,
+    │   │       │              unreachable, address-refused it was; carried in the typed payload,
+    │   │       │              never a new ErrorCode) · source_failure.rs (the wire error and that
+    │   │       │              reason together) · validated_source_inputs.rs ·
+    │   │       │              validated_source_endpoint.rs · validated_source_credential.rs (the
+    │   │       │              endpoint and credential an authenticated rpc carries, revalidated) ·
+    │   │       │              to_wire_*.rs (generated key, scanned host keys, tested source,
+    │   │       │              inventory step, account, warning) · reported_generated_source_key.rs ·
+    │   │       │              reported_scanned_host_keys.rs · reported_tested_source.rs (a finished
+    │   │       │              unary call onto its response) · run_source_call.rs (the blocking
+    │   │       │              body, off the async workers) · settle_source_call.rs (the audit slot
+    │   │       │              from the answer about to be sent) · read_inventory.rs ·
+    │   │       │              channel_inventory_sink.rs (the InventorySink over a bounded channel,
+    │   │       │              the stream pattern of channel_export_sink.rs) ·
+    │   │       │              terminal_of_inventory.rs (the stream's one terminal message)
     │   │       ├── mail/      mail_service.rs · mail_status.rs (issue #177) ·
     │   │       │              validated_mail_settings.rs (what EnableMail carries, revalidated; an
     │   │       │              option this build cannot carry out is refused, never dropped) ·
@@ -240,7 +260,12 @@ agent/
     │       │                  home root, php-fpm socket dir, SFTP jail root, FTPS jail
     │       │                  root, the SFTP logins' public-key directory (issue #135),
     │       │                  site log root, backup root, bulk scratch root, the panel's
-    │       │                  own TLS directory and ACME challenge directory (issue #132), and the three
+    │       │                  own TLS directory and ACME challenge directory (issue #132),
+    │       │                  TRANSFER_SCRATCH_DIRECTORY (/run/maran/transfer-scratch, issue
+    │       │                  #197: the root-only 0700 directory a migration source's private
+    │       │                  key and known_hosts file live in for the length of one ssh call;
+    │       │                  on the tmpfs on purpose, under RuntimeDirectory=maran and so
+    │       │                  already inside ReadWritePaths=/run/maran), and the three
     │       │                  host-temp mount points /run/maran-host/{tmp,var-tmp,dev-shm}:
     │       │                  HOST_TMP_DIRECTORY and its siblings, listed together as
     │       │                  SHARED_TEMP_ROOTS — where the unit's BindPaths= shows the agent
@@ -283,14 +308,18 @@ agent/
     │       │   │              slice, issue #133) · ssh_public_key (an SFTP login's
     │       │   │              key: allow-listed algorithm, decoded and parsed as the
     │       │   │              SSH wire format, no option, no comment, no control
-    │       │   │              character — issue #135) — values that become OS objects.
+    │       │   │              character — issue #135) · source_user_name (the login on a
+    │       │   │              registered migration source, `[a-z_][a-z0-9_-]{0,31}`, issue
+    │       │   │              #197) — values that become OS objects.
     │       │   │              ftps_user_name is a SECOND prefixed login name and
     │       │   │              not a reuse of sftp_user_name: the two names are
     │       │   │              different system users on one host and each is
     │       │   │              built through prefixed_name.rs, so one type per
     │       │   │              login keeps a value from being accepted where the
     │       │   │              other protocol's jail is what it addresses.
-    │       │   ├── db/        database_name · db_user_name · database_privilege ·
+    │       │   ├── db/        database_name · db_user_name · grant_pattern_for (the one writer of a
+    │       │   │              database name as a GRANT pattern, `_` and `%` escaped; every GRANT/REVOKE in ops
+    │       │   │              uses it, issue #457) with unescaped_grant_pattern its inverse · database_privilege ·
     │       │   │              database_privilege_set (the closed set of 18 database-level
     │       │   │              privileges a customer's login may hold; GRANT OPTION and every
     │       │   │              global privilege have no value, issue #156) — values that reach MySQL
@@ -299,10 +328,19 @@ agent/
     │       │   │              client_body_size · static_cache_days · redirect_path ·
     │       │   │              redirect_target · basic_auth_user_name · bcrypt_hash (a site's
     │       │   │              options, issue #151) · php_extension_name (issue #157) ·
-    │       │   │              domain · upstream · php_version · port · source_cidr ·
+    │       │   │              domain · panel_host_names (the names THIS host's panel is
+    │       │   │              served under, handed in by the installer through agent.env,
+    │       │   │              issue #468 — a constructed set the sites, ssl and dns services
+    │       │   │              check beside `Domain::parse`, which cannot know them) ·
+    │       │   │              upstream · php_version · port · source_cidr ·
     │       │   │              ban_address · ipv4_disguise (shared predicate, no
     │       │   │              _error) · passive_address · s3_bucket · s3_region ·
-    │       │   │              s3_object_prefix — values written into web-server
+    │       │   │              s3_object_prefix · remote_host (a migration source's DNS name or
+    │       │   │              address literal; loopback, link-local, unspecified and multicast
+    │       │   │              literals are refused here and the resolved address is judged
+    │       │   │              again by ops) · host_key (`<algorithm> <base64>`, allow-listed
+    │       │   │              algorithm, bounded) · host_key_fingerprint (`SHA256:` and 43
+    │       │   │              base64 characters) — issue #197 — values written into web-server
     │       │   │              configuration, and the remote endpoints the agent
     │       │   │              addresses, which are the same kind of value reaching
     │       │   │              a different writer. passive_address is here and not
@@ -322,9 +360,20 @@ agent/
        │   │              shared checks) — values written into the mail stack's
        │   │              configuration and data (issue #177), each a grammar and never
        │   │              an escape
-       │   ├── fs/        path (resolve_in_home) · relative_path · file_mode
+       │   ├── dns/       dnssec_key_material (ECDSA P-256 signing key: public half 64
+       │   │              bytes, private half 32 bytes behind a SecretString, flags 257,
+       │   │              algorithm fixed 13, key tag RECOMPUTED per RFC 4034 appendix B and
+       │   │              never trusted, issue #452) · dnssec_key_file_name
+       │   │              (`K<zone>.+013+<tag>`, built from a ZoneName and that recomputed
+       │   │              tag) — beside the zone-file kinds, issue #178
+       │   ├── fs/        path (resolve_in_home) · relative_path · file_mode ·
+    │   │              remote_path (a path HOLE in a remote command on a migration source:
+    │   │              absolute, allow-listed characters, no `..`, no `//`, no leading `-`
+    │   │              in a segment; a path on ANOTHER host, so never resolved here, issue #197)
     │       │   ├── secrets/   password (validated alphabet, injection-free by
-    │       │   │              construction) — the one validated kind here; a value that
+    │       │   │              construction) · source_private_key (an OpenSSH private key
+    │       │   │              document behind a SecretString, bounded, `expose` the only
+    │       │   │              reader, issue #197) — the validated kinds here; a value that
     │       │   │              only needs hiding, not validating, is secret_string.rs above
     │       │   └── prefixed_name.rs + prefix_problem.rs — NOT a domain group: the
     │       │                  crate-internal core the three account-prefixed names
@@ -398,9 +447,13 @@ agent/
     │       ├── account_programs.rs · web_server_facts.rs · php_facts.rs ·
     │       │   php_extension_facts.rs (the package and the switch of a catalogue extension,
     │       │   with php_extension_switch.rs, the shape of the switch, issue #157) ·
-    │       │   package_facts.rs · file_transfer_facts.rs · backup_facts.rs ·
+    │       │   package_facts.rs · file_transfer_facts.rs (also the OpenSSH client's
+    │       │   ssh, ssh-keyscan and ssh-keygen, issue #197: package openssh-client on
+    │       │   the Debian family, openssh-clients plus openssh on the RHEL family) · backup_facts.rs ·
     │       │   database_facts.rs · service_manager_facts.rs · scheduling_facts.rs ·
-    │       │   firewall_facts.rs · mail_facts.rs (the mail stack's binaries, units, users,
+    │       │   firewall_facts.rs · dns_facts.rs (the DNS daemon's binaries, identity and
+    │       │   directories, among them `signed-zones/` and `keys/` below the state
+    │       │   directory, issue #452) · mail_facts.rs (the mail stack's binaries, units, users,
     │       │   paths, packages, password scheme; with dovecot_major.rs, the configuration
     │       │   generation a release ships, and key_value_server.rs, the Redis-protocol server
     │       │   a release runs, issue #177)
@@ -445,7 +498,12 @@ agent/
     │       │                  program's status gave no answer: an exit status, never a byte it
     │       │                  printed). Read through `PackageFacts::{security_pending_updates_arguments,
     │       │                  mark_security_updates, reboot_probe, read_reboot_probe_run}`
-    │       ├── package_failure.rs  PackageFailure — refused source, unreachable source or
+    │       ├── package_query_failure.rs  PackageQueryFailure — why a read of what the
+    │       │                  host's package manager OFFERS gave no answer (an exit status or
+    │       │                  a line number, never a byte it printed); the reading is
+    │       │                  `PackageFacts::read_package_candidates` (issue #466)
+    │       ├── package_failure.rs  PackageFailure — refused source, unreachable source, a
+    │       │                  package no source carries (issue #466) or
     │       │                  local: the verdict both families answer a failed package-manager
     │       │                  run with (`DistroAdapter::classify_package_failure`, issue #251).
     │       │                  Flat for the reason vsftpd_tls_version_keys.rs is: the shape is
@@ -454,13 +512,25 @@ agent/
     │       │                  families' readings use for "the source answered with an HTTP status")
     │       ├── detection/     detect.rs · detect_error.rs · distro_info.rs · os_release.rs
     │       ├── debian/        debian_adapter.rs · debian_paths.rs · debian_packages.rs ·
+    │       │                  debian_package_candidates.rs (apt-cache: the program, its arguments and
+    │       │                  the grammar of what the Debian family offers, issue #466) ·
     │       │                  debian_services.rs · debian_php_extensions.rs
-    │       └── rhel/          rhel_adapter.rs · rhel_paths.rs · rhel_packages.rs ·
-    │                          rhel_services.rs · rhel_php_extensions.rs
+    │       ├── rhel/          rhel_adapter.rs · rhel_paths.rs · rhel_packages.rs ·
+    │       │                  rhel_services.rs · rhel_php_extensions.rs
+    │       └── suse/          suse_adapter.rs · suse_paths.rs · suse_packages.rs ·
+    │                          suse_package_candidates.rs (zypper: the program, its arguments and
+    │                          the grammar of what the family offers, issue #59) ·
+    │                          suse_services.rs · suse_account_programs.rs · suse_mail_services.rs ·
+    │                          suse_dns_services.rs · suse_php_extensions.rs. The service questions
+    │                          are four files, not one, because the SUSE family answers them for four
+    │                          concerns that each outgrew a shared file: the base daemons
+    │                          (suse_services.rs), the account programs and spool directories
+    │                          (suse_account_programs.rs), the mail stack (suse_mail_services.rs) and
+    │                          the DNS daemon (suse_dns_services.rs)
     ├── ops/
     │   ├── src/
     │       ├── {accounts,sites,php,db,sftp,ftps,logins,files,cron,firewall,ssl,
-    │       │    backup,monitor}/
+    │       │    backup,monitor,transfer}/
     │       │                  one folder per area; anatomy below. `ftp/` is NOT
     │       │                  one of them: it is a zero-byte skeleton left from
     │       │                  before the protocol was chosen, and the shipped
@@ -473,7 +543,7 @@ agent/
     │       │                  accounts = system users: useradd/userdel, homes, quotas.
     │       │                  Deletion releases every uid-keyed leftover, in this order
     │       │                  (issue #139): crontab → at jobs → user manager → processes →
-    │       │                  SysV IPC → shared temp files → mail spool → re-resolve the uid → userdel.
+    │       │                  SysV IPC → shared temp files → mail spool → site logs → re-resolve the uid → userdel.
     │       │                  Its non-rpc units: remove_account_at_jobs.rs (+ parse_atq_listing.rs,
     │       │                  model/at_job.rs) · end_account_user_manager.rs (linger off, session
     │       │                  terminated) · remove_account_sysv_ipc.rs (+ parse_sysv_ipc_table.rs,
@@ -481,7 +551,9 @@ agent/
     │       │                  remove_account_shared_files.rs (+ sweep_directory_by_owner.rs, the
     │       │                  descriptor walk) · remove_account_mail_spool.rs (the one file named after the
     │       │                  account in the distro's real mail directory; userdel --remove was
-    │       │                  measured to leave it on RHEL). Each fails closed: a leftover is a typed error and
+    │       │                  measured to leave it on RHEL) · remove_account_site_logs.rs (the account's
+    │       │                  /var/log/maran/sites directory, which a recycled name would otherwise read,
+    │       │                  issue #477). Each fails closed: a leftover is a typed error and
     │       │                  userdel does not run.
     │       │                  sftp/ is OpenSSH logins chrooted into a per-account,
     │       │                  root-owned jail with the real home bind-mounted inside;
@@ -529,6 +601,13 @@ agent/
     │       │                  stop_run_unit_outcome.rs (the argv and the reading of
     │       │                  `systemctl stop` of that unit, which process_cron_host.rs
     │       │                  runs through the adapter's service manager).
+    │       │                  logins/ensure_mount_point.rs (issue #483) creates a jail's mount
+    │       │                  point and applies a mode ONLY while the account's home is not
+    │       │                  mounted over it (same inode as the home): a chmod by path goes
+    │       │                  through a live bind mount onto the home itself. sftp/ and ftps/
+    │       │                  each carry ensure_account_jail.rs (the jail and its unit, on every
+    │       │                  login creation) and refresh_account_jail.rs (restart the mount unit
+    │       │                  so the jail follows a home a restore replaced, issue #487).
     │       │                  ftps/ is vsftpd: system logins gated by a PAM group,
     │       │                  chrooted into /var/lib/maran-ftps/<account> (0711, NOT
     │       │                  0700 — vsftpd chdirs into the home AFTER dropping to the
@@ -537,6 +616,22 @@ agent/
     │       │                  with TLS forced. logins/ holds what both protocols share
     │       │                  — the systemd path-escaping rule lives there once, not
     │       │                  once per protocol.
+    │       │                  dns/ carries DNSSEC inside put_zone, with no rpc of its own (issue #452): ZoneSigning
+    │       │                  (Unsigned · Signed(key) · Withdrawing(key)) rides on ZoneContent, and the three zone
+    │       │                  directories travel together as ZoneDirectories (model/). A signed zone's file goes to
+    │       │                  the signed-zone directory and its keys to the key directory: write_signing_keys.rs and
+    │       │                  remove_signing_keys.rs (UNSIGNED, and a deleted zone, take every key off the host),
+    │       │                  remove_signed_copy.rs, retire_superseded_files.rs (what a mode change leaves behind,
+    │       │                  removed after the load). zone_load.rs chooses addzone · modzone · reload from the mode
+    │       │                  the daemon reports; zone_statement_for.rs renders the statement through the template.
+    │       │                  The daemon's ability to sign is observed, not tabled: probe_dnssec_support.rs asks the
+    │       │                  checker about a probe configuration. The read side is parse_showzone_mode.rs +
+    │       │                  read_zone_mode.rs and parse_signing_list.rs + read_signing_state.rs, joined by
+    │       │                  describe_zone.rs (GetZone); every word read from rndc output passes
+    │       │                  is_printable_token.rs and none is echoed. Start-up reconciliation reads both zone
+    │       │                  directories through plan_zone_restoration.rs and keyed_zones.rs: a signed zone with no
+    │       │                  complete key is NOT re-added, because the daemon would generate a key the registrar's
+    │       │                  DS record does not name.
     │       │                  php/classify_install_failure.rs is not an rpc: it reads a failed
     │       │                  install unit's run back (systemctl show, then journalctl for that
     │       │                  run only) into model/install_run.rs and asks the adapter to classify
@@ -569,7 +664,12 @@ agent/
     │       │                  than inside either: create and restore stage into the same
     │       │                  tree, and a boundary enforced by one of them is not a
     │       │                  boundary) · database_catalog.rs (the seam that keeps this
-    │       │                  area from importing `ops::db`) · object_store_host.rs
+    │       │                  area from importing `ops::db`) · jail_mounts.rs (the seam
+    │       │                  that keeps it from importing `ops::sftp` and `ops::ftps`: a
+    │       │                  restore and the startup recovery mount the account's jails onto
+    │       │                  the new home through it, composed by
+    │       │                  services/backup/file_transfer_jails.rs, issue #487) ·
+    │       │                  object_store_host.rs
     │       │                  with local_object_store_host.rs and s3_object_store_host.rs
     │       │                  (the destination seam; the remote half is DECLARED and
     │       │                  unwired — see
@@ -608,6 +708,58 @@ agent/
     │       │                  directory of its own beside restore's, because the
     │       │                  reaper that keeps a backup's rollback copy must not
     │       │                  be shared with a reader that deletes its scratch.
+    │       ├── transfer/      server migration from a remote server (issue #197, phase 1:
+    │       │                  registry and read-only discovery), the agent's first OUTBOUND
+    │       │                  client; threat note
+    │       │                  docs/superpowers/notes/2026-11-07-server-migration-threat-note.md.
+    │       │                  The connection half: transfer_op_error.rs · transfer_host.rs
+    │       │                  (the injectable seam: scratch directory, key and known_hosts
+    │       │                  files, name resolution, this host's own addresses, one bounded
+    │       │                  spawn) with process_transfer_host.rs (the real one, and the ONLY
+    │       │                  spawn site of the area, listed in check 17d of
+    │       │                  scripts/lib/check-structure.sh) · transfer_scratch.rs (the guard
+    │       │                  that removes the 0700 scratch directory on every path) ·
+    │       │                  choose_source_address.rs (the address policy, applied to the
+    │       │                  RESOLVED address: the name is resolved once and the literal is
+    │       │                  connected to) · parse_fib_trie_local.rs · parse_if_inet6.rs (this
+    │       │                  host's own addresses) · ssh_argv.rs (the ONE builder of an ssh
+    │       │                  argument vector, every pinned option set on every call) ·
+    │       │                  ssh_client_options.rs (the pinned option set) · write_known_hosts.rs
+    │       │                  (+ known_hosts_line.rs, known_hosts_alias.rs) · classify_ssh_failure.rs · ssh_source_shell.rs
+    │       │                  (SourceShell over TransferHost) · open_source_shell.rs ·
+    │       │                  generate_source_key.rs · scan_host_key.rs (+ parse_scanned_host_keys.rs,
+    │       │                  ssh_key_fingerprint.rs) · test_source.rs · probe_source.rs with
+    │       │                  probes/ (one parser per constant probe) · model/ (plain data).
+    │       │                  remote_command.rs is the CLOSED enum of everything the agent
+    │       │                  ever asks the source to run (18 read-only variants, each a
+    │       │                  constant string with holes that are validated types only).
+    │       │                  Issue #197 phase 2, the transfer half: pull_account_files.rs (rsync as the
+    │       │                  account, in 100 second slices, key in a 0700 directory the account owns,
+    │       │                  receiver_directory.rs removes it on every path) · rsync_argv.rs (the ONE
+    │       │                  builder of an rsync argument vector) · rsync_transport.rs (the --rsh value,
+    │       │                  built from ssh_client_options, the shared pinned ssh options) ·
+    │       │                  dump_remote_database.rs (the dump into a root-only disk file, bounded, then the
+    │       │                  restricted loader through the DatabaseLoader seam, composed in the service crate) ·
+    │       │                  transfer_work_host.rs with process_transfer_work_host.rs (the second spawn site
+    │       │                  of the area, listed in check 17d) · open_source_connection.rs (the connection
+    │       │                  both the shell and the dump start from).
+    │       │                  The table lives there and NOT in distro, on purpose: the paths in
+    │       │                  it (/etc/nginx, /etc/passwd, /home) are facts about the SOURCE, a
+    │       │                  host whose family the agent neither knows nor branches on, so the
+    │       │                  adapter, which answers for THIS host, has no family to key them
+    │       │                  by. Check 17 does not flag them because they are script text, not
+    │       │                  a literal path, and this paragraph is the named exemption: a
+    │       │                  literal about THIS host in this area is still a violation.
+    │       │                  inventory/ reads what the source serves through a SourceShell:
+    │       │                  read_source_inventory.rs (the one entry; inventory_run.rs holds its
+    │       │                  state) · read_accounts · read_sites · read_databases · read_cron ·
+    │       │                  read_disk (the steps) · parse_* (the parsers of UNTRUSTED text,
+    │       │                  every one bounded in bytes, lines, words and include depth by
+    │       │                  model/inventory_limits.rs; a line they cannot read is a warning,
+    │       │                  never a panic) · assign_*_to_accounts.rs · model/ (InventorySink,
+    │       │                  the records, the warning kinds). Its fixtures,
+    │       │                  tests/fixtures/transfer/synthetic_inventory/, are written by hand
+    │       │                  and say so: no source host was available to capture from.
     │       ├── safe_write/    render_validate_swap.rs · remove_config.rs ·
     │       │                  rollback_guard.rs · safe_write_error.rs ·
     │       │                  config_tree_lock.rs (the host-wide write lock —
@@ -619,6 +771,9 @@ agent/
     │       │                  write_unreloaded_config.rs (one file, same protocol, no
     │       │                  reload: for a file its reader re-opens on every use, an
     │       │                  SFTP login's key file — issue #135) ·
+    │       │                  write_unchecked_config.rs (one file, same protocol, no validator and no
+    │       │                  reload: for bytes a validated type proves and no tool can check, a DNSSEC
+    │       │                  signing key — issue #452) ·
     │       │                  create_config.rs (the creation half of the protocol: the
     │       │                  target must not exist, and a warning the caller names in the
     │       │                  validator's stderr refuses the write) ·
@@ -676,8 +831,15 @@ agent/
         │                      the runtime-ban table are two SEPARATE tables (`inet maran`
         │                      vs `inet maran_bans`) because the ruleset is replaced
         │                      wholesale on every apply and a ban table folded into it
-        │                      would lose every live ban on the next re-render · render_error.rs
-        ├── templates/{nginx,php-fpm,vsftpd,systemd,nftables,sshd}/
+        │                      would lose every live ban on the next re-render ·
+        │                      bind/{named_conf,zone_file,zone_record_line,zone_statement,
+        │                      dnssec_private_key,dnssec_public_key,dnssec_probe}.rs —
+        │                      zone_statement.rs is the `{ type primary; file ...; };` argument of
+        │                      `rndc addzone`/`modzone` in three shapes (unsigned, signed,
+        │                      withdrawing); its goldens are rendered WITH a final newline and the
+        │                      argument form strips it, so the newline census stays green and the
+        │                      unsigned bytes equal the old `format!` text · render_error.rs
+        ├── templates/{nginx,php-fpm,vsftpd,systemd,nftables,sshd,bind}/
         └── tests/golden/      byte-exact expected config renders — the four
                                `golden/nftables/` files are what pins the replace idiom
                                (create-if-absent, delete, redeclare) and the two ssh-port
@@ -724,11 +886,15 @@ Two naming forms are allowed and nothing else:
 A subject-named **concern file** is allowed to hold more than one public function,
 where the concern named by the file is itself the unit — not any one function
 inside it. The canonical layout names exactly this shape for `distro/src/debian/`
-and `distro/src/rhel/`: `debian_paths.rs` / `rhel_paths.rs`,
-`debian_packages.rs` / `rhel_packages.rs` and `debian_services.rs` /
-`rhel_services.rs` each answer every path, package or service question their
-family's `DistroAdapter` methods ask; `debian_php_extensions.rs` /
-`rhel_php_extensions.rs` answer every question about a PHP extension (its package,
+`distro/src/rhel/` and `distro/src/suse/`: `debian_paths.rs` / `rhel_paths.rs` / `suse_paths.rs`,
+`debian_packages.rs` / `rhel_packages.rs` / `suse_packages.rs` and `debian_services.rs` /
+`rhel_services.rs` / `suse_services.rs` each answer every path, package or service question their
+family's `DistroAdapter` methods ask; `debian_package_candidates.rs` /
+`rhel_package_candidates.rs` / `suse_package_candidates.rs` answer what the family's package manager offers (the program,
+its arguments and the grammar of its answer, issue #466); `suse_account_programs.rs`, `suse_mail_services.rs` and
+`suse_dns_services.rs` answer the account-deletion programs, the mail stack's units and the DNS daemon's
+identity for the SUSE family (issue #59); `debian_php_extensions.rs` /
+`rhel_php_extensions.rs` / `suse_php_extensions.rs` answer every question about a PHP extension (its package,
 its switch, its drop-in directory). `validation/path.rs` is the same pattern
 already, one file short of needing to be said out loud. Splitting these into one
 file per function would produce `debian_nginx_include_directory.rs` next to
@@ -997,6 +1163,14 @@ under deadline.
   template. Anything resembling "run this for me" is rejected on sight.
 - stdout/stderr of a spawned tool are captured into a typed error variant for the
   operator log — never returned verbatim to a hosting customer.
+- The allow-list gained the OpenSSH client for server migration (issue #197): `ssh`,
+  `ssh-keyscan` and `ssh-keygen`, each an `AdapterBinary` from `file_transfer_facts.rs` for
+  both families, spawned only by `ops::transfer::ProcessTransferHost` with the `SourceRead`
+  call class. `ssh` hands a command STRING to the remote shell, the one place this agent
+  builds a command line; it is reconciled by `ops::transfer::RemoteCommand`, a closed enum
+  of constant read-only strings whose only holes are `RemotePath` and `SourceUserName`, and
+  by `ssh_argv`, the one builder of the local argument vector. No rpc takes a command, a
+  flag or a path from a caller, and nothing is written to the source.
 
 ## Config writes: render → swap → validate
 
@@ -1261,6 +1435,20 @@ mod tests;
 - `crates/<crate>/tests/` holds integration tests only — things that exercise the
   crate as a caller would, like the handshake over a real unix socket.
 - Test names are behavior sentences: `path_with_symlink_escape_is_rejected`.
+- **A validation type also carries property tests** (`proptest`, a dev-dependency of `agent-core`
+  only). They sit beside the unit's example tests in the same mirror, as `<unit>_property_tests.rs`,
+  declared by the unit with a second `#[cfg(test)] #[path = "…"] mod property_tests;`. An example
+  test shows the cases somebody thought of are refused; a property shows that no case a generator
+  can reach is accepted wrongly, which is the mitigation spec section 19 names for a root process.
+  Three rules keep them honest. Every property runs from the fixed seed and case count of
+  `tests/support/property_runs.rs`, so a failure reproduces on every run and no run is lucky. Every
+  file ends with a guard that its generator reaches BOTH verdicts (`property_draws`), because a
+  property over a generator that never produces an accepted value passes for the wrong reason. And a
+  property that restates the rule (a model) restates it independently of the implementation, never
+  by calling it. The three support files (`property_runs.rs`, `property_draws.rs`,
+  `property_insertion.rs`) are mounted once from `validation/mod.rs`. Today: `AccountName`, `Domain`,
+  `RelativePath`, `CronCommand`, `EnvVarValue`, `SshPublicKey`; a validator earns its file when its
+  grammar has an edge a hand-written example list could miss.
 - Every typed error variant appears in at least one test.
 - Template goldens are compared byte-for-byte.
 - Test code is exempt from the doc-comment rule; everything else applies.
@@ -1271,8 +1459,11 @@ mod tests;
 
 - more than one public unit in a file, except the named concern files
   (`debian_paths.rs`, `debian_packages.rs`, `debian_services.rs`,
-  `debian_php_extensions.rs`, `rhel_paths.rs`, `rhel_packages.rs`,
-  `rhel_services.rs`, `rhel_php_extensions.rs` — see "One unit per file"), where the concern is the unit and several functions are expected;
+  `debian_php_extensions.rs`, `debian_package_candidates.rs`, `rhel_package_candidates.rs`,
+  `rhel_paths.rs`, `rhel_packages.rs`,
+  `rhel_services.rs`, `rhel_php_extensions.rs`, `suse_paths.rs`, `suse_packages.rs`,
+  `suse_package_candidates.rs`, `suse_services.rs`, `suse_account_programs.rs`,
+  `suse_mail_services.rs`, `suse_dns_services.rs`, `suse_php_extensions.rs` — see "One unit per file"), where the concern is the unit and several functions are expected;
 - a definition in a crate root or `mod.rs`;
 - a file whose name does not match its single public item, in snake_case. The
   subject-named exceptions are LISTED in the script rather than inferred — an inferred

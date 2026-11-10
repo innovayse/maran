@@ -1,0 +1,67 @@
+# The release check an administrator asked for in the panel (issue #516): `maran update --check`, started
+# by maran-update-check.path when the panel creates its marker file. It is the operator's check with no
+# terminal and nothing else added: the lock, the signed-manifest verification and the record of the last
+# check that the panel's "Panel updates" screen reads are the same code, not a copy. It installs nothing:
+# `--check` ends at the version decision and never downloads an artifact.
+# docs/superpowers/notes/2026-11-09-panel-update-check-threat-note.md carries the argument.
+#
+# THE COMMAND IS FIXED. Nothing the panel writes reaches it: there is no EnvironmentFile, no argument the
+# marker supplies and no shell. There is no ExecStartPre: the marker stays while the check runs, because
+# its existence is what the panel shows as "checking", and the one ExecStopPost removes it when the check
+# has ended, whether it succeeded, failed or was stopped by the timeout. `rm -f --` does not follow a
+# symbolic link and never opens the file. Removing it at the end and not at the start leaves no moment in
+# which the check is running and nothing says so.
+#
+# Installed root:root 0644 as it stands by installer/lib/69-update-request.sh. There is no placeholder
+# and no [Install] section: only the path unit and an operator start it.
+[Unit]
+Description=Maran release check requested from the panel
+After=network-online.target
+Wants=network-online.target
+# A run that fails is not retried by systemd: the administrator decides whether to press the button again.
+# The limit is the loop stop for a marker this unit cannot remove (the panel's account made it a
+# directory): the path unit would start the service again the moment it failed, so three starts in a
+# minute fail the path unit, which is visible in `systemctl status`, and checks from the panel stay off
+# until an operator looks. It is set on the SERVICE because the path unit's own TriggerLimit directives
+# need systemd 253 and Ubuntu 22.04 ships 249. UNOBSERVED HERE: the limit's behaviour on a booted host.
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/local/sbin/maran update --check
+ExecStopPost=/usr/bin/rm -f -- /run/maran-update-request/check-requested
+RemainAfterExit=no
+# Bounds a hung check. It is shorter than the five minutes after which the panel stops believing a marker
+# is a check in flight (PanelUpdateLedgerPolicy.MarkerGrace), so a marker that old is one this unit never
+# took. A manifest fetch fits well inside it.
+TimeoutStartSec=4min
+Nice=10
+IOSchedulingClass=idle
+UMask=0077
+
+# A check writes the signed-manifest work copy (/var/lib/maran-cli-staging), the record of the last
+# check (/etc/maran), the stale half-installed releases the consistency check clears
+# (/usr/local/maran), and takes its marker away (/run/maran-update-request). It writes no database dump,
+# so /var/backups/maran-update is not here, and not the wider /run of the update unit. /var/lib/maran,
+# which the panel's service account can write, is deliberately NOT here. UNOBSERVED HERE: a run under
+# this sandbox on a real host; the list was derived by reading the verb's libraries.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/usr/local/maran /etc/maran /var/lib/maran-cli-staging /run/maran-update-request
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+# IP for the release host, unix for systemd, netlink for name lookups.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK

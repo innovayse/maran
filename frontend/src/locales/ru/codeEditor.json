@@ -1,0 +1,26 @@
+{
+  "app": {
+    "codeEditor": {
+      "find": "Найти",
+      "replaceWith": "Заменить на",
+      "next": "дальше",
+      "previous": "назад",
+      "all": "все",
+      "matchCase": "с учётом регистра",
+      "regexp": "регулярное выражение",
+      "byWord": "целое слово",
+      "replace": "заменить",
+      "replaceAll": "заменить все",
+      "close": "закрыть",
+      "goToLine": "Перейти к строке",
+      "go": "перейти",
+      "currentMatch": "текущее совпадение",
+      "onLine": "в строке",
+      "replacedMatches": "заменено совпадений: $",
+      "replacedMatchOnLine": "заменено совпадение в строке $",
+      "selectionDeleted": "Выделенное удалено",
+      "controlCharacter": "Управляющий символ",
+      "tabHint": "Здесь Tab ставит отступ. Нажмите Escape, затем Tab, чтобы перейти к следующему элементу."
+    }
+  }
+}

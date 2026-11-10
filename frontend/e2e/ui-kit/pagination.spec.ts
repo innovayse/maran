@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import type { Page } from '@playwright/test'
 
 // `UiPagination` through `e2e/fixtures/list-kit-harness.html` (see that file): the controls and
 // their ARIA on a desktop, the compact row on a phone, and no sideways scroll in any language.

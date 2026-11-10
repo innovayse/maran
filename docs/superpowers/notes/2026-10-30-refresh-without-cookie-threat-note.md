@@ -36,8 +36,24 @@ the 204 as "no session" and clears its state the same way it cleared it on the 4
 4. **CSRF.** Unchanged. `CsrfHeaderMiddleware` judges state-changing requests that carry a cookie;
    the 204 path is exactly the request that carries none, which had no effect before and has none
    now.
-5. **Rate limiting and audit.** Unchanged. The endpoint keeps its policy, and the no-cookie case
-   was never audited, since there is no subject to record.
+5. **Rate limiting and audit.** CORRECTED (issue #471). This item originally read "Unchanged. The
+   endpoint keeps its policy", which was untrue of the code: `refresh` and `logout` had never named a
+   rate-limit policy, and nothing global covered them, so an anonymous caller could post at wire
+   speed, each request carrying a cookie costing a digest lookup and a spent token costing family
+   revocation writes. Both now name `RateLimitPolicies.SessionRefresh` (`SessionRefreshRateLimitPolicy`,
+   fixed window, per client address in `ClientAddress` spelling, `RateLimiting:SessionRefreshMaxRequests`
+   60 per `SessionRefreshWindowSeconds` 60), answered 429 `HostRateLimited` through the shared
+   `RateLimitedProblemWriter`. Why it is safe now: the unauthenticated load is bounded per address,
+   and the SPA's real use (one refresh per signed-out page load and per 401) stays far inside it. The
+   no-cookie case was never audited, since there is no subject to record.
+   **Stated limit:** the bucket is per address only. A named policy yields one partition, and the
+   token family is known only after the database lookup being bounded; a key derived from the cookie
+   would let a caller vary it at will. The family is bounded where it is known: a spent token revokes
+   the whole family. An attacker rotating addresses is bounded by the database, not by this limiter.
+   Held by `SessionRefreshRateLimitTests` (the boundary, logout, an inverse control) and by
+   `AnonymousAuthRateLimitTests` (every anonymous `AuthController` action names a policy, with a
+   planted violation and an accepting control).
+   **Second review: OUTSTANDING (#331).**
 
 ## Tests
 

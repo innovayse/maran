@@ -39,9 +39,16 @@ previous configuration and returns an error. Repeating it on a healthy daemon ch
 
 `DisableDns` stops the unit and removes it from the boot sequence. Zones and their files stay.
 
-**Port 53 is not opened by either.** Allow TCP and UDP 53 in the firewall as a separate step, the
-same way FTPS leaves its ports to the administrator (see `docs/operations/firewall.md`), and close
-them when you disable DNS.
+**Port 53 is not opened or closed by either, and the daemon listens on every address.** Allow TCP and
+UDP 53 in the firewall as a separate step, the same way FTPS leaves its ports to the administrator (see
+`docs/operations/firewall.md`), and remove the rules when you disable DNS. On a host with no firewall in
+force the port is reachable the moment DNS is turned on.
+
+The DNS server card on the nameservers page shows whether the panel firewall lets TCP and UDP 53
+through. With the server on and a protocol missing it offers "Open port 53"; with the server off and a
+rule still there it offers "Close port 53" (only for rules naming exactly port 53; a broader range is
+narrowed on the Firewall page). The card reads the panel's own rules, so it cannot tell a host with no
+firewall in force from one that blocks the port: "not open" there means no rule of the panel matches.
 
 The status the panel shows is observed on the host: whether the unit is active, whether the daemon
 answers its control channel, whether port 53 accepts a connection, and whether the live
@@ -78,6 +85,15 @@ The control channel listens on `127.0.0.1` port 953 only and is authenticated by
 Rate limiting and minimal answers reduce reflection amplification; they do not remove it. An
 authoritative server still answers queries for the names it serves, and a large TXT or DNSKEY answer
 is larger than the query that asked for it.
+
+## Zone templates and DNSSEC (issue #452)
+
+- **Templates** are administrator-only. A template's records may use `{apex}`, `{ipv4}`, `{ipv6}`, `{ns1}`, `{ns2}` and `{hostmaster}` and nothing else; a record whose variable is empty in the DNS settings (no IPv6 address, no second name server) is skipped when a zone is created. The default template seeds zones created with a site.
+- **DNSSEC** needs a name server build that accepts `dnssec-policy`; `EnableDns` probes this with the daemon's own checker and the panel hides the feature when the answer is no. Signed zones live in `<state>/signed-zones` and keys in `<state>/keys` (both `root:<daemon group>` 0770, created by the installer). There is one key per zone and no automatic rollover.
+- **Publishing:** copy the DS record shown on the zone's DNSSEC tab to the registrar.
+- **Withdrawing:** remove the DS record at the registrar FIRST. The panel switches the zone to the built-in `insecure` policy, and the final step is refused for 48 hours after it began, for administrators too. Removing signing while the DS is still published makes every validating resolver refuse the domain.
+
+Threat note: `docs/superpowers/notes/2026-11-09-dns-templates-and-dnssec-threat-note.md` (second review outstanding, #331).
 
 ## Troubleshooting
 

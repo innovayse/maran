@@ -1,8 +1,10 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn, stubbedAdministrator } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubProfile } from '../fixtures/stub-profile-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
+import type { Page } from '@playwright/test'
 
 /** The secret a stubbed enrolment hands out. */
 const SECRET = 'JBSWY3DPEHPK3PXP'
@@ -29,6 +31,8 @@ const signInCounting = async (page: Page, isTwoFactorEnabled: boolean): Promise<
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
+  // After the shell's quiet profile, so the two-factor state this spec chose is the one answered.
   await stubProfile(page, {
     username: stubbedAdministrator.username,
     email: stubbedAdministrator.email,
@@ -57,7 +61,9 @@ const signInCounting = async (page: Page, isTwoFactorEnabled: boolean): Promise<
   return calls
 }
 
-test('a refused enrolment code is ONE confirm request: no renewal and no replay', async ({ page }) => {
+test('a refused enrolment code is ONE confirm request: no renewal and no replay', async ({ page, guard }) => {
+  // The refusal is the subject of this test.
+  guard.allow(400, /\/api\/v1\/auth\/two-factor\/confirm$/)
   const calls = await signInCounting(page, false)
   await page.route('**/api/v1/auth/two-factor/confirm', async (route) => {
     calls.proof += 1
@@ -83,7 +89,10 @@ test('a refused enrolment code is ONE confirm request: no renewal and no replay'
 
 test('a refused code for turning two-factor off is ONE disable request: no renewal and no replay', async ({
   page,
+  guard,
 }) => {
+  // The refusal is the subject of this test.
+  guard.allow(400, /\/api\/v1\/auth\/two-factor\/disable$/)
   const calls = await signInCounting(page, true)
   await page.route('**/api/v1/auth/two-factor/disable', async (route) => {
     calls.proof += 1
@@ -109,7 +118,9 @@ test('a refused code for turning two-factor off is ONE disable request: no renew
   expect(calls.refresh).toBe(refreshedBeforeClick)
 })
 
-test('an expired access token on confirm is still renewed and replayed once (the control)', async ({ page }) => {
+test('an expired access token on confirm is still renewed and replayed once (the control)', async ({ page, guard }) => {
+  // The first answer is an expired-token 401 on purpose; the replay after the renewal succeeds.
+  guard.allow(401, /\/api\/v1\/auth\/two-factor\/confirm$/)
   const calls = await signInCounting(page, false)
   // The first answer says the SESSION is the problem, the replay after the renewal succeeds: the
   // renew-and-replay is still there for a real 401, so the two specs above prove the status, not a

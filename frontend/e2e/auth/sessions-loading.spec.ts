@@ -1,15 +1,17 @@
-import { test, type Page } from '@playwright/test'
 import {
   expectTableFastLoad,
   expectTableSlowFailure,
   expectTableSlowLoad,
   type TableLoadingScenario,
 } from '../fixtures/expect-table-loading'
+import { test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { SESSIONS_LIST_PATTERN, stubSessions, stubSessionsProblem } from '../fixtures/stub-sessions-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Session } from '../../src/types/auth'
+import type { Page } from '@playwright/test'
 
 // The signed-in devices while they are on the way (#243): drawn from the table's own column schema.
 
@@ -31,6 +33,7 @@ const signIn = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
 }
 
 /** How the sessions screen is opened and answered. */
@@ -58,6 +61,8 @@ test('sessions: a fast answer shows no placeholder', async ({ page }) => {
   await expectTableFastLoad(page, SESSIONS_SCENARIO)
 })
 
-test('sessions: a slow failure is an alert, never a skeleton', async ({ page }) => {
+test('sessions: a slow failure is an alert, never a skeleton', async ({ page, guard }) => {
+  // The refusal is the subject of this test.
+  guard.allow(500, SESSIONS_LIST_PATTERN)
   await expectTableSlowFailure(page, SESSIONS_SCENARIO)
 })

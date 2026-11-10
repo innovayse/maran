@@ -27,8 +27,14 @@ export interface AuditEvent {
    * Falls back to the machine name on the server for an action this panel has no entry for.
    */
   actionName: string
-  /** What it was done to. Never carries a secret — the backend is responsible for that. */
+  /** What it was done to, as the journal stores it. Never carries a secret — the backend is responsible for that. */
   subject: string
+  /**
+   * What it was done to, as an operator reads it, localized by the backend for the request's
+   * language: a sentence for an entry whose stored subject is a machine line (a chain verdict, a
+   * retention run, a threshold change), and the stored subject itself for every other entry.
+   */
+  subjectName: string
   /** The address the request came from. */
   ipAddress: string
   /** Whether the action succeeded. A failed sign-in is recorded as much as a successful one. */

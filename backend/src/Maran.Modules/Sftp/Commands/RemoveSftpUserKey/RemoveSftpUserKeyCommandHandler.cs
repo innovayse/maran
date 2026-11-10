@@ -1,4 +1,5 @@
 using System.Data.Common;
+using Maran.Agent.Client.Errors;
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Sftp.Interfaces;
 using Maran.Modules.Sftp.Mappers;
@@ -49,12 +50,6 @@ namespace Maran.Modules.Sftp.Commands.RemoveSftpUserKey;
 /// </remarks>
 public sealed class RemoveSftpUserKeyCommandHandler
 {
-    /// <summary>
-    /// The Agent.Client code for a login the host does not hold. It is matched as a literal because the
-    /// generated <c>ErrorMessages</c> class of <c>Maran.Agent.Client</c> is internal to that project.
-    /// </summary>
-    private const string AgentNotFoundCode = "AgentNotFound";
-
     /// <summary>The Sftp module's database context, and this module's tenant boundary.</summary>
     private readonly SftpDbContext _dbContext;
 
@@ -168,7 +163,7 @@ public sealed class RemoveSftpUserKeyCommandHandler
         }
 
         var ended = await _agent.EndSessionsAsync(account.Username, sftpUser.Name, cancellationToken);
-        if (!ended.IsSuccess && ended.Error!.Code != AgentNotFoundCode)
+        if (!ended.IsSuccess && ended.Error!.Code != AgentErrorCodes.NotFound)
         {
             return await FailAsync(
                 command,

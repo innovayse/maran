@@ -1,8 +1,15 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import { stubAccountResources } from '../fixtures/stub-account-resources-route'
+import { stubAccountNames } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubInvitation } from '../fixtures/stub-invitation-routes'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
+import type { Account } from '../../src/types/account'
 import type { SearchResult } from '../../src/types/search'
+import type { Page } from '@playwright/test'
 
 // Issue #198 slice S1: the jump-to palette shows what the panel's global search finds, grouped, and
 // keeps working when a group cannot be answered.
@@ -17,6 +24,19 @@ const ANSWER: SearchResult = {
     },
     { kind: 'site', state: 'unavailable', hits: [] },
   ],
+}
+
+/** The account the found hit leads to, as the panel reports it on its detail screen. */
+const ACME: Account = {
+  id: '11111111-1111-4111-8111-111111111111',
+  name: 'acme',
+  primaryDomain: 'acme.example.com',
+  planId: '22222222-2222-4222-8222-222222222222',
+  status: 'active',
+  statusName: 'Active',
+  createdAt: '2026-08-30T09:00:00+00:00',
+  resellerId: null,
+  resellerName: null,
 }
 
 /**
@@ -42,6 +62,8 @@ const stubSearch = async (page: Page, answer: SearchResult): Promise<string[]> =
  */
 const openPalette = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
   await stubHealthy(page)
   // Accounts is licensed: a hit leads into its screen, and an unlicensed module's route is the upgrade page.
   await stubModules(page, [
@@ -76,6 +98,10 @@ test('one character is never sent to the server', async ({ page }) => {
 test('choosing a found account opens its detail screen', async ({ page }) => {
   await stubSearch(page, ANSWER)
   await openPalette(page)
+  // The screen the hit opens reads the account, its use of the plan and its invitation.
+  await stubAccountNames(page, [ACME])
+  await stubAccountResources(page, { accountId: ACME.id, resources: [] })
+  await stubInvitation(page, ACME.id, 'pending')
 
   await page.getByRole('dialog').getByRole('combobox').fill('acme')
   await page.getByRole('dialog').getByRole('option', { name: /acme/ }).click()
@@ -83,7 +109,9 @@ test('choosing a found account opens its detail screen', async ({ page }) => {
   await expect(page).toHaveURL(/\/accounts\/11111111-1111-4111-8111-111111111111/)
 })
 
-test('a failed search leaves the palette usable with a muted note', async ({ page }) => {
+test('a failed search leaves the palette usable with a muted note', async ({ page, guard }) => {
+  // The refusal is the subject: the palette shows a note instead of hits.
+  guard.allow(500, /\/api\/v1\/search$/)
   await page.route('**/api/v1/search', async (route) => {
     await route.fulfill({ status: 500, contentType: 'application/problem+json', body: '{}' })
   })

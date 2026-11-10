@@ -66,4 +66,40 @@
   <data name="DnsOriginAcmeChallenge">
     <value>Certificate validation</value>
   </data>
+  <data name="DnsTemplateVariableApex">
+    <value>The zone's own domain name, such as example.com.</value>
+  </data>
+  <data name="DnsTemplateVariableIpv4">
+    <value>The server's public IPv4 address from the name server settings.</value>
+  </data>
+  <data name="DnsTemplateVariableIpv6">
+    <value>The server's public IPv6 address from the name server settings.</value>
+  </data>
+  <data name="DnsTemplateVariableNs1">
+    <value>The first name server from the name server settings.</value>
+  </data>
+  <data name="DnsTemplateVariableNs2">
+    <value>The second name server from the name server settings.</value>
+  </data>
+  <data name="DnsTemplateVariableHostmaster">
+    <value>The hostmaster mailbox in dotted form from the name server settings.</value>
+  </data>
+  <data name="DnsTemplateSkippedApex">
+    <value>The zone's domain name is needed for this record.</value>
+  </data>
+  <data name="DnsTemplateSkippedIpv4">
+    <value>Skipped because the name server settings state no public IPv4 address.</value>
+  </data>
+  <data name="DnsTemplateSkippedIpv6">
+    <value>Skipped because the name server settings state no public IPv6 address.</value>
+  </data>
+  <data name="DnsTemplateSkippedNs1">
+    <value>Skipped because the name server settings state no first name server.</value>
+  </data>
+  <data name="DnsTemplateSkippedNs2">
+    <value>Skipped because the name server settings state no second name server.</value>
+  </data>
+  <data name="DnsTemplateSkippedHostmaster">
+    <value>Skipped because the name server settings state no hostmaster mailbox.</value>
+  </data>
 </root>

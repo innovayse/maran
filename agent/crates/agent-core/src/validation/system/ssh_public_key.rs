@@ -263,3 +263,7 @@ impl<'a> WireReader<'a> {
 #[cfg(test)]
 #[path = "../../tests/validation/system/ssh_public_key_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "../../tests/validation/system/ssh_public_key_property_tests.rs"]
+mod property_tests;

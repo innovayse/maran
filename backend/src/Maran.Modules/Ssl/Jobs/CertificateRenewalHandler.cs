@@ -318,8 +318,12 @@ public sealed class CertificateRenewalHandler
 
         await _tasks.ReportAsync(taskId, 20, "re-ordering the certificate from the authority", cancellationToken);
 
-        var issued = await _acme.OrderAsync(
-            new AcmeOrderRequest(certificate.Domain, new SiteDocumentRootChallenge(account.Username)), cancellationToken);
+        // Renewal repeats the way the certificate was ordered: a wildcard is proven again through the
+        // account's DNS zone, a plain certificate through the site's document root.
+        AcmeChallengeTarget challenge = certificate.IsWildcard
+            ? new DnsZoneChallenge(certificate.AccountId)
+            : new SiteDocumentRootChallenge(account.Username);
+        var issued = await _acme.OrderAsync(new AcmeOrderRequest(certificate.Domain, challenge), cancellationToken);
         if (!issued.IsSuccess)
         {
             return await RecordFailureAsync(certificate, issued.Error!.Code, taskId, cancellationToken);
@@ -337,7 +341,10 @@ public sealed class CertificateRenewalHandler
         certificate.Renewed(installed.Value, _clock.UtcNow);
 
         await _journal.RecordSystemAsync(
-            CertificateAuditActions.CertificateRenewed, certificate.Domain, succeeded: true, cancellationToken);
+            CertificateAuditActions.CertificateRenewed,
+            CertificateAuditJournal.SubjectOf(certificate.Domain, certificate.IsWildcard),
+            succeeded: true,
+            cancellationToken);
 
         await _tasks.CompleteAsync(taskId, cancellationToken);
 
@@ -364,7 +371,10 @@ public sealed class CertificateRenewalHandler
         LogRenewalFailure(_logger, certificate.Domain, code, certificate.ConsecutiveRenewalFailures, null);
 
         await _journal.RecordSystemAsync(
-            CertificateAuditActions.CertificateRenewed, certificate.Domain, succeeded: false, cancellationToken);
+            CertificateAuditActions.CertificateRenewed,
+            CertificateAuditJournal.SubjectOf(certificate.Domain, certificate.IsWildcard),
+            succeeded: false,
+            cancellationToken);
 
         await _tasks.FailAsync(taskId, code, cancellationToken);
 

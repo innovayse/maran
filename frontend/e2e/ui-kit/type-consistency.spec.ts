@@ -1,15 +1,18 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules, stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubLogin, stubSignedIn, stubSignedOut } from '../fixtures/stub-auth-routes'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
-import { stubPhpVersions, stubSiteDetail, stubSites } from '../fixtures/stub-sites-routes'
+import { stubAccountResources } from '../fixtures/stub-account-resources-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
+import { stubOpenSiteLogStream, stubPhpVersions, stubSiteDetail, stubSiteLimits, stubSites } from '../fixtures/stub-sites-routes'
 import { stubManagedPlans } from '../fixtures/stub-plans-route'
 import { stubInvitation } from '../fixtures/stub-invitation-routes'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import type { Account } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
 import type { SiteDetail } from '../../src/types/site'
+import type { Locator, Page } from '@playwright/test'
 
 // Issue #218, points 1-4: one face, one size and one colour for things that are the same kind of
 // text. Each check compares the element against a sibling of the same kind on the same screen, so
@@ -74,10 +77,14 @@ const stubSiteScreens = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, SITES_MODULE)
+  await stubShellReads(page)
   await stubAccounts(page, [ACCOUNT])
   await stubSites(page, [])
+  await stubSiteLimits(page, { maximumAliases: 20 })
   await stubSiteDetail(page, SITE)
   await stubPhpVersions(page, [{ version: '8.3', defaultStatus: 'default' }])
+  // The logs tab opens the log stream when it is chosen; an open stream is all the spec needs of it.
+  await stubOpenSiteLogStream(page)
 }
 
 for (const width of [1440, 390]) {
@@ -154,6 +161,8 @@ test('the invitation sentence on an account is body text, the size of the notes 
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, ACCOUNTS_MODULE)
+  await stubShellReads(page)
+  await stubAccountResources(page, { accountId: ACCOUNT.id, resources: [] })
   await page.route(`**/api/v1/accounts/${ACCOUNT.id}`, async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ACCOUNT) })
   })
@@ -162,7 +171,7 @@ test('the invitation sentence on an account is body text, the size of the notes 
 
   const state = page.getByTestId('invitation-state')
   await expect(state).toContainText('Waiting for the owner')
-  const note = page.getByText(/^An e-mail is sent only if/)
+  const note = page.getByText(/^An email is sent only if/)
   expect(await styleOf(state, 'fontSize')).toBe(await styleOf(note, 'fontSize'))
 })
 
@@ -170,6 +179,7 @@ test('the plans list sets its accounts figures in the same colour as every other
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, ACCOUNTS_MODULE)
+  await stubShellReads(page)
   await stubManagedPlans(page)
   await page.goto('/plans')
 

@@ -211,7 +211,7 @@ public sealed class ModuleSchemaOwnershipTests
     /// <returns><c>ModuleRegistry.All</c> followed by <c>ModuleContractCensus.UnregisteredModules</c>.</returns>
     private static List<IPanelModule> ComposedAndUnregisteredModules()
     {
-        return ModuleRegistry.All.Concat(ModuleContractCensus.UnregisteredModules()).ToList();
+        return ModuleContractCensus.AllModules().ToList();
     }
 
     /// <summary>Locates the source folder of a module from its assembly name.</summary>

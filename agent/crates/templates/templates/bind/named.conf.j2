@@ -42,4 +42,7 @@ options {
         max-table-size 20000;
     };
 };
+{% if dnssec_policy_supported %}
+dnssec-policy "maran-csk" { keys { csk lifetime unlimited algorithm ecdsap256sha256; }; };
+{% endif -%}
 

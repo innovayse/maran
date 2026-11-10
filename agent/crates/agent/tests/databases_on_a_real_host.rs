@@ -32,6 +32,9 @@
 //!   `the_geometry_that_makes_a_collision_possible`. The case directly above it
 //!   asks the same question of two names of DIFFERENT lengths, where a single-`_`
 //!   pattern cannot reach, so it passed for the whole life of the defect.
+//! - that the temporary user an imported dump is loaded as holds ONE database and
+//!   not its wildcard neighbours. That is
+//!   `the_temporary_import_user_cannot_reach_a_database_its_name_matches_as_a_pattern`.
 //! - that a grant an OLDER agent issued as a pattern can be rewritten on a live
 //!   server without anybody losing access, which is the only place the repair
 //!   means anything either. The pre-fix state is SEEDED with the client rather
@@ -55,13 +58,17 @@ mod polygon_account;
 #[path = "fixtures/polygon_mariadb.rs"]
 mod polygon_mariadb;
 
+use std::fs::File;
+use std::io::Write as _;
 use std::path::Path;
 
+use maran_agent_core::secret_string::SecretString;
 use maran_agent_core::validation::db::database_name::DatabaseName;
 use maran_agent_core::validation::db::db_user_name::DbUserName;
 use maran_agent_core::validation::secrets::password::Password;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_distro::{DistroAdapter, adapter_for, detect};
+use maran_ops::backup::{ImportUser, ProcessRestrictedDumpHost, RestrictedDumpHost};
 use maran_ops::db::{
     CreateDatabaseRequest, DbError, GrantRepairRefusal, ProcessDbHost, create_database,
     database_size, drop_database, list_databases, repair_grants, set_database_password,
@@ -1038,4 +1045,101 @@ fn the_repair_narrows_a_wildcard_grant_an_older_agent_issued_and_touches_nothing
     server.run(&format!("DROP USER IF EXISTS '{FOREIGN_USER}'@'localhost'"));
     clear(&server, victim.name());
     clear(&server, attacker.name());
+}
+
+/// The account whose `db` database the import user is granted. Its name holds a
+/// separator, so the unescaped pattern of `polyimp_a_db` is `polyimp?a?db`.
+const IMPORT_ACCOUNT: &str = "polyimp_a";
+
+/// A database of ANOTHER tenant that the unescaped pattern of the import
+/// database matches character for character (`polyimpxa_db`), made by root.
+const IMPORT_NEIGHBOUR: &str = "polyimpxa_db";
+
+/// Writes `text` to a file and opens it for reading, as the loader's dump.
+fn dump_of(directory: &Path, text: &str) -> File {
+    let path = directory.join("dump.sql");
+    let mut file = File::create(&path).expect("the dump file is created");
+    file.write_all(text.as_bytes())
+        .expect("the dump is written");
+    drop(file);
+
+    File::open(path).expect("the dump file is opened")
+}
+
+#[test]
+#[ignore = "creates a real database user on a real MariaDB: polygon only"]
+fn the_temporary_import_user_cannot_reach_a_database_its_name_matches_as_a_pattern() {
+    let server = PolygonMariadb::start();
+    let account = AccountName::parse(IMPORT_ACCOUNT).expect("a valid account name");
+    let database = DatabaseName::for_account(&account, "db").expect("a valid database name");
+    let target = database.as_str().to_owned();
+    // The premise: the unescaped name really is a pattern the neighbour matches.
+    assert_eq!(target.len(), IMPORT_NEIGHBOUR.len());
+    server.run(&format!("DROP DATABASE IF EXISTS `{target}`"));
+    server.run(&format!("DROP DATABASE IF EXISTS `{IMPORT_NEIGHBOUR}`"));
+    server.run(&format!("CREATE DATABASE `{target}`"));
+    server.run(&format!("CREATE TABLE `{target}`.t (v VARCHAR(64))"));
+    server.run(&format!("CREATE DATABASE `{IMPORT_NEIGHBOUR}`"));
+    server.run(&format!(
+        "CREATE TABLE `{IMPORT_NEIGHBOUR}`.t (v VARCHAR(64))"
+    ));
+    server.run(&format!(
+        "INSERT INTO `{IMPORT_NEIGHBOUR}`.t VALUES ('{VICTIM_SECRET}')"
+    ));
+
+    let scratch = tempfile::tempdir().expect("a scratch directory");
+    let host = ProcessRestrictedDumpHost::new(polygon_distro(), scratch.path().to_path_buf());
+    let user = ImportUser::from_random(&[7; 8]);
+    let password = SecretString::new("0123456789abcdef0123456789abcdef".to_owned());
+    host.create_import_user(&user, &password, &database)
+        .expect("the import user is created");
+
+    // INVERSE CONTROL: the user loads into its OWN database. An escape that
+    // broke the legitimate grant would pass every refusal below.
+    host.load_dump_as(
+        &user,
+        &password,
+        dump_of(
+            scratch.path(),
+            &format!("INSERT INTO `{target}`.t VALUES ('own');\n"),
+        ),
+    )
+    .expect("the import user must write its own database");
+    let own = server.run(&format!("SELECT COUNT(*) FROM `{target}`.t"));
+    assert_eq!(String::from_utf8_lossy(&own.stdout).trim(), "1");
+
+    // THE FINDING: a dump naming the neighbour must be refused BY THE SERVER,
+    // for read and for write.
+    for statement in [
+        format!("INSERT INTO `{target}`.t SELECT v FROM `{IMPORT_NEIGHBOUR}`.t;"),
+        format!("INSERT INTO `{IMPORT_NEIGHBOUR}`.t VALUES ('planted');"),
+        format!("DROP TABLE `{IMPORT_NEIGHBOUR}`.t;"),
+    ] {
+        let result = host.load_dump_as(
+            &user,
+            &password,
+            dump_of(scratch.path(), &format!("{statement}\n")),
+        );
+        assert!(
+            result.is_err(),
+            "the import user reached the neighbour's database: {statement}"
+        );
+    }
+    let neighbour = server.run(&format!("SELECT v FROM `{IMPORT_NEIGHBOUR}`.t"));
+    assert_eq!(
+        String::from_utf8_lossy(&neighbour.stdout).trim(),
+        VICTIM_SECRET,
+        "the neighbour's table must be exactly as it was"
+    );
+    let leaked = server.run(&format!("SELECT COUNT(*) FROM `{target}`.t"));
+    assert_eq!(
+        String::from_utf8_lossy(&leaked.stdout).trim(),
+        "1",
+        "nothing of the neighbour may have been copied into the target"
+    );
+
+    host.drop_import_user(&user)
+        .expect("the import user is dropped");
+    server.run(&format!("DROP DATABASE IF EXISTS `{target}`"));
+    server.run(&format!("DROP DATABASE IF EXISTS `{IMPORT_NEIGHBOUR}`"));
 }

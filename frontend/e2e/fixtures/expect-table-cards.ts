@@ -11,6 +11,7 @@ export type CardActions = 'actions' | 'none'
  * The vacuity guards are on the axes that can go blind: at least one table, at least one labelled
  * line, and — for a screen declared to have actions — at least one actions cell, so a table that
  * stopped rendering cards (or lost its actions column) fails here instead of passing over nothing.
+ * A cell without a control (a row that offers no actions) is not measured: it has nothing to push off.
  * @param page The page, with its tables loaded.
  * @param actions Whether the screen's tables have a row-actions column.
  * @returns Resolves once every table has been measured.
@@ -58,6 +59,11 @@ export const expectTablesAsCards = async (page: Page, actions: CardActions): Pro
       actionCells: actionCells.length,
       offscreenActions: actionCells
         .filter((cell) => {
+          // A row with nothing to offer (a default template has no menu) draws an empty cell of no
+          // width; only a cell that holds a control can have that control pushed off the screen.
+          if (cell.querySelector('button, a') === null) {
+            return false
+          }
           const box = cell.getBoundingClientRect()
           return box.width === 0 || box.left < -0.5 || box.right > viewport + 0.5
         })

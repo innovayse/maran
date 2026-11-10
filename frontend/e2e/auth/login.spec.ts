@@ -1,8 +1,11 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubLogin, stubSignedOut, stubbedRefresh, stubbedSignIn } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules, stubModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
+import { stubEmptyTasks } from '../fixtures/stub-tasks-routes'
 
 test('an anonymous visit to a panel page lands on the sign-in screen and remembers where it was headed', async ({
   page,
@@ -25,6 +28,9 @@ test('signing in returns the visitor to the page they originally asked for', asy
   // correctly, but that is a different spec's subject.
   await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', kindDisplayName: 'Core', tier: 'included', state: 'enabled' }])
   await stubAccounts(page, [])
+  // The shell the visitor is returned into asks for its own reads once signed in.
+  await stubShellReads(page)
+  await stubEmptyTasks(page)
 
   await page.goto('/accounts')
   await stubLogin(page, stubbedSignIn)
@@ -35,7 +41,9 @@ test('signing in returns the visitor to the page they originally asked for', asy
   await expect(page).toHaveURL('/accounts')
 })
 
-test('a refused sign-in shows the backend message verbatim and stays on the screen', async ({ page }) => {
+test('a refused sign-in shows the backend message verbatim and stays on the screen', async ({ page, guard }) => {
+  // The refusal is the subject of this test.
+  guard.allow(401, /\/api\/v1\/auth\/login(\?.*)?$/)
   await stubSignedOut(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
@@ -60,6 +68,10 @@ test('the sign-in form can be completed with the keyboard alone', async ({ page 
   await stubHealthy(page)
   await stubEmptyModules(page)
   await stubLogin(page, stubbedSignIn)
+  // Signing in lands on the home screen, which asks for its own reads.
+  await stubShellReads(page)
+  await stubEmptyTasks(page)
+  await stubLandingReads(page)
 
   await page.goto('/login')
   await page.getByRole('textbox', { name: 'Username' }).focus()
@@ -74,6 +86,9 @@ test('the sign-in form can be completed with the keyboard alone', async ({ page 
 test('a signed-in visitor is sent out of the sign-in screen rather than shown it again', async ({ page }) => {
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
+  await stubEmptyTasks(page)
+  await stubLandingReads(page)
   await page.route('**/api/v1/setup/state', async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: '{"isComplete":true}' })
   })

@@ -1,5 +1,6 @@
+import { expect, test } from '../fixtures/guarded-test'
 import { earlySkeletons, recordSkeletonFlashes, runPastDelay } from '../fixtures/skeleton-flash'
-import { expect, test, type Page } from '@playwright/test'
+import type { Page } from '@playwright/test'
 
 // The loading kit through `e2e/fixtures/skeleton-harness.html` (see that file): placeholders drawn
 // from the table's own column schema and the form's own fields, hidden from assistive technology,

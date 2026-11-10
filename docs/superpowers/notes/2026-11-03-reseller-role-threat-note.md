@@ -85,7 +85,7 @@ should demand.
    (the window other modules and view-as use) narrows the same way. The answer is **404**, identical to
    a random GUID, never 403 (rules/security.md item 6). 403 is used only for a ROLE refusal of an
    endpoint (a reseller calling `POST /resellers`), which discloses nothing about a tenant. Evidence:
-   `ResellerIsolationTests` covers get, list, suspend, reactivate, change-plan, change-owner-email,
+   `ResellerIsolationTests` covers get, list, suspend, reactivate, change-plan,
    delete, resource-summary and view-as against B's account, and get, put and delete on B's plan;
    creating an account on B's plan answers 404 `PlanNotFound`; every list excludes B's rows, with a
    positive control that A sees its own.
@@ -325,3 +325,50 @@ plan that preceded it.
   through the directory-scoped Cron module; `ResellerTenantModuleScopeEndpointTests` holds it.
 - `ViewAsStarter` now signs the token before it stores the session, so a kind mismatch leaves no orphan
   session row and no audit entry.
+
+## Amendment 2026-11-09 (issue #493): a reseller cannot lift an administrator's suspension
+
+**What was wrong.** `POST /api/v1/accounts/{id}/reactivate` accepted any caller allowed to reach the
+account, and a reseller reaches its own accounts. An account an administrator suspended (for abuse, say)
+could therefore be reactivated by the reseller who owns it, overriding the administrator. The suspension
+recorded nobody.
+
+**What changed.** The account records who suspended it (`SuspendedBy`: `Administrator` or `Reseller`,
+null while active; `Account.Suspend(actor)` keeps the strongest hold, so an administrator's suspension
+replaces a reseller's and is never weakened back). `Account.IsReleasableBy(actor)` says who may lift it:
+an administrator always, a reseller only a suspension a reseller placed. The actor is derived once, in
+`ResellerScope.Actor`, from `CallerResellerId`, so it agrees with the tenant filter about who the caller
+is, an API key a reseller owns included. `ReactivateAccountCommandHandler` checks it after the account is
+loaded and before any task or cascade starts, refuses with `AccountSuspendedByAdministrator`
+(`ErrorType.Forbidden`, en/ru/hy), and journals the refusal as a failed `AccountReactivated` naming the
+reseller as the actor. The column is nullable and unconstrained (expand-only): the previous release
+suspends without writing it, and a suspended account with no recorded origin is read as an
+administrator's, which is also how every suspension that predates the column reads.
+
+**Why it is safe now.** The rule is enforced on the server in the entity and the handler; the SPA is
+unchanged and still shows the button, whose refusal arrives as the translated sentence. A reseller still
+reaches nothing it did not reach before (404 for foreign accounts), and a reseller's own suspensions stay
+liftable by it. Tests: the refusal with nothing touched on the host, the unrecorded-origin reading, the
+reseller lifting its own suspension and an administrator lifting both kinds (inverse controls), the
+strongest-hold rule, and the actor recorded on suspend.
+
+**Cost.** A reseller that suspended an account before this release can no longer reactivate it until an
+administrator does, because that suspension has no recorded origin.
+
+**Not covered.** Suspending a reseller does not suspend its accounts and is not recorded as anything on
+them. Sub-user and membership suspension are separate mechanisms.
+
+**Second review: OUTSTANDING (#331).**
+
+## Amendment (issues #482, #488): two things a reseller may not do to a customer's sign-in
+
+A reseller could change a customer account's owner address (so the next password reset went to an
+address it chose) and could create an account with a login shell and a first password it chose.
+Both are now the administrator's alone: the owner-address route is `AdminOnly` (a reseller is
+answered 403, which names no tenant, so it is a role refusal and not an enumeration signal), and
+`CreateAccountCommandHandler` refuses `ShellAccess` and a stated first password from a reseller or
+its API key. Arguments and tests are in `2026-10-30-account-owner-email-threat-note.md` and
+`2026-11-07-new-account-form-threat-note.md`; the isolation test no longer probes the owner address
+because the route turns a reseller away before it looks an account up.
+
+**Second review: OUTSTANDING (#331)**

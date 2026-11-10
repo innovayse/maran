@@ -59,6 +59,12 @@ cron_packages_for_family() {
   case "$MARAN_OS_FAMILY" in
     debian) echo "cron" ;;
     rhel)   echo "cronie" ;;
+    # UNVERIFIED: `cronie` on openSUSE Leap 16, which the SUSE adapter answers (cron.service).
+    # Confirm with `rpm -qf /usr/bin/crontab` in the pinned image. The `at` package (atd.service)
+    # is NOT installed here, exactly as on the other two families: no step installs `at`, and the
+    # agent's account-removal path reads at jobs through atq only where it is present. Owed: confirm
+    # that tolerance with the first SUSE polygon run (`rpm -q at`) before claiming at support.
+    suse)   echo "cronie" ;;
     *)
       echo "88-cron.sh: unsupported OS family '${MARAN_OS_FAMILY}'" >&2
       exit 1
@@ -75,6 +81,9 @@ cron_service_name() {
   case "$MARAN_OS_FAMILY" in
     debian) echo "cron" ;;
     rhel)   echo "crond" ;;
+    # UNVERIFIED: `cron` on the SUSE family, matching suse_services.rs::cron_service. Confirm with
+    # `systemctl list-unit-files | grep -i cron` in the pinned image after installing `cronie`.
+    suse)   echo "cron" ;;
     *)
       echo "88-cron.sh: unsupported OS family '${MARAN_OS_FAMILY}'" >&2
       exit 1

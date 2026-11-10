@@ -25,13 +25,20 @@
 #     directories, rotation must not silently start running as whoever now owns them.
 #   * `create 0640 root root` gives the replacement file the same containment as the file it
 #     replaces. Not 0644: nothing but root and the agent's own tail ever reads these.
-#   * `kill -USR1`, NOT `copytruncate`. USR1 makes the nginx master reopen its log files,
-#     which is the supported idiom, loses no lines to a race with the writer, and keeps
-#     nlink == 1 true for the live file — the invariant the agent's tail asserts on the inode
-#     (ops::sites::follow_log::open_log). copytruncate would break both. The tail already
-#     handles a reopen: it sees the file shorter than its offset and restarts from the new
-#     beginning.
-#   * The postrotate script reads nginx's own pid file and does nothing if it is absent, so a
+#   * `nginx -s reload`, NOT `kill -USR1` and NOT `copytruncate`. USR1 makes the master reopen
+#     the files as root and then tells every WORKER to reopen them too, by path, as the worker
+#     user. The workers cannot traverse /var/log/maran (root:<service group> 0750) or these
+#     account directories — deliberately — so each reopen failed with `[emerg] open() ...
+#     (13: Permission denied)` and the worker went on writing to the file that had just been
+#     renamed away (issue #490). A reload has the root master open the files and hands the
+#     descriptors to freshly forked workers, so nothing but root ever opens them by path and the
+#     directory modes stay as tight as the threat notes require. It also loses no line to a race
+#     with the writer and keeps nlink == 1 true for the live file — the invariant the agent's
+#     tail asserts on the inode (ops::sites::follow_log::open_log); copytruncate breaks both.
+#     The tail handles the swap: it sees the file shorter than its offset and restarts from the
+#     new beginning. The distro's own /etc/logrotate.d/nginx also signals USR1 for ALL of nginx's
+#     files, so installer/lib/80-nginx.sh makes that stanza reload as well.
+#   * The postrotate script checks nginx's own pid file and does nothing if it is absent, so a
 #     host where nginx is stopped rotates its files and does not fail the daily run.
 
 # The `rotate 14` below is also the CEILING of the per-site retention a customer may choose
@@ -52,7 +59,7 @@
     sharedscripts
     postrotate
         if [ -f /run/nginx.pid ]; then
-            kill -USR1 "$(cat /run/nginx.pid)" 2>/dev/null || true
+            nginx -s reload
         fi
     endscript
 }

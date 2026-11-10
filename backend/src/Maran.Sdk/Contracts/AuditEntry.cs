@@ -22,6 +22,13 @@ namespace Maran.Sdk.Contracts;
 /// trailing so every earlier call compiles unchanged. The journal's writer fills a missing value from a
 /// customer caller; only a journal that is certain of the account passes one itself.
 /// </param>
+/// <param name="SubjectUserId">
+/// The login this entry is ABOUT, when the action was done to a verified login rather than by one: an owner
+/// changing a sub-user's grants, an administrator resending a customer's invitation. <c>null</c> when the
+/// subject is not a login the panel identified, which includes every typed name (a refused sign-in, an
+/// invitation that was never accepted). Optional and trailing. It is the one thing that ties a subject to a
+/// person: the subject TEXT never does, because the text is whatever a caller typed.
+/// </param>
 public sealed record AuditEntry(
     Guid? ActorUserId,
     string ActorUsername,
@@ -30,4 +37,5 @@ public sealed record AuditEntry(
     string IpAddress,
     string UserAgent,
     bool Succeeded,
-    Guid? AccountId = null);
+    Guid? AccountId = null,
+    Guid? SubjectUserId = null);

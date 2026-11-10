@@ -11,12 +11,14 @@ public static class ZoneMapper
     /// <param name="recordCount">How many records the zone holds.</param>
     /// <param name="ownerNames">Account names by id, from the account directory; a missing owner reads as empty.</param>
     /// <param name="nameservers">The name servers the zone names, from the settings.</param>
+    /// <param name="skippedTemplateRecords">The template records left out at creation; null for none.</param>
     /// <returns>The wire shape.</returns>
     public static ZoneDto From(
         Zone zone,
         int recordCount,
         IReadOnlyDictionary<Guid, string> ownerNames,
-        IReadOnlyList<string> nameservers)
+        IReadOnlyList<string> nameservers,
+        IReadOnlyList<SkippedTemplateRecordDto>? skippedTemplateRecords = null)
     {
         return new ZoneDto(
             zone.Id,
@@ -27,6 +29,8 @@ public static class ZoneMapper
             recordCount,
             zone.CreatedAt,
             zone.UpdatedAt,
-            nameservers);
+            nameservers,
+            skippedTemplateRecords ?? [],
+            zone.DnssecState);
     }
 }

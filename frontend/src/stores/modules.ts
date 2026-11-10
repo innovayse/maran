@@ -85,7 +85,7 @@ export const useModulesStore = defineStore('modules', () => {
    */
   const isLocked = (name: string): boolean => {
     return modules.value.some((module) => {
-      return module.name === name && module.state === 'locked'
+      return module.name === name && (module.state === 'locked' || module.state === 'lapsed')
     })
   }
 

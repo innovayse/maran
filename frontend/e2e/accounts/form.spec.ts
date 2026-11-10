@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubAccounts, stubCreateAccountProblem } from '../fixtures/stub-accounts-route'
@@ -7,6 +7,8 @@ import { recordCreateRequests, submitCreate } from '../fixtures/stub-account-cre
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubPlans, THE_PLAN, THREE_PLANS } from '../fixtures/stub-plans-route'
 import { stubInvitation } from '../fixtures/stub-invitation-routes'
+import { stubAccountResources } from '../fixtures/stub-account-resources-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { setPersistedLocale } from '../fixtures/set-locale'
 
 /** Catalogue every spec here starts from: the accounts module licensed, so the form is reachable. */
@@ -24,6 +26,7 @@ test('the create-account form disables browser validation and uses no native val
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_ACCOUNTS)
+  await stubShellReads(page)
   await stubAccounts(page, [])
   await stubPlans(page)
 
@@ -55,6 +58,7 @@ test('submitting the empty form shows the panel own field messages and sends no 
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_ACCOUNTS)
+  await stubShellReads(page)
   await stubAccounts(page, [])
   await stubPlans(page)
 
@@ -78,6 +82,7 @@ test('submitting a name the client rules reject shows the mirrored rule message'
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_ACCOUNTS)
+  await stubShellReads(page)
   await stubAccounts(page, [])
   await stubPlans(page)
 
@@ -97,12 +102,18 @@ test('submitting a name the client rules reject shows the mirrored rule message'
 // and rules/vue.md requires the SPA to render that text unchanged.
 test('a rejected create renders the backend RFC 7807 detail verbatim and stays on the form', async ({
   page,
+  guard,
 }) => {
+  // The refusal is the subject: the create answers 409 with the panel's own sentence.
+  guard.allow(409, /\/api\/v1\/accounts$/)
   await stubSignedIn(page)
   const backendDetail = 'An account named "alpha" already exists on this server.'
   await stubHealthy(page)
   await stubModules(page, LICENSED_ACCOUNTS)
+  await stubShellReads(page)
   await stubPlans(page)
+  // The owner languages the form reads on opening; the problem stub below takes over the list and the create.
+  await stubAccounts(page, [])
   await stubCreateAccountProblem(page, backendDetail)
 
   await page.goto('/accounts/new')
@@ -123,11 +134,13 @@ test('a valid submission posts the typed values and opens the new account, where
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_ACCOUNTS)
+  await stubShellReads(page)
   await stubAccounts(page, [])
   await stubPlans(page)
   // The page the form lands on: the account itself and its invitation.
   const createdId = '11111111-1111-1111-1111-111111111111'
   await stubInvitation(page, createdId, 'pending')
+  await stubAccountResources(page, { accountId: createdId, resources: [] })
   await page.route(`**/api/v1/accounts/${createdId}`, async (route) => {
     await route.fulfill({
       status: 200,
@@ -173,6 +186,7 @@ test('cancelling the form returns to the list without creating anything', async 
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_ACCOUNTS)
+  await stubShellReads(page)
   await stubAccounts(page, [])
   await stubPlans(page)
 
@@ -198,6 +212,7 @@ test('every plan the panel offers can actually be clicked, not merely rendered',
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_ACCOUNTS)
+  await stubShellReads(page)
   await stubAccounts(page, [])
   await stubPlans(page, THREE_PLANS)
 
@@ -229,6 +244,7 @@ test('the plan picker shows sizes in human units and counts in plural forms', as
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_ACCOUNTS)
+  await stubShellReads(page)
   await stubAccounts(page, [])
   await stubPlans(page, [
     ...THREE_PLANS,
@@ -254,6 +270,7 @@ test('the plan picker searches the panel and offers what it answers', async ({ p
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_ACCOUNTS)
+  await stubShellReads(page)
   await stubAccounts(page, [])
   await stubPlans(page, THREE_PLANS)
   const searches: string[] = []
@@ -288,6 +305,7 @@ for (const { locale, label, prompt, required, submit } of [
     await stubSignedIn(page)
     await stubHealthy(page)
     await stubModules(page, LICENSED_ACCOUNTS)
+    await stubShellReads(page)
     await stubAccounts(page, [])
     await stubPlans(page)
 

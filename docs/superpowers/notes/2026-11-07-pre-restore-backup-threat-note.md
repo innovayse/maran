@@ -58,3 +58,40 @@ remembering is the one a mistaken restore finds missing.
 2. `SafetyBackupService` stamps the kind it is given on the row and never changes it, and
    `AccountBackupService` still passes `PreDeletion` (the account cascade depends on it).
 3. `PreRestoreBackupFailed` has a decided kind in the Sdk census and a translation in en, ru and hy.
+
+## Amendment 2026-11-09: the safety copies are bounded (#479, #478)
+
+**What was wrong.** The first bullet of "What an attacker could do" treated the growth of `PreRestore`
+copies as bounded only by how often an authorised caller restores, and "Stated limits" accepted that.
+A customer is an authorised caller: at the default of three restores per account per hour each restore
+wrote one more full archive into the shared backup root, outside the customer's quota, and retention
+never removed it. Reaching the agent's free-space floor refuses writes for every tenant. Manual
+backups had the same hole (#478): nothing counted or bounded them either.
+
+**What changed.**
+- `Domain/Policies/AccountBackupAllowance`: at most 3 `PreRestore` copies are kept per account
+  (`MaximumPreRestoreCopies`), and manual plus pre-restore backups together may number at most 10
+  (`MaximumCustomerBackups`).
+- `Backup.MayBeSafetyCopyPruned()` is a SIBLING of `MayBeRetentionPruned()`, not a widening of it: the
+  schedule's retain figure keeps counting only manual and scheduled backups, so safety copies cannot expire
+  a customer's real history and the two counts stay separately stated. `PreDeletion` is still in neither.
+- After a `PreRestore` copy completes, `SafetyBackupService` publishes `PreRestoreRetentionRequested`;
+  `RetentionHandler` removes the surplus (archive first, row second, oldest first, stopping on an agent
+  refusal). A scheduled retention pass bounds the same copies, so a lost message is made up for later.
+- `CreateBackupCommandHandler` counts the account's rows against the allowance (running and completed
+  manual and pre-restore only; failed and scheduled rows do not count) and refuses with
+  `BackupAllowanceReached` (Conflict, en/ru/hy) before anything is written. A restore is never refused by
+  the allowance: its safety copy must always be possible, and the pass makes room afterwards.
+
+**Why it is safe now.** The volume a customer can fill through these two kinds is bounded by
+13 archives of their own account (10 allowance plus the 3 safety copies of the moment) instead of by time.
+
+**Stated limits.** The count is not atomic with the write: concurrent creations can overshoot by the
+number in flight, and the agent's per-account lock serialises the runs, so the next call is refused.
+The bound is per account, so many accounts still multiply it; a host-wide byte quota and a dedicated
+rate limit for `POST /api/v1/backups` are not built. Pruning stops at an agent refusal, so a refusing
+destination leaves surplus copies until it recovers.
+
+**Second review: OUTSTANDING (#331).** A reviewer must check that no path publishes
+`PreRestoreRetentionRequested` for another kind, that `MayBeSafetyCopyPruned` admits only completed
+`PreRestore` rows, and that `CountsAgainstAllowance` cannot count a `PreDeletion` row.

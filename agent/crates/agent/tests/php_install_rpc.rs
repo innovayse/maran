@@ -305,18 +305,32 @@ fn only_terminal(messages: &[InstallPhpVersionResponse]) -> &Outcome {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn an_install_starts_the_adapters_unit_and_never_runs_the_package_manager() {
-    for (family, unit) in [
-        (DistroFamily::Debian, "maran-php-install@php8.3-fpm.service"),
+    for (family, version, unit) in [
+        (
+            DistroFamily::Debian,
+            "8.3",
+            "maran-php-install@php8.3-fpm.service",
+        ),
         (
             DistroFamily::Rhel,
+            "8.3",
             "maran-php-install@php83-php-fpm.service",
+        ),
+        // The SUSE family offers one PHP minor under the unversioned `php8-fpm` package, so the
+        // version asked for is the distribution's own, 8.4. UNVERIFIED: read from the
+        // distribution documentation; confirm with `zypper --non-interactive --no-refresh info
+        // php8-fpm` in the pinned Leap image.
+        (
+            DistroFamily::Suse,
+            "8.4",
+            "maran-php-install@php8-fpm.service",
         ),
     ] {
         let (service, state) = service(family);
-        state.install_on_start("8.3");
+        state.install_on_start(version);
         let distro = adapter_for(family);
 
-        let messages = install(&service, "8.3").await;
+        let messages = install(&service, version).await;
 
         assert!(
             matches!(only_terminal(&messages), Outcome::Ok(_)),

@@ -66,6 +66,9 @@
   <data name="BackupFailureAgentPackageSourceUnreachable">
     <value>No package source could be reached</value>
   </data>
+  <data name="BackupFailureAgentPackageNotAvailable">
+    <value>The package the server needs is not offered by its package sources</value>
+  </data>
   <data name="BackupFailureAgentBelowFreeSpaceFloor">
     <value>The server was nearly out of disk space</value>
   </data>
@@ -119,6 +122,9 @@
   </data>
   <data name="BackupKindPreRestore">
     <value>Before restore</value>
+  </data>
+  <data name="BackupKindMigration">
+    <value>For moving to another server</value>
   </data>
   <data name="BackupDestinationKindLocal">
     <value>This server's disk</value>

@@ -33,6 +33,16 @@ const DEBIAN_CRON: (&str, &str) = ("/usr/sbin/cron", "-f");
 /// against the filesystem before the child is spawned.
 const RHEL_CRON: (&str, &str) = ("/usr/sbin/crond", "-n");
 
+/// The SUSE family's cron daemon, and its do-not-daemonise flag.
+///
+/// UNVERIFIED: read from the distribution documentation, not measured. The `cronie` package is
+/// read to register `cron.service` here and to ship the daemon as `/usr/sbin/cron` (the RHEL
+/// family's spelling is `crond`); it is the same cronie program, so the foreground flag is `-n`.
+/// Confirm with `rpm -ql cronie | grep sbin` in the pinned Leap image. The path is asserted
+/// against the filesystem before the child is spawned, so a wrong guess fails on the first
+/// run by name instead of as a suite waiting out its deadline.
+const SUSE_CRON: (&str, &str) = ("/usr/sbin/cron", "-n");
+
 /// How long a test waits for cron to reach a `* * * * *` entry.
 ///
 /// Cron wakes on the minute boundary, so the true worst case is just under 60
@@ -105,6 +115,7 @@ impl PolygonCron {
         let (binary, foreground) = match family {
             DistroFamily::Debian => DEBIAN_CRON,
             DistroFamily::Rhel => RHEL_CRON,
+            DistroFamily::Suse => SUSE_CRON,
         };
 
         // Asserted before the spawn rather than discovered as a silent

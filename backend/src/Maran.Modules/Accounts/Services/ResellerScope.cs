@@ -74,6 +74,21 @@ public sealed class ResellerScope
     }
 
     /// <summary>
+    /// Who the caller is when it suspends or reactivates an account: a reseller (or an API key a
+    /// reseller owns) is <see cref="SuspensionActor.Reseller"/>, and everything else that can reach
+    /// those endpoints, the administrator and an administrator's key, is
+    /// <see cref="SuspensionActor.Administrator"/>. Derived from <see cref="CallerResellerId"/>, so
+    /// the two can never disagree about who the caller is.
+    /// </summary>
+    public SuspensionActor Actor
+    {
+        get
+        {
+            return CallerResellerId is null ? SuspensionActor.Administrator : SuspensionActor.Reseller;
+        }
+    }
+
+    /// <summary>
     /// Decides which reseller will own what the caller creates. A reseller always creates for itself;
     /// an administrator creates for the reseller it names, or for itself when it names none.
     /// </summary>

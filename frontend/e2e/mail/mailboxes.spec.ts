@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccountNames, stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubMyAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
@@ -10,14 +10,17 @@ import {
   stubMailRefusal,
   type MailStubRecorder,
 } from '../fixtures/stub-mail-routes'
+import { MAIL_ON, stubMailServer } from '../fixtures/stub-mail-server-routes'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account, MyAccount } from '../../src/types/account'
 import type { AccountResourceSummary } from '../../src/types/accountResourceSummary'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { PanelModule } from '../../src/types/module'
 import type { MailDomain } from '../../src/types/mailDomain'
 import type { Mailbox } from '../../src/types/mailbox'
+import type { Page } from '@playwright/test'
 
 // The mailboxes page (#177): one server page of mailboxes at a time, the create form (the domain
 // picked by search, the password typed by the owner and never shown back), the quota each mailbox
@@ -99,6 +102,12 @@ const SALES: Mailbox = {
   statusName: 'Suspended',
 }
 
+/** The plan allowance a customer starts with: one mailbox in use out of ten. */
+const ROOMY: AccountResourceSummary = {
+  accountId: OWN_ACCOUNT.id,
+  resources: [{ kind: 'mailboxes', count: { state: 'counted', used: 1 }, limit: { kind: 'limited', maximum: 10 } }],
+}
+
 /**
  * Signs in and serves the given mailboxes, with one mail domain for the picker.
  * @param page The Playwright page.
@@ -109,11 +118,15 @@ const SALES: Mailbox = {
 const openWith = async (page: Page, mailboxes: Mailbox[], user?: AuthenticatedUser): Promise<MailStubRecorder> => {
   await stubSignedIn(page, user)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
   await stubAccountNames(page, [ALICE])
   await stubMyAccount(page, OWN_ACCOUNT)
   await stubMailChoices(page)
+  await stubMailServer(page, MAIL_ON)
+  // A customer's page reads how much of the plan's mailbox allowance is used; a roomy answer by default.
+  await stubMyAccountResources(page, ROOMY)
   await stubMailDomains(page, [ALPHA])
   return await stubMailboxes(page, mailboxes)
 }
@@ -226,7 +239,8 @@ test('a size limit outside the panel range is refused without asking the panel',
   expect(recorder.writes()).toEqual([])
 })
 
-test('an address the panel refuses shows the backend sentence verbatim', async ({ page }) => {
+test('an address the panel refuses shows the backend sentence verbatim', async ({ page, guard }) => {
+  guard.allow(409, /\/api\/v1\/mailboxes$/)
   const detail = 'That address is already taken.'
   await openWith(page, [], CUSTOMER)
   await stubMailRefusal(page, 'mailboxes', 'POST', detail)

@@ -34,6 +34,13 @@ public sealed class AccountConfiguration : IEntityTypeConfiguration<Account>
             .HasConversion<string>()
             .HasMaxLength(16);
 
+        // Who suspended the account (issue #493); null while it is active. Nullable and unconstrained on
+        // purpose, so the previous release, which suspends without writing it, still works against this
+        // column: Account.IsReleasableBy reads a suspended account with no value as an administrator's.
+        builder.Property(a => a.SuspendedBy)
+            .HasConversion<string>()
+            .HasMaxLength(16);
+
         // Nullable: an account created before this column existed has no value to backfill it with
         // (Account.OwnerEmail's own remarks explain why), so null means "unknown" rather than "this
         // account has no contact address". A new account always writes a real value —

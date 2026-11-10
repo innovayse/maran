@@ -15,6 +15,13 @@ pkg_update() {
     rhel)
       dnf -y makecache
       ;;
+    suse)
+      # UNVERIFIED: read from the zypper documentation (`man zypper`, "refresh"). Confirm with
+      # `zypper --non-interactive refresh; echo $?` in the pinned Leap image (expect 0 with the
+      # distribution's own repositories). This family adds NO third-party repository here: the
+      # only sources are the ones the image ships.
+      zypper --non-interactive refresh
+      ;;
     *)
       echo "20-dependencies.sh: unsupported OS family '${MARAN_OS_FAMILY}'" >&2
       exit 1
@@ -32,6 +39,13 @@ pkg_install() {
       ;;
     rhel)
       dnf -y install "$@"
+      ;;
+    suse)
+      # --no-recommends keeps the install to what is named, the way apt's --no-install-recommends
+      # does. UNVERIFIED: read from `man zypper` ("install", "--no-recommends"). Confirm with
+      # `zypper --non-interactive install --no-recommends nginx; echo $?` in the pinned Leap image;
+      # zypper exits 0 for "already installed" (idempotent) and 104 for an unknown package name.
+      zypper --non-interactive install --no-recommends "$@"
       ;;
     *)
       echo "20-dependencies.sh: unsupported OS family '${MARAN_OS_FAMILY}'" >&2
@@ -64,6 +78,29 @@ icu_runtime_package() {
   case "$MARAN_OS_FAMILY" in
     rhel)
       echo "libicu"
+      ;;
+    suse)
+      # Versioned like the Debian family: the runtime library is `libicu<N>` (the unversioned
+      # `libicu` is not the runtime there). The name is READ from the host's own repository cache,
+      # never predicted, and a miss is a refusal for the reason the Debian arm gives (issue #40).
+      # Called after `pkg_update`, which fills the cache `--no-refresh` reads.
+      #
+      # UNVERIFIED: that the runtime package is named `libicu<N>` and that `zypper search` prints a
+      # `S | Name | Summary | Type` table whose second column is the name. Confirm with
+      # `zypper --non-interactive --no-refresh search -t package 'libicu*'` in the pinned Leap image;
+      # if the table has another shape the awk below prints nothing and the step refuses loudly
+      # instead of installing a guess.
+      local suse_found
+      suse_found="$(zypper --non-interactive --no-refresh search -t package 'libicu*' 2>/dev/null \
+                      | awk -F'|' '{ gsub(/[[:space:]]/, "", $2); if ($2 ~ /^libicu[0-9]+$/) print $2 }' \
+                      | sort -V | tail -1)"
+      [ -n "$suse_found" ] || {
+        echo "20-dependencies.sh: no libicu<N> package in this host's zypper repositories." >&2
+        echo "  The panel is a self-contained .NET build and refuses to start without ICU." >&2
+        echo "  Searched: zypper --non-interactive --no-refresh search -t package 'libicu*'" >&2
+        exit 1
+      }
+      echo "$suse_found"
       ;;
     debian)
       local found
@@ -129,6 +166,20 @@ base_packages_for_family() {
       [ -x /usr/bin/curl ] || rhel_packages="${rhel_packages} curl"
       echo "$rhel_packages"
       ;;
+    suse)
+      # No repository is added: every name below comes from the distribution's own repositories.
+      # `curl` follows the RHEL arm's rule (install the package only when the BINARY is missing),
+      # because a minimal image may carry a curl flavour that conflicts with the full package.
+      # `policycoreutils-python-utils` supplies `semanage`, which a later step needs on a host whose
+      # SELinux is enforcing (the default on Leap 16, same as the RHEL family).
+      #
+      # UNVERIFIED: every name here is read from the distribution documentation, none was measured.
+      # Confirm with `zypper --non-interactive --no-refresh info ca-certificates gpg2 nginx openssl
+      # policycoreutils-python-utils curl` in the pinned Leap image (exit 104 names a missing one).
+      local suse_packages="ca-certificates gpg2 $(icu_runtime_package) nginx openssl policycoreutils-python-utils"
+      [ -x /usr/bin/curl ] || suse_packages="${suse_packages} curl"
+      echo "$suse_packages"
+      ;;
     *)
       echo "20-dependencies.sh: unsupported OS family '${MARAN_OS_FAMILY}'" >&2
       exit 1
@@ -176,10 +227,17 @@ base_packages_for_family() {
 agent_tooling_packages_for_family() {
   case "$MARAN_OS_FAMILY" in
     debian)
-      echo "passwd quota tar gzip $(signalling_packages_for_family)"
+      echo "passwd quota tar gzip $(signalling_packages_for_family) $(ssh_client_packages_for_family)"
       ;;
     rhel)
-      echo "shadow-utils passwd quota tar gzip $(signalling_packages_for_family)"
+      echo "shadow-utils passwd quota tar gzip $(signalling_packages_for_family) $(ssh_client_packages_for_family)"
+      ;;
+    suse)
+      # UNVERIFIED: on SUSE the shadow programs (useradd, userdel, usermod, chpasswd, passwd) are
+      # believed to ship in the single package `shadow`, with `quota`, `tar`, `gzip` named as on the
+      # other families. Confirm with `rpm -qf /usr/sbin/useradd /usr/bin/passwd /usr/sbin/setquota
+      # /usr/bin/tar /usr/bin/gzip` in the pinned Leap image, and fix the names here if any differs.
+      echo "shadow quota tar gzip $(signalling_packages_for_family) $(ssh_client_packages_for_family)"
       ;;
     *)
       echo "20-dependencies.sh: unsupported OS family '${MARAN_OS_FAMILY}'" >&2
@@ -227,6 +285,53 @@ signalling_packages_for_family() {
     rhel)
       echo "procps-ng"
       ;;
+    suse)
+      # UNVERIFIED: the package is believed to be `procps` (providing /usr/bin/pkill and
+      # /usr/bin/pgrep). Confirm with `rpm -qf /usr/bin/pkill` in the pinned Leap image.
+      echo "procps"
+      ;;
+    *)
+      echo "20-dependencies.sh: unsupported OS family '${MARAN_OS_FAMILY}'" >&2
+      exit 1
+      ;;
+  esac
+}
+
+# ssh_client_packages_for_family: the packages supplying the OpenSSH CLIENT programs the
+# agent execs for server migration (issue #197): `ssh` (the connection to a source the
+# administrator registered and every read-only command run over it), `ssh-keyscan` (the host
+# keys a source offers, shown for confirmation) and `ssh-keygen` (the per-source key pair).
+# The agent declares all three by absolute path in `DistroAdapter` and a missing one is
+# `SpawnFailed` on the first migration step that reaches it.
+#
+# The two spellings differ, and the RHEL split is the same shape as the `passwd` row above:
+#
+#   Debian family: `openssh-client` ships ssh, ssh-keyscan and ssh-keygen. The `openssh-server`
+#   package step 86 installs depends on it, so it is usually present already; it is named here
+#   because an install that stops depending on it must not lose the migration door silently.
+#   RHEL family: `openssh-clients` ships ssh and ssh-keyscan, and ssh-keygen is in `openssh`, a
+#   different package. `openssh-server` pulls `openssh` in; a minimal host is not promised
+#   `openssh-clients`, which is the one that is a real gap there.
+#
+# `rsync` (issue #197, phase 2) is listed beside them on every family: it is the program the
+# agent runs, as the receiving account, to copy a registered source's home, and it uses the
+# `ssh` above as its transport. The package is `rsync` on all three families and puts the
+# program at /usr/bin/rsync, where the `DistroAdapter` says it is.
+ssh_client_packages_for_family() {
+  case "$MARAN_OS_FAMILY" in
+    debian)
+      echo "openssh-client rsync"
+      ;;
+    rhel)
+      echo "openssh openssh-clients rsync"
+      ;;
+    suse)
+      # UNVERIFIED: the client programs are believed to ship in `openssh-clients` (ssh,
+      # ssh-keyscan) and `openssh-common` (ssh-keygen). Confirm with `rpm -qf /usr/bin/ssh
+      # /usr/bin/ssh-keyscan /usr/bin/ssh-keygen` in the pinned Leap image, and fix the names
+      # here if any differs.
+      echo "openssh-clients openssh-common rsync"
+      ;;
     *)
       echo "20-dependencies.sh: unsupported OS family '${MARAN_OS_FAMILY}'" >&2
       exit 1
@@ -246,7 +351,8 @@ assert_agent_tooling() {
   local binary
   for binary in /usr/sbin/useradd /usr/sbin/userdel /usr/sbin/usermod /usr/sbin/chpasswd \
                 /usr/bin/passwd /usr/sbin/setquota /usr/bin/quota /usr/bin/tar \
-                /usr/bin/gzip /usr/bin/getent /usr/bin/pkill /usr/bin/pgrep; do
+                /usr/bin/gzip /usr/bin/getent /usr/bin/pkill /usr/bin/pgrep \
+                /usr/bin/ssh /usr/bin/ssh-keyscan /usr/bin/ssh-keygen /usr/bin/rsync; do
     [ -x "$binary" ] || missing="${missing} ${binary}"
   done
   if [ -n "$missing" ]; then

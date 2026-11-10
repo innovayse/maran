@@ -18,7 +18,7 @@ namespace Maran.Modules.Dns.Persistence.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("dns")
-                .HasAnnotation("ProductVersion", "9.0.19")
+                .HasAnnotation("ProductVersion", "9.0.20")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -26,6 +26,9 @@ namespace Maran.Modules.Dns.Persistence.Migrations
             modelBuilder.Entity("Maran.Modules.Dns.Domain.Entities.DnsSettings", b =>
                 {
                     b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("DefaultTemplateId")
                         .HasColumnType("uuid");
 
                     b.Property<int>("DefaultTtl")
@@ -76,6 +79,12 @@ namespace Maran.Modules.Dns.Persistence.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("DnssecState")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("DnssecWithdrawalStartedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Name")
@@ -165,6 +174,137 @@ namespace Maran.Modules.Dns.Persistence.Migrations
                     b.ToTable("ZoneRecords", "dns");
                 });
 
+            modelBuilder.Entity("Maran.Modules.Dns.Domain.Entities.ZoneSigningKey", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Algorithm")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Flags")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("KeyTag")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PrivateKey")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("PublicKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<Guid>("ZoneId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ZoneId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ZoneSigningKeys_ZoneId");
+
+                    b.ToTable("ZoneSigningKeys", "dns");
+                });
+
+            modelBuilder.Entity("Maran.Modules.Dns.Domain.Entities.ZoneTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<bool>("IsBuiltIn")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("NameKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NameKey")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ZoneTemplates_NameKey");
+
+                    b.ToTable("ZoneTemplates", "dns");
+                });
+
+            modelBuilder.Entity("Maran.Modules.Dns.Domain.Entities.ZoneTemplateRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Flags")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(253)
+                        .HasColumnType("character varying(253)");
+
+                    b.Property<int>("Port")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Tag")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int?>("Ttl")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<int>("Weight")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ZoneTemplateId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ZoneTemplateId", "Position")
+                        .HasDatabaseName("IX_ZoneTemplateRecords_ZoneTemplateId_Position");
+
+                    b.ToTable("ZoneTemplateRecords", "dns");
+                });
+
             modelBuilder.Entity("Maran.Modules.Dns.Domain.Entities.ZoneRecord", b =>
                 {
                     b.HasOne("Maran.Modules.Dns.Domain.Entities.Zone", "Zone")
@@ -176,7 +316,34 @@ namespace Maran.Modules.Dns.Persistence.Migrations
                     b.Navigation("Zone");
                 });
 
+            modelBuilder.Entity("Maran.Modules.Dns.Domain.Entities.ZoneSigningKey", b =>
+                {
+                    b.HasOne("Maran.Modules.Dns.Domain.Entities.Zone", "Zone")
+                        .WithMany("SigningKeys")
+                        .HasForeignKey("ZoneId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Zone");
+                });
+
+            modelBuilder.Entity("Maran.Modules.Dns.Domain.Entities.ZoneTemplateRecord", b =>
+                {
+                    b.HasOne("Maran.Modules.Dns.Domain.Entities.ZoneTemplate", null)
+                        .WithMany("Records")
+                        .HasForeignKey("ZoneTemplateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Maran.Modules.Dns.Domain.Entities.Zone", b =>
+                {
+                    b.Navigation("Records");
+
+                    b.Navigation("SigningKeys");
+                });
+
+            modelBuilder.Entity("Maran.Modules.Dns.Domain.Entities.ZoneTemplate", b =>
                 {
                     b.Navigation("Records");
                 });

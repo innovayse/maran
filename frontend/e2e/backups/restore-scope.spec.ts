@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import {
@@ -9,9 +9,11 @@ import {
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { Backup } from '../../src/types/backup'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 const LICENSED: PanelModule[] = [
   { name: 'backups', displayName: 'Backups', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -73,6 +75,7 @@ const openDialog = async (
   await stubHealthy(page)
   await stubBackupOptions(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   await stubBackups(page, [COMPLETED])
   await stubBackupRestoreChoices(page, choices)
@@ -203,7 +206,9 @@ test('changing the kind forgets the part chosen under the other kind', async ({ 
 // whole-account restore possible and says why nothing narrower is offered.
 test('when the lists cannot be had only the whole account is offered, and it still works', async ({
   page,
+  guard,
 }) => {
+  guard.allow(500, /\/api\/v1\/backups\/[^/]+\/restore-choices$/)
   await openDialog(page, null)
 
   await expect(

@@ -1,4 +1,5 @@
 using Maran.Modules.Identity.Domain.Entities;
+using Maran.Modules.Identity.Interfaces;
 using Maran.Modules.Identity.Models;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
@@ -37,8 +38,8 @@ public sealed class LoginCommandHandler
     /// <summary>Counts refusals per source address and announces an attack.</summary>
     private readonly BruteForceDetector _bruteForceDetector;
 
-    /// <summary>The panel's security policy, read for the account lockout numbers.</summary>
-    private readonly SecurityPolicyCache _policyCache;
+    /// <summary>Counts a failed password against the login, serialised with every concurrent one.</summary>
+    private readonly IFailedLoginRecorder _failedLoginRecorder;
 
     /// <summary>The panel's clock.</summary>
     private readonly IClock _clock;
@@ -49,7 +50,7 @@ public sealed class LoginCommandHandler
     /// <param name="authenticationCompleter">Checks sign-in eligibility and issues the session.</param>
     /// <param name="journal">Records the attempt.</param>
     /// <param name="bruteForceDetector">Counts refusals per source address.</param>
-    /// <param name="policyCache">The panel's security policy, read for the account lockout numbers.</param>
+    /// <param name="failedLoginRecorder">Counts a failed password against the login.</param>
     /// <param name="clock">The panel's clock.</param>
     public LoginCommandHandler(
         IdentityDbContext dbContext,
@@ -57,7 +58,7 @@ public sealed class LoginCommandHandler
         AuthenticationCompleter authenticationCompleter,
         IdentityAuditJournal journal,
         BruteForceDetector bruteForceDetector,
-        SecurityPolicyCache policyCache,
+        IFailedLoginRecorder failedLoginRecorder,
         IClock clock)
     {
         _dbContext = dbContext;
@@ -65,7 +66,7 @@ public sealed class LoginCommandHandler
         _authenticationCompleter = authenticationCompleter;
         _journal = journal;
         _bruteForceDetector = bruteForceDetector;
-        _policyCache = policyCache;
+        _failedLoginRecorder = failedLoginRecorder;
         _clock = clock;
     }
 
@@ -100,12 +101,11 @@ public sealed class LoginCommandHandler
         if (!_passwordHasher.Verify(command.Password, user.PasswordHash))
         {
             // Counted on the user row, not in memory: the per-address rate limit cannot see an
-            // attacker who rotates addresses, and this is the counter that can.
+            // attacker who rotates addresses, and this is the counter that can. Counted under a row
+            // lock, so a burst of guesses is a burst of failures and not one (issue #469).
             // The threshold and the window come from the panel's operator-configurable policy, not
             // from constants on the entity: the lockout used to be a recompile.
-            var policy = await _policyCache.GetAsync(cancellationToken);
-            user.RecordFailedLogin(_clock.UtcNow, policy.MaxFailedLoginAttempts, policy.LockoutDuration());
-            await _dbContext.SaveChangesAsync(cancellationToken);
+            await _failedLoginRecorder.RecordAsync(user, _clock.UtcNow, cancellationToken);
 
             return await RefuseAsync(user, command, cancellationToken);
         }

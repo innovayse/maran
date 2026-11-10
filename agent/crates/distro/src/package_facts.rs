@@ -7,6 +7,7 @@
 use crate::adapter_binary::AdapterBinary;
 use crate::catalogue_probe::CatalogueProbe;
 use crate::package_failure::PackageFailure;
+use crate::package_query_failure::PackageQueryFailure;
 use crate::pending_update::PendingUpdate;
 use crate::pending_updates_failure::PendingUpdatesFailure;
 use crate::reboot_probe::RebootProbe;
@@ -141,6 +142,45 @@ pub trait PackageFacts: Send + Sync {
     /// [`RebootProbeFailure::NotAProgramProbe`] on a family whose probe is a
     /// marker file. A failure is never read as "no reboot is required".
     fn read_reboot_probe_run(&self, status: i32) -> Result<RebootRequirement, RebootProbeFailure>;
+
+    /// Absolute path of the program the agent runs to ask which packages the
+    /// host's sources OFFER: `apt-cache` on the Debian family, `dnf` on the RHEL
+    /// family.
+    ///
+    /// Read-only and cache-only on both: it names what the package metadata
+    /// already on disk says, opens no connection and changes nothing. It is only
+    /// ever given [`Self::package_candidate_arguments`].
+    fn package_candidate_binary(&self) -> AdapterBinary;
+
+    /// The arguments of the run that reports which of `packages` have a
+    /// candidate version (`apt-cache policy -- …`, `dnf -q -C list --available -- …`).
+    ///
+    /// `packages` are spellings the adapter itself produced (for example
+    /// [`PhpFacts::php_package`](crate::PhpFacts::php_package)), never a caller's
+    /// text, and the operands follow `--`.
+    fn package_candidate_arguments(&self, packages: &[String]) -> Vec<String>;
+
+    /// Reads the run of [`Self::package_candidate_arguments`]: its exit `status`,
+    /// `stdout` and `stderr`, and answers which of `packages` the host offers,
+    /// in the order they were asked about.
+    ///
+    /// This is the host's own answer to "can this be installed here", the one
+    /// the PHP versions screen is built from: a version no source carries is
+    /// absent from the list instead of being offered and failing when chosen.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`PackageQueryFailure`] for a status that is not an answer, and
+    /// for a line outside the family's grammar. A failure is never an empty
+    /// list. On the Debian family an empty answer is also what a never-built
+    /// catalogue prints, so the caller asks [`Self::catalogue_probe`] first.
+    fn read_package_candidates(
+        &self,
+        status: i32,
+        stdout: &str,
+        stderr: &str,
+        packages: &[String],
+    ) -> Result<Vec<String>, PackageQueryFailure>;
 
     /// Absolute path of the journal reader, `journalctl`, for the
     /// process-execution allow-list.

@@ -21,6 +21,14 @@ public static class UpdatesAuditActions
     /// </summary>
     public const string PanelUpdateRequested = "PanelUpdateRequested";
 
+    /// <summary>
+    /// An administrator asked the panel to check for updates (issue #516). Written BEFORE the check
+    /// marker is created, like <see cref="PanelUpdateRequested"/>; a request that could not be handed
+    /// to the root check service is journalled again as a failed entry. The subject is the fixed
+    /// <c>request=check</c>: the request carries nothing else.
+    /// </summary>
+    public const string PanelUpdateCheckRequested = "PanelUpdateCheckRequested";
+
     /// <summary>The requested update installed a newer release and its health check passed. Subject: <c>from=..;to=..</c>.</summary>
     public const string PanelUpdateRunApplied = "PanelUpdateRunApplied";
 

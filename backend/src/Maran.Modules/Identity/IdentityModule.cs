@@ -102,8 +102,14 @@ public sealed class IdentityModule : IPanelModule
         services.AddScoped<InvitationLinkBuilder>();
         services.AddScoped<InvitationIssuer>();
         services.AddScoped<AccountOwnerFinder>();
+        services.AddScoped<CredentialTokenRetirement>();
         services.AddScoped<InitialPasswordPolicy>();
         services.AddScoped<IInitialPasswordPolicy>(provider => { return provider.GetRequiredService<InitialPasswordPolicy>(); });
+        services.AddScoped<IOwnerLoginDirectory, OwnerLoginDirectory>();
+
+        // The window a durable job uses to act as the administrator who started it (issue #127): the user is
+        // read back from the table on every ask, so a demoted initiator halts the job.
+        services.AddScoped<IAdministratorCallerSource, AdministratorCallerSource>();
         services.AddScoped<ResellerInvitationIssuer>();
         services.AddScoped<InvitationStatusReader>();
 
@@ -112,6 +118,7 @@ public sealed class IdentityModule : IPanelModule
         // request's own DbContext.
         services.AddScoped<SubUserOwnerGuard>();
         services.AddScoped<ISubUserTeamLock, SubUserTeamLock>();
+        services.AddScoped<IFailedLoginRecorder, FailedLoginRecorder>();
         services.AddScoped<IApiKeyCreationLock, ApiKeyCreationLock>();
         services.AddScoped<IAccountMemberGrants, AccountMemberGrants>();
 
@@ -119,6 +126,8 @@ public sealed class IdentityModule : IPanelModule
         services.AddScoped<AdminRecoveryIssuer>();
         services.AddScoped<AuditActionDisplayNames>();
         services.AddScoped<AuditOutcomeDisplayNames>();
+        services.AddScoped<AuditSubjectDisplayNames>();
+        services.AddScoped<LoginNameReader>();
 
         // The journal's reading, tamper evidence, retention, erasure and export (issues #145, #146). All
         // scoped, because each works through the request's own DbContext (the maintenance job and the
@@ -193,6 +202,10 @@ public sealed class IdentityModule : IPanelModule
         // choose the account a session speaks for the same way.
         services.AddScoped<ActiveAccountResolver>();
         services.AddScoped<AuthenticationCompleter>();
+        // The Sdk's password re-entry window (issue #187): the marketplace asks it before an install,
+        // and a wrong password counts against the same lockout as a wrong sign-in. Scoped, because it
+        // counts through the request's own DbContext.
+        services.AddScoped<IReauthentication, PasswordReauthentication>();
         services.AddScoped<ITotpService, TotpService>();
         services.AddScoped<IRecoveryCodeService, RecoveryCodeService>();
         services.AddScoped<TwoFactorCodeRejection>();

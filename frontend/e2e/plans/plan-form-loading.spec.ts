@@ -1,15 +1,17 @@
-import { test, type Page } from '@playwright/test'
 import {
   expectRegionFastLoad,
   expectRegionSlowFailure,
   expectRegionSlowLoad,
   type RegionLoadingScenario,
 } from '../fixtures/expect-region-loading'
+import { test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { MANAGED_PLANS, stubManagedPlans } from '../fixtures/stub-plans-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 // The plan edit form while the plan is on the way (#243): a stand-in form with the real labels over
 // placeholder controls, replaced by the form created from the plan once it is known.
@@ -26,6 +28,7 @@ const shell = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
 }
 
 /** How the plan edit form screen is opened and answered. */
@@ -36,6 +39,8 @@ const PLAN_EDIT_FORM_SCENARIO: RegionLoadingScenario = {
   },
   stubFailure: async (page) => {
     await shell(page)
+    // The form asks for the feature list beside the plan, so that read is answered too.
+    await stubManagedPlans(page)
     await page.route(`**/api/v1/plans/${STARTER.id}`, async (route) => {
       await route.fulfill({
         status: 500,
@@ -64,6 +69,7 @@ test('plan edit form: a fast answer shows no placeholder', async ({ page }) => {
   await expectRegionFastLoad(page, PLAN_EDIT_FORM_SCENARIO)
 })
 
-test('plan edit form: a slow failure is an alert, never a skeleton', async ({ page }) => {
+test('plan edit form: a slow failure is an alert, never a skeleton', async ({ page, guard }) => {
+  guard.allow(500, new RegExp(`/api/v1/plans/${STARTER.id}$`))
   await expectRegionSlowFailure(page, PLAN_EDIT_FORM_SCENARIO)
 })

@@ -1,19 +1,21 @@
-import { test, type Page } from '@playwright/test'
 import {
   expectTableFastLoad,
   expectTableSlowFailure,
   expectTableSlowLoad,
   type TableLoadingScenario,
 } from '../fixtures/expect-table-loading'
+import { test } from '../fixtures/guarded-test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubDatabaseGrants, stubDatabaseGrantsProblem } from '../fixtures/stub-database-grant-routes'
 import { stubDatabases, stubDatabasesProblem } from '../fixtures/stub-databases-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { Database } from '../../src/types/database'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 // The databases table and the grant repair's rewritten rows while their reads are on the way
 // (#243): each drawn from its own column schema.
@@ -51,6 +53,7 @@ const signIn = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
 }
 
@@ -79,7 +82,8 @@ test('databases list: a fast answer shows no placeholder', async ({ page }) => {
   await expectTableFastLoad(page, DATABASES_LIST_SCENARIO)
 })
 
-test('databases list: a slow failure is an alert, never a skeleton', async ({ page }) => {
+test('databases list: a slow failure is an alert, never a skeleton', async ({ page, guard }) => {
+  guard.allow(500, /\/api\/v1\/databases(\?.*)?$/)
   await expectTableSlowFailure(page, DATABASES_LIST_SCENARIO)
 })
 
@@ -116,6 +120,7 @@ test('grant repair: a fast answer shows no placeholder', async ({ page }) => {
   await expectTableFastLoad(page, GRANT_REPAIR_SCENARIO)
 })
 
-test('grant repair: a slow failure is an alert, never a skeleton', async ({ page }) => {
+test('grant repair: a slow failure is an alert, never a skeleton', async ({ page, guard }) => {
+  guard.allow(500, /\/api\/v1\/database-grants$/)
   await expectTableSlowFailure(page, GRANT_REPAIR_SCENARIO)
 })

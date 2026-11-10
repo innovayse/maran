@@ -44,4 +44,21 @@ pub trait DnsFacts: Send + Sync {
     /// group but not writable by it: the daemon reads zone files and never
     /// changes them.
     fn dns_zone_directory(&self) -> &'static str;
+
+    /// The directory the agent writes the zone files of SIGNED zones into, one
+    /// per zone: `signed-zones/` below [`Self::dns_state_directory`]. Unlike
+    /// [`Self::dns_zone_directory`] the daemon WRITES here: inline signing keeps
+    /// the signed copy and its journal beside the zone file. Root-owned and
+    /// group-writable by the daemon's group, so a zone that moves between
+    /// unsigned and signed moves between the two directories and the plain one
+    /// stays read-only to the daemon for every other zone.
+    fn dns_signed_zone_directory(&self) -> &'static str;
+
+    /// The directory a signed zone's key files live in: `keys/` below
+    /// [`Self::dns_state_directory`] (the zone statement's `key-directory`).
+    /// The agent writes `K<zone>.+013+<tag>.key` and `.private` here as root,
+    /// readable by the daemon's group; the daemon writes the `.state` files of
+    /// the keys beside them, so the directory is group-writable like
+    /// [`Self::dns_signed_zone_directory`].
+    fn dns_key_directory(&self) -> &'static str;
 }

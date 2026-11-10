@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { holdRoute } from '../fixtures/hold-route'
 import {
   stubAccountMemberships,
@@ -7,13 +7,16 @@ import {
 } from '../fixtures/stub-account-memberships-routes'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { FULL_CATALOGUE, mainNavigation, openSection } from '../fixtures/open-full-shell'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
 import { OWNER_PROFILE, stubProfile, type ProfileStub } from '../fixtures/stub-profile-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { stubEmptyTasks } from '../fixtures/stub-tasks-routes'
 import type { MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
+import type { Locator, Page } from '@playwright/test'
 
 // Issue #366: a person who is a member of several accounts switches the active one. The switch
 // reloads the panel (ShellAccountSelector), so the page has no earlier grants to keep: between the
@@ -131,6 +134,9 @@ const stubTwoAccountPanel = async (
   await stubHealthy(page)
   await stubModules(page, FULL_CATALOGUE)
   await stubEmptyTasks(page)
+  // Before the memberships and the profile below: the shell's quiet answers must not replace theirs.
+  await stubShellReads(page)
+  await stubLandingReads(page, 'customer')
   // The account read answers for whichever account is active, as the panel does.
   await stubMyAccount(page, (): MyAccount => {
     return { ...OWN_ACCOUNT, id: state.activeAccountId }
@@ -225,7 +231,9 @@ test('a member sees no permissive menu while the new account access read is stil
   await expect(mainNavigation(page).getByRole('button', { name: 'Show the Databases pages' })).toHaveCount(0)
 })
 
-test('a member is offered everything when the new account access read fails', async ({ page }) => {
+test('a member is offered everything when the new account access read fails', async ({ page, guard }) => {
+  // The refusal is the point: the standing of the new account cannot be read.
+  guard.allow(500, PROFILE_PATTERN)
   await signInHoldingTwoAccounts(page)
   await expect
     .poll(async (): Promise<string[]> => {

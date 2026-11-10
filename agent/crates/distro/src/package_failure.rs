@@ -9,12 +9,12 @@
 /// [`crate::PackageFacts::classify_package_failure`]; what the panel needs to
 /// know does not.
 ///
-/// The three cases need different things from an operator, which is why they
-/// are three and not two: a mirror that answered with an error is a mirror to
+/// The four cases need different things from an operator, which is why they
+/// are four and not two: a mirror that answered with an error is a mirror to
 /// change, a mirror nobody could reach is a network to look at or a moment to
-/// wait, and everything else — a package the configured repositories do not
-/// carry, a held package database lock, a maintainer script that failed — is
-/// this host's own state.
+/// wait, a package the configured repositories do not carry is a repository
+/// to add or a version to stop offering, and everything else — a held package
+/// database lock, a maintainer script that failed — is this host's own state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PackageFailure {
     /// A package source answered and refused: an HTTP error status for the
@@ -26,6 +26,14 @@ pub enum PackageFailure {
     /// No package source could be reached: a name that did not resolve, a
     /// connection that was refused or timed out, a network that was down.
     SourceUnreachable,
+    /// The package manager reached its sources and none of them carries the
+    /// package: `apt-get` printed `E: Unable to locate package`, `dnf` printed
+    /// `No match for argument`.
+    ///
+    /// Chosen only when the run shows no source fault (a source that failed may
+    /// be the reason the package was not found), so it is a statement about
+    /// what the host's repositories OFFER, and the remedy is not a retry.
+    NotAvailable,
     /// Everything that is not a source's fault, including a run whose output
     /// names no fetch failure at all and one that exited with a status other
     /// than the package manager's documented failure status. The default

@@ -8,6 +8,7 @@ use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::validation::system::name::AccountName;
 
 use crate::accounts::take_account_lock;
+use crate::backup::jail_mounts::JailMounts;
 use crate::backup::model::restore_marker::RestoreMarker;
 use crate::backup::model::restore_recovery::RestoreRecovery;
 use crate::backup::model::swap_state::SwapState;
@@ -51,19 +52,33 @@ const NO_FOREIGN_WRITE: u32 = 0o022;
 /// NOTHING to healthy state, and an absence is not observable. See
 /// [`RestoreRecovery`].
 ///
+/// # The file-transfer jails follow the home
+///
+/// Every outcome that leaves the RESTORED home in place also mounts the
+/// account's SFTP and FTPS jails onto it through `jails` before the parked tree
+/// is removed (issue #487): a jail is a bind mount of the home's inode, so a
+/// restore killed after its second rename left the jails showing the displaced
+/// tree. When the refresh fails the parked tree AND the marker are kept, so the
+/// next start tries again, and the account is counted in
+/// [`RestoreRecovery::refused`].
+///
 /// # It never fails
+///
+/// There is no `Result`, and `jails` is asked for an answer it may not give:
+/// that is the same decision.
 ///
 /// There is no `Result`. Every refusal is a counted, logged decision to leave
 /// something alone, and a daemon that would not start because one directory in
 /// its staging root was odd is a daemon that has turned one customer's
 /// interrupted restore into every customer's outage.
 #[must_use]
-pub fn recover_restores() -> RestoreRecovery {
+pub fn recover_restores(jails: &dyn JailMounts) -> RestoreRecovery {
     recover_in(
         Path::new(AgentPaths::RESTORE_STAGING_ROOT),
         Path::new(AgentPaths::ACCOUNT_HOME_ROOT),
         Path::new(AgentPaths::BULK_SCRATCH_ROOT),
         ROOT_UID,
+        jails,
     )
 }
 
@@ -81,11 +96,12 @@ pub(crate) fn recover_in(
     home_root: &Path,
     scratch_root: &Path,
     owner: u32,
+    jails: &dyn JailMounts,
 ) -> RestoreRecovery {
     let mut recovery = RestoreRecovery::default();
 
     if trustworthy_root(staging_root, owner) {
-        recover_swaps(staging_root, home_root, &mut recovery);
+        recover_swaps(staging_root, home_root, jails, &mut recovery);
     } else {
         // Not a start failure and not a silent skip: the staging root being
         // something other than root's own is a host an operator has to look at,
@@ -127,7 +143,12 @@ fn trustworthy_root(root: &Path, owner: u32) -> bool {
 }
 
 /// Walks the staging root, acting on every marker and on nothing else.
-fn recover_swaps(staging_root: &Path, home_root: &Path, recovery: &mut RestoreRecovery) {
+fn recover_swaps(
+    staging_root: &Path,
+    home_root: &Path,
+    jails: &dyn JailMounts,
+    recovery: &mut RestoreRecovery,
+) {
     let Ok(entries) = read_dir(staging_root) else {
         tracing::error!(
             root = %staging_root.display(),
@@ -161,7 +182,7 @@ fn recover_swaps(staging_root: &Path, home_root: &Path, recovery: &mut RestoreRe
             continue;
         }
 
-        recover_one(&path, staging_root, home_root, recovery);
+        recover_one(&path, staging_root, home_root, jails, recovery);
     }
 
     // Left in place, every one of them. Without a marker the account these
@@ -184,6 +205,7 @@ fn recover_one(
     marker_path: &Path,
     staging_root: &Path,
     home_root: &Path,
+    jails: &dyn JailMounts,
     recovery: &mut RestoreRecovery,
 ) {
     let Ok(marker) = read_restore_marker(marker_path) else {
@@ -237,6 +259,7 @@ fn recover_one(
             home: &home,
             previous: &previous,
             staging: &staging,
+            jails,
         },
         recovery,
     );
@@ -280,6 +303,30 @@ struct Swap<'a> {
     previous: &'a Path,
     /// Where the replacement was built.
     staging: &'a Path,
+    /// What mounts the account's file-transfer jails onto the home.
+    jails: &'a dyn JailMounts,
+}
+
+impl Swap<'_> {
+    /// Mounts the jails onto the restored home, then removes the parked tree.
+    ///
+    /// The tree is removed only when the jails are right: removing it first
+    /// would empty the very directory a stale jail still shows. Answers whether
+    /// it did, so the caller keeps the marker when it did not.
+    fn finish_jails_then_remove_parked(&self) -> bool {
+        if self.jails.refresh(self.account).is_err() {
+            tracing::error!(
+                account = %self.account.as_str(),
+                parked = %self.previous.display(),
+                "the account's file-transfer jails could not be mounted onto the restored home; \
+                 the parked tree and the marker were kept and the next start tries again"
+            );
+            return false;
+        }
+
+        let _ = remove_dir_all(self.previous);
+        true
+    }
 }
 
 /// Carries out the decided answer for one observed state.
@@ -336,7 +383,10 @@ fn apply(state: &SwapState, swap: &Swap<'_>, recovery: &mut RestoreRecovery) {
         // outstanding. Re-applying both is idempotent.
         SwapState::Swapped => {
             let owned = reown(swap);
-            let _ = remove_dir_all(swap.previous);
+            if !swap.finish_jails_then_remove_parked() {
+                recovery.refused = recovery.refused.saturating_add(1);
+                return;
+            }
             let _ = remove_file(swap.marker_path);
             recovery.swaps_completed = recovery.swaps_completed.saturating_add(1);
             tracing::warn!(
@@ -401,7 +451,10 @@ fn apply(state: &SwapState, swap: &Swap<'_>, recovery: &mut RestoreRecovery) {
 fn finish_forward(swap: &Swap<'_>, recovery: &mut RestoreRecovery) {
     if rename(swap.staging, swap.home).is_ok() {
         let owned = reown(swap);
-        let _ = remove_dir_all(swap.previous);
+        if !swap.finish_jails_then_remove_parked() {
+            recovery.refused = recovery.refused.saturating_add(1);
+            return;
+        }
         let _ = remove_file(swap.marker_path);
         recovery.swaps_completed = recovery.swaps_completed.saturating_add(1);
         tracing::warn!(

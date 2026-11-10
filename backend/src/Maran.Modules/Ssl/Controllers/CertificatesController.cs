@@ -3,6 +3,7 @@ using Maran.Modules.Ssl.Commands.IssueCertificate;
 using Maran.Modules.Ssl.Commands.RemoveCertificate;
 using Maran.Modules.Ssl.Common;
 using Maran.Modules.Ssl.Queries.GetAcmeDirectory;
+using Maran.Modules.Ssl.Queries.GetIssuanceOptions;
 using Maran.Modules.Ssl.Queries.ListCertificates;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
@@ -89,8 +90,28 @@ public sealed class CertificatesController : BaseApiController
         return Ok(await _bus.InvokeAsync<AcmeDirectoryDto>(new GetAcmeDirectoryQuery(), cancellationToken));
     }
 
+    /// <summary>
+    /// Reads which kinds of certificate can be issued for one of the caller's domains, so the screen offers
+    /// a wildcard only where this server can prove it. A domain the caller does not host answers 404.
+    /// </summary>
+    /// <param name="query">The domain to ask about, bound from the query string.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpGet("issuance-options")]
+    [ViewAsAccess(ViewAsAccess.Read)]
+    [ProducesResponseType(typeof(IssuanceOptionsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetIssuanceOptionsAsync(
+        [FromQuery] GetIssuanceOptionsQuery query,
+        CancellationToken cancellationToken)
+    {
+        return ToActionResult(
+            await _bus.InvokeAsync<Result<IssuanceOptionsDto>>(query, cancellationToken));
+    }
+
     /// <summary>Orders a certificate for one of the caller's sites and installs it.</summary>
-    /// <param name="command">The domain to issue for.</param>
+    /// <param name="command">The domain to issue for, and whether the certificate is also to cover its wildcard.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost]
     [ViewAsAccess(ViewAsAccess.Refused)]

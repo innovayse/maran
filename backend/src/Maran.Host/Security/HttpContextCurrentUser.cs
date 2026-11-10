@@ -11,7 +11,9 @@ namespace Maran.Host.Security;
 /// <remarks>
 /// <para>
 /// <b>Six outcomes, and a refusal for everything else.</b> A request with no authenticated
-/// principal (or no request at all, as in background work) is an <see cref="AnonymousCaller"/>. A
+/// principal (or no request at all, as in background work) is an <see cref="AnonymousCaller"/>, and so is a
+/// principal authenticated by the export-grant scheme (issue #127): a grant is not a login, owns no
+/// account and may read none, so every tenant filter shows it nothing, which is the intended answer. A
 /// principal authenticated by the API key scheme is an <see cref="ApiKeyCaller"/>, read before any
 /// login claim because a key has none; a token that is NOT of that scheme yet carries a key id is
 /// refused, so a claim alone can never make a login a key. An
@@ -67,6 +69,13 @@ public sealed class HttpContextCurrentUser : ICurrentUser
                 return ReadApiKey(principal);
             }
 
+            // A grant is no login: it is the caller of the pull endpoints and nobody else, and every module
+            // sees it as nobody. The scheme says so, never a claim.
+            if (IsMigrationGrantPrincipal(principal))
+            {
+                return AnonymousCaller.Instance;
+            }
+
             if (principal.FindFirst(PanelClaimTypes.ApiKeyId) is not null)
             {
                 throw new UnrecognisedPrincipalException("A token that is not an API key carries a key id.");
@@ -111,6 +120,18 @@ public sealed class HttpContextCurrentUser : ICurrentUser
 
             return new CustomerCaller(userId, username, accountId, viewedBy);
         }
+    }
+
+    /// <summary>Whether the principal was authenticated by the export-grant scheme.</summary>
+    /// <param name="principal">The validated principal of the request.</param>
+    /// <returns><c>true</c> when an authenticated identity of the <c>MigrationGrant</c> scheme is present.</returns>
+    private static bool IsMigrationGrantPrincipal(ClaimsPrincipal principal)
+    {
+        return principal.Identities.Any(identity =>
+        {
+            return identity.IsAuthenticated
+                && string.Equals(identity.AuthenticationType, MigrationGrantDefaults.Scheme, StringComparison.Ordinal);
+        });
     }
 
     /// <summary>Whether the principal was authenticated by the API key scheme, and by nothing else.</summary>

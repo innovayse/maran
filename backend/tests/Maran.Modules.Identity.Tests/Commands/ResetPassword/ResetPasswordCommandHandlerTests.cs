@@ -53,6 +53,7 @@ public sealed class ResetPasswordCommandHandlerTests : IAsyncLifetime
             _context,
             _hasher,
             NewSessions(),
+            new CredentialTokenRetirement(_context),
             new IdentityAuditJournal(_audit, new StubCurrentUser()),
             _clock);
     }

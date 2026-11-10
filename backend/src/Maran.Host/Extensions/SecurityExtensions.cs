@@ -25,7 +25,13 @@ public static class SecurityExtensions
         services.AddScoped<ICorrelationIdAccessor, CorrelationIdAccessor>();
 
         // Scoped: the principal is a property of the request, read from its validated token.
-        services.AddScoped<ICurrentUser, HttpContextCurrentUser>();
+        // The caller of a served request is read from its token (HttpContextCurrentUser); while a durable job's
+        // scope is open it is the administrator the job acts as (JobAwareCurrentUser, issue #127). The job
+        // accessor is a singleton because the scope must reach the scopes Wolverine opens per message.
+        services.AddScoped<HttpContextCurrentUser>();
+        services.AddSingleton<JobCallerAccessor>();
+        services.AddScoped<ICurrentUser, JobAwareCurrentUser>();
+        services.AddScoped<IJobCallerScopes, JobCallerScopes>();
 
         // The cipher every encrypted column goes through (SharedKernel's EncryptedStringConverter).
         // It is built here rather than in AddSharedKernel because the key is the Host's

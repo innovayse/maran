@@ -213,11 +213,16 @@ const openEdit = (field: 'plan' | 'owner' | 'ownerEmail'): void => {
 }
 
 /**
- * Closes the edit dialog the panel accepted, and says what changed.
+ * Closes the edit dialog the panel accepted, and says what changed. A new plan (changed directly
+ * or through a hand-over to another owner) changes the limits the Resources card shows, so that
+ * card's summary is read again; the details card is already refreshed by the edit itself.
  * @returns Nothing.
  */
 const editSaved = (): void => {
   const saved = dialog.value
+  if (saved === 'plan' || saved === 'owner') {
+    void accountsStore.loadResourceSummary(props.id)
+  }
   if (saved === 'plan') {
     notice.value = t('accounts.edit.planSaved')
   } else if (saved === 'owner') {
@@ -317,6 +322,7 @@ onMounted(async () => {
           <AccountActionsCard
             :status="accountsStore.selected?.status ?? null"
             :can-change-owner="isAdmin"
+            :can-change-owner-email="isAdmin"
             @suspend="ask('suspend')"
             @reactivate="ask('reactivate')"
             @edit-plan="openEdit('plan')"

@@ -44,9 +44,10 @@ pub enum DumpRefusal {
     /// A statement naming a database other than the one being loaded:
     /// `USE other`, `CREATE DATABASE other`, `DROP DATABASE other`.
     ///
-    /// Qualified names inside other statements (`other`.`t`) are NOT looked for
-    /// here; the temporary user holds privileges on one database only, and the
-    /// server refuses them.
+    /// Also a name qualified by another database inside any statement
+    /// (`other`.`t`, `REFERENCES other.t`). The temporary user's grant is escaped
+    /// to the one database, so the server refuses such a name as well; the scan
+    /// is the second line.
     #[error("the dump names a database other than the one being loaded")]
     OtherDatabase,
 

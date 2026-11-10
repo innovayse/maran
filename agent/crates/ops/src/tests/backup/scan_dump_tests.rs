@@ -389,6 +389,30 @@ fn a_statement_naming_the_database_being_loaded_is_accepted() {
     accepted("DROP DATABASE IF EXISTS `alice_shop`;");
 }
 
+#[test]
+fn a_name_qualified_by_another_database_is_refused_wherever_it_stands() {
+    for text in [
+        "INSERT INTO `alice_shop2`.`t` SELECT 1;",
+        "INSERT INTO t VALUES (1); DROP TABLE `bob_db`.`users`;",
+        "LOCK TABLES `mysql`.`user` WRITE;",
+        "CREATE TABLE `t` (`a` int, `b` int, `c` int, `d` int, `e` int, FOREIGN KEY (`a`) REFERENCES `alice_other`.`u` (`id`));",
+        "ALTER TABLE other.t ADD x int;",
+    ] {
+        assert_eq!(refusal(text), DumpRefusal::OtherDatabase, "{text:?}");
+    }
+}
+
+#[test]
+fn a_name_qualified_by_the_database_being_loaded_is_accepted() {
+    accepted("INSERT INTO `alice_shop`.`t` VALUES (1.5, 'a.b', -0.25);");
+    accepted("DROP TABLE `alice_shop`.`t`;");
+    accepted(
+        "CREATE TABLE `t` (`a` decimal(5,2) DEFAULT 0.00, `b` int, `c` int, `d` int, `e` int, FOREIGN KEY (`a`) REFERENCES `alice_shop`.`u` (`id`));",
+    );
+    // The table of a three-part name is not a database.
+    accepted("INSERT INTO `alice_shop`.`t` SELECT `alice_shop`.`t`.`c`;");
+}
+
 // ---------------------------------------------------------------------------
 // SET
 // ---------------------------------------------------------------------------

@@ -1,0 +1,26 @@
+{
+  "app": {
+    "codeEditor": {
+      "find": "Find",
+      "replaceWith": "Replace",
+      "next": "next",
+      "previous": "previous",
+      "all": "all",
+      "matchCase": "match case",
+      "regexp": "regexp",
+      "byWord": "by word",
+      "replace": "replace",
+      "replaceAll": "replace all",
+      "close": "close",
+      "goToLine": "Go to line",
+      "go": "go",
+      "currentMatch": "current match",
+      "onLine": "on line",
+      "replacedMatches": "replaced $ matches",
+      "replacedMatchOnLine": "replaced match on line $",
+      "selectionDeleted": "Selection deleted",
+      "controlCharacter": "Control character",
+      "tabHint": "Tab indents here. Press Escape, then Tab, to move on to the next control."
+    }
+  }
+}

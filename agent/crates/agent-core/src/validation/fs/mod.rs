@@ -18,6 +18,8 @@ pub(crate) mod path_component_problem;
 pub mod path_error;
 pub mod relative_path;
 pub mod relative_path_error;
+pub mod remote_path;
+pub mod remote_path_error;
 pub mod search_query;
 pub mod search_query_error;
 pub mod transfer_bounds;

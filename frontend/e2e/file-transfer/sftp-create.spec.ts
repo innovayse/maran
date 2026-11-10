@@ -1,11 +1,13 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubCreateSftpUserProblem, stubSftpUsers } from '../fixtures/stub-sftp-routes'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 const LICENSED: PanelModule[] = [
   { name: 'sftp', displayName: 'File transfer', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
@@ -33,6 +35,7 @@ const signIn = async (page: Page): Promise<() => readonly URL[]> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE])
   return await stubSftpUsers(page, [])
 }
@@ -113,7 +116,8 @@ test('a create posts to the sftp module only, and the re-read page shows the new
 })
 
 // rules/vue.md: the SPA never invents an error message for a server outcome.
-test('a rejected create renders the backend own message rather than frontend copy', async ({ page }) => {
+test('a rejected create renders the backend own message rather than frontend copy', async ({ page, guard }) => {
+  guard.allow(409, /\/api\/v1\/sftp-users$/)
   const backendDetail = 'A login with that name already exists for this account.'
   await signIn(page)
   await stubCreateSftpUserProblem(page, backendDetail)

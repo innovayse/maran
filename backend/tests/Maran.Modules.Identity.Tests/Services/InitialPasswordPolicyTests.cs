@@ -3,6 +3,7 @@ using Maran.Modules.Identity.Domain.Policies;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Services;
 using Maran.Modules.Identity.Tests.TestSupport;
+using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Security;
 
 namespace Maran.Modules.Identity.Tests.Services;
@@ -33,7 +34,9 @@ public sealed class InitialPasswordPolicyTests : IDisposable
     {
         var tooShort = new SensitiveString(new string('x', SecurityPolicy.DefaultMinimumPasswordLength - 1));
 
-        Assert.False(await Policy().AcceptsAsync(tooShort, "owner-one", CancellationToken.None));
+        Assert.Equal(
+            InitialPasswordVerdict.TooShort,
+            await Policy().JudgeAsync(tooShort, "owner-one", CancellationToken.None));
     }
 
     /// <summary>A password exactly as long as the minimum is accepted: the boundary from the other side.</summary>
@@ -42,7 +45,9 @@ public sealed class InitialPasswordPolicyTests : IDisposable
     {
         var exact = new SensitiveString(new string('x', SecurityPolicy.DefaultMinimumPasswordLength));
 
-        Assert.True(await Policy().AcceptsAsync(exact, "owner-one", CancellationToken.None));
+        Assert.Equal(
+            InitialPasswordVerdict.Accepted,
+            await Policy().JudgeAsync(exact, "owner-one", CancellationToken.None));
     }
 
     /// <summary>The operator's own minimum is read, not the built-in default.</summary>
@@ -52,9 +57,9 @@ public sealed class InitialPasswordPolicyTests : IDisposable
         var stricter = SecurityPolicy.DefaultMinimumPasswordLength + 6;
         var policy = new InitialPasswordPolicy(TestSecurityPolicyCache.Saved(_context, minimumPasswordLength: stricter));
 
-        Assert.False(await policy.AcceptsAsync(
+        Assert.Equal(InitialPasswordVerdict.TooShort, await policy.JudgeAsync(
             new SensitiveString(new string('x', stricter - 1)), "owner-one", CancellationToken.None));
-        Assert.True(await policy.AcceptsAsync(
+        Assert.Equal(InitialPasswordVerdict.Accepted, await policy.JudgeAsync(
             new SensitiveString(new string('x', stricter)), "owner-one", CancellationToken.None));
     }
 
@@ -64,16 +69,18 @@ public sealed class InitialPasswordPolicyTests : IDisposable
     {
         var username = new string('u', SecurityPolicy.DefaultMinimumPasswordLength);
 
-        Assert.False(await Policy().AcceptsAsync(new SensitiveString(username), username, CancellationToken.None));
+        Assert.Equal(
+            InitialPasswordVerdict.SameAsUsername,
+            await Policy().JudgeAsync(new SensitiveString(username), username, CancellationToken.None));
     }
 
     /// <summary>A password over the ceiling is refused and one at the ceiling is accepted.</summary>
     [Fact]
     public async Task A_password_over_the_ceiling_is_refused()
     {
-        Assert.False(await Policy().AcceptsAsync(
+        Assert.Equal(InitialPasswordVerdict.TooLong, await Policy().JudgeAsync(
             new SensitiveString(new string('x', PasswordPolicy.MaxLength + 1)), "owner-one", CancellationToken.None));
-        Assert.True(await Policy().AcceptsAsync(
+        Assert.Equal(InitialPasswordVerdict.Accepted, await Policy().JudgeAsync(
             new SensitiveString(new string('x', PasswordPolicy.MaxLength)), "owner-one", CancellationToken.None));
     }
 }

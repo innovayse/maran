@@ -36,4 +36,43 @@
   <data name="ModuleManifestInvalid">
     <value>The module's manifest breaks the module contract.</value>
   </data>
+  <data name="ModulePackageNotAsAnnounced">
+    <value>The package does not match what the catalogue announced for it.</value>
+  </data>
+  <data name="MigrationSectionInvalid">
+    <value>This part of the package cannot be read, so it cannot be imported.</value>
+  </data>
+  <data name="MigrationTargetAccountMissing">
+    <value>The account to import into does not exist yet. The import stopped.</value>
+  </data>
+  <data name="MigrationNameTaken">
+    <value>This name is already used on this server. Account names are kept as they are and are not renamed.</value>
+  </data>
+  <data name="MigrationDomainTaken">
+    <value>This domain is already hosted on this server.</value>
+  </data>
+  <data name="MigrationPlanLimitExceeded">
+    <value>The package holds more than the chosen plan allows.</value>
+  </data>
+  <data name="MigrationPlanMissing">
+    <value>The chosen plan does not exist on this server.</value>
+  </data>
+  <data name="MigrationPhpVersionMissing">
+    <value>This site needs a PHP version that is not installed on this server. Install it first.</value>
+  </data>
+  <data name="MigrationCronImportedDisabled">
+    <value>Cron entries are imported switched off. Enable them after the move, when this server is live.</value>
+  </data>
+  <data name="MigrationCertificateReissue">
+    <value>Issue this certificate again once the name points at this server. It is not carried over.</value>
+  </data>
+  <data name="MigrationCertificateUpload">
+    <value>Upload this certificate again. Its key never leaves the old server, so it is not carried over.</value>
+  </data>
+  <data name="MigrationBackupIdTaken">
+    <value>A backup with the same identifier already exists on this server.</value>
+  </data>
+  <data name="MigrationRollbackRefused">
+    <value>The account was not created by this import, so it was not deleted.</value>
+  </data>
 </root>

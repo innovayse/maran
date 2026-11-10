@@ -1,10 +1,8 @@
 using System.Resources;
-using Maran.Modules.Licensing.Commands.InstallLicence;
-using Maran.Modules.Licensing.Domain.Enums;
 using Maran.Modules.Licensing.Domain.Interfaces;
+using Maran.Modules.Licensing.Extensions;
 using Maran.Modules.Licensing.Interfaces;
 using Maran.Modules.Licensing.Options;
-using Maran.Modules.Licensing.Queries.GetLicenceStatus;
 using Maran.Modules.Licensing.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
@@ -34,19 +32,20 @@ namespace Maran.Modules.Licensing;
 /// see its own remarks and the Host-level tests named there.
 /// </para>
 /// <para>
-/// <b>What a later slice added on top of this one.</b> <c>Controllers.LicensingController</c> now
-/// reads <see cref="LicenceStatus"/> over one administrator-only <c>GET</c>, and
-/// <see cref="Services.LicensingAuditJournal"/> records that the read happened. Still deliberately
-/// absent: no EF persistence or migration exists for a stored licence row, which is why
-/// <see cref="ILicenceRawTextSource"/>'s only implementation here,
-/// <see cref="NoLicenceInstalledTextSource"/>, always answers "nothing installed"; no write endpoint
-/// installs or replaces a licence; and the closed <c>PluginLoader</c> seam that would actually gate a
-/// paid module's assembly load is untouched. Each is a later slice's work.
+/// <b>What this module offers the rest of the panel.</b> One read-only window,
+/// <see cref="ILicenceEntitlements"/> (<see cref="Services.LicenceEntitlements"/>), that answers "does
+/// the installed licence, and where one is needed its lease, cover this module?" from the single rule
+/// <see cref="Domain.Policies.ModuleCoveragePolicy"/>. The request-time gate in the Sdk, the module
+/// catalogue and a paid module's own jobs all ask that window, so the menu and the boundary cannot
+/// disagree. The licence screen's two endpoints stay administrator-only and sit behind no gate: no
+/// licence failure can lock the administrator out of installing one.
 /// </para>
 /// <para>
-/// <b>This module is deliberately NOT registered in <c>Maran.Sdk.Extensions.ModuleRegistry</c>.</b>
-/// A module in that list is a promise to the SPA's own composition check that a sidebar destination
-/// exists for it, and licensing has no screen — see that file's own comment on this module by name.
+/// <b>The module is in the <c>ModuleRegistry</c>.</b> It has a screen (Settings, Licence), so the
+/// promise the registry makes to the SPA's composition check can be kept, and its query and command
+/// are dispatched through the bus like every other module's. The start-up probe
+/// (<see cref="Services.LicenceStartupCheck"/>) is still registered by the Host and still calls the
+/// verifier directly, so the "core never dies" path shares no code with the window the gate relies on.
 /// </para>
 /// </remarks>
 public sealed class LicensingModule : IPanelModule
@@ -81,6 +80,9 @@ public sealed class LicensingModule : IPanelModule
         // Stateless and offline (see LicenceVerifier's own remarks): safe as a singleton, and
         // registering it here does not evaluate it — see this type's own remarks for why that
         // distinction is the whole point.
+        // The production key is whatever the release embedded, or none: no key is ever a constant
+        // in source, so no build can trust a key whose private half is public.
+        services.AddSingleton(_ => { return EmbeddedLicenceVerificationKeySource.Read(); });
         services.AddSingleton<ILicenceSignatureVerifier, Ed25519LicenceSignatureVerifier>();
         // Reads this host's machine-id through the agent, for licences that name one server. A
         // singleton like the verifier that consumes it, and like IAgentMonitorClient underneath —
@@ -88,6 +90,47 @@ public sealed class LicensingModule : IPanelModule
         // requires to be resolvable at all.
         services.AddSingleton<IServerIdentitySource, AgentServerIdentitySource>();
         services.AddSingleton<LicenceVerifier>();
+
+        // The lease: a different key from the licence's (a leaked lease key must not mint licences),
+        // embedded by the release or absent, never a constant in source. A build with no lease key
+        // refuses every lease and a licence that needs one lapses - the safe direction.
+        services.AddSingleton(_ => { return EmbeddedLeaseVerificationKeySource.Read(); });
+        services.AddSingleton<ILeaseSignatureVerifier, Ed25519LeaseSignatureVerifier>();
+        services.AddOptions<LeaseStorageOptions>()
+            .Bind(configuration.GetSection(LeaseStorageOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        // Reads and verifies lease.json; whatever writes that file is not part of this module's seam.
+        // Registered as the Sdk's interface so the closed side can substitute its own source. One
+        // instance answers both seams, so the verified reading and the signed bytes handed to the licence
+        // service come from the same class (the module's own ILeaseEnvelopeSource is internal to it).
+        services.AddSingleton<FileLeaseSource>();
+        services.AddSingleton<ILicenceLeaseSource>(provider =>
+        {
+            return provider.GetRequiredService<FileLeaseSource>();
+        });
+        services.AddSingleton<ILeaseEnvelopeSource>(provider =>
+        {
+            return provider.GetRequiredService<FileLeaseSource>();
+        });
+
+        // The daily renewal of the lease: the one thing in this module that writes lease.json and the one that
+        // leaves the server (rules/security.md item 10, fifth exception). The reader judges an answer the way
+        // the file source judges the stored file; the writer is the atomic one; the renewer is the pass; the
+        // worker is the schedule (the Host registers it as the hosted service, a module may not); the alerter
+        // is scoped because it carries the journal. The options are validated at start for the deadline only:
+        // the address is checked when a request is made, so a typo can never stop the panel booting.
+        services.AddOptions<LeaseServiceOptions>()
+            .Bind(configuration.GetSection(LeaseServiceOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddLeaseServiceClient();
+        services.AddSingleton<LeaseEnvelopeReader>();
+        services.AddSingleton<ILeaseWriter, FileLeaseWriter>();
+        services.AddSingleton<LeaseRenewer>();
+        services.AddSingleton<LeaseRenewalWorker>();
+        services.AddScoped<LeaseRenewalAlerter>();
 
         // Where the installed licence artefact lives (default: /var/lib/maran/licence.json — the
         // threat note's §1 own conclusion). A server's own value is never set; the seam exists so a
@@ -112,6 +155,34 @@ public sealed class LicensingModule : IPanelModule
         // would hand every request its own semaphore and serialize nothing.
         services.AddSingleton<LicenceInstallLock>();
 
+        // The licence window. Singletons all the way down because the gate asks on every paid request:
+        // the source holds nothing, the cache is the shared memory (a scoped one would remember
+        // nothing between requests), and the window logs a failure once per outage. The invalidator is
+        // the cache itself, so the install command and the window can never disagree about which
+        // remembered answer is stale.
+        services.AddSingleton<LicenceCoverageSource>();
+        services.AddSingleton<LicenceCoverageCache>();
+        services.AddSingleton<ILicenceCoverageInvalidator>(provider =>
+        {
+            return provider.GetRequiredService<LicenceCoverageCache>();
+        });
+        services.AddSingleton<ILicenceEntitlements, LicenceEntitlements>();
+
+        // The lease as the bearer credential of the licence-bound services. Registered after the Sdk's
+        // TryAdd of NoLeaseRequestAuthorizer or before it: either way this registration is the one the
+        // marketplace resolves (the Sdk only adds its stand-in when nothing else is registered, and a
+        // later registration wins over an earlier one). A singleton, because it holds nothing and reads
+        // through the shared coverage cache.
+        services.AddSingleton<ILeaseRequestAuthorizer, LeaseRequestAuthorizer>();
+
+        // The pass that journals a lapse or a recovery from outside any request. A singleton because it
+        // remembers the last verdict per module; the Host registers it as the hosted service (a module
+        // may not), through this registration so a test drives the same instance.
+        services.AddSingleton<LicenceCoverageWatcher>();
+
+        // Scoped, because it carries LicenceStatusDisplayNames: the line `maran status` prints.
+        services.AddScoped<LicenceStatusLine>();
+
         // Scoped, like the Databases module's GrantRepairRefusalDisplayNames: it resolves against
         // IStringLocalizer<DisplayNames>, which is culture-sensitive per request.
         services.AddScoped<LicenceStatusDisplayNames>();
@@ -119,15 +190,6 @@ public sealed class LicensingModule : IPanelModule
         // Scoped, like the Databases module's DatabaseAuditJournal: it carries ICurrentUser, which is
         // per-request.
         services.AddScoped<LicensingAuditJournal>();
-
-        // Resolved directly by LicensingController, not dispatched through Wolverine — see that
-        // controller's own remarks for why this module's one handler is registered here instead of
-        // relying on Wolverine's assembly-scanning discovery.
-        services.AddScoped<GetLicenceStatusQueryHandler>();
-
-        // Resolved directly by LicensingController, for the identical reason GetLicenceStatusQueryHandler
-        // is — this module is not in Wolverine's assembly-scanning discovery.
-        services.AddScoped<InstallLicenceCommandHandler>();
 
         // The shared resource pool the panel-wide ResxErrorTextProvider resolves
         // Manifest.DisplayNameKey against, the same registration every module makes for its own

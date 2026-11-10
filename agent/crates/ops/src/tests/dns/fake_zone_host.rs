@@ -11,9 +11,11 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use maran_agent_core::command_outcome::CommandOutcome;
+use maran_agent_core::secret_string::SecretString;
 use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::dns::dns_name::DnsName;
 use maran_agent_core::validation::dns::dns_ttl::DnsTtl;
+use maran_agent_core::validation::dns::dnssec_key_material::DnssecKeyMaterial;
 use maran_agent_core::validation::dns::record_name::RecordName;
 use maran_agent_core::validation::dns::soa_interval::SoaInterval;
 use maran_agent_core::validation::dns::zone_name::ZoneName;
@@ -24,6 +26,7 @@ use crate::dns::dns_error::DnsError;
 use crate::dns::dns_host::DnsHost;
 use crate::dns::model::record_data::RecordData;
 use crate::dns::model::zone_content::ZoneContent;
+use crate::dns::model::zone_directories::ZoneDirectories;
 use crate::dns::model::zone_record::ZoneRecord;
 use crate::dns::model::zone_soa::ZoneSoa;
 use crate::dns::zone_host::ZoneHost;
@@ -47,6 +50,11 @@ struct State {
     spawns: Vec<Spawn>,
     /// The serial of the file most recently swapped in.
     last_written_serial: u32,
+    /// The statement the daemon holds for each zone it serves, as `addzone`,
+    /// `modzone` or [`FakeZoneHost::with_zone`] left it.
+    statements: BTreeMap<String, String>,
+    /// The group each key file was handed to, by path.
+    key_groups: BTreeMap<PathBuf, String>,
 }
 
 /// What the host was told to pretend about itself.
@@ -67,6 +75,15 @@ pub(crate) struct FakeZoneHost {
     strays: Vec<String>,
     /// What the filesystem reports as available; `None` is an unmeasurable one.
     available: Option<u64>,
+    /// Whether `rndc showzone` exits non-zero.
+    showzone_refused: bool,
+    /// What `rndc signing -list` prints, by zone; a zone not here prints the
+    /// daemon's `No signing records found`.
+    signing_lists: BTreeMap<String, String>,
+    /// Whether writing a key file fails.
+    key_write_refused: bool,
+    /// Whether the checker accepts a probe configuration.
+    probe_accepted: bool,
 }
 
 impl FakeZoneHost {
@@ -79,7 +96,78 @@ impl FakeZoneHost {
             load_refused: false,
             strays: Vec::new(),
             available: Some(10 * 1024 * 1024 * 1024),
+            showzone_refused: false,
+            signing_lists: BTreeMap::new(),
+            key_write_refused: false,
+            probe_accepted: true,
         }
+    }
+
+    /// A host whose `rndc showzone` exits non-zero.
+    pub(crate) fn with_showzone_refused(mut self) -> Self {
+        self.showzone_refused = true;
+        self
+    }
+
+    /// A host whose `rndc signing -list zone` prints `output`.
+    pub(crate) fn with_signing_list(mut self, zone: &str, output: &str) -> Self {
+        self.signing_lists
+            .insert(zone.to_owned(), output.to_owned());
+        self
+    }
+
+    /// A host that cannot write a key file.
+    pub(crate) fn with_key_write_refused(mut self) -> Self {
+        self.key_write_refused = true;
+        self
+    }
+
+    /// Plants a file at `path`, as an earlier operation or the daemon would have
+    /// left it.
+    pub(crate) fn with_file(self, path: &Path, contents: &str) -> Self {
+        self.state
+            .lock()
+            .unwrap()
+            .files
+            .insert(path.to_path_buf(), contents.to_owned());
+        self
+    }
+
+    /// Makes the daemon serve `zone` at `serial` under `statement`, with a plain
+    /// file for it in `directory`.
+    pub(crate) fn with_zone_statement(
+        self,
+        directory: &Path,
+        zone: &str,
+        serial: u32,
+        statement: &str,
+    ) -> Self {
+        {
+            let mut state = self.state.lock().unwrap();
+            state.served.insert(zone.to_owned(), serial);
+            state
+                .statements
+                .insert(zone.to_owned(), statement.to_owned());
+            state
+                .files
+                .insert(directory.join(format!("{zone}.db")), "; old\n".to_owned());
+        }
+        self
+    }
+
+    /// The statement the daemon holds for `zone`, if it serves it.
+    pub(crate) fn statement(&self, zone: &str) -> Option<String> {
+        self.state.lock().unwrap().statements.get(zone).cloned()
+    }
+
+    /// The group the key file at `path` was handed to.
+    pub(crate) fn key_group(&self, path: &Path) -> Option<String> {
+        self.state.lock().unwrap().key_groups.get(path).cloned()
+    }
+
+    /// The paths of every file the fake holds, sorted.
+    pub(crate) fn file_paths(&self) -> Vec<PathBuf> {
+        self.state.lock().unwrap().files.keys().cloned().collect()
     }
 
     /// A host whose daemon answers nothing.
@@ -130,6 +218,13 @@ impl FakeZoneHost {
         {
             let mut state = self.state.lock().unwrap();
             state.served.insert(zone.to_owned(), serial);
+            state.statements.insert(
+                zone.to_owned(),
+                format!(
+                    "{{ type primary; file \"{}\"; }};",
+                    directory.join(format!("{zone}.db")).display()
+                ),
+            );
             state
                 .files
                 .insert(directory.join(format!("{zone}.db")), contents.to_owned());
@@ -188,6 +283,20 @@ impl FakeZoneHost {
             );
         }
 
+        if command.first() == Some(&"signing") {
+            let zone = command.last().copied().unwrap_or_default();
+            return match state.served.get(zone) {
+                None => outcome(1, "", "rndc: 'signing' failed: not found"),
+                Some(_) => outcome(
+                    0,
+                    self.signing_lists
+                        .get(zone)
+                        .map_or("No signing records found\n", String::as_str),
+                    "",
+                ),
+            };
+        }
+
         let zone = command.get(1).copied().unwrap_or_default().to_owned();
         match command.first().copied() {
             Some("zonestatus") => match state.served.get(&zone) {
@@ -198,13 +307,33 @@ impl FakeZoneHost {
                 ),
                 None => outcome(1, "", "rndc: 'zonestatus' failed: not found"),
             },
+            Some("showzone") => match state.statements.get(&zone) {
+                Some(statement) if !self.showzone_refused => {
+                    outcome(0, &format!("zone \"{zone}\" {statement}\n"), "")
+                }
+                _ => outcome(1, "", "rndc: 'showzone' failed: not found"),
+            },
             Some("addzone") => {
                 if self.load_refused || state.served.contains_key(&zone) {
                     return outcome(1, "", "rndc: 'addzone' failed: already exists");
                 }
                 let serial = state.last_written_serial;
-                state.served.insert(zone, serial);
+                state.served.insert(zone.clone(), serial);
+                state
+                    .statements
+                    .insert(zone, command.get(2).copied().unwrap_or_default().to_owned());
                 outcome(0, "zone added\n", "")
+            }
+            Some("modzone") => {
+                if self.load_refused || !state.served.contains_key(&zone) {
+                    return outcome(1, "", "rndc: 'modzone' failed: not found");
+                }
+                let serial = state.last_written_serial;
+                state.served.insert(zone.clone(), serial);
+                state
+                    .statements
+                    .insert(zone, command.get(2).copied().unwrap_or_default().to_owned());
+                outcome(0, "zone modified\n", "")
             }
             Some("reload") => {
                 if self.load_refused {
@@ -215,7 +344,10 @@ impl FakeZoneHost {
                 outcome(0, "zone reload queued\n", "")
             }
             Some("delzone") => match state.served.remove(&zone) {
-                Some(_) => outcome(0, "zone deleted\n", ""),
+                Some(_) => {
+                    state.statements.remove(&zone);
+                    outcome(0, "zone deleted\n", "")
+                }
                 None => outcome(1, "", "rndc: 'delzone' failed: not found"),
             },
             _ => outcome(0, "", ""),
@@ -266,6 +398,21 @@ impl DnsHost for FakeZoneHost {
         _reload: &Reload<'_>,
     ) -> Result<(), DnsError> {
         panic!("a zone is never written through the daemon configuration path");
+    }
+
+    fn probe_config(
+        &self,
+        _target: &Path,
+        _contents: &str,
+        _validator: &Validator<'_>,
+    ) -> Result<(), DnsError> {
+        if self.probe_accepted {
+            Ok(())
+        } else {
+            Err(DnsError::ConfigRejected {
+                output: "unknown option 'dnssec-policy'".to_owned(),
+            })
+        }
     }
 
     fn remove_file(&self, path: &Path) -> Result<(), DnsError> {
@@ -329,6 +476,22 @@ impl ZoneHost for FakeZoneHost {
         Ok(())
     }
 
+    fn write_key_file(&self, target: &Path, contents: &str, group: &str) -> Result<(), DnsError> {
+        if self.key_write_refused {
+            return Err(DnsError::ConfigWrite {
+                reason: "signing key file: refused".to_owned(),
+            });
+        }
+        let mut state = self.state.lock().unwrap();
+        state
+            .files
+            .insert(target.to_path_buf(), contents.to_owned());
+        state
+            .key_groups
+            .insert(target.to_path_buf(), group.to_owned());
+        Ok(())
+    }
+
     fn zone_file_names(&self, directory: &Path) -> Result<Vec<String>, DnsError> {
         let mut names: Vec<String> = self
             .state
@@ -352,6 +515,45 @@ impl ZoneHost for FakeZoneHost {
 /// The directory every zone test writes into.
 pub(crate) fn zone_directory() -> PathBuf {
     PathBuf::from("/zones")
+}
+
+/// The directory signed zones' files are written into in every zone test.
+pub(crate) fn signed_directory() -> PathBuf {
+    PathBuf::from("/signed-zones")
+}
+
+/// The directory signing keys are written into in every zone test.
+pub(crate) fn key_directory() -> PathBuf {
+    PathBuf::from("/keys")
+}
+
+/// The three directories every zone test works in.
+pub(crate) fn directories() -> ZoneDirectories {
+    ZoneDirectories::new(zone_directory(), signed_directory(), key_directory())
+}
+
+/// Base64 of the 64 bytes `0, 1, 2, ... 63`: a public key whose RFC 4034 tag with
+/// flags 257 is [`SAMPLE_KEY_TAG`].
+const SAMPLE_PUBLIC_KEY: &str =
+    "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+Pw==";
+
+/// The key tag of [`SAMPLE_PUBLIC_KEY`], derived independently in the key type's
+/// own tests.
+pub(crate) const SAMPLE_KEY_TAG: u16 = 59_409;
+
+/// Base64 of the 32 recognisable bytes `MARAN-PLANTED-SCALAR-0123456789!`, the
+/// planted private half the tests search for.
+pub(crate) const PLANTED_PRIVATE_KEY: &str = "TUFSQU4tUExBTlRFRC1TQ0FMQVItMDEyMzQ1Njc4OSE=";
+
+/// A valid signing key whose private half is [`PLANTED_PRIVATE_KEY`].
+pub(crate) fn sample_key() -> DnssecKeyMaterial {
+    DnssecKeyMaterial::parse(
+        SAMPLE_PUBLIC_KEY,
+        &SecretString::new(PLANTED_PRIVATE_KEY.to_owned()),
+        257,
+        u32::from(SAMPLE_KEY_TAG),
+    )
+    .unwrap()
 }
 
 /// A zone named `zone` with two name servers, one A record and one MX record,

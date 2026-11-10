@@ -8,15 +8,16 @@ use maran_agent_core::validation::system::name::AccountName;
 
 use crate::db::db_error::DbError;
 use crate::db::db_host::DbHost;
-use crate::db::grant_pattern::{
-    GRANT_SINGLE_CHARACTER_WILDCARD, grant_pattern_for, unescaped_grant_pattern,
-};
 use crate::db::grant_rows::{BATCH_ESCAPE, grant_rows, undo_batch_escaping};
 use crate::db::list_databases::server_databases;
 use crate::db::model::grant_repair_refusal::GrantRepairRefusal;
 use crate::db::model::grant_repair_report::GrantRepairReport;
 use crate::db::model::refused_grant::RefusedGrant;
 use crate::db::model::repaired_grant::RepairedGrant;
+use maran_agent_core::validation::db::grant_pattern_for::{
+    GRANT_SINGLE_CHARACTER_WILDCARD, grant_pattern_for,
+};
+use maran_agent_core::validation::db::unescaped_grant_pattern::unescaped_grant_pattern;
 
 /// The only host this panel has ever granted a database user from.
 ///

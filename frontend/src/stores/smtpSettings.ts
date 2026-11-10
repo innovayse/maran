@@ -95,6 +95,17 @@ export const useSmtpSettingsStore = defineStore('smtpSettings', () => {
   }
 
   /**
+   * Forgets the outcome of the last save and test send. Feedback belongs to the visit that caused
+   * it: the screen calls this when it opens, so a refusal or confirmation from an earlier visit
+   * (possibly in another language) is not shown as if it were current.
+   * @returns Nothing; the state is reset synchronously.
+   */
+  const clearFeedback = (): void => {
+    saveSubmission.value = { state: 'idle' }
+    testSubmission.value = { state: 'idle' }
+  }
+
+  /**
    * Loads the panel's mail settings.
    * @returns Resolves once the request has settled, successfully or not.
    */
@@ -170,6 +181,7 @@ export const useSmtpSettingsStore = defineStore('smtpSettings', () => {
     saved,
     testSent,
     submitMessage,
+    clearFeedback,
     load,
     loadSecurityModes,
     save,

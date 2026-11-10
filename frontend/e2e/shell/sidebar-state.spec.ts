@@ -1,11 +1,16 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubBackupOptions } from '../fixtures/stub-backup-options-route'
+import { stubBackupSchedules } from '../fixtures/stub-backup-schedule-routes'
 import { stubFirewall } from '../fixtures/stub-firewall-routes'
+import { stubLandingReads } from '../fixtures/stub-landing-reads'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import { mainNavigation, openFullShell } from '../fixtures/open-full-shell'
 import type { PanelModule } from '../../src/types/module'
+import type { Locator, Page } from '@playwright/test'
 
 // Issue #221: the sidebar after a live language switch, the role line, the current row's
 // visibility and highlight, and the focus ring after a click (the page that scrolled twice is in
@@ -74,6 +79,8 @@ test('switching the language live re-reads the sidebar and the breadcrumb, serve
   await page.setViewportSize({ width: 1680, height: 900 })
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
   await stubLocalizedModules(page)
   await stubFirewall(page, { rules: [], bans: [], whitelist: [] })
   await page.goto('/')
@@ -108,6 +115,8 @@ test('after two quick switches the names are the last language chosen, whatever 
   await page.setViewportSize({ width: 1440, height: 900 })
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubShellReads(page)
+  await stubLandingReads(page)
   const releaseRussian = await stubLocalizedModules(page, 'ru')
   await page.goto('/')
   const nav = page.getByRole('complementary').getByRole('navigation')
@@ -132,17 +141,19 @@ test('after two quick switches the names are the last language chosen, whatever 
 })
 
 for (const locale of ['en', 'ru', 'hy'] as const) {
-  test(`the role under the user name is not cut off in the 216px sidebar (${locale})`, async ({ page }) => {
+  test(`the role under the user name is not cut off in the 240px sidebar (${locale})`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await setPersistedLocale(page, locale)
     await stubSignedIn(page)
     await stubHealthy(page)
     await stubModules(page, [])
+    await stubShellReads(page)
+    await stubLandingReads(page)
     await page.goto('/')
 
-    // The sidebar is the 216px panel the role has to fit in.
+    // The sidebar is the 240px panel the role has to fit in.
     const panel = await page.getByRole('complementary').boundingBox()
-    expect(panel?.width).toBe(216)
+    expect(panel?.width).toBe(240)
     const card = page.getByTestId('shell-identity')
     await expect(card).toBeVisible()
     const cut = await card.locator('span').evaluateAll((spans) => {
@@ -224,6 +235,10 @@ test('the current row is scrolled into view on a short window', async ({ page })
   await page.setViewportSize({ width: 1440, height: 480 })
   await stubSignedIn(page)
   await stubHealthy(page)
+  await stubShellReads(page)
+  await stubBackupOptions(page)
+  // The page the spec opens is the backup schedule screen, which reads the host policy.
+  await stubBackupSchedules(page, {})
   await stubModules(page, [
     { name: 'monitoring', displayName: 'Monitoring', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },
     { name: 'tasks', displayName: 'Tasks', kindDisplayName: 'Core', tier: 'included', state: 'enabled' },

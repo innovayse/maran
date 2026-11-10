@@ -63,11 +63,27 @@ export const useDashboardStore = defineStore('dashboard', () => {
     }
   }
 
+  /**
+   * Forgets the answer, for the moment the identity it was read for changes (a sign-out, a sign-in
+   * as someone else, "View as this account" starting or ending).
+   *
+   * An answer belongs to the caller it was read for: an administrator's sections held over into a
+   * customer's session would make the screen believe it is the server's, and it would open the live
+   * stream and the first-run checklist the panel refuses that caller (issue #513).
+   * @returns Nothing.
+   */
+  const reset = (): void => {
+    contents.value = null
+    loadState.value = 'loading'
+    errorMessage.value = null
+  }
+
   return {
     contents,
     administrator,
     loadState,
     errorMessage,
     load,
+    reset,
   }
 })

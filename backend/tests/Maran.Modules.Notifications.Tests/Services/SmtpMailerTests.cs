@@ -123,6 +123,34 @@ public sealed class SmtpMailerTests
         }
     }
 
+    /// <summary>
+    /// A stored value no mode names, 0 included, is read as STARTTLS and never as the cleartext
+    /// mode (issue #491).
+    /// </summary>
+    /// <remarks>
+    /// The mutation: making <c>ToSocketOptions</c>' discard arm <c>SecureSocketOptions.None</c>. The
+    /// connection then completes a plaintext transaction and the delivered assertion goes red. The
+    /// accepting control is the <see cref="SmtpSecurity.None"/> case of
+    /// <see cref="Every_stored_security_mode_reaches_the_wire_as_the_connection_it_names"/>, which
+    /// does deliver in the clear when it is named.
+    /// </remarks>
+    [Fact]
+    public async Task A_stored_value_that_names_no_mode_never_sends_in_the_clear()
+    {
+        using var server = new FakeSmtpServer();
+        await using var dbContext = NotificationsTestContext.Create();
+        await SeedAsync(dbContext, server.Port, default);
+
+        using var scopes = Scopes(dbContext);
+        var mailer = new SmtpMailer(scopes.Settings, NullLogger<SmtpMailer>.Instance);
+
+        var result = await mailer.SendAsync("ops@example.com", "Subject", "Body", CancellationToken.None);
+
+        Assert.True(await server.ConversationEndedWithinAsync(ServerSettles));
+        Assert.False(result.IsSuccess);
+        Assert.Equal(0, server.AcceptedMessages);
+    }
+
     /// <summary>A mail server that hangs up mid-conversation becomes a failed result, never an exception.</summary>
     /// <remarks>
     /// The type's "it never throws" claim, which is load-bearing for R11: the reset mail is sent in

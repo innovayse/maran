@@ -165,14 +165,32 @@ public sealed class RemoveSubUserCommandHandler
             subject = erasure.Pseudonym;
         }
 
-        await _journal.RecordIdentifiedAsync(
-            SignedInCallerPolicy.Require(_currentUser).UserId,
-            IdentityAuditActions.SubUserRemoved,
-            subject,
-            command.IpAddress,
-            command.UserAgent,
-            succeeded: true,
-            cancellationToken);
+        if (erasure is null)
+        {
+            // The login lives on: it is the subject login of this row, so its later erasure finds the
+            // row by identity and not by the name it carries.
+            await _journal.RecordOnUserAsync(
+                SignedInCallerPolicy.Require(_currentUser).UserId,
+                user.Id,
+                IdentityAuditActions.SubUserRemoved,
+                subject,
+                command.IpAddress,
+                command.UserAgent,
+                succeeded: true,
+                cancellationToken);
+        }
+        else
+        {
+            // The login is gone and the subject is already its pseudonym: no login is left to name.
+            await _journal.RecordIdentifiedAsync(
+                SignedInCallerPolicy.Require(_currentUser).UserId,
+                IdentityAuditActions.SubUserRemoved,
+                subject,
+                command.IpAddress,
+                command.UserAgent,
+                succeeded: true,
+                cancellationToken);
+        }
 
         if (erasure is { Rows: > 0 })
         {

@@ -6,7 +6,7 @@ use maran_distro::DistroAdapter;
 
 use crate::php::list_php_versions::is_installed;
 use crate::php::run_install_unit::run_install_unit;
-use crate::php::supported_versions::{ensure_installable, ensure_supported};
+use crate::php::supported_versions::ensure_supported;
 use crate::php::write_opcache_drop_in::write_opcache_drop_in;
 use crate::php::{PhpHost, PhpOpError};
 use crate::safe_write::SafeWriteError;
@@ -59,7 +59,10 @@ const START_NOW: &str = "--now";
 /// supported ones, [`PhpOpError::PackageSourceRefused`] when the unit's package
 /// manager failed because a package source answered with an HTTP error,
 /// [`PhpOpError::PackageSourceUnreachable`] when it failed because no source
-/// could be reached, [`PhpOpError::PackageManager`] when the install unit cannot
+/// could be reached, [`PhpOpError::PackageNotAvailable`] when the host's
+/// sources do not carry the version's package (the list of installable
+/// versions is built from the same host, so this is the answer for a source that
+/// changed between the list and the install), [`PhpOpError::PackageManager`] when the install unit cannot
 /// be started, fails for any other reason, or succeeds without the version
 /// appearing (each carries the service manager's stderr and the unit name), and [`PhpOpError::ServiceEnable`]
 /// when the package installed but its service could not be enabled — reported
@@ -82,7 +85,6 @@ where
     P: FnMut(u32, &str),
 {
     ensure_supported(version)?;
-    ensure_installable(distro, version)?;
 
     // Checked before any work: this is the retry path, and it must cost one
     // `stat` rather than one unit run.

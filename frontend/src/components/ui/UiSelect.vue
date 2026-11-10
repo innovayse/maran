@@ -45,6 +45,7 @@
  */
 import {
   computed,
+  inject,
   onBeforeUnmount,
   onMounted,
   ref,
@@ -56,6 +57,7 @@ import {
 import { useI18n } from 'vue-i18n'
 import { useFormLoading } from '../../composables/useFormLoading'
 import { nextEnabledIndex } from '../../utils/nextEnabledIndex'
+import { TOOLBAR_KEY } from '../../utils/toolbarKey'
 import UiIcon from './UiIcon.vue'
 import UiOption from './UiOption.vue'
 import UiSkeleton from './UiSkeleton.vue'
@@ -147,6 +149,9 @@ const errorId: string = `${fieldId}-error`
 
 /** Whether the enclosing form is still loading, so the trigger is drawn as a placeholder. */
 const formLoading = useFormLoading()
+
+/** Whether the select sits on a `UiToolbar`, which draws every label for screen readers only. */
+const inToolbar: boolean = inject(TOOLBAR_KEY, false)
 
 /** Whether the option list is currently open. */
 const isOpen: Ref<boolean> = ref(false)
@@ -398,7 +403,7 @@ watch(
     <span
       :id="labelId"
       class="text-xs font-bold wrap-anywhere"
-      :class="[hasError ? 'text-danger' : 'text-text-muted', hideLabel ? 'sr-only' : '']"
+      :class="[hasError ? 'text-danger' : 'text-text-muted', hideLabel || inToolbar ? 'sr-only' : '']"
       >{{ label }}</span
     >
     <UiSkeleton v-if="formLoading" shape="block" control="field" />

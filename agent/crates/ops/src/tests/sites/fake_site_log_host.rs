@@ -44,6 +44,8 @@ pub(crate) struct FakeSiteLogHost {
     opened: Arc<AtomicUsize>,
     /// Whether opening the directory is refused.
     refusing: Arc<Mutex<bool>>,
+    /// Whether the directory does not exist at all.
+    absent: Arc<Mutex<bool>>,
 }
 
 impl FakeSiteLogHost {
@@ -56,6 +58,11 @@ impl FakeSiteLogHost {
     /// not own would be refused.
     pub(crate) fn refuse_the_directory(&self) {
         *self.refusing.lock().unwrap() = true;
+    }
+
+    /// Makes the directory not exist, as an account that never served a request has none.
+    pub(crate) fn have_no_directory(&self) {
+        *self.absent.lock().unwrap() = true;
     }
 
     /// Creates or replaces the file `name` with a fresh inode.
@@ -117,6 +124,13 @@ impl FakeSiteLogHost {
         self.opened.load(Ordering::SeqCst)
     }
 
+    /// Whether a file named `name` exists, as an owner of the same pair would find it.
+    pub(crate) fn open_if_present(&self, name: &str) -> Option<Box<dyn SiteLogFile>> {
+        FakeDirectory { host: self.clone() }
+            .open_file(name)
+            .unwrap()
+    }
+
     /// Opens the file `name` directly, for tests of the reader.
     pub(crate) fn open(&self, name: &str) -> Box<dyn SiteLogFile> {
         FakeDirectory { host: self.clone() }
@@ -139,6 +153,17 @@ impl SiteLogHost for FakeSiteLogHost {
 
         self.opened.fetch_add(1, Ordering::SeqCst);
         Ok(Box::new(FakeDirectory { host: self.clone() }))
+    }
+
+    fn open_directory_if_present(
+        &self,
+        account: &AccountName,
+    ) -> Result<Option<Box<dyn SiteLogDirectory>>, SitesOpError> {
+        if *self.absent.lock().unwrap() {
+            return Ok(None);
+        }
+
+        self.open_directory(account).map(Some)
     }
 }
 

@@ -253,6 +253,7 @@ public sealed class AgentPhpClientTests
     [Theory]
     [InlineData(ErrorCode.PackageSourceRefused, "AgentPackageSourceRefused", ErrorType.UpstreamRefused)]
     [InlineData(ErrorCode.PackageSourceUnreachable, "AgentPackageSourceUnreachable", ErrorType.Unavailable)]
+    [InlineData(ErrorCode.PackageNotAvailable, "AgentPackageNotAvailable", ErrorType.Conflict)]
     [InlineData(ErrorCode.SystemFailure, "AgentSystemFailure", ErrorType.Failure)]
     public async Task A_package_install_failure_ends_with_the_code_and_the_kind_the_agent_classified(
         ErrorCode wire,

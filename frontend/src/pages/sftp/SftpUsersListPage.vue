@@ -39,6 +39,7 @@ import SftpKeysDialog from '../../components/sftp/SftpKeysDialog.vue'
 import SftpUsersFilterSheet from '../../components/sftp/SftpUsersFilterSheet.vue'
 import SftpUsersTable from '../../components/sftp/SftpUsersTable.vue'
 import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
+import UiToolbar from '../../components/ui/UiToolbar.vue'
 import SftpUserCreateForm from '../../components/sftp/SftpUserCreateForm.vue'
 import SftpUserCreatedDialog from '../../components/sftp/SftpUserCreatedDialog.vue'
 import { useAccountChoice } from '../../composables/useAccountChoice'
@@ -238,7 +239,7 @@ onBeforeUnmount((): void => {
 
     <UiCard v-else>
       <div class="flex flex-col gap-4">
-        <div class="flex flex-wrap items-end gap-3">
+        <UiToolbar>
           <UiSearchInput
             v-model="table.search.value"
             class="min-w-55 max-w-85 flex-1"
@@ -254,7 +255,7 @@ onBeforeUnmount((): void => {
             :active-label="t('common.list.filtersApplied', { n: table.activeFilterCount.value }, table.activeFilterCount.value)"
             @click="openFilters"
           />
-        </div>
+        </UiToolbar>
 
         <UiActiveFilter
           v-if="chips.length > 0"

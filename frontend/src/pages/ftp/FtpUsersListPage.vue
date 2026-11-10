@@ -38,6 +38,7 @@ import UiSearchInput from '../../components/ui/UiSearchInput.vue'
 import FtpUserActionConfirm from '../../components/ftp/FtpUserActionConfirm.vue'
 import FtpUsersTable from '../../components/ftp/FtpUsersTable.vue'
 import UiPinnedToast from '../../components/ui/UiPinnedToast.vue'
+import UiToolbar from '../../components/ui/UiToolbar.vue'
 import type { ToastVariant } from '../../components/ui/UiToast.vue'
 import FtpUserCreateForm from '../../components/ftp/FtpUserCreateForm.vue'
 import FtpUserCreatedDialog, { type FtpConnection } from '../../components/ftp/FtpUserCreatedDialog.vue'
@@ -299,7 +300,7 @@ onBeforeUnmount(store.dismissCredential)
 
     <UiCard v-else>
       <div class="flex flex-col gap-4">
-        <div class="flex flex-wrap items-end gap-3">
+        <UiToolbar>
           <UiSearchInput
             v-model="table.search.value"
             class="min-w-55 max-w-85 flex-1"
@@ -315,7 +316,7 @@ onBeforeUnmount(store.dismissCredential)
             :active-label="t('common.list.filtersApplied', { n: table.activeFilterCount.value }, table.activeFilterCount.value)"
             @click="openFilters"
           />
-        </div>
+        </UiToolbar>
 
         <UiActiveFilter
           v-if="chips.length > 0"

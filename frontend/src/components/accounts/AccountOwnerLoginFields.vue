@@ -4,7 +4,8 @@
  * address, which is the default and keeps the password with the owner alone, or by an initial
  * password the operator types or generates, for a host that cannot send mail. The second choice
  * is a credential the operator knows, so the hint says the owner must replace it at the first
- * sign-in and the field is a password field that is never revealed on its own.
+ * sign-in and the field is a password field that is never revealed on its own. A caller who is not
+ * an administrator is offered the invitation alone.
  */
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -16,6 +17,11 @@ import type { OwnerLoginMode } from '../../types/account'
 defineProps<{
   /** Message under the password field, already translated; `null` when it is fine. */
   passwordError: string | null
+  /**
+   * Whether only the invitation is offered: for everyone but an administrator, who may not choose
+   * the owner's first password (issue #488). Advice for the screen; the endpoint refuses it.
+   */
+  invitationOnly: boolean
 }>()
 
 /** The chosen way of making the login (`v-model:mode`). */
@@ -46,12 +52,13 @@ const onModeChange = (value: string): void => {
 <template>
   <div class="flex flex-col gap-3 md:col-span-2">
     <UiRadioGroup
+      v-if="!invitationOnly"
       :model-value="mode"
       :legend="t('accounts.form.fields.loginMode')"
       :options="options"
       @update:model-value="onModeChange"
     />
-    <div v-if="mode === 'initialPassword'" class="flex flex-col gap-1">
+    <div v-if="!invitationOnly && mode === 'initialPassword'" class="flex flex-col gap-1">
       <UiPasswordInput
         v-model="password"
         :label="t('accounts.form.fields.initialPassword')"

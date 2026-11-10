@@ -95,6 +95,11 @@ readonly FINISH_PROBE_TOKEN="polygon-throwaway-setup-token"
 # line and the probe would then be reading nginx's error path.
 readonly VHOST_LOG_PROBE_PATH="/setup"
 readonly VHOST_LOG_PROBE_SECRET="polygon-throwaway-url-secret-8f3a1c"
+# The same kind of literal, sent as the Referer of the SECOND probe request (issue #465): the
+# address of a page whose query string holds a reset or invitation token, which a browser names on
+# every request that page makes. A different string from the one above so that the two leaks are
+# told apart in the failure message.
+readonly VHOST_LOG_PROBE_REFERER_SECRET="polygon-throwaway-referer-secret-5d27be"
 # The two paths installer/nginx/maran.conf names. They are literals here on purpose, the same
 # arrangement the directory modes follow: an assertion that reads its expectation out of the file
 # it is checking agrees with that file by construction. The census below reads the directives out
@@ -175,6 +180,12 @@ readonly PAM_WITNESS_BINARY="/tmp/maran-polygon/pam-witness"
 readonly AGENT_SOURCE_ROOT="/tmp/maran-agent"
 readonly AGENT_DEBIAN_SERVICES="${AGENT_SOURCE_ROOT}/crates/distro/src/debian/debian_services.rs"
 readonly AGENT_RHEL_SERVICES="${AGENT_SOURCE_ROOT}/crates/distro/src/rhel/rhel_services.rs"
+# The SUSE adapter splits what the other two keep in one services file: the DNS names live in
+# suse_dns_services.rs and the account-program paths (pkill among them) in suse_account_programs.rs.
+# Each is the file a comparison below reads for that subject.
+readonly AGENT_SUSE_SERVICES="${AGENT_SOURCE_ROOT}/crates/distro/src/suse/suse_services.rs"
+readonly AGENT_SUSE_DNS_SERVICES="${AGENT_SOURCE_ROOT}/crates/distro/src/suse/suse_dns_services.rs"
+readonly AGENT_SUSE_ACCOUNT_PROGRAMS="${AGENT_SOURCE_ROOT}/crates/distro/src/suse/suse_account_programs.rs"
 readonly AGENT_PATHS="${AGENT_SOURCE_ROOT}/crates/agent-core/src/agent_paths.rs"
 readonly AGENT_VSFTPD_TEMPLATE="${AGENT_SOURCE_ROOT}/crates/templates/templates/vsftpd/vsftpd.conf.j2"
 
@@ -285,6 +296,9 @@ require_installer_file "$FTPS_LOGROTATE_SOURCE" installer/logrotate/maran-ftps
 require_installer_file "$PAM_WITNESS_SOURCE" docker/polygon/asserts/pam-witness.c
 require_installer_file "$AGENT_DEBIAN_SERVICES" agent/crates/distro/src/debian/debian_services.rs
 require_installer_file "$AGENT_RHEL_SERVICES" agent/crates/distro/src/rhel/rhel_services.rs
+require_installer_file "$AGENT_SUSE_SERVICES" agent/crates/distro/src/suse/suse_services.rs
+require_installer_file "$AGENT_SUSE_DNS_SERVICES" agent/crates/distro/src/suse/suse_dns_services.rs
+require_installer_file "$AGENT_SUSE_ACCOUNT_PROGRAMS" agent/crates/distro/src/suse/suse_account_programs.rs
 require_installer_file "$AGENT_PATHS" agent/crates/agent-core/src/agent_paths.rs
 require_installer_file "$AGENT_VSFTPD_TEMPLATE" agent/crates/templates/templates/vsftpd/vsftpd.conf.j2
 require_installer_file "$AGENT_ENABLE_FTPS" agent/crates/ops/src/ftps/enable_ftps.rs
@@ -530,6 +544,7 @@ for __part in \
   "${ASSERT_PARTS_DIR}/php-install-unit.sh" \
   "${ASSERT_PARTS_DIR}/panel-backup-units.sh" \
   "${ASSERT_PARTS_DIR}/update-request-units.sh" \
+  "${ASSERT_PARTS_DIR}/update-security-units.sh" \
   "${ASSERT_PARTS_DIR}/os-security-updates.sh" \
   "${ASSERT_PARTS_DIR}/os-security-updates-step.sh" \
   "${ASSERT_PARTS_DIR}/uninstaller.sh" \
@@ -540,7 +555,9 @@ for __part in \
   "${ASSERT_PARTS_DIR}/cli-recovery.sh" \
   "${ASSERT_PARTS_DIR}/cli-update.sh" \
   "${ASSERT_PARTS_DIR}/release-layout.sh" \
-  "${ASSERT_PARTS_DIR}/log-retention.sh"; do
+  "${ASSERT_PARTS_DIR}/log-retention.sh" \
+  "${ASSERT_PARTS_DIR}/nginx-log-rotation.sh" \
+  "${ASSERT_PARTS_DIR}/suse-family.sh"; do
   [ -r "$__part" ] || fail "assert-installer-steps.sh: ${__part} is not in this image; the Dockerfile must COPY docker/polygon/asserts/parts/"
   # shellcheck source=/dev/null
   . "$__part"
@@ -566,6 +583,12 @@ main() {
   assert_firewall_include_wiring
   assert_firewalld_handling_tells_its_three_answers_apart
   assert_firewall_keeps_firewalld_until_its_own_table_is_loaded
+  # The SUSE family's two firewall obligations (decision 220: the agent's nftables is the one owner).
+  # After the assertion above, which leaves /etc/maran/panel.env absent as these refuse to find it.
+  if [ "${MARAN_OS_FAMILY:-}" = suse ]; then
+    assert_suse_retires_firewalld_only_when_ssh_is_in_the_loaded_ruleset
+    assert_suse_masks_firewalld_when_the_unit_exists_and_says_what_it_did
+  fi
   assert_uninstaller_never_leaves_a_dangling_include
 
   assert_mysql_gate_accepts_socket_auth
@@ -576,6 +599,7 @@ main() {
 
   assert_sftp_prerequisites
   assert_sftp_validates_before_replacing
+  assert_sshd_confines_every_jailed_login
   # After the SFTP assertions: they leave sshd_config in its final, valid state, and `sshd -T`
   # answers for the configuration that will actually be in the image.
   assert_ssh_port_detection_follows_includes
@@ -583,6 +607,11 @@ main() {
   # Last, and the comment on the function says why: it is the only assertion here that writes into
   # /etc/nginx and creates a system account.
   assert_the_vhost_swap_reports_a_failed_rename
+  # The SUSE family's vhost directory must be one nginx reads, asked of nginx itself, before the
+  # assertion that drives step 80 end to end writes into it.
+  if [ "${MARAN_OS_FAMILY:-}" = suse ]; then
+    assert_suse_nginx_reads_the_directory_the_vhost_is_written_to
+  fi
   assert_nginx_vhost_is_validated_before_it_is_served
   # After the vhost assertion, not before it: generate_self_signed_cert does
   # `install -d -o root -g` the service group on the TLS directory, and that group is created by that
@@ -594,8 +623,12 @@ main() {
   # or the served path while the two assertions above drive that same step. It puts the served
   # path, the document root and both log files back, and stops the server it started.
   assert_the_panel_vhost_can_never_log_a_query_string
+  # After it, for the same reason: it installs the vhost through step 80 and starts nginx on it, and puts
+  # the served path and both log files back. The frame location of a packaged module's screen (issue #185).
+  assert_the_module_frame_location_has_its_own_headers_and_api_keeps_deny
   # The file manager's upload and download location renders its body limit from panel.env (issue #169).
   assert_the_file_transfer_location_carries_the_configured_body_limit
+  assert_the_account_move_locations_carry_the_package_limits
   # After it, because it needs the `panel` group that assertion's prepare step creates, and because
   # it is the other assertion that installs files outside /tmp.
   assert_the_panel_socket_directory_is_built_and_then_looked_at
@@ -614,6 +647,12 @@ main() {
   # to refuse before they are trusted. They read the package's files and install nothing, so they take no
   # part in the ordering above.
   assert_the_update_request_units_are_what_the_design_allows
+  # The unattended security-patch update's units and step 69 (issue #383). After the panel backup assertions for
+  # the same reason they follow each other: each installs into /etc/systemd/system and removes only its own
+  # files. The second one runs step 66 (the break-glass command) to drive the real `maran update-schedule
+  # disable`, and removes it again.
+  assert_the_update_security_service_and_timer_are_what_the_design_allows
+  assert_step_69_installs_the_security_update_units_and_keeps_the_operators_choice
   # Step 68, the opt-in unattended OS security updates (issue #163): the refusing half (the flag off writes
   # nothing) and then its inverse control (the flag on writes the exact file and enables the distribution's
   # timers). After the panel backup assertions, which leave /etc/systemd/system as they found it, because the
@@ -633,6 +672,7 @@ main() {
   assert_a_foreign_account_at_the_service_name_is_refused
   assert_the_legacy_service_account_is_migrated_in_place
   assert_the_scratch_gate_refuses_a_directory_root_does_not_own
+  assert_a_reinstall_keeps_a_killed_restores_rollback_dumps
   assert_the_ancestor_walk_refuses_a_panel_owned_ancestor
   assert_the_log_directory_gate_sees_the_defect_it_was_written_for
   # After the log-leaf control and not before it: that control chowns /var/log/maran itself and
@@ -657,23 +697,35 @@ main() {
   # security property is an ordering: the mask before the package. The first assertion is the
   # only one that may run while /usr/sbin/vsftpd is absent — it refuses a host where something
   # else installed the package — so nothing may be moved in front of it.
-  assert_the_packaged_daemon_was_never_startable
-  assert_the_vsftpd_package_is_refused_while_its_unit_is_startable
-  assert_ftps_group_is_created
-  assert_ftps_jail_base_is_root_owned_outside_the_panel_state_root
-  assert_the_ftps_artifacts_are_what_they_claim
-  assert_the_jail_base_is_traversable_by_an_unprivileged_uid
-  assert_ftps_pam_stack_requires_group_membership
-  # Straight after the content check, and it is the reason that one no longer claims "requires":
-  # this is the assertion that asks the library.
-  assert_the_pam_stack_answers_the_three_logins_the_group_gate_exists_for
-  # Neither PAM check can see it, and it costs every FTPS login when it breaks: the two halves of
-  # this feature agreeing on the three names they both spell.
-  assert_the_installer_and_the_agent_spell_the_ftps_names_the_same
-  assert_a_planted_symlink_at_the_jail_base_is_replaced_not_followed
-  # After the artifacts assertion, which is what puts maran-ftps.service on disk: the report
-  # below plants a .wants entry pointing at it and must refuse.
-  assert_the_ftps_step_says_it_is_off_and_can_see_when_it_is_not
+  #
+  # The FTPS assertions below need a vsftpd package. The SUSE family has none (decision 222), so there
+  # the whole block is replaced by the one assertion that FTPS is skipped in plain words and leaves
+  # nothing behind, and by the text comparison of the names the installer and the agent both spell,
+  # which reads source and needs no package. `ftps_is_offered_on_family` is the installer's own gate,
+  # so this image cannot drift from the step on which families have the daemon.
+  if ftps_is_offered_on_family; then
+    assert_the_packaged_daemon_was_never_startable
+    assert_the_vsftpd_package_is_refused_while_its_unit_is_startable
+    assert_ftps_group_is_created
+    assert_ftps_jail_base_is_root_owned_outside_the_panel_state_root
+    assert_the_ftps_artifacts_are_what_they_claim
+    assert_the_jail_base_is_traversable_by_an_unprivileged_uid
+    assert_ftps_pam_stack_requires_group_membership
+    # Straight after the content check, and it is the reason that one no longer claims "requires":
+    # this is the assertion that asks the library.
+    assert_the_pam_stack_answers_the_three_logins_the_group_gate_exists_for
+    # Neither PAM check can see it, and it costs every FTPS login when it breaks: the two halves of
+    # this feature agreeing on the three names they both spell.
+    assert_the_installer_and_the_agent_spell_the_ftps_names_the_same
+    assert_a_planted_symlink_at_the_jail_base_is_replaced_not_followed
+    # After the artifacts assertion, which is what puts maran-ftps.service on disk: the report
+    # below plants a .wants entry pointing at it and must refuse.
+    assert_the_ftps_step_says_it_is_off_and_can_see_when_it_is_not
+  else
+    assert_ftps_is_skipped_in_plain_words_and_touches_nothing
+    assert_the_installer_and_the_agent_spell_the_ftps_names_the_same
+    echo "UNOBSERVED HERE: the FTPS packaged-daemon, jail, PAM stack, PAM witness, symlink and off-report assertions did not run on this family, because it offers no FTPS (decision 222). Only the skip and the agreement of the names were checked."
+  fi
 
   # Step 89's DNS half: the ordering that keeps the distribution's resolver from ever running, the
   # masks on every unit name the package can start it under, and the names the installer and the
@@ -681,12 +733,18 @@ main() {
   assert_the_dns_package_is_refused_while_a_packaged_unit_is_startable
   assert_the_dns_mask_covers_every_packaged_unit
   assert_the_installer_and_the_agent_spell_the_dns_names_the_same
+  assert_the_dns_writable_directories_are_made_with_the_owner_and_mode_the_daemon_needs
 
   # The mail uninstall half of step 89 (issue #177): remove_mail stops and disables only the key-value
   # unit 89-mail.sh recorded, and leaves an operator's own redis or valkey unit running. It runs the
   # uninstaller's remove_mail against the systemctl stand-in and removes only /etc/maran/mail, which
   # it refuses to start without, so it does not depend on the order of anything above it.
   assert_remove_mail_stops_only_the_recorded_key_value_unit
+  # The SUSE family does not offer mail until it is measured: the step must skip in plain words and
+  # leave nothing behind. After the uninstall half above, which plants and removes its own records.
+  if [ "${MARAN_OS_FAMILY:-}" = suse ]; then
+    assert_mail_is_skipped_in_plain_words_and_touches_nothing
+  fi
 
   # Last of everything: it runs the uninstaller's real deleters at their real paths, which takes
   # /var/lib/maran, the scratch and the SFTP jail base with them. It puts all three back through
@@ -697,6 +755,8 @@ main() {
   # Step 41's rotation policy, installed and parsed by the real logrotate (issue #131). Before the
   # census, which reads the same step as text.
   assert_the_install_log_rotation_policy_is_installed_and_parsed
+  # Rotation reloads nginx and never signals USR1 (issue #490); text plus the real logrotate.
+  assert_nginx_log_rotation_reloads_and_never_signals_usr1
   assert_the_uninstaller_removes_every_drop_in_the_installer_creates
   # The process-signalling census: a text comparison plus one install and one probe, so it sits
   # beside the other census rather than among the assertions that start daemons.
@@ -721,6 +781,9 @@ main() {
   assert_the_uninstaller_removes_the_break_glass_command
   assert_the_uninstaller_removes_the_release_layout_and_the_update_state
   assert_the_uninstaller_removes_the_panel_backup_schedule_and_keeps_the_archives
+  if [ "${MARAN_OS_FAMILY:-}" = suse ]; then
+    echo "UNOBSERVED HERE: SELinux. This image loads no policy and the container shares the host kernel, so whether the daemons run confined, or are denied a path the installer made, is unseen; the install polygon reads no audit log either."
+  fi
   echo "Installer steps 40, 41, 50, 60, 66, 67, 68, 70, 80, 85, 86, 87 and 89, the panel port's single authority, and"
   echo "the on-disk boundary the two privilege-escalation fixes moved, verified inside the polygon."
 }

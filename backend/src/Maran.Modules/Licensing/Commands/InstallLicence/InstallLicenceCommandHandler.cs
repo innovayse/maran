@@ -1,5 +1,6 @@
 using Maran.Modules.Licensing.Common;
 using Maran.Modules.Licensing.Domain.Enums;
+using Maran.Modules.Licensing.Domain.ValueObjects;
 using Maran.Modules.Licensing.Interfaces;
 using Maran.Modules.Licensing.Resources;
 using Maran.Modules.Licensing.Services;
@@ -86,6 +87,12 @@ public sealed class InstallLicenceCommandHandler
     /// <summary>Writes this module's audit entries.</summary>
     private readonly LicensingAuditJournal _auditJournal;
 
+    /// <summary>Judges the new licence's lease for the answer, uncached.</summary>
+    private readonly LicenceCoverageSource _coverageSource;
+
+    /// <summary>Makes the licence window forget its remembered verdict.</summary>
+    private readonly ILicenceCoverageInvalidator _coverageInvalidator;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="rawTextSource">Where the currently installed licence's raw text, if any, is read from.</param>
     /// <param name="verifier">This module's offline verifier.</param>
@@ -93,13 +100,17 @@ public sealed class InstallLicenceCommandHandler
     /// <param name="installLock">Serializes the verify-then-write sequence.</param>
     /// <param name="displayNames">Resolves the operator-facing sentence for the newly installed status.</param>
     /// <param name="auditJournal">Writes this module's audit entries.</param>
+    /// <param name="coverageSource">Judges the new licence's lease for the answer, uncached.</param>
+    /// <param name="coverageInvalidator">Makes the licence window forget its remembered verdict once the new licence is on disk.</param>
     public InstallLicenceCommandHandler(
         ILicenceRawTextSource rawTextSource,
         LicenceVerifier verifier,
         ILicenceWriter writer,
         LicenceInstallLock installLock,
         LicenceStatusDisplayNames displayNames,
-        LicensingAuditJournal auditJournal)
+        LicensingAuditJournal auditJournal,
+        LicenceCoverageSource coverageSource,
+        ILicenceCoverageInvalidator coverageInvalidator)
     {
         _rawTextSource = rawTextSource;
         _verifier = verifier;
@@ -107,6 +118,8 @@ public sealed class InstallLicenceCommandHandler
         _installLock = installLock;
         _displayNames = displayNames;
         _auditJournal = auditJournal;
+        _coverageSource = coverageSource;
+        _coverageInvalidator = coverageInvalidator;
     }
 
     /// <summary>Verifies the uploaded licence text and installs it only when it verifies <c>Valid</c>.</summary>
@@ -176,13 +189,19 @@ public sealed class InstallLicenceCommandHandler
             throw;
         }
 
+        // Only after the write succeeded: a failed install leaves the old licence on disk and the old
+        // verdict in the window. The next question for any module reads the new file.
+        _coverageInvalidator.Invalidate();
+
         await RecordAsync(
             command,
             succeeded: true,
             SubjectForSuccess(valid, previousId),
             cancellationToken);
 
-        return Result<LicenceStatusDto>.Ok(ToDto(valid));
+        var coverage = await _coverageSource.ReadAsync(cancellationToken);
+
+        return Result<LicenceStatusDto>.Ok(ToDto(valid, coverage.Lease));
     }
 
     /// <summary>Re-verifies whatever was installed BEFORE this write, so its id can be journalled if valid.</summary>
@@ -222,6 +241,7 @@ public sealed class InstallLicenceCommandHandler
             LicenceRefusalReason.Expired => nameof(ErrorMessages.LicenceInstallExpired),
             LicenceRefusalReason.ProductMismatch => nameof(ErrorMessages.LicenceInstallProductMismatch),
             LicenceRefusalReason.FingerprintMismatch => nameof(ErrorMessages.LicenceInstallFingerprintMismatch),
+            LicenceRefusalReason.NoVerificationKey => nameof(ErrorMessages.LicenceInstallNoVerificationKey),
             _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, "Unknown LicenceRefusalReason."),
         };
     }
@@ -290,12 +310,13 @@ public sealed class InstallLicenceCommandHandler
 
     /// <summary>Maps the newly installed, verified licence to the same wire shape the read-only status route returns.</summary>
     /// <param name="valid">The newly verified licence.</param>
+    /// <param name="lease">The standing of its lease, judged after the install.</param>
     /// <returns>
     /// The DTO — never a copy of the uploaded request body (threat note §5). Its sentence also says
     /// what decides whether the licence is tied to this server: the licence's own `server` claim,
     /// which a licence naming no server simply does not carry.
     /// </returns>
-    private LicenceStatusDto ToDto(LicenceStatus.Valid valid)
+    private LicenceStatusDto ToDto(LicenceStatus.Valid valid, LeaseStanding lease)
     {
         return new LicenceStatusDto(
             State: LicenceStateKind.Valid,
@@ -311,6 +332,10 @@ public sealed class InstallLicenceCommandHandler
             Sentence: _displayNames.InstalledSentence(),
             Advice: null,
             StateDisplayName: _displayNames.StateNameFor(LicenceStateKind.Valid),
-            RefusalReasonDisplayName: null);
+            RefusalReasonDisplayName: null,
+            IsOffline: valid.Licence.IsOffline,
+            Lease: lease.Kind,
+            LeaseDisplayName: _displayNames.LeaseNameFor(lease.Kind),
+            LeaseValidUntil: lease.ValidUntil);
     }
 }

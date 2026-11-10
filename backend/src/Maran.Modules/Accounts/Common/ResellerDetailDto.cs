@@ -17,7 +17,11 @@ namespace Maran.Modules.Accounts.Common;
 /// <param name="AccountCount">How many accounts, in any status, the reseller owns right now.</param>
 /// <param name="PlanCount">How many plans the reseller owns right now.</param>
 /// <param name="DiskAllocatedMb">The disk, in megabytes, promised to the accounts it owns.</param>
-/// <param name="Language">The reseller's language, one of the panel's supported languages.</param>
+/// <param name="Language">
+/// The reseller's language, one of the panel's supported languages, as the machine code the edit form
+/// sends back.
+/// </param>
+/// <param name="LanguageName">The language written in itself, resolved server-side: what the detail prints.</param>
 /// <param name="Envelope">What the administrator sold the reseller; it may sit below the usage when it was lowered.</param>
 public sealed record ResellerDetailDto(
     Guid Id,
@@ -30,4 +34,5 @@ public sealed record ResellerDetailDto(
     int PlanCount,
     long DiskAllocatedMb,
     string Language,
+    string LanguageName,
     ResellerEnvelopeDto Envelope);

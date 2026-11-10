@@ -1,8 +1,9 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubSessions } from '../fixtures/stub-sessions-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Session } from '../../src/types/auth'
 
 /** The device making the request. */
@@ -29,6 +30,7 @@ test('the sessions screen lists the devices and marks the one being used', async
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
   await stubSessions(page, [CURRENT, OTHER])
 
   await page.goto('/settings/sessions')
@@ -38,34 +40,36 @@ test('the sessions screen lists the devices and marks the one being used', async
   await expect(page.getByText('This device')).toBeVisible()
 })
 
-test('a listed session never carries a token or a hash of one', async ({ page }) => {
-  // The panel is stubbed as a SERVER THAT LEAKS: it answers with the session fields the SPA knows
-  // about plus a `tokenHash` the DTO has no room for. That is what makes this assertion able to
-  // fail at all. Stubbing the clean shape and then checking the page for `tokenHash` — which is
-  // what this spec did — was decoration: the string was in neither the response nor the page, so
-  // the probe had nothing to find whatever the screen rendered. A mutation that made the row
-  // render `JSON.stringify(session)` — the whole DTO, verbatim, the exact leak this spec names —
-  // was caught only by a strict-mode locator collision on the line above, never by this one.
-  const leaked = [
-    { ...CURRENT, tokenHash: 'sha256:0000feed' },
-    { ...OTHER, tokenHash: 'sha256:0000beef' },
-  ] as unknown as Session[]
+test('a listed session shows its device and never draws the handle that ends it', async ({ page }) => {
+  // The session `id` is the only opaque handle the list carries: the revoke call addresses a row by
+  // it, so it is the one value on the wire that must stay out of the markup. The stub carries it in
+  // that contract field (the guard refuses any member the contract has no room for), with a value
+  // that is easy to find, so the absence below is about the screen and not about a probe that
+  // could not see it.
+  const handles = ['5e551000-0000-4000-8000-00000000c0de', '5e551000-0000-4000-8000-00000000dead']
+  const listed: Session[] = [
+    { ...CURRENT, id: handles[0] },
+    { ...OTHER, id: handles[1] },
+  ]
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
-  await stubSessions(page, leaked)
+  await stubShellReads(page)
+  await stubSessions(page, listed)
 
   await page.goto('/settings/sessions')
+
+  // Positive control on the probe: the row built from that same payload IS drawn, and so are the
+  // fields it declares, so the absences below are the screen's choice and not a page that failed.
   await expect(page.getByText('Chrome on Linux').first()).toBeVisible()
-
-  // Positive control on the probe itself: `userAgent` IS rendered, so a value planted there must
-  // be found. Without this, a probe that had stopped being able to see the page would report the
-  // same silence as a page with nothing to hide.
   await expect(page.locator('body')).toContainText('Safari on iPhone')
+  await expect(page.locator('body')).toContainText(CURRENT.ipAddress)
 
-  // The real assertion: the screen renders the fields it knows, never the response wholesale.
-  await expect(page.locator('body')).not.toContainText('tokenHash')
-  await expect(page.locator('body')).not.toContainText('sha256:0000feed')
+  // The handle appears in neither the text nor any attribute of the drawn page.
+  const markup = await page.content()
+  for (const handle of handles) {
+    expect(markup).not.toContain(handle)
+  }
 })
 
 test('ending another device asks first, then reads the page again without its row', async ({ page }) => {
@@ -75,6 +79,7 @@ test('ending another device asks first, then reads the page again without its ro
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
   const listRequests = await stubSessions(page, listed)
   await page.route(`**/api/v1/sessions/${OTHER.id}`, async (route) => {
     listed.splice(listed.indexOf(OTHER), 1)
@@ -105,10 +110,13 @@ test('ending another device asks first, then reads the page again without its ro
   expect(listRequests().length).toBeGreaterThanOrEqual(2)
 })
 
-test('signing out everywhere returns to the sign-in screen', async ({ page }) => {
+test('signing out everywhere returns to the sign-in screen', async ({ page, guard }) => {
+  // The renewal is made to fail on purpose below, so that nothing can keep the visitor signed in.
+  guard.allow(401, /\/api\/v1\/auth\/refresh$/)
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
   await stubSessions(page, [CURRENT, OTHER])
   await page.route('**/api/v1/auth/logout-all', async (route) => {
     await route.fulfill({ status: 204 })
@@ -141,6 +149,7 @@ test('the confirmation for this device says it signs you out here', async ({ pag
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
   await stubSessions(page, [CURRENT, OTHER])
 
   await page.goto('/settings/sessions')
@@ -164,6 +173,7 @@ test('dismissing the session confirmation sends no request, and confirm is not t
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
   await stubSessions(page, [CURRENT, OTHER])
   page.on('request', (request) => {
     if (request.method() === 'DELETE' && request.url().includes('/api/v1/sessions/')) {

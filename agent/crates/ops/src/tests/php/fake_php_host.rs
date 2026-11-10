@@ -123,6 +123,15 @@ impl FakePhpHost {
         host
     }
 
+    /// Marks `version` installed on a host that already exists, as
+    /// [`Self::with_installed`] does at construction.
+    pub(crate) fn place_installed(&self, version: &str) {
+        self.directories
+            .lock()
+            .unwrap()
+            .insert(PathBuf::from(distro().php_fpm_pool_directory(version)));
+    }
+
     /// A host with `versions` installed as `adapter` spells their pool
     /// directories, for a test that runs against the other family.
     pub(crate) fn with_installed_on(adapter: &dyn DistroAdapter, versions: &[&str]) -> Self {
@@ -331,9 +340,9 @@ impl ConfigHost for FakePhpHost {
         let installed = self.installs_on_start.lock().unwrap().clone();
         if let Some(version) = installed.filter(|_| subcommand == "start" && outcome.status == 0) {
             // Whichever family the operation was given, the unit leaves ITS
-            // pool directory behind, so both spellings appear.
+            // pool directory behind, so every spelling appears.
             let mut directories = self.directories.lock().unwrap();
-            for family in [DistroFamily::Debian, DistroFamily::Rhel] {
+            for family in [DistroFamily::Debian, DistroFamily::Rhel, DistroFamily::Suse] {
                 directories.insert(PathBuf::from(
                     adapter_for(family).php_fpm_pool_directory(&version),
                 ));

@@ -6,8 +6,9 @@ namespace Maran.Modules.Backups.Domain.Enums;
 /// pruned", and a copy taken as a safety net before a destructive operation must not become an
 /// ordinary daily that retention eats (the plan's R12).
 ///
-/// All four values are produced: <see cref="Manual"/> and <see cref="Scheduled"/> by the create path,
-/// <see cref="PreDeletion"/> and <see cref="PreRestore"/> by <c>SafetyBackupService</c>. Retention
+/// All five values are produced: <see cref="Manual"/> and <see cref="Scheduled"/> by the create path,
+/// <see cref="PreDeletion"/>, <see cref="PreRestore"/> and <see cref="Migration"/> by <c>SafetyBackupService</c>
+/// and <c>MigrationArtifactService</c>. Retention
 /// and the deletion cascade are written against this closed set, so a reader can see which kinds
 /// they must never touch.
 /// </remarks>
@@ -33,4 +34,13 @@ public enum BackupKind
     /// a restore replaced it.
     /// </summary>
     PreRestore = 3,
+
+    /// <summary>
+    /// Made to be exported to another Maran server, or published here by an import (issue #127). It is in
+    /// none of retention's allow-lists: it is not pruned by a schedule's retain figure, does not count against
+    /// a customer's backup allowance, and is not a customer's to delete. Unlike <see cref="PreDeletion"/> it
+    /// does not outlive its account: it is a copy of data that moves, not the last copy of a deleted
+    /// customer's data.
+    /// </summary>
+    Migration = 4,
 }

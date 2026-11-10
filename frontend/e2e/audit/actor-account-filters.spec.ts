@@ -1,11 +1,13 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
 import { stubAccountNames, stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubAudit } from '../fixtures/stub-audit-routes'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account } from '../../src/types/account'
 import type { AuditEvent } from '../../src/types/audit'
+import type { Page } from '@playwright/test'
 
 // The journal's actor and account filters (#145). The actor is a typed login name the panel matches
 // exactly; the account is picked from the panel's account choices and sent as its id. An entry
@@ -33,6 +35,7 @@ const ADMIN_SIGN_IN: AuditEvent = {
   action: 'LoginSucceeded',
   actionName: 'Signed in',
   subject: 'admin',
+  subjectName: 'admin',
   ipAddress: '203.0.113.7',
   succeeded: true,
   outcomeName: 'Succeeded',
@@ -43,6 +46,7 @@ const ALICE_SIGN_IN: AuditEvent = {
   id: '00000000-0000-0000-0000-0000000000f2',
   actorUsername: 'alice',
   subject: 'alice',
+  subjectName: 'alice',
   ipAddress: '198.51.100.4',
 }
 
@@ -69,6 +73,7 @@ const openJournal = async (page: Page): Promise<() => readonly URL[]> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
+  await stubShellReads(page)
   await stubAccounts(page, [ALICE, BOB])
   await stubAccountNames(page, [ALICE, BOB])
   return await stubAudit(page, [ADMIN_SIGN_IN, ALICE_SIGN_IN, BOB_SIGN_IN], ACCOUNT_OF)

@@ -26,6 +26,9 @@ public sealed class AccountLoginEmailChangeRequestedHandlerTests : IDisposable
     /// <summary>The module's context, in memory.</summary>
     private readonly IdentityDbContext _context = IdentityTestContext.Create();
 
+    /// <summary>Keeps what the handler journals.</summary>
+    private readonly RecordingAuditWriter _audit = new();
+
     /// <inheritdoc />
     public void Dispose()
     {
@@ -48,7 +51,12 @@ public sealed class AccountLoginEmailChangeRequestedHandlerTests : IDisposable
     /// <summary>Builds the handler over the test context.</summary>
     private AccountLoginEmailChangeRequestedHandler NewHandler()
     {
-        return new AccountLoginEmailChangeRequestedHandler(_context, new AccountOwnerFinder(_context));
+        return new AccountLoginEmailChangeRequestedHandler(
+            _context,
+            new AccountOwnerFinder(_context),
+            new CredentialTokenRetirement(_context),
+            new IdentityAuditJournal(_audit, new StubCurrentUser()),
+            new FakeClock(Now));
     }
 
     /// <summary>The account's login moves to the new address.</summary>
@@ -103,5 +111,74 @@ public sealed class AccountLoginEmailChangeRequestedHandlerTests : IDisposable
 
         Assert.True(result.IsSuccess);
         Assert.Empty(await _context.Users.ToListAsync());
+    }
+
+    /// <summary>Stores an invitation token and a reset token of the user, issued at <paramref name="at"/>.</summary>
+    /// <param name="userId">The login they belong to.</param>
+    /// <param name="at">The instant of issue.</param>
+    private async Task<(InvitationToken Invitation, PasswordResetToken Reset)> SeedTokensAsync(
+        Guid userId,
+        DateTimeOffset at)
+    {
+        var invitation = new InvitationToken(Guid.NewGuid(), userId, Guid.NewGuid().ToString("N"), at);
+        var reset = new PasswordResetToken(Guid.NewGuid(), userId, Guid.NewGuid().ToString("N"), at);
+        _context.InvitationTokens.Add(invitation);
+        _context.PasswordResetTokens.Add(reset);
+        await _context.SaveChangesAsync();
+        return (invitation, reset);
+    }
+
+    /// <summary>The invitation and reset tokens mailed to the old address are refused after the move, and it is audited.</summary>
+    [Fact]
+    public async Task Tokens_mailed_to_the_old_address_are_refused_after_the_move()
+    {
+        var user = await SeedLoginAsync("owner-one", "old@example.com", AccountId);
+        var (invitation, reset) = await SeedTokensAsync(user.Id, Now);
+        Assert.True(invitation.IsUsable(Now));
+
+        var result = await NewHandler().HandleAsync(
+            new AccountLoginEmailChangeRequested(AccountId, "new@example.com"), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var storedInvitation = await _context.InvitationTokens.AsNoTracking().SingleAsync(t => t.Id == invitation.Id);
+        var storedReset = await _context.PasswordResetTokens.AsNoTracking().SingleAsync(t => t.Id == reset.Id);
+        Assert.False(storedInvitation.IsUsable(Now));
+        Assert.False(storedReset.IsUsable(Now));
+        var entry = Assert.Single(_audit.Written);
+        Assert.Equal(IdentityAuditActions.CredentialTokensRetired, entry.Action);
+        Assert.Equal($"{user.Id}: 2", entry.Subject);
+        Assert.DoesNotContain("old@example.com", entry.Subject);
+    }
+
+    /// <summary>A token issued after the move, for the new address, works.</summary>
+    [Fact]
+    public async Task A_token_issued_after_the_move_stays_usable()
+    {
+        var user = await SeedLoginAsync("owner-one", "old@example.com", AccountId);
+        await NewHandler().HandleAsync(
+            new AccountLoginEmailChangeRequested(AccountId, "new@example.com"), CancellationToken.None);
+
+        var (invitation, reset) = await SeedTokensAsync(user.Id, Now.AddMinutes(1));
+
+        Assert.True(invitation.IsUsable(Now.AddMinutes(2)));
+        Assert.True(reset.IsUsable(Now.AddMinutes(2)));
+    }
+
+    /// <summary>A refused move (address taken) and a no-op move retire nothing.</summary>
+    [Fact]
+    public async Task A_refused_or_unchanged_address_retires_no_token()
+    {
+        var user = await SeedLoginAsync("owner-one", "old@example.com", AccountId);
+        await SeedLoginAsync("owner-two", "taken@example.com", Guid.NewGuid());
+        var (invitation, _) = await SeedTokensAsync(user.Id, Now);
+
+        await NewHandler().HandleAsync(
+            new AccountLoginEmailChangeRequested(AccountId, "taken@example.com"), CancellationToken.None);
+        await NewHandler().HandleAsync(
+            new AccountLoginEmailChangeRequested(AccountId, "old@example.com"), CancellationToken.None);
+
+        var stored = await _context.InvitationTokens.AsNoTracking().SingleAsync(t => t.Id == invitation.Id);
+        Assert.True(stored.IsUsable(Now));
+        Assert.Empty(_audit.Written);
     }
 }

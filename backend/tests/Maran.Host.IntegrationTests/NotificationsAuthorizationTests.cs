@@ -38,7 +38,7 @@ public sealed class NotificationsAuthorizationTests : IAsyncLifetime
 {
     /// <summary>The SMTP security choices, in the order the panel lists them.</summary>
     private static readonly string[] SecurityModes =
-        new[] { "none", "startTls", "implicitTls" };
+        new[] { "startTls", "implicitTls", "none" };
 
     /// <summary>A well-known development key; the host refuses to boot without one.</summary>
     private const string Key = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";

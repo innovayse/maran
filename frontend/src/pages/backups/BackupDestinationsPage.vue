@@ -65,6 +65,7 @@ import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
 import UiSwitch from '../../components/ui/UiSwitch.vue'
 import UiTable from '../../components/ui/UiTable.vue'
+import UiToolbar from '../../components/ui/UiToolbar.vue'
 import BackupDestinationEncryptionConfirm from '../../components/backups/BackupDestinationEncryptionConfirm.vue'
 import type { UiTableColumn } from '../../types/tableColumn'
 import { useBackupDestinationKindText } from '../../composables/useBackupDestinationKindText'
@@ -293,7 +294,7 @@ useReloadOnLocale(optionsStore.load)
       <UiSectionHeading class="mb-4" :title="t('backups.destinations.sectionHeading')" />
 
       <div class="flex flex-col gap-4">
-        <div class="flex flex-wrap items-end gap-3">
+        <UiToolbar>
           <UiSearchInput
             v-model="table.search.value"
             class="min-w-55 max-w-85 flex-1"
@@ -307,7 +308,7 @@ useReloadOnLocale(optionsStore.load)
             :active-label="t('common.list.filtersApplied', { n: table.activeFilterCount.value }, table.activeFilterCount.value)"
             @click="openFilters"
           />
-        </div>
+        </UiToolbar>
 
         <UiActiveFilter
           v-if="chips.length > 0"

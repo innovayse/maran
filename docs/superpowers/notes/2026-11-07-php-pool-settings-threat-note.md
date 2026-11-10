@@ -92,3 +92,21 @@ figures themselves (they are not secrets).
   accounts: the rpc takes the account's wait-free lock (`write_pool`) and the config-tree lock, so a
   busy answer (`ACCOUNT_BUSY`) is possible and the panel treats it as a failure to retry; the plan-change
   fan-out has not been measured against a host with thousands of accounts.
+
+## Amendment 2026-11-09: a size of zero is refused (#480)
+
+**What was wrong.** "The agent refuses a request above its ceilings" did not hold for the value 0.
+`PhpOverride::parse` bounded the three size settings (`memory_limit`, `upload_max_filesize`,
+`post_max_size`) from above only, and PHP reads `post_max_size = 0` as "no limit", so a buggy or
+compromised panel could write a pool with no request-body limit that the plan bound could not clamp.
+
+**What changed.** `OverrideKind::Bytes` carries a `minimum`, set to 1 byte for all three, and the
+parse checks it before the maximum exactly as the seconds and count kinds do. `0`, `0K`, `0M`, `0G` and
+`00` are refused as malformed for each setting; `1` and `1K` are accepted as the inverse control.
+`-1` was already refused (no sign in the grammar).
+
+**Why it is safe now.** No spelling of "unlimited" reaches the pool: negative values have no grammar,
+zero has a floor, and the ceiling is the 512 MiB maximum.
+
+**Second review: OUTSTANDING (#331).** A reviewer must check that no other size-like setting was added
+to `ALLOWED` without a floor.

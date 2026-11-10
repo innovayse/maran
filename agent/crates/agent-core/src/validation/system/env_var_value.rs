@@ -109,3 +109,7 @@ impl EnvVarValue {
 #[cfg(test)]
 #[path = "../../tests/validation/system/env_var_value_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "../../tests/validation/system/env_var_value_property_tests.rs"]
+mod property_tests;

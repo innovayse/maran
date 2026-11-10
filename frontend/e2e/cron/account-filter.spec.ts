@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '../fixtures/guarded-test'
+import { stubMyAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubAccountNames, stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubAccountFilteredList } from '../fixtures/stub-account-filtered-list'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
@@ -7,10 +8,12 @@ import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubCronOptions } from '../fixtures/stub-cron-options-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
+import { stubShellReads } from '../fixtures/stub-shell-reads'
 import type { Account, MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { CronEntry } from '../../src/types/cronEntry'
 import type { PanelModule } from '../../src/types/module'
+import type { Page } from '@playwright/test'
 
 // Issue #223: the account page links to cron as `?account=<id>`. Cron always reads one account's
 // crontab, so the parameter chooses the picker's account instead of the first one; a customer has
@@ -74,11 +77,14 @@ const NIGHTLY: CronEntry = {
 const openScreen = async (page: Page, user?: AuthenticatedUser): Promise<() => readonly string[]> => {
   await stubSignedIn(page, user)
   await stubHealthy(page)
+  await stubShellReads(page)
   await stubCronOptions(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE, BOB])
   await stubAccountNames(page, [ALICE, BOB])
   await stubMyAccount(page, OWN_ACCOUNT)
+  // The customer's create form asks how much of the plan is spent (issue #312); nothing is.
+  await stubMyAccountResources(page, { accountId: OWN_ACCOUNT.id, resources: [] })
   await stubCronEntries(page, [])
   await stubCronEnvironment(page, [])
   return await stubAccountFilteredList(page, '/api/v1/cron-entries', [NIGHTLY])

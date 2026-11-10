@@ -51,7 +51,7 @@ export interface CronEntry {
  *
  * Every field is nullable and each null means "the agent reported none" rather than a value —
  * an empty string is a run that printed nothing, `0` is a run that succeeded, and epoch is a real
- * instant. The whole reading can also be absent: the endpoint answers `200` with a `null` BODY for
+ * instant. The whole reading can also be absent: the endpoint answers `204` with no body for
  * an entry that has never run, which is why the store holds `CronEntryOutput | null`.
  */
 export interface CronEntryOutput {

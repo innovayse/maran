@@ -19,8 +19,9 @@ namespace Maran.Modules.Dns.Services;
 /// <para>
 /// The subject is the zone's name, or the zone and the record's name and type, and NEVER a record's value
 /// or the agent's own text: a TXT value can carry a key or a token, and the agent's text can name paths on
-/// the host, and the journal keeps both forever (rules/security.md item 8). The action names are the Sdk's
-/// <see cref="DnsAuditActions"/>.
+/// the host, and the journal keeps both forever (rules/security.md item 8). The three DNSSEC actions name the
+/// zone and nothing of the key: the subject is the zone's name and no other member of the entry can carry a
+/// key. The action names are the Sdk's <see cref="DnsAuditActions"/>.
 /// </para>
 /// </remarks>
 public sealed class DnsAuditJournal

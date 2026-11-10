@@ -32,6 +32,13 @@ public sealed class ZoneConfiguration : IEntityTypeConfiguration<Zone>
             .IsConcurrencyToken();
 
         builder.Property(zone => zone.CreatedAt).IsRequired();
+
+        // The DNSSEC step the zone is in, stored as its number with a database default of zero (off), so the
+        // rows that exist before signing do and a release that does not know the column keeps inserting zones.
+        builder.Property(zone => zone.DnssecState).IsRequired();
+
+        // Set only while the zone is being withdrawn from signing: the start of the minimum wait.
+        builder.Property(zone => zone.DnssecWithdrawalStartedAt);
         builder.Property(zone => zone.UpdatedAt).IsRequired();
 
         // One owner per name across the WHOLE server. Names are stored lower case, so this index is also the

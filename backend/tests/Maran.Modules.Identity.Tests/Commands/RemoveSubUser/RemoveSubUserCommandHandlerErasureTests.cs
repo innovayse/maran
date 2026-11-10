@@ -154,7 +154,12 @@ public sealed class RemoveSubUserCommandHandlerErasureTests : IDisposable
     {
         _world.Context.AuditEvents.AddRange(
             ErasureJournal.Row(member.Id, "deploy", "own-action", MemberAddress, MemberAgent),
-            ErasureJournal.Row(_world.Owner.Id, "acme", "deploy", action: IdentityAuditActions.SubUserInvited),
+            ErasureJournal.Row(
+                _world.Owner.Id,
+                "acme",
+                "deploy",
+                action: IdentityAuditActions.SubUserInvited,
+                subjectUserId: member.Id),
             ErasureJournal.Row(_world.Owner.Id, "acme", "unrelated"));
         await _world.Context.SaveChangesAsync();
     }

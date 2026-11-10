@@ -69,4 +69,37 @@
   <data name="MailAliasKindCatchAll">
     <value>Ընդհանուր (catch-all)</value>
   </data>
+  <data name="MailMenuQueue">
+    <value>Փոստի հերթ</value>
+  </data>
+  <data name="MailRouteQueue">
+    <value>Փոստի հերթ</value>
+  </data>
+  <data name="MailQueueNameActive">
+    <value>Առաքվում է</value>
+  </data>
+  <data name="MailQueueNameDeferred">
+    <value>Սպասում է կրկնության</value>
+  </data>
+  <data name="MailQueueNameHeld">
+    <value>Պահված է</value>
+  </data>
+  <data name="MailQueueNameIncoming">
+    <value>Ընդունվում է</value>
+  </data>
+  <data name="MailDeferralNone">
+    <value>Չի հետաձգվել</value>
+  </data>
+  <data name="MailDeferralNetwork">
+    <value>Ցանցային խնդիր</value>
+  </data>
+  <data name="MailDeferralRemoteRefused">
+    <value>Մերժվել է ստացողի սերվերի կողմից</value>
+  </data>
+  <data name="MailDeferralLocalError">
+    <value>Սխալ այս սերվերում</value>
+  </data>
+  <data name="MailDeferralOther">
+    <value>Այլ պատճառ</value>
+  </data>
 </root>
