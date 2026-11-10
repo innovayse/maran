@@ -142,9 +142,8 @@ assert_an_app_installs_and_uninstalls_through_the_package_units() {
   command -v nginx >/dev/null 2>&1 \
     || fail "installing and removing ${package} through the app units took nginx, the panel's front, with it"
 
-  case "${MARAN_OS_FAMILY:-}" in
-    debian) rm -rf /var/lib/apt/lists/* ;;
-  esac
+  # The package lists this assertion refreshed are left in place: a later part (step 68's
+  # unattended-upgrades install) reads them, and the image's final layer cleans them up.
   echo "${package} was installed by ${unit_install} and removed by ${unit_remove}; a missing package and an option-shaped instance were refused; nginx stayed."
   echo "UNOBSERVED HERE: the units' sandbox and a booted PID 1. The stand-in runs the same argv as a plain root process."
 }
