@@ -596,8 +596,8 @@ assert_the_installer_and_the_agent_spell_the_ftps_names_the_same() {
     || fail "the Rust literal extractor read '${value}' out of debian_services.rs but does not read 'polygon-planted-name' out of a copy carrying exactly that instead — it is not reading the file's content, and its agreements mean nothing."
   rm -f -- "$planted"
 
-  # 1 and 2: the group, on each family's adapter. Both, and not one of them, because the two
-  # families answer it independently and a drift on either is a family whose logins are added to a
+  # 1 to 3: the group, on each family's adapter. Every one, and not one of them, because the
+  # families answer it independently and a drift on any is a family whose logins are added to a
   # group the PAM stack does not test.
   local services_file
   for services_file in "$AGENT_DEBIAN_SERVICES" "$AGENT_RHEL_SERVICES" "$AGENT_SUSE_SERVICES"; do
@@ -773,10 +773,10 @@ assert_the_installer_and_the_agent_spell_the_ftps_names_the_same() {
     compared=$((compared + 1))
   done
 
-  [ "$compared" -eq 14 ] \
-    || fail "the name-agreement check made ${compared} comparisons, not the 14 it is made of. A comparison that is not made is not one that agreed."
+  [ "$compared" -eq 15 ] \
+    || fail "the name-agreement check made ${compared} comparisons, not the 15 it is made of. A comparison that is not made is not one that agreed."
 
-  echo "The installer and the agent spell the five FTPS names identically, compared and not assumed: the group '${MARAN_FTPS_GROUP}' against ftps_group() on BOTH family adapters, the jail root '${MARAN_FTPS_JAIL_ROOT}' against AgentPaths::FTPS_JAIL_ROOT, the PAM service '$(basename -- "$MARAN_FTPS_PAM_SERVICE")' against the pam_service_name the agent renders — under /etc/pam.d, where libpam resolves it — and the transfer log '${expected_log}', against the one stanza installer/logrotate/maran-ftps rotates and against EVERY mention of a log path in that file, in installer/lib/89-ftps.sh and in the agent file that declares it — and the daemon's configuration path '${expected_config}', against the directory installer/lib/89-ftps.sh creates, against the whole ExecStart ARGUMENT installer/systemd/maran-ftps.service hands vsftpd, and against EVERY mention of that directory in those two files and in agent_paths.rs."
+  echo "The installer and the agent spell the five FTPS names identically, compared and not assumed: the group '${MARAN_FTPS_GROUP}' against ftps_group() on EVERY family adapter (Debian, RHEL and SUSE), the jail root '${MARAN_FTPS_JAIL_ROOT}' against AgentPaths::FTPS_JAIL_ROOT, the PAM service '$(basename -- "$MARAN_FTPS_PAM_SERVICE")' against the pam_service_name the agent renders — under /etc/pam.d, where libpam resolves it — and the transfer log '${expected_log}', against the one stanza installer/logrotate/maran-ftps rotates and against EVERY mention of a log path in that file, in installer/lib/89-ftps.sh and in the agent file that declares it — and the daemon's configuration path '${expected_config}', against the directory installer/lib/89-ftps.sh creates, against the whole ExecStart ARGUMENT installer/systemd/maran-ftps.service hands vsftpd, and against EVERY mention of that directory in those two files and in agent_paths.rs."
   echo "UNOBSERVED HERE: this reads the agent's SOURCE TEXT, not the compiled agent. A name a future adapter computes instead of declaring, or a copy of any of these strings outside the files read here, is invisible to it; the agent's own unit tests pin these literals from the other side. For the log path specifically, two more things it cannot see: a path both halves spell identically and that the daemon still cannot write (a missing directory, a mode, an SELinux label) — ftps_on_a_real_host.rs is where the daemon's own answer is observed — and WHAT logrotate does with the file, since this compares the name in the stanza header and judges no directive inside it."
 }
 

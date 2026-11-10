@@ -1,18 +1,18 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
-rust	maran_agent [unittests src/lib.rs]	1172	0	0
+rust	maran_agent [unittests src/lib.rs]	1197	0	0
 rust	maran_agent [unittests src/main.rs]	0	0	0
 rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	6
 rust	account_identity_on_a_real_host [tests/account_identity_on_a_real_host.rs]	0	0	6
 rust	account_leftovers_on_a_real_host [tests/account_leftovers_on_a_real_host.rs]	0	0	4
 rust	account_limits_on_a_real_host [tests/account_limits_on_a_real_host.rs]	0	0	5
-rust	audit_lines [tests/audit_lines.rs]	7	0	0
+rust	audit_lines [tests/audit_lines.rs]	8	0	0
 rust	backup_on_a_real_host [tests/backup_on_a_real_host.rs]	0	0	14
 rust	binary_paths_on_a_real_host [tests/binary_paths_on_a_real_host.rs]	0	0	7
 rust	bound_is_mapped_in_every_status_file [tests/bound_is_mapped_in_every_status_file.rs]	4	0	0
 rust	cron_on_a_real_host [tests/cron_on_a_real_host.rs]	0	0	6
 rust	databases_on_a_real_host [tests/databases_on_a_real_host.rs]	0	0	10
-rust	dns_zone_files_on_a_real_host [tests/dns_zone_files_on_a_real_host.rs]	0	0	4
+rust	dns_zone_files_on_a_real_host [tests/dns_zone_files_on_a_real_host.rs]	0	0	11
 rust	files_archives_on_a_real_host [tests/files_archives_on_a_real_host.rs]	0	0	9
 rust	files_browse_bounds_on_a_real_host [tests/files_browse_bounds_on_a_real_host.rs]	0	0	12
 rust	files_browse_containment_on_a_real_host [tests/files_browse_containment_on_a_real_host.rs]	0	0	10
@@ -28,32 +28,34 @@ rust	php_install_rpc [tests/php_install_rpc.rs]	7	0	0
 rust	php_pools_on_a_real_host [tests/php_pools_on_a_real_host.rs]	0	0	4
 rust	php_socket_migration_on_a_real_host [tests/php_socket_migration_on_a_real_host.rs]	0	0	3
 rust	privileges_on_a_real_host [tests/privileges_on_a_real_host.rs]	0	0	20
-rust	restore_recovery_on_a_real_host [tests/restore_recovery_on_a_real_host.rs]	0	0	4
+rust	restore_recovery_on_a_real_host [tests/restore_recovery_on_a_real_host.rs]	0	0	5
 rust	sftp_key_sessions_on_a_real_host [tests/sftp_key_sessions_on_a_real_host.rs]	0	0	1
-rust	sftp_on_a_real_host [tests/sftp_on_a_real_host.rs]	0	0	9
+rust	sftp_on_a_real_host [tests/sftp_on_a_real_host.rs]	0	0	10
 rust	sftp_suspension_on_a_real_host [tests/sftp_suspension_on_a_real_host.rs]	0	0	5
 rust	shutdown_signal [tests/shutdown_signal.rs]	3	0	0
 rust	site_traffic_on_a_real_host [tests/site_traffic_on_a_real_host.rs]	0	0	2
 rust	sites_on_a_real_host [tests/sites_on_a_real_host.rs]	0	0	39
-rust	maran_agent_core [unittests src/lib.rs]	972	0	0
-rust	maran_distro [unittests src/lib.rs]	324	0	0
-rust	maran_ops [unittests src/lib.rs]	3813	0	1
+rust	transfer_on_a_real_host [tests/transfer_on_a_real_host.rs]	0	0	4
+rust	maran_agent_core [unittests src/lib.rs]	1127	0	0
+rust	maran_distro [unittests src/lib.rs]	351	0	0
+rust	maran_ops [unittests src/lib.rs]	3858	0	1
 rust	bound_errors [tests/bound_errors.rs]	9	0	0
 rust	safe_write_bound_on_real_processes [tests/safe_write_bound_on_real_processes.rs]	6	0	0
 rust	maran_templates [unittests src/lib.rs]	38	0	0
-rust	bind_golden_test [tests/bind_golden_test.rs]	4	0	0
+rust	bind_golden_test [tests/bind_golden_test.rs]	9	0	0
+rust	dnssec_golden_test [tests/dnssec_golden_test.rs]	7	0	0
 rust	golden_test [tests/golden_test.rs]	25	0	0
-rust	mail_golden_test [tests/mail_golden_test.rs]	15	0	0
+rust	mail_golden_test [tests/mail_golden_test.rs]	17	0	0
 rust	nginx_link_rule_test [tests/nginx_link_rule_test.rs]	9	0	0
 rust	request_rate_golden_test [tests/request_rate_golden_test.rs]	12	0	0
 rust	site_options_golden_test [tests/site_options_golden_test.rs]	10	0	0
 rust	zone_golden_test [tests/zone_golden_test.rs]	6	0	0
+rust	zone_statement_golden_test [tests/zone_statement_golden_test.rs]	8	0	0
 rust	doc-tests maran_agent	0	0	0
 rust	doc-tests maran_agent_core	0	0	0
 rust	doc-tests maran_distro	1	0	0
 rust	doc-tests maran_ops	1	0	0
 rust	doc-tests maran_templates	0	0	0
-rust	transfer_on_a_real_host [tests/transfer_on_a_real_host.rs]	0	0	4
 backend	Maran.Host.Tests.dll	1084	0	0
 backend	Maran.SharedKernel.Tests.dll	669	0	0
 backend	Maran.Agent.Client.Tests.dll	813	0	0
