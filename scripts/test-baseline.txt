@@ -61,11 +61,12 @@ backend	Maran.Host.Tests.dll	1084	0	0
 backend	Maran.SharedKernel.Tests.dll	669	0	0
 backend	Maran.Agent.Client.Tests.dll	813	0	0
 backend	Maran.ArchitectureTests.dll	254	0	0
-backend	Maran.Host.IntegrationTests.dll	1791	0	0
+backend	Maran.Host.IntegrationTests.dll	1783	0	0
 backend	Maran.Agent.Simulated.Tests.dll	343	0	0
 backend	Maran.Host.Demo.Tests.dll	179	0	0
 backend	Maran.Host.DemoIntegrationTests.dll	21	0	0
 backend	Maran.Modules.Accounts.Tests.dll	1541	0	0
+backend	Maran.Modules.Apps.Tests.dll	77	0	0
 backend	Maran.Modules.Identity.Tests.dll	1507	0	0
 backend	Maran.Modules.Sites.Tests.dll	750	0	0
 backend	Maran.Modules.Ssl.Tests.dll	428	0	0

@@ -361,6 +361,10 @@ public sealed class AccountDeletionCascadeTests : IAsyncLifetime
                 services.RemoveAll<IAgentAccountsClient>();
                 services.AddSingleton(agent);
 
+                // The account's sites are torn down through the web server the host runs (issue #517):
+                // the host here is one whose stack is set up.
+                services.Replace(ServiceDescriptor.Scoped<IStackStatus, ReadyStackStatus>());
+
                 // The deletion is dispatched here over the bus with no request around it, but in
                 // production only an administrator's (or a reseller's) controller sends it. The
                 // Accounts context is fail-closed, so the host's anonymous caller would see no
