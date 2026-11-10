@@ -1,7 +1,13 @@
-import type { NavigationGuard, RouteLocationRaw } from 'vue-router'
+import type { RouteLocationNormalized, RouteLocationRaw } from 'vue-router'
 import { useCallerRole } from '../composables/useCallerRole'
 import { useAuthStore } from '../stores/auth'
 import { useStackStore } from '../stores/stack'
+
+/**
+ * The stack guard's shape: it reads the target alone and answers with its return value. Narrower
+ * than `NavigationGuard` (which also passes `from` and `next`) and assignable to it.
+ */
+export type StackSetupGuard = (to: RouteLocationNormalized) => Promise<boolean | RouteLocationRaw>
 
 /** Route name of the first-run wizard that chooses the site web server and the runtimes. */
 const STACK_SETUP_ROUTE = 'stack-setup'
@@ -32,7 +38,7 @@ const HOME_ROUTE = 'system-status'
  * unreachable because the host is not finished.
  * @returns A Vue Router navigation guard to register with `router.beforeEach`.
  */
-export const createStackSetupGuard = (): NavigationGuard => {
+export const createStackSetupGuard = (): StackSetupGuard => {
   return async (to): Promise<boolean | RouteLocationRaw> => {
     const authStore = useAuthStore()
 

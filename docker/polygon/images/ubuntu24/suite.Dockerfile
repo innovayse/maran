@@ -56,6 +56,10 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # in one.
 ENV MARAN_POLYGON=ubuntu24
 
+# `systemd` is named here because it must be in place BEFORE the systemctl stand-in is
+# copied over /usr/bin/systemctl: the preinstalled php-fpm used to pull it in this early,
+# and a later package that depends on it would otherwise replace the stand-in.
+#
 # The panel's web server first, from the family's own repositories: nginx from
 # Ubuntu, and Sury's repository as the PHP package SOURCE only (no PHP package is
 # installed: a PHP version is an app, installed when a suite asks for it).
@@ -69,6 +73,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
         gnupg \
         nginx \
+        systemd \
     && curl -fsSL https://packages.sury.org/php/apt.gpg -o /tmp/sury.gpg \
     && gpg --show-keys --with-colons --with-fingerprint /tmp/sury.gpg \
         | grep -qx "fpr:::::::::${SURY_FINGERPRINT}:" \

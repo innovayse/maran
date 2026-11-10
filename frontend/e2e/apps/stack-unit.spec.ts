@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { createPinia, setActivePinia } from 'pinia'
-import type { NavigationGuardNext, RouteLocationNormalized } from 'vue-router'
+import type { RouteLocationNormalized } from 'vue-router'
 import { createStackSetupGuard } from '../../src/router/stackSetupGuard'
 import { useAuthStore } from '../../src/stores/auth'
 import { useHostAppsStore } from '../../src/stores/hostApps'
@@ -98,8 +98,7 @@ const signInAs = async (
 const decide = async (name: string): Promise<unknown> => {
   const guard = createStackSetupGuard()
   const to = { name, fullPath: `/${name}`, meta: {} } as unknown as RouteLocationNormalized
-  const next = (() => {}) as NavigationGuardNext
-  return guard(to, to, next)
+  return guard(to)
 }
 
 /**
