@@ -1,4 +1,5 @@
 using Maran.Modules.Mail.Persistence;
+using Maran.Modules.Mail.Services;
 using Maran.Sdk.Events;
 
 namespace Maran.Modules.Mail.IntegrationEvents.Handlers;
@@ -22,6 +23,10 @@ namespace Maran.Modules.Mail.IntegrationEvents.Handlers;
 /// <b>The failure is not swallowed.</b> Anything thrown here propagates to the Accounts handler, which abandons
 /// the deletion with the account intact — the recoverable half.
 /// </para>
+/// <para>
+/// <b>It also removes the account's local submission binding</b> (issue #518), first and with the same
+/// abort-on-failure rule; the call is idempotent, so a retried deletion converges.
+/// </para>
 /// <para>The module's settings row is untouched: it belongs to the installation, not to any account.</para>
 /// </remarks>
 public sealed class AccountDeletingHandler
@@ -29,11 +34,16 @@ public sealed class AccountDeletingHandler
     /// <summary>The Mail module's database context.</summary>
     private readonly MailDbContext _dbContext;
 
+    /// <summary>Removes the account's local submission binding.</summary>
+    private readonly MailLocalSubmissionPublisher _submission;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Mail module's database context.</param>
-    public AccountDeletingHandler(MailDbContext dbContext)
+    /// <param name="submission">Removes the account's local submission binding.</param>
+    public AccountDeletingHandler(MailDbContext dbContext, MailLocalSubmissionPublisher submission)
     {
         _dbContext = dbContext;
+        _submission = submission;
     }
 
     /// <summary>Deletes every mail row belonging to the account being removed.</summary>
@@ -47,6 +57,15 @@ public sealed class AccountDeletingHandler
     /// <param name="cancellationToken">Cancels the operation.</param>
     public async Task HandleAsync(AccountDeleting message, CancellationToken cancellationToken)
     {
+        // Before the rows and before the system user goes: a uid that is later handed to another account
+        // must not inherit this account's right to submit mail locally.
+        var unbound = await _submission.RemoveAsync(message.Username, cancellationToken);
+        if (!unbound.IsSuccess)
+        {
+            throw new InvalidOperationException(
+                $"the local mail submission of {message.Username} could not be removed: {unbound.Error?.Code}");
+        }
+
 #pragma warning disable RS0030 // the account is being deleted, so its rows must be found whoever asked for the deletion
         var responders = await _dbContext.MailAutoresponders
             .IgnoreQueryFilters()

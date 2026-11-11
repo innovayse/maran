@@ -26,6 +26,7 @@ public static class MailboxGroupHandlers
             context.Hashing,
             context.SlotGate,
             context.Journal,
+            context.LocalSubmission,
             context.Clock,
             new MailboxGroupDisplayNames(),
             NullLogger<CreateMailboxCommandHandler>.Instance);
@@ -68,7 +69,12 @@ public static class MailboxGroupHandlers
     public static DeleteMailboxCommandHandler Delete(MailTestContext context)
     {
         return new DeleteMailboxCommandHandler(
-            context.Database, context.Server, context.Accounts, context.Agent, context.Journal);
+            context.Database,
+            context.Server,
+            context.Accounts,
+            context.Agent,
+            context.Journal,
+            context.LocalSubmission);
     }
 
     /// <summary>Builds the set-autoresponder handler.</summary>

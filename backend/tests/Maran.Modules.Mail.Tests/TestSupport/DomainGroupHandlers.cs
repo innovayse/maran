@@ -25,6 +25,7 @@ public static class DomainGroupHandlers
             context.Keys,
             context.Encryption,
             context.Journal,
+            context.LocalSubmission,
             context.Clock,
             new DomainGroupDisplayNames(),
             NullLogger<CreateMailDomainCommandHandler>.Instance);
@@ -35,7 +36,8 @@ public static class DomainGroupHandlers
     /// <returns>The handler.</returns>
     public static DeleteMailDomainCommandHandler Delete(MailTestContext context)
     {
-        return new DeleteMailDomainCommandHandler(context.Database, context.Accounts, context.Agent, context.Journal);
+        return new DeleteMailDomainCommandHandler(
+            context.Database, context.Accounts, context.Agent, context.Journal, context.LocalSubmission);
     }
 
     /// <summary>Builds the key-rotation handler.</summary>

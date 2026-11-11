@@ -213,9 +213,11 @@ public sealed class AgentMailClientTests
             (await client.ListQueueAsync(0, token)).Error?.Code,
             (await client.DeleteQueuedMessageAsync("ABCDEF0123456", token)).Error?.Code,
             (await client.FlushQueueAsync(token)).Error?.Code,
+            (await client.SetLocalSubmissionAsync(new AgentLocalSubmission("alice", [], 100, []), token)).Error?.Code,
+            (await client.RemoveLocalSubmissionAsync("alice", token)).Error?.Code,
         };
 
-        Assert.Equal(16, codes.Length);
+        Assert.Equal(18, codes.Length);
         Assert.All(codes, code => { Assert.Equal("AgentInvalidResponse", code); });
     }
 
@@ -707,6 +709,73 @@ public sealed class AgentMailClientTests
 
         Assert.Equal("4F2A9C01B7D", stub.LastDeleteQueuedMessageRequest!.QueueId);
         Assert.Equal("AgentNotFound", result.Error!.Code);
+    }
+
+    /// <summary>A local submission binding reaches the wire whole: limit and both lists.</summary>
+    [Fact]
+    public async Task Setting_a_local_submission_sends_the_whole_binding()
+    {
+        var stub = new StubMailService
+        {
+            SetLocalSubmissionResponse = new SetLocalSubmissionResponse { Ok = new SetLocalSubmissionOk() },
+        };
+
+        var result = await Client(stub).SetLocalSubmissionAsync(
+            new AgentLocalSubmission("alice", ["a.test", "b.test"], 250, ["info@a.test"]),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var sent = stub.LastSetLocalSubmissionRequest!;
+        Assert.Equal("alice", sent.AccountUsername);
+        Assert.Equal(250u, sent.SendLimitPerHour);
+        Assert.Equal(["a.test", "b.test"], sent.Domains);
+        Assert.Equal(["info@a.test"], sent.MailboxLogins);
+    }
+
+    /// <summary>The inverse control: the agent's refusal comes back typed, and an empty answer is invalid.</summary>
+    [Fact]
+    public async Task Setting_a_local_submission_passes_a_refusal_through_and_rejects_an_empty_answer()
+    {
+        var refused = new StubMailService
+        {
+            SetLocalSubmissionResponse = new SetLocalSubmissionResponse
+            {
+                Error = new AgentError { Code = ErrorCode.InvalidInput, Message = "uid out of range" },
+            },
+        };
+        var empty = new StubMailService();
+        var submission = new AgentLocalSubmission("alice", [], 250, []);
+
+        var refusal = await Client(refused).SetLocalSubmissionAsync(submission, CancellationToken.None);
+        var invalid = await Client(empty).SetLocalSubmissionAsync(submission, CancellationToken.None);
+
+        Assert.False(refusal.IsSuccess);
+        Assert.NotEqual("AgentInvalidResponse", refusal.Error!.Code);
+        Assert.Equal("AgentInvalidResponse", invalid.Error!.Code);
+    }
+
+    /// <summary>Removing a binding sends the account's username; the agent's NotFound passes through.</summary>
+    [Fact]
+    public async Task Removing_a_local_submission_sends_the_username_and_maps_both_branches()
+    {
+        var ok = new StubMailService
+        {
+            RemoveLocalSubmissionResponse = new RemoveLocalSubmissionResponse { Ok = new RemoveLocalSubmissionOk() },
+        };
+        var missing = new StubMailService
+        {
+            RemoveLocalSubmissionResponse = new RemoveLocalSubmissionResponse
+            {
+                Error = new AgentError { Code = ErrorCode.NotFound, Message = "no such account" },
+            },
+        };
+
+        var removed = await Client(ok).RemoveLocalSubmissionAsync("alice", CancellationToken.None);
+        var absent = await Client(missing).RemoveLocalSubmissionAsync("alice", CancellationToken.None);
+
+        Assert.True(removed.IsSuccess);
+        Assert.Equal("alice", ok.LastRemoveLocalSubmissionRequest!.AccountUsername);
+        Assert.Equal("AgentNotFound", absent.Error!.Code);
     }
 
     /// <summary>A flush reports the queue size afterwards, and null when the agent did not read it.</summary>

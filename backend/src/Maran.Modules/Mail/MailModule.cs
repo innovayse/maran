@@ -86,6 +86,14 @@ public sealed class MailModule : IPanelModule
         // an alias change takes to the host.
         services.AddScoped<MailAliasSetPublisher>();
 
+        // Scoped, because it reads the request's context and the tenant-scoped account window: the one path by
+        // which an account's locally submitted mail is bound to its domains and send limit (issue #518).
+        services.AddScoped<MailLocalSubmissionPublisher>();
+
+        // A singleton, because the turns of one system user must be taken across request scopes: a domain change
+        // racing a suspension is two scopes of the same process.
+        services.AddSingleton<MailSubmissionGate>();
+
         // The shared resource pool the panel-wide ResxErrorTextProvider resolves error codes and
         // Manifest.DisplayNameKey against. Module-internal lookups inject IStringLocalizer<T> directly instead.
         services.AddSingleton(new ResourceManager(ErrorMessagesResourceBaseName, typeof(MailModule).Assembly));

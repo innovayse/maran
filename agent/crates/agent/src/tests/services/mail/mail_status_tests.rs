@@ -5,7 +5,7 @@
 use std::time::Duration;
 
 use maran_agent_core::utils::bound_exceeded::BoundExceeded;
-use maran_ops::mail::{MailDaemon, MailError};
+use maran_ops::mail::{LocalSubmissionHazard, LocalSubmissionKey, MailDaemon, MailError};
 
 use crate::proto::ErrorCode;
 use crate::services::mail::mail_status::to_agent_error;
@@ -79,5 +79,44 @@ fn every_fault_of_the_machine_is_a_system_failure() {
             ErrorCode::SystemFailure as i32,
             "{fault:?}"
         );
+    }
+}
+
+#[test]
+fn an_unsafe_host_for_local_submission_is_a_system_failure_that_names_the_hazard() {
+    let error = to_agent_error(&MailError::UnsafeLocalSubmission {
+        hazard: LocalSubmissionHazard::DropBinaryUnsafe {
+            path: "/usr/sbin/postdrop".to_owned(),
+            group: "postdrop".to_owned(),
+        },
+    });
+
+    assert_eq!(error.code, ErrorCode::SystemFailure as i32);
+    assert!(error.message.contains("/usr/sbin/postdrop"));
+    assert!(error.tool_output.is_empty());
+}
+
+#[test]
+fn a_login_or_domain_bound_to_another_account_is_already_exists() {
+    let error = to_agent_error(&MailError::LocalSubmissionConflict {
+        key: LocalSubmissionKey::SenderDomain,
+        value: "a.test".to_owned(),
+    });
+
+    assert_eq!(error.code, ErrorCode::AlreadyExists as i32);
+    assert!(error.message.contains("a.test"));
+    assert!(error.tool_output.is_empty());
+}
+
+#[test]
+fn an_unknown_submitter_and_an_unloaded_rule_are_system_failures() {
+    // Inverse control: the new hazards stay faults of the machine.
+    for hazard in [
+        LocalSubmissionHazard::SubmitterUnknown { uid: 1001 },
+        LocalSubmissionHazard::RuleNotLoaded,
+    ] {
+        let error = to_agent_error(&MailError::UnsafeLocalSubmission { hazard });
+
+        assert_eq!(error.code, ErrorCode::SystemFailure as i32);
     }
 }

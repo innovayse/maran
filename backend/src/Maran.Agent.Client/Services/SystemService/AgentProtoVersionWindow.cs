@@ -116,6 +116,9 @@ namespace Maran.Agent.Client.Services.SystemService;
 /// it as the one-revision default: a revision-26 agent answers the five rpcs <c>UNIMPLEMENTED</c>, so the
 /// first-run stack setup could never install a web server against it, and it reports a refused removal as a
 /// bare failure.
+/// Revision 28 adds <c>MailService.SetLocalSubmission</c> and <c>RemoveLocalSubmission</c> (issue #518). Both
+/// ends moved to it as the one-revision default: a revision-27 agent answers the two rpcs <c>UNIMPLEMENTED</c>,
+/// so mail submitted locally by an account would stay unbound to its sender addresses and send limit.
 /// </para>
 /// <para>
 /// <b>Both ends are needed, and they move for different reasons.</b> An agent NEWER than
@@ -142,10 +145,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 public static class AgentProtoVersionWindow
 {
     /// <summary>The oldest agent contract revision this panel drives.</summary>
-    public const uint Minimum = 27;
+    public const uint Minimum = 28;
 
     /// <summary>The newest agent contract revision this panel drives: the one it was built against.</summary>
-    public const uint Maximum = 27;
+    public const uint Maximum = 28;
 
     /// <summary>
     /// The machine code a handshake outside the window fails with, so a caller outside this assembly

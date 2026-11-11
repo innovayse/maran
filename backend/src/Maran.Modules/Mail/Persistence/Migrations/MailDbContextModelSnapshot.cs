@@ -234,6 +234,22 @@ namespace Maran.Modules.Mail.Persistence.Migrations
                     b.ToTable("MailServerSettings", "mail");
                 });
 
+            modelBuilder.Entity("Maran.Modules.Mail.Domain.Entities.MailSubmissionBinding", b =>
+                {
+                    b.Property<string>("Username")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
+
+                    b.HasKey("Username");
+
+                    b.ToTable("MailSubmissionBindings", "mail");
+                });
+
             modelBuilder.Entity("Maran.Modules.Mail.Domain.Entities.Mailbox", b =>
                 {
                     b.Property<Guid>("Id")

@@ -22,6 +22,8 @@ pub mod dkim_private_key_error;
 pub mod dkim_selector;
 pub mod dkim_selector_error;
 pub(crate) mod is_text_reordering;
+pub mod local_submission;
+pub mod local_submission_error;
 pub mod mail_address;
 pub mod mail_address_error;
 pub mod mail_alias_targets;

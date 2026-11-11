@@ -39,6 +39,8 @@ pub(crate) struct FakePhpHost {
     /// Directories that "exist" — the installed versions' pool directories,
     /// plus every directory the host has been asked to create.
     directories: Mutex<BTreeSet<PathBuf>>,
+    /// Directories that exist but cannot be read by `directory_entries`.
+    unreadable_directories: Mutex<BTreeSet<PathBuf>>,
     /// The pool files, path to content.
     files: Mutex<BTreeMap<PathBuf, String>>,
     /// The spawned commands and the outcome they are answered with.
@@ -62,6 +64,10 @@ pub(crate) struct FakePhpHost {
     /// Per-subcommand answers that override the recording's single outcome,
     /// keyed by the first argument: status, stdout, stderr.
     answers: Mutex<BTreeMap<String, CannedAnswer>>,
+    /// Answers keyed by the absolute path of the PROGRAM, which win over `answers`: for a test
+    /// where two binaries answer the same argument differently (two Node.js majors, each its own
+    /// file, both asked `--version`).
+    program_answers: Mutex<BTreeMap<String, CannedAnswer>>,
     /// Per-subcommand answers given one per call, in order, the last one
     /// repeating; they win over `answers`. For a command whose answer changes
     /// across one operation, such as the module listing before and after a switch.
@@ -97,6 +103,7 @@ impl FakePhpHost {
     pub(crate) fn empty() -> Self {
         Self {
             directories: Mutex::new(BTreeSet::new()),
+            unreadable_directories: Mutex::new(BTreeSet::new()),
             files: Mutex::new(BTreeMap::new()),
             recording: RecordingCommands::new(),
             validation: Mutex::new((0, String::new())),
@@ -106,6 +113,7 @@ impl FakePhpHost {
             created_as_account: Mutex::new(Vec::new()),
             modes: Mutex::new(BTreeMap::new()),
             answers: Mutex::new(BTreeMap::new()),
+            program_answers: Mutex::new(BTreeMap::new()),
             answers_in_turn: Mutex::new(BTreeMap::new()),
             spawn_failures: Mutex::new(BTreeSet::new()),
             installs_on_start: Mutex::new(None),
@@ -156,6 +164,14 @@ impl FakePhpHost {
         host
     }
 
+    /// Makes the directory `path` exist but fail to be listed, as a permission error would.
+    pub(crate) fn make_unreadable(&self, path: &Path) {
+        self.unreadable_directories
+            .lock()
+            .unwrap()
+            .insert(path.to_path_buf());
+    }
+
     /// Makes every spawned command fail, with `stderr` as the reason an
     /// operator would read in the log.
     pub(crate) fn reject_commands(&self, stderr: &str) {
@@ -167,6 +183,15 @@ impl FakePhpHost {
     pub(crate) fn answer(&self, subcommand: &str, status: i32, stdout: &str, stderr: &str) {
         self.answers.lock().unwrap().insert(
             subcommand.to_owned(),
+            (status, stdout.to_owned(), stderr.to_owned()),
+        );
+    }
+
+    /// Answers every command run through the program at `path` with the given outcome, whatever
+    /// its arguments.
+    pub(crate) fn answer_program(&self, path: &str, status: i32, stdout: &str, stderr: &str) {
+        self.program_answers.lock().unwrap().insert(
+            path.to_owned(),
             (status, stdout.to_owned(), stderr.to_owned()),
         );
     }
@@ -362,6 +387,15 @@ impl ConfigHost for FakePhpHost {
             }));
         }
         if let Some((status, stdout, stderr)) = self.answers.lock().unwrap().get(subcommand) {
+            outcome = CommandOutcome {
+                status: *status,
+                stdout: stdout.clone(),
+                stderr: stderr.clone(),
+            };
+        }
+        if let Some((status, stdout, stderr)) =
+            self.program_answers.lock().unwrap().get(program.as_str())
+        {
             outcome = CommandOutcome {
                 status: *status,
                 stdout: stdout.clone(),
@@ -567,14 +601,21 @@ impl crate::apps::AppsHost for FakePhpHost {
             || self.directories.lock().unwrap().contains(path)
     }
 
-    fn directory_entries(&self, path: &Path) -> Vec<String> {
-        self.files
+    fn directory_entries(&self, path: &Path) -> Result<Vec<String>, crate::apps::AppsOpError> {
+        if self.unreadable_directories.lock().unwrap().contains(path) {
+            return Err(crate::apps::AppsOpError::HostUnreadable {
+                path: path.display().to_string(),
+                reason: "permission denied".to_owned(),
+            });
+        }
+        Ok(self
+            .files
             .lock()
             .unwrap()
             .keys()
             .filter(|file| file.parent() == Some(path))
             .filter_map(|file| file.file_name()?.to_str().map(str::to_owned))
-            .collect()
+            .collect())
     }
 
     fn write_record(&self, path: &Path, contents: &str) -> Result<(), crate::apps::AppsOpError> {

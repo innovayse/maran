@@ -192,4 +192,17 @@ public interface IAgentMailClient
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>The queue size after the flush was requested, <c>null</c> when it was not read, or a typed failure.</returns>
     Task<Result<uint?>> FlushQueueAsync(CancellationToken cancellationToken);
+
+    /// <summary>Binds mail an account submits locally to the account's own domains and hourly send limit.</summary>
+    /// <param name="submission">The complete binding; it replaces whatever the host held for the account.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>Success, or a typed failure — <c>AgentValidationFailed</c> when the agent refused a figure.</returns>
+    /// <remarks>Idempotent: sending the same binding again converges and changes nothing.</remarks>
+    Task<Result> SetLocalSubmissionAsync(AgentLocalSubmission submission, CancellationToken cancellationToken);
+
+    /// <summary>Removes the account's local submission binding, so its system user can no longer submit mail locally.</summary>
+    /// <param name="accountUsername">System username of the account.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>Success, or a typed failure. An account with no binding is a success.</returns>
+    Task<Result> RemoveLocalSubmissionAsync(string accountUsername, CancellationToken cancellationToken);
 }

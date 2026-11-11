@@ -16,7 +16,7 @@
 # "A shared facility's contract lives in Maran.Sdk")?
 total 179
 module Accounts 83
-module Apps 26
+module Apps 21
 module Backups 45
 module Cron 42
 module Databases 40
@@ -28,7 +28,7 @@ module Ftp 42
 module Idempotency 16
 module Identity 61
 module Licensing 26
-module Mail 36
+module Mail 38
 module Marketplace 26
 module Monitoring 43
 module Notifications 22

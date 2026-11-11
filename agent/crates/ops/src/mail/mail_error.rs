@@ -3,6 +3,8 @@
 use maran_agent_core::utils::bound_exceeded::BoundExceeded;
 use maran_agent_core::utils::spawn_error::SpawnError;
 
+use crate::mail::model::local_submission_hazard::LocalSubmissionHazard;
+use crate::mail::model::local_submission_key::LocalSubmissionKey;
 use crate::mail::model::mail_daemon::MailDaemon;
 use crate::safe_write::SafeWriteError;
 
@@ -95,6 +97,26 @@ pub enum MailError {
     /// The kernel's table of listening sockets could not be read.
     #[error("the listening sockets could not be read")]
     SocketsUnreadable,
+
+    /// The host is in a state where binding an account's local mail submission
+    /// would not hold, so nothing was changed (docs/mail/local-submission.md).
+    #[error("local mail submission cannot be bound on this host: {hazard}")]
+    UnsafeLocalSubmission {
+        /// What is wrong.
+        hazard: LocalSubmissionHazard,
+    },
+
+    /// A mailbox login or sender domain the change would bind is already bound to
+    /// ANOTHER account, so nothing was changed. The key moves only after its
+    /// previous owner's push has removed it (docs/mail/local-submission.md,
+    /// "One owner per key").
+    #[error("the {key} {value} is already bound to another account")]
+    LocalSubmissionConflict {
+        /// Which kind of key collided.
+        key: LocalSubmissionKey,
+        /// The key's value.
+        value: String,
+    },
 
     /// The server hostname is a valid mail name but not a name the certificate store
     /// files material under, so there is no certificate to look for.

@@ -37,6 +37,12 @@ public sealed class StubAccountDirectory : IAccountDirectory
     }
 
     /// <inheritdoc />
+    public Task<AccountSnapshot?> FindForSystemAsync(Guid accountId, CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("These tests read no account unscoped.");
+    }
+
+    /// <inheritdoc />
     /// <remarks>
     /// Answers the configured account's id and username by id alone and models nothing about scope,
     /// exactly as the contract says the real member behaves for every caller.

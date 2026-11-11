@@ -23,6 +23,7 @@ use crate::mail::model::listening_socket::ListeningSocket;
 use crate::mail::model::mail_daemon::MailDaemon;
 use crate::mail::model::mail_ports::MailPorts;
 use crate::mail::model::mail_settings::MailSettings;
+use crate::mail::model::path_facts::PathFacts;
 use crate::safe_write::model::config_file::ConfigFile;
 use crate::safe_write::model::{Reload, Validator};
 use crate::sites::SiteCertificate;
@@ -100,7 +101,22 @@ pub(crate) struct FakeMailHost {
     sockets_unreadable: bool,
     /// What a tool prints when it is run with exactly this argv (program first).
     tool_outcomes: Vec<(Vec<String>, CommandOutcome)>,
+    /// The user and group databases, which a real host always has.
+    identity_files: BTreeMap<PathBuf, String>,
+    /// The owner and mode of `postdrop`; a correctly installed one by default.
+    drop_binary: Option<PathFacts>,
+    /// Whether Rspamd reports no settings section for the local-submission rule.
+    rule_not_loaded: bool,
 }
+
+/// The user database of a host that has the Postfix user installed.
+pub(crate) const DEFAULT_PASSWD: &str = "root:x:0:0::/root:/bin/bash\npostfix:x:105:119::/var/spool/postfix:/usr/sbin/nologin\nacme:x:1001:1001::/home/acme:/bin/bash\nother:x:1002:1002::/home/other:/bin/bash\n";
+
+/// The group database of a host with the usual Postfix groups.
+pub(crate) const DEFAULT_GROUPS: &str = "root:x:0:\npostfix:x:119:\npostdrop:x:120:\n";
+
+/// The gid of `postdrop` in [`DEFAULT_GROUPS`].
+pub(crate) const DROP_GID: u32 = 120;
 
 impl FakeMailHost {
     /// A host with certificate material, every program installed, every unit
@@ -117,6 +133,16 @@ impl FakeMailHost {
             pop3_bound: false,
             sockets_unreadable: false,
             tool_outcomes: Vec::new(),
+            identity_files: BTreeMap::from([
+                (PathBuf::from("/etc/passwd"), DEFAULT_PASSWD.to_owned()),
+                (PathBuf::from("/etc/group"), DEFAULT_GROUPS.to_owned()),
+            ]),
+            drop_binary: Some(PathFacts {
+                mode: 0o2755,
+                uid: 0,
+                gid: DROP_GID,
+            }),
+            rule_not_loaded: false,
         };
         for unit in host.all_units() {
             host.world.lock().unwrap().units.insert(
@@ -138,6 +164,15 @@ impl FakeMailHost {
             distro().dovecot_service().to_owned(),
             distro().postfix_service().to_owned(),
         ]
+    }
+
+    /// Mail is already enabled: no unit is masked, as after a finished `enable_mail`.
+    pub(crate) fn enabled(self) -> Self {
+        for state in self.world.lock().unwrap().units.values_mut() {
+            state.masked = false;
+            state.enabled = true;
+        }
+        self
     }
 
     /// No certificate material for the hostname.
@@ -186,6 +221,32 @@ impl FakeMailHost {
     /// The kernel's socket table cannot be read.
     pub(crate) fn with_unreadable_sockets(mut self) -> Self {
         self.sockets_unreadable = true;
+        self
+    }
+
+    /// The user database (`/etc/passwd`) reads `contents`.
+    pub(crate) fn with_passwd(mut self, contents: &str) -> Self {
+        self.identity_files
+            .insert(PathBuf::from("/etc/passwd"), contents.to_owned());
+        self
+    }
+
+    /// The group database (`/etc/group`) reads `contents`.
+    pub(crate) fn with_groups(mut self, contents: &str) -> Self {
+        self.identity_files
+            .insert(PathBuf::from("/etc/group"), contents.to_owned());
+        self
+    }
+
+    /// `postdrop` has these facts, or is missing for `None`.
+    pub(crate) fn with_drop_binary(mut self, facts: Option<PathFacts>) -> Self {
+        self.drop_binary = facts;
+        self
+    }
+
+    /// Rspamd's configuration dump has no `maran_local_submit` section.
+    pub(crate) fn with_unloaded_rule(mut self) -> Self {
+        self.rule_not_loaded = true;
         self
     }
 
@@ -366,6 +427,20 @@ impl MailHost for FakeMailHost {
         if program.as_str() == distro().service_manager().as_str() {
             return Ok(self.service_manager(&argv));
         }
+        if program.as_str() == distro().rspamadm_binary().as_str()
+            && arguments == ["configdump", "maran_local_submit"]
+        {
+            let stdout = if self.rule_not_loaded {
+                String::new()
+            } else {
+                "accounts_map = \"/etc/maran/mail/local_submit_accounts.map\";\n".to_owned()
+            };
+            return Ok(CommandOutcome {
+                status: 0,
+                stdout,
+                stderr: String::new(),
+            });
+        }
         if program.as_str() == distro().postconf_binary().as_str() {
             let stdout = match arguments {
                 ["-h", "myhostname"] => format!("{HOSTNAME}\n"),
@@ -386,7 +461,17 @@ impl MailHost for FakeMailHost {
     }
 
     fn read_config(&self, target: &Path) -> Result<Option<String>, MailError> {
+        if let Some(contents) = self.identity_files.get(target) {
+            return Ok(Some(contents.clone()));
+        }
         Ok(self.world.lock().unwrap().files.get(target).cloned())
+    }
+
+    fn path_facts(&self, path: &Path) -> Result<Option<PathFacts>, MailError> {
+        if path == Path::new("/usr/sbin/postdrop") {
+            return Ok(self.drop_binary);
+        }
+        Ok(None)
     }
 
     fn write_config_set(

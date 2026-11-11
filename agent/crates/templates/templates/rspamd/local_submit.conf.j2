@@ -1,0 +1,18 @@
+# Rendered by the Maran agent. Hand edits are overwritten on the next apply.
+#
+# Settings of the Lua rule (lua.local.d/maran_local_submit.lua) that binds mail an
+# account submits locally to that account's own sender domains and to its hourly
+# send limit. The four maps are written by the mail data plane; a missing or
+# unreadable one makes the rule defer the mail instead of letting it through.
+enabled = true;
+accounts_map = "{{ maps_directory }}/local_submit_accounts.map";
+sender_domains_map = "{{ maps_directory }}/account_sender_domains.map";
+send_limits_map = "{{ maps_directory }}/account_send_limits.map";
+mailbox_accounts_map = "{{ maps_directory }}/mailbox_accounts.map";
+# Recipients one locally submitted message may name: smtpd_recipient_limit does not
+# apply to the pickup road, so the rule enforces it.
+max_recipients = {{ max_recipients }};
+# Exactly root and the Postfix owner, rendered by the agent and never derived from
+# anything a customer controls.
+exempt_uids = [{% for uid in exempt_uids %}{{ uid }}{% if !loop.last %}, {% endif %}{% endfor %}];
+{# A trailing comment keeps the final newline, which askama would otherwise drop. #}

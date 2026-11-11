@@ -13,6 +13,7 @@ use crate::mail::mail_error::MailError;
 use crate::mail::mail_host::MailHost;
 use crate::mail::model::listening_socket::ListeningSocket;
 use crate::mail::model::mail_daemon::MailDaemon;
+use crate::mail::model::path_facts::PathFacts;
 use crate::mail::parse_listening_sockets::parse_listening_sockets;
 use crate::safe_write::model::config_file::ConfigFile;
 use crate::safe_write::model::{Reload, Validator};
@@ -129,6 +130,25 @@ impl MailHost for ProcessMailHost {
     fn read_config(&self, target: &Path) -> Result<Option<String>, MailError> {
         match std::fs::read_to_string(target) {
             Ok(contents) => Ok(Some(contents)),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(_) => Err(MailError::ConfigUnreadable),
+        }
+    }
+
+    /// Owner and mode of `path`, `None` when it is absent.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MailError::ConfigUnreadable`] when it exists and cannot be inspected.
+    fn path_facts(&self, path: &Path) -> Result<Option<PathFacts>, MailError> {
+        use std::os::unix::fs::MetadataExt;
+
+        match std::fs::symlink_metadata(path) {
+            Ok(metadata) => Ok(Some(PathFacts {
+                mode: metadata.mode() & 0o7777,
+                uid: metadata.uid(),
+                gid: metadata.gid(),
+            })),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
             Err(_) => Err(MailError::ConfigUnreadable),
         }

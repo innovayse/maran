@@ -1,5 +1,7 @@
 //! Turning mail on: render, check, start in dependency order, observe.
 
+use std::path::Path;
+
 use maran_agent_core::validation::web::domain::Domain;
 use maran_distro::DistroAdapter;
 
@@ -13,6 +15,7 @@ use crate::mail::model::mail_layout::MailLayout;
 use crate::mail::model::mail_ports::MailPorts;
 use crate::mail::model::mail_settings::MailSettings;
 use crate::mail::model::mail_state::MailState;
+use crate::mail::postfix_uid_from_passwd::postfix_uid_from_passwd;
 use crate::mail::seed_mail_maps::seed_mail_maps;
 use crate::mail::stop_mail_daemons::stop_mail_daemons;
 use crate::mail::wait_for_mail_ports::wait_for_mail_ports;
@@ -102,7 +105,11 @@ pub fn enable_mail(
     }
     let was_running = before.daemons.iter().any(|state| state.active);
 
-    let stages = build_mail_stages(distro, &layout, settings, &certificate)?;
+    let passwd = host
+        .read_config(Path::new(distro.passwd_database()))?
+        .unwrap_or_default();
+    let postfix_uid = postfix_uid_from_passwd(&passwd, distro.postfix_user())?;
+    let stages = build_mail_stages(distro, &layout, settings, &certificate, postfix_uid)?;
 
     if let Err(failure) = bring_up(host, distro, &stages, settings) {
         if !was_running {

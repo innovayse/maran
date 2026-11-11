@@ -86,6 +86,12 @@ public sealed class StubAccountDirectory : IAccountDirectory
     }
 
     /// <inheritdoc />
+    public Task<AccountSnapshot?> FindForSystemAsync(Guid accountId, CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("These tests read no account unscoped.");
+    }
+
+    /// <inheritdoc />
     public Task<AccountSystemUser?> FindSystemUserAsync(Guid accountId, CancellationToken cancellationToken)
     {
         throw new NotSupportedException("These tests read no account's system user unscoped.");

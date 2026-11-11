@@ -3,33 +3,40 @@
 use std::sync::Arc;
 
 use maran_agent_core::validation::mail::mail_password_scheme::MailPasswordScheme;
+use maran_agent_core::validation::system::name::AccountName;
 use maran_ops::mail::{self, MailHost};
 use tonic::{Request, Response, Status};
 
 use crate::audit::audit_slot::AuditSlot;
 use crate::proto::mail_service_server::MailService;
 use crate::proto::{
-    ConfigureMailDomainRequest, ConfigureMailDomainResponse, DeleteQueuedMessageRequest,
-    DeleteQueuedMessageResponse, DisableMailOk, DisableMailRequest, DisableMailResponse,
-    EnableMailOk, EnableMailRequest, EnableMailResponse, FlushMailQueueRequest,
-    FlushMailQueueResponse, GetMailStatusOk, GetMailStatusRequest, GetMailStatusResponse,
-    ListMailQueueRequest, ListMailQueueResponse, ListMailboxUsageRequest, ListMailboxUsageResponse,
-    ReloadMailTlsOk, ReloadMailTlsRequest, ReloadMailTlsResponse, RemoveAccountMailRequest,
-    RemoveAccountMailResponse, RemoveMailDomainRequest, RemoveMailDomainResponse,
-    RemoveMailboxRequest, RemoveMailboxResponse, SetAccountMailSuspensionRequest,
-    SetAccountMailSuspensionResponse, SetMailAliasesRequest, SetMailAliasesResponse,
-    SetMailboxAutoresponderRequest, SetMailboxAutoresponderResponse, SetMailboxRequest,
-    SetMailboxResponse, configure_mail_domain_response, delete_queued_message_response,
-    disable_mail_response, enable_mail_response, flush_mail_queue_response,
-    get_mail_status_response, list_mail_queue_response, list_mailbox_usage_response,
-    reload_mail_tls_response, remove_account_mail_response, remove_mail_domain_response,
-    remove_mailbox_response, set_account_mail_suspension_response, set_mail_aliases_response,
+    AgentError, ConfigureMailDomainRequest, ConfigureMailDomainResponse,
+    DeleteQueuedMessageRequest, DeleteQueuedMessageResponse, DisableMailOk, DisableMailRequest,
+    DisableMailResponse, EnableMailOk, EnableMailRequest, EnableMailResponse,
+    FlushMailQueueRequest, FlushMailQueueResponse, GetMailStatusOk, GetMailStatusRequest,
+    GetMailStatusResponse, ListMailQueueRequest, ListMailQueueResponse, ListMailboxUsageRequest,
+    ListMailboxUsageResponse, ReloadMailTlsOk, ReloadMailTlsRequest, ReloadMailTlsResponse,
+    RemoveAccountMailRequest, RemoveAccountMailResponse, RemoveLocalSubmissionOk,
+    RemoveLocalSubmissionRequest, RemoveLocalSubmissionResponse, RemoveMailDomainRequest,
+    RemoveMailDomainResponse, RemoveMailboxRequest, RemoveMailboxResponse,
+    SetAccountMailSuspensionRequest, SetAccountMailSuspensionResponse, SetLocalSubmissionOk,
+    SetLocalSubmissionRequest, SetLocalSubmissionResponse, SetMailAliasesRequest,
+    SetMailAliasesResponse, SetMailboxAutoresponderRequest, SetMailboxAutoresponderResponse,
+    SetMailboxRequest, SetMailboxResponse, configure_mail_domain_response,
+    delete_queued_message_response, disable_mail_response, enable_mail_response,
+    flush_mail_queue_response, get_mail_status_response, list_mail_queue_response,
+    list_mailbox_usage_response, reload_mail_tls_response, remove_account_mail_response,
+    remove_local_submission_response, remove_mail_domain_response, remove_mailbox_response,
+    set_account_mail_suspension_response, set_local_submission_response, set_mail_aliases_response,
     set_mailbox_autoresponder_response, set_mailbox_response,
 };
 use crate::services::mail::mail_status::to_agent_error;
 use crate::services::mail::refuse_data_plane::refuse_data_plane;
 use crate::services::mail::reported_mail_status::reported_mail_status;
+use crate::services::mail::resolved_uid::resolved_uid;
+use crate::services::mail::validated_local_submission::validated_local_submission;
 use crate::services::mail::validated_mail_settings::validated_mail_settings;
+use crate::services::wire::invalid_input::invalid_input;
 use crate::services::wire::run_blocking::run_blocking;
 
 /// Serves the mail stack over the wire.
@@ -40,7 +47,8 @@ use crate::services::wire::run_blocking::run_blocking;
 /// Failures travel in the payload rather than as a gRPC status, because they are
 /// answers the panel acts on (rules/proto.md). The twelve data-plane rpcs
 /// (domains, mailboxes, aliases, autoresponders, suspension, removal, usage and
-/// the queue) answer a typed `NOT_IMPLEMENTED` until their operations land; the
+/// the queue) answer a typed `NOT_IMPLEMENTED` until their operations land (the two local
+/// submission rpcs, `SetLocalSubmission` and `RemoveLocalSubmission`, are carried); the
 /// tonic trait is complete so the whole contract is served from the first
 /// release that carries it.
 ///
@@ -368,6 +376,74 @@ impl<H: MailHost + 'static> MailService for MailServiceImpl<H> {
         let error = refuse_data_plane(request.extensions());
         Ok(Response::new(FlushMailQueueResponse {
             result: Some(flush_mail_queue_response::Result::Error(error)),
+        }))
+    }
+
+    /// Binds an account's locally submitted mail to its own sender domains and
+    /// send limit: renders the filter's maps, then reloads the filter.
+    ///
+    /// Cancellation class: run to completion. The maps are written with the
+    /// safe-write protocol inside `spawn_blocking`, which a dropped client cannot
+    /// stop; the call replaces the account's whole binding, so a repeat converges.
+    async fn set_local_submission(
+        &self,
+        request: Request<SetLocalSubmissionRequest>,
+    ) -> Result<Response<SetLocalSubmissionResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
+        let request = request.into_inner();
+
+        let host = Arc::clone(&self.host);
+        let distro = self.distro;
+        let result = run_blocking("mail operation", AgentError::clone, move || {
+            let submission = validated_local_submission(&request, resolved_uid)?;
+            mail::set_local_submission(host.as_ref(), distro, &submission)
+                .map_err(|error| to_agent_error(&error))
+        })
+        .await;
+
+        audit.settle(&result);
+        let result = match result {
+            Ok(()) => set_local_submission_response::Result::Ok(SetLocalSubmissionOk {}),
+            Err(error) => set_local_submission_response::Result::Error(error),
+        };
+
+        Ok(Response::new(SetLocalSubmissionResponse {
+            result: Some(result),
+        }))
+    }
+
+    /// Removes an account's local submission binding, so its system user can no
+    /// longer submit mail locally.
+    ///
+    /// Cancellation class: run to completion, for the reason `set_local_submission`
+    /// gives; removing a binding that is gone is a success.
+    async fn remove_local_submission(
+        &self,
+        request: Request<RemoveLocalSubmissionRequest>,
+    ) -> Result<Response<RemoveLocalSubmissionResponse>, Status> {
+        let audit = AuditSlot::of(request.extensions());
+        let request = request.into_inner();
+
+        let result = match AccountName::parse(&request.account_username) {
+            Ok(account) => {
+                let host = Arc::clone(&self.host);
+                let distro = self.distro;
+                run_blocking("mail operation", to_agent_error, move || {
+                    mail::remove_local_submission(host.as_ref(), distro, account.as_str())
+                })
+                .await
+            }
+            Err(error) => Err(invalid_input(format!("account: {error}"))),
+        };
+
+        audit.settle(&result);
+        let result = match result {
+            Ok(()) => remove_local_submission_response::Result::Ok(RemoveLocalSubmissionOk {}),
+            Err(error) => remove_local_submission_response::Result::Error(error),
+        };
+
+        Ok(Response::new(RemoveLocalSubmissionResponse {
+            result: Some(result),
         }))
     }
 }

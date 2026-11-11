@@ -45,4 +45,18 @@ public sealed class SimulatedAgentMailClientTests
         Assert.Equal(new AgentAccountMailRemoval(0, 0), removed.Value);
         Assert.Equal(new AgentMailSuspensionOutcome(0, 0), suspended.Value);
     }
+
+    /// <summary>A simulated host has no filter to bind, so both local submission calls succeed and touch nothing.</summary>
+    [Fact]
+    public async Task The_local_submission_calls_succeed_with_nothing_to_do()
+    {
+        var client = new SimulatedAgentMailClient();
+
+        var set = await client.SetLocalSubmissionAsync(
+            new AgentLocalSubmission("alice", ["a.test"], 100, []), CancellationToken.None);
+        var removed = await client.RemoveLocalSubmissionAsync("alice", CancellationToken.None);
+
+        Assert.True(set.IsSuccess);
+        Assert.True(removed.IsSuccess);
+    }
 }

@@ -149,4 +149,16 @@ public sealed class StubAgentMailClient : IAgentMailClient
     {
         return Task.FromResult(Result<uint?>.Ok(0u));
     }
+
+    /// <inheritdoc />
+    public Task<Result> SetLocalSubmissionAsync(AgentLocalSubmission submission, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(Result.Ok());
+    }
+
+    /// <inheritdoc />
+    public Task<Result> RemoveLocalSubmissionAsync(string accountUsername, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(Result.Ok());
+    }
 }

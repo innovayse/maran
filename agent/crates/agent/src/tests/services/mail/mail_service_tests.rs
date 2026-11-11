@@ -22,7 +22,7 @@ use maran_agent_core::command_outcome::CommandOutcome;
 use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::web::domain::Domain;
 use maran_distro::{AdapterBinary, DistroAdapter, DistroFamily, adapter_for};
-use maran_ops::mail::{ListeningSocket, MailDaemon, MailError, MailHost};
+use maran_ops::mail::{ListeningSocket, MailDaemon, MailError, MailHost, PathFacts};
 use maran_ops::safe_write::model::{ConfigFile, Reload, Validator};
 use maran_ops::ssl::{CertificateInstallation, CertificateState};
 use tonic::Request;
@@ -30,8 +30,10 @@ use tonic::Request;
 use crate::proto::mail_service_server::MailService;
 use crate::proto::{
     DisableMailRequest, EnableMailRequest, ErrorCode, GetMailStatusRequest, MailObservation,
-    MailStatus, ReloadMailTlsRequest, SetMailboxRequest, disable_mail_response,
-    enable_mail_response, get_mail_status_response, reload_mail_tls_response, set_mailbox_response,
+    MailStatus, ReloadMailTlsRequest, RemoveLocalSubmissionRequest, SetLocalSubmissionRequest,
+    SetMailboxRequest, disable_mail_response, enable_mail_response, get_mail_status_response,
+    reload_mail_tls_response, remove_local_submission_response, set_local_submission_response,
+    set_mailbox_response,
 };
 use crate::services::mail::mail_service::MailServiceImpl;
 
@@ -154,6 +156,10 @@ impl MailHost for StubHost {
     }
 
     fn read_config(&self, _target: &Path) -> Result<Option<String>, MailError> {
+        Ok(None)
+    }
+
+    fn path_facts(&self, _path: &Path) -> Result<Option<PathFacts>, MailError> {
         Ok(None)
     }
 
@@ -409,4 +415,53 @@ async fn a_data_plane_rpc_answers_a_typed_not_implemented_in_its_payload() {
         }
         other => panic!("expected an error, got {other:?}"),
     }
+}
+
+#[tokio::test]
+async fn a_local_submission_for_an_account_without_a_system_user_is_not_found() {
+    let host = StubHost::new(false);
+    let probe = host.probe();
+    let service = service(host);
+
+    let response = service
+        .set_local_submission(Request::new(SetLocalSubmissionRequest {
+            account_username: "zz_no_such_account_zz".to_owned(),
+            domains: vec!["example.test".to_owned()],
+            send_limit_per_hour: 100,
+            mailbox_logins: Vec::new(),
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+
+    match response.result.unwrap() {
+        set_local_submission_response::Result::Error(error) => {
+            assert_eq!(error.code, ErrorCode::NotFound as i32);
+        }
+        other => panic!("expected an error, got {other:?}"),
+    }
+    assert_eq!(probe.asked.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn removing_a_local_submission_of_an_invalid_account_name_is_refused() {
+    let host = StubHost::new(false);
+    let probe = host.probe();
+    let service = service(host);
+
+    let response = service
+        .remove_local_submission(Request::new(RemoveLocalSubmissionRequest {
+            account_username: "../root".to_owned(),
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+
+    match response.result.unwrap() {
+        remove_local_submission_response::Result::Error(error) => {
+            assert_eq!(error.code, ErrorCode::InvalidInput as i32);
+        }
+        other => panic!("expected an error, got {other:?}"),
+    }
+    assert_eq!(probe.asked.load(Ordering::SeqCst), 0);
 }

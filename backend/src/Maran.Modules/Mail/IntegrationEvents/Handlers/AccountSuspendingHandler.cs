@@ -26,6 +26,11 @@ namespace Maran.Modules.Mail.IntegrationEvents.Handlers;
 /// is NOT written into <see cref="AccountSuspending.Report"/>: that report carries one session-cull reading,
 /// which the Sftp module already owns, and a second writer would overwrite it.
 /// </para>
+/// <para>
+/// <b>The local submission binding goes first</b> (issue #518): the account's system user can no longer submit
+/// mail through <c>sendmail</c>, PHP or cron, a path the mailbox lock does not reach. The resumption pushes it
+/// back, and so does a suspension that is abandoned after this step.
+/// </para>
 /// </remarks>
 public sealed class AccountSuspendingHandler
 {
@@ -35,13 +40,21 @@ public sealed class AccountSuspendingHandler
     /// <summary>Tells whether mail is turned on at all.</summary>
     private readonly MailServerReader _server;
 
+    /// <summary>Removes the account's local submission binding.</summary>
+    private readonly MailLocalSubmissionPublisher _submission;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="agent">The agent client that suspends the account's mail.</param>
     /// <param name="server">Reads whether an administrator turned mail on.</param>
-    public AccountSuspendingHandler(IAgentMailClient agent, MailServerReader server)
+    /// <param name="submission">Removes the account's local submission binding.</param>
+    public AccountSuspendingHandler(
+        IAgentMailClient agent,
+        MailServerReader server,
+        MailLocalSubmissionPublisher submission)
     {
         _agent = agent;
         _server = server;
+        _submission = submission;
     }
 
     /// <summary>Suspends the account's mail on the host.</summary>
@@ -58,9 +71,22 @@ public sealed class AccountSuspendingHandler
             return;
         }
 
+        // First, so that a suspended customer's cron and PHP can no longer submit mail by the time the
+        // suspension completes. A refusal aborts the suspension like any other.
+        var unbound = await _submission.RemoveAsync(message.Username, cancellationToken);
+        if (!unbound.IsSuccess)
+        {
+            throw new InvalidOperationException(
+                $"the local mail submission of {message.Username} could not be removed: {unbound.Error?.Code}");
+        }
+
         var suspended = await _agent.SetAccountSuspensionAsync(message.Username, true, cancellationToken);
         if (!suspended.IsSuccess)
         {
+            // The suspension is abandoned with the account left active, so its binding goes back; if that
+            // push fails too the ledger says it is out of date and the scheduled reconcile pushes it.
+            await _submission.PublishAsSystemAsync(message.AccountId, cancellationToken);
+
             throw new InvalidOperationException(
                 $"the mail of {message.Username} could not be suspended: {suspended.Error?.Code}");
         }

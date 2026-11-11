@@ -9,6 +9,7 @@ use maran_agent_core::utils::bound_exceeded::BoundExceeded;
 use maran_agent_core::utils::spawn_error::SpawnError;
 
 use crate::mail::mail_error::MailError;
+use crate::mail::model::local_submission_hazard::LocalSubmissionHazard;
 use crate::mail::model::mail_daemon::MailDaemon;
 use crate::safe_write::SafeWriteError;
 
@@ -115,6 +116,15 @@ fn every_remaining_variant_has_a_message_for_the_operator_log() {
         MailError::ConfigUnreadable,
         MailError::SocketsUnreadable,
         MailError::HostnameNotUsable,
+        MailError::UnsafeLocalSubmission {
+            hazard: LocalSubmissionHazard::DropGroupUnknown {
+                group: "postdrop".to_owned(),
+            },
+        },
+        MailError::LocalSubmissionConflict {
+            key: crate::mail::model::local_submission_key::LocalSubmissionKey::SenderDomain,
+            value: "a.test".to_owned(),
+        },
         MailError::NotListening { port: 25 },
         MailError::NotInstalled {
             daemon: MailDaemon::Rspamd,

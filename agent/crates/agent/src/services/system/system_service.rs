@@ -96,8 +96,10 @@ use crate::proto::{
 /// servers and runtimes sites run on), the site web server choice and the Node.js
 /// backend in `sites.proto`, and `ERROR_CODE_APP_NOT_INSTALLED`,
 /// `ERROR_CODE_APP_IN_USE` and `ERROR_CODE_WEB_SERVER_ALREADY_INSTALLED`
-/// (issue #517).
-const PROTO_VERSION: u32 = 27;
+/// (issue #517). 28 adds `SetLocalSubmission` and `RemoveLocalSubmission` to
+/// `mail.proto`, the binding of locally submitted mail to the account's own
+/// sender domains and send limit (issue #518).
+const PROTO_VERSION: u32 = 28;
 
 /// Answers "what agent is this, and what host is it on?".
 pub struct SystemServiceImpl {

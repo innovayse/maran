@@ -1122,6 +1122,9 @@ field maran.agent.v1.RemoveCertificateRequest 2 domain TYPE_STRING LABEL_OPTIONA
 field maran.agent.v1.RemoveCertificateRequest 3 site TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.SiteSpec oneof=-
 field maran.agent.v1.RemoveCertificateResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.RemoveCertificateOk oneof=result
 field maran.agent.v1.RemoveCertificateResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
+field maran.agent.v1.RemoveLocalSubmissionRequest 1 account_username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.RemoveLocalSubmissionResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.RemoveLocalSubmissionOk oneof=result
+field maran.agent.v1.RemoveLocalSubmissionResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 field maran.agent.v1.RemoveMailDomainRequest 1 account_username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.RemoveMailDomainRequest 2 domain TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.RemoveMailDomainResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.RemoveMailDomainOk oneof=result
@@ -1273,6 +1276,12 @@ field maran.agent.v1.SetFtpsPasswordRequest 2 ftps_username TYPE_STRING LABEL_OP
 field maran.agent.v1.SetFtpsPasswordRequest 3 password TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.SetFtpsPasswordResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.SetFtpsPasswordOk oneof=result
 field maran.agent.v1.SetFtpsPasswordResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
+field maran.agent.v1.SetLocalSubmissionRequest 1 account_username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.SetLocalSubmissionRequest 2 domains TYPE_STRING LABEL_REPEATED type_name=- oneof=-
+field maran.agent.v1.SetLocalSubmissionRequest 3 send_limit_per_hour TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.SetLocalSubmissionRequest 4 mailbox_logins TYPE_STRING LABEL_REPEATED type_name=- oneof=-
+field maran.agent.v1.SetLocalSubmissionResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.SetLocalSubmissionOk oneof=result
+field maran.agent.v1.SetLocalSubmissionResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 field maran.agent.v1.SetMailAliasesOk 1 alias_count TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.SetMailAliasesOk 2 catch_all_set TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.SetMailAliasesRequest 1 account_username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
@@ -1834,6 +1843,9 @@ message maran.agent.v1.RemoveAccountMailResponse
 message maran.agent.v1.RemoveCertificateOk
 message maran.agent.v1.RemoveCertificateRequest
 message maran.agent.v1.RemoveCertificateResponse
+message maran.agent.v1.RemoveLocalSubmissionOk
+message maran.agent.v1.RemoveLocalSubmissionRequest
+message maran.agent.v1.RemoveLocalSubmissionResponse
 message maran.agent.v1.RemoveMailDomainOk
 message maran.agent.v1.RemoveMailDomainRequest
 message maran.agent.v1.RemoveMailDomainResponse
@@ -1908,6 +1920,9 @@ message maran.agent.v1.SetDatabaseUserPrivilegesResponse
 message maran.agent.v1.SetFtpsPasswordOk
 message maran.agent.v1.SetFtpsPasswordRequest
 message maran.agent.v1.SetFtpsPasswordResponse
+message maran.agent.v1.SetLocalSubmissionOk
+message maran.agent.v1.SetLocalSubmissionRequest
+message maran.agent.v1.SetLocalSubmissionResponse
 message maran.agent.v1.SetMailAliasesOk
 message maran.agent.v1.SetMailAliasesRequest
 message maran.agent.v1.SetMailAliasesResponse
@@ -2093,9 +2108,11 @@ rpc maran.agent.v1.MailService ListMailQueue in=.maran.agent.v1.ListMailQueueReq
 rpc maran.agent.v1.MailService ListMailboxUsage in=.maran.agent.v1.ListMailboxUsageRequest out=.maran.agent.v1.ListMailboxUsageResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.MailService ReloadMailTls in=.maran.agent.v1.ReloadMailTlsRequest out=.maran.agent.v1.ReloadMailTlsResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.MailService RemoveAccountMail in=.maran.agent.v1.RemoveAccountMailRequest out=.maran.agent.v1.RemoveAccountMailResponse client_streaming=false server_streaming=false
+rpc maran.agent.v1.MailService RemoveLocalSubmission in=.maran.agent.v1.RemoveLocalSubmissionRequest out=.maran.agent.v1.RemoveLocalSubmissionResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.MailService RemoveMailDomain in=.maran.agent.v1.RemoveMailDomainRequest out=.maran.agent.v1.RemoveMailDomainResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.MailService RemoveMailbox in=.maran.agent.v1.RemoveMailboxRequest out=.maran.agent.v1.RemoveMailboxResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.MailService SetAccountMailSuspension in=.maran.agent.v1.SetAccountMailSuspensionRequest out=.maran.agent.v1.SetAccountMailSuspensionResponse client_streaming=false server_streaming=false
+rpc maran.agent.v1.MailService SetLocalSubmission in=.maran.agent.v1.SetLocalSubmissionRequest out=.maran.agent.v1.SetLocalSubmissionResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.MailService SetMailAliases in=.maran.agent.v1.SetMailAliasesRequest out=.maran.agent.v1.SetMailAliasesResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.MailService SetMailbox in=.maran.agent.v1.SetMailboxRequest out=.maran.agent.v1.SetMailboxResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.MailService SetMailboxAutoresponder in=.maran.agent.v1.SetMailboxAutoresponderRequest out=.maran.agent.v1.SetMailboxAutoresponderResponse client_streaming=false server_streaming=false

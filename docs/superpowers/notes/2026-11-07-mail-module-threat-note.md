@@ -291,6 +291,92 @@ for mail exists, so the assertions are on the rendered files and the plan.
 
 Second review: OUTSTANDING (#331).
 
+## Amendment 2026-11-11 (issue #518): local submission bound to the account
+
+**What was wrong.** The residual named under the #500 amendment: for an account the data plane lists, a
+local submission carried no sender identity and no send-limit accounting.
+
+**Decision.** A Lua rule inside the Rspamd proxy already in the milter chain (no new process), contract
+`docs/mail/local-submission.md`. A submit helper with per-account SMTP credentials was rejected (owner,
+2026-11-11).
+
+**Security review finding and fix (2026-11-11).** The first design decided "this is a local submission"
+by the absence of a client IP. Postfix presents `sendmail`-injected mail to the milter as a connection from
+`127.0.0.1`, so the test was always false and the rule never fired: a total bypass the stub-based unit
+tests could not see. The road is now a fact of the server: `pickup` uses its own `cleanup_local` service
+reporting `milter_macro_daemon_name=MARAN_LOCAL`, port 25 reports `INBOUND`, the login services
+`ORIGINATING`; the rule decides on that name before it reads any login, address or header, and any other or
+missing name is a soft reject (fail-closed). A forged `sasl_username`/client attribute in a hand-built
+queue file therefore cannot take a message off the local road (polygon case 9).
+
+**Trust of the topmost `Received` header.** `pickup` writes `Received: by <host> (Postfix, from userid
+<uid>)` itself, on top of whatever the customer wrote (`mail_name` is pinned so the text cannot drift with a
+package default). The rule trusts only the topmost `Received` header, and only on the `MARAN_LOCAL` road; a
+customer-forged second header sits below it and is ignored (polygon case 6). Any other shape is refused.
+The uid maps to an account through `local_submit_accounts.map`; the envelope sender and `From:` domain must
+both be that account's domains (`5.7.1`); the counter is shared with authenticated SMTP (`4.7.1` deferral
+over the limit) and counts per envelope recipient, once per message identity (`SET NX` guard keyed on the
+maildrop id in the topmost `Received` header, so a re-offered message is not counted twice); a local message is capped at the SMTP recipient limit (`5.5.3`). Exempt uids are
+exactly root and the Postfix owner, rendered by the agent; no Dovecot uid submits locally. A missing or
+unreadable map tempfails, and a Lua error in the prefilter is a soft reject, not an acceptance. The
+installer adds no new directory or permission: the maps sit in the existing root-owned, readable
+`/etc/maran/mail`, and uninstall removes them with it.
+
+**Backscatter.** A refusal from `pickup` is bounced to the envelope sender, so `sendmail -f victim@x` would
+mail a third party. Refusals whose notice would reach an unverified address (unknown submitter, envelope
+sender not owned) are therefore `discard`, logged by Rspamd; a foreign `From:` header or too many
+recipients (envelope sender already proven the account's own) stay `reject`. PHP `mail()` without `-f` uses
+`user@<myorigin>` and is discarded; the supported configuration is `sendmail_path` with `-f`
+(`docs/mail/local-submission.md`).
+
+**Host invariants.** The uid stamp is only trustworthy while the maildrop road is sealed. The agent refuses
+`SetLocalSubmission` (typed error, nothing written) when the account's system user is in the `postdrop`
+(`maildrop` on SUSE) or `postfix` group or `/usr/sbin/postdrop` is not `2755` owned by root and the drop
+group; polygon case 11 asserts the same on a live host. Removal deletes the uid line from all tables so a
+reused uid starts unbound.
+
+**Residuals (OUTSTANDING).** (1) UNVERIFIED on a live stack: that Postfix passes pickup's `Received:` line
+to the milter as the first header, that `MTA-Name` carries `{daemon_name}`, that the `discard` action and
+`task:has_pre_result` exist in the shipped Rspamd (a missing `discard` falls back to `reject`, restoring
+backscatter), that higher prefilter priority runs first, that `pickup` rescans a deferred file, and which
+envelope attribute records `postdrop`/`pickup` forward; the rule fails closed on a shape it does not
+recognise. (2) Customer code running as the account's own uid can still send as any domain of that
+account, by design. (3) Two accounts sharing one system uid cannot be told apart; the data plane maps a
+uid to exactly one account. (4) The polygon images run no Postfix or Rspamd, so the eleven polygon cases
+were not run there; the assertion states the gap and runs where the stack exists. (5) `postdrop`'s own
+refusal of an unlisted user (#500) is separate and still unobserved. (6) **Unauthenticated `localhost:25`
+is not covered**: a customer can reach port 25 from the host, claim another tenant's `From:` and receive
+that tenant's DKIM signature (`dkim_signing` has `sign_local = true`, `use_domain = "header"`; Rspamd also
+treats `127.0.0.1` as local), and a virtual alias to an external address makes port 25 a limitless relay.
+Separate issue (client restrictions on port 25 for local addresses, a firewall rule by uid, DKIM signing
+conditional on a bound sender, forbidding or counting external alias targets). (7) Maildrop files of a
+deleted uid are refused by the rule at `pickup` time but not purged; purging belongs to account deletion.
+
+**Code review fixes, agent side (2026-11-11).** (H1) The tables were read before the config-write lock was
+taken, so a suspension and a domain change running together could re-render the suspended account's lines
+from a stale read and bind it again. The whole read-render-write of the five tables now runs under one
+mutex (`hold_tables`), taken outside `config_tree_lock` and never inside it; seeding takes it too.
+(M1) A uid, a mailbox login and a sender domain are held by one account: binding a uid drops every other
+account's line with that uid (the newest binding wins, the older account becomes unbound and its mail is
+refused); a login or domain that another account holds is refused with the typed
+`LocalSubmissionConflict` (wire code `ALREADY_EXISTS`) before anything is written, so a moved domain waits
+for its previous owner's removal to land. (M4) An authenticated login missing from `mailbox_accounts.map`
+is a soft reject (`4.4.3`), not an exemption; the lookup and the map keys are lower-cased. (M5) The
+"counted once" key is the maildrop id from the topmost `Received` header, which survives re-offers (the
+cleanup queue id does not); a message without it is counted every time. `Message-ID` is deliberately NOT a
+fallback: it is the sender's own text, so repeating one would exempt a customer from the limit. (M6) A
+missing or incomplete settings section registers a stand-in that soft-rejects the local road and any
+unidentified path (smtpd roads pass), and after the reload the agent runs `rspamadm configdump
+maran_local_submit` and refuses to tell Postfix to admit the account when the section is absent. (M7) An
+emptied map is a comment line, never zero bytes. (L1) A uid that is not in the user database is refused
+(`SubmitterUnknown`), not treated as safe. New residuals: the configdump check proves the reloaded
+configuration holds the section, not that the running worker registered the symbol (a symbol listing needs
+the controller and a password); the uid takeover leaves the displaced account's `maran_local_submit_users`
+line until its own removal, which only matters to an account whose rules are gone (its mail is discarded);
+M2, M3, M8 and H2 (backend, publisher) are outside this change.
+
+Second review: OUTSTANDING (#331).
+
 ## Website docs needed (for the owner)
 
 Operator guide (enable, ports to open, PTR and port-25 egress, DNS records, DKIM rotation, the master

@@ -407,6 +407,24 @@ impl AgentPaths {
     /// own (`reject_sender_login_mismatch`), and this is the table it asks.
     pub const MAIL_SENDER_LOGIN_MAPS_PATH: &'static str = "/etc/maran/mail/sender_login_maps";
 
+    /// Rspamd map `<uid> <account>` of every account allowed to submit mail
+    /// locally (issue #518; contract `docs/mail/local-submission.md`).
+    pub const MAIL_LOCAL_SUBMIT_ACCOUNTS_PATH: &'static str =
+        "/etc/maran/mail/local_submit_accounts.map";
+
+    /// Rspamd map `<account> <domain>`, one line per domain the account owns,
+    /// the only sender domains its locally submitted mail may use (issue #518).
+    pub const MAIL_ACCOUNT_SENDER_DOMAINS_PATH: &'static str =
+        "/etc/maran/mail/account_sender_domains.map";
+
+    /// Rspamd map `<account> <messages-per-hour>` (issue #518).
+    pub const MAIL_ACCOUNT_SEND_LIMITS_PATH: &'static str =
+        "/etc/maran/mail/account_send_limits.map";
+
+    /// Rspamd map `<mailbox-login> <account>`, so authenticated submission
+    /// counts against the same hourly bucket as local submission (issue #518).
+    pub const MAIL_MAILBOX_ACCOUNTS_PATH: &'static str = "/etc/maran/mail/mailbox_accounts.map";
+
     /// File name of the table of system users allowed to submit mail through
     /// the local `sendmail` and `postdrop` commands (issue #500).
     ///

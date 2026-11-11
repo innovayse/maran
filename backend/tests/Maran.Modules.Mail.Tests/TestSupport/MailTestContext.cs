@@ -5,6 +5,7 @@ using Maran.Modules.Mail.Services;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Maran.Modules.Mail.Tests.TestSupport;
 
@@ -71,6 +72,9 @@ public sealed class MailTestContext : IDisposable
     /// <summary>Reads whether accounts are suspended.</summary>
     public MailAccountStates AccountStates { get; }
 
+    /// <summary>Binds an account's locally submitted mail to its domains and send limit.</summary>
+    public MailLocalSubmissionPublisher LocalSubmission { get; }
+
     /// <summary>The audit entries written so far.</summary>
     public IReadOnlyList<AuditEntry> Entries
     {
@@ -105,6 +109,8 @@ public sealed class MailTestContext : IDisposable
         Server = new MailServerReader(Database);
         Hashing = new MailPasswordHashing(Hasher, Agent);
         AccountStates = new MailAccountStates(Accounts);
+        LocalSubmission = new MailLocalSubmissionPublisher(
+            Database, Server, Agent, Accounts, new MailSubmissionGate(), NullLogger<MailLocalSubmissionPublisher>.Instance);
     }
 
     /// <summary>Stores an enabled settings row with the product defaults.</summary>

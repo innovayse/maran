@@ -24,6 +24,14 @@ pub fn to_agent_error(error: &MailError) -> AgentError {
         // file material under: the request names something this host cannot
         // use, and repeating it will not help.
         MailError::HostnameNotUsable => ErrorCode::InvalidInput,
+        // The host's own state (a customer in the drop group, a `postdrop` that is
+        // not setgid root) would let a customer bypass the rule: the request is
+        // well formed and repeating it will not help until an operator fixes the
+        // host, so it is a fault of this machine and the message names the hazard.
+        MailError::UnsafeLocalSubmission { .. } => ErrorCode::SystemFailure,
+        // The login or domain belongs to another account: the entity is already
+        // bound, and the previous owner's removal has to land first.
+        MailError::LocalSubmissionConflict { .. } => ErrorCode::AlreadyExists,
         // A daemon's own checker refused the rendered files; the contract's code
         // for exactly this is "state rolled back", and the rollback is what the
         // config-write protocol performed.

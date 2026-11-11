@@ -136,4 +136,20 @@ internal interface IMailServiceInvoker
     Task<FlushMailQueueResponse> FlushMailQueueAsync(
         FlushMailQueueRequest request,
         CancellationToken cancellationToken);
+
+    /// <summary>Invokes <c>SetLocalSubmission</c>.</summary>
+    /// <param name="request">The wire request.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The raw wire response, carrying either branch of its oneof.</returns>
+    Task<SetLocalSubmissionResponse> SetLocalSubmissionAsync(
+        SetLocalSubmissionRequest request,
+        CancellationToken cancellationToken);
+
+    /// <summary>Invokes <c>RemoveLocalSubmission</c>.</summary>
+    /// <param name="request">The wire request.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The raw wire response, carrying either branch of its oneof.</returns>
+    Task<RemoveLocalSubmissionResponse> RemoveLocalSubmissionAsync(
+        RemoveLocalSubmissionRequest request,
+        CancellationToken cancellationToken);
 }

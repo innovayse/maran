@@ -88,6 +88,39 @@ public sealed class AccountDirectorySystemUserTests
         Assert.Null(await directory.FindAsync(theirs, CancellationToken.None));
     }
 
+    /// <summary>The system lookup finds the account with its plan figures for a caller whose scope hides it.</summary>
+    [Fact]
+    public async Task The_system_lookup_finds_the_account_with_its_plan_for_a_caller_the_scope_hides_it_from()
+    {
+        var database = Guid.NewGuid().ToString();
+        var accountId = await SeedAsync(database, "acme");
+        var anonymous = FakeCurrentUser.Anonymous();
+        await using var dbContext = AccountsTestContext.CreateOn(database, anonymous);
+        var directory = new AccountDirectory(dbContext, anonymous);
+
+        var snapshot = await directory.FindForSystemAsync(accountId, CancellationToken.None);
+
+        Assert.Null(await directory.FindAsync(accountId, CancellationToken.None));
+        Assert.NotNull(snapshot);
+        Assert.Equal("acme", snapshot.Username);
+        Assert.Equal(7, snapshot.MaxSites);
+    }
+
+    /// <summary>The system lookup answers null for an id no account has.</summary>
+    [Fact]
+    public async Task The_system_lookup_answers_null_for_an_unknown_id()
+    {
+        var database = Guid.NewGuid().ToString();
+        await SeedAsync(database, "acme");
+        var anonymous = FakeCurrentUser.Anonymous();
+        await using var dbContext = AccountsTestContext.CreateOn(database, anonymous);
+
+        var snapshot = await new AccountDirectory(dbContext, anonymous)
+            .FindForSystemAsync(Guid.NewGuid(), CancellationToken.None);
+
+        Assert.Null(snapshot);
+    }
+
     /// <summary>Seeds one plan and one account on the named database as an administrator.</summary>
     /// <param name="database">The in-memory database name shared with the reading context.</param>
     /// <param name="username">The account's system user name.</param>

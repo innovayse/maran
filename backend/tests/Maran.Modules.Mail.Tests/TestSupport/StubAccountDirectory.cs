@@ -13,6 +13,9 @@ public sealed class StubAccountDirectory : IAccountDirectory
     /// <summary>The accounts this stub knows.</summary>
     private readonly Dictionary<Guid, AccountSnapshot> _accounts = [];
 
+    /// <summary>The accounts the tenant-scoped reads do not show.</summary>
+    private readonly HashSet<Guid> _hidden = [];
+
     /// <summary>Adds an account with the given mail limits.</summary>
     /// <param name="accountId">The account's identity.</param>
     /// <param name="username">The account's system user name.</param>
@@ -44,10 +47,28 @@ public sealed class StubAccountDirectory : IAccountDirectory
         return snapshot;
     }
 
+    /// <summary>Removes an account, as deleting it does: every read then answers nothing for it.</summary>
+    /// <param name="accountId">The account to forget.</param>
+    public void Remove(Guid accountId)
+    {
+        _accounts.Remove(accountId);
+    }
+
+    /// <summary>
+    /// Makes the tenant-scoped reads answer nothing for an account while the unscoped list still shows it,
+    /// which is how the real window treats a reseller asking about a customer's account.
+    /// </summary>
+    /// <param name="accountId">The account the scoped reads stop showing.</param>
+    public void HideFromScopedReads(Guid accountId)
+    {
+        _hidden.Add(accountId);
+    }
+
     /// <inheritdoc />
     public Task<AccountSnapshot?> FindAsync(Guid accountId, CancellationToken cancellationToken)
     {
-        return Task.FromResult(_accounts.TryGetValue(accountId, out var snapshot) ? snapshot : null);
+        return Task.FromResult(
+            !_hidden.Contains(accountId) && _accounts.TryGetValue(accountId, out var snapshot) ? snapshot : null);
     }
 
     /// <inheritdoc />
@@ -90,6 +111,12 @@ public sealed class StubAccountDirectory : IAccountDirectory
     public Task<IReadOnlyList<Guid>> FindIdsByNameAsync(string search, CancellationToken cancellationToken)
     {
         throw new NotSupportedException("Mail searches no account names.");
+    }
+
+    /// <inheritdoc />
+    public Task<AccountSnapshot?> FindForSystemAsync(Guid accountId, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(_accounts.TryGetValue(accountId, out var snapshot) ? snapshot : null);
     }
 
     /// <inheritdoc />

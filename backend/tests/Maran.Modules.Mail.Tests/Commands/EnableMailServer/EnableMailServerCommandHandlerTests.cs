@@ -1,5 +1,6 @@
 using Maran.Modules.Mail.Commands.EnableMailServer;
 using Maran.Modules.Mail.Tests.TestSupport;
+using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 
@@ -127,11 +128,54 @@ public sealed class EnableMailServerCommandHandlerTests
         Assert.False(entry.Succeeded);
     }
 
+    /// <summary>Enabling binds every account that already exists, and skips the suspended one.</summary>
+    [Fact]
+    public async Task Enabling_binds_every_existing_account_and_skips_the_suspended_one()
+    {
+        using var context = new MailTestContext();
+        var active = Guid.NewGuid();
+        var suspended = Guid.NewGuid();
+        context.Accounts.Add(active, "acme", new MailLimitsSnapshot(10, 1024, 200, 10240));
+        context.Accounts.Add(suspended, "globex", null, AccountState.Suspended);
+
+        var result = await Handler(context).HandleAsync(MailServerCommands.Enable(), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var sent = Assert.Single(context.Agent.LocalSubmissions);
+        Assert.Equal("acme", sent.AccountUsername);
+        Assert.Equal(200u, sent.SendLimitPerHour);
+    }
+
+    /// <summary>One account's refusal is logged and the others are still bound; a refused enable binds nobody.</summary>
+    [Fact]
+    public async Task One_refusal_does_not_stop_the_others_and_a_refused_enable_binds_nobody()
+    {
+        using var context = new MailTestContext();
+        context.Accounts.Add(Guid.NewGuid(), "acme");
+        context.Accounts.Add(Guid.NewGuid(), "globex");
+        context.Agent.FailNext("SetLocalSubmission", Error.Of("AgentInvalidInput", ErrorType.Validation));
+
+        var result = await Handler(context).HandleAsync(MailServerCommands.Enable(), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, context.Agent.LocalSubmissions.Count);
+
+        using var refused = new MailTestContext();
+        refused.Accounts.Add(Guid.NewGuid(), "acme");
+        refused.Agent.FailNext("Enable", Error.Of("AgentValidationFailed", ErrorType.Validation));
+
+        var failed = await Handler(refused).HandleAsync(MailServerCommands.Enable(), CancellationToken.None);
+
+        Assert.False(failed.IsSuccess);
+        Assert.Empty(refused.Agent.LocalSubmissions);
+    }
+
     /// <summary>Builds the handler from the context's parts.</summary>
     /// <param name="context">The test context.</param>
     /// <returns>The handler.</returns>
     private static EnableMailServerCommandHandler Handler(MailTestContext context)
     {
-        return new EnableMailServerCommandHandler(context.Database, context.Agent, context.Journal, context.Clock);
+        return new EnableMailServerCommandHandler(
+            context.Database, context.Agent, context.Journal, context.LocalSubmission, context.Clock);
     }
 }

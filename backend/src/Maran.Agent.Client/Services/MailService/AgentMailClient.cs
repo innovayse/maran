@@ -353,6 +353,38 @@ public sealed class AgentMailClient : IAgentMailClient
         };
     }
 
+    /// <inheritdoc/>
+    public async Task<Result> SetLocalSubmissionAsync(
+        AgentLocalSubmission submission,
+        CancellationToken cancellationToken)
+    {
+        var request = AgentMailRequestMapper.ToLocalSubmissionRequest(submission);
+        var response = await _invoker.SetLocalSubmissionAsync(request, cancellationToken);
+
+        return response.ResultCase switch
+        {
+            SetLocalSubmissionResponse.ResultOneofCase.Ok => Result.Ok(),
+            SetLocalSubmissionResponse.ResultOneofCase.Error => Result.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(SetLocalSubmissionAsync))),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result> RemoveLocalSubmissionAsync(string accountUsername, CancellationToken cancellationToken)
+    {
+        var request = new RemoveLocalSubmissionRequest { AccountUsername = accountUsername };
+        var response = await _invoker.RemoveLocalSubmissionAsync(request, cancellationToken);
+
+        return response.ResultCase switch
+        {
+            RemoveLocalSubmissionResponse.ResultOneofCase.Ok => Result.Ok(),
+            RemoveLocalSubmissionResponse.ResultOneofCase.Error => Result.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(RemoveLocalSubmissionAsync))),
+            _ => Result.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
+
     /// <summary>Reads a lifecycle rpc's status payload into the panel's shape.</summary>
     /// <param name="status">The wire status, absent when the agent sent an ok without one.</param>
     /// <returns>
