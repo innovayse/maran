@@ -96,6 +96,14 @@ jobs:
       - name: Format
         run: cargo fmt --all -- --check
 
+      # The templates crate ships a Lua rule for Rspamd, and its Lua unit tests
+      # (agent/crates/templates/tests/lua/) are run by a Rust test through the host's `lua`.
+      # Without an interpreter that test passes quietly, so the rule would go unexercised:
+      # install Lua 5.4 here and set MARAN_REQUIRE_LUA=1 for the verdict step below, which
+      # turns a missing interpreter into a failure instead of a silent pass.
+      - name: Install Lua 5.4
+        run: sudo apt-get install -y lua5.4
+
       # Warnings are failures here for the same reason they are in the backend: the agent is
       # the only process running as root (rules/architecture.md), so its lint output is not
       # advisory.
@@ -145,6 +153,8 @@ jobs:
       - name: Test verdict — per-target totals against the committed baseline
         working-directory: ${{ github.workspace }}
         id: verdict
+        env:
+          MARAN_REQUIRE_LUA: '1'
         run: |
           set -o pipefail
           mkdir -p "$RUNNER_TEMP/verdict"

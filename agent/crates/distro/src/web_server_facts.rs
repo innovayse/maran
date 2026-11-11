@@ -4,6 +4,8 @@
 //! A supertrait of [`DistroAdapter`](crate::adapter::DistroAdapter); split out by concern
 //! so the one adapter seam stays under the file-size trigger (rules/rust.md "Distro adapter").
 
+use maran_agent_core::validation::web::node_major::NodeMajor;
+
 use crate::adapter_binary::AdapterBinary;
 use crate::site_web_server::SiteWebServer;
 
@@ -44,11 +46,13 @@ pub trait WebServerFacts: Send + Sync {
     /// fact about these two distributions rather than a rule.
     fn web_server_group(&self) -> &'static str;
 
-    /// Absolute path of the Apache control script, for the process-execution allow-list.
+    /// Absolute path of the Apache program whose `-t` checks the whole configuration tree, for
+    /// the process-execution allow-list.
     ///
-    /// The agent runs it with `-t` to check the whole configuration tree before and after
-    /// every vhost write, the way it runs nginx's own `-t` for the other site web server.
-    /// `apachectl` on the RHEL family, `apache2ctl` on the Debian and SUSE families.
+    /// The agent runs it with `-t` before and after every vhost write, the way it runs nginx's own
+    /// `-t` for the other site web server, and with `-v` to read the version. `apachectl` on the
+    /// RHEL family, `apache2ctl` on the Debian family, `httpd` on the SUSE family (whose
+    /// `apache2` package ships no control script).
     fn apache_binary(&self) -> AdapterBinary;
 
     /// Name of the Apache service unit, for `systemctl reload`/`restart`.
@@ -68,15 +72,17 @@ pub trait WebServerFacts: Send + Sync {
     /// Apache is the site web server.
     fn apache_group(&self) -> &'static str;
 
-    /// Absolute path of the Node.js interpreter a site's unit runs.
+    /// Absolute path of the Node.js interpreter of `major` that a site's unit runs: the same
+    /// file [`AppFacts::node_binary`](crate::AppFacts::node_binary) names, so a site declared on
+    /// a major runs on that major and on no other.
     ///
     /// Text and not an [`AdapterBinary`], like `sh_binary`: the agent never executes it, it
     /// is written into a unit the service manager runs under the site's account.
-    fn node_executable(&self) -> &'static str;
+    fn node_executable(&self, major: &NodeMajor) -> String;
 
-    /// Absolute path of the npm launcher a site's unit may run, text for the reason
-    /// [`Self::node_executable`] is.
-    fn npm_executable(&self) -> &'static str;
+    /// Absolute path of the npm launcher of `major` that a site's unit may run, text for the
+    /// reason [`Self::node_executable`] is.
+    fn npm_executable(&self, major: &NodeMajor) -> String;
 
     /// Absolute path of the binary whose `-t` checks `server`'s whole configuration tree.
     fn site_web_server_binary(&self, server: SiteWebServer) -> AdapterBinary {

@@ -48,24 +48,30 @@ public sealed class DeleteMailboxCommandHandler
     /// <summary>This module's audit journal.</summary>
     private readonly MailAuditJournal _journal;
 
+    /// <summary>Binds the account's locally submitted mail to its remaining mailboxes.</summary>
+    private readonly MailLocalSubmissionPublisher _submission;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Mail module's database context.</param>
     /// <param name="server">Tells whether mail is switched on.</param>
     /// <param name="accounts">The owning account's system user name.</param>
     /// <param name="agent">The agent client that removes the mailbox.</param>
     /// <param name="journal">This module's audit journal.</param>
+    /// <param name="submission">Binds the account's locally submitted mail to its remaining mailboxes.</param>
     public DeleteMailboxCommandHandler(
         MailDbContext dbContext,
         MailServerReader server,
         IAccountDirectory accounts,
         IAgentMailClient agent,
-        MailAuditJournal journal)
+        MailAuditJournal journal,
+        MailLocalSubmissionPublisher submission)
     {
         _dbContext = dbContext;
         _server = server;
         _accounts = accounts;
         _agent = agent;
         _journal = journal;
+        _submission = submission;
     }
 
     /// <summary>Removes the mailbox.</summary>
@@ -126,6 +132,8 @@ public sealed class DeleteMailboxCommandHandler
 
         _dbContext.Mailboxes.Remove(mailbox);
         await _dbContext.SaveChangesAsync(cancellationToken);
+
+        await _submission.TryPublishAfterChangeAsync(account, cancellationToken);
 
         await _journal.RecordSuccessAsync(
             HostedMailAuditActions.MailboxDeleted, address, command.IpAddress, command.UserAgent, cancellationToken);

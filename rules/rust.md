@@ -896,7 +896,7 @@ family's `DistroAdapter` methods ask; `debian_package_candidates.rs` /
 `rhel_package_candidates.rs` / `suse_package_candidates.rs` answer what the family's package manager offers (the program,
 its arguments and the grammar of its answer, issue #466); `suse_account_programs.rs`, `suse_mail_services.rs` and
 `suse_dns_services.rs` answer the account-deletion programs, the mail stack's units and the DNS daemon's
-identity for the SUSE family (issue #59); `debian_apps.rs` / `rhel_apps.rs` / `suse_apps.rs` answer every question the app store asks of a family (the packages behind each app, Apache's include snippet, modules and enabler, the Node.js binary and candidate, issue #517); `debian_php_extensions.rs` /
+identity for the SUSE family (issue #59); `debian_apps.rs` / `rhel_apps.rs` / `suse_apps.rs` answer every question the app store asks of a family (the packages behind each app, Apache's include snippet, modules and enabler, the Node.js binary and candidate, issue #517); `debian_removal.rs` / `rhel_removal.rs` / `suse_removal.rs` answer what the family's package manager says a removal would do (the arguments of its dry run and the grammar of its answer); `debian_php_extensions.rs` /
 `rhel_php_extensions.rs` / `suse_php_extensions.rs` answer every question about a PHP extension (its package,
 its switch, its drop-in directory). `validation/path.rs` is the same pattern
 already, one file short of needing to be said out loud. Splitting these into one

@@ -1,6 +1,7 @@
 //! The SUSE-family adapter implementation.
 
 use maran_agent_core::validation::mail::mail_password_scheme::MailPasswordScheme;
+use maran_agent_core::validation::web::node_major::NodeMajor;
 use maran_agent_core::validation::web::php_extension_name::PhpExtensionName;
 use maran_agent_core::validation::web::php_version::PhpVersion;
 
@@ -144,6 +145,10 @@ impl AccountPrograms for SuseAdapter {
     fn passwd_database(&self) -> &'static str {
         suse_account_programs::passwd_database()
     }
+
+    fn group_database(&self) -> &'static str {
+        suse_account_programs::group_database()
+    }
 }
 
 impl WebServerFacts for SuseAdapter {
@@ -183,12 +188,12 @@ impl WebServerFacts for SuseAdapter {
         suse_services::apache_group()
     }
 
-    fn node_executable(&self) -> &'static str {
-        suse_services::node_executable()
+    fn node_executable(&self, major: &NodeMajor) -> String {
+        suse_services::node_executable(major)
     }
 
-    fn npm_executable(&self) -> &'static str {
-        suse_services::npm_executable()
+    fn npm_executable(&self, major: &NodeMajor) -> String {
+        suse_services::npm_executable(major)
     }
 }
 
@@ -201,8 +206,16 @@ impl AppFacts for SuseAdapter {
         suse_apps::apache_package()
     }
 
+    fn apache_install_starts_service(&self) -> bool {
+        suse_apps::apache_install_starts_service()
+    }
+
     fn apache_extra_packages(&self) -> &'static [&'static str] {
         suse_apps::apache_extra_packages()
+    }
+
+    fn apache_companion_packages(&self) -> &'static [&'static str] {
+        suse_apps::apache_companion_packages()
     }
 
     fn apache_include_snippet_path(&self) -> &'static str {
@@ -225,12 +238,16 @@ impl AppFacts for SuseAdapter {
         suse_apps::nodejs_package(major)
     }
 
+    fn nodejs_extra_packages(&self, major: &str) -> Vec<String> {
+        vec![format!("npm{major}")]
+    }
+
     fn nodejs_candidate_major(&self, _candidate_query_stdout: &str) -> Option<String> {
         None
     }
 
-    fn node_binary(&self) -> AdapterBinary {
-        suse_apps::node_binary()
+    fn node_binary(&self, major: &NodeMajor) -> AdapterBinary {
+        suse_apps::node_binary(major)
     }
 }
 
@@ -574,6 +591,10 @@ impl MailFacts for SuseAdapter {
 
     fn postdrop_group(&self) -> &'static str {
         suse_mail_services::postdrop_group()
+    }
+
+    fn postdrop_program(&self) -> &'static str {
+        suse_mail_services::postdrop_program()
     }
 
     fn dovecot_user(&self) -> &'static str {

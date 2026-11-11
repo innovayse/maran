@@ -4,35 +4,12 @@ using Maran.Modules.Apps.Domain.Enums;
 using Maran.Modules.Apps.Services;
 using Maran.Modules.Apps.Tests.TestSupport;
 using Maran.SharedKernel.Results;
-using Microsoft.Extensions.Localization;
 
 namespace Maran.Modules.Apps.Tests.Commands.ControlAppService;
 
 /// <summary>Controlling a service: the agent is asked, every attempt is journalled, a runtime without a service is refused.</summary>
 public sealed class ControlAppServiceCommandHandlerTests
 {
-    /// <summary>A resolver that answers every key with the key, so a test sees which name was asked for.</summary>
-    private sealed class KeyLocalizer : IStringLocalizer<Maran.Modules.Apps.Resources.DisplayNames>
-    {
-        /// <inheritdoc />
-        public LocalizedString this[string name]
-        {
-            get { return new LocalizedString(name, name); }
-        }
-
-        /// <inheritdoc />
-        public LocalizedString this[string name, params object[] arguments]
-        {
-            get { return new LocalizedString(name, name); }
-        }
-
-        /// <inheritdoc />
-        public IEnumerable<LocalizedString> GetAllStrings(bool includeParentCultures)
-        {
-            return [];
-        }
-    }
-
     /// <summary>Builds the handler over a world.</summary>
     /// <param name="world">The doubles.</param>
     /// <returns>The handler.</returns>

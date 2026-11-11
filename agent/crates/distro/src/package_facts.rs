@@ -47,7 +47,9 @@ pub trait PackageFacts: Send + Sync {
     /// outside the agent's sandbox, and this one is the only package-manager
     /// path the agent itself may execute. It is an [`AdapterBinary`], so only
     /// this crate can name it, and the only arguments ever given to it are
-    /// [`Self::catalogue_probe`]'s arguments and [`Self::pending_updates_arguments`].
+    /// [`Self::catalogue_probe`]'s arguments, [`Self::pending_updates_arguments`] and the dry run
+    /// of a removal ([`RemovalFacts::removal_simulation_arguments`](crate::RemovalFacts::removal_simulation_arguments)),
+    /// which changes nothing.
     fn package_query_binary(&self) -> AdapterBinary;
 
     /// The run that tells whether the package catalogue has been built at all,

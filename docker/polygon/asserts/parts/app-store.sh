@@ -90,6 +90,47 @@ assert_a_fresh_host_has_the_panel_front_and_no_site_runtime() {
   echo "A fresh image has nginx, the panel's front, and no PHP-FPM, Apache or Node.js; the census pattern matched a planted runtime."
 }
 
+# removal_dry_run: the family's dry run of removing one package, the argv the agent's adapter
+# builds (agent/crates/distro/src/{debian,rhel,suse}/*_removal.rs), spelled out here so editing the
+# adapter cannot also edit its check. Prints what the package manager printed; the exit status is
+# the caller's to read.
+removal_dry_run() {
+  local package="$1"
+  case "${MARAN_OS_FAMILY:-}" in
+    debian) apt-get -s -q -o Debug::NoLocking=true remove -- "$package" 2>&1 ;;
+    rhel) dnf remove --assumeno -- "$package" 2>&1 ;;
+    suse) zypper --non-interactive remove --dry-run -- "$package" 2>&1 ;;
+    *) fail "removal_dry_run: MARAN_OS_FAMILY is '${MARAN_OS_FAMILY:-}', which this part does not know" ;;
+  esac
+}
+
+# assert_a_removal_dry_run_changes_nothing: the dry run the agent runs before every removal (issue
+# #527) on the real package manager of this image.
+#
+# It must print a plan that names the package, and leave the package installed. The inverse control
+# is a package that is not installed: its dry run must not print a removal plan naming it, which is
+# what the agent's readers refuse (a removal that cannot be understood is not started). The
+# readers themselves are Rust and are held by recorded fixtures (agent/crates/distro/tests/fixtures/
+# package_manager/); what is asserted here is that this image's manager still prints a plan of the
+# shape they were recorded from.
+assert_a_removal_dry_run_changes_nothing() {
+  local package="$1" plan absent_plan
+  plan="$(removal_dry_run "$package" || true)"
+  case "$plan" in
+    *"$package"*) ;;
+    *) fail "the dry run of removing ${package} does not name it, so the agent could not read what a removal would take: ${plan}" ;;
+  esac
+  package_is_installed "$package" \
+    || fail "the dry run of removing ${package} REMOVED it. A dry run that changes the host is not one."
+
+  absent_plan="$(removal_dry_run maran-polygon-no-such-package || true)"
+  case "$absent_plan" in
+    *"Remv maran-polygon-no-such-package"* | *"Removing:"*"maran-polygon-no-such-package"* | *"going to be REMOVED"*)
+      fail "the dry run of a package that is not installed printed a removal plan naming it: ${absent_plan}" ;;
+  esac
+  echo "the family's removal dry run named ${package}, changed nothing, and printed no plan for a package that is not installed."
+}
+
 # assert_an_app_installs_and_uninstalls_through_the_package_units: one app, installed and removed.
 #
 # `systemctl start maran-app-install@<package>.service` through the stand-in runs the install argv and
@@ -125,6 +166,8 @@ assert_an_app_installs_and_uninstalls_through_the_package_units() {
     || fail "${unit_install} failed, so the app route cannot install ${package} on this family"
   package_is_installed "$package" \
     || fail "${unit_install} returned success but ${package} is not in the package database"
+
+  assert_a_removal_dry_run_changes_nothing "$package"
 
   systemctl start "$unit_remove" \
     || fail "${unit_remove} failed, so the app route cannot remove ${package} on this family"

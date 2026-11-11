@@ -493,7 +493,7 @@ done < <(registered_types_in_common)
 #    related platform-fact functions rather than growing a file per function. Listed here
 #    rather than inferred, same as the subject-named single-item exceptions below.
 concern_files='debian_paths|debian_packages|debian_package_candidates|debian_services|debian_php_extensions|rhel_paths|rhel_packages|rhel_package_candidates|rhel_services|rhel_php_extensions'
-concern_files="$concern_files|debian_apps|rhel_apps|suse_apps"
+concern_files="$concern_files|debian_apps|rhel_apps|suse_apps|debian_removal|rhel_removal|suse_removal"
 concern_files="$concern_files|suse_paths|suse_packages|suse_package_candidates|suse_services|suse_account_programs|suse_mail_services|suse_dns_services|suse_php_extensions"
 while IFS= read -r file; do
   units=$(grep -cE '^pub (struct|enum|trait|fn|async fn) ' "$file")
@@ -687,7 +687,7 @@ subject_named='adapter|adapter_for|detect|distro_info|os_release|family|path|nam
 subject_named="$subject_named|directory|current_uid|unit|pool|error|server"
 subject_named="$subject_named|agent_options|options_error|peer_policy|peer_guard|render_validate_swap|rollback_guard"
 subject_named="$subject_named|debian_paths|debian_packages|debian_package_candidates|debian_services|debian_php_extensions|rhel_paths|rhel_packages|rhel_package_candidates|rhel_services|rhel_php_extensions"
-subject_named="$subject_named|debian_apps|rhel_apps|suse_apps"
+subject_named="$subject_named|debian_apps|rhel_apps|suse_apps|debian_removal|rhel_removal|suse_removal"
 subject_named="$subject_named|suse_paths|suse_packages|suse_package_candidates|suse_services|suse_account_programs|suse_mail_services|suse_dns_services|suse_php_extensions"
 
 # 16b. Every name in that list still has a file. An exemption for a file that does not exist is

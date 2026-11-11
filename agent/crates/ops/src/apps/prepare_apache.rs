@@ -188,7 +188,7 @@ fn write_if_different<H: AppsHost>(
 }
 
 /// Folds a failure to run a program into this area's list, a bound staying a bound.
-fn failed(error: SafeWriteError) -> AppsOpError {
+pub(crate) fn failed(error: SafeWriteError) -> AppsOpError {
     match error {
         SafeWriteError::Bound(bound) => AppsOpError::Package(PackageError::Bound(bound)),
         other => AppsOpError::ServiceManager {

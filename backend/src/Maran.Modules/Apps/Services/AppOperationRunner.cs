@@ -22,6 +22,13 @@ namespace Maran.Modules.Apps.Services;
 /// <c>AppsOutcomeUnobserved</c> and marks the row failed, which says what happened rather than guessing.
 /// </para>
 /// <para>
+/// <b>An install whose outcome was not observed asks the host.</b> The packages may have landed before the
+/// stream went quiet, and a row marked failed for an app the host has would keep the stack not ready (and
+/// the first-run screen shut) until the next restart. So, as a removal that failed does, the install asks
+/// the host what it has: the app there means installed and the task completes, the app absent or the host
+/// unreachable means failed. An install the agent itself reported as failed is not second-guessed.
+/// </para>
+/// <para>
 /// <b>The ledger settles before the task closes.</b> The first-run screen leaves when the task is
 /// complete and then asks for the stack, so a task that closed first would leave a window in which the
 /// stack still said "not ready".
@@ -154,7 +161,7 @@ public sealed class AppOperationRunner
 
         if (message.Operation == AppOperation.Install)
         {
-            await SettleInstallAsync(message, failure is null, cancellationToken);
+            failure = await SettleInstallAsync(message, failure, cancellationToken);
         }
         else if (failure is null)
         {
@@ -214,26 +221,26 @@ public sealed class AppOperationRunner
 
     /// <summary>Settles the row of an install: installed at the host's version, or failed.</summary>
     /// <param name="message">The accepted operation.</param>
-    /// <param name="succeeded">Whether the stream ended in a completion.</param>
+    /// <param name="failure">What the stream ended in: null for a completion, otherwise the failure.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A task that completes once the row is saved.</returns>
-    private async Task SettleInstallAsync(
+    /// <returns>
+    /// Null when the app is installed, whether the stream said so or the host did when the stream did not say
+    /// anything; otherwise the failure the task is closed with.
+    /// </returns>
+    private async Task<Error?> SettleInstallAsync(
         AppOperationRequested message,
-        bool succeeded,
+        Error? failure,
         CancellationToken cancellationToken)
     {
         var row = await FindRowAsync(message.AppId, cancellationToken);
         if (row is null)
         {
-            return;
+            return failure;
         }
 
         var now = _clock.UtcNow;
-        if (!succeeded)
-        {
-            row.MarkFailed(now);
-        }
-        else
+        var settled = failure;
+        if (failure is null)
         {
             var hostVersion = await HostVersionOfAsync(message.AppId, cancellationToken);
 
@@ -241,8 +248,36 @@ public sealed class AppOperationRunner
             // version: an unknown version is the empty string, and the next start-up pass fills it in.
             row.MarkInstalled(hostVersion.IsSuccess ? hostVersion.Value ?? string.Empty : string.Empty, now);
         }
+        else if (IsUnobserved(failure))
+        {
+            var hostVersion = await HostVersionOfAsync(message.AppId, cancellationToken);
+            if (hostVersion.IsSuccess && hostVersion.Value is not null)
+            {
+                // The stream said nothing, the host has the app: the install is done.
+                row.MarkInstalled(hostVersion.Value, now);
+                settled = null;
+            }
+            else
+            {
+                // Absent, or the host cannot be asked: nobody knows it landed, so the row says failed.
+                row.MarkFailed(now);
+            }
+        }
+        else
+        {
+            row.MarkFailed(now);
+        }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+        return settled;
+    }
+
+    /// <summary>Whether a failure is the panel's own "the stream never stated an outcome".</summary>
+    /// <param name="failure">The failure.</param>
+    /// <returns>True when the stream ended without a terminal event.</returns>
+    private static bool IsUnobserved(Error failure)
+    {
+        return string.Equals(failure.Code, OutcomeUnobserved.Code, StringComparison.Ordinal);
     }
 
     /// <summary>Removes the row of an app the agent removed.</summary>

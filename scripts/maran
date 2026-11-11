@@ -36,6 +36,7 @@ usage: maran <command> [arguments]
   api        SPA request bodies against the commands they bind; --accept records (api-contract.sh)
   openapi    the API's OpenAPI document vs a committed baseline; --accept records, selftest (openapi.sh)
   units      systemd-analyze security score of each shipped unit vs a ceiling; --accept, selftest (unit-security.sh)
+  codeql     SARIF filter: drop generated obj/ results; selftest        (codeql-sarif-filter.sh)
   format     every language, or one; --check verifies without writing  (format.sh)
   agent      the Rust toolchain: build|test|lint|fmt|check            (agent.sh)
   test       whole-suite verdict: per-target totals vs a committed baseline (test-verdict.sh)
@@ -78,6 +79,7 @@ case "$command_name" in
   api)       exec bash "$root/scripts/lib/api-contract.sh" "$@" ;;
   openapi)   exec bash "$root/scripts/lib/openapi.sh" "$@" ;;
   units)     exec bash "$root/scripts/lib/unit-security.sh" "$@" ;;
+  codeql)    exec bash "$root/scripts/lib/codeql-sarif-filter.sh" "$@" ;;
   format)    exec bash "$root/scripts/lib/format.sh" "$@" ;;
   agent)     exec bash "$root/scripts/lib/agent.sh" "$@" ;;
   test)      exec bash "$root/scripts/lib/test-verdict.sh" "$@" ;;

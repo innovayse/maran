@@ -199,6 +199,20 @@ service MailService {
   // deleted. Idempotent.
   // Cancellation class: run to completion.
   rpc FlushMailQueue(FlushMailQueueRequest) returns (FlushMailQueueResponse);
+
+  // Binds mail an account submits LOCALLY (sendmail, PHP mail(), cron) to the
+  // account: the system user may send only from the account's own domains and
+  // shares the account's hourly send limit with its authenticated mailboxes.
+  // The call REPLACES the account's whole binding; the maps are rewritten with
+  // the safe-write protocol and the filter is reloaded. Idempotent.
+  // Cancellation class: run to completion.
+  rpc SetLocalSubmission(SetLocalSubmissionRequest) returns (SetLocalSubmissionResponse);
+
+  // Removes the account's local submission binding: its system user can no
+  // longer submit mail locally. Called on suspension and deletion. Idempotent:
+  // an account with no binding answers OK.
+  // Cancellation class: run to completion.
+  rpc RemoveLocalSubmission(RemoveLocalSubmissionRequest) returns (RemoveLocalSubmissionResponse);
 }
 
 // A three-valued fact about the host. The third value exists because "no" and
@@ -802,3 +816,45 @@ message FlushMailQueueOk {
   // The queue size after the flush was requested; ABSENT when not read.
   MailQueueSize queue = 1;
 }
+
+message SetLocalSubmissionRequest {
+  // System username of the account whose local submission is bound. The agent
+  // reads the account's numeric user id from the host's user database itself;
+  // NOT_FOUND when the account has no system user, INVALID_INPUT when it is
+  // root or a system account.
+  string account_username = 1;
+  // Every mail domain the account may send from. The list REPLACES the
+  // account's whole set; at most 1000, no repeats. May be empty (the account
+  // can then send nothing locally).
+  repeated string domains = 2;
+  // Messages per hour the account may send, local and authenticated together,
+  // 1 to 100000. Zero is refused, never read as "no limit".
+  uint32 send_limit_per_hour = 3;
+  // Login (full address) of every mailbox of the account, so authenticated
+  // submission counts against the same limit. The list REPLACES the account's
+  // whole set; at most 10000, no repeats. May be empty.
+  repeated string mailbox_logins = 4;
+}
+
+message SetLocalSubmissionResponse {
+  oneof result {
+    SetLocalSubmissionOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message SetLocalSubmissionOk {}
+
+message RemoveLocalSubmissionRequest {
+  // System username of the account whose local submission binding is removed.
+  string account_username = 1;
+}
+
+message RemoveLocalSubmissionResponse {
+  oneof result {
+    RemoveLocalSubmissionOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message RemoveLocalSubmissionOk {}

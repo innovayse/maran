@@ -558,6 +558,7 @@ for __part in \
   "${ASSERT_PARTS_DIR}/ftps.sh" \
   "${ASSERT_PARTS_DIR}/dns.sh" \
   "${ASSERT_PARTS_DIR}/mail-uninstall.sh" \
+  "${ASSERT_PARTS_DIR}/mail-local-submit.sh" \
   "${ASSERT_PARTS_DIR}/artifacts-and-packages.sh" \
   "${ASSERT_PARTS_DIR}/cli-recovery.sh" \
   "${ASSERT_PARTS_DIR}/cli-update.sh" \
@@ -753,6 +754,8 @@ main() {
   # uninstaller's remove_mail against the systemctl stand-in and removes only /etc/maran/mail, which
   # it refuses to start without, so it does not depend on the order of anything above it.
   assert_remove_mail_stops_only_the_recorded_key_value_unit
+  # Local submission binding (issue #518): needs a running mail stack, says so where there is none.
+  assert_local_submission_is_bound_to_the_account
   # The SUSE family does not offer mail until it is measured: the step must skip in plain words and
   # leave nothing behind. After the uninstall half above, which plants and removes its own records.
   if [ "${MARAN_OS_FAMILY:-}" = suse ]; then

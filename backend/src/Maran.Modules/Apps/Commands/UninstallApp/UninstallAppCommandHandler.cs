@@ -135,7 +135,28 @@ public sealed class UninstallAppCommandHandler
             cancellationToken);
 
         row.BeginRemoval(taskId, _clock.UtcNow);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        Error? lost = null;
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception)
+        {
+            // The row changed since it was read: another request began an operation on it first. Its task
+            // is the one that runs and this one never will. Any other database failure propagates.
+            lost = AppLedgerConflicts.Classify(exception);
+            if (lost is null)
+            {
+                throw;
+            }
+        }
+
+        if (lost is not null)
+        {
+            await _tasks.FailAsync(taskId, lost.Code, CancellationToken.None);
+
+            return await RefuseAsync(command, lost, extension: null, cancellationToken);
+        }
 
         await _journal.RecordRequestAsync(
             AppsAuditJournal.AppUninstallRequested,

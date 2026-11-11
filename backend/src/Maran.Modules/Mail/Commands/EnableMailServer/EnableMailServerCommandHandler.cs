@@ -23,6 +23,11 @@ namespace Maran.Modules.Mail.Commands.EnableMailServer;
 /// also how an operator repairs a host whose configuration was lost. The webmail master hash is not
 /// part of this call, so none is sent.
 /// </para>
+/// <para>
+/// <b>Existing accounts are bound once the row is written</b> (issue #518): every account that is not
+/// suspended gets its local submission binding, so cron and PHP mail of accounts that predate mail are held to
+/// their own domains and send limit like the rest.
+/// </para>
 /// </remarks>
 public sealed class EnableMailServerCommandHandler
 {
@@ -35,6 +40,9 @@ public sealed class EnableMailServerCommandHandler
     /// <summary>This module's audit journal.</summary>
     private readonly MailAuditJournal _journal;
 
+    /// <summary>Binds the local mail submission of the accounts that existed before mail was enabled.</summary>
+    private readonly MailLocalSubmissionPublisher _submission;
+
     /// <summary>The injectable time source; the ambient clock is a banned symbol.</summary>
     private readonly IClock _clock;
 
@@ -42,16 +50,19 @@ public sealed class EnableMailServerCommandHandler
     /// <param name="dbContext">The Mail module's database context.</param>
     /// <param name="agent">The agent client that configures and starts the daemons.</param>
     /// <param name="journal">This module's audit journal.</param>
+    /// <param name="submission">Binds the local mail submission of the existing accounts.</param>
     /// <param name="clock">The injectable time source.</param>
     public EnableMailServerCommandHandler(
         MailDbContext dbContext,
         IAgentMailClient agent,
         MailAuditJournal journal,
+        MailLocalSubmissionPublisher submission,
         IClock clock)
     {
         _dbContext = dbContext;
         _agent = agent;
         _journal = journal;
+        _submission = submission;
         _clock = clock;
     }
 
@@ -112,6 +123,13 @@ public sealed class EnableMailServerCommandHandler
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+
+        // Accounts created before mail was on have no binding yet, and the bindings of accounts deleted or
+        // suspended while it was off are still on the host. Reconciled after the row says mail is on, because
+        // the publisher sends nothing while it is off: every account that is not suspended is pushed and every
+        // stale binding removed. A failure for one account is recorded and the enabling stands; the scheduled
+        // reconcile retries it.
+        await _submission.ReconcileAsync(pushEveryAccount: true, cancellationToken);
 
         await _journal.RecordSuccessAsync(
             HostedMailAuditActions.MailServerEnabled,

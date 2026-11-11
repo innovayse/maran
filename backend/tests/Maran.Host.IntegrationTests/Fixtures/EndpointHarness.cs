@@ -6,6 +6,7 @@ using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
+using Maran.Modules.Mail.Persistence;
 using Maran.Modules.Monitoring.Persistence;
 using Maran.Modules.Notifications.Interfaces;
 using Maran.Modules.Notifications.Persistence;
@@ -86,6 +87,9 @@ public static class EndpointHarness
         await scope.ServiceProvider.GetRequiredService<IdentityDbContext>().Database.MigrateAsync();
         await scope.ServiceProvider.GetRequiredService<AccountsDbContext>().Database.MigrateAsync();
         await scope.ServiceProvider.GetRequiredService<NotificationsDbContext>().Database.MigrateAsync();
+
+        // Creating an account notifies Mail, which reads its own tables to bind local submission (issue #518).
+        await scope.ServiceProvider.GetRequiredService<MailDbContext>().Database.MigrateAsync();
 
         // A refused two-factor code reads the latest clock reading from Monitoring (issue #150).
         await scope.ServiceProvider.GetRequiredService<MonitoringDbContext>().Database.MigrateAsync();

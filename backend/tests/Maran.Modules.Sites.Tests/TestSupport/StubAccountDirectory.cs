@@ -110,6 +110,12 @@ public sealed class StubAccountDirectory : IAccountDirectory
         return Task.FromResult(ids);
     }
 
+    /// <inheritdoc />
+    public Task<AccountSnapshot?> FindForSystemAsync(Guid accountId, CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("These tests read no account unscoped.");
+    }
+
     /// <summary>Answers an account's system user name without any tenant scope, exactly as the contract says the real one does.</summary>
     /// <param name="accountId">The account to read.</param>
     /// <param name="cancellationToken">Unused.</param>

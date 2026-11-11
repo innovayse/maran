@@ -24,7 +24,7 @@ fn stages_for(family: DistroFamily, version_id: &str, pop3: bool) -> Vec<MailSta
         settings()
     };
     let certificate = FakeMailHost::new().certificate_state(&hostname()).unwrap();
-    build_mail_stages(adapter, &layout, &settings, &certificate).unwrap()
+    build_mail_stages(adapter, &layout, &settings, &certificate, 105).unwrap()
 }
 
 fn stage_of(stages: &[MailStage], daemon: MailDaemon) -> &MailStage {
@@ -163,7 +163,7 @@ fn dovecot_is_checked_by_doveconf_and_rspamd_by_its_configtest() {
 }
 
 #[test]
-fn rspamd_gets_three_additions_and_two_overrides() {
+fn rspamd_gets_five_additions_and_two_overrides() {
     let stages = stages_for(DistroFamily::Debian, VERSION_ID, false);
     let rspamd = stage_of(&stages, MailDaemon::Rspamd);
 
@@ -178,6 +178,8 @@ fn rspamd_gets_three_additions_and_two_overrides() {
             "/etc/rspamd/local.d/redis.conf",
             "/etc/rspamd/local.d/actions.conf",
             "/etc/rspamd/local.d/dkim_signing.conf",
+            "/etc/rspamd/local.d/maran_local_submit.conf",
+            "/etc/rspamd/lua.local.d/maran_local_submit.lua",
             "/etc/rspamd/override.d/worker-proxy.inc",
             "/etc/rspamd/override.d/worker-controller.inc",
         ]
@@ -218,4 +220,17 @@ fn valkey_is_configured_where_the_adapter_says_on_release_10() {
         server.files[0].target.to_string_lossy(),
         "/etc/valkey/valkey.conf"
     );
+}
+
+#[test]
+fn the_local_submission_rule_exempts_root_and_the_postfix_uid() {
+    let stages = stages_for(DistroFamily::Debian, VERSION_ID, false);
+    let rspamd = stage_of(&stages, MailDaemon::Rspamd);
+    let settings = rspamd
+        .files
+        .iter()
+        .find(|file| file.target.ends_with("local.d/maran_local_submit.conf"))
+        .unwrap();
+    assert!(settings.contents.contains("exempt_uids = [0, 105];"));
+    assert!(settings.contents.contains("max_recipients = 100;"));
 }

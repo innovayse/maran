@@ -5,6 +5,7 @@
 use std::path::Path;
 
 use maran_agent_core::validation::apps::validated_app_id::ValidatedAppId;
+use maran_distro::{DistroFamily, adapter_for};
 
 use super::{installed_version, is_installed, version_after};
 use crate::php::fake_php_host::{FakePhpHost, distro};
@@ -56,6 +57,40 @@ fn a_node_major_is_installed_only_when_the_interpreter_reports_that_major() {
     assert!(!is_installed(&host, distro(), &id("nodejs-22")).unwrap());
     // `v2` is a prefix of `v20`, which a text prefix test would accept.
     assert!(!is_installed(&host, distro(), &id("nodejs-18")).unwrap());
+}
+
+#[test]
+fn a_second_node_major_beside_the_first_is_found_by_its_own_interpreter() {
+    // The per-major families install each major as a file of its own. Asking the one `node`
+    // would report 20 for both questions, and the install of 22 would read as StillAbsent.
+    let adapter = adapter_for(DistroFamily::Suse);
+    let host = FakePhpHost::empty();
+    host.answer_program("/usr/bin/node20", 0, "v20.11.1\n", "");
+    host.answer_program("/usr/bin/node22", 0, "v22.3.0\n", "");
+
+    assert!(is_installed(&host, adapter, &id("nodejs-20")).unwrap());
+    assert!(is_installed(&host, adapter, &id("nodejs-22")).unwrap());
+    assert_eq!(
+        installed_version(&host, adapter, &id("nodejs-22")).unwrap(),
+        "22.3.0"
+    );
+}
+
+#[test]
+fn a_node_major_whose_own_interpreter_is_missing_is_absent_although_another_major_runs() {
+    // Inverse control: only 20 is installed. 22 must not be reported through 20's file.
+    let adapter = adapter_for(DistroFamily::Suse);
+    let host = FakePhpHost::empty();
+    host.answer_program("/usr/bin/node20", 0, "v20.11.1\n", "");
+    host.answer_program("/usr/bin/node22", 1, "", "");
+
+    assert!(is_installed(&host, adapter, &id("nodejs-20")).unwrap());
+    assert!(!is_installed(&host, adapter, &id("nodejs-22")).unwrap());
+    assert!(
+        host.commands()
+            .iter()
+            .any(|call| call[0] == "/usr/bin/node22")
+    );
 }
 
 #[test]

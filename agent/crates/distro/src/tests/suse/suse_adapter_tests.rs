@@ -17,6 +17,7 @@
 
 use std::path::Component;
 
+use maran_agent_core::validation::web::node_major::NodeMajor;
 use maran_agent_core::validation::web::php_version::PhpVersion;
 
 use super::SuseAdapter;
@@ -262,7 +263,10 @@ fn every_executable() -> Vec<(&'static str, AdapterBinary)> {
     vec![
         ("nginx", SuseAdapter.nginx_binary()),
         ("apache", SuseAdapter.apache_binary()),
-        ("node", SuseAdapter.node_binary()),
+        (
+            "node",
+            SuseAdapter.node_binary(&NodeMajor::parse("20").unwrap()),
+        ),
         ("service_manager", SuseAdapter.service_manager()),
         ("journal", SuseAdapter.journal_binary()),
         ("systemd_run", SuseAdapter.systemd_run_binary()),
@@ -672,10 +676,20 @@ fn the_suse_family_names_rsync_at_its_documented_path() {
 /// The Suse family names Apache's control script, unit, user and group as its packages ship them.
 #[test]
 fn the_suse_family_names_the_apache_facts_of_its_packages() {
-    assert_eq!(SuseAdapter.apache_binary(), "/usr/sbin/apache2ctl");
+    // The package ships no control script: `/usr/sbin/httpd` is the one program that is there.
+    assert_eq!(SuseAdapter.apache_binary(), "/usr/sbin/httpd");
     assert_eq!(SuseAdapter.apache_service(), "apache2");
     assert_eq!(SuseAdapter.apache_user(), "wwwrun");
     assert_eq!(SuseAdapter.apache_group(), "www");
+}
+
+/// The SUSE family does not name a control script its `apache2` package does not ship: the old
+/// answer, `apache2ctl`, is a path that does not exist on a host with only `apache2` installed.
+#[test]
+fn the_suse_family_does_not_name_a_control_script_its_package_lacks() {
+    for script in ["/usr/sbin/apache2ctl", "/usr/sbin/apachectl"] {
+        assert_ne!(SuseAdapter.apache_binary(), script);
+    }
 }
 
 /// Apache's identity is its own answer and not nginx's: the inverse control for the test above,
@@ -692,9 +706,38 @@ fn the_suse_family_does_not_answer_the_nginx_facts_for_apache() {
 /// A site's unit runs Node.js and npm from absolute paths the adapter names.
 #[test]
 fn the_suse_family_names_the_node_launchers_by_absolute_path() {
-    assert!(SuseAdapter.node_executable().starts_with('/'));
-    assert!(SuseAdapter.npm_executable().starts_with('/'));
-    assert_ne!(SuseAdapter.node_executable(), SuseAdapter.npm_executable());
+    let major = NodeMajor::parse("20").unwrap();
+    assert!(SuseAdapter.node_executable(&major).starts_with('/'));
+    assert!(SuseAdapter.npm_executable(&major).starts_with('/'));
+    assert_ne!(
+        SuseAdapter.node_executable(&major),
+        SuseAdapter.npm_executable(&major)
+    );
+}
+
+/// Each Node.js major has its own interpreter on the SUSE family (issue #530): two majors never
+/// share a path, and a site's unit runs the file the installed probe asks.
+#[test]
+fn the_suse_family_gives_each_node_major_its_own_interpreter() {
+    let twenty = NodeMajor::parse("20").unwrap();
+    let twenty_two = NodeMajor::parse("22").unwrap();
+
+    assert_eq!(SuseAdapter.node_binary(&twenty), "/usr/bin/node20");
+    assert_eq!(SuseAdapter.node_binary(&twenty_two), "/usr/bin/node22");
+    assert_ne!(
+        SuseAdapter.node_executable(&twenty),
+        SuseAdapter.node_executable(&twenty_two)
+    );
+    assert_ne!(
+        SuseAdapter.npm_executable(&twenty),
+        SuseAdapter.npm_executable(&twenty_two)
+    );
+    assert_eq!(
+        SuseAdapter.node_binary(&twenty).as_str(),
+        SuseAdapter.node_executable(&twenty)
+    );
+    // The launchers observed on Leap 16.0 (`rpm -ql npm22`): `/usr/bin/npm22`, beside `node22`.
+    assert_eq!(SuseAdapter.npm_executable(&twenty_two), "/usr/bin/npm22");
 }
 
 /// The facts asked with a web server answer that server's own, never the other's.
@@ -730,10 +773,24 @@ fn the_suse_family_names_the_packages_of_the_app_catalogue() {
     assert_eq!(SuseAdapter.apache_package(), "apache2");
     assert_eq!(SuseAdapter.apache_extra_packages(), &[] as &[&str]);
     assert_eq!(
+        SuseAdapter.apache_companion_packages(),
+        &["apache2-prefork", "apache2-worker", "apache2-event"][..]
+    );
+    assert_eq!(
         SuseAdapter.apache_include_snippet_path(),
         "/etc/apache2/conf.d/maran.conf"
     );
-    assert_eq!(SuseAdapter.nodejs_package("20"), "nodejs20");
+    // Leap 16.0 carries nodejs22 and nodejs24 (observed with `zypper search -s nodejs`).
+    assert_eq!(SuseAdapter.nodejs_package("22"), "nodejs22");
+    // Only the Debian family's package starts Apache from its own maintainer script (issue #529).
+    assert!(DebianAdapter.apache_install_starts_service());
+    assert!(!SuseAdapter.apache_install_starts_service());
+    assert!(!RhelAdapter.apache_install_starts_service());
+    // `nodejs22` does not require its npm, so the app installs `npm22` as well (issue #530).
+    assert_eq!(SuseAdapter.nodejs_extra_packages("22"), vec!["npm22"]);
+    // Inverse control: the other families carry what a unit runs in the main package.
+    assert!(DebianAdapter.nodejs_extra_packages("22").is_empty());
+    assert!(RhelAdapter.nodejs_extra_packages("22").is_empty());
     assert_eq!(
         SuseAdapter.nodejs_packaging(),
         crate::nodejs_packaging::NodejsPackaging::PerMajorPackages

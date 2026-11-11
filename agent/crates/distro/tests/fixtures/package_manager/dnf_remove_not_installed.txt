@@ -1,0 +1,5 @@
+No match for argument: nosuchpkg
+No packages marked for removal.
+Dependencies resolved.
+Nothing to do.
+Complete!

@@ -153,4 +153,20 @@ internal sealed class GrpcMailServiceInvoker : IMailServiceInvoker
     {
         return await Client.FlushMailQueueAsync(request, cancellationToken: cancellationToken);
     }
+
+    /// <inheritdoc/>
+    public async Task<SetLocalSubmissionResponse> SetLocalSubmissionAsync(
+        SetLocalSubmissionRequest request,
+        CancellationToken cancellationToken)
+    {
+        return await Client.SetLocalSubmissionAsync(request, cancellationToken: cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<RemoveLocalSubmissionResponse> RemoveLocalSubmissionAsync(
+        RemoveLocalSubmissionRequest request,
+        CancellationToken cancellationToken)
+    {
+        return await Client.RemoveLocalSubmissionAsync(request, cancellationToken: cancellationToken);
+    }
 }

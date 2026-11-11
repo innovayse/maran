@@ -192,4 +192,20 @@ public sealed class SimulatedAgentMailClient : IAgentMailClient
             0,
             AgentMailObservation.No);
     }
+
+    /// <inheritdoc/>
+    public Task<Result> SetLocalSubmissionAsync(AgentLocalSubmission submission, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return Task.FromResult(Result.Ok());
+    }
+
+    /// <inheritdoc/>
+    public Task<Result> RemoveLocalSubmissionAsync(string accountUsername, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return Task.FromResult(Result.Ok());
+    }
 }

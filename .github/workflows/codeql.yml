@@ -52,7 +52,6 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           queries: security-and-quality
-          config-file: ./.github/codeql/codeql-config.yml
 
       - name: Build the backend
         if: matrix.language == 'csharp'
@@ -61,6 +60,33 @@ jobs:
       - uses: github/codeql-action/autobuild@v4
         if: matrix.language != 'csharp'
 
+      # The upload is switched off here because CodeQL does not apply `paths-ignore` to a compiled
+      # language: the protobuf, gRPC and RegexGenerator sources the build writes under `obj/` are
+      # analysed whatever a configuration file says (issue #523). The results are filtered below
+      # and uploaded by the next step.
       - uses: github/codeql-action/analyze@v4
         with:
+          category: /language:${{ matrix.language }}
+          upload: never
+          output: sarif-results
+
+      # The filter proves itself first (a generated path is dropped, a lookalike is kept), then
+      # rewrites every SARIF file; both print a verdict line and the run is scored on it, never
+      # on an exit status alone. No SARIF file at all is `DID NOT RUN` and fails the job.
+      - name: Drop results in generated code
+        run: |
+          set -o pipefail
+          for mode in selftest "filter sarif-results"; do
+            log="$RUNNER_TEMP/codeql-filter.log"
+            status=0
+            bash scripts/maran codeql $mode 2>&1 | tee "$log" || status=$?
+            if ! grep -qa '^CODEQL-SARIF VERDICT: OK' "$log"; then
+              echo "::error::codeql $mode did not print 'CODEQL-SARIF VERDICT: OK' (status ${status})."
+              exit 1
+            fi
+          done
+
+      - uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: sarif-results
           category: /language:${{ matrix.language }}

@@ -302,4 +302,32 @@ public sealed class ResilientAgentMailClient : IAgentMailClient
             _inner,
             cancellationToken);
     }
+
+    /// <inheritdoc/>
+    public async Task<Result> SetLocalSubmissionAsync(
+        AgentLocalSubmission submission,
+        CancellationToken cancellationToken)
+    {
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
+            async (state, token) =>
+            {
+                return await state.Client.SetLocalSubmissionAsync(state.Submission, token);
+            },
+            (Client: _inner, Submission: submission),
+            cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result> RemoveLocalSubmissionAsync(string accountUsername, CancellationToken cancellationToken)
+    {
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
+            async (state, token) =>
+            {
+                return await state.Client.RemoveLocalSubmissionAsync(state.AccountUsername, token);
+            },
+            (Client: _inner, AccountUsername: accountUsername),
+            cancellationToken);
+    }
 }

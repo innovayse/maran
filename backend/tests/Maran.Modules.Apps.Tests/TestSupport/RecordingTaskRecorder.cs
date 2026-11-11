@@ -21,6 +21,9 @@ public sealed class RecordingTaskRecorder : ITaskRecorder
     /// <summary>Every task opened, in the order they were opened.</summary>
     public List<RecordedTask> Tasks { get; } = [];
 
+    /// <summary>Runs right after a task is opened, so a test can have another request act between a handler's read and its write.</summary>
+    public Action? AfterBegin { get; set; }
+
     /// <inheritdoc />
     public Task<Guid> BeginAsync(
         string kind,
@@ -32,6 +35,7 @@ public sealed class RecordingTaskRecorder : ITaskRecorder
     {
         var recorded = new RecordedTask(Guid.NewGuid(), kind, subject, accountId, audience, correlationId);
         Tasks.Add(recorded);
+        AfterBegin?.Invoke();
         return Task.FromResult(recorded.Id);
     }
 

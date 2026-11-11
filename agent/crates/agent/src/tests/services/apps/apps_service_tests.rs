@@ -124,8 +124,8 @@ impl AppsHost for RecordingHost {
         false
     }
 
-    fn directory_entries(&self, _path: &Path) -> Vec<String> {
-        Vec::new()
+    fn directory_entries(&self, _path: &Path) -> Result<Vec<String>, maran_ops::apps::AppsOpError> {
+        Ok(Vec::new())
     }
 
     fn write_record(

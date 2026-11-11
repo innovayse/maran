@@ -1054,7 +1054,8 @@ remove_dns() {
 # 89-mail.sh recorded in /etc/maran/mail/key-value-unit, never a guessed one) are stopped and disabled, and the masks on the distribution's
 # units are removed — a mask is Maran's edit to a unit Maran does not own, and a /dev/null link left
 # behind would leave the operator with a package they cannot start and no clue why — and the
-# directory of lookup tables, passwd-file and DKIM keys the agent derives from the panel's
+# directory of lookup tables (including the local-submission maps of issue #518, which the Rspamd
+# rule reads and which are all under it, so no map is left behind), passwd-file and DKIM keys the agent derives from the panel's
 # database (rules/architecture.md: truth lives in PostgreSQL), which holds password hashes and
 # private keys and so is not left behind.
 #
@@ -1099,7 +1100,8 @@ remove_mail() {
   rm -rf /etc/maran/mail
   systemctl daemon-reload 2>/dev/null || true
 
-  echo "NOTE: the mail packages, the configuration under /etc/postfix, /etc/dovecot and /etc/rspamd,"
+  echo "NOTE: the mail packages, the configuration under /etc/postfix, /etc/dovecot and /etc/rspamd"
+  echo "      (including the local-submission Lua rule, which fails closed without its maps),"
   echo "      and every mailbox under /home/<account>/mail are NOT removed. Delete them by hand once"
   echo "      nothing needs the mail."
 }

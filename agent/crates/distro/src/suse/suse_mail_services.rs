@@ -138,6 +138,14 @@ pub fn postdrop_group() -> &'static str {
     "maildrop"
 }
 
+/// Absolute path of the `postdrop` program.
+///
+/// See [`MailFacts::postdrop_program`](crate::MailFacts::postdrop_program) for what the value is for and how far it is verified.
+#[must_use]
+pub fn postdrop_program() -> &'static str {
+    "/usr/sbin/postdrop"
+}
+
 /// The Dovecot system user on the SUSE family.
 ///
 /// See [`MailFacts::dovecot_user`](crate::MailFacts::dovecot_user).

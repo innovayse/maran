@@ -11,6 +11,7 @@
 
 use std::path::Component;
 
+use maran_agent_core::validation::web::node_major::NodeMajor;
 use maran_agent_core::validation::web::php_version::PhpVersion;
 
 use super::DebianAdapter;
@@ -293,7 +294,10 @@ fn every_executable() -> Vec<(&'static str, AdapterBinary)> {
     vec![
         ("nginx", DebianAdapter.nginx_binary()),
         ("apache", DebianAdapter.apache_binary()),
-        ("node", DebianAdapter.node_binary()),
+        (
+            "node",
+            DebianAdapter.node_binary(&NodeMajor::parse("20").unwrap()),
+        ),
         ("service_manager", DebianAdapter.service_manager()),
         ("journal", DebianAdapter.journal_binary()),
         ("systemd_run", DebianAdapter.systemd_run_binary()),
@@ -617,11 +621,29 @@ fn the_debian_family_does_not_answer_the_nginx_facts_for_apache() {
 /// A site's unit runs Node.js and npm from absolute paths the adapter names.
 #[test]
 fn the_debian_family_names_the_node_launchers_by_absolute_path() {
-    assert!(DebianAdapter.node_executable().starts_with('/'));
-    assert!(DebianAdapter.npm_executable().starts_with('/'));
+    let major = NodeMajor::parse("20").unwrap();
+    assert!(DebianAdapter.node_executable(&major).starts_with('/'));
+    assert!(DebianAdapter.npm_executable(&major).starts_with('/'));
     assert_ne!(
-        DebianAdapter.node_executable(),
-        DebianAdapter.npm_executable()
+        DebianAdapter.node_executable(&major),
+        DebianAdapter.npm_executable(&major)
+    );
+}
+
+/// The Debian family has one `nodejs` package and so one interpreter: every major answers the
+/// same path, and the unit's executable is the probe's binary.
+#[test]
+fn the_debian_family_answers_one_node_interpreter_for_every_major() {
+    let twenty = NodeMajor::parse("20").unwrap();
+    let twenty_two = NodeMajor::parse("22").unwrap();
+
+    assert_eq!(
+        DebianAdapter.node_executable(&twenty),
+        DebianAdapter.node_executable(&twenty_two)
+    );
+    assert_eq!(
+        DebianAdapter.node_binary(&twenty).as_str(),
+        DebianAdapter.node_executable(&twenty)
     );
 }
 
@@ -660,6 +682,7 @@ fn the_debian_family_names_the_packages_of_the_app_catalogue() {
     assert_eq!(DebianAdapter.nginx_package(), "nginx");
     assert_eq!(DebianAdapter.apache_package(), "apache2");
     assert_eq!(DebianAdapter.apache_extra_packages(), &[] as &[&str]);
+    assert_eq!(DebianAdapter.apache_companion_packages(), &[] as &[&str]);
     assert_eq!(
         DebianAdapter.apache_include_snippet_path(),
         "/etc/apache2/conf-enabled/maran.conf"

@@ -186,6 +186,19 @@ fn every_validator_is_a_check_except_the_six_that_have_no_check_mode() {
                 "&stage.validator_program",
                 "stage.validator_class"
             ),
+            // The local-submission tables (issue #518): the same two actions as seeding, for the
+            // same reasons. `rspamadm configtest` compiles the rule set, so it takes the long
+            // class; `postmap` writes the index Postfix reads, so it is a Mutation.
+            row(
+                "mail/local_submission_tables.rs",
+                "&distro.rspamadm_binary()",
+                "CallClass::Reload"
+            ),
+            row(
+                "mail/local_submission_tables.rs",
+                "&distro.postmap_binary()",
+                "CallClass::Mutation"
+            ),
             // Seeding the empty lookup tables (issue #177). `postmap` writes the index file it
             // is asked to build, so it is an action on a file the daemon reads and runs in the
             // Mutation class; `doveconf -n` is a pure parse; `rspamadm configtest` is pure but
@@ -195,6 +208,11 @@ fn every_validator_is_a_check_except_the_six_that_have_no_check_mode() {
                 "mail/seed_mail_maps.rs",
                 "&distro.doveconf_binary()",
                 "CallClass::Validate"
+            ),
+            row(
+                "mail/seed_mail_maps.rs",
+                "&distro.rspamadm_binary()",
+                "CallClass::Reload"
             ),
             row(
                 "mail/seed_mail_maps.rs",
@@ -341,10 +359,14 @@ fn every_mutating_validator_runs_in_the_reload_class_and_every_pure_one_in_valid
 
     for (file, program, class) in &sites {
         // Named exceptions, each with its reason in the census above: a stage whose class is
-        // data, `postmap` (writes an index) and `rspamadm configtest` (compiles the rule set).
+        // data, `postmap` (writes an index) and `rspamadm configtest` (compiles the rule set), in both the seeding and the local-submission tables.
         if class == "stage.validator_class"
-            || (file == "mail/seed_mail_maps.rs"
-                && (program == "&postmap" || program == "&distro.rspamadm_binary()"))
+            || (matches!(
+                file.as_str(),
+                "mail/seed_mail_maps.rs" | "mail/local_submission_tables.rs"
+            ) && (program == "&postmap"
+                || program == "&distro.postmap_binary()"
+                || program == "&distro.rspamadm_binary()"))
         {
             continue;
         }

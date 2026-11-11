@@ -16,7 +16,7 @@ fn postfix_stage(host: &FakeMailHost) -> MailStage {
     let layout = MailLayout::resolve(distro(), VERSION_ID).unwrap();
     let settings = settings();
     let certificate = host.certificate_state(&hostname()).unwrap();
-    build_mail_stages(distro(), &layout, &settings, &certificate)
+    build_mail_stages(distro(), &layout, &settings, &certificate, 105)
         .unwrap()
         .into_iter()
         .find(|stage| stage.daemon == MailDaemon::Postfix)

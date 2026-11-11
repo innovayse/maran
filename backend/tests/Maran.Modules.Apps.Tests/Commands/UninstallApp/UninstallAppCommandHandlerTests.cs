@@ -131,4 +131,44 @@ public sealed class UninstallAppCommandHandlerTests
         Assert.Equal("AppsNotInstalled", result.Error!.Code);
         Assert.Empty(world.Tasks.Tasks);
     }
+
+    /// <summary>
+    /// Issue #526: two removals that read the same installed row cannot both start. The rival begins its removal
+    /// between this request's read and its write, so this one gets the typed conflict and no uninstall is dispatched.
+    /// </summary>
+    [Fact]
+    public async Task A_removal_that_loses_the_race_is_a_conflict()
+    {
+        using var world = new AppsWorld();
+        Install(world, "php-8.3");
+        var rivalTask = Guid.NewGuid();
+        world.Tasks.AfterBegin = () =>
+        {
+            using var rival = world.RivalDb();
+            rival.InstalledApps.Single().BeginRemoval(rivalTask, AppsWorld.Now);
+            rival.SaveChanges();
+        };
+
+        var result = await HandlerOver(world).HandleAsync(new UninstallAppCommand("php-8.3"), default);
+
+        Assert.Equal("AppsOperationInProgress", result.Error!.Code);
+        Assert.Equal(ErrorType.Conflict, result.Error.Type);
+        Assert.Equal("AppsOperationInProgress", Assert.Single(world.Tasks.Tasks).FailureCode);
+        Assert.Empty(world.Dispatcher.Dispatched);
+        using var check = world.RivalDb();
+        Assert.Equal(rivalTask, check.InstalledApps.Single().TaskId);
+    }
+
+    /// <summary>The control: with no rival the same removal is accepted and dispatched once.</summary>
+    [Fact]
+    public async Task A_removal_with_no_rival_is_dispatched_once()
+    {
+        using var world = new AppsWorld();
+        Install(world, "php-8.3");
+
+        var result = await HandlerOver(world).HandleAsync(new UninstallAppCommand("php-8.3"), default);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(world.Dispatcher.Dispatched);
+    }
 }

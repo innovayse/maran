@@ -6,6 +6,7 @@ pub mod debian_package_candidates;
 pub mod debian_packages;
 pub mod debian_paths;
 pub mod debian_php_extensions;
+pub mod debian_removal;
 pub mod debian_services;
 
 pub use debian_adapter::DebianAdapter;

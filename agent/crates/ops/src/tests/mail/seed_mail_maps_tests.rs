@@ -7,12 +7,19 @@ use crate::mail::fake_mail_host::{FakeMailHost, distro};
 use crate::mail::model::mail_daemon::MailDaemon;
 use crate::mail::seed_mail_maps::seed_mail_maps;
 
-const TABLES: [&str; 5] = [
+/// How many of [`TABLES`] are Postfix lookup tables, which `postmap` indexes.
+const POSTFIX_TABLES: usize = 5;
+
+const TABLES: [&str; 9] = [
     "/etc/maran/mail/virtual_domains",
     "/etc/maran/mail/virtual_mailboxes",
     "/etc/maran/mail/virtual_aliases",
     "/etc/maran/mail/sender_login_maps",
     "/etc/postfix/maran_local_submit_users",
+    "/etc/maran/mail/local_submit_accounts.map",
+    "/etc/maran/mail/account_sender_domains.map",
+    "/etc/maran/mail/account_send_limits.map",
+    "/etc/maran/mail/mailbox_accounts.map",
 ];
 
 #[test]
@@ -22,7 +29,14 @@ fn every_table_is_created_empty_on_a_host_that_has_none() {
     seed_mail_maps(&host, distro()).unwrap();
 
     for table in TABLES {
-        assert_eq!(host.file(table).as_deref(), Some(""), "{table}");
+        // The four Rspamd maps hold a comment line (Rspamd does not refresh a map
+        // from zero bytes); the Postfix tables stay empty.
+        let expected = if table.ends_with(".map") {
+            "# no entries\n"
+        } else {
+            ""
+        };
+        assert_eq!(host.file(table).as_deref(), Some(expected), "{table}");
     }
     assert_eq!(
         host.file("/etc/maran/mail/dovecot/users").as_deref(),
@@ -76,7 +90,13 @@ fn a_postfix_table_is_indexed_by_postmap_in_the_hosts_map_type() {
         .filter(|spawn| spawn.argv[0] == distro().postmap_binary().as_str())
         .map(|spawn| spawn.argv[1].clone())
         .collect();
-    assert_eq!(indexed, TABLES.map(|table| format!("lmdb:{table}")));
+    // The first five are Postfix's lookup tables; the Rspamd and Dovecot files after them are
+    // read as text and have no index.
+    let expected: Vec<String> = TABLES[..POSTFIX_TABLES]
+        .iter()
+        .map(|table| format!("lmdb:{table}"))
+        .collect();
+    assert_eq!(indexed, expected);
 }
 
 #[test]
@@ -101,5 +121,21 @@ fn the_dovecot_and_rspamd_files_are_checked_by_their_own_daemons() {
         host.writes()
             .iter()
             .any(|write| write.daemon == MailDaemon::Rspamd)
+    );
+}
+
+#[test]
+fn a_populated_local_submission_map_is_never_touched() {
+    // Inverse control of the seeding: an account already allowed to submit
+    // locally keeps its line across an enable.
+    let host =
+        FakeMailHost::new().with_file("/etc/maran/mail/local_submit_accounts.map", "1001 acme\n");
+
+    seed_mail_maps(&host, distro()).unwrap();
+
+    assert_eq!(
+        host.file("/etc/maran/mail/local_submit_accounts.map")
+            .as_deref(),
+        Some("1001 acme\n")
     );
 }

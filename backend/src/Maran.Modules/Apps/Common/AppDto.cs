@@ -16,7 +16,7 @@ namespace Maran.Modules.Apps.Common;
 /// <param name="ServiceStatus">What the service manager reports about the app's service, probed at the time of the read.</param>
 /// <param name="ServiceStatusName">The service status in the request's language.</param>
 /// <param name="InstalledAt">When the panel first saw the app installed, or <see langword="null"/> while it has not.</param>
-/// <param name="TaskId">The task of the last install or removal, so its progress and log can be opened; null for an app found on the host.</param>
+/// <param name="TaskId">The task of the install or removal running now, so its progress and log can be opened; null when none is running.</param>
 public sealed record AppDto(
     string AppId,
     string Name,

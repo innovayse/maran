@@ -3,6 +3,8 @@
 
 pub mod daemon_state;
 pub mod listening_socket;
+pub mod local_submission_hazard;
+pub mod local_submission_key;
 pub mod mail_daemon;
 pub mod mail_details;
 pub mod mail_layout;
@@ -13,6 +15,7 @@ pub mod mail_stage;
 pub mod mail_state;
 pub mod mail_unit;
 pub mod observed_mail;
+pub mod path_facts;
 pub mod port_binding;
 pub mod port_state;
 pub mod staged_file;

@@ -29,6 +29,7 @@ rust	php_pools_on_a_real_host [tests/php_pools_on_a_real_host.rs]	0	0	4
 rust	php_socket_migration_on_a_real_host [tests/php_socket_migration_on_a_real_host.rs]	0	0	3
 rust	privileges_on_a_real_host [tests/privileges_on_a_real_host.rs]	0	0	20
 rust	restore_recovery_on_a_real_host [tests/restore_recovery_on_a_real_host.rs]	0	0	5
+rust	rspamd_local_submit_golden_test [tests/rspamd_local_submit_golden_test.rs]	8	0	0
 rust	sftp_key_sessions_on_a_real_host [tests/sftp_key_sessions_on_a_real_host.rs]	0	0	1
 rust	sftp_on_a_real_host [tests/sftp_on_a_real_host.rs]	0	0	10
 rust	sftp_suspension_on_a_real_host [tests/sftp_suspension_on_a_real_host.rs]	0	0	5

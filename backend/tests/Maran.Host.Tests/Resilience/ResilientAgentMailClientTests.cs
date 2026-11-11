@@ -186,6 +186,23 @@ public sealed class ResilientAgentMailClientTests
         Assert.Equal("alice", usage.LastAccountUsername);
     }
 
+    /// <summary>The local submission calls retry through the pipeline with their arguments intact.</summary>
+    [Fact]
+    public async Task The_local_submission_calls_retry_through_the_pipeline_with_their_arguments_intact()
+    {
+        var set = new RecordingAgentMailClient { FailuresBeforeSuccess = 1 };
+        var remove = new RecordingAgentMailClient { FailuresBeforeSuccess = 1 };
+        var submission = new AgentLocalSubmission("alice", ["a.test"], 100, ["info@a.test"]);
+
+        var applied = await Decorate(set).SetLocalSubmissionAsync(submission, default).WaitAsync(TestTimeout);
+        var removed = await Decorate(remove).RemoveLocalSubmissionAsync("alice", default).WaitAsync(TestTimeout);
+
+        Assert.True(applied.IsSuccess && removed.IsSuccess);
+        Assert.Equal([2, 2], new[] { set.Calls, remove.Calls });
+        Assert.Same(submission, set.LastSubmission);
+        Assert.Equal("alice", remove.LastAccountUsername);
+    }
+
     /// <summary>The queue calls retry through the pipeline with their arguments intact.</summary>
     [Fact]
     public async Task The_queue_calls_retry_through_the_pipeline_with_their_arguments_intact()

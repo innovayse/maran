@@ -107,6 +107,18 @@ internal sealed class StubMailService : IMailServiceInvoker
     /// <summary>The last <c>FlushMailQueue</c> request the stub received, for asserting the mapping.</summary>
     public FlushMailQueueRequest? LastFlushMailQueueRequest { get; private set; }
 
+    /// <summary>Response returned from <see cref="SetLocalSubmissionAsync"/>.</summary>
+    public SetLocalSubmissionResponse SetLocalSubmissionResponse { get; set; } = new();
+
+    /// <summary>The last <c>SetLocalSubmission</c> request the stub received, for asserting the mapping.</summary>
+    public SetLocalSubmissionRequest? LastSetLocalSubmissionRequest { get; private set; }
+
+    /// <summary>Response returned from <see cref="RemoveLocalSubmissionAsync"/>.</summary>
+    public RemoveLocalSubmissionResponse RemoveLocalSubmissionResponse { get; set; } = new();
+
+    /// <summary>The last <c>RemoveLocalSubmission</c> request the stub received, for asserting the mapping.</summary>
+    public RemoveLocalSubmissionRequest? LastRemoveLocalSubmissionRequest { get; private set; }
+
     /// <inheritdoc/>
     public Task<GetMailStatusResponse> GetMailStatusAsync(GetMailStatusRequest request, CancellationToken cancellationToken)
     {
@@ -233,5 +245,21 @@ internal sealed class StubMailService : IMailServiceInvoker
         LastFlushMailQueueRequest = request;
 
         return Task.FromResult(FlushMailQueueResponse);
+    }
+
+    /// <inheritdoc/>
+    public Task<SetLocalSubmissionResponse> SetLocalSubmissionAsync(SetLocalSubmissionRequest request, CancellationToken cancellationToken)
+    {
+        LastSetLocalSubmissionRequest = request;
+
+        return Task.FromResult(SetLocalSubmissionResponse);
+    }
+
+    /// <inheritdoc/>
+    public Task<RemoveLocalSubmissionResponse> RemoveLocalSubmissionAsync(RemoveLocalSubmissionRequest request, CancellationToken cancellationToken)
+    {
+        LastRemoveLocalSubmissionRequest = request;
+
+        return Task.FromResult(RemoveLocalSubmissionResponse);
     }
 }

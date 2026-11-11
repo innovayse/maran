@@ -281,6 +281,7 @@ export const stubApps = async (page: Page, world: AppsWorld): Promise<AppsRecord
   })
 
   await page.route(TASK_PATTERN, async (route: Route) => {
+    requests.push({ method: 'GET', path: new URL(route.request().url()).pathname })
     const index = Math.min(taskReads, world.taskScript.length - 1)
     taskReads += 1
     await fulfilJson(route, 200, world.taskScript[index])

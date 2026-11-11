@@ -43,21 +43,27 @@ public sealed class DeleteMailDomainCommandHandler
     /// <summary>This module's audit journal.</summary>
     private readonly MailAuditJournal _journal;
 
+    /// <summary>Binds the account's locally submitted mail to its remaining domains.</summary>
+    private readonly MailLocalSubmissionPublisher _submission;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Mail module's database context.</param>
     /// <param name="accounts">The owning account's system user name.</param>
     /// <param name="agent">The agent client that removes the host state.</param>
     /// <param name="journal">This module's audit journal.</param>
+    /// <param name="submission">Binds the account's locally submitted mail to its remaining domains.</param>
     public DeleteMailDomainCommandHandler(
         MailDbContext dbContext,
         IAccountDirectory accounts,
         IAgentMailClient agent,
-        MailAuditJournal journal)
+        MailAuditJournal journal,
+        MailLocalSubmissionPublisher submission)
     {
         _dbContext = dbContext;
         _accounts = accounts;
         _agent = agent;
         _journal = journal;
+        _submission = submission;
     }
 
     /// <summary>Deletes the domain and everything under it.</summary>
@@ -138,6 +144,8 @@ public sealed class DeleteMailDomainCommandHandler
         _dbContext.DkimKeys.RemoveRange(domain.DkimKeys.ToList());
         _dbContext.MailDomains.Remove(domain);
         await _dbContext.SaveChangesAsync(cancellationToken);
+
+        await _submission.TryPublishAfterChangeAsync(account, cancellationToken);
 
         await _journal.RecordSuccessAsync(
             HostedMailAuditActions.MailDomainDeleted, name, command.IpAddress, command.UserAgent, cancellationToken);

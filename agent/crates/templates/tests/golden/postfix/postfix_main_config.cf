@@ -8,6 +8,9 @@
 # is empty and local delivery is an error); every mailbox is a virtual one
 # served by Dovecot over the LMTP socket below, under its account's own uid.
 compatibility_level = 2
+# Pinned, not left to the package default: pickup writes it into the Received header
+# the local-submission rule reads ("by <host> (Postfix, from userid N)", issue #518).
+mail_name = Postfix
 myhostname = mail.example.test
 myorigin = $myhostname
 mydestination =
@@ -82,6 +85,10 @@ authorized_submit_users = root, $mail_owner, lmdb:/etc/postfix/maran_local_submi
 # Spam filtering and DKIM signing. An unreachable filter defers the mail rather
 # than letting it through unsigned and unchecked.
 smtpd_milters = unix:/run/rspamd/maran-milter.sock
+# Mail Postfix's own daemons generate (bounces, notices) does not pass
+# non_smtpd_milters while internal_mail_filter_classes is empty, which is its
+# default; it is left unset on purpose, so the local-submission rule sees only
+# mail that came in through postdrop (#518).
 non_smtpd_milters = $smtpd_milters
 milter_protocol = 6
 milter_default_action = tempfail

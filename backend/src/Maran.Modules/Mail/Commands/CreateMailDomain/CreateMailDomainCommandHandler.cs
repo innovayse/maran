@@ -89,6 +89,9 @@ public sealed class CreateMailDomainCommandHandler
     /// <summary>This module's audit journal.</summary>
     private readonly MailAuditJournal _journal;
 
+    /// <summary>Binds the account's locally submitted mail to its new set of domains.</summary>
+    private readonly MailLocalSubmissionPublisher _submission;
+
     /// <summary>The injected time source; never the ambient clock (rules/csharp.md).</summary>
     private readonly IClock _clock;
 
@@ -107,6 +110,7 @@ public sealed class CreateMailDomainCommandHandler
     /// <param name="keys">Generates the DKIM key pair.</param>
     /// <param name="encryption">Encrypts the private key at rest.</param>
     /// <param name="journal">This module's audit journal.</param>
+    /// <param name="submission">Binds the account's locally submitted mail to its domains.</param>
     /// <param name="clock">The injected time source.</param>
     /// <param name="names">The module's localized display names.</param>
     /// <param name="logger">Where a failed compensation is reported.</param>
@@ -119,6 +123,7 @@ public sealed class CreateMailDomainCommandHandler
         IDkimKeyGenerator keys,
         IEncryptionService encryption,
         MailAuditJournal journal,
+        MailLocalSubmissionPublisher submission,
         IClock clock,
         IStringLocalizer<DisplayNames> names,
         ILogger<CreateMailDomainCommandHandler> logger)
@@ -131,6 +136,7 @@ public sealed class CreateMailDomainCommandHandler
         _keys = keys;
         _encryption = encryption;
         _journal = journal;
+        _submission = submission;
         _clock = clock;
         _names = names;
         _logger = logger;
@@ -218,6 +224,8 @@ public sealed class CreateMailDomainCommandHandler
         {
             return Result<MailDomainDto>.Fail(recorded.Error!);
         }
+
+        await _submission.TryPublishAfterChangeAsync(account, cancellationToken);
 
         await _journal.RecordSuccessAsync(
             HostedMailAuditActions.MailDomainCreated, name, command.IpAddress, command.UserAgent, cancellationToken);

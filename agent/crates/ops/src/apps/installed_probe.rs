@@ -5,6 +5,7 @@ use std::path::Path;
 use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::apps::validated_app_id::ValidatedAppId;
+use maran_agent_core::validation::web::node_major::NodeMajor;
 use maran_distro::{AdapterBinary, DistroAdapter, SiteWebServer};
 
 use crate::apps::parse_marker::parse_marker;
@@ -25,8 +26,8 @@ const APACHE_VERSION_MARKER: &str = "Apache/";
 /// the host has chosen it for sites, and a fresh host must list no web server so that the first-run
 /// setup happens. Apache additionally needs its binary, so a marker left by a hand-removed package
 /// is not reported. PHP is installed when its version's pool directory is (the same test the PHP
-/// area uses, so the two can never disagree); Node.js when the interpreter runs and reports that
-/// major. A `stat` or one `--version` per app, never a package manager query.
+/// area uses, so the two can never disagree); Node.js when that major's own interpreter runs and
+/// reports that major. A `stat` or one `--version` per app, never a package manager query.
 ///
 /// # Errors
 ///
@@ -55,7 +56,8 @@ pub(crate) fn marked_web_server<H: AppsHost>(host: &H) -> Option<SiteWebServer> 
 }
 
 /// Whether the files of `id`'s package are on this host, whatever the marker says: a web server's
-/// binary, a PHP version's pool directory, the Node.js interpreter of that major. This is what an
+/// binary, a PHP version's pool directory, the Node.js interpreter of that major (that major's own
+/// file, not whichever `node` the host resolves). This is what an
 /// install checks after its package unit ran; [`is_installed`] is what the panel is told.
 ///
 /// # Errors
@@ -72,9 +74,30 @@ pub(crate) fn package_present<H: AppsHost>(
         ValidatedAppId::Php(version) => {
             host.path_exists(Path::new(&distro.php_fpm_pool_directory(version.as_str())))
         }
-        ValidatedAppId::Nodejs(major) => node_version(host, distro)?
+        ValidatedAppId::Nodejs(major) => node_version(host, distro, major)?
             .is_some_and(|version| version.split('.').next() == Some(major.as_str())),
     })
+}
+
+/// Whether the further packages an install of `id` brings (`nodejs_extra_packages`) are on this
+/// host, judged by the file a site's unit runs from them: the npm launcher of a Node.js major on
+/// a family that ships npm apart from the interpreter (SUSE). `true` for an app with none.
+///
+/// Apart from [`package_present`] because the two can differ on a host: the interpreter of a
+/// major installed before `npm<major>` was part of the install has no launcher, and a site whose
+/// unit runs `npm` would not start (issue #530).
+pub(crate) fn extras_present<H: AppsHost>(
+    host: &H,
+    distro: &dyn DistroAdapter,
+    id: &ValidatedAppId,
+) -> bool {
+    match id {
+        ValidatedAppId::Nodejs(major) => {
+            distro.nodejs_extra_packages(major.as_str()).is_empty()
+                || host.path_exists(Path::new(&distro.npm_executable(major)))
+        }
+        _ => true,
+    }
 }
 
 /// The version of the installed app `id` as the host reports it, empty when it reports none.
@@ -110,16 +133,20 @@ pub(crate) fn installed_version<H: AppsHost>(
             APACHE_VERSION_MARKER,
         )?,
         ValidatedAppId::Php(version) => version.as_str().to_owned(),
-        ValidatedAppId::Nodejs(_) => node_version(host, distro)?.unwrap_or_default(),
+        ValidatedAppId::Nodejs(major) => node_version(host, distro, major)?.unwrap_or_default(),
     })
 }
 
-/// The version `node --version` reports, without its leading `v`; `None` when no interpreter runs.
+/// The version `node --version` reports for the interpreter of `major` itself, without its
+/// leading `v`; `None` when that interpreter does not run. On a family with one package per major
+/// each major has a file of its own, so a second major beside the first is found and not
+/// mistaken for the first's absence (issue #530).
 fn node_version<H: AppsHost>(
     host: &H,
     distro: &dyn DistroAdapter,
+    major: &NodeMajor,
 ) -> Result<Option<String>, AppsOpError> {
-    match host.run(&distro.node_binary(), &["--version"], CallClass::Query) {
+    match host.run(&distro.node_binary(major), &["--version"], CallClass::Query) {
         Ok(outcome) if outcome.status == 0 => Ok(Some(
             outcome.stdout.trim().trim_start_matches('v').to_owned(),
         )),

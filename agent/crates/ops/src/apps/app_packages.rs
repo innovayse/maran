@@ -21,7 +21,11 @@ pub(crate) fn packages_of(distro: &dyn DistroAdapter, id: &ValidatedAppId) -> Ve
             packages
         }
         ValidatedAppId::Php(version) => vec![distro.php_package(version.as_str())],
-        ValidatedAppId::Nodejs(major) => vec![distro.nodejs_package(major.as_str())],
+        ValidatedAppId::Nodejs(major) => {
+            let mut packages = vec![distro.nodejs_package(major.as_str())];
+            packages.extend(distro.nodejs_extra_packages(major.as_str()));
+            packages
+        }
     }
 }
 

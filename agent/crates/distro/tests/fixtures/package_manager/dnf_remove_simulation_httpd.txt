@@ -1,0 +1,18 @@
+Dependencies resolved.
+================================================================================
+ Package                 Arch     Version                    Repository    Size
+================================================================================
+Removing:
+ httpd                   x86_64   2.4.62-13.el9_8.9          @appstream    59 k
+Removing unused dependencies:
+ almalinux-logos-httpd   noarch   90.7-1.el9                 @appstream    15 k
+ libbrotli               x86_64   1.0.9-10.el9_8.1           @baseos      764 k
+ mod_http2               x86_64   2.0.26-6.el9_8.2.alma.1    @appstream   442 k
+ mod_lua                 x86_64   2.4.62-13.el9_8.9          @appstream   142 k
+
+Transaction Summary
+================================================================================
+Remove  5 Packages
+
+Freed space: 1.4 M
+Operation aborted.

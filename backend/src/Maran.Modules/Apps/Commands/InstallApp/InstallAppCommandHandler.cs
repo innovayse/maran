@@ -25,6 +25,12 @@ namespace Maran.Modules.Apps.Commands.InstallApp;
 /// hand-over. Every refusal on the way is journalled with its reason and changes nothing.
 /// </para>
 /// <para>
+/// <b>The checks above are advice; the ledger's guards decide.</b> Two requests can pass every check on the
+/// same reading. The row's concurrency token and the unique indexes (one row per app, one active web server)
+/// make the save the atomic step, and the request that loses it is answered with a typed conflict and its
+/// task closed as failed (issue #526).
+/// </para>
+/// <para>
 /// <b>A repeat is not an error.</b> Two administrators pressing install, or a page left open, ask for a
 /// state the panel is already producing; the second request is answered with the first one's task, which is
 /// what the first-run screen needs to resume watching after a reload.
@@ -157,15 +163,25 @@ public sealed class InstallAppCommandHandler
             target.RetryInstall(taskId, now);
         }
 
+        Error? lost = null;
         try
         {
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception)
         {
-            // The unique index on the app id: another request began the same install between the read above
-            // and this write. Its task is the one that runs; this one never will.
-            var lost = Error.Of(nameof(ErrorMessages.AppsOperationInProgress), ErrorType.Conflict);
+            // A guard of the ledger refused the write: the row changed since it was read, the app's row
+            // already exists, or another web server holds the ports. Another request won; its task is the
+            // one that runs and this one never will. Any other database failure is a fault and propagates.
+            lost = AppLedgerConflicts.Classify(exception);
+            if (lost is null)
+            {
+                throw;
+            }
+        }
+
+        if (lost is not null)
+        {
             await _tasks.FailAsync(taskId, lost.Code, CancellationToken.None);
 
             return await RefuseAsync(command, lost, cancellationToken);

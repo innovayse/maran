@@ -153,3 +153,4 @@ Thumbs.db
 .claude/
 frontend/dist-demo/
 .claude/coding-phase.lock
+.claude/coding-phase.d/

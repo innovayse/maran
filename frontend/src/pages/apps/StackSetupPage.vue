@@ -4,7 +4,8 @@
  * one screen the stack guard lets an administrator use until that is fixed. Four steps: the web
  * server (required), the runtimes (PHP and Node.js versions, or none), a review, and the install
  * with live progress. The installs run one at a time and the page stays until the panel reports a
- * web server installed; only then does it offer the way into the panel.
+ * web server installed; only then does it offer the way into the panel. After a reload it picks up
+ * an install that is still running and shows its progress, instead of starting over.
  *
  * Renders a `<section>`, not a `<main>` (the layout owns the landmark). The page reads state from
  * the stores through `useStackWizard`; it never touches the API layer.
@@ -54,7 +55,15 @@ const startInstall = async (): Promise<void> => {
   await wizard.run()
 }
 
-onMounted(store.loadInstallable)
+/**
+ * Reads the catalogue and picks up any install the panel is already running.
+ * @returns Resolves once both reads settled.
+ */
+const start = async (): Promise<void> => {
+  await Promise.all([store.loadInstallable(), wizard.resume()])
+}
+
+onMounted(start)
 onBeforeUnmount(store.stopAll)
 </script>
 

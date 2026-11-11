@@ -89,6 +89,9 @@ public sealed class CreateMailboxCommandHandler
     /// <summary>This module's audit journal.</summary>
     private readonly MailAuditJournal _journal;
 
+    /// <summary>Binds the account's locally submitted mail to its new set of mailboxes.</summary>
+    private readonly MailLocalSubmissionPublisher _submission;
+
     /// <summary>The injected time source; never the ambient clock (rules/csharp.md).</summary>
     private readonly IClock _clock;
 
@@ -106,6 +109,7 @@ public sealed class CreateMailboxCommandHandler
     /// <param name="hashing">Hashes the password for the host.</param>
     /// <param name="slotGate">Takes the account's slot atomically when the row is written.</param>
     /// <param name="journal">This module's audit journal.</param>
+    /// <param name="submission">Binds the account's locally submitted mail to its mailboxes.</param>
     /// <param name="clock">The injected time source used to stamp the new row.</param>
     /// <param name="names">The module's display names.</param>
     /// <param name="logger">Where a failed compensation is reported.</param>
@@ -117,6 +121,7 @@ public sealed class CreateMailboxCommandHandler
         MailPasswordHashing hashing,
         IMailboxSlotGate slotGate,
         MailAuditJournal journal,
+        MailLocalSubmissionPublisher submission,
         IClock clock,
         IStringLocalizer<DisplayNames> names,
         ILogger<CreateMailboxCommandHandler> logger)
@@ -128,6 +133,7 @@ public sealed class CreateMailboxCommandHandler
         _hashing = hashing;
         _slotGate = slotGate;
         _journal = journal;
+        _submission = submission;
         _clock = clock;
         _names = names;
         _logger = logger;
@@ -257,6 +263,8 @@ public sealed class CreateMailboxCommandHandler
 
         await _journal.RecordSuccessAsync(
             HostedMailAuditActions.MailboxCreated, address, command.IpAddress, command.UserAgent, cancellationToken);
+
+        await _submission.TryPublishAfterChangeAsync(account, cancellationToken);
 
         var ownerNames = await _accounts.NamesOfAsync([mailbox.AccountId], cancellationToken);
         var status = MailAccountStates.MailboxStatusOf(mailbox.Enabled, account.State == AccountState.Suspended);

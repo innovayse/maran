@@ -217,6 +217,30 @@ public sealed class RecordingMailAgent : IAgentMailClient
         return Task.FromResult(Answer<uint?>("FlushQueue", string.Empty, 0u));
     }
 
+    /// <summary>Every local submission binding sent, in order.</summary>
+    /// <remarks>Kept apart from <c>Calls</c> so the call lists the other handlers' tests assert stay exact.</remarks>
+    public List<AgentLocalSubmission> LocalSubmissions { get; } = [];
+
+    /// <summary>The account of every local submission removal, in order.</summary>
+    public List<string> LocalSubmissionRemovals { get; } = [];
+
+    /// <inheritdoc />
+    public Task<Result> SetLocalSubmissionAsync(AgentLocalSubmission submission, CancellationToken cancellationToken)
+    {
+        LocalSubmissions.Add(submission);
+
+        return Task.FromResult(_failures.Remove("SetLocalSubmission", out var error) ? Result.Fail(error) : Result.Ok());
+    }
+
+    /// <inheritdoc />
+    public Task<Result> RemoveLocalSubmissionAsync(string accountUsername, CancellationToken cancellationToken)
+    {
+        LocalSubmissionRemovals.Add(accountUsername);
+
+        return Task.FromResult(
+            _failures.Remove("RemoveLocalSubmission", out var error) ? Result.Fail(error) : Result.Ok());
+    }
+
     /// <summary>Records a call and answers with its arranged failure, if any, else with <paramref name="value"/>.</summary>
     /// <typeparam name="T">The success value's type.</typeparam>
     /// <param name="call">The call's name.</param>

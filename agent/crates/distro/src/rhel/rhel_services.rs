@@ -1,5 +1,6 @@
 //! Service and binary names on the RHEL family.
 
+use maran_agent_core::validation::web::node_major::NodeMajor;
 use maran_agent_core::validation::web::php_version::PhpVersion;
 
 use crate::adapter_binary::AdapterBinary;
@@ -101,6 +102,9 @@ pub fn web_server_group() -> &'static str {
 /// Absolute path of the Apache control script, whose `-t` checks the configuration.
 ///
 /// RHEL's `httpd` package ships `apachectl`, runs as `apache` and registers the unit as `httpd`.
+/// Observed in `almalinux:9` (9.8) after `dnf install httpd`: `/usr/sbin/apachectl` (package
+/// `httpd-core`), `/usr/lib/systemd/system/httpd.service`, `getent passwd apache` and `getent group
+/// apache` (uid/gid 48), `User apache` / `Group apache` in `httpd.conf`.
 #[must_use]
 pub fn apache_binary() -> AdapterBinary {
     AdapterBinary::fixed("/usr/sbin/apachectl")
@@ -109,6 +113,9 @@ pub fn apache_binary() -> AdapterBinary {
 /// Name of the Apache systemd service unit.
 ///
 /// RHEL's `httpd` package ships `apachectl`, runs as `apache` and registers the unit as `httpd`.
+/// Observed in `almalinux:9` (9.8) after `dnf install httpd`: `/usr/sbin/apachectl` (package
+/// `httpd-core`), `/usr/lib/systemd/system/httpd.service`, `getent passwd apache` and `getent group
+/// apache` (uid/gid 48), `User apache` / `Group apache` in `httpd.conf`.
 #[must_use]
 pub fn apache_service() -> &'static str {
     "httpd"
@@ -117,6 +124,9 @@ pub fn apache_service() -> &'static str {
 /// The user the Apache workers run as.
 ///
 /// RHEL's `httpd` package ships `apachectl`, runs as `apache` and registers the unit as `httpd`.
+/// Observed in `almalinux:9` (9.8) after `dnf install httpd`: `/usr/sbin/apachectl` (package
+/// `httpd-core`), `/usr/lib/systemd/system/httpd.service`, `getent passwd apache` and `getent group
+/// apache` (uid/gid 48), `User apache` / `Group apache` in `httpd.conf`.
 #[must_use]
 pub fn apache_user() -> &'static str {
     "apache"
@@ -126,26 +136,36 @@ pub fn apache_user() -> &'static str {
 /// when Apache is the site web server.
 ///
 /// RHEL's `httpd` package ships `apachectl`, runs as `apache` and registers the unit as `httpd`.
+/// Observed in `almalinux:9` (9.8) after `dnf install httpd`: `/usr/sbin/apachectl` (package
+/// `httpd-core`), `/usr/lib/systemd/system/httpd.service`, `getent passwd apache` and `getent group
+/// apache` (uid/gid 48), `User apache` / `Group apache` in `httpd.conf`.
 #[must_use]
 pub fn apache_group() -> &'static str {
     "apache"
 }
 
-/// Absolute path of the Node.js interpreter a site's unit runs.
+/// Absolute path of the Node.js interpreter of `major` that a site's unit runs: the file
+/// [`crate::rhel::rhel_apps::node_binary`] names.
 ///
 /// Text and not an `AdapterBinary`: the agent never executes it, the service manager does,
 /// from a unit the agent renders (the same split as `sh_binary`).
 #[must_use]
-pub fn node_executable() -> &'static str {
-    "/usr/bin/node"
+pub fn node_executable(major: &NodeMajor) -> String {
+    crate::rhel::rhel_apps::node_binary(major)
+        .as_str()
+        .to_owned()
 }
 
-/// Absolute path of the npm launcher a site's unit may run.
+/// Absolute path of the npm launcher that a site's unit may run.
+///
+/// Observed in `almalinux:9` (9.8) with `rpm -ql npm | grep bin/` after `dnf module install
+/// nodejs:20/common`: `/usr/bin/npm` (a link to `npm-cli.js`) from the separate `npm` package, the
+/// only npm launcher; a module stream has no per-major file.
 ///
 /// Text for the same reason as [`node_executable`].
 #[must_use]
-pub fn npm_executable() -> &'static str {
-    "/usr/bin/npm"
+pub fn npm_executable(_major: &NodeMajor) -> String {
+    "/usr/bin/npm".to_owned()
 }
 
 /// Name of the php-fpm systemd service unit for `version`, e.g.
@@ -538,6 +558,14 @@ pub fn passwd_database() -> &'static str {
     "/etc/passwd"
 }
 
+/// Absolute path of the host's local group database.
+///
+/// See [`AccountPrograms::group_database`](crate::AccountPrograms::group_database) for what the value is for.
+#[must_use]
+pub fn group_database() -> &'static str {
+    "/etc/group"
+}
+
 /// Absolute path of `crontab`, for the process-execution allow-list.
 ///
 /// RHEL's `cronie` package installs it here — verified on the AlmaLinux 9
@@ -757,6 +785,14 @@ pub fn postfix_user() -> &'static str {
 #[must_use]
 pub fn postdrop_group() -> &'static str {
     "postdrop"
+}
+
+/// Absolute path of the `postdrop` program.
+///
+/// See [`MailFacts::postdrop_program`](crate::MailFacts::postdrop_program) for what the value is for and how far it is verified.
+#[must_use]
+pub fn postdrop_program() -> &'static str {
+    "/usr/sbin/postdrop"
 }
 
 /// The Dovecot system user on the RHEL family.

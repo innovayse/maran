@@ -1,6 +1,15 @@
 import { expect, test } from '../fixtures/guarded-test'
 import { openApps } from '../fixtures/open-apps'
-import { FINISHED_APP_TASK, appTask, appsWorld, hostApp, type AppsWorld } from '../fixtures/stub-apps-routes'
+import {
+  APP_TASK_ID,
+  FINISHED_APP_TASK,
+  appTask,
+  appsWorld,
+  hostApp,
+  installableApp,
+  type AppsRecorder,
+  type AppsWorld,
+} from '../fixtures/stub-apps-routes'
 import { EMPTY_STACK, READY_STACK } from '../fixtures/stub-stack-routes'
 import type { StackStatus } from '../../src/types/hostApp'
 import type { Page } from '@playwright/test'
@@ -124,4 +133,99 @@ test('a failed web server install keeps the wizard open and a retry can finish i
 
   await expect(page.getByRole('link', { name: 'Open the panel' })).toBeVisible({ timeout: INSTALL_TIMEOUT_MS })
   expect(recorder.matching(/POST .*\/install$/)).toHaveLength(2)
+})
+
+// Issue #525: the stack guard holds an administrator on the wizard, so the wizard must never leave
+// them without a way forward: a reload while the web server installs resumes it, and a web server
+// the agent reports installed while the panel's ledger does not count it is still offered.
+
+test('a reload while the web server installs resumes it instead of starting over', async ({ page }) => {
+  const world = appsWorld({
+    installed: [hostApp('nginx', 'nginx', { state: 'installing', stateName: 'Installing', taskId: APP_TASK_ID })],
+    // The agent already lists the app as taken, as the panel does for an install in flight.
+    installable: [installableApp('nginx', 'nginx', { installed: true }), installableApp('php-8.3', 'PHP 8.3')],
+  })
+  const opened: { recorder?: AppsRecorder } = {}
+  // The host becomes ready once the followed task has been read to its end (two reads).
+  const stack = (): StackStatus => {
+    return (opened.recorder?.matching(/GET \/api\/v1\/tasks\//).length ?? 0) >= 2 ? READY_STACK : EMPTY_STACK
+  }
+  opened.recorder = await openApps(page, world, { path: '/', stack })
+  const recorder = opened.recorder
+
+  await expect(page.getByTestId('stack-queue-nginx')).toBeVisible()
+  await expect(page.getByRole('radio', { name: 'nginx' })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'Open the panel' })).toBeVisible({ timeout: INSTALL_TIMEOUT_MS })
+  await expect(page.getByTestId('stack-queue-nginx').getByText('Installed')).toBeVisible()
+  // It watched the install the panel was running and started none of its own.
+  expect(recorder.matching(/POST .*\/install$/)).toHaveLength(0)
+})
+
+test('a failed web server beside a runtime that is still installing: after the runtime ends the person can install the web server again', async ({
+  page,
+}) => {
+  const world = appsWorld({
+    installed: [
+      hostApp('nginx', 'nginx', { state: 'failed', stateName: 'Failed' }),
+      hostApp('php-8.3', 'PHP 8.3', { state: 'installing', stateName: 'Installing', taskId: APP_TASK_ID }),
+    ],
+    taskScript: [appTask(), FINISHED_APP_TASK],
+  })
+  world.onInstall = (id): void => {
+    world.installed = [...world.installed.filter((app) => {
+      return app.appId !== id
+    }), hostApp(id, id)]
+  }
+  const stack = (): StackStatus => {
+    return world.installed.some((app) => {
+      return app.appId === 'nginx' && app.state === 'installed'
+    })
+      ? READY_STACK
+      : EMPTY_STACK
+  }
+  const recorder = await openApps(page, world, { path: '/', stack })
+
+  // The runtime ends, the stack is still not ready, and the first step is offered again with nginx on it.
+  await expect(page.getByRole('radio', { name: 'nginx' })).toBeVisible({ timeout: INSTALL_TIMEOUT_MS })
+  expect(recorder.matching(/POST .*\/install$/)).toHaveLength(0)
+
+  await page.getByRole('radio', { name: 'nginx' }).check({ force: true })
+  await page.getByRole('button', { name: 'Next' }).click()
+  await page.getByRole('button', { name: 'Next' }).click()
+  await page.getByRole('button', { name: 'Install' }).click()
+
+  await expect(page.getByRole('link', { name: 'Open the panel' })).toBeVisible({ timeout: INSTALL_TIMEOUT_MS })
+  expect(recorder.matching(/POST .*\/install$/).map((request) => {
+    return request.path
+  })).toEqual(['/api/v1/apps/nginx/install'])
+})
+
+test('the control: with no install running the wizard starts at the web server choice', async ({ page }) => {
+  const { world, stack } = freshHost()
+  await openApps(page, world, { path: '/', stack })
+
+  await expect(page.getByRole('radio', { name: 'nginx' })).toBeVisible()
+  await expect(page.getByTestId('stack-queue-nginx')).toHaveCount(0)
+})
+
+test('a web server the agent reports installed but the panel does not count is still offered', async ({ page }) => {
+  const world = appsWorld({
+    installable: [installableApp('nginx', 'nginx', { installed: true }), installableApp('php-8.3', 'PHP 8.3')],
+  })
+  await openApps(page, world, { path: '/', stack: EMPTY_STACK })
+
+  await expect(page.getByRole('radio', { name: 'nginx' })).toBeVisible()
+})
+
+test('the control: a runtime the agent reports installed is not offered again', async ({ page }) => {
+  const world = appsWorld({
+    installable: [installableApp('nginx', 'nginx'), installableApp('php-8.3', 'PHP 8.3', { installed: true }), installableApp('php-8.4', 'PHP 8.4')],
+  })
+  await openApps(page, world, { path: '/', stack: EMPTY_STACK })
+
+  await page.getByRole('radio', { name: 'nginx' }).check({ force: true })
+  await page.getByRole('button', { name: 'Next' }).click()
+
+  await expect(page.getByRole('checkbox', { name: 'PHP 8.4' })).toBeVisible()
+  await expect(page.getByRole('checkbox', { name: 'PHP 8.3' })).toHaveCount(0)
 })

@@ -1,5 +1,6 @@
 //! Service and binary names on the Debian family.
 
+use maran_agent_core::validation::web::node_major::NodeMajor;
 use maran_agent_core::validation::web::php_version::PhpVersion;
 
 use crate::adapter_binary::AdapterBinary;
@@ -121,21 +122,25 @@ pub fn apache_group() -> &'static str {
     "www-data"
 }
 
-/// Absolute path of the Node.js interpreter a site's unit runs.
+/// Absolute path of the Node.js interpreter of `major` that a site's unit runs: the file
+/// [`crate::debian::debian_apps::node_binary`] names.
 ///
 /// Text and not an `AdapterBinary`: the agent never executes it, the service manager does,
 /// from a unit the agent renders (the same split as `sh_binary`).
 #[must_use]
-pub fn node_executable() -> &'static str {
-    "/usr/bin/node"
+pub fn node_executable(major: &NodeMajor) -> String {
+    crate::debian::debian_apps::node_binary(major)
+        .as_str()
+        .to_owned()
 }
 
-/// Absolute path of the npm launcher a site's unit may run.
+/// Absolute path of the npm launcher of `major` that a site's unit may run.
+/// The single `nodejs` package carries one `npm`, so `major` does not change the answer.
 ///
 /// Text for the same reason as [`node_executable`].
 #[must_use]
-pub fn npm_executable() -> &'static str {
-    "/usr/bin/npm"
+pub fn npm_executable(_major: &NodeMajor) -> String {
+    "/usr/bin/npm".to_owned()
 }
 
 /// Name of the php-fpm systemd service unit for `version`, e.g. `php8.3-fpm`.
@@ -511,6 +516,14 @@ pub fn passwd_database() -> &'static str {
     "/etc/passwd"
 }
 
+/// Absolute path of the host's local group database.
+///
+/// See [`AccountPrograms::group_database`](crate::AccountPrograms::group_database) for what the value is for.
+#[must_use]
+pub fn group_database() -> &'static str {
+    "/etc/group"
+}
+
 /// Absolute path of `crontab`, for the process-execution allow-list.
 ///
 /// Debian's `cron` package installs it here — verified on the Ubuntu 24.04
@@ -740,6 +753,14 @@ pub fn postfix_user() -> &'static str {
 #[must_use]
 pub fn postdrop_group() -> &'static str {
     "postdrop"
+}
+
+/// Absolute path of the `postdrop` program.
+///
+/// See [`MailFacts::postdrop_program`](crate::MailFacts::postdrop_program) for what the value is for and how far it is verified.
+#[must_use]
+pub fn postdrop_program() -> &'static str {
+    "/usr/sbin/postdrop"
 }
 
 /// The Dovecot system user on the Debian family.

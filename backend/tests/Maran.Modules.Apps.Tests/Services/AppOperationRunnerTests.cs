@@ -118,6 +118,77 @@ public sealed class AppOperationRunnerTests
         Assert.Equal("AppsOutcomeUnobserved", Assert.Single(world.Tasks.Tasks).FailureCode);
     }
 
+    /// <summary>
+    /// Issue #525: a stream that went quiet right at the end asks the host. The packages landed, so the row is
+    /// installed (the stack becomes ready) and the task completes.
+    /// </summary>
+    /// <param name="kind">How the stream ended.</param>
+    [Theory]
+    [InlineData(AppOperationEventKind.Truncated)]
+    [InlineData(AppOperationEventKind.Dropped)]
+    [InlineData(AppOperationEventKind.Idle)]
+    public async Task A_stream_without_an_outcome_is_settled_by_the_host_when_it_has_the_app(AppOperationEventKind kind)
+    {
+        using var world = new AppsWorld();
+        var task = await SeedAsync(world, "nginx", removing: false);
+        world.Agent.Stream = [new(kind, 0, string.Empty, null)];
+        world.Agent.Installed = Result<IReadOnlyList<AgentApp>>.Ok(
+            [new AgentApp("nginx", AgentAppKind.WebServer, "1.24", AgentAppServiceStatus.Active)]);
+
+        await RunnerOver(world).RunAsync(new AppOperationRequested(task, AppOperation.Install, "nginx"), default);
+
+        var row = await world.Db.InstalledApps.SingleAsync();
+        Assert.Equal(AppState.Installed, row.State);
+        Assert.Equal("1.24", row.Version);
+        Assert.Null(row.TaskId);
+        var recorded = Assert.Single(world.Tasks.Tasks);
+        Assert.True(recorded.Completed);
+        Assert.Null(recorded.FailureCode);
+    }
+
+    /// <summary>The control: the same silent stream with a host that cannot be asked is a failure, not a guess.</summary>
+    [Fact]
+    public async Task A_stream_without_an_outcome_is_a_failure_when_the_host_cannot_be_asked()
+    {
+        using var world = new AppsWorld();
+        var task = await SeedAsync(world, "nginx", removing: false);
+        world.Agent.Stream = [new(AppOperationEventKind.Dropped, 0, string.Empty, null)];
+        world.Agent.Installed = Result<IReadOnlyList<AgentApp>>.Fail(Error.Of("AgentUnavailable", ErrorType.Unavailable));
+
+        await RunnerOver(world).RunAsync(new AppOperationRequested(task, AppOperation.Install, "nginx"), default);
+
+        Assert.Equal(AppState.Failed, (await world.Db.InstalledApps.SingleAsync()).State);
+        Assert.Equal("AppsOutcomeUnobserved", Assert.Single(world.Tasks.Tasks).FailureCode);
+    }
+
+    /// <summary>The control: a failure the agent itself reported is not second-guessed, even when the host lists the app.</summary>
+    [Fact]
+    public async Task A_failure_the_agent_reported_is_not_overruled_by_the_host()
+    {
+        using var world = new AppsWorld();
+        var task = await SeedAsync(world, "nginx", removing: false);
+        world.Agent.Stream = [new(AppOperationEventKind.Failed, 0, string.Empty, Error.Of("AgentPackageNotAvailable", ErrorType.Conflict))];
+        world.Agent.Installed = Result<IReadOnlyList<AgentApp>>.Ok(
+            [new AgentApp("nginx", AgentAppKind.WebServer, "1.24", AgentAppServiceStatus.Active)]);
+
+        await RunnerOver(world).RunAsync(new AppOperationRequested(task, AppOperation.Install, "nginx"), default);
+
+        Assert.Equal(AppState.Failed, (await world.Db.InstalledApps.SingleAsync()).State);
+        Assert.Equal("AgentPackageNotAvailable", Assert.Single(world.Tasks.Tasks).FailureCode);
+    }
+
+    /// <summary>Issue #524: a settled row carries no task id.</summary>
+    [Fact]
+    public async Task A_settled_install_leaves_the_row_without_a_task()
+    {
+        using var world = new AppsWorld();
+        var task = await SeedAsync(world, "php-8.3", removing: false);
+
+        await RunnerOver(world).RunAsync(new AppOperationRequested(task, AppOperation.Install, "php-8.3"), default);
+
+        Assert.Null((await world.Db.InstalledApps.SingleAsync()).TaskId);
+    }
+
     /// <summary>An empty stream is the same: nothing was observed.</summary>
     [Fact]
     public async Task An_empty_stream_is_not_a_success()

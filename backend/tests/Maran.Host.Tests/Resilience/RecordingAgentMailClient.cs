@@ -267,6 +267,29 @@ internal sealed class RecordingAgentMailClient : IAgentMailClient
         return Result<uint?>.Ok(0u);
     }
 
+    /// <summary>The last local submission binding received.</summary>
+    public AgentLocalSubmission? LastSubmission { get; private set; }
+
+    /// <inheritdoc/>
+    public async Task<Result> SetLocalSubmissionAsync(AgentLocalSubmission submission, CancellationToken cancellationToken)
+    {
+        LastSubmission = submission;
+
+        await EnterAsync(cancellationToken);
+
+        return Result.Ok();
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result> RemoveLocalSubmissionAsync(string accountUsername, CancellationToken cancellationToken)
+    {
+        LastAccountUsername = accountUsername;
+
+        await EnterAsync(cancellationToken);
+
+        return Result.Ok();
+    }
+
     /// <summary>Counts the call and applies whichever misbehaviour the test asked for.</summary>
     /// <param name="cancellationToken">The token the pipeline's timeout cancels.</param>
     /// <returns>A task that completes once the call may return.</returns>

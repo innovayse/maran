@@ -9,6 +9,7 @@ pub mod suse_package_candidates;
 pub mod suse_packages;
 pub mod suse_paths;
 pub mod suse_php_extensions;
+pub mod suse_removal;
 pub mod suse_services;
 
 pub use suse_adapter::SuseAdapter;

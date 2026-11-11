@@ -29,6 +29,8 @@ namespace Maran.Sdk.Interfaces;
 /// so at length; nothing may call it without gating itself to administrators first.
 /// <see cref="FindSystemUserAsync"/> also applies NONE, answers one account's system user name by id
 /// to every caller alike, and is for unattended work only; it is never reached from a request path.
+/// <see cref="FindForSystemAsync"/> applies NONE either and answers one account's whole snapshot by id, for
+/// system actions raised after the owning module authorised them.
 /// </para>
 /// </remarks>
 public interface IAccountDirectory
@@ -147,6 +149,33 @@ public interface IAccountDirectory
     /// parameter per id.
     /// </remarks>
     Task<IReadOnlyList<Guid>> FindIdsByNameAsync(string search, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Reads one account's snapshot, applying NO tenant scope and answering every caller alike. For SYSTEM
+    /// actions raised after the owning module authorised them: it must never be reached to serve a request's
+    /// own data.
+    /// </summary>
+    /// <param name="accountId">
+    /// The account to read, by id only. The caller must hold the id from an event or a row of its own, never
+    /// from a request.
+    /// </param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <returns>The snapshot, or <c>null</c> when no such account exists.</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>This member deliberately breaks the scoping promise of <see cref="FindAsync"/>.</b> A system action
+    /// (binding a reactivated account's mail, applying a plan change) acts on the account whoever asked for the
+    /// action, and a reseller is answered nothing by <see cref="FindAsync"/> for an account it legitimately
+    /// manages. Anything that returned this snapshot to a caller would disclose an account and its plan to
+    /// someone the tenant scope excludes (an IDOR with a 200 in place of a 404, rules/security.md item 6), so
+    /// the figures are used by the action and never handed back.
+    /// </para>
+    /// <para>
+    /// Unlike <see cref="ListAsync"/> it reads exactly one row by key. Callers are listed by
+    /// <c>grep -rnE "FindForSystemAsync" backend/src --include=*.cs</c> and fixed by a census test.
+    /// </para>
+    /// </remarks>
+    Task<AccountSnapshot?> FindForSystemAsync(Guid accountId, CancellationToken cancellationToken);
 
     /// <summary>
     /// Reads one account's system user name, applying NO tenant scope and answering every caller alike.

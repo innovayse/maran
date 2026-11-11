@@ -51,6 +51,15 @@ public sealed class MailDbContext : DbContext
         }
     }
 
+    /// <summary>The ledger of the local submission bindings the agent holds; server-wide, never returned to a request.</summary>
+    public DbSet<MailSubmissionBinding> MailSubmissionBindings
+    {
+        get
+        {
+            return Set<MailSubmissionBinding>();
+        }
+    }
+
     /// <summary>The mail domains, already scoped to the current user's tenant.</summary>
     public DbSet<MailDomain> MailDomains
     {
@@ -153,6 +162,7 @@ public sealed class MailDbContext : DbContext
     {
         modelBuilder.HasDefaultSchema(SchemaName);
         modelBuilder.ApplyConfiguration(new MailServerSettingsConfiguration());
+        modelBuilder.ApplyConfiguration(new MailSubmissionBindingConfiguration());
         modelBuilder.ApplyConfiguration(new MailDomainConfiguration());
         modelBuilder.ApplyConfiguration(new DkimKeyConfiguration());
         modelBuilder.ApplyConfiguration(new MailboxConfiguration());

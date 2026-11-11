@@ -243,4 +243,13 @@ pub trait AccountPrograms: Send + Sync {
     /// this answer for the same reason: both are POSIX systems using the shadow
     /// suite.
     fn passwd_database(&self) -> &'static str;
+
+    /// The host's local group database.
+    ///
+    /// Read, never written, by the check that an account may be bound to local mail
+    /// submission (issue #518): which groups a system user belongs to decides whether the
+    /// maildrop road stays closed. A platform fact for the same reason as
+    /// [`Self::passwd_database`]: both supported families answer `/etc/group`, and the answer
+    /// is still asked of the adapter.
+    fn group_database(&self) -> &'static str;
 }

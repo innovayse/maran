@@ -88,4 +88,57 @@ public sealed class InstalledAppTests
         Assert.Null(row.TaskId);
         Assert.Equal(Start, row.InstalledAt);
     }
+
+    /// <summary>Issue #524: a row that settles carries no task, because the field names the operation in flight.</summary>
+    /// <param name="installed">Whether the row settles as installed rather than failed.</param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void A_settled_row_carries_no_task(bool installed)
+    {
+        var row = Installing(Guid.NewGuid());
+
+        if (installed)
+        {
+            row.MarkInstalled("1.24.0", Start);
+        }
+        else
+        {
+            row.MarkFailed(Start);
+        }
+
+        Assert.Null(row.TaskId);
+    }
+
+    /// <summary>The control for the rule above: a row whose operation begins carries that operation's task.</summary>
+    [Fact]
+    public void A_row_in_flight_carries_the_task_of_its_operation()
+    {
+        var row = Installing(Guid.NewGuid());
+        row.MarkFailed(Start);
+        var retry = Guid.NewGuid();
+
+        row.RetryInstall(retry, Start.AddMinutes(1));
+        Assert.Equal(retry, row.TaskId);
+
+        row.MarkInstalled("1", Start.AddMinutes(2));
+        var removal = Guid.NewGuid();
+        row.BeginRemoval(removal, Start.AddMinutes(3));
+        Assert.Equal(removal, row.TaskId);
+    }
+
+    /// <summary>Issue #526: every transition moves the concurrency token.</summary>
+    [Fact]
+    public void Every_transition_moves_the_revision()
+    {
+        var row = Installing(Guid.NewGuid());
+        var created = row.Revision;
+
+        row.MarkFailed(Start);
+        row.RetryInstall(Guid.NewGuid(), Start);
+        row.MarkInstalled("1", Start);
+        row.BeginRemoval(Guid.NewGuid(), Start);
+
+        Assert.Equal(created + 4, row.Revision);
+    }
 }

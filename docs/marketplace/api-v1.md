@@ -168,6 +168,8 @@ Answer (`200`, signed):
 - `tier` is the licence tier's wire name (`Included`, `AddOn`, `PlanGated`).
 - `entitlement.state` is one of `NotRequired` (an `Included` module), `Entitled`, `NotPurchased`, `LeaseExpired`,
   `Unknown` (no lease credential, or the lease could not be judged). `until` is the end of the entitlement or absent.
+  `LeaseExpired` also covers a lease whose licence is bound to another server, or has been revoked: the lease is
+  judged and found not valid, and the grant refuses the same case with `lease_expired`.
   **A word outside this set makes the panel discard the whole answer**, so a new state is a breaking change (see
   "Evolution").
 - `price` is display only; a purchase happens in the vendor's own cabinet, never in the panel. `purchaseUrl` is shown
@@ -397,7 +399,7 @@ A failure is an RFC 7807 `application/problem+json` document with a stable snake
 | `code` | Suggested status | What the panel does |
 |---|---|---|
 | `entitlement_missing` | 403 | The licence does not cover the module; install is refused with the panel's own text (`EntitlementMissing`). |
-| `lease_expired` | 401 | The lease is not valid; the panel reports `LeaseRequired`. |
+| `lease_expired` | 401 | The lease is not valid (expired, absent, bound to another server than the licence, or the licence is revoked); the panel reports `LeaseRequired`. |
 | `incompatible_panel` | 409 | No version fits this panel (`IncompatiblePanel`). |
 | `revoked` | 410 | The version or module was withdrawn (`PackageRevoked`). |
 | `not_found` | 404 | Unknown module or version (`ModuleNotInCatalogue`). |

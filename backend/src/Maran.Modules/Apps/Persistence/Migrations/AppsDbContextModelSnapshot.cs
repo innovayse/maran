@@ -40,6 +40,10 @@ namespace Maran.Modules.Apps.Persistence.Migrations
                     b.Property<int>("Kind")
                         .HasColumnType("integer");
 
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
                     b.Property<int>("State")
                         .HasColumnType("integer");
 
@@ -59,6 +63,11 @@ namespace Maran.Modules.Apps.Persistence.Migrations
                     b.HasIndex("AppId")
                         .IsUnique()
                         .HasDatabaseName("IX_InstalledApps_AppId");
+
+                    b.HasIndex("Kind")
+                        .IsUnique()
+                        .HasDatabaseName("IX_InstalledApps_ActiveWebServer")
+                        .HasFilter("\"Kind\" = 1 AND \"State\" IN (1, 2, 4)");
 
                     b.ToTable("InstalledApps", "apps");
                 });

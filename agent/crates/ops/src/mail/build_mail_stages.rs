@@ -12,6 +12,7 @@ use maran_templates::postfix::postfix_main_config::PostfixMainConfig;
 use maran_templates::postfix::postfix_master_config::PostfixMasterConfig;
 use maran_templates::rspamd::rspamd_actions::RspamdActions;
 use maran_templates::rspamd::rspamd_dkim_signing::RspamdDkimSigning;
+use maran_templates::rspamd::rspamd_local_submit::RspamdLocalSubmit;
 use maran_templates::rspamd::rspamd_redis::RspamdRedis;
 use maran_templates::rspamd::rspamd_worker_controller::RspamdWorkerController;
 use maran_templates::rspamd::rspamd_worker_proxy::RspamdWorkerProxy;
@@ -41,7 +42,9 @@ const CONFIG_MODE: u32 = 0o644;
 /// is what puts it on disk. Platform facts (the directories, the binaries, the
 /// units, the map type, the users) come from `distro`; the agent's own decisions
 /// (the maps, the sockets) from [`AgentPaths`]; the certificate paths from
-/// `certificate`, the store's own answer.
+/// `certificate`, the store's own answer. `postfix_uid` is the host's Postfix
+/// user (see `postfix_uid_from_passwd`): the local-submission rule leaves its
+/// mail and root's alone.
 ///
 /// # Errors
 ///
@@ -52,6 +55,7 @@ pub fn build_mail_stages(
     layout: &MailLayout,
     settings: &MailSettings,
     certificate: &CertificateState,
+    postfix_uid: u32,
 ) -> Result<Vec<MailStage>, MailError> {
     let manager = distro.service_manager();
     let reload_or_restart = |unit: &str| MailUnit::new(unit).reload_or_restart().map(str::to_owned);
@@ -110,6 +114,20 @@ pub fn build_mail_stages(
                 }
                 .render_config()
                 .map_err(|_| MailError::Render)?,
+            ),
+            file(
+                &rspamd_directory.join("local.d/maran_local_submit.conf"),
+                RspamdLocalSubmit {
+                    maps_directory: AgentPaths::MAIL_CONFIG_DIRECTORY.to_owned(),
+                    max_recipients: MailSettings::RECIPIENT_LIMIT,
+                    exempt_uids: vec![0, postfix_uid],
+                }
+                .render_config()
+                .map_err(|_| MailError::Render)?,
+            ),
+            file(
+                &rspamd_directory.join("lua.local.d/maran_local_submit.lua"),
+                RspamdLocalSubmit::lua_rule().to_owned(),
             ),
             file(
                 &rspamd_directory.join("override.d/worker-proxy.inc"),

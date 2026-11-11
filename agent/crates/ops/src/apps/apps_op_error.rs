@@ -42,6 +42,36 @@ pub enum AppsOpError {
         users: String,
     },
 
+    /// The package manager's dry run of the removal shows it would also remove packages that are
+    /// not the app's own, or the panel's front. Nothing was removed.
+    #[error("removing `{app}` would also remove {packages}, so it was not started")]
+    RemovalWouldRemoveOthers {
+        /// The app that was asked to go.
+        app: String,
+        /// The other packages, in words an operator reads.
+        packages: String,
+    },
+
+    /// The removal was not started because the package manager's dry run gave no usable answer:
+    /// what a removal would take is unknown, and an unknown removal is not run.
+    #[error("the removal of `{app}` could not be checked and was not started: {reason}")]
+    RemovalNotSimulated {
+        /// The app that was asked to go.
+        app: String,
+        /// Why the dry run gave no answer, for an operator's log.
+        reason: String,
+    },
+
+    /// A directory whose content decides a destructive step could not be read, so the step was
+    /// not taken: "cannot look" is never "nothing there".
+    #[error("could not read {path}: {reason}")]
+    HostUnreadable {
+        /// The directory.
+        path: String,
+        /// Why, for an operator's log.
+        reason: String,
+    },
+
     /// The action cannot be done to this app: it has no service, or the panel's own front would
     /// be taken off the air.
     #[error("`{app}` cannot be {action}: {reason}")]

@@ -103,6 +103,22 @@ internal static class AgentMailRequestMapper
         };
     }
 
+    /// <summary>Builds the request that replaces an account's local submission binding.</summary>
+    /// <param name="submission">The panel's binding.</param>
+    /// <returns>The wire request; the lists are copied whole because the call replaces the host's sets.</returns>
+    internal static SetLocalSubmissionRequest ToLocalSubmissionRequest(AgentLocalSubmission submission)
+    {
+        var request = new SetLocalSubmissionRequest
+        {
+            AccountUsername = submission.AccountUsername,
+            SendLimitPerHour = submission.SendLimitPerHour,
+        };
+        request.Domains.AddRange(submission.Domains);
+        request.MailboxLogins.AddRange(submission.MailboxLogins);
+
+        return request;
+    }
+
     /// <summary>Builds the request that creates or changes one mailbox.</summary>
     /// <param name="arguments">The panel's arguments.</param>
     /// <returns>The wire request; every secret in it is unwrapped here and nowhere else.</returns>

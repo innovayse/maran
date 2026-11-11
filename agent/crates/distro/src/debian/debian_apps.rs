@@ -1,5 +1,7 @@
 //! The app store's package names and Apache preparation on the Debian family.
 
+use maran_agent_core::validation::web::node_major::NodeMajor;
+
 use crate::adapter_binary::AdapterBinary;
 
 /// The package that provides nginx.
@@ -15,9 +17,22 @@ pub fn apache_package() -> &'static str {
     "apache2"
 }
 
+/// Debian's `apache2` package starts the service in its `postinst`: the install itself binds the
+/// ports, which fails while nginx holds port 80 and leaves the package unconfigured.
+#[must_use]
+pub fn apache_install_starts_service() -> bool {
+    true
+}
+
 /// Debian's `apache2` package carries TLS, so no further package.
 #[must_use]
 pub fn apache_extra_packages() -> &'static [&'static str] {
+    &[]
+}
+
+/// Debian's `apache2` package brings no companion package that goes with it on removal.
+#[must_use]
+pub fn apache_companion_packages() -> &'static [&'static str] {
     &[]
 }
 
@@ -62,9 +77,10 @@ pub fn nodejs_package() -> &'static str {
     "nodejs"
 }
 
-/// The Node.js interpreter.
+/// The Node.js interpreter. The one `nodejs` package carries one interpreter, so `_major` does
+/// not change the answer: a second major cannot be installed beside it.
 #[must_use]
-pub fn node_binary() -> AdapterBinary {
+pub fn node_binary(_major: &NodeMajor) -> AdapterBinary {
     AdapterBinary::fixed("/usr/bin/node")
 }
 

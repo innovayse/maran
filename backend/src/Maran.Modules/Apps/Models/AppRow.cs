@@ -13,7 +13,7 @@ namespace Maran.Modules.Apps.Models;
 /// <param name="State">The ledger state; installed for an app found on the host with no row.</param>
 /// <param name="ServiceStatus">The host's service status; none for an app the host does not have.</param>
 /// <param name="InstalledAt">When the panel first saw the app installed, or null.</param>
-/// <param name="TaskId">The task of the last install or removal, or null.</param>
+/// <param name="TaskId">The task of the install or removal running now, or null when none is.</param>
 public sealed record AppRow(
     string AppId,
     string Name,

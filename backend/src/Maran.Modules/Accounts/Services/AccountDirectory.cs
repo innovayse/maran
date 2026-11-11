@@ -199,6 +199,25 @@ public sealed class AccountDirectory : IAccountDirectory
 
     /// <inheritdoc />
     /// <remarks>
+    /// No tenant scope, by contract — see <see cref="IAccountDirectory.FindForSystemAsync"/>. There is
+    /// deliberately no <see cref="Sees"/> check: the caller is a system action whose triggering module has
+    /// already authorised it, and a reseller or an anonymous caller would be answered nothing by the scoped
+    /// read. The filters on accounts and plans are bypassed explicitly, for that reason, on the line. One keyed
+    /// query; the same projection as every other snapshot.
+    /// </remarks>
+    public async Task<AccountSnapshot?> FindForSystemAsync(Guid accountId, CancellationToken cancellationToken)
+    {
+#pragma warning disable RS0030 // a system action runs whoever asked for it; the fail-closed filters would answer nothing
+        var accounts = _dbContext.Accounts.IgnoreQueryFilters().AsNoTracking();
+        var plans = _dbContext.Plans.IgnoreQueryFilters().AsNoTracking();
+#pragma warning restore RS0030
+
+        return await ProjectSnapshots(accounts.Where(account => account.Id == accountId), plans)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
     /// No tenant scope, by contract — see <see cref="IAccountDirectory.FindSystemUserAsync"/>. Unlike
     /// <see cref="FindAsync"/> there is deliberately no <see cref="Sees"/> check: the caller is unattended
     /// work with no principal, and a check against an absent principal would answer nothing in the dark.

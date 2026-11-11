@@ -17,10 +17,17 @@ pub trait AppsHost: PhpHost {
     /// per app per load is a lock contended with every real installation.
     fn path_exists(&self, path: &Path) -> bool;
 
-    /// The names of the entries of the directory `path`, or an empty list when it is absent or
-    /// cannot be read. Used to learn whether the agent's vhost directory of a web server holds
-    /// any site.
-    fn directory_entries(&self, path: &Path) -> Vec<String>;
+    /// The names of the entries of the directory `path`: an empty list when it is absent (a
+    /// directory that was never made holds nothing). Used to learn whether the agent's vhost
+    /// directory of a web server, a pool directory or the unit directory holds anything that
+    /// uses an app.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AppsOpError::HostUnreadable`] when the directory exists and cannot be read:
+    /// every caller decides a destructive step on the answer, so "cannot look" must not read as
+    /// "nothing there".
+    fn directory_entries(&self, path: &Path) -> Result<Vec<String>, AppsOpError>;
 
     /// Writes the agent's own record `contents` at `path`, atomically (a temporary file beside
     /// it, flushed, renamed) and with no validator or reload: nothing checks the file but the

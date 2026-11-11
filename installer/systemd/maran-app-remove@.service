@@ -22,8 +22,12 @@
 # What is deliberately absent: `purge` (the panel's own site configuration, which the package does
 # not own, must outlive a reinstall), `autoremove` (a dependency another package still wants is not
 # this unit's to judge), and --force-* options. A removal that the package manager resolves by also
-# removing a dependent package is the package manager's normal behaviour; the agent shows the
-# operator that list before it starts this unit (threat note section "Package removal").
+# removing a dependent package is the package manager's normal behaviour, which is why THIS UNIT
+# MUST NOT BE THE ONLY GUARD: before the agent starts it, the agent runs the family's dry run of
+# this very removal (apt-get -s remove, dnf remove --assumeno, zypper remove --dry-run) and
+# refuses when the transaction would remove anything but the app's own packages or the panel's
+# nginx, or when the dry run cannot be read (threat note section "Removal"). A host started by
+# hand does not get that check.
 # Same absences as the install unit: no ProtectSystem=, no PrivateNetwork=, no NoNewPrivileges=,
 # no RestrictSUIDSGID=, no EnvironmentFile=; standard input is /dev/null so nothing can prompt.
 [Unit]

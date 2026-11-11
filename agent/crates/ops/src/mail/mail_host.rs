@@ -10,6 +10,7 @@ use maran_distro::AdapterBinary;
 
 use crate::mail::mail_error::MailError;
 use crate::mail::model::listening_socket::ListeningSocket;
+use crate::mail::model::path_facts::PathFacts;
 use crate::safe_write::model::config_file::ConfigFile;
 use crate::safe_write::model::{Reload, Validator};
 use crate::ssl::CertificateState;
@@ -55,6 +56,17 @@ pub trait MailHost: Send + Sync {
     /// would let an I/O failure authorise a rewrite of a live daemon's
     /// configuration.
     fn read_config(&self, target: &Path) -> Result<Option<String>, MailError>;
+
+    /// Reads the owner and mode of `path` without following a final symlink, or
+    /// answers `None` when nothing is there.
+    ///
+    /// Asked only by security invariants (is `postdrop` still setgid root).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MailError::ConfigUnreadable`] when the path exists and cannot be
+    /// inspected, never flattened into "absent".
+    fn path_facts(&self, path: &Path) -> Result<Option<PathFacts>, MailError>;
 
     /// Writes `files` as ONE change through the config-write protocol: every file
     /// renamed into place, then `validator`, then `reload`, with every file

@@ -55,6 +55,12 @@ public static class BackgroundWorkExtensions
         // the window and does the deleting — and this owns the CADENCE it runs on.
         services.AddHostedService<TaskRetentionScheduler>();
 
+        // A short cadence, because what it repairs is a security gap: a local mail submission binding that
+        // failed to reach the host after a committed change keeps the old sender domains and send limit
+        // until it is pushed again. The Mail module owns the JOB - it reads its ledger of what the host holds
+        // and pushes or removes what is owed - and this owns the CADENCE (issue #518).
+        services.AddHostedService<MailSubmissionReconcileScheduler>();
+
         // The same split for the administrators' notification feed: the Notifications module owns the
         // JOB (ninety days, five hundred entries) and this the CADENCE. Without it the feed's table
         // grows for as long as the panel runs.

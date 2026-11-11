@@ -77,6 +77,19 @@ fn postfix_main_config_renders_its_golden() {
 }
 
 #[test]
+fn postfix_main_config_leaves_internal_mail_filter_classes_unset() {
+    let text = main_config().render_config().unwrap();
+    let assignments = text
+        .lines()
+        .filter(|line| {
+            line.trim_start()
+                .starts_with("internal_mail_filter_classes")
+        })
+        .count();
+    assert_eq!(assignments, 0);
+}
+
+#[test]
 fn postfix_main_config_carries_the_map_type_it_was_given_and_never_hash() {
     // The sentinel is a spelling no family uses, so the assertion can only pass if
     // the value reached the file; a literal `lmdb` in the template would not.
@@ -163,15 +176,56 @@ fn the_local_submit_table_follows_the_path_it_is_given() {
 }
 
 #[test]
-fn the_port_25_service_overrides_nothing_so_it_keeps_the_strict_defaults() {
-    // The accepting side of the control below: `smtp inet` must stay a bare line,
-    // because an `-o` under it could re-open what main.cf closed.
+fn the_port_25_service_overrides_only_its_daemon_name_so_it_keeps_the_strict_defaults() {
+    // The accepting side of the control below: `smtp inet` may carry exactly one
+    // `-o`, its milter daemon name (INBOUND), because any other could re-open
+    // what main.cf closed.
     let rendered = PostfixMasterConfig {}.render_config().unwrap();
-    let mut lines = rendered
+    let block: Vec<&str> = rendered
         .lines()
-        .skip_while(|line| !line.starts_with("smtp       inet"));
-    assert!(lines.next().is_some());
-    assert!(!lines.next().is_some_and(|line| line.starts_with(' ')));
+        .skip_while(|line| !line.starts_with("smtp       inet"))
+        .skip(1)
+        .take_while(|line| line.starts_with(' '))
+        .collect();
+    assert_eq!(block, vec!["  -o milter_macro_daemon_name=INBOUND"]);
+}
+
+#[test]
+fn pickup_alone_uses_the_cleanup_service_that_names_the_local_road() {
+    // Issue #518: the rule tells a local submission by the daemon name of the
+    // cleanup service, so pickup gets its own and nothing else shares it.
+    let rendered = PostfixMasterConfig {}.render_config().unwrap();
+    let block_of = |service: &str| -> Vec<String> {
+        rendered
+            .lines()
+            .skip_while(|line| !line.starts_with(service))
+            .skip(1)
+            .take_while(|line| line.starts_with(' '))
+            .map(|line| line.trim().to_owned())
+            .collect()
+    };
+    assert_eq!(
+        block_of("pickup     unix"),
+        vec!["-o cleanup_service_name=cleanup_local"]
+    );
+    assert_eq!(
+        block_of("cleanup_local unix"),
+        vec!["-o milter_macro_daemon_name=MARAN_LOCAL"]
+    );
+    // Accepting control: the ordinary cleanup service keeps the default name, and
+    // no smtpd service reports the local one.
+    assert!(block_of("cleanup    unix").is_empty());
+    assert_eq!(rendered.matches("MARAN_LOCAL").count(), 2);
+    assert_eq!(rendered.matches("cleanup_service_name").count(), 1);
+}
+
+#[test]
+fn the_received_header_text_the_rule_reads_does_not_depend_on_a_package_default() {
+    let rendered = main_config().render_config().unwrap();
+    assert_eq!(
+        parameter(&rendered, "mail_name").as_deref(),
+        Some("Postfix")
+    );
 }
 
 #[test]
