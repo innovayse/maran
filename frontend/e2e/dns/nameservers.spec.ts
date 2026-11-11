@@ -141,7 +141,14 @@ test('a running server with port 53 shut in the firewall says so and opens it in
 
   await expect(page.getByTestId('dns-port-blocked')).toContainText('does not open the port')
   await expect(page.getByText('Not open', { exact: true })).toBeVisible()
+  // The card changes only when the store has written both rules (one request each, in turn) and read
+  // the rule list again, three round trips in a row. The re-read is awaited as the event it is, on
+  // the test's own budget, rather than racing the three trips against one assertion's five seconds.
+  const rulesReread = page.waitForResponse((response) => {
+    return response.request().method() === 'GET' && new URL(response.url()).pathname === '/api/v1/firewall/rules'
+  })
   await page.getByRole('button', { name: 'Open port 53' }).click()
+  await rulesReread
 
   await expect(page.getByTestId('dns-port-blocked')).toHaveCount(0)
   await expect(page.getByText('Open (TCP and UDP)')).toBeVisible()

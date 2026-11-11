@@ -233,39 +233,48 @@ test('the FTPS credential dialog names the panel host and never the customer dom
   await expect(dialog).toContainText('Connect to this host name exactly as written.')
 })
 
-// Both directions. A warning that is always shown is not a warning.
-test('the placeholder-certificate warning appears only when the status says the certificate is self-signed', async ({
+/**
+ * Opens the FTPS page for an administrator with the given server status and creates a login, which
+ * opens the credential dialog.
+ * @param page The Playwright page under test.
+ * @param status The FTPS status the panel reports.
+ * @returns Resolves once the create has been submitted.
+ */
+const createFtpsLoginWithStatus = async (page: Page, status: FtpsStatus): Promise<void> => {
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubModules(page, LICENSED)
+  await stubShellReads(page)
+  await stubAccounts(page, [ALICE])
+  await stubFirewall(page, { rules: [], bans: [], whitelist: [] })
+  await stubFtpsServer(page, status)
+  await stubSftpUsers(page, [])
+  await stubFtpUsers(page, [])
+  await page.goto(FTPS_PAGE)
+  await createLogin(page, 'FTPS', 'upload')
+}
+
+const PLACEHOLDER_SENTENCE = "The server's certificate is a placeholder the panel generated"
+
+// Both directions. A warning that is always shown is not a warning. Each direction is its own test
+// on its own page: one test that swapped the stubs half way (`unrouteAll`) let the first page's
+// requests, still in flight, reach the network with no stub in front of them.
+test('the placeholder-certificate warning is absent when the status says the certificate is not self-signed', async ({
   page,
 }) => {
-  const SELF_SIGNED: FtpsStatus = { ...runningFtpsStatus, certificate: 'selfSigned' }
-  const PLACEHOLDER_SENTENCE = "The server's certificate is a placeholder the panel generated"
+  await createFtpsLoginWithStatus(page, runningFtpsStatus)
 
-  await stubSignedIn(page)
-  await stubHealthy(page)
-  await stubModules(page, LICENSED)
-  await stubShellReads(page)
-  await stubAccounts(page, [ALICE])
-  await stubFirewall(page, { rules: [], bans: [], whitelist: [] })
-  await stubFtpsServer(page, runningFtpsStatus)
-  await stubSftpUsers(page, [])
-  await stubFtpUsers(page, [])
-  await page.goto(FTPS_PAGE)
-  await createLogin(page, 'FTPS', 'upload')
-
+  // The dialog names the host from the status read, which the page starts without waiting for, so the
+  // absence is only meaningful once the host is on screen: before that the dialog lacks the warning
+  // because it lacks the status.
+  await expect(page.getByTestId('ftp-credential-host')).toHaveText('panel.example.net')
   await expect(page.getByRole('dialog')).not.toContainText(PLACEHOLDER_SENTENCE)
+})
 
-  await page.unrouteAll({ behavior: 'ignoreErrors' })
-  await stubSignedIn(page)
-  await stubHealthy(page)
-  await stubModules(page, LICENSED)
-  await stubShellReads(page)
-  await stubAccounts(page, [ALICE])
-  await stubFirewall(page, { rules: [], bans: [], whitelist: [] })
-  await stubFtpsServer(page, SELF_SIGNED)
-  await stubSftpUsers(page, [])
-  await stubFtpUsers(page, [])
-  await page.goto(FTPS_PAGE)
-  await createLogin(page, 'FTPS', 'upload')
+test('the placeholder-certificate warning appears when the status says the certificate is self-signed', async ({
+  page,
+}) => {
+  await createFtpsLoginWithStatus(page, { ...runningFtpsStatus, certificate: 'selfSigned' })
 
   await expect(page.getByRole('dialog')).toContainText(PLACEHOLDER_SENTENCE)
 })
