@@ -149,4 +149,64 @@ public sealed class SemanticVersionTests
         Assert.False(Version("1.0.0").Equals((object?)"1.0.0"));
         Assert.True(Version("1.0.0").Equals((object?)Version("1.0.0")));
     }
+
+    /// <summary>The six operators agree with the specification's precedence for a lower and a higher version.</summary>
+    [Theory]
+    [InlineData("1.0.0-alpha", "1.0.0")]
+    [InlineData("1.0.0", "1.0.1")]
+    [InlineData("1.9.0", "1.10.0")]
+    [InlineData("1.0.0-alpha.1", "1.0.0-alpha.beta")]
+    public void The_operators_follow_precedence(string lower, string higher)
+    {
+        var low = Version(lower);
+        var high = Version(higher);
+
+        Assert.True(low < high);
+        Assert.True(low <= high);
+        Assert.True(high > low);
+        Assert.True(high >= low);
+        Assert.True(low != high);
+        Assert.False(low == high);
+        Assert.False(low > high);
+        Assert.False(low >= high);
+        Assert.False(high < low);
+        Assert.False(high <= low);
+    }
+
+    /// <summary>Two versions that differ only in build metadata are equal under every operator.</summary>
+    [Fact]
+    public void Versions_differing_only_in_build_metadata_are_equal_under_the_operators()
+    {
+        var left = Version("1.2.3+a");
+        var right = Version("1.2.3+b");
+
+        Assert.True(left == right);
+        Assert.False(left != right);
+        Assert.True(left <= right);
+        Assert.True(left >= right);
+        Assert.False(left < right);
+        Assert.False(left > right);
+    }
+
+    /// <summary>Null orders below every version and equals only null, so no operator throws.</summary>
+    [Fact]
+    public void Null_orders_below_every_version_under_the_operators()
+    {
+        var version = Version("0.0.0");
+        SemanticVersion? none = null;
+
+        Assert.True(none == null);
+        Assert.True(none != version);
+        Assert.False(version == none);
+        Assert.True(none < version);
+        Assert.True(none <= version);
+        Assert.True(none <= null);
+        Assert.True(none >= null);
+        Assert.False(none > version);
+        Assert.False(none >= version);
+        Assert.True(version > none);
+        Assert.True(version >= none);
+        Assert.False(version < none);
+        Assert.False(version <= none);
+    }
 }

@@ -25,7 +25,7 @@ namespace Maran.SharedKernel.Utilities.Versions;
 /// it are equal, which is why <see cref="Equals(SemanticVersion)"/> is not a comparison of the text.
 /// </para>
 /// </remarks>
-public sealed class SemanticVersion : IEquatable<SemanticVersion>
+public sealed class SemanticVersion : IEquatable<SemanticVersion>, IComparable<SemanticVersion>
 {
     /// <summary>The longest text <see cref="TryParse"/> reads; anything longer is refused unread.</summary>
     public const int MaxLength = 128;
@@ -162,10 +162,15 @@ public sealed class SemanticVersion : IEquatable<SemanticVersion>
     }
 
     /// <summary>Orders this version against another.</summary>
-    /// <param name="other">The version to compare with.</param>
+    /// <param name="other">The version to compare with; null orders below every version.</param>
     /// <returns>Negative when this version is lower, zero when equal, positive when higher.</returns>
-    public int CompareTo(SemanticVersion other)
+    public int CompareTo(SemanticVersion? other)
     {
+        if (other is null)
+        {
+            return 1;
+        }
+
         return Compare(this, other);
     }
 
@@ -187,6 +192,80 @@ public sealed class SemanticVersion : IEquatable<SemanticVersion>
     public override int GetHashCode()
     {
         return HashCode.Combine(Major, Minor, Patch, PreRelease);
+    }
+
+    /// <summary>True when both versions have the same precedence, or both are null; the build metadata is ignored.</summary>
+    /// <param name="left">The first version, or null.</param>
+    /// <param name="right">The second version, or null.</param>
+    /// <returns>True when the versions order as equal.</returns>
+    public static bool operator ==(SemanticVersion? left, SemanticVersion? right)
+    {
+        if (left is null)
+        {
+            return right is null;
+        }
+
+        return left.Equals(right);
+    }
+
+    /// <summary>True when the versions differ in precedence.</summary>
+    /// <param name="left">The first version, or null.</param>
+    /// <param name="right">The second version, or null.</param>
+    /// <returns>True when the versions are not equal.</returns>
+    public static bool operator !=(SemanticVersion? left, SemanticVersion? right)
+    {
+        return !(left == right);
+    }
+
+    /// <summary>True when the first version has lower precedence; null orders below every version.</summary>
+    /// <param name="left">The first version, or null.</param>
+    /// <param name="right">The second version, or null.</param>
+    /// <returns>True when <paramref name="left"/> is lower.</returns>
+    public static bool operator <(SemanticVersion? left, SemanticVersion? right)
+    {
+        if (left is null)
+        {
+            return right is not null;
+        }
+
+        return left.CompareTo(right) < 0;
+    }
+
+    /// <summary>True when the first version is lower or equal; null orders below every version.</summary>
+    /// <param name="left">The first version, or null.</param>
+    /// <param name="right">The second version, or null.</param>
+    /// <returns>True when <paramref name="left"/> is not higher.</returns>
+    public static bool operator <=(SemanticVersion? left, SemanticVersion? right)
+    {
+        if (left is null)
+        {
+            return true;
+        }
+
+        return left.CompareTo(right) <= 0;
+    }
+
+    /// <summary>True when the first version has higher precedence; null orders below every version.</summary>
+    /// <param name="left">The first version, or null.</param>
+    /// <param name="right">The second version, or null.</param>
+    /// <returns>True when <paramref name="left"/> is higher.</returns>
+    public static bool operator >(SemanticVersion? left, SemanticVersion? right)
+    {
+        return left is not null && left.CompareTo(right) > 0;
+    }
+
+    /// <summary>True when the first version is higher or equal; null orders below every version.</summary>
+    /// <param name="left">The first version, or null.</param>
+    /// <param name="right">The second version, or null.</param>
+    /// <returns>True when <paramref name="left"/> is not lower.</returns>
+    public static bool operator >=(SemanticVersion? left, SemanticVersion? right)
+    {
+        if (left is null)
+        {
+            return right is null;
+        }
+
+        return left.CompareTo(right) >= 0;
     }
 
     /// <summary>The version in its canonical text, including any pre-release and build parts.</summary>

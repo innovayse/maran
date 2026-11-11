@@ -65,12 +65,9 @@ public sealed class ModuleOperationGate
         var now = _clock.UtcNow;
         var existing = await _context.ModuleOperationLocks
             .SingleOrDefaultAsync(claim => claim.ModuleId == moduleId, cancellationToken);
-        if (existing is not null)
+        if (existing is not null && (!existing.IsStale(now) || !await TryTakeOverAsync(existing, cancellationToken)))
         {
-            if (!existing.IsStale(now) || !await TryTakeOverAsync(existing, cancellationToken))
-            {
-                return InProgress();
-            }
+            return InProgress();
         }
 
         var fresh = new ModuleOperationLock(Guid.NewGuid(), moduleId, now);

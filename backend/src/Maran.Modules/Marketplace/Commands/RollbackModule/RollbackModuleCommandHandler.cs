@@ -83,7 +83,7 @@ public sealed class RollbackModuleCommandHandler
             return Result<ModuleOperationAcceptedDto>.Ok(repeat);
         }
 
-        var package = new ModulePackageReference(command.Id, facts.Loaded.Version, facts.Package?.PackageSha256);
+        var package = new ModulePackageReference(command.Id, facts.Loaded.Version, facts.Package.PackageSha256);
         return await _starter.StartAsync(
             Operation, package, null, command.UserId, command.IpAddress, command.UserAgent, cancellationToken);
     }

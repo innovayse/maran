@@ -117,12 +117,12 @@ public sealed class MigrationGrantFailureLimiter
             return;
         }
 
-        foreach (var entry in _windows)
+        foreach (var entry in _windows.Where(candidate =>
         {
-            if (entry.Value.HasExpired(now, window))
-            {
-                _windows.TryRemove(entry);
-            }
+            return candidate.Value.HasExpired(now, window);
+        }))
+        {
+            _windows.TryRemove(entry);
         }
     }
 
