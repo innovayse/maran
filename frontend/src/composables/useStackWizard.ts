@@ -3,6 +3,7 @@ import { useHostAppsStore } from '../stores/hostApps'
 import { useStackStore } from '../stores/stack'
 import { useTasksStore } from '../stores/tasks'
 import type { InstallableHostApp } from '../types/hostApp'
+import type { ListRequest } from '../types/list'
 import type { PanelTask } from '../types/panelTask'
 import { hostAppFamily } from '../utils/hostAppFamily'
 
@@ -11,6 +12,15 @@ export type StackWizardStep = 'webServer' | 'runtimes' | 'review' | 'install'
 
 /** The steps in order, so "next" and "back" never hold a position of their own. */
 export const STACK_WIZARD_STEPS: readonly StackWizardStep[] = ['webServer', 'runtimes', 'review', 'install']
+
+/** The read that finds the installs still running: the panel's rows that are installing (a handful at most). */
+const RUNNING_INSTALLS: ListRequest = {
+  page: 1,
+  pageSize: 100,
+  search: '',
+  sort: '',
+  filters: { state: 'installing' },
+}
 
 /** Where one app of the install queue stands. */
 export type StackQueueState = 'waiting' | 'running' | 'done' | 'failed'
@@ -63,6 +73,8 @@ export interface StackWizard {
   toggle: (family: 'php' | 'nodejs', id: string, chosen: boolean) => void
   /** Walks the queue: installs the web server, then each runtime, one at a time. */
   run: () => Promise<void>
+  /** Picks up installs the panel is already running (after a reload) and watches them to their end. */
+  resume: () => Promise<void>
   /** The progress of one queued app: the newest of the polled snapshot and the live stream's frame. */
   progressOf: (id: string) => PanelTask | null
 }
@@ -80,6 +92,14 @@ export interface StackWizard {
  * present, and what decides an ending) and the frame of the shell's running-tasks stream (live,
  * between polls). After the queue settles the stack status is read again, because the panel, not
  * this wizard, says whether a web server is installed.
+ *
+ * The wizard survives a reload: {@link StackWizard.resume} asks the panel which installs are running,
+ * follows their tasks and shows the install step, so an administrator held on this screen by the
+ * stack guard is never left with an empty choice while the web server installs. The web server
+ * choice is every web server the host's sources offer, whether or not the agent reports it
+ * installed: the guard keeps the wizard open only while the panel's ledger says the stack is not
+ * ready, and an app the host has that the ledger does not count is installed again (the panel
+ * settles the row against the host), not hidden.
  * @returns The wizard's state and actions.
  */
 export const useStackWizard = (): StackWizard => {
@@ -96,18 +116,22 @@ export const useStackWizard = (): StackWizard => {
   const webServerReady: Ref<boolean> = ref(false)
 
   /**
-   * Picks the installable apps of one family that are not installed yet.
+   * Picks the installable runtimes of one family that are not installed yet.
    * @param family The family to pick.
    * @returns Those apps, in the order the panel listed them.
    */
-  const offered = (family: 'webServer' | 'php' | 'nodejs'): InstallableHostApp[] => {
+  const offered = (family: 'php' | 'nodejs'): InstallableHostApp[] => {
     return appsStore.installable.filter((app) => {
       return !app.installed && hostAppFamily(app.appId) === family
     })
   }
 
   const webServerChoices: ComputedRef<InstallableHostApp[]> = computed(() => {
-    return offered('webServer')
+    // The agent's `installed` flag is not the stack's readiness (the ledger decides that), so it does
+    // not hide a web server here; a web server whose install is running is watched, not offered again.
+    return appsStore.installable.filter((app) => {
+      return hostAppFamily(app.appId) === 'webServer' && appsStore.operations[app.appId] === undefined
+    })
   })
 
   const phpChoices: ComputedRef<InstallableHostApp[]> = computed(() => {
@@ -214,6 +238,18 @@ export const useStackWizard = (): StackWizard => {
   }
 
   /**
+   * Waits for a followed app's task to end and records how it ended.
+   * @param item The queue entry whose task is followed.
+   * @returns Resolves once the entry settled.
+   */
+  const settle = async (item: StackQueueItem): Promise<void> => {
+    await untilFinished(item.id)
+    // A task the panel reports as failed is a failure; a task it no longer knows is judged by the
+    // stack status read after the queue, so it counts as done here.
+    item.state = appsStore.operationTasks[item.id]?.failure ? 'failed' : 'done'
+  }
+
+  /**
    * Installs one queued app and records how it ended.
    * @param item The queue entry.
    * @returns Resolves once the app settled.
@@ -224,10 +260,17 @@ export const useStackWizard = (): StackWizard => {
       item.state = 'failed'
       return
     }
-    await untilFinished(item.id)
-    // A task the panel reports as failed is a failure; a task it no longer knows is judged by the
-    // stack status read after the queue, so it counts as done here.
-    item.state = appsStore.operationTasks[item.id]?.failure ? 'failed' : 'done'
+    await settle(item)
+  }
+
+  /**
+   * Reads the stack status again once the queue settled, because the panel says whether a web
+   * server is installed.
+   * @returns Resolves once the status was read.
+   */
+  const confirmStack = async (): Promise<void> => {
+    await stackStore.load(true)
+    webServerReady.value = stackStore.isReady === true
   }
 
   /**
@@ -251,8 +294,67 @@ export const useStackWizard = (): StackWizard => {
           await installOne(item)
         }
       }
-      await stackStore.load(true)
-      webServerReady.value = stackStore.isReady === true
+      await confirmStack()
+    } finally {
+      installing.value = false
+    }
+  }
+
+  /**
+   * Leaves the install step for the web server choice when the resumed installs settled and the stack
+   * is still not ready and nothing in the queue is a failed web server the retry button could run
+   * again (the installs picked up were runtimes, or the web server ended without a failure). Without
+   * it the administrator, held here by the stack guard, would see an error with no way forward.
+   * @returns Nothing.
+   */
+  const returnToWebServerChoice = (): void => {
+    if (webServerReady.value) {
+      return
+    }
+    const retryable = queue.value.some((item) => {
+      return item.isWebServer && item.state === 'failed'
+    })
+    if (!retryable) {
+      queue.value = []
+      step.value = 'webServer'
+    }
+  }
+
+  /**
+   * Picks up the installs the panel is running, as after a reload: follows their tasks, shows the
+   * install step with them as the queue and waits for them to end. Does nothing when none runs or
+   * when the wizard is already walking a queue.
+   * @returns Resolves once the resumed installs ended and the stack status was read; when the stack is
+   * still not ready and there is no failed web server to retry, the wizard is back on its first step.
+   */
+  const resume = async (): Promise<void> => {
+    if (installing.value || queue.value.length > 0) {
+      return
+    }
+    // The read follows every row that names a running task (the apps store's rule).
+    const load = await appsStore.list(RUNNING_INSTALLS)
+    if (load.kind !== 'loaded' || queue.value.length > 0) {
+      return
+    }
+    const running = load.page.items.filter((app) => {
+      return appsStore.operations[app.appId] !== undefined
+    })
+    if (running.length === 0) {
+      return
+    }
+    installing.value = true
+    queue.value = running
+      .map((app): StackQueueItem => {
+        return { id: app.appId, name: app.name, isWebServer: hostAppFamily(app.appId) === 'webServer', state: 'running' }
+      })
+      .sort((first, second) => {
+        return Number(second.isWebServer) - Number(first.isWebServer)
+      })
+    step.value = 'install'
+    try {
+      await Promise.all(queue.value.map(settle))
+      await confirmStack()
+      returnToWebServerChoice()
     } finally {
       installing.value = false
     }
@@ -276,6 +378,7 @@ export const useStackWizard = (): StackWizard => {
     back,
     toggle,
     run,
+    resume,
     progressOf,
   }
 }

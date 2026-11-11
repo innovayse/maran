@@ -111,11 +111,11 @@ impl AdapterBinary {
 
     /// A binary whose path is built from a validated version.
     ///
-    /// Used by `php_fpm_binary` alone, whose argument is a
-    /// `maran_agent_core::validation::web::php_version::PhpVersion`, so the
-    /// built string is exactly as closed as the version grammar (two ASCII
-    /// digit components): it cannot carry a separator, a `..` or a control
-    /// character.
+    /// Used by `php_fpm_binary`, whose argument is a
+    /// `maran_agent_core::validation::web::php_version::PhpVersion`, and by `node_binary`,
+    /// whose argument is a `maran_agent_core::validation::web::node_major::NodeMajor`, so the
+    /// built string is exactly as closed as that grammar (ASCII digits and dots): it cannot
+    /// carry a separator, a `..` or a control character.
     pub(crate) fn versioned(path: String) -> Self {
         Self(Cow::Owned(path))
     }

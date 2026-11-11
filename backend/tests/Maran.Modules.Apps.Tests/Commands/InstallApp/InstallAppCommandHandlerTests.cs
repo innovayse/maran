@@ -2,6 +2,8 @@ using Maran.Modules.Apps.Commands.InstallApp;
 using Maran.Modules.Apps.Domain.Entities;
 using Maran.Modules.Apps.Domain.Enums;
 using Maran.Modules.Apps.Domain.ValueObjects;
+using Maran.Modules.Apps.Persistence.Configurations;
+using Maran.Modules.Apps.Tests.Services;
 using Maran.Modules.Apps.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
@@ -209,5 +211,82 @@ public sealed class InstallAppCommandHandlerTests
 
         Assert.Equal("AppsOperationFailed", Assert.Single(world.Tasks.Tasks).FailureCode);
         Assert.Equal(AppState.Failed, (await world.Db.InstalledApps.SingleAsync()).State);
+    }
+
+    /// <summary>
+    /// Issue #526: two requests that read the same failed row cannot both start. The rival saves between this
+    /// request's read and its write, so this one is the loser: a typed conflict, its task failed, nothing dispatched.
+    /// </summary>
+    [Fact]
+    public async Task A_retry_that_loses_the_race_for_a_failed_row_is_a_conflict()
+    {
+        using var world = new AppsWorld();
+        world.Offer("php-8.3");
+        Seed(world, "php-8.3", AppState.Failed);
+        var rivalTask = Guid.NewGuid();
+        world.Tasks.AfterBegin = () =>
+        {
+            using var rival = world.RivalDb();
+            rival.InstalledApps.Single().RetryInstall(rivalTask, AppsWorld.Now);
+            rival.SaveChanges();
+        };
+
+        var result = await HandlerOver(world).HandleAsync(new InstallAppCommand("php-8.3"), default);
+
+        Assert.Equal("AppsOperationInProgress", result.Error!.Code);
+        Assert.Equal(ErrorType.Conflict, result.Error.Type);
+        Assert.Equal("AppsOperationInProgress", Assert.Single(world.Tasks.Tasks).FailureCode);
+        Assert.Empty(world.Dispatcher.Dispatched);
+        Assert.False(Assert.Single(world.Audit.Entries).Succeeded);
+        using var check = world.RivalDb();
+        Assert.Equal(rivalTask, check.InstalledApps.Single().TaskId);
+    }
+
+    /// <summary>The control: with no rival between the read and the write the same retry is accepted.</summary>
+    [Fact]
+    public async Task A_retry_with_no_rival_is_accepted_and_dispatched()
+    {
+        using var world = new AppsWorld();
+        world.Offer("php-8.3");
+        Seed(world, "php-8.3", AppState.Failed);
+
+        var result = await HandlerOver(world).HandleAsync(new InstallAppCommand("php-8.3"), default);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(world.Dispatcher.Dispatched);
+        Assert.Null(Assert.Single(world.Tasks.Tasks).FailureCode);
+    }
+
+    /// <summary>Issue #526: the database refusing a second active web server is the typed web server conflict.</summary>
+    [Fact]
+    public async Task A_second_web_server_the_database_refuses_is_a_conflict()
+    {
+        var failure = new DbUpdateException(
+            "refused",
+            AppLedgerConflictsTests.UniqueViolation(InstalledAppConfiguration.ActiveWebServerIndexName));
+        using var world = new AppsWorld(failure);
+        world.Offer("apache");
+
+        var result = await HandlerOver(world).HandleAsync(new InstallAppCommand("apache"), default);
+
+        Assert.Equal("AppsWebServerAlreadyInstalled", result.Error!.Code);
+        Assert.Equal(ErrorType.Conflict, result.Error.Type);
+        Assert.Equal("AppsWebServerAlreadyInstalled", Assert.Single(world.Tasks.Tasks).FailureCode);
+        Assert.Empty(world.Dispatcher.Dispatched);
+    }
+
+    /// <summary>The control: a database failure that is not a lost race is a fault and propagates.</summary>
+    [Fact]
+    public async Task A_database_failure_that_is_not_a_conflict_propagates()
+    {
+        using var world = new AppsWorld(new DbUpdateException("disk full", new InvalidOperationException("disk full")));
+        world.Offer("nginx");
+
+        await Assert.ThrowsAsync<DbUpdateException>(async () =>
+        {
+            await HandlerOver(world).HandleAsync(new InstallAppCommand("nginx"), default);
+        });
+
+        Assert.Empty(world.Dispatcher.Dispatched);
     }
 }

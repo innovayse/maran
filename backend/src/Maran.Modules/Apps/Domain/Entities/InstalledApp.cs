@@ -20,6 +20,11 @@ namespace Maran.Modules.Apps.Domain.Entities;
 /// of the same app from both starting: the loser's insert is refused. A removed app has no row; a failed
 /// install keeps one so the administrator can read that it failed and ask again.
 /// </para>
+/// <para>
+/// <b>Every change is checked against the row it was decided on.</b> <see cref="Revision"/> moves with each
+/// transition and is the concurrency token, so two requests that read the same state and each decide to
+/// begin an operation cannot both be saved: the second save finds the row changed and is refused.
+/// </para>
 /// </remarks>
 public sealed class InstalledApp
 {
@@ -38,7 +43,11 @@ public sealed class InstalledApp
     /// <summary>Where the app stands.</summary>
     public AppState State { get; private set; }
 
-    /// <summary>The task of the last install or removal, or <see langword="null"/> for an app found on the host.</summary>
+    /// <summary>
+    /// The task of the install or removal that is running now, or <see langword="null"/> when none is. A
+    /// transition that settles the row (installed, failed) clears it, so the field has one meaning: the
+    /// operation in flight.
+    /// </summary>
     public Guid? TaskId { get; private set; }
 
     /// <summary>When the panel first saw the app installed, or <see langword="null"/> while it has not.</summary>
@@ -46,6 +55,9 @@ public sealed class InstalledApp
 
     /// <summary>When the row last changed.</summary>
     public DateTimeOffset UpdatedAt { get; private set; }
+
+    /// <summary>The number of transitions the row has had; the optimistic-concurrency token (issue #526).</summary>
+    public int Revision { get; private set; }
 
     /// <summary>Whether the app is installed on the host, which is what the stack gate counts.</summary>
     public bool IsInstalled
@@ -121,7 +133,7 @@ public sealed class InstalledApp
     {
         State = AppState.Installing;
         TaskId = taskId;
-        UpdatedAt = now;
+        Touch(now);
     }
 
     /// <summary>Starts the removal of an installed app, or of one whose install failed part-way.</summary>
@@ -131,7 +143,7 @@ public sealed class InstalledApp
     {
         State = AppState.Removing;
         TaskId = taskId;
-        UpdatedAt = now;
+        Touch(now);
     }
 
     /// <summary>Records that the host has the app installed.</summary>
@@ -141,8 +153,9 @@ public sealed class InstalledApp
     {
         State = AppState.Installed;
         Version = version;
+        TaskId = null;
         InstalledAt ??= now;
-        UpdatedAt = now;
+        Touch(now);
     }
 
     /// <summary>Records that the install ended without the app being installed, or without anyone knowing.</summary>
@@ -150,6 +163,15 @@ public sealed class InstalledApp
     public void MarkFailed(DateTimeOffset now)
     {
         State = AppState.Failed;
+        TaskId = null;
+        Touch(now);
+    }
+
+    /// <summary>Records that the row changed: stamps the instant and moves the concurrency token.</summary>
+    /// <param name="now">The current instant, from <see cref="IClock"/>.</param>
+    private void Touch(DateTimeOffset now)
+    {
         UpdatedAt = now;
+        Revision++;
     }
 }

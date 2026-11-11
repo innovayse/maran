@@ -120,6 +120,14 @@ pub trait MailFacts: Send + Sync {
     /// `postdrop` on both families; UNVERIFIED.
     fn postdrop_group(&self) -> &'static str;
 
+    /// Absolute path of the `postdrop` program, which a customer's `sendmail` runs setgid to
+    /// put a message in the maildrop queue.
+    ///
+    /// The agent only inspects it (mode, owner, group) before binding an account's local
+    /// submission; it never writes there. `/usr/sbin/postdrop` on both families; UNVERIFIED on
+    /// a booted host.
+    fn postdrop_program(&self) -> &'static str;
+
     /// The system user Dovecot's auth and LMTP processes run as.
     ///
     /// `dovecot` on both families; the Debian family does NOT create a `vmail` user (UNVERIFIED),

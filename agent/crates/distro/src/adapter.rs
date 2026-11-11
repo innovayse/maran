@@ -16,6 +16,7 @@ use crate::mail_facts::MailFacts;
 use crate::package_facts::PackageFacts;
 use crate::php_extension_facts::PhpExtensionFacts;
 use crate::php_facts::PhpFacts;
+use crate::removal_facts::RemovalFacts;
 use crate::scheduling_facts::SchedulingFacts;
 use crate::service_manager_facts::ServiceManagerFacts;
 use crate::web_server_facts::WebServerFacts;
@@ -60,6 +61,7 @@ pub trait DistroAdapter:
     + PhpFacts
     + PhpExtensionFacts
     + PackageFacts
+    + RemovalFacts
     + FileTransferFacts
     + DnsFacts
     + BackupFacts

@@ -21,12 +21,18 @@ pub fn to_agent_error(error: &AppsOpError) -> AgentError {
             (ErrorCode::InvalidInput, String::new())
         }
         AppsOpError::NotInstalled { .. } => (ErrorCode::AppNotInstalled, String::new()),
-        AppsOpError::InUse { .. } => (ErrorCode::AppInUse, String::new()),
+        // A removal that would take other packages with it is the app being used by them: the
+        // same refusal an operator answers by removing those first.
+        AppsOpError::InUse { .. } | AppsOpError::RemovalWouldRemoveOthers { .. } => {
+            (ErrorCode::AppInUse, String::new())
+        }
         AppsOpError::WebServerAlreadyInstalled { .. } => {
             (ErrorCode::WebServerAlreadyInstalled, String::new())
         }
         AppsOpError::ServiceManager { stderr } => (ErrorCode::SystemFailure, stderr.clone()),
-        AppsOpError::StillAbsent { .. } => (ErrorCode::SystemFailure, String::new()),
+        AppsOpError::StillAbsent { .. }
+        | AppsOpError::RemovalNotSimulated { .. }
+        | AppsOpError::HostUnreadable { .. } => (ErrorCode::SystemFailure, String::new()),
         AppsOpError::Package(package) => {
             return php_to_agent_error(&PhpOpError::from(package.clone()));
         }

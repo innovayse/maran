@@ -15,6 +15,7 @@ import type { ListLoad, ListRequest } from '../types/list'
 import type { LoadingState } from '../types/loading'
 import type { PanelTask } from '../types/panelTask'
 import { hostAppInUseSites } from '../utils/hostAppInUseSites'
+import { hostAppRunsOperation } from '../utils/hostAppRunsOperation'
 import { withoutKey } from '../utils/withoutKey'
 
 /** The problem code the panel refuses an uninstall with while sites still use the app (`apps.inUse`). */
@@ -74,6 +75,13 @@ export const useHostAppsStore = defineStore('hostApps', () => {
   /** The last removal the panel refused because sites use the app, or `null`. */
   const inUse: Ref<HostAppInUse | null> = ref(null)
 
+  /**
+   * The ids of the tasks the tasks API reported finished or no longer knows. A row that still names one
+   * of them (the panel died before it settled the row) is not followed again: following it would end at
+   * once, reload the table, and meet the same row, without end. A plain `Set`: nothing renders from it.
+   */
+  const endedTasks = new Set<string>()
+
   /** The timers re-reading followed tasks, by app id. A plain `Map`: nothing renders from it. */
   const pollTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
@@ -124,11 +132,13 @@ export const useHostAppsStore = defineStore('hostApps', () => {
       const task = await tasksApi.get(taskId)
       operationTasks.value = { ...operationTasks.value, [id]: task }
       if (task.finishedAt !== null) {
+        endedTasks.add(taskId)
         stopFollowing(id)
         return
       }
     } catch (error) {
       if (error instanceof ApiError && error.status === 404) {
+        endedTasks.add(taskId)
         stopFollowing(id)
         return
       }
@@ -189,9 +199,11 @@ export const useHostAppsStore = defineStore('hostApps', () => {
       // A slower, older read must not replace the rows of a newer one.
       if (isLatest()) {
         apps.value = page.items
-        // A reload while an install or removal runs must not lose it: the row names its task.
+        // A reload while an install or removal runs must not lose it: the row names its task. Only a
+        // row that is installing or being removed is followed; a settled one carries no task to watch,
+        // and neither does one whose task the tasks API already reported finished or unknown.
         for (const app of page.items) {
-          if (app.taskId !== null && operations.value[app.appId] === undefined) {
+          if (hostAppRunsOperation(app) && operations.value[app.appId] === undefined && !endedTasks.has(app.taskId)) {
             follow(app.appId, { taskId: app.taskId })
           }
         }

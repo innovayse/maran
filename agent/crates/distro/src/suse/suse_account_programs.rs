@@ -175,3 +175,11 @@ pub fn chpasswd_binary() -> AdapterBinary {
 pub fn passwd_database() -> &'static str {
     "/etc/passwd"
 }
+
+/// Absolute path of the host's local group database.
+///
+/// See [`AccountPrograms::group_database`](crate::AccountPrograms::group_database) for what the value is for.
+#[must_use]
+pub fn group_database() -> &'static str {
+    "/etc/group"
+}

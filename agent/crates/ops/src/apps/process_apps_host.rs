@@ -18,15 +18,24 @@ impl AppsHost for ProcessPhpHost {
 
     /// Reads the directory as root. The directories asked about are the agent's own
     /// (`/etc/maran/...`), never a customer's path.
-    fn directory_entries(&self, path: &Path) -> Vec<String> {
-        std::fs::read_dir(path)
-            .map(|entries| {
-                entries
-                    .filter_map(Result::ok)
-                    .filter_map(|entry| entry.file_name().into_string().ok())
-                    .collect()
-            })
-            .unwrap_or_default()
+    fn directory_entries(&self, path: &Path) -> Result<Vec<String>, AppsOpError> {
+        let unreadable = |error: std::io::Error| AppsOpError::HostUnreadable {
+            path: path.display().to_string(),
+            reason: error.to_string(),
+        };
+        let entries = match std::fs::read_dir(path) {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(error) => return Err(unreadable(error)),
+        };
+        let mut names = Vec::new();
+        for entry in entries {
+            // A name that is not UTF-8 is none of the agent's (it writes ASCII names only).
+            if let Ok(name) = entry.map_err(unreadable)?.file_name().into_string() {
+                names.push(name);
+            }
+        }
+        Ok(names)
     }
 
     fn write_record(&self, path: &Path, contents: &str) -> Result<(), AppsOpError> {

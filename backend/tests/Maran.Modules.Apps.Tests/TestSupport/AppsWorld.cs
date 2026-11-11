@@ -1,6 +1,7 @@
 using Maran.Agent.Client.Services.AppsService;
 using Maran.Modules.Apps.Persistence;
 using Maran.Modules.Apps.Services;
+using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Apps.Tests.TestSupport;
 
@@ -10,8 +11,34 @@ public sealed class AppsWorld : IDisposable
     /// <summary>The instant the clock reports.</summary>
     public static readonly DateTimeOffset Now = new(2026, 11, 10, 9, 0, 0, TimeSpan.Zero);
 
+    /// <summary>Creates the world.</summary>
+    /// <param name="saveFailure">A failure every save of the ledger raises, or null for a database that accepts writes.</param>
+    public AppsWorld(DbUpdateException? saveFailure = null)
+    {
+        Db = AppsTestContext.Create(
+            DatabaseName,
+            saveFailure is null ? null : new FailingSaveInterceptor(saveFailure));
+    }
+
+    /// <summary>Creates the world over a ledger whose saves pass through an interceptor.</summary>
+    /// <param name="interceptor">The interceptor standing in for what the real database does on a save.</param>
+    public AppsWorld(Microsoft.EntityFrameworkCore.Diagnostics.IInterceptor interceptor)
+    {
+        Db = AppsTestContext.Create(DatabaseName, interceptor);
+    }
+
+    /// <summary>The name of the in-memory database, so a second context can act as a rival request.</summary>
+    public string DatabaseName { get; } = Guid.NewGuid().ToString();
+
     /// <summary>The ledger.</summary>
-    public AppsDbContext Db { get; } = AppsTestContext.Create();
+    public AppsDbContext Db { get; }
+
+    /// <summary>Opens a second context over the same ledger: the view another request has of it.</summary>
+    /// <returns>A new context; the caller disposes it.</returns>
+    public AppsDbContext RivalDb()
+    {
+        return AppsTestContext.Create(DatabaseName);
+    }
 
     /// <summary>The agent.</summary>
     public FakeAgentAppsClient Agent { get; } = new();

@@ -1,6 +1,7 @@
 import { expect, test } from '../fixtures/guarded-test'
 import { openApps } from '../fixtures/open-apps'
 import {
+  APP_TASK_ID,
   FINISHED_APP_TASK,
   appTask,
   appsWorld,
@@ -171,4 +172,51 @@ test('removing an app no site uses starts the removal', async ({ page }) => {
   await expect.poll(() => {return recorder.matching(/POST \/api\/v1\/apps\/php-8\.3\/uninstall$/).length}).toBe(1)
   await expect(page.getByTestId('apps-in-use')).toHaveCount(0)
   await expect(installedTable(page).getByRole('row', { name: /PHP 8\.3/ })).toHaveCount(0, { timeout: OPERATION_TIMEOUT_MS })
+})
+
+// Issue #524: the panel clears a row's task id when its operation settles, and the page follows only
+// rows that are installing or being removed. A row that still carried a finished task (an answer from
+// before the fix) must not be followed, because following it ends at once, shrinks the operations and
+// makes the page reload the table, which answers the same task again, without end.
+
+test('an app whose operation settled is not followed, so the idle page reads no task', async ({ page }) => {
+  const world = appsWorld({
+    installed: [hostApp('nginx', 'nginx', { taskId: APP_TASK_ID })],
+    installable: [installableApp('nginx', 'nginx', { installed: true })],
+  })
+  const recorder = await openApps(page, world)
+
+  await expect(installedTable(page).getByRole('row', { name: /nginx/ })).toBeVisible()
+  await page.waitForLoadState('networkidle')
+
+  expect(recorder.matching(/GET \/api\/v1\/tasks\//)).toHaveLength(0)
+  await expect(page.getByTestId('apps-operation-nginx')).toHaveCount(0)
+})
+
+test('the control: an app that is still installing is followed through its task', async ({ page }) => {
+  const world = appsWorld({
+    installed: [hostApp('php-8.4', 'PHP 8.4', { state: 'installing', stateName: 'Installing', taskId: APP_TASK_ID })],
+    installable: [installableApp('php-8.4', 'PHP 8.4')],
+  })
+  const recorder = await openApps(page, world)
+
+  await expect.poll(() => {return recorder.matching(/GET \/api\/v1\/tasks\//).length}).toBeGreaterThan(0)
+  await expect(page.getByTestId('apps-operation-php-8.4')).toBeVisible()
+})
+
+// A row left installing by a panel that died names a task that already finished. Following it would
+// end at once, reload the table and meet the same row again, without end; it is read once, then left.
+
+test('a row stuck installing whose task already finished is read once and not followed again', async ({ page }) => {
+  const world = appsWorld({
+    installed: [hostApp('php-8.4', 'PHP 8.4', { state: 'installing', stateName: 'Installing', taskId: APP_TASK_ID })],
+    installable: [installableApp('php-8.4', 'PHP 8.4')],
+    taskScript: [FINISHED_APP_TASK],
+  })
+  const recorder = await openApps(page, world)
+
+  await expect.poll(() => {return recorder.matching(/GET \/api\/v1\/tasks\//).length}).toBe(1)
+  await page.waitForLoadState('networkidle')
+
+  expect(recorder.matching(/GET \/api\/v1\/tasks\//)).toHaveLength(1)
 })

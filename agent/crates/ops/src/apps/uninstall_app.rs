@@ -11,6 +11,7 @@ use crate::apps::app_in_use::ensure_not_in_use;
 use crate::apps::app_packages::packages_of;
 use crate::apps::installed_probe::{is_installed, package_present};
 use crate::apps::nginx_port80::restore_nginx_port80;
+use crate::apps::removal_plan::ensure_removal_is_contained;
 use crate::apps::{AppsHost, AppsOpError};
 use crate::php::run_install_unit::run_remove_unit;
 
@@ -21,6 +22,9 @@ use crate::php::run_install_unit::run_remove_unit;
 /// holds a site, a PHP version while an account has a pool on it. The removal unit runs `remove`
 /// and not `purge`, so the panel's own configuration, which the package does not own, outlives a
 /// reinstall.
+///
+/// Refused as well when the package manager's dry run of the removal shows it would take other
+/// packages with it, or the panel's nginx (`removal_plan`): `-y` would remove them silently.
 ///
 /// **nginx is never removed**: it is the panel's own front on port 8443, and its package stays.
 /// Uninstalling the `nginx` app checks that no site is served by it and then clears the site web
@@ -38,7 +42,9 @@ use crate::php::run_install_unit::run_remove_unit;
 ///
 /// Returns [`AppsOpError::UnsupportedApp`] for an id outside the catalogue,
 /// [`AppsOpError::NotInstalled`] for an app that is not there, [`AppsOpError::InUse`] for an app
-/// something still uses, [`AppsOpError::Package`] for a removal unit that failed or outlived its
+/// something still uses, [`AppsOpError::RemovalWouldRemoveOthers`] for a removal that would take
+/// other packages, [`AppsOpError::RemovalNotSimulated`] for one whose dry run gave no answer,
+/// [`AppsOpError::Package`] for a removal unit that failed or outlived its
 /// deadline, and [`AppsOpError::StillAbsent`] when the unit succeeded and the app is still there.
 pub fn uninstall_app<H, P>(
     host: &H,
@@ -65,6 +71,9 @@ where
     }
 
     let mut packages = packages_of(distro, id);
+    // Before the first unit starts: a removal that would take anything else with it is refused
+    // whole, so no package of the app is gone when the refusal is reported.
+    ensure_removal_is_contained(host, distro, id, &packages)?;
     packages.reverse();
     for package in packages {
         progress(40, "remove");

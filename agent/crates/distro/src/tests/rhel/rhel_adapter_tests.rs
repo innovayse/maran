@@ -11,6 +11,7 @@
 
 use std::path::Component;
 
+use maran_agent_core::validation::web::node_major::NodeMajor;
 use maran_agent_core::validation::web::php_version::PhpVersion;
 
 use super::RhelAdapter;
@@ -293,7 +294,10 @@ fn every_executable() -> Vec<(&'static str, AdapterBinary)> {
     vec![
         ("nginx", RhelAdapter.nginx_binary()),
         ("apache", RhelAdapter.apache_binary()),
-        ("node", RhelAdapter.node_binary()),
+        (
+            "node",
+            RhelAdapter.node_binary(&NodeMajor::parse("20").unwrap()),
+        ),
         ("service_manager", RhelAdapter.service_manager()),
         ("journal", RhelAdapter.journal_binary()),
         ("systemd_run", RhelAdapter.systemd_run_binary()),
@@ -624,9 +628,30 @@ fn the_rhel_family_does_not_answer_the_nginx_facts_for_apache() {
 /// A site's unit runs Node.js and npm from absolute paths the adapter names.
 #[test]
 fn the_rhel_family_names_the_node_launchers_by_absolute_path() {
-    assert!(RhelAdapter.node_executable().starts_with('/'));
-    assert!(RhelAdapter.npm_executable().starts_with('/'));
-    assert_ne!(RhelAdapter.node_executable(), RhelAdapter.npm_executable());
+    let major = NodeMajor::parse("20").unwrap();
+    assert!(RhelAdapter.node_executable(&major).starts_with('/'));
+    assert!(RhelAdapter.npm_executable(&major).starts_with('/'));
+    assert_ne!(
+        RhelAdapter.node_executable(&major),
+        RhelAdapter.npm_executable(&major)
+    );
+}
+
+/// A Node.js module stream installs one interpreter at the unversioned path and enabling another
+/// stream replaces it, so every major answers the same two files (observed on AlmaLinux 9: only
+/// `/usr/bin/node` and `/usr/bin/npm` exist, no `node-20`). The inverse control for the SUSE
+/// family's test, which gives each major its own file.
+#[test]
+fn the_rhel_family_names_the_one_module_stream_interpreter_for_every_node_major() {
+    let twenty = NodeMajor::parse("20").unwrap();
+    let twenty_two = NodeMajor::parse("22").unwrap();
+
+    for major in [&twenty, &twenty_two] {
+        assert_eq!(RhelAdapter.node_binary(major), "/usr/bin/node");
+        assert_eq!(RhelAdapter.node_executable(major), "/usr/bin/node");
+        assert_eq!(RhelAdapter.npm_executable(major), "/usr/bin/npm");
+    }
+    assert_ne!(RhelAdapter.node_binary(&twenty), "/usr/bin/node-20");
 }
 
 /// The facts asked with a web server answer that server's own, never the other's: the nginx user
@@ -666,10 +691,13 @@ fn the_rhel_family_names_the_packages_of_the_app_catalogue() {
     assert_eq!(RhelAdapter.nginx_package(), "nginx");
     assert_eq!(RhelAdapter.apache_package(), "httpd");
     assert_eq!(RhelAdapter.apache_extra_packages(), &["mod_ssl"][..]);
+    assert_eq!(RhelAdapter.apache_companion_packages(), &[] as &[&str]);
     assert_eq!(
         RhelAdapter.apache_include_snippet_path(),
         "/etc/httpd/conf.d/maran.conf"
     );
+    // Inert by observation: AlmaLinux 9 has no `nodejs20` package (Node.js there is a module
+    // stream), so the availability query never offers it. See `rhel_apps::nodejs_package`.
     assert_eq!(RhelAdapter.nodejs_package("20"), "nodejs20");
     assert_eq!(
         RhelAdapter.nodejs_packaging(),

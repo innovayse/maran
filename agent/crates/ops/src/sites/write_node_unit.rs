@@ -29,7 +29,8 @@ const RESTART: &str = "restart";
 
 /// Brings the unit of `input`'s Node.js site to what the site says, and starts it.
 ///
-/// Does nothing for a site that is not a Node.js one. The unit goes through the config-write
+/// Does nothing for a site that is not a Node.js one. The unit's `ExecStart` is the interpreter
+/// (or npm launcher) of the site's declared major, from the adapter. The unit goes through the config-write
 /// protocol like every other file this agent writes into `/etc`, with `daemon-reload` as the
 /// validator and, as the reload step, `enable --now` for a unit that is new and `restart` for
 /// one whose text changed: a unit that cannot be parsed, or an application that refuses to
@@ -59,9 +60,11 @@ pub(crate) fn write_node_unit(
         return Ok(());
     };
 
+    // The site's own major decides the file, so a site declared on Node 22 never starts under
+    // whichever `node` the host happens to resolve (issue #530).
     let executable = match start_command.program() {
-        NodeProgram::Node => distro.node_executable(),
-        NodeProgram::Npm => distro.npm_executable(),
+        NodeProgram::Node => distro.node_executable(version),
+        NodeProgram::Npm => distro.npm_executable(version),
     };
     let document_root = paths.document_root.display().to_string();
     let home_directory = format!(
@@ -76,7 +79,7 @@ pub(crate) fn write_node_unit(
         document_root: &document_root,
         home_directory: &home_directory,
         port: port.value(),
-        executable,
+        executable: &executable,
         arguments: start_command.arguments(),
     }
     .render_config()

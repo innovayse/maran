@@ -14,6 +14,25 @@ fn code(error: AppsOpError) -> i32 {
 }
 
 #[test]
+fn a_removal_that_would_take_other_packages_is_in_use_and_one_not_checked_is_a_system_failure() {
+    assert_eq!(
+        code(AppsOpError::RemovalWouldRemoveOthers {
+            app: "apache".into(),
+            packages: "python3-certbot-apache".into()
+        }),
+        ErrorCode::AppInUse as i32
+    );
+    // Inverse control: an unchecked removal is the host's fault, not a refusal about use.
+    assert_eq!(
+        code(AppsOpError::RemovalNotSimulated {
+            app: "apache".into(),
+            reason: "no plan".into()
+        }),
+        ErrorCode::SystemFailure as i32
+    );
+}
+
+#[test]
 fn the_three_app_store_refusals_have_their_own_codes() {
     assert_eq!(
         code(AppsOpError::NotInstalled {

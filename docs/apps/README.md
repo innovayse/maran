@@ -35,6 +35,18 @@ list:
 | `php-<ver>` | runtime | `7.4`–`8.4` (existing `supported_versions.rs`) | FPM; existing install path reused |
 | `nodejs-<major>` | runtime | `18`, `20`, `22`, `24` | distro / NodeSource-free: only what the configured sources offer |
 
+**One interpreter on the Debian and RHEL families.** Those families install Node.js as one
+`nodejs` package (Debian) or one active module stream (RHEL), so every Node.js app id resolves to
+the same `/usr/bin/node`, and only the major that package currently carries is installed. A package
+upgrade that moves it from one major to another (an `apt-get upgrade`, a `dnf module` switch run by
+hand) changes the runtime of EVERY Node.js site on the host at once, and a site's unit does not
+compare `node --version` with the major it declares. The panel never upgrades across majors: the
+installer holds `nodejs*` (and the other app packages) out of the unattended OS security updates
+(`MARAN_OS_UPDATE_HOLD`, `installer/lib/00-common.sh`), so only an administrator's manual upgrade
+can do it, and after one the installed probe reports the major that answers. Only the SUSE
+family has a package per major (`nodejs<major>` with `npm<major>`), where sites on different
+majors run side by side.
+
 Each installed app has: id, kind, version, state (`installing`, `installed`, `failed`,
 `removing`), service status (`active`, `inactive`, `failed`, `none`), installed-at.
 

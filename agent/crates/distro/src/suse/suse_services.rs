@@ -2,13 +2,15 @@
 //! file transfer, backup, systemd, cron and the firewall tool.
 //!
 //! The account programs, the mail stack and the DNS daemon have their own concern files beside
-//! this one. Nothing here was measured by us: every value is read from the distribution's
-//! documentation and stays UNVERIFIED until the first SUSE polygon run. The distribution is
+//! this one. The web server facts (nginx, Apache) were observed in `opensuse/leap:latest`
+//! (Leap 16.0) and say so; every other value is read from the distribution's documentation and
+//! stays UNVERIFIED until the first SUSE polygon run. The distribution is
 //! usr-merged, so a program under `/usr/sbin` also resolves from `/sbin`; the documented
 //! `/usr` path is what is answered (the crate's one merged-`/usr` rule, stated on
 //! [`crate::DistroAdapter`]). Unless a comment names another, the confirming command for a
 //! binary is `rpm -qf <path>` in the pinned openSUSE Leap 16 image.
 
+use maran_agent_core::validation::web::node_major::NodeMajor;
 use maran_agent_core::validation::web::php_version::PhpVersion;
 
 use crate::adapter_binary::AdapterBinary;
@@ -16,7 +18,8 @@ use crate::vsftpd_tls_version_keys::VsftpdTlsVersionKeys;
 
 /// Absolute path of the nginx binary, for the process-execution allow-list.
 ///
-/// UNVERIFIED: read from the distribution documentation, confirm with `rpm -ql nginx | grep sbin`.
+/// Observed in `opensuse/leap:latest` (Leap 16.0) with `rpm -ql nginx | grep sbin`:
+/// `/usr/sbin/nginx`.
 #[must_use]
 pub fn nginx_binary() -> AdapterBinary {
     AdapterBinary::fixed("/usr/sbin/nginx")
@@ -24,7 +27,8 @@ pub fn nginx_binary() -> AdapterBinary {
 
 /// Name of the nginx systemd service unit.
 ///
-/// UNVERIFIED: confirm with `rpm -ql nginx | grep nginx.service`.
+/// Observed in `opensuse/leap:latest` (Leap 16.0) with `rpm -ql nginx | grep service`:
+/// `/usr/lib/systemd/system/nginx.service`.
 #[must_use]
 pub fn nginx_service() -> &'static str {
     "nginx"
@@ -76,8 +80,8 @@ pub fn systemd_run_binary() -> AdapterBinary {
 
 /// The user the web server runs as.
 ///
-/// UNVERIFIED: the `nginx` package is read to create and run as `nginx`; confirm with
-/// `getent passwd nginx` after installing it.
+/// Observed in `opensuse/leap:latest` (Leap 16.0) with `getent passwd nginx` after installing the
+/// package: the package creates the system user `nginx` (its sysusers.d entry).
 #[must_use]
 pub fn web_server_user() -> &'static str {
     "nginx"
@@ -86,25 +90,32 @@ pub fn web_server_user() -> &'static str {
 /// The group the web server's user belongs to.
 ///
 /// Separate from the user because what an account's home is group-owned by is a GROUP, and
-/// naming the user there would be right only by coincidence. UNVERIFIED: confirm with
-/// `getent group nginx` after installing the package.
+/// naming the user there would be right only by coincidence. Observed in `opensuse/leap:latest`
+/// (Leap 16.0) with `getent group nginx` after installing the package: group `nginx` exists.
 #[must_use]
 pub fn web_server_group() -> &'static str {
     "nginx"
 }
 
-/// Absolute path of the Apache control script, whose `-t` checks the configuration.
+/// Absolute path of the program whose `-t` checks the Apache configuration.
 ///
-/// SUSE's `apache2` package ships `apache2ctl`, runs as `wwwrun` in group `www` and registers the unit as `apache2`.
-/// UNVERIFIED: read from the distribution documentation, confirm with `rpm -ql apache2 | grep ctl`, `getent passwd wwwrun` and `systemctl cat apache2` after installing the package.
+/// This family's `apache2` package ships NO `apache2ctl` and no `apachectl`: `apachectl` comes only
+/// from `apache2-utils`, which a `--no-recommends` install of `apache2` does not bring. The
+/// program that is always there is `/usr/sbin/httpd`, an alternatives link to the MPM binary
+/// (`httpd-prefork`, package `apache2-prefork`, required by `apache2`); `httpd -t` and `httpd -v`
+/// are the two runs the agent makes. Observed in `opensuse/leap:latest` (Leap 16.0): after
+/// `zypper install --no-recommends apache2`, `ls /usr/sbin | grep -i "apache\|httpd"` lists
+/// `httpd`, `httpd-prefork` and no `apache2ctl`; `httpd -t` prints `Syntax OK` and, with a bad
+/// directive planted in `conf.d`, exits 1 naming the line; `httpd -v` prints `Apache/2.4.66`.
 #[must_use]
 pub fn apache_binary() -> AdapterBinary {
-    AdapterBinary::fixed("/usr/sbin/apache2ctl")
+    AdapterBinary::fixed("/usr/sbin/httpd")
 }
 
 /// Name of the Apache systemd service unit.
 ///
-/// SUSE's `apache2` package ships `apache2ctl`, runs as `wwwrun` in group `www` and registers the unit as `apache2`.
+/// Observed in `opensuse/leap:latest` (Leap 16.0) with `rpm -ql apache2 | grep service`:
+/// `/usr/lib/systemd/system/apache2.service` (aliased `httpd.service`).
 #[must_use]
 pub fn apache_service() -> &'static str {
     "apache2"
@@ -112,7 +123,8 @@ pub fn apache_service() -> &'static str {
 
 /// The user the Apache workers run as.
 ///
-/// SUSE's `apache2` package ships `apache2ctl`, runs as `wwwrun` in group `www` and registers the unit as `apache2`.
+/// Observed in `opensuse/leap:latest` (Leap 16.0): `getent passwd wwwrun` exists after installing
+/// `apache2`, and `/etc/apache2/uid.conf` sets `User wwwrun`.
 #[must_use]
 pub fn apache_user() -> &'static str {
     "wwwrun"
@@ -121,27 +133,37 @@ pub fn apache_user() -> &'static str {
 /// The group the Apache workers run in, and the one an account's home is group-owned by
 /// when Apache is the site web server.
 ///
-/// SUSE's `apache2` package ships `apache2ctl`, runs as `wwwrun` in group `www` and registers the unit as `apache2`.
+/// Observed in `opensuse/leap:latest` (Leap 16.0): `getent group www` exists after installing
+/// `apache2` (member `wwwrun`), and `/etc/apache2/uid.conf` sets `Group www`.
 #[must_use]
 pub fn apache_group() -> &'static str {
     "www"
 }
 
-/// Absolute path of the Node.js interpreter a site's unit runs.
+/// Absolute path of the Node.js interpreter of `major` that a site's unit runs: the file
+/// [`crate::suse::suse_apps::node_binary`] names.
 ///
 /// Text and not an `AdapterBinary`: the agent never executes it, the service manager does,
 /// from a unit the agent renders (the same split as `sh_binary`).
 #[must_use]
-pub fn node_executable() -> &'static str {
-    "/usr/bin/node"
+pub fn node_executable(major: &NodeMajor) -> String {
+    crate::suse::suse_apps::node_binary(major)
+        .as_str()
+        .to_owned()
 }
 
-/// Absolute path of the npm launcher a site's unit may run.
+/// Absolute path of the npm launcher of `major` that a site's unit may run.
+///
+/// Observed in `opensuse/leap:latest` (Leap 16.0): `rpm -ql npm22 | grep bin/` is `/usr/bin/npm22`
+/// (and `/usr/bin/npx22`), from the separate `npm22` package, which `nodejs22` does not require
+/// (`rpm -q --requires nodejs22` lists no npm): the launcher exists only once `npm<major>` is
+/// installed, which is why the app's install installs `npm<major>` after `nodejs<major>`
+/// ([`crate::AppFacts::nodejs_extra_packages`]).
 ///
 /// Text for the same reason as [`node_executable`].
 #[must_use]
-pub fn npm_executable() -> &'static str {
-    "/usr/bin/npm"
+pub fn npm_executable(major: &NodeMajor) -> String {
+    format!("/usr/bin/npm{}", major.as_str())
 }
 
 /// Name of the php-fpm systemd service unit.

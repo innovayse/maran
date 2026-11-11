@@ -1,14 +1,16 @@
 import { expect, test } from '@playwright/test'
 import { createPinia, setActivePinia } from 'pinia'
 import type { RouteLocationNormalized } from 'vue-router'
+import { useStackWizard } from '../../src/composables/useStackWizard'
 import { createStackSetupGuard } from '../../src/router/stackSetupGuard'
 import { useAuthStore } from '../../src/stores/auth'
 import { useHostAppsStore } from '../../src/stores/hostApps'
 import { useStackStore } from '../../src/stores/stack'
 import { hostAppFamily } from '../../src/utils/hostAppFamily'
 import { hostAppInUseSites } from '../../src/utils/hostAppInUseSites'
+import { hostAppRunsOperation } from '../../src/utils/hostAppRunsOperation'
 import { EMPTY_STACK, READY_STACK } from '../fixtures/stub-stack-routes'
-import type { StackStatus } from '../../src/types/hostApp'
+import type { HostApp, StackStatus } from '../../src/types/hostApp'
 
 // These run in the Playwright runner's Node process rather than in a browser, like the site-log
 // store specs: the real stores, the real API composables and the real guard, with only `fetch`
@@ -304,4 +306,158 @@ test('a list page that names a task in flight is followed again after a reload',
 
   expect(store.operations['php-8.4']).toBe(taskId)
   store.stopAll()
+})
+
+/** The task a followed install in the specs below carries. */
+const RUNNING_TASK_ID = '77777777-7777-7777-7777-777777777777'
+
+/**
+ * A row of the apps list, as the panel answers it.
+ * @param appId The catalogue id.
+ * @param state The ledger state.
+ * @param taskId The task the row names, or `null`.
+ * @returns The row.
+ */
+const listRow = (appId: string, state: HostApp['state'], taskId: string | null): HostApp => {
+  return {
+    appId,
+    name: appId,
+    kind: appId === 'nginx' ? 'webServer' : 'runtime',
+    kindName: 'Kind',
+    version: '1',
+    state,
+    stateName: state,
+    serviceStatus: 'unknown',
+    serviceStatusName: 'Unknown',
+    installedAt: null,
+    taskId,
+  }
+}
+
+/**
+ * Answers the apps list with rows, a followed task with a state, and the stack with a status.
+ * @param rows The rows the list answers.
+ * @param task The task read's answer.
+ * @param stack The stack status.
+ * @returns The handler.
+ */
+const appsAnswer = (rows: HostApp[], task: unknown, stack: StackStatus) => {
+  return (request: SeenRequest): Answer => {
+    if (request.path.endsWith('/api/v1/apps/stack')) {
+      return { status: 200, body: stack }
+    }
+    if (request.path.includes('/api/v1/apps?')) {
+      return { status: 200, body: { items: rows, total: rows.length, page: 1, pageSize: 25 } }
+    }
+    return request.path.includes('/api/v1/tasks/') ? { status: 200, body: task } : { status: 404 }
+  }
+}
+
+test('only a row that is installing or being removed counts as running', () => {
+  expect(hostAppRunsOperation(listRow('nginx', 'installing', RUNNING_TASK_ID))).toBe(true)
+  expect(hostAppRunsOperation(listRow('nginx', 'removing', RUNNING_TASK_ID))).toBe(true)
+  // A settled row is not running, whatever task id a stale answer still carries.
+  expect(hostAppRunsOperation(listRow('nginx', 'installed', RUNNING_TASK_ID))).toBe(false)
+  expect(hostAppRunsOperation(listRow('nginx', 'failed', RUNNING_TASK_ID))).toBe(false)
+  // And a row that names no task has nothing to follow.
+  expect(hostAppRunsOperation(listRow('nginx', 'installing', null))).toBe(false)
+})
+
+test('a list page with settled rows follows nothing', async () => {
+  const seen = replaceFetch(
+    appsAnswer(
+      [listRow('nginx', 'installed', RUNNING_TASK_ID), listRow('php-8.3', 'failed', RUNNING_TASK_ID)],
+      { id: RUNNING_TASK_ID, percent: 100, finishedAt: '2026-11-09T10:00:05Z', failure: null, revision: 2 },
+      READY_STACK,
+    ),
+  )
+  const store = useHostAppsStore()
+
+  await store.list({ page: 1, pageSize: 25, search: '', sort: '', filters: {} })
+
+  expect(store.operations).toEqual({})
+  expect(
+    seen.filter((request) => {
+      return request.path.includes('/api/v1/tasks/')
+    }),
+  ).toHaveLength(0)
+})
+
+test('the wizard resumes an install the panel is running and ends with the stack ready', async () => {
+  const seen = replaceFetch(
+    appsAnswer(
+      [listRow('nginx', 'installing', RUNNING_TASK_ID)],
+      { id: RUNNING_TASK_ID, percent: 100, finishedAt: '2026-11-09T10:00:05Z', failure: null, revision: 2 },
+      READY_STACK,
+    ),
+  )
+  const wizard = useStackWizard()
+
+  await wizard.resume()
+
+  expect(wizard.step.value).toBe('install')
+  expect(wizard.queue.value.map((item) => {return [item.id, item.state]})).toEqual([['nginx', 'done']])
+  expect(wizard.webServerReady.value).toBe(true)
+  expect(wizard.installing.value).toBe(false)
+  // It watched the running install and started none of its own.
+  expect(
+    seen.filter((request) => {
+      return request.method === 'POST'
+    }),
+  ).toHaveLength(0)
+})
+
+test('a resumed install the panel reports failed leaves the wizard open for a retry', async () => {
+  replaceFetch(
+    appsAnswer(
+      [listRow('nginx', 'installing', RUNNING_TASK_ID)],
+      {
+        id: RUNNING_TASK_ID,
+        percent: 60,
+        finishedAt: '2026-11-09T10:00:05Z',
+        failure: { code: 'AgentAppInstallFailed', message: 'No.' },
+        revision: 2,
+      },
+      EMPTY_STACK,
+    ),
+  )
+  const wizard = useStackWizard()
+
+  await wizard.resume()
+
+  expect(wizard.queue.value.map((item) => {return item.state})).toEqual(['failed'])
+  expect(wizard.webServerReady.value).toBe(false)
+})
+
+test('the control: with no install running the wizard stays on the first step', async () => {
+  replaceFetch(appsAnswer([listRow('nginx', 'failed', null)], {}, EMPTY_STACK))
+  const wizard = useStackWizard()
+
+  await wizard.resume()
+
+  expect(wizard.step.value).toBe('webServer')
+  expect(wizard.queue.value).toEqual([])
+})
+
+test('the web server choice ignores the agent\'s installed flag, and the runtime choice honours it', async () => {
+  replaceFetch((request) => {
+    if (request.path.endsWith('/api/v1/apps/installable')) {
+      return {
+        status: 200,
+        body: [
+          { appId: 'nginx', name: 'nginx', kind: 'webServer', kindName: 'Web server', installed: true },
+          { appId: 'php-8.3', name: 'PHP 8.3', kind: 'runtime', kindName: 'Runtime', installed: true },
+          { appId: 'php-8.4', name: 'PHP 8.4', kind: 'runtime', kindName: 'Runtime', installed: false },
+        ],
+      }
+    }
+    return { status: 404 }
+  })
+  const store = useHostAppsStore()
+  const wizard = useStackWizard()
+
+  await store.loadInstallable()
+
+  expect(wizard.webServerChoices.value.map((app) => {return app.appId})).toEqual(['nginx'])
+  expect(wizard.phpChoices.value.map((app) => {return app.appId})).toEqual(['php-8.4'])
 })

@@ -1,0 +1,14 @@
+Reading installed packages...
+Resolving package dependencies...
+
+The following 2 packages are going to be REMOVED:
+  apache2 apache2-prefork
+
+2 packages to remove.
+
+Package install size change:
+              |         0 B    required by packages that will be installed
+    -6.1 MiB  |  -    6.1 MiB  released by packages that will be removed
+
+Backend:  classic_rpmtrans --dry-run
+Continue? [y/n/v/...? shows all options] (y): y

@@ -7,9 +7,10 @@
 //! choice (rules/security.md item 12); the id is parsed into a `ValidatedAppId` at the service
 //! boundary and every operation here asks `app_catalogue::ensure_in_catalogue` before it uses it.
 //!
-//! The package manager is never run by the agent: it runs in the installer's root units
-//! (`maran-app-install@`, `maran-app-remove@`), started through the shared
-//! [`crate::packages`] machinery. What an app IS on the host is PROBED, never remembered: the
+//! The package manager never installs or removes anything as the agent's child: that runs in the
+//! installer's root units (`maran-app-install@`, `maran-app-remove@`), started through the shared
+//! [`crate::packages`] machinery. The one thing the agent runs itself is the package manager's
+//! DRY RUN of a removal, before the removal unit starts (`removal_plan`). What an app IS on the host is PROBED, never remembered: the
 //! files a package leaves and the service manager's own answer, so an app installed or removed
 //! by hand is reported as it is.
 //!
@@ -24,6 +25,7 @@ mod app_packages;
 mod apps_host;
 mod apps_op_error;
 mod control_app_service;
+mod hold_apache_off;
 mod install_app;
 mod installed_probe;
 mod installed_site_web_server;
@@ -35,6 +37,7 @@ mod nginx_port80;
 mod parse_marker;
 mod prepare_apache;
 mod process_apps_host;
+mod removal_plan;
 mod service_status;
 mod uninstall_app;
 

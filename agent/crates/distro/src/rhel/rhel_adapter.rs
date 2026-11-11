@@ -1,6 +1,7 @@
 //! The RHEL-family adapter implementation.
 
 use maran_agent_core::validation::mail::mail_password_scheme::MailPasswordScheme;
+use maran_agent_core::validation::web::node_major::NodeMajor;
 use maran_agent_core::validation::web::php_extension_name::PhpExtensionName;
 use maran_agent_core::validation::web::php_version::PhpVersion;
 
@@ -142,6 +143,10 @@ impl AccountPrograms for RhelAdapter {
     fn passwd_database(&self) -> &'static str {
         rhel_services::passwd_database()
     }
+
+    fn group_database(&self) -> &'static str {
+        rhel_services::group_database()
+    }
 }
 
 impl WebServerFacts for RhelAdapter {
@@ -181,12 +186,12 @@ impl WebServerFacts for RhelAdapter {
         rhel_services::apache_group()
     }
 
-    fn node_executable(&self) -> &'static str {
-        rhel_services::node_executable()
+    fn node_executable(&self, major: &NodeMajor) -> String {
+        rhel_services::node_executable(major)
     }
 
-    fn npm_executable(&self) -> &'static str {
-        rhel_services::npm_executable()
+    fn npm_executable(&self, major: &NodeMajor) -> String {
+        rhel_services::npm_executable(major)
     }
 }
 
@@ -199,8 +204,16 @@ impl AppFacts for RhelAdapter {
         rhel_apps::apache_package()
     }
 
+    fn apache_install_starts_service(&self) -> bool {
+        rhel_apps::apache_install_starts_service()
+    }
+
     fn apache_extra_packages(&self) -> &'static [&'static str] {
         rhel_apps::apache_extra_packages()
+    }
+
+    fn apache_companion_packages(&self) -> &'static [&'static str] {
+        rhel_apps::apache_companion_packages()
     }
 
     fn apache_include_snippet_path(&self) -> &'static str {
@@ -223,12 +236,16 @@ impl AppFacts for RhelAdapter {
         rhel_apps::nodejs_package(major)
     }
 
+    fn nodejs_extra_packages(&self, _major: &str) -> Vec<String> {
+        Vec::new()
+    }
+
     fn nodejs_candidate_major(&self, _candidate_query_stdout: &str) -> Option<String> {
         None
     }
 
-    fn node_binary(&self) -> AdapterBinary {
-        rhel_apps::node_binary()
+    fn node_binary(&self, major: &NodeMajor) -> AdapterBinary {
+        rhel_apps::node_binary(major)
     }
 }
 
@@ -567,6 +584,10 @@ impl MailFacts for RhelAdapter {
 
     fn postdrop_group(&self) -> &'static str {
         rhel_services::postdrop_group()
+    }
+
+    fn postdrop_program(&self) -> &'static str {
+        rhel_services::postdrop_program()
     }
 
     fn dovecot_user(&self) -> &'static str {

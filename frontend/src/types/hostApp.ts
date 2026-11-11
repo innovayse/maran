@@ -54,7 +54,7 @@ export interface HostApp {
   serviceStatusName: string
   /** The instant the app was installed, as an ISO-8601 string, or `null` while an install has not finished. */
   installedAt: string | null
-  /** The task carrying an install or removal still in flight, or `null`; a reload follows it again. */
+  /** The task carrying an install or removal still in flight, or `null` once it settled; a reload follows it again. */
   taskId: string | null
 }
 
