@@ -1,0 +1,51 @@
+# Terms the public demo refuses in text a visitor types (Russian). Same rules as the English file: a term ending
+# in * is a stem that matches every word starting with it, which Russian needs because its words are inflected
+# (хуй, хуя, хуе...). Matching folds ё to е and й to и in both the text and the term. Seed list; needs review
+# by a native speaker before it is relied on.
+порно*
+порнух*
+казино*
+виагр*
+быстрые деньги
+быстрых денег
+халявные деньги
+халявных денег
+убей себя
+убейся
+хуй*
+хуя*
+хуе*
+хуи*
+пизд*
+ебат*
+ебан*
+ебал*
+ебл*
+ебну*
+ебут
+ебет
+заеб*
+наеб*
+поеб*
+выеб*
+долбоеб*
+бляд*
+блят*
+бля
+сука
+суки
+суку
+суке
+сукой
+сучка
+сучки
+мудак*
+мудил*
+пидор*
+пидар*
+пидр*
+гандон*
+залуп*
+шлюх*
+ублюд*
+нацист*

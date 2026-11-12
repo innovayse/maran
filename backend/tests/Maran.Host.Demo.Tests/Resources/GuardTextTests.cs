@@ -44,10 +44,11 @@ public sealed class GuardTextTests
         }
     }
 
-    /// <summary>The two codes the guard answers with have text in every language.</summary>
+    /// <summary>The codes the guard answers with have text in every language.</summary>
     [Theory]
     [InlineData("DemoActionRefused")]
     [InlineData("DemoBudgetExhausted")]
+    [InlineData("DemoContentRefused")]
     public void The_guards_codes_have_a_sentence_in_every_language(string code)
     {
         foreach (var culture in Cultures)

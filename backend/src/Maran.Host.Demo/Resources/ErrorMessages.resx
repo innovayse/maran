@@ -18,4 +18,7 @@
   <data name="DemoBudgetExhausted">
     <value>The demo has reached its limit of changes until the next reset. You can keep looking around; changes are accepted again after the reset.</value>
   </data>
+  <data name="DemoContentRefused">
+    <value>This text is not allowed in the demo: it contains a blocked word or a link to an outside site. Everything typed here is shown to other visitors, so please change it.</value>
+  </data>
 </root>

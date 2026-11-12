@@ -10,7 +10,7 @@ namespace Maran.Host.Demo.Reset;
 
 /// <summary>
 /// Builds the answer of <c>GET api/v1/demo/status</c>: the cadence, the last and next reset, the
-/// published sign-ins and the reasons shown beside blocked controls.
+/// published sign-ins, the reasons shown beside blocked controls and the abuse contact.
 /// </summary>
 /// <remarks>
 /// Everything here is public on purpose: the demo's login page prints the sign-ins. Nothing here may
@@ -75,6 +75,7 @@ public sealed class DemoStatusProvider
             DemoRefusalAreaIds.All
                 .Select(DemoRefusalAreaIds.IdOf)
                 .Select(area => { return new DemoRefusalReasonDto(area, _messages[area].Value); })
-                .ToList());
+                .ToList(),
+            _demo.AbuseContact);
     }
 }

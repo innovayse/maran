@@ -20,6 +20,9 @@ public sealed class SeededDemo : IAsyncDisposable
     /// <summary>A key of the right shape; startup validation refuses to boot without one.</summary>
     private const string Key = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
 
+    /// <summary>The abuse contact every test host is configured with; the status endpoint must return it.</summary>
+    public const string AbuseContact = "abuse@demo.example";
+
     /// <summary>The address a request appears to come from when a test names none.</summary>
     private static readonly IPAddress DefaultPeer = IPAddress.Parse("203.0.113.1");
 
@@ -195,6 +198,9 @@ public sealed class SeededDemo : IAsyncDisposable
             // The two published sign-ins come from the deployment's environment file, never from source.
             builder.UseSetting("Demo:Identities:AdministratorPassword", "test-admin-password-1");
             builder.UseSetting("Demo:Identities:CustomerPassword", "test-customer-password-1");
+
+            // The abuse contact is required in demo mode; the host refuses to start without one.
+            builder.UseSetting("Demo:AbuseContact", AbuseContact);
 
             // The host that seeds creates the world through the real commands, so its simulated server starts
             // empty, as the one `demo-seed` runs against does; the host that serves is booted with the world.

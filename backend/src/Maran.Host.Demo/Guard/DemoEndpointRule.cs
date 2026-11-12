@@ -31,23 +31,34 @@ public sealed class DemoEndpointRule
     /// </summary>
     public bool CountsTowardSignInBudget { get; }
 
+    /// <summary>
+    /// Whether the text a visitor typed in a call that runs is screened (<see cref="DemoContentFilter"/>) before
+    /// the action stores it. Stated by each factory: every call that runs screens, except a sign-in, refresh or
+    /// sign-out, whose text is a login name nobody else is shown. A refused call never runs, so screening it
+    /// would judge text nothing stores.
+    /// </summary>
+    public bool ScreensText { get; }
+
     /// <summary>Creates a rule; use the factories, which cannot build an inconsistent one.</summary>
     /// <param name="access">The access.</param>
     /// <param name="area">The refusal area, required for a refusal and forbidden otherwise.</param>
     /// <param name="protectedRouteKey">The route value to check; required for a protected check, else null.</param>
     /// <param name="countsTowardBudget">Whether the call spends the mutation budgets.</param>
+    /// <param name="screensText">Whether the text a visitor typed in the call is screened before it is stored.</param>
     /// <param name="countsTowardSignInBudget">Whether the call draws on the sign-in allowances instead.</param>
     private DemoEndpointRule(
         DemoAccess access,
         DemoRefusalArea? area,
         string? protectedRouteKey,
         bool countsTowardBudget,
+        bool screensText,
         bool countsTowardSignInBudget = false)
     {
         Access = access;
         Area = area;
         ProtectedRouteKey = protectedRouteKey;
         CountsTowardBudget = countsTowardBudget;
+        ScreensText = screensText;
         CountsTowardSignInBudget = countsTowardSignInBudget;
     }
 
@@ -55,14 +66,14 @@ public sealed class DemoEndpointRule
     /// <returns>The rule.</returns>
     public static DemoEndpointRule Allow()
     {
-        return new DemoEndpointRule(DemoAccess.Allowed, null, null, true);
+        return new DemoEndpointRule(DemoAccess.Allowed, null, null, true, true);
     }
 
     /// <summary>The call runs and spends nothing: a call that writes no row a visitor can multiply.</summary>
     /// <returns>The rule.</returns>
     public static DemoEndpointRule AllowUncounted()
     {
-        return new DemoEndpointRule(DemoAccess.Allowed, null, null, false);
+        return new DemoEndpointRule(DemoAccess.Allowed, null, null, false, true);
     }
 
     /// <summary>
@@ -72,7 +83,7 @@ public sealed class DemoEndpointRule
     /// <returns>The rule.</returns>
     public static DemoEndpointRule AllowSignIn()
     {
-        return new DemoEndpointRule(DemoAccess.Allowed, null, null, false, true);
+        return new DemoEndpointRule(DemoAccess.Allowed, null, null, false, false, true);
     }
 
     /// <summary>The call runs unless the resource named by a route value is protected.</summary>
@@ -81,7 +92,7 @@ public sealed class DemoEndpointRule
     public static DemoEndpointRule AllowUnlessProtected(string routeKey)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(routeKey);
-        return new DemoEndpointRule(DemoAccess.AllowedUnlessProtected, null, routeKey, true);
+        return new DemoEndpointRule(DemoAccess.AllowedUnlessProtected, null, routeKey, true, true);
     }
 
     /// <summary>The call is refused, and the area says why.</summary>
@@ -89,6 +100,6 @@ public sealed class DemoEndpointRule
     /// <returns>The rule.</returns>
     public static DemoEndpointRule Refuse(DemoRefusalArea area)
     {
-        return new DemoEndpointRule(DemoAccess.Refused, area, null, false);
+        return new DemoEndpointRule(DemoAccess.Refused, area, null, false, false);
     }
 }

@@ -1,0 +1,11 @@
+# Hosts a link in visitor-typed text may name in the public demo (one per line). A host matches itself and
+# every name under it. These are only the names reserved for documentation and testing (RFC 2606, RFC 6761):
+# a demo visitor needs a placeholder to type, never a real destination. Loopback (localhost, 127.0.0.1) is
+# deliberately NOT here: a link a server later fetches (a webhook, a remote backup, an app download) must
+# never be able to reach the panel's own services.
+example
+example.com
+example.net
+example.org
+test
+invalid

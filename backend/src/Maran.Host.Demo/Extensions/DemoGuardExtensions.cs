@@ -47,6 +47,7 @@ public static class DemoGuardExtensions
 
         services.AddSingleton(DemoEndpointPolicy.Default);
         services.AddSingleton<DemoProtectedResources>();
+        services.AddSingleton(DemoTextScreen.Default);
         services.AddSingleton<DemoWriteGuard>();
         services.AddSingleton<DemoMutationBudget>();
         services.AddSingleton<DemoSignInBudget>();
@@ -55,6 +56,7 @@ public static class DemoGuardExtensions
         services.AddSingleton(_ => { return new ClientPseudonymiser(); });
 
         services.Configure<MvcOptions>(options => { options.Filters.Add<DemoInitialPasswordFilter>(); });
+        services.Configure<MvcOptions>(options => { options.Filters.Add<DemoContentFilter>(); });
 
         services.AddSingleton<DemoLicenceKey>();
         services.AddSingleton<CapturingMailer>();
@@ -73,6 +75,9 @@ public static class DemoGuardExtensions
             provider => { return provider.GetRequiredService<DemoLicenceStore>(); }));
         services.Replace(ServiceDescriptor.Singleton<ILicenceWriter>(
             provider => { return provider.GetRequiredService<DemoLicenceStore>(); }));
+
+        // Nor does the licence watcher write its expiry note to a state file: the announcement is kept in memory.
+        services.Replace(ServiceDescriptor.Singleton<ILicenceExpiryAnnouncementStore, DemoLicenceExpiryAnnouncementStore>());
 
         // Joins the shared pool the panel-wide error text provider resolves against, exactly as the
         // Host's own table does, so the demo's codes are localized and not shown as raw codes.

@@ -1,0 +1,9 @@
+# Terms the public demo refuses in text a visitor types (Armenian). Same rules as the English file: a term ending
+# in * is a stem that matches every word starting with it, which Armenian needs because it inflects by suffix.
+# Seed list; needs review by a native speaker before it is relied on.
+պոռնո*
+պոռնիկ*
+կազինո*
+վիագր*
+արագ փող*
+շան որդի*
