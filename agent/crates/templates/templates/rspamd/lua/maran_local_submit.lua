@@ -771,6 +771,12 @@ local function check(task)
     end
   end
   local envelope = task:get_from('smtp')
+  if request_header(task, 'MTA-Name') == M.LOCAL_DAEMON then
+    -- The one fact the local road rests on, in the log: which uid the topmost Received header names, and the
+    -- header itself, so a refusal as "unknown submitter" can be told apart from a map that has no such uid.
+    rspamd_logger.infox(task, 'maran_local_submit local road: uid=%s topmost Received=%s',
+      tostring(M.topmost_uid(received)), tostring(received[1]))
+  end
   local decision = M.decide({
     daemon_name = request_header(task, 'MTA-Name'),
     user = task:get_user(),
