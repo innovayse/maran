@@ -203,6 +203,7 @@ fn the_port_25_service_overrides_only_its_client_restriction_and_daemon_name_so_
         block,
         vec![
             "  -o smtpd_client_restrictions=check_client_access,cidr:/etc/maran/mail/self_clients.cidr,permit",
+            "  -o smtpd_delay_reject=no",
             "  -o milter_macro_daemon_name=INBOUND"
         ]
     );
@@ -224,6 +225,8 @@ fn the_port_25_service_refuses_this_hosts_own_clients_before_anything_else() {
     assert!(block.contains(
         &"-o smtpd_client_restrictions=check_client_access,cidr:/etc/maran/mail/self_clients.cidr,permit"
     ));
+    // The refusal is the greeting itself: by default Postfix greets and refuses at RCPT.
+    assert!(block.contains(&"-o smtpd_delay_reject=no"));
 }
 
 #[test]
