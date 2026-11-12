@@ -205,6 +205,11 @@ local_submit_diagnose() {
     log="$(local_submit_mail_log)"
     echo "--- mail log, lines for the message:"; grep -F -- "$marker" "$log" 2>/dev/null | head -n 5
     echo "--- mail log, last lines:"; tail -n 12 "$log" 2>/dev/null
+    echo "--- the directory and who may read a map:"
+    ls -ld "$LOCAL_SUBMIT_DIRECTORY" "${LOCAL_SUBMIT_DIRECTORY}/local_submit_accounts.map" 2>&1
+    su -s /bin/sh -c "head -n 2 '${LOCAL_SUBMIT_DIRECTORY}/local_submit_accounts.map'" "$(ps -o user= -C rspamd 2>/dev/null | head -n 1 | tr -d ' ')" 2>&1 | head -n 3
+    echo "--- rspamd log, lines about the rule or a map (other than the vendor's):"
+    grep -hE "maran_local_submit|local_submit|maran/mail|SIGHUP|reload" /var/log/rspamd/rspamd.log 2>/dev/null | grep -v "rspamd.com" | tail -n 25
     echo "--- rspamd log, last lines:"
     for log in /var/log/rspamd/rspamd.log /var/log/rspamd/rspamd.err; do [ -r "$log" ] && tail -n 25 "$log"; done
   } >&2 || true
