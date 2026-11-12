@@ -20,6 +20,7 @@ use std::time::Duration;
 
 use maran_agent_core::command_outcome::CommandOutcome;
 use maran_agent_core::utils::call_class::CallClass;
+use maran_agent_core::utils::host_addresses::HostAddresses;
 use maran_agent_core::validation::web::domain::Domain;
 use maran_distro::{AdapterBinary, DistroAdapter, DistroFamily, adapter_for};
 use maran_ops::mail::{ListeningSocket, MailDaemon, MailError, MailHost, PathFacts};
@@ -199,6 +200,10 @@ impl MailHost for StubHost {
                 loopback_only: false,
             })
             .collect())
+    }
+
+    fn host_addresses(&self) -> Result<HostAddresses, MailError> {
+        panic!("these tests never read the host's addresses")
     }
 
     fn certificate_state(&self, _domain: &Domain) -> Result<CertificateState, MailError> {
@@ -429,6 +434,7 @@ async fn a_local_submission_for_an_account_without_a_system_user_is_not_found() 
             domains: vec!["example.test".to_owned()],
             send_limit_per_hour: 100,
             mailbox_logins: Vec::new(),
+            alias_fanouts: Vec::new(),
         }))
         .await
         .unwrap()

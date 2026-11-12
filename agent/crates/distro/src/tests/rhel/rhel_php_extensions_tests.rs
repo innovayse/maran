@@ -109,7 +109,7 @@ fn the_ini_drop_in_directory_is_the_versions_php_d_without_the_dot() {
 
 #[test]
 fn the_rhel_adapter_answers_the_php_extension_facts_from_this_family() {
-    let adapter = RhelAdapter;
+    let adapter = RhelAdapter::EL9;
     let eight_one = version("8.1");
 
     assert_eq!(

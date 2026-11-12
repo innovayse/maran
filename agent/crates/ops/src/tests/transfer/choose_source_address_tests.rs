@@ -152,7 +152,7 @@ fn a_host_that_cannot_list_its_own_addresses_fails_closed() {
 
     assert!(matches!(
         choose_source_address(&host, &endpoint_at("source.example.org")),
-        Err(TransferOpError::HostAddressesUnavailable)
+        Err(TransferOpError::HostAddressesUnavailable(_))
     ));
 }
 

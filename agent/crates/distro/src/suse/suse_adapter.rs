@@ -20,6 +20,7 @@ use crate::firewall_facts::FirewallFacts;
 use crate::key_value_server::KeyValueServer;
 use crate::mail_facts::MailFacts;
 use crate::nodejs_packaging::NodejsPackaging;
+use crate::nodejs_stream_listing::NodejsStreamListing;
 use crate::package_facts::PackageFacts;
 use crate::package_failure::PackageFailure;
 use crate::package_query_failure::PackageQueryFailure;
@@ -248,6 +249,31 @@ impl AppFacts for SuseAdapter {
 
     fn node_binary(&self, major: &NodeMajor) -> AdapterBinary {
         suse_apps::node_binary(major)
+    }
+
+    fn nodejs_stream_list_arguments(&self) -> Option<Vec<String>> {
+        None
+    }
+
+    fn read_nodejs_streams(
+        &self,
+        _status: i32,
+        _stdout: &str,
+        _stderr: &str,
+    ) -> Result<NodejsStreamListing, PackageQueryFailure> {
+        Ok(NodejsStreamListing::default())
+    }
+
+    fn nodejs_unmanaged_removal_command(&self) -> &'static str {
+        ""
+    }
+
+    fn nodejs_stream_release_command(&self) -> &'static str {
+        ""
+    }
+
+    fn nodejs_module_packages(&self) -> &'static [&'static str] {
+        &[]
     }
 }
 
@@ -529,6 +555,10 @@ impl SchedulingFacts for SuseAdapter {
 impl FirewallFacts for SuseAdapter {
     fn nft_binary(&self) -> AdapterBinary {
         suse_services::nft_binary()
+    }
+
+    fn login_defs_paths(&self) -> &'static [&'static str] {
+        suse_services::login_defs_paths()
     }
 }
 

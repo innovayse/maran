@@ -15,8 +15,8 @@ public sealed class FakeAgentAppsClient : IAgentAppsClient
     public Result<IReadOnlyList<AgentApp>> Installed { get; set; } = Result<IReadOnlyList<AgentApp>>.Ok([]);
 
     /// <summary>What <c>ListInstallableApps</c> answers.</summary>
-    public Result<IReadOnlyList<AgentInstallableApp>> Installable { get; set; } =
-        Result<IReadOnlyList<AgentInstallableApp>>.Ok([]);
+    public Result<AgentInstallableApps> Installable { get; set; } =
+        Result<AgentInstallableApps>.Ok(new AgentInstallableApps([], null));
 
     /// <summary>The events an install or uninstall stream yields, in order.</summary>
     public List<AppOperationEvent> Stream { get; set; } = [new(AppOperationEventKind.Completed, 100, string.Empty, null)];
@@ -40,7 +40,7 @@ public sealed class FakeAgentAppsClient : IAgentAppsClient
     }
 
     /// <inheritdoc />
-    public Task<Result<IReadOnlyList<AgentInstallableApp>>> ListInstallableAppsAsync(CancellationToken cancellationToken)
+    public Task<Result<AgentInstallableApps>> ListInstallableAppsAsync(CancellationToken cancellationToken)
     {
         return Task.FromResult(Installable);
     }

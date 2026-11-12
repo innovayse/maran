@@ -35,4 +35,17 @@ public static class AgentAppMapper
             _ => throw new ArgumentOutOfRangeException(nameof(action), action, "AppServiceAction has four members."),
         };
     }
+
+    /// <summary>Restates the reason Node.js is missing from the installable list (issue #532).</summary>
+    /// <param name="reason">The agent client's reason, or null when it states none.</param>
+    /// <returns>The module's reason, or null when none is stated.</returns>
+    public static NodejsUnavailableReason? ToNodejsUnavailable(AgentNodejsUnavailableReason? reason)
+    {
+        return reason switch
+        {
+            AgentNodejsUnavailableReason.NoModuleStreams => NodejsUnavailableReason.NoModuleStreams,
+            AgentNodejsUnavailableReason.ListingFailed => NodejsUnavailableReason.ListingFailed,
+            _ => null,
+        };
+    }
 }

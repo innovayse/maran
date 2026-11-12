@@ -213,7 +213,7 @@ public sealed class AgentMailClientTests
             (await client.ListQueueAsync(0, token)).Error?.Code,
             (await client.DeleteQueuedMessageAsync("ABCDEF0123456", token)).Error?.Code,
             (await client.FlushQueueAsync(token)).Error?.Code,
-            (await client.SetLocalSubmissionAsync(new AgentLocalSubmission("alice", [], 100, []), token)).Error?.Code,
+            (await client.SetLocalSubmissionAsync(new AgentLocalSubmission("alice", [], 100, [], []), token)).Error?.Code,
             (await client.RemoveLocalSubmissionAsync("alice", token)).Error?.Code,
         };
 
@@ -721,7 +721,12 @@ public sealed class AgentMailClientTests
         };
 
         var result = await Client(stub).SetLocalSubmissionAsync(
-            new AgentLocalSubmission("alice", ["a.test", "b.test"], 250, ["info@a.test"]),
+            new AgentLocalSubmission(
+                "alice",
+                ["a.test", "b.test"],
+                250,
+                ["info@a.test"],
+                [new AgentAliasFanout("sales@a.test", 3)]),
             CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -730,6 +735,25 @@ public sealed class AgentMailClientTests
         Assert.Equal(250u, sent.SendLimitPerHour);
         Assert.Equal(["a.test", "b.test"], sent.Domains);
         Assert.Equal(["info@a.test"], sent.MailboxLogins);
+        var fanout = Assert.Single(sent.AliasFanouts);
+        Assert.Equal("sales@a.test", fanout.Alias);
+        Assert.Equal(3u, fanout.ExternalTargets);
+    }
+
+    /// <summary>The inverse control: a binding without forwarding aliases sends none.</summary>
+    [Fact]
+    public async Task Setting_a_local_submission_without_forwarders_sends_no_fanouts()
+    {
+        var stub = new StubMailService
+        {
+            SetLocalSubmissionResponse = new SetLocalSubmissionResponse { Ok = new SetLocalSubmissionOk() },
+        };
+
+        await Client(stub).SetLocalSubmissionAsync(
+            new AgentLocalSubmission("alice", ["a.test"], 250, [], []),
+            CancellationToken.None);
+
+        Assert.Empty(stub.LastSetLocalSubmissionRequest!.AliasFanouts);
     }
 
     /// <summary>The inverse control: the agent's refusal comes back typed, and an empty answer is invalid.</summary>
@@ -744,7 +768,7 @@ public sealed class AgentMailClientTests
             },
         };
         var empty = new StubMailService();
-        var submission = new AgentLocalSubmission("alice", [], 250, []);
+        var submission = new AgentLocalSubmission("alice", [], 250, [], []);
 
         var refusal = await Client(refused).SetLocalSubmissionAsync(submission, CancellationToken.None);
         var invalid = await Client(empty).SetLocalSubmissionAsync(submission, CancellationToken.None);

@@ -11,7 +11,10 @@ use maran_agent::server;
 use maran_agent_core::utils::current_uid::current_uid;
 use maran_agent_core::validation::web::port::Port;
 use maran_agent_core::validation::web::source_cidr::SourceCidr;
-use maran_ops::firewall::{FirewallRule, NftablesProtocol, PortSpan, RulesetPorts, RulesetState};
+use maran_ops::firewall::{
+    FirewallRule, NftablesProtocol, OutputPolicy, PortSpan, ProcessFirewallHost, RulesetPorts,
+    RulesetState, read_output_policy_or_inert,
+};
 use maran_templates::nftables::nftables_bans_table::NftablesBansTable;
 
 /// Environment variable controlling the tracing filter.
@@ -168,7 +171,9 @@ async fn main() {
 /// template. Neither can happen with the constants above and a template that
 /// matches its render type; both are reported rather than assumed away, because
 /// a root binary that prints a half-built firewall to the installer's redirect
-/// is worse than one that exits non-zero.
+/// is worse than one that exits non-zero. The host facts of the output chain
+/// (distribution, uid floor, addresses) are NOT such a failure: when they cannot
+/// be read the chain is seeded inert and the fault is logged.
 fn seed_ruleset(ports: &RulesetPorts) -> Result<String, Box<dyn std::error::Error>> {
     let mut state = RulesetState::empty();
 
@@ -182,5 +187,26 @@ fn seed_ruleset(ports: &RulesetPorts) -> Result<String, Box<dyn std::error::Erro
         });
     }
 
-    Ok(state.render(ports)?)
+    // The output chain's uid floor and the host's own addresses are facts of the
+    // machine the installer is running on, read the way every later apply reads
+    // them, so the seed and the first re-render agree.
+    // Soft on purpose: an unsupported distribution or an unreadable address table must
+    // not stop the installer from seeding a firewall at all. The chain is then seeded
+    // inert (it matches nothing) and the agent's start-up pass fills it in.
+    let policy = match maran_distro::detect() {
+        Ok(detected) => read_output_policy_or_inert(
+            &ProcessFirewallHost::new(),
+            maran_distro::adapter_for_release(&detected),
+        ),
+        Err(error) => {
+            tracing::error!(
+                %error,
+                "the distribution could not be detected; the firewall is seeded with an inert output chain \
+                 that the agent fills in at its start"
+            );
+            OutputPolicy::inert()
+        }
+    };
+
+    Ok(state.render(ports, &policy)?)
 }

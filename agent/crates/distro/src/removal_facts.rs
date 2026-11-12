@@ -3,6 +3,8 @@
 //! A supertrait of [`DistroAdapter`](crate::adapter::DistroAdapter); split out by concern
 //! so the one adapter seam stays under the file-size trigger (rules/rust.md "Distro adapter").
 
+use maran_agent_core::validation::apps::nodejs_module_stream::NodejsModuleStream;
+
 use crate::removal_simulation::RemovalSimulation;
 use crate::removal_simulation_failure::RemovalSimulationFailure;
 
@@ -31,4 +33,10 @@ pub trait RemovalFacts: Send + Sync {
         status: i32,
         stdout: &str,
     ) -> Result<RemovalSimulation, RemovalSimulationFailure>;
+
+    /// The arguments of the dry run of removing the module stream `stream` (issue #532), run with
+    /// the same program as [`Self::removal_simulation_arguments`] and read by
+    /// [`Self::read_removal_simulation`]. `dnf module remove --assumeno -- nodejs:20/common` on
+    /// the RHEL family. A family without module streams answers an empty list and is never asked.
+    fn nodejs_removal_simulation_arguments(&self, stream: &NodejsModuleStream) -> Vec<String>;
 }

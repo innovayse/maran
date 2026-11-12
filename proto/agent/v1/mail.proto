@@ -834,6 +834,32 @@ message SetLocalSubmissionRequest {
   // submission counts against the same limit. The list REPLACES the account's
   // whole set; at most 10000, no repeats. May be empty.
   repeated string mailbox_logins = 4;
+  // Every recipient address of the account's domains that Postfix expands to
+  // other hosts, with how many outside deliveries one message to it makes: an
+  // alias (`local@domain`) or a domain's catch-all (`@domain`). The panel
+  // resolves the whole expansion (an alias of aliases, a catch-all) and sends
+  // the total, because a locally submitted or authenticated message to such a
+  // recipient leaves the host that many times and is charged against the hourly
+  // limit that many times. The list REPLACES the account's whole set; at most
+  // 500000, no repeats, every recipient on one of `domains`. An alias whose
+  // whole expansion stays inside the account is listed too, with zero outside
+  // deliveries, so the filter knows it is an alias and never charges it the
+  // domain's catch-all. Empty from a caller that predates the field: no
+  // recipient then carries a fan-out.
+  repeated AliasFanout alias_fanouts = 5;
+}
+
+// One recipient address that expands to other hosts and the size of that
+// outside fan-out.
+message AliasFanout {
+  // The recipient: an alias address (`local@domain`) or a domain's catch-all
+  // (`@domain`), lower-case, on a domain of the account.
+  string alias = 1;
+  // How many deliveries outside the host one message to the recipient makes,
+  // the whole expansion, 0 to 100 (the Postfix expansion limit). Zero means
+  // the recipient is an alias that stays inside the account: the filter charges
+  // it the one delivery a mailbox costs. More than 100 is refused.
+  uint32 external_targets = 2;
 }
 
 message SetLocalSubmissionResponse {

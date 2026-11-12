@@ -49,6 +49,25 @@ pub(crate) fn run_package_unit<H: ConfigHost + ?Sized>(
     prefix: &str,
     package: &str,
 ) -> Result<String, PackageError> {
+    run_unit_reporting(host, distro, prefix, package, package)
+}
+
+/// [`run_package_unit`] for a unit whose instance is not what an operator reads in a failure:
+/// the Node.js module units are started with the major's digits (`20`), and a source that does
+/// not carry the stream must say `nodejs:20/common`, not "package 20" (issue #532). `reported`
+/// is what a classified failure names; `instance` is still the only thing in the unit's name.
+///
+/// # Errors
+///
+/// As [`run_package_unit`].
+pub(crate) fn run_unit_reporting<H: ConfigHost + ?Sized>(
+    host: &H,
+    distro: &dyn DistroAdapter,
+    prefix: &str,
+    instance: &str,
+    reported: &str,
+) -> Result<String, PackageError> {
+    let package = instance;
     let unit = format!("{prefix}{package}{UNIT_SUFFIX}");
 
     // `PackageInstall`, the one class that allows for a package manager. A kill at the agent's
@@ -72,7 +91,7 @@ pub(crate) fn run_package_unit<H: ConfigHost + ?Sized>(
             host,
             distro,
             &unit,
-            package,
+            reported,
             describe_failure(&unit, &outcome.stderr),
         ));
     }

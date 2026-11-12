@@ -1,5 +1,7 @@
 //! The dry run of a package removal on the RHEL family.
 
+use maran_agent_core::validation::apps::nodejs_module_stream::NodejsModuleStream;
+
 use crate::removal_facts::RemovalFacts;
 use crate::removal_simulation::RemovalSimulation;
 use crate::removal_simulation_failure::RemovalSimulationFailure;
@@ -13,6 +15,14 @@ const REMOVING_DEPENDENTS: &str = "Removing dependent packages:";
 
 /// The section header of the dependencies nothing needs once the removal is done.
 const REMOVING_UNUSED: &str = "Removing unused dependencies:";
+
+/// The section headers of a module removal: the profiles it disables, the modules it disables
+/// and the modules it resets. Their rows name a module state, not a package (issue #532).
+const MODULE_HEADERS: [&str; 3] = [
+    "Disabling module profiles:",
+    "Disabling modules:",
+    "Resetting modules:",
+];
 
 /// The line that opens the summary, printed once the plan is resolved and only then.
 const SUMMARY: &str = "Transaction Summary";
@@ -49,6 +59,19 @@ pub fn removal_simulation_arguments(package: &str) -> Vec<String> {
         .collect()
 }
 
+/// The arguments of the dry run of removing a module stream: the module spec follows `--`, so it
+/// can never be read as an option, and `--assumeno` answers the confirmation with no.
+#[must_use]
+pub fn nodejs_removal_simulation_arguments(stream: &NodejsModuleStream) -> Vec<String> {
+    vec![
+        "module".to_owned(),
+        "remove".to_owned(),
+        "--assumeno".to_owned(),
+        "--".to_owned(),
+        stream.spec(),
+    ]
+}
+
 /// Which part of the output the reader is in.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Section {
@@ -58,9 +81,11 @@ enum Section {
     Removed,
     /// Dependencies nothing needs any more.
     Unused,
+    /// Module states a module removal changes: rows that name a module, a stream or a profile.
+    Modules,
 }
 
-/// Reads `dnf remove --assumeno`: the transaction table, whose sections `Removing:` and
+/// Reads `dnf remove --assumeno` and `dnf module remove --assumeno`: the transaction table, whose sections `Removing:` and
 /// `Removing dependent packages:` hold the packages removed because the requested one is, and
 /// `Removing unused dependencies:` the ones removed because nothing needs them any more.
 ///
@@ -69,13 +94,19 @@ enum Section {
 /// `Operation aborted.` after printing the plan, so 0 and 1 are both a plan when the summary
 /// line is there; the summary is what proves the plan was resolved.
 ///
+/// A module removal adds three more sections (`Disabling module profiles:`, `Disabling modules:`
+/// and `Resetting modules:`) whose rows are module states and not packages; they are known and
+/// collect nothing, so a stream's removal reads as the packages it takes and nothing else.
+///
 /// The reader fails closed: every line must be one it knows (the table, its header, the summary
 /// lines, the noise around them) and anything else, a section it does not collect included,
 /// makes the whole read `Unrecognised`, so a layout it does not understand can never read as a
 /// smaller plan.
 ///
 /// Recorded: `dnf remove --assumeno` on `almalinux:9` (dnf 4.14.0), the fixtures
-/// `dnf_remove_simulation_*.txt` and `dnf_remove_not_installed.txt`. UNVERIFIED: dnf 5 (the
+/// `dnf_remove_simulation_*.txt` and `dnf_remove_not_installed.txt`, and
+/// `dnf module remove --assumeno nodejs:20/common` (`dnf_module_remove_simulation_nodejs20.txt` and `dnf_module_remove_simulation_nodejs22.txt`).
+/// UNVERIFIED: dnf 5 (the
 /// Fedora generation) prints another layout and is refused by this reader.
 ///
 /// # Errors
@@ -116,6 +147,12 @@ pub fn read_removal_simulation(
             section = Section::Removed;
         } else if trimmed == REMOVING_UNUSED {
             section = Section::Unused;
+        } else if MODULE_HEADERS.contains(&trimmed) {
+            section = Section::Modules;
+        } else if section == Section::Modules {
+            if !is_module_row(trimmed) {
+                return Err(RemovalSimulationFailure::Unrecognised);
+            }
         } else if section != Section::Outside {
             let (name, columns_follow) =
                 row(trimmed).ok_or(RemovalSimulationFailure::Unrecognised)?;
@@ -149,6 +186,25 @@ fn is_known_outside_the_table(line: &str, summarised: bool) -> bool {
         || is_ruler(line)
         || line.starts_with(TABLE_HEADER)
         || NOISE_PREFIXES.iter().any(|prefix| line.starts_with(prefix))
+}
+
+/// A row of a module section: one to three words of module-spec characters, after exactly one
+/// space (`nodejs/common`, `nodejs 20`).
+fn is_module_row(line: &str) -> bool {
+    let Some(rest) = line.strip_prefix(' ') else {
+        return false;
+    };
+    if rest.starts_with(' ') {
+        return false;
+    }
+    let words: Vec<&str> = rest.split_whitespace().collect();
+    (1..=3).contains(&words.len())
+        && words.iter().all(|word| {
+            word.chars().all(|character| {
+                character.is_ascii_alphanumeric()
+                    || matches!(character, '.' | '_' | '+' | '-' | ':' | '/')
+            })
+        })
 }
 
 /// A line of `=` only: the table's rulers.
@@ -198,6 +254,10 @@ impl RemovalFacts for RhelAdapter {
         stdout: &str,
     ) -> Result<RemovalSimulation, RemovalSimulationFailure> {
         read_removal_simulation(status, stdout)
+    }
+
+    fn nodejs_removal_simulation_arguments(&self, stream: &NodejsModuleStream) -> Vec<String> {
+        nodejs_removal_simulation_arguments(stream)
     }
 }
 

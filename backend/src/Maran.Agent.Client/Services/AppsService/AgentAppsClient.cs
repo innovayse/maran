@@ -65,18 +65,18 @@ public sealed class AgentAppsClient : IAgentAppsClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<IReadOnlyList<AgentInstallableApp>>> ListInstallableAppsAsync(
+    public async Task<Result<AgentInstallableApps>> ListInstallableAppsAsync(
         CancellationToken cancellationToken)
     {
         var response = await _invoker.ListInstallableAppsAsync(new ListInstallableAppsRequest(), cancellationToken);
 
         return response.ResultCase switch
         {
-            ListInstallableAppsResponse.ResultOneofCase.Ok => Result<IReadOnlyList<AgentInstallableApp>>.Ok(
+            ListInstallableAppsResponse.ResultOneofCase.Ok => Result<AgentInstallableApps>.Ok(
                 AppsMapper.ToInstallable(response.Ok)),
-            ListInstallableAppsResponse.ResultOneofCase.Error => Result<IReadOnlyList<AgentInstallableApp>>.Fail(
+            ListInstallableAppsResponse.ResultOneofCase.Error => Result<AgentInstallableApps>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(ListInstallableAppsAsync))),
-            _ => Result<IReadOnlyList<AgentInstallableApp>>.Fail(
+            _ => Result<AgentInstallableApps>.Fail(
                 Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }

@@ -67,8 +67,8 @@ internal static class AppsMapper
 
     /// <summary>Reads the installable-app list of the wire.</summary>
     /// <param name="ok">The success payload of <c>ListInstallableApps</c>.</param>
-    /// <returns>The apps in catalogue order, installed ones included.</returns>
-    public static List<AgentInstallableApp> ToInstallable(ListInstallableAppsOk ok)
+    /// <returns>The apps in catalogue order, installed ones included, and why Node.js is missing, if it is.</returns>
+    public static AgentInstallableApps ToInstallable(ListInstallableAppsOk ok)
     {
         var apps = new List<AgentInstallableApp>(ok.Apps.Count);
         foreach (var app in ok.Apps)
@@ -76,6 +76,19 @@ internal static class AppsMapper
             apps.Add(new AgentInstallableApp(app.AppId, ToKind(app.Kind), app.Installed));
         }
 
-        return apps;
+        return new AgentInstallableApps(apps, ToNodejsUnavailable(ok.NodejsUnavailableReason));
+    }
+
+    /// <summary>Reads the reason Node.js is missing; "unspecified" (nothing is missing for a reason) becomes <see langword="null"/> once, here.</summary>
+    /// <param name="reason">The wire reason.</param>
+    /// <returns>The panel's reason, or <see langword="null"/> when the agent states none.</returns>
+    public static AgentNodejsUnavailableReason? ToNodejsUnavailable(NodejsUnavailableReason reason)
+    {
+        return reason switch
+        {
+            NodejsUnavailableReason.NoModuleStreams => AgentNodejsUnavailableReason.NoModuleStreams,
+            NodejsUnavailableReason.ListingFailed => AgentNodejsUnavailableReason.ListingFailed,
+            _ => null,
+        };
     }
 }

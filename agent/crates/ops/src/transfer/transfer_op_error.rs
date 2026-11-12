@@ -1,6 +1,7 @@
 //! Errors returned by the server-migration connection operations.
 
 use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::host_addresses_error::HostAddressesError;
 use maran_agent_core::utils::spawn_error::SpawnError;
 
 /// Why an operation against a registered source produced no answer.
@@ -41,8 +42,8 @@ pub enum TransferOpError {
     ScratchUnavailable,
     /// This host's own addresses could not be listed, so the address policy
     /// cannot be applied. The connection fails closed.
-    #[error("this host's own addresses could not be listed")]
-    HostAddressesUnavailable,
+    #[error("this host's own addresses could not be listed: {0}")]
+    HostAddressesUnavailable(#[from] HostAddressesError),
     /// A deadline passed or an output cap was crossed, and the child's process
     /// group was killed. It is never read as an empty answer.
     #[error(transparent)]

@@ -36,6 +36,8 @@ struct RecordingHost {
     node_installed: Mutex<bool>,
     /// Every argv handed to `run`.
     calls: Arc<Mutex<Vec<Vec<String>>>>,
+    /// The lock `AppsHost` asks for; the Debian family never takes it.
+    app_operations: Mutex<()>,
 }
 
 impl ConfigHost for RecordingHost {
@@ -120,6 +122,10 @@ impl PhpHost for RecordingHost {
 }
 
 impl AppsHost for RecordingHost {
+    fn app_operation_lock(&self) -> &Mutex<()> {
+        &self.app_operations
+    }
+
     fn path_exists(&self, _path: &Path) -> bool {
         false
     }
@@ -146,6 +152,7 @@ fn service(calls: &Arc<Mutex<Vec<Vec<String>>>>) -> AppsServiceImpl<RecordingHos
         RecordingHost {
             node_installed: Mutex::new(false),
             calls: Arc::clone(calls),
+            app_operations: Mutex::new(()),
         },
         adapter(),
         PanelHostNames::none(),
@@ -282,4 +289,26 @@ async fn a_host_with_nothing_installed_lists_no_apps() {
         list_apps_response::Result::Ok(ok) => assert!(ok.apps.is_empty()),
         other => panic!("expected ok, got {other:?}"),
     }
+}
+
+#[test]
+fn the_reason_node_js_is_missing_travels_as_its_own_wire_value_and_none_as_unset() {
+    use maran_ops::apps::NodejsUnavailable;
+
+    use super::wire_nodejs_reason;
+    use crate::proto::NodejsUnavailableReason;
+
+    assert_eq!(
+        wire_nodejs_reason(Some(NodejsUnavailable::NoModuleStreams)),
+        NodejsUnavailableReason::NoModuleStreams
+    );
+    assert_eq!(
+        wire_nodejs_reason(Some(NodejsUnavailable::ListingFailed)),
+        NodejsUnavailableReason::ListingFailed
+    );
+    // Inverse control: a host that lost nothing reports no reason.
+    assert_eq!(
+        wire_nodejs_reason(None),
+        NodejsUnavailableReason::Unspecified
+    );
 }

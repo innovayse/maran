@@ -229,3 +229,32 @@ test('the control: a runtime the agent reports installed is not offered again', 
   await expect(page.getByRole('checkbox', { name: 'PHP 8.4' })).toBeVisible()
   await expect(page.getByRole('checkbox', { name: 'PHP 8.3' })).toHaveCount(0)
 })
+
+// Issue #532: the runtimes step says why Node.js is missing instead of listing PHP alone as if
+// Node.js did not exist.
+
+test('the runtimes step says why no Node.js is offered, and says nothing on a host that offers it', async ({ page }) => {
+  const sentence = 'Node.js is not offered on this server: its package sources carry no Node.js module streams.'
+  const { world, stack } = freshHost({
+    installable: [installableApp('nginx', 'nginx'), installableApp('php-8.3', 'PHP 8.3')],
+    nodejsUnavailable: { reason: 'noModuleStreams', message: sentence },
+  })
+  await openApps(page, world, { path: '/', stack })
+
+  await page.getByRole('radio', { name: 'nginx' }).check({ force: true })
+  await page.getByRole('button', { name: 'Next' }).click()
+
+  await expect(page.getByText(sentence)).toBeVisible()
+  await expect(page.getByRole('checkbox', { name: 'PHP 8.3' })).toBeVisible()
+})
+
+test('the control: with Node.js on offer the runtimes step lists it and shows no notice', async ({ page }) => {
+  const { world, stack } = freshHost()
+  await openApps(page, world, { path: '/', stack })
+
+  await page.getByRole('radio', { name: 'nginx' }).check({ force: true })
+  await page.getByRole('button', { name: 'Next' }).click()
+
+  await expect(page.getByRole('checkbox', { name: 'Node.js 22' })).toBeVisible()
+  await expect(page.getByText(/Node\.js is not offered/)).toHaveCount(0)
+})

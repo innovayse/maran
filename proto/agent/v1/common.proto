@@ -339,6 +339,41 @@ enum ErrorCode {
   // host serves its sites from exactly one. **Nothing happened.** Switching is
   // uninstall then install, and it is NOT retryable as it stands.
   ERROR_CODE_WEB_SERVER_ALREADY_INSTALLED = 24;
+  // Added 2026-11-12, additively (issue #532). InstallApp was refused because
+  // the app is a Node.js major on a host whose package manager keeps one Node.js
+  // module stream at a time (the RHEL family), and a different major is already
+  // on the host, installed by the panel or not. **Nothing happened.** Switching
+  // is uninstall then install, and it is NOT retryable as it stands. The message
+  // names both majors; the unmanaged one has no app id, so its digits are all
+  // there is to say.
+  ERROR_CODE_NODE_MAJOR_ALREADY_INSTALLED = 25;
+  // Added 2026-11-12, additively (issue #532). InstallApp or UninstallApp of a
+  // Node.js major was refused because a Node.js is on the host that no module
+  // stream installed (the plain `nodejs` package, or one of an unknown origin),
+  // so the module commands can neither install over it nor remove it. **Nothing
+  // happened.** The panel does not remove software it did not install: the
+  // OPERATOR removes it with the command the message names, then asks again. It
+  // is NOT ERROR_CODE_NODE_MAJOR_ALREADY_INSTALLED, which is another major put
+  // there by a module stream and answered by uninstalling it through the panel.
+  ERROR_CODE_NODE_UNMANAGED_INSTALL = 26;
+  // Added 2026-11-12, additively (issue #532). InstallApp of a Node.js major was
+  // refused because a Node.js module stream is enabled on the host with nothing
+  // installed from it (an operator ran `module enable`), and installing resets
+  // the module, which would drop that choice. **Nothing happened.** The OPERATOR
+  // releases the stream with the command the message names, then asks again.
+  ERROR_CODE_NODE_STREAM_ENABLED_BY_OPERATOR = 27;
+  // Added 2026-11-12, additively (issue #532). InstallApp or UninstallApp of a
+  // Node.js major was refused because `/usr/bin/node` is on the host but reports
+  // no major, so what is installed cannot be told (fail closed). **Nothing
+  // happened.** It is NOT ERROR_CODE_SYSTEM_FAILURE, which says nothing the
+  // operator can act on: the interpreter is to be repaired or removed by hand.
+  ERROR_CODE_NODE_INTERPRETER_UNREADABLE = 28;
+  // Added 2026-11-12, additively (issue #532). InstallApp or UninstallApp of a
+  // Node.js major was refused because another Node.js module install or removal
+  // is running on this host. **Nothing happened**, and it IS retryable: the same
+  // request is safe to repeat once that one ends. It is NOT
+  // ERROR_CODE_AGENT_SATURATED, which is the agent's own concurrency ceiling.
+  ERROR_CODE_NODE_OPERATION_IN_PROGRESS = 29;
 }
 
 // Streamed progress of a long-running operation (backup, restore, install).

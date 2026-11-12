@@ -29,7 +29,28 @@ pub fn to_agent_error(error: &AppsOpError) -> AgentError {
         AppsOpError::WebServerAlreadyInstalled { .. } => {
             (ErrorCode::WebServerAlreadyInstalled, String::new())
         }
+        // Another major put there by a module stream: the operator switches by uninstalling it.
+        AppsOpError::NodeMajorAlreadyInstalled { .. } => {
+            (ErrorCode::NodeMajorAlreadyInstalled, String::new())
+        }
+        // The four Node.js refusals below changed nothing and are answered by the operator, each
+        // by a different act, so each travels as its own code and the panel can say which
+        // (issue #532): a Node.js the module system does not own, a stream enabled by hand, an
+        // interpreter that cannot be read, and another module operation in flight.
+        AppsOpError::UnmanagedNodeInstalled { .. } => {
+            (ErrorCode::NodeUnmanagedInstall, String::new())
+        }
+        AppsOpError::NodeStreamEnabledByOperator { .. } => {
+            (ErrorCode::NodeStreamEnabledByOperator, String::new())
+        }
+        AppsOpError::NodeInterpreterUnreadable { .. } => {
+            (ErrorCode::NodeInterpreterUnreadable, String::new())
+        }
+        AppsOpError::NodejsOperationInProgress => {
+            (ErrorCode::NodeOperationInProgress, String::new())
+        }
         AppsOpError::ServiceManager { stderr } => (ErrorCode::SystemFailure, stderr.clone()),
+        // Refused or failed with the host at fault: nothing the operator is told to run.
         AppsOpError::StillAbsent { .. }
         | AppsOpError::RemovalNotSimulated { .. }
         | AppsOpError::HostUnreadable { .. } => (ErrorCode::SystemFailure, String::new()),

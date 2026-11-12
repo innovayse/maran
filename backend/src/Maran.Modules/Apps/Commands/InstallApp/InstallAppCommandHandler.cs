@@ -129,7 +129,7 @@ public sealed class InstallAppCommandHandler
             return await RefuseAsync(command, installable.Error!, cancellationToken);
         }
 
-        var offered = installable.Value.Any(app =>
+        var offered = installable.Value.Apps.Any(app =>
         {
             return string.Equals(app.AppId, appId.Value, StringComparison.Ordinal);
         });

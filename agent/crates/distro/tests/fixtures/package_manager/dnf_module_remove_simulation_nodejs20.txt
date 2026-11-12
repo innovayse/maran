@@ -1,0 +1,20 @@
+Last metadata expiration check: 0:00:10 ago on Wed Nov 11 20:39:55 2026.
+Dependencies resolved.
+==============================================================================================
+ Package            Arch    Version                                          Repository   Size
+==============================================================================================
+Removing:
+ nodejs             x86_64  1:20.20.2-1.module_el9.7.0+226+88d36870          @appstream   51 M
+ npm                x86_64  1:10.8.2-1.20.20.2.1.module_el9.7.0+226+88d36870 @appstream  7.8 M
+Removing unused dependencies:
+ libbrotli          x86_64  1.0.9-10.el9_8.1                                 @baseos     764 k
+ nodejs-docs        noarch  1:20.20.2-1.module_el9.7.0+226+88d36870          @appstream   91 M
+ nodejs-full-i18n   x86_64  1:20.20.2-1.module_el9.7.0+226+88d36870          @appstream   32 M
+Disabling module profiles:
+ nodejs/common                                                                                
+
+Transaction Summary
+==============================================================================================
+Remove  5 Packages
+
+Freed space: 182 M

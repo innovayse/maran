@@ -1,5 +1,7 @@
 //! The dry run of a package removal on the SUSE family.
 
+use maran_agent_core::validation::apps::nodejs_module_stream::NodejsModuleStream;
+
 use crate::removal_facts::RemovalFacts;
 use crate::removal_simulation::RemovalSimulation;
 use crate::removal_simulation_failure::RemovalSimulationFailure;
@@ -136,6 +138,10 @@ impl RemovalFacts for SuseAdapter {
         stdout: &str,
     ) -> Result<RemovalSimulation, RemovalSimulationFailure> {
         read_removal_simulation(status, stdout)
+    }
+
+    fn nodejs_removal_simulation_arguments(&self, _stream: &NodejsModuleStream) -> Vec<String> {
+        Vec::new()
     }
 }
 

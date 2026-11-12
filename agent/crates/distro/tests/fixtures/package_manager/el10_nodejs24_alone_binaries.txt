@@ -1,0 +1,4 @@
+/usr/bin/node-24
+/usr/bin/npm-24
+/usr/bin/nproc
+/usr/bin/npx-24

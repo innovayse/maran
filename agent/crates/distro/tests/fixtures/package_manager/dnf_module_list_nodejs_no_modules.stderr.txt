@@ -1,0 +1,2 @@
+WARNING: modularity is deprecated, and functionality will be removed in a future release of DNF5.
+Error: No matching Modules to list

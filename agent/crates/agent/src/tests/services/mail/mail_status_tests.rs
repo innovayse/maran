@@ -5,6 +5,7 @@
 use std::time::Duration;
 
 use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::host_addresses_error::HostAddressesError;
 use maran_ops::mail::{LocalSubmissionHazard, LocalSubmissionKey, MailDaemon, MailError};
 
 use crate::proto::ErrorCode;
@@ -65,12 +66,15 @@ fn every_fault_of_the_machine_is_a_system_failure() {
             program: "/usr/sbin/postfix".to_owned(),
             deadline: Duration::from_secs(60),
         }),
-        MailError::Render,
+        MailError::Render {
+            reason: String::new(),
+        },
         MailError::ConfigUnreadable,
         MailError::ConfigWrite {
             reason: "disk full".to_owned(),
         },
         MailError::SocketsUnreadable,
+        MailError::HostAddressesUnreadable(HostAddressesError::Ipv4Missing),
     ];
 
     for fault in faults {

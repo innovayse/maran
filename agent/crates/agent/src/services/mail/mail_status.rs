@@ -48,10 +48,11 @@ pub fn to_agent_error(error: &MailError) -> AgentError {
         | MailError::ServiceRefused { .. }
         | MailError::NotListening { .. }
         | MailError::SpawnFailed { .. }
-        | MailError::Render
+        | MailError::Render { .. }
         | MailError::ConfigUnreadable
         | MailError::ConfigWrite { .. }
-        | MailError::SocketsUnreadable => ErrorCode::SystemFailure,
+        | MailError::SocketsUnreadable
+        | MailError::HostAddressesUnreadable(_) => ErrorCode::SystemFailure,
         // `MailError` is #[non_exhaustive] (rules/rust.md), so a variant added in
         // the ops crate lands here rather than failing this build. A system
         // failure makes the panel report a fault instead of treating an

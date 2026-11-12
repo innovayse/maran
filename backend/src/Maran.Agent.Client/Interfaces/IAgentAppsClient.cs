@@ -23,9 +23,10 @@ public interface IAgentAppsClient
     /// <returns>
     /// The installable apps, each flagged as installed or not, or a typed failure. The set is what the
     /// agent's package metadata offers for this host, so it is the one an install is validated against and
-    /// the one a picker is filled from.
+    /// the one a picker is filled from. When the host's Node.js module streams gave no offer, the reason travels
+    /// beside the list (issue #532) so a picker can say why no Node.js app is there.
     /// </returns>
-    Task<Result<IReadOnlyList<AgentInstallableApp>>> ListInstallableAppsAsync(CancellationToken cancellationToken);
+    Task<Result<AgentInstallableApps>> ListInstallableAppsAsync(CancellationToken cancellationToken);
 
     /// <summary>Installs one app, reporting progress as it goes.</summary>
     /// <param name="appId">The app id of the catalogue, e.g. <c>php-8.3</c>.</param>

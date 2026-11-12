@@ -1,0 +1,85 @@
+# Installs ONE Node.js module stream through dnf, as root, outside the agent's sandbox (issue #532).
+# RHEL releases with module streams only (before 10, issue #542): Debian, SUSE and the RHEL 10 generation install Node.js as a plain package through
+# maran-app-install@.service. Its sibling maran-app-nodejs-remove@.service takes a stream away.
+#
+# Why this unit exists, and why it is not maran-app-install@.service: on RHEL 9 the Node.js
+# versions are MODULE STREAMS, not packages. `dnf install nodejs` takes whatever stream the
+# distribution defaults to, so a second major could never be chosen. A stream is selected by
+# `dnf module install nodejs:<major>/common`, and the stream must be reset first, otherwise dnf
+# refuses to switch away from a stream that was enabled earlier. The generic unit is one fixed
+# `install -- %i` argv and cannot say that, and widening it with a verb would make its one argv
+# variable. maran-agent.service runs with ProtectSystem=true, so the agent itself cannot run dnf
+# (docs/superpowers/notes/2026-10-26-php-package-install-unit-threat-note.md).
+#
+# What it is NOT: a daemon. It listens on nothing, has no [Install] section so nothing enables it
+# or starts it at boot, and exits when dnf exits. Only the agent starts it, as
+#   systemctl start maran-app-nodejs-install@<major>.service
+# where <major> is DIGITS ONLY, the supported Node.js major the agent parsed into its
+# NodejsModuleStream type (agent-core). THIS UNIT DOES NOT RE-CHECK THE INSTANCE, for the reason the
+# generic install unit does not: the agent starts it as root, and anyone else able to start a system
+# unit can already run dnf directly. The instance is %i, never %I (see maran-app-install@.service).
+#
+# Two fixed ExecStart= lines run in order and a failure of the first stops the second:
+#   dnf module reset -y nodejs
+#   dnf module install -y -- nodejs:%i/common
+# `--` ends option parsing, so an instance that begins with `-` is read as a module spec and not as
+# an option. dnf removes nothing unless given --allowerasing, which is never passed here. The agent
+# refuses a second major while one is installed (apps.nodeMajorActive) before it starts this unit;
+# a host started by hand does not get that check.
+# The first line resets the module, which drops a stream an operator enabled by hand: the agent
+# refuses to start this unit while another major's stream is enabled with nothing installed, and
+# while a Node.js no stream installed is on the host (issue #532); a host started by hand does not
+# get those checks either.
+#
+# The same absences as the generic install unit apply (no ProtectSystem=, ReadWritePaths=,
+# PrivateNetwork=, NoNewPrivileges=, RestrictSUIDSGID=, MemoryDenyWriteExecute=, EnvironmentFile=),
+# for the reasons stated there. A malicious package is not stopped by any directive here
+# (docs/superpowers/notes/2026-11-10-app-install-uninstall-threat-note.md).
+[Unit]
+Description=Maran Node.js module stream install (%i)
+After=network-online.target
+Wants=network-online.target
+# The default start rate limit refuses a sixth start within ten seconds, and the refusal would reach
+# the operator as a dnf failure that never ran dnf. The agent is the only starter, so the limit
+# protects nothing here.
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+# `no` (the default, stated): with yes, a second start after the stream was removed would do nothing.
+RemainAfterExit=no
+# The unmanaged /usr/local directories stay out of the PATH of the scriptlets dnf runs as root.
+Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin
+# 0022, not the agent's 0027: files a scriptlet creates must be readable by the node workers.
+UMask=0022
+ExecStart=/usr/bin/dnf module reset -y nodejs
+ExecStart=/usr/bin/dnf module install -y -- nodejs:%i/common
+# oneshot has NO timeout by default, so a stuck mirror would hold the agent's blocking call forever.
+# Thirty minutes is a ceiling for a hung transfer, not an expected duration; a kill part-way leaves
+# a half-installed stream.
+TimeoutStartSec=1800
+# The sandbox: exactly maran-app-install@.service's (issue #408), directive for directive, so the
+# root package routes cannot drift apart. Measured there with `dnf install` on AlmaLinux 9
+# (systemd 252) with an inverse control (ProtectSystem=strict must fail, and did). UNCONFIRMED here:
+# `dnf module install` and `module remove` under it on a booted systemd, an enforcing SELinux host.
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectHostname=yes
+ProtectClock=yes
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+# AF_NETLINK stays: name resolution asks for it, and account tools write audit records over it.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+# EPERM and not the default kill: a SIGSYS death leaves no package-manager text for
+# classify_install_failure to read. A deny-list, so a syscall an older systemd does not know is
+# simply not denied.
+SystemCallFilter=~@mount @swap @reboot @raw-io @module @cpu-emulation @debug @clock
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=~CAP_SYS_MODULE CAP_SYS_RAWIO CAP_SYS_BOOT CAP_SYS_TIME CAP_SYS_PACCT CAP_SYS_TTY_CONFIG CAP_WAKE_ALARM CAP_BLOCK_SUSPEND CAP_BPF CAP_PERFMON CAP_SYSLOG CAP_NET_RAW CAP_NET_BROADCAST CAP_LEASE

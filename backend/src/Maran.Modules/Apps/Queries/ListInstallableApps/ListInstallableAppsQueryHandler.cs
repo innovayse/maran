@@ -2,6 +2,7 @@ using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Apps.Common;
 using Maran.Modules.Apps.Domain.Enums;
 using Maran.Modules.Apps.Domain.ValueObjects;
+using Maran.Modules.Apps.Mappers;
 using Maran.Modules.Apps.Persistence;
 using Maran.Modules.Apps.Services;
 
@@ -9,7 +10,8 @@ namespace Maran.Modules.Apps.Queries.ListInstallableApps;
 
 /// <summary>
 /// Handles <see cref="ListInstallableAppsQuery"/>: the apps the agent says the host's package sources can
-/// install, each flagged as installed or not (issue #517).
+/// install, each flagged as installed or not (issue #517), with the reason no Node.js app is among them when
+/// the host could not offer one (issue #532).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -48,8 +50,8 @@ public sealed class ListInstallableAppsQueryHandler
     /// <summary>Returns the installable apps in the agent's catalogue order.</summary>
     /// <param name="query">The query; it carries nothing.</param>
     /// <param name="cancellationToken">Cancels the reads.</param>
-    /// <returns>The apps, or the agent's own typed failure.</returns>
-    public async Task<Result<IReadOnlyList<InstallableAppDto>>> HandleAsync(
+    /// <returns>The apps with the reason Node.js is missing, if it is, or the agent's own typed failure.</returns>
+    public async Task<Result<InstallableAppsDto>> HandleAsync(
         ListInstallableAppsQuery query,
         CancellationToken cancellationToken)
     {
@@ -58,7 +60,7 @@ public sealed class ListInstallableAppsQueryHandler
         var installable = await _agent.ListInstallableAppsAsync(cancellationToken);
         if (!installable.IsSuccess)
         {
-            return Result<IReadOnlyList<InstallableAppDto>>.Fail(installable.Error!);
+            return Result<InstallableAppsDto>.Fail(installable.Error!);
         }
 
         var taken = (await _dbContext.InstalledApps
@@ -68,8 +70,8 @@ public sealed class ListInstallableAppsQueryHandler
                 .ToListAsync(cancellationToken))
             .ToHashSet(StringComparer.Ordinal);
 
-        var apps = new List<InstallableAppDto>(installable.Value.Count);
-        foreach (var app in installable.Value)
+        var apps = new List<InstallableAppDto>(installable.Value.Apps.Count);
+        foreach (var app in installable.Value.Apps)
         {
             if (!AppId.TryParse(app.AppId, out var appId))
             {
@@ -84,6 +86,9 @@ public sealed class ListInstallableAppsQueryHandler
                 app.Installed || taken.Contains(appId.Value)));
         }
 
-        return Result<IReadOnlyList<InstallableAppDto>>.Ok(apps);
+        var unavailable = AgentAppMapper.ToNodejsUnavailable(installable.Value.NodejsUnavailable);
+
+        return Result<InstallableAppsDto>.Ok(
+            new InstallableAppsDto(apps, unavailable, unavailable is { } reason ? _names.Of(reason) : null));
     }
 }

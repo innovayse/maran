@@ -93,6 +93,21 @@
   <data name="BackupFailureAgentWebServerAlreadyInstalled">
     <value>A web server for sites was already installed on the server</value>
   </data>
+  <data name="BackupFailureAgentNodeMajorAlreadyInstalled">
+    <value>A different Node.js version was already installed on the server</value>
+  </data>
+  <data name="BackupFailureAgentNodeUnmanagedInstall">
+    <value>A Node.js the panel did not install was already on the server</value>
+  </data>
+  <data name="BackupFailureAgentNodeStreamEnabledByOperator">
+    <value>A Node.js module stream was already enabled on the server by hand</value>
+  </data>
+  <data name="BackupFailureAgentNodeInterpreterUnreadable">
+    <value>The Node.js program on the server did not report its version</value>
+  </data>
+  <data name="BackupFailureAgentNodeOperationInProgress">
+    <value>Another Node.js install or removal was already running on the server</value>
+  </data>
   <data name="BackupDestinationDefault">
     <value>Local storage</value>
   </data>

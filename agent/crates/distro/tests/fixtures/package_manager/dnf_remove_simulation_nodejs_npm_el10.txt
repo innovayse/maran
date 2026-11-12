@@ -1,0 +1,13 @@
+Dependencies resolved.
+================================================================================
+ Package        Arch       Version                         Repository      Size
+================================================================================
+Removing:
+ nodejs-npm     x86_64     1:10.9.9-1.22.23.4.1.el10_2     @appstream     8.6 M
+
+Transaction Summary
+================================================================================
+Remove  1 Package
+
+Freed space: 8.6 M
+Operation aborted.

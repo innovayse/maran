@@ -396,7 +396,7 @@ pub fn key_value_server(version_id: &str) -> Option<KeyValueServer> {
 ///
 /// The RHEL family's `VERSION_ID` carries the minor (`9.4`), and the mail facts depend on the
 /// major alone.
-fn release_major(version_id: &str) -> &str {
+pub(crate) fn release_major(version_id: &str) -> &str {
     version_id.split('.').next().unwrap_or(version_id)
 }
 

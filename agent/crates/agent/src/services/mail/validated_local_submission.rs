@@ -30,12 +30,19 @@ pub fn validated_local_submission(
         .map_err(|error| invalid_input(format!("account: {error}")))?;
     let uid = resolve_uid(&account)?;
 
+    let alias_fanouts: Vec<(&str, u32)> = request
+        .alias_fanouts
+        .iter()
+        .map(|fanout| (fanout.alias.as_str(), fanout.external_targets))
+        .collect();
+
     LocalSubmission::parse(
         account.as_str(),
         uid,
         &request.domains,
         request.send_limit_per_hour,
         &request.mailbox_logins,
+        &alias_fanouts,
     )
     .map_err(|error| invalid_input(error.to_string()))
 }

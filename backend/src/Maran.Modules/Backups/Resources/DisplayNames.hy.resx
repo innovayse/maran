@@ -93,6 +93,21 @@
   <data name="BackupFailureAgentWebServerAlreadyInstalled">
     <value>Կայքերի վեբ սերվերն արդեն տեղադրված էր սերվերում</value>
   </data>
+  <data name="BackupFailureAgentNodeMajorAlreadyInstalled">
+    <value>Node.js-ի այլ տարբերակ արդեն տեղադրված էր սերվերում</value>
+  </data>
+  <data name="BackupFailureAgentNodeUnmanagedInstall">
+    <value>Սերվերում արդեն կար Node.js, որը տեղադրվել էր ոչ վահանակով</value>
+  </data>
+  <data name="BackupFailureAgentNodeStreamEnabledByOperator">
+    <value>Սերվերում արդեն ձեռքով միացված էր Node.js-ի մոդուլային հոսք</value>
+  </data>
+  <data name="BackupFailureAgentNodeInterpreterUnreadable">
+    <value>Սերվերի Node.js ծրագիրը չհաղորդեց իր տարբերակը</value>
+  </data>
+  <data name="BackupFailureAgentNodeOperationInProgress">
+    <value>Սերվերում արդեն կատարվում էր Node.js-ի մեկ այլ տեղադրում կամ հեռացում</value>
+  </data>
   <data name="BackupDestinationDefault">
     <value>Տեղական պահոց</value>
   </data>

@@ -9,7 +9,7 @@ use maran_distro::{DistroFamily, adapter_for};
 
 use super::uninstall_app;
 use crate::apps::AppsOpError;
-use crate::php::fake_php_host::{FakePhpHost, distro};
+use crate::php::fake_php_host::{FakePhpHost, distro, el10_distro};
 
 fn id(text: &str) -> ValidatedAppId {
     ValidatedAppId::parse(text).unwrap()
@@ -590,4 +590,306 @@ fn a_debian_plan_that_installs_or_upgrades_something_refuses_the_removal() {
         ));
         assert!(started_units(&host).is_empty());
     }
+}
+
+/// The shape of a `dnf module remove --assumeno nodejs:20/common` dry run (exit 1): the stream's
+/// packages, and the module headers dnf adds. Written for the test; the reader's recorded
+/// fixtures live beside the adapter.
+const MODULE_REMOVE_PLAN: &str = "Dependencies resolved.
+================================================================================
+ Package             Arch     Version                  Repository         Size
+================================================================================
+Removing:
+ nodejs              x86_64   1:20.11.1-1.module_el9   @appstream        33 M
+ npm                 x86_64   1:10.2.4-1.module_el9    @appstream       9.1 M
+Removing unused dependencies:
+ nodejs-libs         x86_64   1:20.11.1-1.module_el9   @appstream        20 M
+Disabling module profiles:
+ nodejs/common
+Disabling modules:
+ nodejs
+
+Transaction Summary
+================================================================================
+Remove  3 Packages
+
+Freed space: 62 M
+Operation aborted.
+";
+
+/// A RHEL host that has Node.js 20: the interpreter answers once before the removal and not after.
+fn rhel_host_with_node_20() -> FakePhpHost {
+    let host = FakePhpHost::empty();
+    host.answer_in_turn("--version", &[(0, "v20.11.1\n", ""), (1, "", "")]);
+    host
+}
+
+fn remove_node_20_on_rhel(host: &FakePhpHost) -> Result<(), AppsOpError> {
+    uninstall_app(
+        host,
+        adapter_for(DistroFamily::Rhel),
+        &id("nodejs-20"),
+        |_, _| {},
+    )
+}
+
+#[test]
+fn a_node_major_on_a_module_stream_family_goes_as_its_stream_through_one_module_unit() {
+    let host = rhel_host_with_node_20();
+    host.answer("module", 1, MODULE_REMOVE_PLAN, "");
+
+    remove_node_20_on_rhel(&host).unwrap();
+
+    assert_eq!(
+        started_units(&host),
+        vec!["maran-app-nodejs-remove@20.service"]
+    );
+}
+
+#[test]
+fn a_module_removal_that_would_take_another_package_is_refused_before_the_unit_starts() {
+    // Inverse control: the same plan with a package, in the section of what the removal takes
+    // by name, that is not the stream's own (an unused dependency is never counted as another).
+    let host = rhel_host_with_node_20();
+    let plan = MODULE_REMOVE_PLAN.replace(" npm ", " nginx-mod-http-perl ");
+    host.answer("module", 1, &plan, "");
+
+    match remove_node_20_on_rhel(&host) {
+        Err(AppsOpError::RemovalWouldRemoveOthers { packages, .. }) => {
+            assert_eq!(packages, "nginx-mod-http-perl");
+        }
+        other => panic!("expected RemovalWouldRemoveOthers, got {other:?}"),
+    }
+    assert!(started_units(&host).is_empty());
+}
+
+#[test]
+fn a_module_removal_that_leaves_the_interpreter_is_still_absent_not_a_success() {
+    let host = FakePhpHost::empty();
+    host.answer("--version", 0, "v20.11.1\n", "");
+    host.answer("module", 1, MODULE_REMOVE_PLAN, "");
+
+    assert!(matches!(
+        remove_node_20_on_rhel(&host),
+        Err(AppsOpError::StillAbsent { .. })
+    ));
+}
+
+/// `dnf -C module list nodejs` with `nodejs:20/common` installed (recorded on `almalinux:9`).
+const LISTING_STREAM_20: &str = include_str!(
+    "../../../../distro/tests/fixtures/package_manager/dnf_module_list_nodejs_installed.txt"
+);
+
+/// The same listing on a host whose Node.js came from the plain package: no marker anywhere
+/// (recorded on `almalinux:9`).
+const LISTING_PLAIN: &str = include_str!(
+    "../../../../distro/tests/fixtures/package_manager/dnf_module_list_nodejs_unmanaged_plain_install.txt"
+);
+
+#[test]
+fn a_node_js_no_stream_installed_is_refused_with_the_operators_command_and_nothing_is_asked() {
+    // The recorded removal of its stream says `Nothing to do` for ever; the panel must not offer
+    // a removal that can only end as "could not be checked".
+    let host = FakePhpHost::empty();
+    host.place_config(Path::new("/usr/bin/node"), "");
+    host.answer("--version", 0, "v20.11.1\n", "");
+    host.answer("-C", 0, LISTING_PLAIN, "");
+    host.answer("module", 1, MODULE_REMOVE_PLAN, "");
+
+    match remove_node_20_on_rhel(&host) {
+        Err(error @ AppsOpError::UnmanagedNodeInstalled { .. }) => {
+            assert!(error.to_string().contains("`dnf remove nodejs`"), "{error}");
+        }
+        other => panic!("expected UnmanagedNodeInstalled, got {other:?}"),
+    }
+    assert!(started_units(&host).is_empty());
+    assert!(
+        host.commands()
+            .iter()
+            .all(|call| !call.iter().any(|part| part == "--assumeno")),
+        "no dry run is made of a removal that cannot be a plan"
+    );
+}
+
+#[test]
+fn a_node_js_with_its_stream_enabled_is_removed_as_before() {
+    // Inverse control: the same host, the stream shown enabled.
+    let host = FakePhpHost::empty();
+    host.place_config(Path::new("/usr/bin/node"), "");
+    host.answer_in_turn(
+        "--version",
+        &[(0, "v20.11.1\n", ""), (0, "v20.11.1\n", ""), (1, "", "")],
+    );
+    host.answer("-C", 0, LISTING_STREAM_20, "");
+    host.answer("module", 1, MODULE_REMOVE_PLAN, "");
+
+    remove_node_20_on_rhel(&host).unwrap();
+
+    assert_eq!(
+        started_units(&host),
+        vec!["maran-app-nodejs-remove@20.service"]
+    );
+}
+
+#[test]
+fn an_interpreter_that_does_not_run_is_not_reported_as_not_installed() {
+    let host = FakePhpHost::empty();
+    host.place_config(Path::new("/usr/bin/node"), "");
+    host.answer("--version", 127, "", "");
+
+    assert!(matches!(
+        remove_node_20_on_rhel(&host),
+        Err(AppsOpError::NodeInterpreterUnreadable { .. })
+    ));
+    assert!(started_units(&host).is_empty());
+}
+
+#[test]
+fn a_removal_is_refused_while_another_node_module_operation_runs() {
+    let host = rhel_host_with_node_20();
+    host.answer("module", 1, MODULE_REMOVE_PLAN, "");
+    let running =
+        crate::apps::nodejs_module_operation::take_nodejs_module_operation(&host).unwrap();
+
+    assert!(matches!(
+        remove_node_20_on_rhel(&host),
+        Err(AppsOpError::NodejsOperationInProgress)
+    ));
+    assert!(started_units(&host).is_empty());
+
+    // Inverse control: once the other operation ended the same removal runs.
+    drop(running);
+    remove_node_20_on_rhel(&host).unwrap();
+    assert_eq!(
+        started_units(&host),
+        vec!["maran-app-nodejs-remove@20.service"]
+    );
+}
+
+/// `dnf remove --assumeno nodejs24` with `nodejs`, `nodejs-npm`, `nodejs24` and `nodejs24-npm`
+/// installed (exit 1, recorded on `almalinux:10`).
+const EL10_PLAN_NODEJS_24: &str = include_str!(
+    "../../../../distro/tests/fixtures/package_manager/dnf_remove_simulation_nodejs24_el10.txt"
+);
+
+/// The same for `nodejs24-npm`.
+const EL10_PLAN_NODEJS_24_NPM: &str = include_str!(
+    "../../../../distro/tests/fixtures/package_manager/dnf_remove_simulation_nodejs24_npm_el10.txt"
+);
+
+/// The same for the default major's `nodejs`: it takes `nodejs-npm` and nothing of 24.
+const EL10_PLAN_NODEJS: &str = include_str!(
+    "../../../../distro/tests/fixtures/package_manager/dnf_remove_simulation_nodejs_el10.txt"
+);
+
+/// A host with Node.js 24 on AlmaLinux 10: its interpreter answers once before the removal and
+/// not after.
+fn el10_host_with_node_24() -> FakePhpHost {
+    let host = FakePhpHost::empty();
+    host.answer_in_turn("--version", &[(0, "v24.22.1\n", ""), (1, "", "")]);
+    host
+}
+
+fn remove_node_24_on_el10(host: &FakePhpHost) -> Result<(), AppsOpError> {
+    uninstall_app(host, el10_distro(), &id("nodejs-24"), |_, _| {})
+}
+
+#[test]
+fn on_rhel_10_a_node_major_goes_as_its_two_packages_npm_first_after_a_dry_run_of_each() {
+    let host = el10_host_with_node_24();
+    host.answer_in_turn(
+        "remove",
+        &[
+            (1, EL10_PLAN_NODEJS_24, ""),
+            (1, EL10_PLAN_NODEJS_24_NPM, ""),
+        ],
+    );
+
+    remove_node_24_on_el10(&host).unwrap();
+
+    assert_eq!(
+        started_units(&host),
+        vec![
+            "maran-app-remove@nodejs24-npm.service",
+            "maran-app-remove@nodejs24.service"
+        ]
+    );
+}
+
+#[test]
+fn on_rhel_10_a_dry_run_that_would_take_the_other_majors_packages_refuses_the_removal() {
+    // Inverse control: the plan of removing the default major's `nodejs` names `nodejs` and
+    // `nodejs-npm`, neither of which belongs to Node.js 24.
+    let host = el10_host_with_node_24();
+    host.answer("remove", 1, EL10_PLAN_NODEJS, "");
+
+    match remove_node_24_on_el10(&host) {
+        Err(AppsOpError::RemovalWouldRemoveOthers { packages, .. }) => {
+            assert_eq!(packages, "nodejs, nodejs-npm");
+        }
+        other => panic!("expected RemovalWouldRemoveOthers, got {other:?}"),
+    }
+    assert!(started_units(&host).is_empty());
+}
+
+#[test]
+fn on_rhel_10_the_default_major_is_removed_as_nodejs_then_nothing_of_24_is_in_its_plan() {
+    let host = FakePhpHost::empty();
+    host.answer_in_turn("--version", &[(0, "v22.23.4\n", ""), (1, "", "")]);
+    host.answer("remove", 1, EL10_PLAN_NODEJS, "");
+
+    uninstall_app(&host, el10_distro(), &id("nodejs-22"), |_, _| {}).unwrap();
+
+    assert_eq!(
+        started_units(&host),
+        vec![
+            "maran-app-remove@nodejs-npm.service",
+            "maran-app-remove@nodejs.service"
+        ]
+    );
+}
+
+#[test]
+fn on_rhel_10_a_site_on_the_other_major_does_not_keep_this_one_and_a_site_on_it_does() {
+    let unit_directory = el10_distro().systemd_unit_directory();
+    let site_unit =
+        |domain: &str| Path::new(unit_directory).join(format!("maran-node-{domain}.service"));
+
+    // A site on 22 leaves 24 removable: the two majors coexist.
+    let host = el10_host_with_node_24();
+    host.answer_in_turn(
+        "remove",
+        &[
+            (1, EL10_PLAN_NODEJS_24, ""),
+            (1, EL10_PLAN_NODEJS_24_NPM, ""),
+        ],
+    );
+    host.place_config(&site_unit("example.com"), &node_unit("22"));
+    remove_node_24_on_el10(&host).unwrap();
+
+    // A site on 24 keeps it, and nothing is started.
+    let host = el10_host_with_node_24();
+    host.place_config(&site_unit("example.com"), &node_unit("24"));
+    assert!(matches!(
+        remove_node_24_on_el10(&host),
+        Err(AppsOpError::InUse { .. })
+    ));
+    assert!(started_units(&host).is_empty());
+}
+
+#[test]
+fn on_rhel_10_a_dry_run_with_a_section_the_reader_does_not_know_refuses_the_removal() {
+    let host = el10_host_with_node_24();
+    host.answer(
+        "remove",
+        1,
+        &EL10_PLAN_NODEJS_24.replace("Removing unused dependencies:", "Replacing something:"),
+        "",
+    );
+
+    assert!(matches!(
+        remove_node_24_on_el10(&host),
+        Err(AppsOpError::RemovalNotSimulated { .. })
+    ));
+    assert!(started_units(&host).is_empty());
 }

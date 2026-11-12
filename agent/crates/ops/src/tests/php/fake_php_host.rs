@@ -21,7 +21,9 @@ use maran_agent_core::utils::bound_exceeded::BoundExceeded;
 use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::web::php_version::PhpVersion;
-use maran_distro::{AdapterBinary, DistroAdapter, DistroFamily, adapter_for};
+use maran_distro::{
+    AdapterBinary, DistroAdapter, DistroFamily, DistroInfo, adapter_for, adapter_for_release,
+};
 
 use crate::php::model::php_override::PhpOverride;
 use crate::php::model::pool_input::PoolInput;
@@ -96,6 +98,9 @@ pub(crate) struct FakePhpHost {
     protocol: Mutex<Vec<Vec<String>>>,
     /// The class of the validator of each of those.
     protocol_classes: Mutex<Vec<CallClass>>,
+    /// The lock the app operations on the `nodejs` module take: one per fake, so no test meets
+    /// another's.
+    app_operations: Mutex<()>,
 }
 
 impl FakePhpHost {
@@ -125,6 +130,7 @@ impl FakePhpHost {
             classes: Mutex::new(Vec::new()),
             protocol: Mutex::new(Vec::new()),
             protocol_classes: Mutex::new(Vec::new()),
+            app_operations: Mutex::new(()),
         }
     }
 
@@ -585,6 +591,16 @@ pub(crate) fn distro() -> &'static dyn DistroAdapter {
     adapter_for(DistroFamily::Debian)
 }
 
+/// The adapter of an AlmaLinux 10 host, picked the way the daemon picks it: from the release it
+/// read. The 10 generation packages Node.js per major (issue #542).
+pub(crate) fn el10_distro() -> &'static dyn DistroAdapter {
+    adapter_for_release(&DistroInfo {
+        id: "almalinux".to_owned(),
+        family: DistroFamily::Rhel,
+        version_id: "10.2".to_owned(),
+    })
+}
+
 /// A pool for `acme` at 8.3 with `overrides` and a ten-worker budget.
 pub(crate) fn pool_input(overrides: Vec<PhpOverride>) -> PoolInput {
     PoolInput {
@@ -596,6 +612,10 @@ pub(crate) fn pool_input(overrides: Vec<PhpOverride>) -> PoolInput {
 }
 
 impl crate::apps::AppsHost for FakePhpHost {
+    fn app_operation_lock(&self) -> &Mutex<()> {
+        &self.app_operations
+    }
+
     fn path_exists(&self, path: &Path) -> bool {
         self.files.lock().unwrap().contains_key(path)
             || self.directories.lock().unwrap().contains(path)

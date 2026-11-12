@@ -3,19 +3,26 @@
 use std::path::Path;
 
 use maran_agent_core::agent_paths::AgentPaths;
+use maran_agent_core::validation::apps::nodejs_module_stream::NodejsModuleStream;
 use maran_agent_core::validation::apps::validated_app_id::ValidatedAppId;
 use maran_distro::{DistroAdapter, SiteWebServer};
 
 use crate::apps::app_catalogue::ensure_in_catalogue;
 use crate::apps::app_in_use::holds_sites;
-use crate::apps::app_packages::packages_of;
+use crate::apps::app_packages::{module_stream_of, packages_of};
 use crate::apps::hold_apache_off::{hold_apache_off, unmask_if_masked};
+use crate::apps::installed_node_major::installed_node_major;
 use crate::apps::installed_probe::{
     extras_present, is_installed, marked_web_server, package_present,
 };
 use crate::apps::marker_text::marker_text;
+use crate::apps::model::nodejs_streams::NodejsStreams;
+use crate::apps::node_origin::{NodeOrigin, node_origin};
+use crate::apps::nodejs_module_operation::take_nodejs_module_operation;
+use crate::apps::offered_nodejs_streams::offered_nodejs_streams;
 use crate::apps::prepare_apache::prepare_apache;
 use crate::apps::{AppsHost, AppsOpError};
+use crate::packages::run_nodejs_install_unit;
 use crate::php::install_php_version;
 use crate::php::run_install_unit::run_install_unit;
 
@@ -40,7 +47,10 @@ use crate::php::run_install_unit::run_install_unit;
 ///   added, nginx's port-80 block taken out of nginx's tree (nginx reloaded) before its service is
 ///   enabled and started, and the marker written once it runs (`prepare_apache`).
 /// - **Node.js** is its package (and, where the family ships npm apart, that one); a Node.js site
-///   runs under a unit of its own.
+///   runs under a unit of its own. Where the family ships Node.js as module streams, the major is
+///   one module stream installed by the Node.js module unit, and a host keeps one stream at a
+///   time: a different major already on the host (the panel's or an unmanaged one) refuses the
+///   install, and the same major is the idempotent no-op.
 ///
 /// A host has at most one site web server, the one the agent's marker names. Installing either is
 /// refused while the other is marked (and Apache while nginx holds sites), and the panel's own
@@ -60,6 +70,11 @@ use crate::php::run_install_unit::run_install_unit;
 ///
 /// Returns [`AppsOpError::UnsupportedApp`] for an id outside the catalogue,
 /// [`AppsOpError::WebServerAlreadyInstalled`] for a second site web server,
+/// [`AppsOpError::NodeMajorAlreadyInstalled`] for a second Node.js major on a module-stream family,
+/// [`AppsOpError::UnmanagedNodeInstalled`] when that major was not installed through a module
+/// stream, [`AppsOpError::NodeStreamEnabledByOperator`] when another stream is enabled by hand with
+/// nothing installed, [`AppsOpError::NodeInterpreterUnreadable`] when the interpreter there reports no
+/// version, [`AppsOpError::NodejsOperationInProgress`] while another Node.js module operation runs,
 /// [`AppsOpError::Package`] for a package unit that failed, was refused by a source, could not
 /// reach one, or outlived its deadline, [`AppsOpError::StillAbsent`] when the unit succeeded and
 /// the app is still not there, and [`AppsOpError::ServiceManager`] or [`AppsOpError::Php`] from
@@ -76,7 +91,15 @@ where
     P: FnMut(u32, &str),
 {
     ensure_in_catalogue(id)?;
+    // First, and held to the end: the Node.js check below and the unit it authorises are one
+    // critical section, so two installs of different majors cannot both pass it.
+    let _module_operation = if module_stream_of(distro, id).is_some() {
+        Some(take_nodejs_module_operation(host)?)
+    } else {
+        None
+    };
     ensure_no_other_web_server(host, id)?;
+    ensure_no_other_node_major(host, distro, id)?;
     if matches!(id, ValidatedAppId::Apache) {
         // A mask left by an install the agent did not survive would fail the enable below on
         // every retry; the hold itself never outlives an install that returns.
@@ -99,6 +122,15 @@ where
     }
 
     progress(10, "preparing");
+    if let Some(stream) = module_stream_of(distro, id) {
+        // One module stream, enabled and installed by one unit; there is no package list to
+        // subtract from, so the question is only whether the interpreter of that major is there.
+        if !package_present(host, distro, id)? {
+            install_module_stream(host, distro, id, &stream, &mut progress)?;
+        }
+        progress(100, "install");
+        return Ok(());
+    }
     // Not `is_installed`: for a web server that is the marker, which only this install writes.
     // What is asked here is whether the package is on the host, which for nginx it always is.
     let missing = missing_packages(host, distro, id)?;
@@ -201,6 +233,107 @@ where
     // The hold is undone on every path, success included; the install's own error stays the
     // reported one when both fail.
     installed.and(hold.release())
+}
+
+/// Starts the Node.js module unit of `stream` and checks that the interpreter of `id` is there
+/// after it.
+fn install_module_stream<H, P>(
+    host: &H,
+    distro: &dyn DistroAdapter,
+    id: &ValidatedAppId,
+    stream: &NodejsModuleStream,
+    progress: &mut P,
+) -> Result<(), AppsOpError>
+where
+    H: AppsHost,
+    P: FnMut(u32, &str),
+{
+    progress(30, "download");
+    let unit = run_nodejs_install_unit(host, distro, stream)?;
+    progress(70, "install");
+    if !package_present(host, distro, id)? || !extras_present(host, distro, id) {
+        return Err(AppsOpError::StillAbsent {
+            app: id.as_id(),
+            detail: format!("its package manager output is in `journalctl -u {unit}`"),
+        });
+    }
+    Ok(())
+}
+
+/// Refuses a second Node.js major on a family that keeps one module stream at a time.
+///
+/// What is asked is the interpreter the host resolves (`node --version`), not the panel's record:
+/// a Node.js the operator installed by hand blocks the stream switch just as the panel's own
+/// does, and the module system would fail the install halfway through otherwise. The same major
+/// is not refused (the install is then a no-op). An interpreter that is there and reports no major
+/// is refused too (`installed_node_major`): "cannot tell" is not "nothing installed". Other
+/// families keep each major beside the others and are never asked.
+///
+/// A different major is refused in one of two voices. When a stream of it is enabled the panel's
+/// own removal (`UninstallApp`) is the way on, and the refusal says a major is active. When none
+/// is (the plain `nodejs` package), the stream commands cannot remove it, so the refusal names the
+/// command the operator runs.
+fn ensure_no_other_node_major<H: AppsHost>(
+    host: &H,
+    distro: &dyn DistroAdapter,
+    id: &ValidatedAppId,
+) -> Result<(), AppsOpError> {
+    let ValidatedAppId::Nodejs(major) = id else {
+        return Ok(());
+    };
+    if module_stream_of(distro, id).is_none() {
+        return Ok(());
+    }
+    let Some(installed) = installed_node_major(host, distro, major)? else {
+        return ensure_no_foreign_enabled_stream(host, distro, id);
+    };
+    if installed == major.as_str() {
+        return Ok(());
+    }
+    Err(match node_origin(host, distro, &installed)? {
+        NodeOrigin::Plain => AppsOpError::UnmanagedNodeInstalled {
+            requested: id.as_id(),
+            installed,
+            command: distro.nodejs_unmanaged_removal_command().to_owned(),
+        },
+        NodeOrigin::Stream | NodeOrigin::Unknown => AppsOpError::NodeMajorAlreadyInstalled {
+            requested: id.as_id(),
+            installed,
+        },
+    })
+}
+
+/// Refuses an install that would reset a Node.js module stream an operator enabled.
+///
+/// The install unit resets the `nodejs` module before it installs the stream asked for. With
+/// nothing installed, an enabled stream of ANOTHER major is a choice somebody made by hand
+/// (`module enable`), and the reset would silently drop it. The panel installed none, so it
+/// leaves the choice alone and names the command. A listing that could not be read does not
+/// refuse: nothing says there is a choice to protect, and the unit's own dnf run refuses what it
+/// cannot do.
+fn ensure_no_foreign_enabled_stream<H: AppsHost>(
+    host: &H,
+    distro: &dyn DistroAdapter,
+    id: &ValidatedAppId,
+) -> Result<(), AppsOpError> {
+    let ValidatedAppId::Nodejs(major) = id else {
+        return Ok(());
+    };
+    let NodejsStreams::Listed(listing) = offered_nodejs_streams(host, distro)? else {
+        return Ok(());
+    };
+    match listing
+        .enabled
+        .into_iter()
+        .find(|enabled| enabled != major.as_str())
+    {
+        Some(enabled) => Err(AppsOpError::NodeStreamEnabledByOperator {
+            requested: id.as_id(),
+            enabled,
+            command: distro.nodejs_stream_release_command().to_owned(),
+        }),
+        None => Ok(()),
+    }
 }
 
 /// Refuses a second site web server.

@@ -1,0 +1,2 @@
+WARNING: modularity is deprecated, and functionality will be removed in a future release of DNF5.
+Error: Cache-only enabled but no cache for 'appstream'

@@ -75,7 +75,12 @@ pub fn to_agent_error(error: &FirewallError) -> AgentError {
         FirewallError::ForeignRuleset
         | FirewallError::UnreadableNftOutput
         | FirewallError::RulesetUnreadable
-        | FirewallError::RenderFailed
+        // The host's own `login.defs` is unusable: a fault of the machine, not of the request.
+        | FirewallError::CustomerUidFloorUnusable
+        // The kernel's own address tables cannot be read: a fault of the machine.
+        | FirewallError::HostAddressesUnreadable(_)
+        | FirewallError::OutputChainMissing
+        | FirewallError::RenderFailed { .. }
         | FirewallError::StagingFailed => (ErrorCode::SystemFailure, String::new()),
         // A deadline or an output cap ended the program and its process group was
         // killed. This is a fault of the host, never a verdict on the request: the

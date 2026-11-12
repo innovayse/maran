@@ -1,0 +1,6 @@
+lrwxrwxrwx 1 root root     7 Oct 29 00:00 /usr/bin/node -> node-22
+-rwxr-xr-x 1 root root 28080 Oct 29 00:00 /usr/bin/node-22
+-rwxr-xr-x 1 root root 28088 Nov  4 00:00 /usr/bin/node-24
+lrwxrwxrwx 1 root root    41 Oct 29 00:00 /usr/bin/npm -> ../lib/node_modules_22/npm/bin/npm-cli.js
+lrwxrwxrwx 1 root root    41 Oct 29 00:00 /usr/bin/npm-22 -> ../lib/node_modules_22/npm/bin/npm-cli.js
+lrwxrwxrwx 1 root root    41 Nov  4 00:00 /usr/bin/npm-24 -> ../lib/node_modules_24/npm/bin/npm-cli.js

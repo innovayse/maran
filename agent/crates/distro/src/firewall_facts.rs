@@ -18,4 +18,14 @@ pub trait FirewallFacts: Send + Sync {
     /// The RHEL family's unit file spells the same file `/sbin/nft`, through
     /// that directory's merged-`/usr` symlink rather than as a second binary.
     fn nft_binary(&self) -> AdapterBinary;
+
+    /// The files that may define `UID_MIN`, most authoritative first: the
+    /// first one that exists and sets it decides.
+    ///
+    /// The first uid of the customer range is the floor of the firewall's
+    /// output chain (issue #531), and it is the host's own number: `useradd`
+    /// allocates accounts from it, so the agent reads it rather than
+    /// assuming 1000. A family that ships its defaults under `/usr/etc` and
+    /// lets `/etc` override them answers both, in that order.
+    fn login_defs_paths(&self) -> &'static [&'static str];
 }

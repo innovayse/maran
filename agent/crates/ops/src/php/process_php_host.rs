@@ -2,6 +2,7 @@
 
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::Path;
+use std::sync::Mutex;
 
 use maran_agent_core::privs::account_ids::AccountIds;
 use maran_agent_core::privs::fork_as_account::fork_as_account;
@@ -22,13 +23,25 @@ use crate::safe_write::{CommandOutcome, ConfigHost, SafeWriteError, remove_confi
 /// Deliberately the smallest piece of the area: every decision worth reviewing
 /// lives in the operations, where it is tested against a fake. What is left
 /// here is spawning, a `stat`, and a `mkdir`.
-pub struct ProcessPhpHost;
+pub struct ProcessPhpHost {
+    /// The lock the app store takes around the operations on the `nodejs` module
+    /// (`AppsHost::app_operation_lock`). The agent owns one host for its app service, so one
+    /// host is one scope for it.
+    app_operations: Mutex<()>,
+}
 
 impl ProcessPhpHost {
     /// Creates the host.
     #[must_use]
     pub fn new() -> Self {
-        Self
+        Self {
+            app_operations: Mutex::new(()),
+        }
+    }
+
+    /// The lock behind `AppsHost::app_operation_lock`.
+    pub(crate) fn app_operations(&self) -> &Mutex<()> {
+        &self.app_operations
     }
 }
 

@@ -19,6 +19,13 @@ pub enum PackageQueryFailure {
         /// The exit status the program ended with.
         status: i32,
     },
+    /// The sources carry no module streams at all: the listing exited unsuccessfully with the
+    /// package manager's own "No matching Modules" answer and a metadata cache that exists (a
+    /// release without modularity, which the RHEL 10 generation is, issue #532; it is not asked,
+    /// because it packages Node.js per major, issue #542). A different
+    /// fact from [`Self::Unsuccessful`], where the package manager could not be asked.
+    #[error("the package sources carry no module streams")]
+    NoModules,
     /// A line of the output is outside the grammar the reader knows.
     #[error("line {line} of the package manager's answer is not in a form this agent reads")]
     UnrecognisedLine {

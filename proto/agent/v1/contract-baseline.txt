@@ -28,6 +28,7 @@ enum maran.agent.v1.MailPasswordScheme
 enum maran.agent.v1.MailQueueName
 enum maran.agent.v1.MailSpamAction
 enum maran.agent.v1.ManagedService
+enum maran.agent.v1.NodejsUnavailableReason
 enum maran.agent.v1.PhpExtensionAvailability
 enum maran.agent.v1.Protocol
 enum maran.agent.v1.PublicReadVerdict
@@ -151,6 +152,11 @@ enum-value maran.agent.v1.ErrorCode 21 ERROR_CODE_PACKAGE_NOT_AVAILABLE
 enum-value maran.agent.v1.ErrorCode 22 ERROR_CODE_APP_NOT_INSTALLED
 enum-value maran.agent.v1.ErrorCode 23 ERROR_CODE_APP_IN_USE
 enum-value maran.agent.v1.ErrorCode 24 ERROR_CODE_WEB_SERVER_ALREADY_INSTALLED
+enum-value maran.agent.v1.ErrorCode 25 ERROR_CODE_NODE_MAJOR_ALREADY_INSTALLED
+enum-value maran.agent.v1.ErrorCode 26 ERROR_CODE_NODE_UNMANAGED_INSTALL
+enum-value maran.agent.v1.ErrorCode 27 ERROR_CODE_NODE_STREAM_ENABLED_BY_OPERATOR
+enum-value maran.agent.v1.ErrorCode 28 ERROR_CODE_NODE_INTERPRETER_UNREADABLE
+enum-value maran.agent.v1.ErrorCode 29 ERROR_CODE_NODE_OPERATION_IN_PROGRESS
 enum-value maran.agent.v1.ErrorCode 3 ERROR_CODE_NOT_FOUND
 enum-value maran.agent.v1.ErrorCode 4 ERROR_CODE_VALIDATION_FAILED
 enum-value maran.agent.v1.ErrorCode 5 ERROR_CODE_SYSTEM_FAILURE
@@ -225,6 +231,9 @@ enum-value maran.agent.v1.ManagedService 3 MANAGED_SERVICE_DATABASE
 enum-value maran.agent.v1.ManagedService 4 MANAGED_SERVICE_FTP
 enum-value maran.agent.v1.ManagedService 5 MANAGED_SERVICE_CRON
 enum-value maran.agent.v1.ManagedService 6 MANAGED_SERVICE_SSH
+enum-value maran.agent.v1.NodejsUnavailableReason 0 NODEJS_UNAVAILABLE_REASON_UNSPECIFIED
+enum-value maran.agent.v1.NodejsUnavailableReason 1 NODEJS_UNAVAILABLE_REASON_NO_MODULE_STREAMS
+enum-value maran.agent.v1.NodejsUnavailableReason 2 NODEJS_UNAVAILABLE_REASON_LISTING_FAILED
 enum-value maran.agent.v1.PhpExtensionAvailability 0 PHP_EXTENSION_AVAILABILITY_UNSPECIFIED
 enum-value maran.agent.v1.PhpExtensionAvailability 1 PHP_EXTENSION_AVAILABILITY_AVAILABLE
 enum-value maran.agent.v1.PhpExtensionAvailability 2 PHP_EXTENSION_AVAILABILITY_DISABLE_NOT_SUPPORTED
@@ -344,6 +353,8 @@ field maran.agent.v1.AgentInfo 2 distro_id TYPE_STRING LABEL_OPTIONAL type_name=
 field maran.agent.v1.AgentInfo 3 family TYPE_ENUM LABEL_OPTIONAL type_name=.maran.agent.v1.DistroFamily oneof=-
 field maran.agent.v1.AgentInfo 4 proto_version TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.AgentInfo 5 backup_root TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.AliasFanout 1 alias TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.AliasFanout 2 external_targets TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.AllowPortRequest 1 port TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.AllowPortRequest 2 protocol TYPE_ENUM LABEL_OPTIONAL type_name=.maran.agent.v1.Protocol oneof=-
 field maran.agent.v1.AllowPortRequest 3 source_cidr TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
@@ -918,6 +929,7 @@ field maran.agent.v1.ListDirectoryRequest 7 descending TYPE_BOOL LABEL_OPTIONAL 
 field maran.agent.v1.ListDirectoryResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.ListDirectoryOk oneof=result
 field maran.agent.v1.ListDirectoryResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 field maran.agent.v1.ListInstallableAppsOk 1 apps TYPE_MESSAGE LABEL_REPEATED type_name=.maran.agent.v1.InstallableApp oneof=-
+field maran.agent.v1.ListInstallableAppsOk 2 nodejs_unavailable_reason TYPE_ENUM LABEL_OPTIONAL type_name=.maran.agent.v1.NodejsUnavailableReason oneof=-
 field maran.agent.v1.ListInstallableAppsResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.ListInstallableAppsOk oneof=result
 field maran.agent.v1.ListInstallableAppsResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 field maran.agent.v1.ListInstallablePhpVersionsOk 1 versions TYPE_MESSAGE LABEL_REPEATED type_name=.maran.agent.v1.InstallablePhpVersion oneof=-
@@ -1280,6 +1292,7 @@ field maran.agent.v1.SetLocalSubmissionRequest 1 account_username TYPE_STRING LA
 field maran.agent.v1.SetLocalSubmissionRequest 2 domains TYPE_STRING LABEL_REPEATED type_name=- oneof=-
 field maran.agent.v1.SetLocalSubmissionRequest 3 send_limit_per_hour TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.SetLocalSubmissionRequest 4 mailbox_logins TYPE_STRING LABEL_REPEATED type_name=- oneof=-
+field maran.agent.v1.SetLocalSubmissionRequest 5 alias_fanouts TYPE_MESSAGE LABEL_REPEATED type_name=.maran.agent.v1.AliasFanout oneof=-
 field maran.agent.v1.SetLocalSubmissionResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.SetLocalSubmissionOk oneof=result
 field maran.agent.v1.SetLocalSubmissionResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 field maran.agent.v1.SetMailAliasesOk 1 alias_count TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
@@ -1502,6 +1515,7 @@ field maran.agent.v1.WritePanelChallengeResponse 2 error TYPE_MESSAGE LABEL_OPTI
 message maran.agent.v1.AccountDiskUsage
 message maran.agent.v1.AgentError
 message maran.agent.v1.AgentInfo
+message maran.agent.v1.AliasFanout
 message maran.agent.v1.AllowPortOk
 message maran.agent.v1.AllowPortRequest
 message maran.agent.v1.AllowPortResponse

@@ -1,5 +1,7 @@
 //! The dry run of a package removal on the Debian family.
 
+use maran_agent_core::validation::apps::nodejs_module_stream::NodejsModuleStream;
+
 use crate::debian::DebianAdapter;
 use crate::removal_facts::RemovalFacts;
 use crate::removal_simulation::RemovalSimulation;
@@ -131,6 +133,10 @@ impl RemovalFacts for DebianAdapter {
         stdout: &str,
     ) -> Result<RemovalSimulation, RemovalSimulationFailure> {
         read_removal_simulation(status, stdout)
+    }
+
+    fn nodejs_removal_simulation_arguments(&self, _stream: &NodejsModuleStream) -> Vec<String> {
+        Vec::new()
     }
 }
 

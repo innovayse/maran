@@ -36,7 +36,7 @@ fn the_suse_family_runs_the_mysql_client_as_mariadb() {
     assert_eq!(SuseAdapter.mysql_client_binary(), "/usr/bin/mariadb");
     assert_ne!(
         SuseAdapter.mysql_client_binary().to_string(),
-        RhelAdapter.mysql_client_binary().to_string()
+        RhelAdapter::EL9.mysql_client_binary().to_string()
     );
 }
 
@@ -51,7 +51,7 @@ fn the_suse_family_restarts_the_database_through_the_mariadb_unit() {
 #[test]
 fn the_suse_family_chroots_sftp_accounts_through_the_panel_group() {
     assert_eq!(SuseAdapter.sftp_group(), "maran-sftp");
-    assert_eq!(SuseAdapter.sftp_group(), RhelAdapter.sftp_group());
+    assert_eq!(SuseAdapter.sftp_group(), RhelAdapter::EL9.sftp_group());
     assert_eq!(SuseAdapter.sftp_group(), DebianAdapter.sftp_group());
 }
 
@@ -66,7 +66,7 @@ fn the_suse_family_names_the_ftp_daemon_where_upstream_puts_it() {
 #[test]
 fn the_suse_family_authorizes_ftps_logins_through_the_panel_group() {
     assert_eq!(SuseAdapter.ftps_group(), "maran-ftps");
-    assert_eq!(SuseAdapter.ftps_group(), RhelAdapter.ftps_group());
+    assert_eq!(SuseAdapter.ftps_group(), RhelAdapter::EL9.ftps_group());
 }
 
 /// The SUSE family spells the TLS version options with an underscore before the minor, and
@@ -88,7 +88,7 @@ fn the_suse_family_spells_the_tls_version_options_with_underscores() {
 #[test]
 fn the_suse_family_runs_cron_through_the_cron_unit() {
     assert_eq!(SuseAdapter.cron_service(), "cron");
-    assert_ne!(SuseAdapter.cron_service(), RhelAdapter.cron_service());
+    assert_ne!(SuseAdapter.cron_service(), RhelAdapter::EL9.cron_service());
 }
 
 /// The SUSE family serves SSH from the `sshd` unit.
@@ -389,7 +389,7 @@ fn the_php_fpm_facts_do_not_vary_with_the_version_on_the_suse_family() {
     );
     assert_ne!(
         SuseAdapter.php_fpm_binary(&second),
-        RhelAdapter.php_fpm_binary(&second)
+        RhelAdapter::EL9.php_fpm_binary(&second)
     );
     assert_ne!(
         SuseAdapter.php_fpm_binary(&second),
@@ -419,7 +419,10 @@ fn the_suse_family_names_its_documented_bash_and_nologin_shells() {
     assert_eq!(SuseAdapter.nologin_shell(), "/usr/sbin/nologin");
     assert_eq!(SuseAdapter.bash_shell(), "/usr/bin/bash");
     assert_ne!(SuseAdapter.bash_shell(), SuseAdapter.nologin_shell());
-    assert_ne!(SuseAdapter.nologin_shell(), RhelAdapter.nologin_shell());
+    assert_ne!(
+        SuseAdapter.nologin_shell(),
+        RhelAdapter::EL9.nologin_shell()
+    );
 }
 
 /// The SUSE family keeps `at` job files in the directory its `at` package spools to, which is
@@ -429,7 +432,7 @@ fn the_suse_family_names_the_directory_its_at_daemon_spools_to() {
     assert_eq!(SuseAdapter.at_spool_directory(), "/var/spool/atjobs");
     assert_ne!(
         SuseAdapter.at_spool_directory(),
-        RhelAdapter.at_spool_directory()
+        RhelAdapter::EL9.at_spool_directory()
     );
 }
 
@@ -504,7 +507,7 @@ fn the_suse_family_probes_for_a_reboot_with_zypper_needs_rebooting() {
         }
         other => panic!("expected a program probe, got {other:?}"),
     }
-    assert_ne!(SuseAdapter.reboot_probe(), RhelAdapter.reboot_probe());
+    assert_ne!(SuseAdapter.reboot_probe(), RhelAdapter::EL9.reboot_probe());
 }
 
 /// The adapter reads the probe's status: 0 is not required, 102 is required, anything else is
@@ -561,7 +564,7 @@ fn the_suse_family_keeps_zone_files_below_the_dns_state_directory() {
     );
     assert_ne!(
         SuseAdapter.dns_state_directory(),
-        RhelAdapter.dns_state_directory()
+        RhelAdapter::EL9.dns_state_directory()
     );
 }
 
@@ -597,12 +600,15 @@ fn the_suse_family_keeps_signed_zones_and_keys_in_their_own_directories() {
 fn the_suse_family_names_the_mail_identities_this_distribution_creates() {
     assert_eq!(SuseAdapter.postfix_user(), "postfix");
     assert_eq!(SuseAdapter.postdrop_group(), "maildrop");
-    assert_ne!(SuseAdapter.postdrop_group(), RhelAdapter.postdrop_group());
+    assert_ne!(
+        SuseAdapter.postdrop_group(),
+        RhelAdapter::EL9.postdrop_group()
+    );
     assert_eq!(SuseAdapter.dovecot_user(), "dovecot");
     assert_eq!(SuseAdapter.dovecot_login_user(), "dovenull");
     assert_eq!(SuseAdapter.rspamd_user(), "_rspamd");
     assert_eq!(SuseAdapter.clamd_user(), "vscan");
-    assert_ne!(SuseAdapter.clamd_user(), RhelAdapter.clamd_user());
+    assert_ne!(SuseAdapter.clamd_user(), RhelAdapter::EL9.clamd_user());
 }
 
 /// The SUSE family names the mail units, with a plain `clamd` and not the RHEL instance unit.
@@ -613,7 +619,10 @@ fn the_suse_family_names_the_mail_units() {
     assert_eq!(SuseAdapter.rspamd_service(), "rspamd");
     assert_eq!(SuseAdapter.clamd_service(), "clamd");
     assert_eq!(SuseAdapter.freshclam_service(), "freshclam");
-    assert_ne!(SuseAdapter.clamd_service(), RhelAdapter.clamd_service());
+    assert_ne!(
+        SuseAdapter.clamd_service(),
+        RhelAdapter::EL9.clamd_service()
+    );
 }
 
 /// The SUSE family names the mail configuration locations, every one an absolute path.
@@ -625,7 +634,7 @@ fn the_suse_family_names_the_mail_configuration_locations() {
     assert_eq!(SuseAdapter.clamd_config_file(), "/etc/clamd.conf");
     assert_ne!(
         SuseAdapter.clamd_config_file(),
-        RhelAdapter.clamd_config_file()
+        RhelAdapter::EL9.clamd_config_file()
     );
 }
 
@@ -645,7 +654,7 @@ fn the_suse_family_has_no_mail_layout_for_any_release() {
     }
     // The inverse control: a family that does offer the stack answers for a release it ships,
     // so the refusal above is the SUSE family's and not a reader that refuses everything.
-    assert!(RhelAdapter.dovecot_major("9").is_some());
+    assert!(RhelAdapter::EL9.dovecot_major("9").is_some());
 }
 
 /// A PHP version the distribution does not ship must not share the shipped version's pool
@@ -785,14 +794,51 @@ fn the_suse_family_names_the_packages_of_the_app_catalogue() {
     // Only the Debian family's package starts Apache from its own maintainer script (issue #529).
     assert!(DebianAdapter.apache_install_starts_service());
     assert!(!SuseAdapter.apache_install_starts_service());
-    assert!(!RhelAdapter.apache_install_starts_service());
+    assert!(!RhelAdapter::EL9.apache_install_starts_service());
     // `nodejs22` does not require its npm, so the app installs `npm22` as well (issue #530).
     assert_eq!(SuseAdapter.nodejs_extra_packages("22"), vec!["npm22"]);
     // Inverse control: the other families carry what a unit runs in the main package.
     assert!(DebianAdapter.nodejs_extra_packages("22").is_empty());
-    assert!(RhelAdapter.nodejs_extra_packages("22").is_empty());
+    assert!(RhelAdapter::EL9.nodejs_extra_packages("22").is_empty());
     assert_eq!(
         SuseAdapter.nodejs_packaging(),
         crate::nodejs_packaging::NodejsPackaging::PerMajorPackages
+    );
+}
+
+/// The firewall's customer-uid floor is read from the host's own `login.defs`;
+/// an absolute path, `/etc` first so the administrator's file overrides a
+/// vendor copy.
+#[test]
+fn suse_names_the_files_that_may_define_the_customer_uid_floor() {
+    let paths = SuseAdapter.login_defs_paths();
+
+    assert_eq!(paths, &["/etc/login.defs", "/usr/etc/login.defs"]);
+    assert!(paths.iter().all(|path| path.starts_with('/')));
+}
+
+/// The suse family has no Node.js module streams (issue #532): it is never asked to list or
+/// remove one, and what it answers when asked is nothing, not a plan.
+#[test]
+fn suse_has_no_nodejs_module_streams() {
+    let stream =
+        maran_agent_core::validation::apps::nodejs_module_stream::NodejsModuleStream::from_major(
+            maran_agent_core::validation::web::node_major::NodeMajor::parse("20").unwrap(),
+        );
+
+    assert_ne!(
+        SuseAdapter.nodejs_packaging(),
+        crate::nodejs_packaging::NodejsPackaging::ModuleStreams
+    );
+    assert_eq!(SuseAdapter.nodejs_stream_list_arguments(), None);
+    assert_eq!(
+        SuseAdapter.read_nodejs_streams(0, "nodejs 20 [e] common [d]\n", ""),
+        Ok(crate::NodejsStreamListing::default())
+    );
+    assert!(SuseAdapter.nodejs_module_packages().is_empty());
+    assert!(SuseAdapter.nodejs_unmanaged_removal_command().is_empty());
+    assert!(SuseAdapter.nodejs_stream_release_command().is_empty());
+    assert!(
+        crate::RemovalFacts::nodejs_removal_simulation_arguments(&SuseAdapter, &stream).is_empty()
     );
 }

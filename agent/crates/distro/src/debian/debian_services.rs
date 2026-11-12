@@ -549,6 +549,14 @@ pub fn nft_binary() -> AdapterBinary {
     AdapterBinary::fixed("/usr/sbin/nft")
 }
 
+/// The files that may define `UID_MIN`, most authoritative first.
+///
+/// `/etc/login.defs` is the shadow-utils file on this family.
+#[must_use]
+pub fn login_defs_paths() -> &'static [&'static str] {
+    &["/etc/login.defs"]
+}
+
 /// Absolute path of the POSIX shell a crontab line names.
 ///
 /// Here with every other `*_binary` rather than in `debian_paths.rs`, even

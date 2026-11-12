@@ -3,6 +3,7 @@
 
 use std::collections::HashSet;
 
+use super::alias_fanout::AliasFanout;
 use super::local_submission_error::LocalSubmissionError;
 use super::mail_address::MailAddress;
 use super::mail_domain::MailDomain;
@@ -24,9 +25,14 @@ pub const MAXIMUM_DOMAINS: usize = 1_000;
 /// The most mailbox logins one account may have.
 pub const MAXIMUM_MAILBOX_LOGINS: usize = 10_000;
 
+/// The most alias fan-outs one account may carry: every alias of every one of
+/// its domains ([`MAXIMUM_DOMAINS`] domains of 500 aliases each).
+pub const MAXIMUM_ALIAS_FANOUTS: usize = MAXIMUM_DOMAINS * 500;
+
 /// What the mail filter needs to bind one account's local submission: who the
 /// system user is, which domains it may send from, how many messages an hour it
-/// may send and which mailbox logins share that hourly count.
+/// may send, which mailbox logins share that hourly count and how many outside
+/// recipients each forwarding alias turns one message into.
 ///
 /// Built only by [`LocalSubmission::parse`], which is the single gate: every
 /// field is validated there and the values are written into line-oriented map
@@ -47,6 +53,11 @@ pub struct LocalSubmission {
     /// The login of every mailbox of the account, without repeats, in the order
     /// given.
     pub mailbox_logins: Vec<MailAddress>,
+    /// Every alias, and every domain's catch-all, of the account's domains that
+    /// reaches other hosts, with the number of outside deliveries one message
+    /// to it makes (the whole expansion), without repeats, in the order given.
+    /// A recipient missing here is delivered inside the host.
+    pub alias_fanouts: Vec<AliasFanout>,
 }
 
 impl LocalSubmission {
@@ -67,12 +78,17 @@ impl LocalSubmission {
     /// - [`LocalSubmissionError::TooManyMailboxLogins`],
     ///   [`LocalSubmissionError::InvalidMailboxLogin`] and
     ///   [`LocalSubmissionError::DuplicateMailboxLogin`] for the login list.
-    pub fn parse<D: AsRef<str>, L: AsRef<str>>(
+    /// - [`LocalSubmissionError::TooManyAliasFanouts`],
+    ///   [`LocalSubmissionError::InvalidAliasFanout`],
+    ///   [`LocalSubmissionError::AliasFanoutOutsideDomains`] and
+    ///   [`LocalSubmissionError::DuplicateAliasFanout`] for the fan-out list.
+    pub fn parse<D: AsRef<str>, L: AsRef<str>, F: AsRef<str>>(
         account: &str,
         uid: u32,
         domains: &[D],
         send_limit_per_hour: u32,
         mailbox_logins: &[L],
+        alias_fanouts: &[(F, u32)],
     ) -> Result<Self, LocalSubmissionError> {
         let account = AccountName::parse(account)?;
 
@@ -119,12 +135,33 @@ impl LocalSubmission {
             parsed_logins.push(login);
         }
 
+        if alias_fanouts.len() > MAXIMUM_ALIAS_FANOUTS {
+            return Err(LocalSubmissionError::TooManyAliasFanouts {
+                maximum: MAXIMUM_ALIAS_FANOUTS,
+            });
+        }
+
+        let mut seen_aliases = HashSet::new();
+        let mut parsed_fanouts = Vec::with_capacity(alias_fanouts.len());
+        for (index, (alias, external_targets)) in alias_fanouts.iter().enumerate() {
+            let fanout = AliasFanout::parse(alias.as_ref(), *external_targets)
+                .map_err(|source| LocalSubmissionError::InvalidAliasFanout { index, source })?;
+            if !parsed_domains.contains(fanout.recipient.domain()) {
+                return Err(LocalSubmissionError::AliasFanoutOutsideDomains { index });
+            }
+            if !seen_aliases.insert(fanout.recipient.clone()) {
+                return Err(LocalSubmissionError::DuplicateAliasFanout { index });
+            }
+            parsed_fanouts.push(fanout);
+        }
+
         Ok(Self {
             account,
             uid,
             domains: parsed_domains,
             send_limit_per_hour,
             mailbox_logins: parsed_logins,
+            alias_fanouts: parsed_fanouts,
         })
     }
 }

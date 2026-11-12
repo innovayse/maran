@@ -33,6 +33,68 @@ pub enum AppsOpError {
         installed: String,
     },
 
+    /// A Node.js major was asked for on a family that keeps one major at a time (module streams)
+    /// while a different major is on the host that a module stream put there (or whose origin could
+    /// not be read). Nothing was
+    /// installed: switching is a removal and then an install.
+    #[error("Node.js {installed} is already on this host, so `{requested}` was not installed")]
+    NodeMajorAlreadyInstalled {
+        /// The app that was asked for.
+        requested: String,
+        /// The major that is there, as its digits (`16`), whether or not the catalogue carries it.
+        installed: String,
+    },
+
+    /// A Node.js is on the host that was not installed through a module stream (the plain
+    /// package: no stream of its major is enabled), so the stream commands cannot install over
+    /// it or remove it. Nothing was changed. The panel does not remove software it did not
+    /// install; the operator does, with the command named.
+    #[error(
+        "`{requested}` was not changed: Node.js {installed} is on this host and was not installed \
+         through a module stream, so the panel does not manage it; remove it yourself with \
+         `{command}`, then try again"
+    )]
+    UnmanagedNodeInstalled {
+        /// The app that was asked for.
+        requested: String,
+        /// The major that is there, as its digits.
+        installed: String,
+        /// The command an operator runs to remove it, from the family's adapter.
+        command: String,
+    },
+
+    /// A Node.js module stream is enabled on the host with nothing installed from it (an
+    /// operator ran `module enable`), and the install unit resets the module first, which would
+    /// drop that choice. Nothing was changed; the panel does not undo a choice it did not make.
+    #[error(
+        "`{requested}` was not installed: the Node.js module stream {enabled} is enabled on this \
+         host and installing would reset that choice; release it yourself with `{command}`, then \
+         try again"
+    )]
+    NodeStreamEnabledByOperator {
+        /// The app that was asked for.
+        requested: String,
+        /// The stream that is enabled, as its digits.
+        enabled: String,
+        /// The command an operator runs to release it, from the family's adapter.
+        command: String,
+    },
+
+    /// `/usr/bin/node` is on the host but reports no major, so what is installed cannot be told
+    /// and a module install over it is not started (fail closed). Nothing was changed.
+    #[error(
+        "the Node.js interpreter at {path} does not report its version, so what is installed cannot be told and nothing was changed"
+    )]
+    NodeInterpreterUnreadable {
+        /// The interpreter file.
+        path: String,
+    },
+
+    /// Another install or removal of a Node.js module stream is running on this host. Nothing
+    /// was changed; the same request is safe to repeat once that one ends.
+    #[error("another Node.js module install or removal is running on this host")]
+    NodejsOperationInProgress,
+
     /// Something on this host still uses the app.
     #[error("`{app}` is still used: {users}")]
     InUse {

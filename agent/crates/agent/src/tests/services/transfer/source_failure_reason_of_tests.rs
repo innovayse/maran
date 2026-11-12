@@ -5,6 +5,7 @@
 use std::time::Duration;
 
 use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::host_addresses_error::HostAddressesError;
 use maran_ops::transfer::TransferOpError;
 
 use super::source_failure_reason_of;
@@ -35,7 +36,7 @@ fn a_fault_of_this_host_is_never_blamed_on_the_source() {
     for failure in [
         TransferOpError::KeyGenerationFailed,
         TransferOpError::ScratchUnavailable,
-        TransferOpError::HostAddressesUnavailable,
+        TransferOpError::HostAddressesUnavailable(HostAddressesError::Ipv4Missing),
         TransferOpError::InvalidRemoteOutput,
         TransferOpError::OutputBound(BoundExceeded::TimedOut {
             program: "ssh".to_owned(),

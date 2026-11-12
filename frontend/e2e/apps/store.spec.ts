@@ -220,3 +220,45 @@ test('a row stuck installing whose task already finished is read once and not fo
 
   expect(recorder.matching(/GET \/api\/v1\/tasks\//)).toHaveLength(1)
 })
+
+// Issue #532: a host whose package sources carry no Node.js module streams, or whose listing could not
+// be read, says so where Node.js would have been instead of leaving it out silently. Each reason is
+// paired with the same screen on a host that offers Node.js, which shows no notice.
+
+const NO_STREAMS_SENTENCE = 'Node.js is not offered on this server: its package sources carry no Node.js module streams.'
+const LISTING_FAILED_SENTENCE = 'Node.js could not be listed: the package manager could not be asked.'
+
+test('a host without Node.js module streams says why Node.js is not offered', async ({ page }) => {
+  await openApps(
+    page,
+    stockedWorld({
+      installable: [installableApp('nginx', 'nginx', { installed: true }), installableApp('php-8.4', 'PHP 8.4')],
+      nodejsUnavailable: { reason: 'noModuleStreams', message: NO_STREAMS_SENTENCE },
+    }),
+  )
+
+  await expect(page.getByText(NO_STREAMS_SENTENCE)).toBeVisible()
+  // The other apps are listed as usual.
+  await expect(availableTable(page).getByRole('row', { name: /PHP 8\.4/ })).toBeVisible()
+  await expect(availableTable(page).getByRole('row', { name: /Node\.js/ })).toHaveCount(0)
+})
+
+test('a listing that failed says so, apart from a host that carries no Node.js', async ({ page }) => {
+  await openApps(
+    page,
+    stockedWorld({
+      installable: [installableApp('php-8.4', 'PHP 8.4')],
+      nodejsUnavailable: { reason: 'listingFailed', message: LISTING_FAILED_SENTENCE },
+    }),
+  )
+
+  await expect(page.getByText(LISTING_FAILED_SENTENCE)).toBeVisible()
+  await expect(page.getByText(NO_STREAMS_SENTENCE)).toHaveCount(0)
+})
+
+test('the control: a host that offers Node.js shows no notice about it', async ({ page }) => {
+  await openApps(page, stockedWorld())
+
+  await expect(availableTable(page).getByRole('row', { name: /Node\.js 22/ })).toBeVisible()
+  await expect(page.getByText(/Node\.js is not offered|Node\.js could not be listed/)).toHaveCount(0)
+})

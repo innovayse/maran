@@ -4,7 +4,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use maran_agent_core::validation::web::panel_host_names::PanelHostNames;
-use maran_ops::apps::{self, AppKind, AppServiceStatus, AppsHost};
+use maran_ops::apps::{self, AppKind, AppServiceStatus, AppsHost, NodejsUnavailable};
 use tokio::sync::mpsc;
 use tokio_stream::Stream;
 use tokio_stream::wrappers::ReceiverStream;
@@ -16,10 +16,10 @@ use crate::proto::{
     AppInfo, AppKind as WireKind, AppServiceStatus as WireStatus, ControlAppServiceOk,
     ControlAppServiceRequest, ControlAppServiceResponse, InstallAppOk, InstallAppRequest,
     InstallAppResponse, InstallableApp, ListAppsOk, ListAppsRequest, ListAppsResponse,
-    ListInstallableAppsOk, ListInstallableAppsRequest, ListInstallableAppsResponse, Progress,
-    UninstallAppOk, UninstallAppRequest, UninstallAppResponse, control_app_service_response,
-    install_app_response, list_apps_response, list_installable_apps_response,
-    uninstall_app_response,
+    ListInstallableAppsOk, ListInstallableAppsRequest, ListInstallableAppsResponse,
+    NodejsUnavailableReason, Progress, UninstallAppOk, UninstallAppRequest, UninstallAppResponse,
+    control_app_service_response, install_app_response, list_apps_response,
+    list_installable_apps_response, uninstall_app_response,
 };
 use crate::services::apps::app_status::to_agent_error;
 use crate::services::apps::validated_action::validated_action;
@@ -44,6 +44,16 @@ fn wire_kind(kind: AppKind) -> WireKind {
     match kind {
         AppKind::WebServer => WireKind::WebServer,
         AppKind::Runtime => WireKind::Runtime,
+    }
+}
+
+/// The wire reason the Node.js apps are missing from the installable list, or the unset value
+/// when they are not missing for a reason (issue #532).
+fn wire_nodejs_reason(reason: Option<NodejsUnavailable>) -> NodejsUnavailableReason {
+    match reason {
+        None => NodejsUnavailableReason::Unspecified,
+        Some(NodejsUnavailable::NoModuleStreams) => NodejsUnavailableReason::NoModuleStreams,
+        Some(NodejsUnavailable::ListingFailed) => NodejsUnavailableReason::ListingFailed,
     }
 }
 
@@ -141,6 +151,7 @@ impl<H: AppsHost + 'static> AppsService for AppsServiceImpl<H> {
         {
             Ok(installable) => list_installable_apps_response::Result::Ok(ListInstallableAppsOk {
                 apps: installable
+                    .apps
                     .into_iter()
                     .map(|app| InstallableApp {
                         app_id: app.id.as_id(),
@@ -148,6 +159,8 @@ impl<H: AppsHost + 'static> AppsService for AppsServiceImpl<H> {
                         installed: app.installed,
                     })
                     .collect(),
+                nodejs_unavailable_reason: wire_nodejs_reason(installable.nodejs_unavailable)
+                    as i32,
             }),
             Err(error) => list_installable_apps_response::Result::Error(error),
         };

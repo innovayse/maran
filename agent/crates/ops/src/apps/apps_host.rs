@@ -1,6 +1,7 @@
 //! The seam between the app operations and the machine they run on.
 
 use std::path::Path;
+use std::sync::Mutex;
 
 use crate::apps::AppsOpError;
 use crate::php::PhpHost;
@@ -11,6 +12,12 @@ use crate::php::PhpHost;
 /// PHP area's operation whole, and because a config write, a directory check and a program run
 /// are the same acts there: one implementation (`ProcessPhpHost`) and one fake cover both.
 pub trait AppsHost: PhpHost {
+    /// The lock that serialises the operations on the host's `nodejs` module (install and
+    /// removal of a Node.js major on a module-stream family), taken by
+    /// `take_nodejs_module_operation`. A method of the host and not a `static`, so one host is
+    /// one scope: the agent owns one, and a test owns its own and never meets another test's.
+    fn app_operation_lock(&self) -> &Mutex<()>;
+
     /// Whether `path` exists (a file or a directory). How "is nginx installed?" is answered: the
     /// package's binary is there or it is not, asked of the filesystem and not of the package
     /// manager, because the listing is called on every page load and a package database query
