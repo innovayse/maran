@@ -136,6 +136,7 @@ touch "$mail_log"
 # not assumed.
 lane_syslog_conf=/tmp/maran-lane-rsyslog.conf
 printf '%s\n' 'module(load="imuxsock")' "mail.* -${mail_log}" > "$lane_syslog_conf"
+chmod 0644 "$lane_syslog_conf"
 rsyslogd -f "$lane_syslog_conf" -i /tmp/maran-lane-rsyslog.pid || lane_fail "rsyslogd did not start; Postfix would have nowhere to log."
 for _ in $(seq 1 20); do [ -S /dev/log ] && break; sleep 0.5; done
 [ -S /dev/log ] || lane_fail "rsyslogd left no /dev/log; Postfix would have nowhere to log."
