@@ -130,6 +130,12 @@ local_submit_outcome() {
         *"5.7.1"*) echo rejected; return ;;
         *"4.7.1"*|*"status=deferred"*) echo deferred; return ;;
         *"status=sent"*) echo accepted; return ;;
+        # Past the filter and queued for delivery. The rule's verdict is what these cases judge, and
+        # delivery to the probe address may take longer than the wait (an image with port 25 egress
+        # blocked sits in the connection attempt), so a message the queue manager took is accepted. A
+        # refusal or deferral by the filter is logged by cleanup and never reaches the queue manager, and
+        # the patterns above for those win over this one.
+        *"nrcpt="*"(queue active)"*) echo accepted; return ;;
       esac
     fi
     sleep 1
