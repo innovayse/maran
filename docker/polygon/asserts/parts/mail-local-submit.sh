@@ -125,7 +125,7 @@ local_submit_outcome() {
   [ -n "$log" ] || { echo unknown; return; }
   postqueue -f >/dev/null 2>&1 || true
   for attempt in 1 2 3 4 5 6 7 8 9 10; do
-    queue_id="$(grep -F -- "$marker" "$log" 2>/dev/null | grep -oE '[0-9A-F]{8,}' | head -n 1 || true)"
+    queue_id="$(grep -F -- "$marker" "$log" 2>/dev/null | sed -nE 's/.*\]: ([0-9A-F]{8,}): .*/\1/p' | head -n 1 || true)"
     if [ -n "$queue_id" ]; then
       line="$(grep -F -- "$queue_id" "$log" | tr '\n' ' ')"
       case "$line" in

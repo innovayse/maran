@@ -97,12 +97,19 @@ port25_queued_headers() {
   log="$(local_submit_mail_log)"
   [ -n "$log" ] || return 0
   for attempt in 1 2 3 4 5 6 7 8 9 10; do
-    queue_id="$(grep -F -- "$marker" "$log" 2>/dev/null | grep -oE '[0-9A-F]{8,}' | head -n 1 || true)"
+    queue_id="$(grep -F -- "$marker" "$log" 2>/dev/null | sed -nE 's/.*\]: ([0-9A-F]{8,}): .*/\1/p' | head -n 1 || true)"
     if [ -n "$queue_id" ] && postcat -hq "$queue_id" 2>/dev/null; then
       return 0
     fi
     sleep 1
   done
+  # Said once, on stderr, so a lane that cannot find the queued message shows what the host held.
+  {
+    echo "port25_queued_headers: no queued message for ${marker} (queue id '${queue_id}'); what the host shows:"
+    echo "--- mail log, lines for the marker:"; grep -F -- "$marker" "$log" 2>/dev/null | tail -n 5
+    echo "--- mail log, last lines:"; tail -n 15 "$log" 2>/dev/null
+    echo "--- the queue:"; postqueue -p 2>&1 | head -n 20 || true
+  } >&2
 }
 
 # port25_signed <marker>: yes when the queued message carries a DKIM-Signature header, no when it is queued
