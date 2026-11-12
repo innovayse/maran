@@ -44,6 +44,8 @@ readonly LOCAL_SUBMIT_MAPS="local_submit_accounts.map account_sender_domains.map
 readonly LOCAL_SUBMIT_USER_OWN="maranls1"
 readonly LOCAL_SUBMIT_USER_OTHER="maranls2"
 readonly LOCAL_SUBMIT_USER_UNLISTED="maranls3"
+# What sendmail printed to the submitting user, kept for the diagnosis printed when an outcome is unknown.
+readonly LOCAL_SUBMIT_SENDMAIL_LOG="/tmp/local-submit-sendmail.log"
 
 # local_submit_stack_present: the daemons this assertion drives exist and answer.
 local_submit_stack_present() {
@@ -75,7 +77,7 @@ local_submit_send() {
   {
     [ -z "$extra" ] || printf '%s\n' "$extra"
     printf 'From: <%s@%s>\nTo: <probe@example.net>\nSubject: %s\nMessage-ID: <%s@polygon.test>\n\nbody\n' "$user" "$domain" "$marker" "$marker"
-  } | su -s /bin/sh -c "sendmail -i ${from_flag} ${recipients}" "$user" >/dev/null 2>&1 || true
+  } | su -s /bin/sh -c "sendmail -i ${from_flag} ${recipients}" "$user" >/dev/null 2>>"${LOCAL_SUBMIT_SENDMAIL_LOG}" || true
 }
 
 # local_submit_record <type> <data>: one postdrop queue record (type byte, one length byte, data). Only for
@@ -140,6 +142,14 @@ local_submit_outcome() {
     fi
     sleep 1
   done
+  # Said once, on stderr, so a lane that cannot tell what happened to a message shows what it saw.
+  {
+    echo "local_submit_outcome: no verdict for ${marker} in ${log}; what the host shows:"
+    echo "--- sendmail said:"; cat "${LOCAL_SUBMIT_SENDMAIL_LOG}" 2>/dev/null || true
+    echo "--- authorized_submit_users: $(postconf -h authorized_submit_users 2>&1)"
+    echo "--- the mail log's last lines:"; tail -n 30 "$log" 2>/dev/null || true
+    echo "--- the queue:"; postqueue -p 2>&1 | head -n 20 || true
+  } >&2
   echo unknown
 }
 
