@@ -134,10 +134,12 @@ touch "$mail_log"
 # an unprivileged user that cannot write the root-owned file), and the logging socket is the one thing
 # Postfix's daemons write to without a service manager. It runs as root, and the claim is checked below,
 # not assumed.
-lane_syslog_conf=/tmp/maran-lane-rsyslog.conf
+# Under /etc/rsyslog.d, which a host's AppArmor profile for rsyslogd lets it read; a file under /tmp is refused.
+mkdir -p /etc/rsyslog.d
+lane_syslog_conf=/etc/rsyslog.d/maran-lane.conf
 printf '%s\n' 'module(load="imuxsock")' "mail.* -${mail_log}" > "$lane_syslog_conf"
 chmod 0644 "$lane_syslog_conf"
-rsyslogd -f "$lane_syslog_conf" -i /tmp/maran-lane-rsyslog.pid || lane_fail "rsyslogd did not start; Postfix would have nowhere to log."
+rsyslogd -f "$lane_syslog_conf" || lane_fail "rsyslogd did not start; Postfix would have nowhere to log."
 for _ in $(seq 1 20); do [ -S /dev/log ] && break; sleep 0.5; done
 [ -S /dev/log ] || lane_fail "rsyslogd left no /dev/log; Postfix would have nowhere to log."
 logger -p mail.info "maran-lane-probe-$$"
