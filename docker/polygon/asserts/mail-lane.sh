@@ -129,7 +129,17 @@ esac
 mail_log=/var/log/mail.log
 [ "$MARAN_OS_FAMILY" = debian ] || mail_log=/var/log/maillog
 touch "$mail_log"
+# The mail facility goes to the file the assertions read, by a rule of this lane's own: a distribution's
+# default rules differ (and Ubuntu's sends the facility elsewhere), and the logging socket is the one thing
+# Postfix's daemons write to without a service manager. Then the claim is checked, not assumed.
+mkdir -p /etc/rsyslog.d
+printf '%s\n' "mail.* -${mail_log}" > /etc/rsyslog.d/00-maran-mail-lane.conf
 rsyslogd || lane_fail "rsyslogd did not start; Postfix would have nowhere to log."
+for _ in $(seq 1 20); do [ -S /dev/log ] && break; sleep 0.5; done
+[ -S /dev/log ] || lane_fail "rsyslogd left no /dev/log; Postfix would have nowhere to log."
+logger -p mail.info "maran-lane-probe-$$"
+for _ in $(seq 1 20); do grep -q "maran-lane-probe-$$" "$mail_log" && break; sleep 0.5; done
+grep -q "maran-lane-probe-$$" "$mail_log" || lane_fail "a mail.info line sent to syslog did not reach ${mail_log}; the assertions read their verdicts there."
 
 # The polygon's systemctl is the image's copy from build time; the mounted tree's copy is the one that
 # knows how to drive the mail daemons, so it is the one used, like the installer and the assertions above.
