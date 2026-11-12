@@ -1437,7 +1437,8 @@ install_panel_logrotate_policy() {
 # the file that had been renamed away. Our own two stanzas already reload; this one is the third
 # sender, so leaving it would keep the error. The cure is not to loosen the directories.
 #
-# Only the BODY of the postrotate script is replaced; the glob, the options and the owner of the
+# Only the BODY of the script is replaced (`postrotate`, or `lastaction` where a family writes its
+# signalling there, as openSUSE's nginx package does with `nginx -s reopen`); the glob, the options and the owner of the
 # files it creates stay the distribution's. The file is a package conffile, so a later package
 # upgrade keeps this edit (dpkg and rpm both preserve a locally modified conffile and write the new
 # one beside it) and, if the package ships its own new stanza, the next install run edits that
@@ -1449,13 +1450,13 @@ make_distro_nginx_logrotate_reload() {
   [ -f "$file" ] || return 0
   staged="$(mktemp "${file}.maran-staging.XXXXXX")"
   awk '
-    /^[[:space:]]*postrotate[[:space:]]*$/ { print; print "\t\tnginx -s reload"; skipping = 1; replaced++; next }
+    /^[[:space:]]*(postrotate|lastaction)[[:space:]]*$/ { print; print "\t\tnginx -s reload"; skipping = 1; replaced++; next }
     skipping && /^[[:space:]]*endscript[[:space:]]*$/ { skipping = 0 }
     !skipping { print }
     END { if (!replaced) exit 3 }
   ' "$file" > "$staged" || {
     rm -f "$staged"
-    echo "80-nginx.sh: ${file} has no postrotate script to rewrite. The distribution's rotation" >&2
+    echo "80-nginx.sh: ${file} has no postrotate or lastaction script to rewrite. The distribution's rotation" >&2
     echo "  would keep signalling USR1 and nginx would log [emerg] on every rotation. Stopping." >&2
     exit 1
   }
