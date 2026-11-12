@@ -111,6 +111,14 @@ for mail_unit in $(mail_units); do
 done
 step_mail
 
+# The package's own post-install step sets postdrop's owner and mode (root, group postdrop, setgid), and
+# the agent refuses to bind local submission on a host where it is not so. An image layer whose package was
+# unpacked without that step has the file as the archive carried it, so the lane puts it as the package does.
+postdrop_binary="$(command -v postdrop || true)"
+[ -n "$postdrop_binary" ] || postdrop_binary=/usr/sbin/postdrop
+chown root:postdrop "$postdrop_binary"
+chmod 2755 "$postdrop_binary"
+
 # Redis-protocol client, nftables and a syslog daemon: the assertions read the hourly counter and the
 # table with the first two, and Postfix logs through syslog into the mail log they read its verdicts from
 # (/var/log/mail.log or /var/log/maillog), which an image without an init system has no daemon for.
