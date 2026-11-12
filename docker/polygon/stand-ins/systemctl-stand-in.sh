@@ -712,17 +712,33 @@ mail_daemon_is_running() {
     esac
 }
 
+# start_detached: runs a command that leaves a daemon behind, with no descriptor of the caller's.
+# The agent captures this script's output through pipes and waits for them to close; a daemon that kept
+# the script's stderr would hold the pipe open for its whole life and the caller would sit out its
+# deadline. A real service manager gives its daemons none of the caller's descriptors either. What the
+# command printed is shown only when it failed.
+start_detached() {
+    detached_log="$(mktemp)"
+    if "$@" >"$detached_log" 2>&1 </dev/null; then
+        rm -f "$detached_log"
+        return 0
+    fi
+    cat "$detached_log" >&2
+    rm -f "$detached_log"
+    return 1
+}
+
 # start_mail_daemon: starts the classified daemon by its own program and waits until it shows the socket
 # the rest of the stack uses, so the next stage finds it there. A daemon that is already running is left.
 start_mail_daemon() {
     mail_daemon_is_running && return 0
     case "$MAIL_DAEMON" in
         postfix)
-            "$(mail_program postfix)" start >&2 || fail "postfix start refused"
+            start_detached "$(mail_program postfix)" start || fail "postfix start refused"
             wait_until "postfix" mail_daemon_is_running
             ;;
         dovecot)
-            "$(mail_program dovecot)" >&2 || fail "dovecot refused to start"
+            start_detached "$(mail_program dovecot)" || fail "dovecot refused to start"
             wait_until "dovecot's authentication socket" socket_exists "$MAIL_DOVECOT_SOCKET"
             ;;
         rspamd)
@@ -730,7 +746,7 @@ start_mail_daemon() {
             getent passwd "$rspamd_user" >/dev/null || rspamd_user=rspamd
             mkdir -p "$MAIL_RSPAMD_DIRECTORY"
             chown "${rspamd_user}:${rspamd_user}" "$MAIL_RSPAMD_DIRECTORY"
-            "$(mail_program rspamd)" -u "$rspamd_user" -g "$rspamd_user" >&2 || fail "rspamd refused to start"
+            start_detached "$(mail_program rspamd)" -u "$rspamd_user" -g "$rspamd_user" || fail "rspamd refused to start"
             wait_until "rspamd's milter socket" socket_exists "$MAIL_RSPAMD_SOCKET"
             ;;
         keyvalue)
@@ -739,7 +755,7 @@ start_mail_daemon() {
             chown "${MAIL_KV_USER}:${MAIL_KV_USER}" "$run_directory"
             # As its own user, like the packaged unit: the rendered socket is mode 660 and the spam filter
             # reaches it through the group the installer put it in.
-            su -s /bin/sh -c "cd '${run_directory}' && '$(mail_program "$MAIL_KV_PROGRAM")' '${MAIL_KV_CONFIG}' --daemonize yes --pidfile '${run_directory}/${MAIL_UNIT_NAME}.pid'" "$MAIL_KV_USER" >&2 \
+            start_detached su -s /bin/sh -c "cd '${run_directory}' && '$(mail_program "$MAIL_KV_PROGRAM")' '${MAIL_KV_CONFIG}' --daemonize yes --pidfile '${run_directory}/${MAIL_UNIT_NAME}.pid'" "$MAIL_KV_USER" \
                 || fail "${MAIL_KV_PROGRAM} refused to start"
             wait_until "the key-value server's socket" socket_exists "${run_directory}/${MAIL_UNIT_NAME}.sock"
             ;;

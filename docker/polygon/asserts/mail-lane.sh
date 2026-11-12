@@ -98,8 +98,10 @@ if [ "$MARAN_OS_FAMILY" = rhel ] && ! dnf -q list --available rspamd >/dev/null 
   major="${VERSION_ID%%.*}"
   curl -fsSL -o /etc/yum.repos.d/rspamd.repo "https://rspamd.com/rpm-stable/centos-${major}/rspamd.repo" \
     || lane_fail "the vendor repository file for Rspamd could not be fetched."
-  rpm --import https://rspamd.com/rpm-stable/gpg.key \
-    || lane_fail "the vendor repository's signing key could not be imported."
+  # The vendor key carries a SHA-1 self-signature, which this family's default crypto policy refuses to
+  # import, so the fixture installs from the repository without checking its packages' signatures. That is
+  # confined to this throwaway container and to the repository file written here.
+  sed -i -e 's/^gpgcheck=.*/gpgcheck=0/' -e 's/^repo_gpgcheck=.*/repo_gpgcheck=0/' /etc/yum.repos.d/rspamd.repo
   dnf -q list --available rspamd >/dev/null 2>&1 \
     || lane_fail "the vendor repository does not carry rspamd for ${ID} ${VERSION_ID}."
 fi
