@@ -1,5 +1,6 @@
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.ValueObjects;
+using Maran.Modules.Identity.Interfaces;
 using Maran.Modules.Identity.Persistence;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
@@ -45,7 +46,7 @@ namespace Maran.Modules.Identity.Services;
 /// silently deciding, and the constant they share would stop meaning what it says.
 /// </para>
 /// </remarks>
-public sealed class DatabaseAuditWriter : IAuditWriter
+public sealed class DatabaseAuditWriter : IAuditWriter, IStagedAuditWriter
 {
     /// <summary>The module's database context; Identity owns the journal's table.</summary>
     private readonly IdentityDbContext _dbContext;
@@ -87,6 +88,16 @@ public sealed class DatabaseAuditWriter : IAuditWriter
     /// <inheritdoc />
     public async Task WriteAsync(AuditEntry entry, CancellationToken cancellationToken)
     {
+        Stage(entry);
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public void Stage(AuditEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+
         var correlationId = _correlationIdAccessor.CorrelationId;
         var impersonator = _currentUser.Caller is PrincipalCaller { ViewedBy: { } viewer }
             ? new AuditImpersonator(viewer.UserId, ColumnText.Fit(viewer.Username, AuditEvent.ActorUsernameMaxLength))
@@ -107,7 +118,5 @@ public sealed class DatabaseAuditWriter : IAuditWriter
             impersonator,
             accountId,
             entry.SubjectUserId));
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 }

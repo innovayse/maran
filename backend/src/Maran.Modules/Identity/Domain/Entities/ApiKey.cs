@@ -54,7 +54,10 @@ public sealed class ApiKey
     /// </summary>
     public Guid? ResellerId { get; private set; }
 
-    /// <summary>The login that issued the key: the administrator, or the reseller's own login for a reseller's key.</summary>
+    /// <summary>
+    /// The login that issued the key: the administrator, or the reseller's own login for a reseller's key.
+    /// The key authenticates only while this login exists and may authenticate.
+    /// </summary>
     public Guid CreatedByUserId { get; private set; }
 
     /// <summary>The instant the key was issued.</summary>

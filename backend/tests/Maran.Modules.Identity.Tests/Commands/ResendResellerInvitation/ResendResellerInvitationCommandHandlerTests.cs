@@ -127,6 +127,7 @@ public sealed class ResendResellerInvitationCommandHandlerTests : IDisposable
         Assert.Equal("InvitationResellerNotFound", result.Error!.Code);
         Assert.Equal(ErrorType.NotFound, result.Error.Type);
         Assert.Empty(_bus.Published);
+        AssertRefusalJournalled();
     }
 
     /// <summary>A reseller whose login was never created gets it rebuilt, invited, mailed and audited.</summary>
@@ -167,7 +168,7 @@ public sealed class ResendResellerInvitationCommandHandlerTests : IDisposable
         Assert.Equal(ErrorType.Conflict, result.Error.Type);
         Assert.Empty(await _context.Users.ToListAsync());
         Assert.Empty(_bus.Published);
-        Assert.Empty(_audit.Written);
+        AssertRefusalJournalled();
     }
 
     /// <summary>A login that already has a password is refused: a new token would be a password reset in disguise.</summary>
@@ -184,6 +185,7 @@ public sealed class ResendResellerInvitationCommandHandlerTests : IDisposable
         Assert.Equal(ErrorType.Conflict, result.Error.Type);
         Assert.Empty(_bus.Published);
         Assert.Single(await _context.InvitationTokens.ToListAsync());
+        AssertRefusalJournalled();
     }
 
     /// <summary>A suspended reseller is offered no way in: refused, its token kept, nothing mailed.</summary>
@@ -198,5 +200,31 @@ public sealed class ResendResellerInvitationCommandHandlerTests : IDisposable
         Assert.Equal(ErrorType.Conflict, result.Error.Type);
         Assert.Empty(_bus.Published);
         Assert.Null(Assert.Single(await _context.InvitationTokens.ToListAsync()).UsedAt);
+        AssertRefusalJournalled();
+    }
+
+    /// <summary>A successful resend is journalled as a success, naming the login, with the first token's plaintext nowhere in it.</summary>
+    [Fact]
+    public async Task A_successful_resend_is_journalled_as_a_success_and_carries_no_token()
+    {
+        await SeedInvitedResellerLoginAsync();
+
+        await NewHandler().HandleAsync(Command(), CancellationToken.None);
+
+        var entry = Assert.Single(_audit.Written);
+        Assert.True(entry.Succeeded);
+        Assert.Equal("reseller-one", entry.Subject);
+        Assert.DoesNotContain("the-first-token", entry.ToString());
+        Assert.DoesNotContain("token", entry.Subject, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Asserts exactly one failed entry for the administrator, naming the id the caller sent.</summary>
+    private void AssertRefusalJournalled()
+    {
+        var entry = Assert.Single(_audit.Written);
+        Assert.Equal(IdentityAuditActions.ResellerInvited, entry.Action);
+        Assert.False(entry.Succeeded);
+        Assert.Equal(_admin.UserId, entry.ActorUserId);
+        Assert.Equal(ResellerId.ToString("D"), entry.Subject);
     }
 }

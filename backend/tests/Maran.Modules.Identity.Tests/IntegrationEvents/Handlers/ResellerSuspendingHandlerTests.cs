@@ -5,6 +5,7 @@ using Maran.Modules.Identity.Options;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Services;
 using Maran.Modules.Identity.Tests.TestSupport;
+using Maran.Sdk.Contracts;
 using Maran.Sdk.Events;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -43,7 +44,8 @@ public sealed class ResellerSuspendingHandlerTests : IDisposable
     {
         return new ResellerSuspendingHandler(
             _context,
-            new SessionService(_context, _clock, new OptionsWrapper<JwtOptions>(new JwtOptions { RefreshTokenDays = 14 })));
+            new SessionService(_context, _clock, new OptionsWrapper<JwtOptions>(new JwtOptions { RefreshTokenDays = 14 })),
+            ErasureHandlers.KeyRevoker(_context));
     }
 
     /// <summary>Stores a claimed reseller login with one live own session.</summary>
@@ -203,5 +205,31 @@ public sealed class ResellerSuspendingHandlerTests : IDisposable
         var stored = await _context.Users.SingleAsync();
         Assert.True(stored.IsSuspended);
         Assert.True(stored.HasPendingInvitation);
+    }
+
+    /// <summary>
+    /// Suspension revokes the keys the reseller's login created, journals each with the reason, and a
+    /// resume does not revive them (issue #551); another login's key is left active.
+    /// </summary>
+    /// <remarks>The other reseller's key is the accepting control: the handler ran and revoked by creator only.</remarks>
+    [Fact]
+    public async Task Suspension_revokes_the_resellers_keys_and_resuming_does_not_revive_them()
+    {
+        var (login, _) = await SeedResellerAsync(ResellerId, "northwind");
+        var (other, _) = await SeedResellerAsync(OtherResellerId, "contoso");
+        var (key, _) = await ApiKeySeed.AddAsync(_context, Now, name: "mine", resellerId: ResellerId, createdBy: login.Id);
+        var (otherKey, _) = await ApiKeySeed.AddAsync(_context, Now, name: "theirs", resellerId: OtherResellerId, createdBy: other.Id);
+
+        await NewHandler().HandleAsync(Suspending(), CancellationToken.None);
+
+        Assert.NotNull((await _context.ApiKeys.AsNoTracking().SingleAsync(row => row.Id == key.Id)).RevokedAt);
+        Assert.Null((await _context.ApiKeys.AsNoTracking().SingleAsync(row => row.Id == otherKey.Id)).RevokedAt);
+        var entry = await _context.AuditEvents.AsNoTracking().SingleAsync(written => written.Action == IdentityAuditActions.ApiKeyRevoked);
+        Assert.Equal($"{key.Prefix} mine [self.read] reason=CreatorDisabled", entry.Subject);
+
+        var stored = await _context.Users.SingleAsync(candidate => candidate.Id == login.Id);
+        stored.Resume();
+        await _context.SaveChangesAsync();
+        Assert.NotNull((await _context.ApiKeys.AsNoTracking().SingleAsync(row => row.Id == key.Id)).RevokedAt);
     }
 }

@@ -95,7 +95,9 @@ public sealed class IdentityModule : IPanelModule
         services.AddScoped<SetupTokenWindowKeeper>();
         services.AddScoped<SetupTokenWindowSeeder>();
 
-        services.AddScoped<IAuditWriter, DatabaseAuditWriter>();
+        services.AddScoped<DatabaseAuditWriter>();
+        services.AddScoped<IAuditWriter>(provider => { return provider.GetRequiredService<DatabaseAuditWriter>(); });
+        services.AddScoped<IStagedAuditWriter>(provider => { return provider.GetRequiredService<DatabaseAuditWriter>(); });
         services.AddScoped<IdentityAuditJournal>();
         services.AddScoped<InvitationMailComposer>();
         services.AddScoped<MembershipOfferMailComposer>();
@@ -154,6 +156,7 @@ public sealed class IdentityModule : IPanelModule
         services.AddScoped<ApiKeyScopeDisplayNames>();
         services.AddScoped<ApiKeyStatusDisplayNames>();
         services.AddScoped<IApiKeyAuthenticator, ApiKeyAuthenticator>();
+        services.AddScoped<ApiKeyCreatorRevoker>();
 
         // The per-call audit of key calls: global, and a no-op for every caller that is not an API key.
         services.Configure<MvcOptions>(options =>
