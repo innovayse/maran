@@ -92,7 +92,7 @@ fn the_rule_and_the_local_service_table_agree_on_the_submitter_header() {
     let rule = RspamdLocalSubmit::lua_rule();
     let table = PostfixLocalSubmitterHeaders::table();
     assert!(rule.contains("M.SUBMITTER_HEADER = 'X-Maran-Local-Submitter'"));
-    assert!(table.contains("PREPEND X-Maran-Local-Submitter: $1 $2"));
+    assert!(table.contains("PREPEND X-Maran-Local-Submitter: $1"));
     assert!(!rule.contains("get_header_full('Received')"));
     let master = PostfixMasterConfig {
         self_clients_path: "/etc/maran/mail/self_clients.cidr".to_owned(),
@@ -106,18 +106,18 @@ fn the_rule_and_the_local_service_table_agree_on_the_submitter_header() {
     assert_eq!(master.matches("header_checks=").count(), 1);
 }
 
-/// A Lua error in the prefilter must refuse the mail, not let it through; the
-/// verdict must be idempotent per message identity (the maildrop id of the pickup
-/// header, not the cleanup queue id, which changes on every re-offer) and counted
-/// per recipient.
+/// A Lua error in the prefilter must refuse the mail, not let it through, and the
+/// bucket is charged only by a message that fits: a refused one is offered again by
+/// pickup under a new queue id and must not be charged on every retry (issue #591).
 #[test]
-fn the_rule_fails_closed_counts_recipients_and_dedupes_by_message_identity() {
+fn the_rule_fails_closed_and_charges_only_what_fits_the_limit() {
     let rule = RspamdLocalSubmit::lua_rule();
     assert!(rule.contains("pcall(check, task)"));
     assert!(!rule.contains("get_queue_id"));
-    assert!(rule.contains("M.seen_key(decision.account, decision.identity)"));
     assert!(rule.contains("INCRBY"));
-    assert!(rule.contains("'NX'"));
+    assert!(!rule.contains("'NX'"));
+    assert!(!rule.contains("seen_key"));
+    assert!(rule.contains("> tonumber(ARGV[3])"));
     assert!(rule.contains("priority = 100"));
 }
 

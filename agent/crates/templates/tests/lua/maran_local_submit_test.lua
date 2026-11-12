@@ -11,8 +11,8 @@ local function check(name, condition)
   end
 end
 
-local PICKUP = '1001 ABC'
-local FORGED = '0 EVIL'
+local PICKUP = '1001'
+local FORGED = '0'
 
 local function maps()
   return {
@@ -54,30 +54,31 @@ check('sets keep every domain of an account', M.parse_sets('a x.test\na y.test')
 check('uid from the submitter header', M.parse_submitter(PICKUP) == '1001')
 check('other shapes have no uid', M.parse_submitter('from a (b [1.2.3.4]) by c') == nil)
 check('a Received line is not a submitter header', M.parse_submitter('by h (Postfix, from userid 1001)\n\tid ABC;') == nil)
-check('a header with trailing text is refused', M.parse_submitter('1001 ABC extra') == nil)
+check('a header with trailing text is refused', M.parse_submitter('1001 extra') == nil)
+check('a uid with an id after it is refused', M.parse_submitter('1001 ABC') == nil)
 check('a non-string value has no uid', M.parse_submitter(nil) == nil)
 check('only the topmost header counts', M.topmost_uid({ PICKUP, FORGED }) == '1001')
 check('a forged second header is ignored', M.topmost_uid({ PICKUP, FORGED }) ~= '0')
-check('a forged topmost shape is refused', M.topmost_uid({ 'abc ABC' }) == nil)
+check('a forged topmost shape is refused', M.topmost_uid({ 'abc' }) == nil)
 check('no header, no uid', M.topmost_uid({}) == nil)
 
 -- rule 1: the road is told by the server-side daemon name, first
-check('unknown uid is discarded', M.decide(ctx({ submitters = { '4242 H' } }), maps()).action == 'discard')
+check('unknown uid is discarded', M.decide(ctx({ submitters = { '4242' } }), maps()).action == 'discard')
 check('no pickup header is discarded', M.decide(ctx({ submitters = {} }), maps()).action == 'discard')
-check('root is left alone', M.decide(ctx({ submitters = { '0 H' } }), maps()).action == 'none')
+check('root is left alone', M.decide(ctx({ submitters = { '0' } }), maps()).action == 'none')
 check('inbound smtp is not a submission', M.decide(ctx({ daemon_name = 'INBOUND' }), maps()).action == 'none')
 -- The #518 review defect: Postfix presents local mail as a connection from
 -- 127.0.0.1, so a client address must never take a message off the local road.
-local with_ip = ctx({ has_client_ip = true, client_ip = '127.0.0.1', submitters = { '4242 H' } })
+local with_ip = ctx({ has_client_ip = true, client_ip = '127.0.0.1', submitters = { '4242' } })
 check('a client ip does not take a local message off the local road', M.decide(with_ip, maps()).action == 'discard')
 check('a client ip on the local road still counts an owned message', M.decide(ctx({ has_client_ip = true }), maps()).action == 'count')
 -- Forged SMTP attributes carried by a hand-built queue file.
 check('a forged login does not take a local message off the local road',
-  M.decide(ctx({ user = 'info@a.test', submitters = { '4242 H' } }), maps()).action == 'discard')
+  M.decide(ctx({ user = 'info@a.test', submitters = { '4242' } }), maps()).action == 'discard')
 check('an unknown daemon name is refused, not passed', M.decide(ctx({ daemon_name = 'other' }), maps()).action == 'soft reject')
 check('a missing daemon name is refused, not passed', M.decide(ctx({ daemon_name = ABSENT }), maps()).action == 'soft reject')
 check('smtpd daemon names never reach the local rule',
-  M.decide(ctx({ daemon_name = 'INBOUND', submitters = { '4242 H' } }), maps()).action == 'none')
+  M.decide(ctx({ daemon_name = 'INBOUND', submitters = { '4242' } }), maps()).action == 'none')
 
 -- rule 2
 local owned = M.decide(ctx(), maps())
@@ -120,24 +121,8 @@ check('over the cap is a reject', M.decide(ctx({ recipient_count = 101 }), maps(
 check('the cap does not hide a forged sender (discard first)', M.decide(ctx({ recipient_count = 101, envelope_domain = 'c.test' }), maps()).action == 'discard')
 check('a batch over the remaining allowance is deferred', M.finish(M.decide(ctx({ recipient_count = 3 }), maps()), 3).action == 'soft reject')
 
--- idempotent counting: keyed on the maildrop id pickup wrote, never the cleanup queue id
-check('maildrop id from the submitter header', M.topmost_id({ PICKUP }) == 'ABC')
-check('no id after the uid', M.topmost_id({ '1001' }) == nil)
-check('a foreign header has no id', M.topmost_id({ 'from a (b) by c id XYZ; date' }) == nil)
-check('only the topmost header names the id', M.topmost_id({ PICKUP, FORGED }) == 'ABC')
-check('identity is the topmost id', M.message_identity({ daemon_name = 'MARAN_LOCAL', submitters = { PICKUP } }) == 'id:ABC')
-check('a forged second header does not change the identity',
-  M.message_identity({ daemon_name = 'MARAN_LOCAL', submitters = { PICKUP, '1001 FORGED' } }) == 'id:ABC')
-check('the same message offered again keeps its identity',
-  M.message_identity({ daemon_name = 'MARAN_LOCAL', submitters = { PICKUP } }) == M.message_identity({ daemon_name = 'MARAN_LOCAL', submitters = { PICKUP } }))
-check('another maildrop file has another identity',
-  M.message_identity({ daemon_name = 'MARAN_LOCAL', submitters = { '1001 OTHER' } }) ~= 'id:ABC')
-check('a Message-ID header is never an identity', M.message_identity({ daemon_name = 'MARAN_LOCAL', submitters = {}, message_id = '<a@b>' }) == nil)
-check('the authenticated road has no identity', M.message_identity({ daemon_name = 'ORIGINATING', submitters = { PICKUP } }) == nil)
-check('the verdict carries the identity', M.decide(ctx(), maps()).identity == 'id:ABC')
-check('seen key joins account and identity', M.seen_key('alice', 'id:ABC') == 'maran:send:seen:alice:id:ABC')
-check('no identity, no seen key', M.seen_key('alice', nil) == '' and M.seen_key('alice', '') == '')
-check('seen keys differ by identity', M.seen_key('alice', 'id:A') ~= M.seen_key('alice', 'id:B'))
+-- a refused batch is not charged (Redis script), so a retried deferral does not grow the bucket
+check('no seen key exists any more', M.seen_key == nil and M.message_identity == nil)
 
 -- a rule that is installed but not configured
 check('unconfigured: the local road is refused', M.decide_unconfigured('MARAN_LOCAL').action == 'soft reject')
@@ -156,7 +141,7 @@ local no_mailboxes = maps(); no_mailboxes.mailboxes = nil
 check('missing mailbox map defers authenticated mail', M.decide(ctx({ daemon_name = 'ORIGINATING', user = 'info@a.test' }), no_mailboxes).action == 'soft reject')
 local no_entry = maps(); no_entry.limits = M.parse_pairs('bob 5')
 check('an account without a limit defers', M.decide(ctx(), no_entry).action == 'soft reject')
-check('root needs no map', M.decide(ctx({ submitters = { '0 H' } }), {}).action == 'none')
+check('root needs no map', M.decide(ctx({ submitters = { '0' } }), {}).action == 'none')
 
 -- alias fan-out (issue #531): an alias charges one per external target
 local team = { 'team@a.test', 'x@gmail.test' }
@@ -171,7 +156,7 @@ local no_fanouts = maps(); no_fanouts.fanouts = nil
 check('missing fan-out map defers local mail', M.decide(ctx(), no_fanouts).action == 'soft reject')
 check('missing fan-out map text', M.decide(ctx(), no_fanouts).message == 'local submission maps unavailable')
 check('authenticated mail needs the fan-out map too (the bucket charges it)', M.decide(ctx({ daemon_name = 'ORIGINATING', user = 'info@a.test' }), no_fanouts).action == 'soft reject')
-check('root needs no fan-out map', M.decide(ctx({ submitters = { '0 H' } }), no_fanouts).action == 'none')
+check('root needs no fan-out map', M.decide(ctx({ submitters = { '0' } }), no_fanouts).action == 'none')
 
 -- the bound-domain proof (issue #531): only a passed local message carries one
 check('single From domain is the proof candidate', M.single_domain({ 'a.test', 'a.test' }) == 'a.test')
@@ -185,11 +170,11 @@ check('a refused sender has no proof', M.decide(ctx({ from_domains = { 'c.test' 
 check('a discarded envelope has no proof', M.decide(ctx({ envelope_domain = 'c.test' }), maps()).bound_domain == nil)
 check('two owned From domains give no proof', M.decide(ctx({ from_domains = { 'a.test', 'b.test' } }), maps()).bound_domain == nil)
 check('authenticated mail of its own From domain records the proof', M.decide(ctx({ daemon_name = 'ORIGINATING', user = 'info@a.test' }), maps()).bound_domain == 'a.test')
-check('root records the proof of the host mail name', M.decide(ctx({ submitters = { '0 H' }, from_domains = { 'host.test' } }), maps()).bound_domain == 'host.test')
-check('inverse: root mail of a tenant domain records no proof', M.decide(ctx({ submitters = { '0 H' } }), maps()).bound_domain == nil)
-check('the host mail name matches without regard to case', M.decide(ctx({ submitters = { '0 H' }, from_domains = { 'host.test' }, host_mail_name = 'HOST.test' }), maps()).bound_domain == 'host.test')
-check('inverse: without a host mail name root records no proof', M.decide(ctx({ submitters = { '0 H' }, from_domains = { 'host.test' }, host_mail_name = ABSENT }), maps()).bound_domain == nil)
-check('inverse: root with two From domains records no proof', M.decide(ctx({ submitters = { '0 H' }, from_domains = { 'host.test', 'b.test' } }), maps()).bound_domain == nil)
+check('root records the proof of the host mail name', M.decide(ctx({ submitters = { '0' }, from_domains = { 'host.test' } }), maps()).bound_domain == 'host.test')
+check('inverse: root mail of a tenant domain records no proof', M.decide(ctx({ submitters = { '0' } }), maps()).bound_domain == nil)
+check('the host mail name matches without regard to case', M.decide(ctx({ submitters = { '0' }, from_domains = { 'host.test' }, host_mail_name = 'HOST.test' }), maps()).bound_domain == 'host.test')
+check('inverse: without a host mail name root records no proof', M.decide(ctx({ submitters = { '0' }, from_domains = { 'host.test' }, host_mail_name = ABSENT }), maps()).bound_domain == nil)
+check('inverse: root with two From domains records no proof', M.decide(ctx({ submitters = { '0' }, from_domains = { 'host.test', 'b.test' } }), maps()).bound_domain == nil)
 
 -- The authenticated road binds the From: header too (issue #531 review): the
 -- envelope was bound by Postfix, the header was not.
@@ -248,7 +233,7 @@ check('an alias address of an owned domain is an acceptable From on the login ro
 check('inverse: an external send-as domain is refused on the login road', M.decide(login({ from_domains = { 'gmail.test' } }), maps()).action == 'reject')
 
 -- N5: root and the Postfix owner keep no ownership check; their mail carries the proof of its From: domain only when that is the host's own mail name
-local root = { '0 H' }
+local root = { '0' }
 check('root mail with one From domain carries that proof', M.decide(ctx({ submitters = root, from_domains = { 'host.test' } }), maps()).bound_domain == 'host.test')
 check('root mail with two From domains carries no proof', M.decide(ctx({ submitters = root, from_domains = { 'host.test', 'b.test' } }), maps()).bound_domain == nil)
 check('root mail without a From domain carries no proof', M.decide(ctx({ submitters = root, from_domains = {} }), maps()).bound_domain == nil)

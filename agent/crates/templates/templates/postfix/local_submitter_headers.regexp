@@ -4,7 +4,7 @@
 # feeds (master.cf). Postfix never shows a milter the Received line pickup writes
 # ("Received: by <host> (Postfix, from userid <uid>)", first in the message), and
 # that line is the only place the real uid of the submitting user is recorded. The
-# table copies the uid and the maildrop id out of it into a header the milter does
+# table copies the uid out of it into a header the milter does
 # see, which the Rspamd local-submission rule reads (issue #518,
 # docs/mail/local-submission.md).
 #
@@ -13,4 +13,4 @@
 # shape written by the sender comes later and makes a header below it; the rule
 # trusts only the topmost. `mail_name` is pinned to Postfix in main.cf because it is
 # the text matched here.
-/^Received: by [^ ]+ \(Postfix, from userid ([0-9]+)\)[[:space:]]+id ([0-9A-Za-z]+);/ PREPEND X-Maran-Local-Submitter: $1 $2
+/^Received: by [^ ]+ \(Postfix, from userid ([0-9]+)\)/ PREPEND X-Maran-Local-Submitter: $1

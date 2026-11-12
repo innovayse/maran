@@ -10,7 +10,6 @@
 local M = {}
 
 M.BUCKET_PREFIX = 'maran:send:'
-M.SEEN_PREFIX = 'maran:send:seen:'
 M.WINDOW_SECONDS = 3600
 
 -- The character Postfix cuts an address extension at (`recipient_delimiter` in
@@ -82,19 +81,18 @@ end
 -- Postfix hands a milter only what the sender wrote, never the Received line pickup
 -- adds (the uid is nowhere else a milter can read), so Postfix's own `header_checks`
 -- table for the local service (postfix/local_submitter_headers.regexp) copies
--- the uid and the maildrop id out of that line into this header. It prepends, and
--- pickup's line is the first thing in the message, so the header it makes is the
--- topmost one; a header of the same name written by the sender sits below it.
+-- the uid out of that line into this header. It prepends, and pickup's line is the
+-- first thing in the message, so the header it makes is the topmost one; a header of
+-- the same name written by the sender sits below it.
 M.SUBMITTER_HEADER = 'X-Maran-Local-Submitter'
 
--- The uid and the maildrop id in one submitter header value ("<uid> <id>"), or nil
--- when the value is not exactly that shape.
+-- The uid in one submitter header value, or nil when the value is not exactly a
+-- decimal uid.
 function M.parse_submitter(value)
   if type(value) ~= 'string' then
     return nil
   end
-  local uid, id = value:match('^%s*(%d+)%s+(%w+)%s*$')
-  return uid, id
+  return value:match('^%s*(%d+)%s*$')
 end
 
 -- Only the topmost submitter header is Postfix's own; everything below it was
@@ -103,35 +101,7 @@ function M.topmost_uid(values)
   if type(values) ~= 'table' or values[1] == nil then
     return nil
   end
-  local uid = M.parse_submitter(values[1])
-  return uid
-end
-
--- The maildrop id Postfix recorded in the topmost submitter header (the name of the
--- maildrop file, stable across every re-offer of a deferred message), or nil.
-function M.topmost_id(values)
-  if type(values) ~= 'table' or values[1] == nil then
-    return nil
-  end
-  local _, id = M.parse_submitter(values[1])
-  return id
-end
-
--- One stable identity per message, used to count it once however often it is
--- offered again: the maildrop id in the topmost submitter header of a
--- locally submitted message, or nil. Nothing else identifies a message safely: a
--- Message-ID header is the sender's own text, so keying on it would let a customer
--- repeat one and send without ever being counted. Nil means the message cannot be
--- remembered and is counted every time, which only ever over-counts (the
--- authenticated road is in that case: a client retry opens a new transaction).
-function M.message_identity(ctx)
-  if ctx.daemon_name == M.LOCAL_DAEMON then
-    local id = M.topmost_id(ctx.submitters)
-    if id then
-      return 'id:' .. id
-    end
-  end
-  return nil
+  return M.parse_submitter(values[1])
 end
 
 -- ---------------------------------------------------------------------------
@@ -322,16 +292,6 @@ function M.bucket_key(account)
   return M.BUCKET_PREFIX .. account
 end
 
--- The key that remembers a message identity (M.message_identity) was already
--- counted, or '' when the message has none (then it cannot be remembered and is
--- counted every time, which only ever over-counts).
-function M.seen_key(account, identity)
-  if type(identity) ~= 'string' or identity == '' then
-    return ''
-  end
-  return M.SEEN_PREFIX .. account .. ':' .. identity
-end
-
 -- How many deliveries Postfix makes for one recipient, read the way Postfix resolves
 -- it: the address itself, then the address without its extension, then the domain's
 -- catch-all (`@domain`), and the catch-all only for an address that is neither an
@@ -458,7 +418,6 @@ local function counted(ctx, maps, account, bound_domain)
     account = account,
     limit = limit,
     cost = M.cost(ctx.recipient_count, ctx.recipients, maps.fanouts, maps.mailboxes),
-    identity = M.message_identity(ctx),
     bound_domain = bound_domain,
   })
 end
@@ -753,13 +712,15 @@ local max_recipients = tonumber(opts.max_recipients)
 
 local redis_params = lua_redis.parse_redis_server('maran_local_submit')
 
--- Adds `cost` to the account's bucket unless this message identity was counted
--- already (a message the milter defers is re-offered under a NEW queue id, but
--- with the same maildrop id in its submitter header). Returns the
--- bucket's value.
-local INCREMENT = "if KEYS[2] ~= '' and not redis.call('SET', KEYS[2], '1', 'NX', 'EX', ARGV[1]) then "
-  .. "return tonumber(redis.call('GET', KEYS[1]) or '0') end; "
-  .. "local c = redis.call('INCRBY', KEYS[1], ARGV[2]); "
+-- Adds `cost` to the account's bucket and returns its new value, unless that would
+-- pass the limit: then nothing is added and the value it would have had is returned.
+-- A message the milter defers is offered again under a NEW queue id (the maildrop
+-- file stays and pickup reads it again), so a refused message that charged the
+-- bucket would be charged on every retry; one that charges nothing is counted when
+-- it is finally accepted, once.
+local INCREMENT = "local c = tonumber(redis.call('GET', KEYS[1]) or '0'); "
+  .. "if c + tonumber(ARGV[2]) > tonumber(ARGV[3]) then return c + tonumber(ARGV[2]) end; "
+  .. "c = redis.call('INCRBY', KEYS[1], ARGV[2]); "
   .. "if redis.call('TTL', KEYS[1]) < 0 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end; return c"
 
 local function check(task)
@@ -824,11 +785,11 @@ local function check(task)
   }, {
     'EVAL',
     INCREMENT,
-    2,
+    1,
     M.bucket_key(decision.account),
-    M.seen_key(decision.account, decision.identity),
     tostring(M.WINDOW_SECONDS),
     tostring(decision.cost),
+    tostring(decision.limit),
   })
   if not sent then
     apply(task, { action = 'soft reject', message = UNAVAILABLE })

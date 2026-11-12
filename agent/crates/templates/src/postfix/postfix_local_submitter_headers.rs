@@ -6,9 +6,8 @@ const TABLE: &str = include_str!("../../templates/postfix/local_submitter_header
 /// The `header_checks` table of the `cleanup_local` service.
 ///
 /// Postfix never shows a milter the Received line `pickup` writes, and that line
-/// is the only record of the submitting uid, so the table copies the uid and the
-/// maildrop id into the `X-Maran-Local-Submitter` header the local-submission rule
-/// reads (issue #591).
+/// is the only record of the submitting uid, so the table copies the uid into the
+/// `X-Maran-Local-Submitter` header the local-submission rule reads (issue #591).
 pub struct PostfixLocalSubmitterHeaders;
 
 impl PostfixLocalSubmitterHeaders {

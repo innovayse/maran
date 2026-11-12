@@ -312,13 +312,13 @@ queue file therefore cannot take a message off the local road (polygon case 9).
 **Trust of the topmost submitter header (amended #591).** `pickup` writes `Received: by <host> (Postfix, from userid
 <uid>)` itself, on top of whatever the customer wrote (`mail_name` is pinned so the text cannot drift with a
 package default), but Postfix does not show that line to a milter. The `cleanup_local` service's `header_checks`
-table copies the uid and maildrop id into `X-Maran-Local-Submitter` by PREPEND, so the header is the topmost one.
+table copies the uid into `X-Maran-Local-Submitter` by PREPEND, so the header is the topmost one.
 The rule trusts only the topmost `X-Maran-Local-Submitter` header, and only on the `MARAN_LOCAL` road; a
 customer-forged header or Received line sits below it and is ignored (polygon case 6). Any other shape is refused.
 The uid maps to an account through `local_submit_accounts.map`; the envelope sender and `From:` domain must
 both be that account's domains (`5.7.1`); the counter is shared with authenticated SMTP (`4.7.1` deferral
-over the limit) and counts per envelope recipient, once per message identity (`SET NX` guard keyed on the
-maildrop id in the topmost `Received` header, so a re-offered message is not counted twice); a local message is capped at the SMTP recipient limit (`5.5.3`). Exempt uids are
+over the limit) and counts per envelope recipient, charging only a message that fits the
+limit (a deferred message is offered again under a new queue id, so a refused one charges nothing and a retry cannot grow the bucket, amended #591); a local message is capped at the SMTP recipient limit (`5.5.3`). Exempt uids are
 exactly root and the Postfix owner, rendered by the agent; no Dovecot uid submits locally. A missing or
 unreadable map tempfails, and a Lua error in the prefilter is a soft reject, not an acceptance. The
 installer adds no new directory or permission: the maps sit in the existing root-owned, readable
@@ -364,9 +364,9 @@ refused); a login or domain that another account holds is refused with the typed
 `LocalSubmissionConflict` (wire code `ALREADY_EXISTS`) before anything is written, so a moved domain waits
 for its previous owner's removal to land. (M4) An authenticated login missing from `mailbox_accounts.map`
 is a soft reject (`4.4.3`), not an exemption; the lookup and the map keys are lower-cased. (M5) The
-"counted once" key is the maildrop id from the topmost `Received` header, which survives re-offers (the
-cleanup queue id does not); a message without it is counted every time. `Message-ID` is deliberately NOT a
-fallback: it is the sender's own text, so repeating one would exempt a customer from the limit. (M6) A
+"counted once" key (the maildrop id of the pickup line) was withdrawn in #591: that id is the cleanup queue id and
+changes on every re-offer. The bucket is charged only by a message that fits the limit, and `Message-ID` is deliberately NOT
+a key: it is the sender's own text, so repeating one would exempt a customer from the limit. (M6) A
 missing or incomplete settings section registers a stand-in that soft-rejects the local road and any
 unidentified path (smtpd roads pass), and after the reload the agent runs `rspamadm configdump
 maran_local_submit` and refuses to tell Postfix to admit the account when the section is absent. (M7) An

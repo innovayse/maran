@@ -344,7 +344,7 @@ fn the_local_service_names_the_submitter_table_the_stage_writes() {
     assert!(
         master.contains("header_checks=regexp:/etc/maran/mail/local_submitter_headers.regexp\n")
     );
-    assert!(table.contains("PREPEND X-Maran-Local-Submitter: $1 $2"));
+    assert!(table.contains("PREPEND X-Maran-Local-Submitter: $1"));
 }
 
 #[test]

@@ -48,8 +48,8 @@ Postfix owner, which is exempt.
 (the caller's real uid). It is unconditional and sits above everything the customer wrote. Postfix does
 **not** show that line to a milter (Rspamd never sees it), so the uid is carried to the rule another way:
 the `cleanup_local` service, which only `pickup` feeds, runs a `header_checks` table
-(`/etc/maran/mail/local_submitter_headers.regexp`, rendered by the agent) that copies the uid and the
-maildrop id out of the line into a header, `X-Maran-Local-Submitter: <uid> <id>`. The table prepends,
+(`/etc/maran/mail/local_submitter_headers.regexp`, rendered by the agent) that copies the
+uid out of the line into a header, `X-Maran-Local-Submitter: <uid>`. The table prepends,
 and pickup's line is first in the message, so that header is the **topmost** one; a header of that
 name, or a `Received:` line of that shape, written by the customer sits below it and only the topmost
 `X-Maran-Local-Submitter:` header is trusted, and only on the `MARAN_LOCAL` road. `mail_name` is pinned to
@@ -150,14 +150,13 @@ unidentified path, and passes only inbound mail (`INBOUND`). `enabled = false` i
 ### Retries and counting once
 
 A deferral (`4.x`) from the milter leaves a locally submitted message in the maildrop queue and
-`pickup` offers it again on a later scan (expected, UNVERIFIED: polygon case 10). Counting is therefore
-idempotent per message identity. The cleanup queue id changes on every re-offer, so the identity is the
-`id` of the topmost submitter header (copied from the line pickup wrote) (the maildrop file name, stable across re-offers): the
-script does `SET maran:send:seen:<account>:id:<maildrop id> NX EX 3600` and only increments the bucket when
-that key was new; a retry reads the bucket without adding. A message without that id is counted every time,
-which only over-counts. `Message-ID` is never used: the sender controls it, and repeating one would make a
-customer's messages uncounted. A message that is
-still over the limit when retried is deferred again until the hour rolls over.
+`pickup` offers it again on a later scan under a **new** queue id (verified: polygon case 10), so no
+queue id or other per-offer value can name the message. Counting is therefore not keyed on the message at
+all: the script charges the bucket only when the message fits (`current + cost <= limit`) and otherwise
+leaves it untouched and answers the deferral. A message that is still over the limit when retried is
+deferred again without growing the bucket until the hour rolls over, and one that fits is charged once, when
+it is accepted. A message the milter defers for another reason after it was charged is charged again on the
+retry, which only over-counts. `Message-ID` is never used: the sender controls it.
 
 ### Refusals and backscatter
 
@@ -255,7 +254,7 @@ Closing port 25 to local customer processes is the other part of #531: the Postf
 Goldens for the Lua rule's settings, `master.cf` and `main.cf`; Lua unit tests (pure Lua, stub input, run
 by the templates golden test) including the local road with a client address present, forged login
 attributes, unknown and missing daemon names, recipient cost and cap, discard versus reject, and the
-message-identity key, the unknown-login refusal and the unconfigured stand-in; agent tests for the host invariants, key conflicts, the comment-line empty table, the loaded-rule check and the table lock; polygon (`mail-local-submit.sh`, twelve cases): local
+the unknown-login refusal and the unconfigured stand-in; agent tests for the host invariants, key conflicts, the comment-line empty table, the loaded-rule check and the table lock; polygon (`mail-local-submit.sh`, twelve cases): local
 `sendmail` as an allowed account with its own domain is accepted, with another account's envelope sender
 discarded, with another account's `From:` rejected, as an unlisted uid refused, the N+1th message in an
 hour deferred, a forged `Received` line and submitter header ignored, the recipient cap enforced, the default PHP

@@ -361,7 +361,7 @@ assert_local_submission_is_bound_to_the_account() {
     before="$(redis-cli -s "$MARAN_LOCAL_SUBMIT_REDIS_SOCKET" GET maran:send:acc1 2>/dev/null || true)"
     sleep "$LOCAL_SUBMIT_PICKUP_WAIT"
     after="$(redis-cli -s "$MARAN_LOCAL_SUBMIT_REDIS_SOCKET" GET maran:send:acc1 2>/dev/null || true)"
-    [ "$before" = "$after" ] || { local_submit_restore "$backup"; fail "the retried message was counted again (bucket ${before} -> ${after}); counting must be once per message (the maildrop id of the pickup header)"; }
+    [ "$before" = "$after" ] || { local_submit_restore "$backup"; fail "the retried message was counted again (bucket ${before} -> ${after}); a message refused for the limit must not charge the bucket on every retry"; }
   else
     echo "UNOBSERVED HERE (GAP): the retry-is-not-counted-twice assertion did not run: set MARAN_LOCAL_SUBMIT_REDIS_SOCKET and install redis-cli."
   fi
