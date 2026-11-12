@@ -55,9 +55,9 @@ use maran_agent_core::validation::web::port::Port;
 use maran_agent_core::validation::web::source_cidr::SourceCidr;
 use maran_distro::{DistroAdapter, DistroFamily, adapter_for, detect};
 use maran_ops::firewall::{
-    FirewallError, FirewallRule, NftablesProtocol, PortSpan, ProcessFirewallHost, RulesetPorts,
-    RulesetState, allow_port, ban_address, deny_port, ensure_bans_table, list_bans, list_rules,
-    unban_address,
+    FirewallError, FirewallRule, NftablesProtocol, OutputPolicy, PortSpan, ProcessFirewallHost,
+    RulesetPorts, RulesetState, allow_port, ban_address, deny_port, ensure_bans_table, list_bans,
+    list_rules, unban_address,
 };
 
 use polygon_firewall::{BANS_TABLE, PolygonFirewall, RULES_TABLE};
@@ -330,10 +330,10 @@ fn without_the_replace_idiom_the_denied_rule_stays_live_and_everything_else_dupl
     let mysql = rule(REGRESSION_PORT, NftablesProtocol::Tcp, "10.0.0.0/8");
     let full = RulesetState::empty()
         .with(&mysql)
-        .render(&ports())
+        .render(&ports(), &OutputPolicy::new(1000, []))
         .expect("the ruleset must render");
     let without_mysql = RulesetState::empty()
-        .render(&ports())
+        .render(&ports(), &OutputPolicy::new(1000, []))
         .expect("the ruleset must render");
 
     let directory = std::env::temp_dir();

@@ -18,7 +18,7 @@
 #   4. a uid the data plane does not list: refused (by postdrop, or by the rule);
 #   5. the N+1th message inside the hour: deferred 4.7.1, not rejected;
 #   6. a customer-written second Received header naming another uid: ignored, only the topmost counts;
-#   7. more recipients than the cap: rejected 5.5.3;
+#   7. more recipients than the cap: rejected (too many recipients);
 #   8. PHP mail() without -f (envelope user@host): refused, not delivered (supported config is -f);
 #   9. a hand-built postdrop stream carrying forged sasl_username / client_address attributes: still
 #      judged by the uid, never taken for an authenticated login or an SMTP client;
@@ -126,7 +126,7 @@ local_submit_outcome() {
       line="$(grep -F -- "$queue_id" "$log" | tr '\n' ' ')"
       case "$line" in
         *"milter-discard"*|*"DISCARD"*) echo discarded; return ;;
-        *"5.5.3"*) echo rejected-recipients; return ;;
+        *"too many recipients"*|*"5.5.3"*) echo rejected-recipients; return ;;
         *"5.7.1"*) echo rejected; return ;;
         *"4.7.1"*|*"status=deferred"*) echo deferred; return ;;
         *"status=sent"*) echo accepted; return ;;

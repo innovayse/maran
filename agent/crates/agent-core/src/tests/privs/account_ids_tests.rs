@@ -200,7 +200,7 @@ fn an_explicit_zero_floor_is_refused_rather_than_trusted() {
     // a naive parser accepts it; the floor then becomes 0, `id < 0` is never true
     // for an unsigned integer, and every SystemAccount refusal silently stops
     // firing. One line in a config file and the protection is gone.
-    assert_eq!(id_floor("UID_MIN 0\n", "UID_MIN"), FALLBACK_MINIMUM_ID);
+    assert_eq!(id_floor_in(["UID_MIN 0\n"], "UID_MIN"), DEFAULT_ID_FLOOR);
 }
 
 #[test]
@@ -209,7 +209,7 @@ fn a_zero_floor_would_have_admitted_every_system_account() {
     // not only in a comment: with a floor of zero, `daemon` passes.
     assert_eq!(is_hosting_account(1, 1, 0, 0), Ok(()));
     // With the parser's answer for the same input, it does not.
-    let floor = id_floor("UID_MIN 0\n", "UID_MIN");
+    let floor = id_floor_in(["UID_MIN 0\n"], "UID_MIN");
     assert_eq!(
         is_hosting_account(1, 1, floor, floor),
         Err(PrivError::SystemAccount)
@@ -218,18 +218,21 @@ fn a_zero_floor_would_have_admitted_every_system_account() {
 
 #[test]
 fn a_key_with_no_value_falls_back() {
-    assert_eq!(id_floor("UID_MIN\n", "UID_MIN"), FALLBACK_MINIMUM_ID);
+    assert_eq!(id_floor_in(["UID_MIN\n"], "UID_MIN"), DEFAULT_ID_FLOOR);
 }
 
 #[test]
 fn a_non_numeric_value_falls_back() {
-    assert_eq!(id_floor("UID_MIN banana\n", "UID_MIN"), FALLBACK_MINIMUM_ID);
+    assert_eq!(
+        id_floor_in(["UID_MIN banana\n"], "UID_MIN"),
+        DEFAULT_ID_FLOOR
+    );
 }
 
 #[test]
 fn a_negative_value_falls_back() {
     // Parsed as u32, so the minus sign fails the parse rather than wrapping.
-    assert_eq!(id_floor("UID_MIN -1\n", "UID_MIN"), FALLBACK_MINIMUM_ID);
+    assert_eq!(id_floor_in(["UID_MIN -1\n"], "UID_MIN"), DEFAULT_ID_FLOOR);
 }
 
 #[test]
@@ -237,42 +240,61 @@ fn a_sys_prefixed_key_does_not_answer_for_the_real_one() {
     // SYS_UID_MIN is the floor for SYSTEM accounts — the exact ids this module
     // refuses. Letting it answer would invert the check.
     assert_eq!(
-        id_floor("SYS_UID_MIN 100\n", "UID_MIN"),
-        FALLBACK_MINIMUM_ID
+        id_floor_in(["SYS_UID_MIN 100\n"], "UID_MIN"),
+        DEFAULT_ID_FLOOR
     );
 }
 
 #[test]
 fn a_commented_out_key_does_not_answer() {
     assert_eq!(
-        id_floor("# UID_MIN 500\n#UID_MIN 500\n", "UID_MIN"),
-        FALLBACK_MINIMUM_ID
+        id_floor_in(["# UID_MIN 500\n#UID_MIN 500\n"], "UID_MIN"),
+        DEFAULT_ID_FLOOR
     );
 }
 
 #[test]
-fn the_first_usable_value_wins_over_a_duplicate_key() {
-    assert_eq!(id_floor("UID_MIN 2000\nUID_MIN 3000\n", "UID_MIN"), 2000);
+fn the_last_value_wins_over_a_duplicate_key_as_it_does_for_useradd() {
+    assert_eq!(
+        id_floor_in(["UID_MIN 2000\nUID_MIN 3000\n"], "UID_MIN"),
+        3000
+    );
 }
 
 #[test]
-fn an_unusable_first_value_falls_through_to_a_usable_duplicate() {
-    // `find_map` skips entries that do not yield a floor, so a zero or a typo
-    // ahead of a real value does not shadow it.
-    assert_eq!(id_floor("UID_MIN 0\nUID_MIN 2000\n", "UID_MIN"), 2000);
+fn an_unusable_last_value_is_not_answered_with_an_earlier_one() {
+    // The deciding line is the last; a zero or a typo there is the host's word, and an older
+    // line the host no longer means must not stand in for it.
+    assert_eq!(
+        id_floor_in(["UID_MIN 2000\nUID_MIN 0\n"], "UID_MIN"),
+        DEFAULT_ID_FLOOR
+    );
+}
+
+#[test]
+fn the_first_file_that_sets_the_floor_decides_and_a_later_one_is_a_default_only() {
+    // /etc overrides the vendor copy under /usr/etc, the same list the firewall reads.
+    assert_eq!(
+        id_floor_in(["UID_MIN 3000\n", "UID_MIN 2000\n"], "UID_MIN"),
+        3000
+    );
+    assert_eq!(
+        id_floor_in(["# nothing\n", "UID_MIN 2000\n"], "UID_MIN"),
+        2000
+    );
 }
 
 #[test]
 fn tabs_and_carriage_returns_around_the_value_are_tolerated() {
     // Debian ships this line tab-separated, and a file edited on Windows carries
     // CRLF. `split_whitespace` handles both, and `\r` is whitespace to it.
-    assert_eq!(id_floor("UID_MIN\t\t\t 1500\r\n", "UID_MIN"), 1500);
+    assert_eq!(id_floor_in(["UID_MIN\t\t\t 1500\r\n"], "UID_MIN"), 1500);
 }
 
 #[test]
 fn an_empty_file_gives_the_fallback() {
     // Which is also the answer for a file that could not be read at all.
-    assert_eq!(id_floor("", "UID_MIN"), FALLBACK_MINIMUM_ID);
+    assert_eq!(id_floor_in([""], "UID_MIN"), DEFAULT_ID_FLOOR);
 }
 
 #[test]
@@ -282,8 +304,8 @@ fn the_group_floor_is_read_from_gid_min_and_not_from_uid_min() {
     // the host itself considers a system group.
     let contents = "UID_MIN 1000\nGID_MIN 5000\n";
 
-    assert_eq!(id_floor(contents, "UID_MIN"), 1000);
-    assert_eq!(id_floor(contents, "GID_MIN"), 5000);
+    assert_eq!(id_floor_in([contents], "UID_MIN"), 1000);
+    assert_eq!(id_floor_in([contents], "GID_MIN"), 5000);
 }
 
 #[test]
@@ -301,7 +323,7 @@ fn a_missing_gid_min_falls_back_without_borrowing_the_uid_floor() {
     // A host that sets only UID_MIN gets 1000 for the group floor, not 4000.
     let contents = "UID_MIN 4000\n";
 
-    assert_eq!(id_floor(contents, "GID_MIN"), FALLBACK_MINIMUM_ID);
+    assert_eq!(id_floor_in([contents], "GID_MIN"), DEFAULT_ID_FLOOR);
 }
 
 #[test]

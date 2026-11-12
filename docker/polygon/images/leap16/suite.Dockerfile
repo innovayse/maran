@@ -241,6 +241,8 @@ COPY installer/systemd/maran-agent.service /tmp/maran-installer/systemd/maran-ag
 # (issue #93), so it must be here or the step aborts on a missing source and no suite runs.
 COPY installer/systemd/maran-app-install@.service /tmp/maran-installer/systemd/maran-app-install@.service
 COPY installer/systemd/maran-app-remove@.service /tmp/maran-installer/systemd/maran-app-remove@.service
+COPY installer/systemd/maran-app-nodejs-install@.service /tmp/maran-installer/systemd/maran-app-nodejs-install@.service
+COPY installer/systemd/maran-app-nodejs-remove@.service /tmp/maran-installer/systemd/maran-app-nodejs-remove@.service
 COPY installer/lib/70-services.sh /tmp/maran-installer/lib/70-services.sh
 # Step 80 again — the earlier COPY was consumed by the `rm -rf /tmp/maran-installer` that ends
 # the include block above — and step 40 beside it. Both are RUN by the assert script, not read:

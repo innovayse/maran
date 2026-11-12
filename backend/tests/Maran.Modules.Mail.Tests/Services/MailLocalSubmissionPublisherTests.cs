@@ -1,3 +1,5 @@
+using Maran.Modules.Mail.Domain.Enums;
+using Maran.Modules.Mail.Domain.Policies;
 using Maran.Modules.Mail.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
@@ -61,6 +63,94 @@ public sealed class MailLocalSubmissionPublisherTests
         Assert.Equal(["info@own.test"], sent.MailboxLogins);
     }
 
+    /// <summary>A forwarding alias and a catch-all are sent with the deliveries that leave the account; an alias that stays inside is sent with zero.</summary>
+    [Fact]
+    public async Task A_forwarding_alias_and_a_catch_all_are_sent_with_their_outside_delivery_count()
+    {
+        using var context = new MailTestContext();
+        await context.SeedEnabledServerAsync();
+        context.Accounts.Add(AccountId, "acme");
+        var domain = await context.SeedDomainAsync(AccountId, "a.test");
+        await context.SeedMailboxAsync(domain, "desk");
+        await MailAliasSeeds.SeedAliasAsync(
+            context,
+            domain,
+            "sales",
+            MailAliasKind.Forwarder,
+            "one@outside.test",
+            "two@outside.test",
+            "desk@a.test");
+        await MailAliasSeeds.SeedAliasAsync(context, domain, "team", MailAliasKind.Alias, "desk@a.test");
+        await MailAliasSeeds.SeedAliasAsync(
+            context,
+            domain,
+            MailboxAddressPolicy.CatchAllLocalPart,
+            MailAliasKind.CatchAll,
+            "x@outside.test");
+
+        await context.LocalSubmission.PublishAsSystemAsync(AccountId, CancellationToken.None);
+
+        var sent = Assert.Single(context.Agent.LocalSubmissions);
+        Assert.Equal(3, sent.AliasFanouts.Count);
+        Assert.Equal("@a.test", sent.AliasFanouts[0].Alias);
+        Assert.Equal(1u, sent.AliasFanouts[0].ExternalTargets);
+        Assert.Equal("sales@a.test", sent.AliasFanouts[1].Alias);
+        Assert.Equal(2u, sent.AliasFanouts[1].ExternalTargets);
+        // The inside alias is sent too, with zero outside deliveries, so the filter never lets it fall
+        // through to the catch-all.
+        Assert.Equal("team@a.test", sent.AliasFanouts[2].Alias);
+        Assert.Equal(0u, sent.AliasFanouts[2].ExternalTargets);
+    }
+
+    /// <summary>An alias of an alias is charged what the inner alias delivers; the inverse control is that the inner list alone is the same figure.</summary>
+    [Fact]
+    public async Task An_alias_of_an_alias_is_sent_with_the_inner_aliass_outside_deliveries()
+    {
+        using var context = new MailTestContext();
+        await context.SeedEnabledServerAsync();
+        context.Accounts.Add(AccountId, "acme");
+        var domain = await context.SeedDomainAsync(AccountId, "a.test");
+        await MailAliasSeeds.SeedAliasAsync(
+            context,
+            domain,
+            "inner",
+            MailAliasKind.Forwarder,
+            "one@outside.test",
+            "two@outside.test",
+            "three@outside.test");
+        await MailAliasSeeds.SeedAliasAsync(context, domain, "outer", MailAliasKind.Alias, "inner@a.test");
+
+        await context.LocalSubmission.PublishAsSystemAsync(AccountId, CancellationToken.None);
+
+        var sent = Assert.Single(context.Agent.LocalSubmissions);
+        Assert.Equal(["inner@a.test", "outer@a.test"], sent.AliasFanouts.Select(fanout =>
+        {
+            return fanout.Alias;
+        }).Order(StringComparer.Ordinal));
+        Assert.All(sent.AliasFanouts, fanout =>
+        {
+            Assert.Equal(3u, fanout.ExternalTargets);
+        });
+    }
+
+    /// <summary>The inverse control: another account's forwarder never appears in the binding.</summary>
+    [Fact]
+    public async Task Another_accounts_forwarder_is_not_in_the_binding()
+    {
+        using var context = new MailTestContext();
+        await context.SeedEnabledServerAsync();
+        context.Accounts.Add(AccountId, "acme");
+        context.Accounts.Add(OtherAccountId, "globex");
+        await context.SeedDomainAsync(AccountId, "own.test");
+        var foreign = await context.SeedDomainAsync(OtherAccountId, "foreign.test");
+        await MailAliasSeeds.SeedAliasAsync(context, foreign, "sales", MailAliasKind.Forwarder, "x@outside.test");
+
+        await context.LocalSubmission.PublishAsSystemAsync(AccountId, CancellationToken.None);
+
+        var sent = Assert.Single(context.Agent.LocalSubmissions);
+        Assert.Empty(sent.AliasFanouts);
+    }
+
     /// <summary>An account with no rows is still bound, with empty lists, so it can send nothing.</summary>
     [Fact]
     public async Task An_account_with_no_mail_rows_is_bound_with_empty_lists()
@@ -74,6 +164,7 @@ public sealed class MailLocalSubmissionPublisherTests
         var sent = Assert.Single(context.Agent.LocalSubmissions);
         Assert.Empty(sent.Domains);
         Assert.Empty(sent.MailboxLogins);
+        Assert.Empty(sent.AliasFanouts);
     }
 
     /// <summary>With mail off nothing is sent; with it on the same call sends (the control).</summary>

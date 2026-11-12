@@ -96,3 +96,11 @@ static FIREWALL_MUTATIONS: Mutex<()> = Mutex::const_new(());
 pub(crate) fn firewall_lock() -> MutexGuard<'static, ()> {
     FIREWALL_MUTATIONS.blocking_lock()
 }
+
+/// Whether some thread holds the firewall lock right now. A test double calls this from inside a host
+/// method to learn whether the operation that reached it holds the lock, which is how a test asserts "the
+/// facts are read under the lock" without a thread, a sleep or a race.
+#[cfg(test)]
+pub(crate) fn firewall_lock_is_held() -> bool {
+    FIREWALL_MUTATIONS.try_lock().is_err()
+}

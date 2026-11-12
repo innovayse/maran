@@ -3,6 +3,7 @@ using Maran.Agent.Client.Services.MailService;
 using Maran.Modules.Mail.Domain.Entities;
 using Maran.Modules.Mail.Domain.Enums;
 using Maran.Modules.Mail.Domain.Policies;
+using Maran.Modules.Mail.Domain.ValueObjects;
 using Maran.Modules.Mail.Persistence;
 using Maran.Modules.Mail.Resources;
 using Maran.Sdk.Contracts;
@@ -29,6 +30,12 @@ namespace Maran.Modules.Mail.Services;
 /// tenant filter, and a binding built from them would be empty and would REPLACE the real one with nothing.
 /// The reads therefore ignore the tenant filter and are keyed on the account's id alone. The figures are sent
 /// to the agent and never returned to the caller.
+/// </para>
+/// <para>
+/// <b>A forwarding recipient costs once per outside delivery.</b> The binding also carries, for every alias and
+/// every catch-all of the account whose WHOLE expansion (nested aliases followed) reaches a domain the account
+/// does not host, how many deliveries that is, so the agent charges a message to that recipient against the
+/// send limit that many times. The count is <see cref="MailAliasFanoutPolicy.Resolve"/>'s.
 /// </para>
 /// <para>
 /// <b>The send limit is the ACCOUNT's, not a mailbox's.</b> One hourly bucket counts local submission and
@@ -386,6 +393,15 @@ public sealed class MailLocalSubmissionPublisher
             .Where(row => row.AccountId == account.Id)
             .Select(row => new { row.LocalPart, DomainName = row.MailDomain.Name })
             .ToListAsync(cancellationToken);
+        var aliases = await _dbContext.MailAliases
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Include(row => row.MailDomain)
+            .Include(row => row.Targets)
+            .Where(row => row.AccountId == account.Id)
+            .OrderBy(row => row.MailDomain.Name)
+            .ThenBy(row => row.LocalPart)
+            .ToListAsync(cancellationToken);
 #pragma warning restore RS0030
         var mailboxLogins = logins
             .Select(row =>
@@ -395,11 +411,41 @@ public sealed class MailLocalSubmissionPublisher
             .Order(StringComparer.Ordinal)
             .ToList();
 
+        // What the filter charges for a recipient is what the whole expansion delivers outside the host: nested
+        // aliases followed, a catch-all keyed by its domain, the MTA's expansion limit as the ceiling.
+        var aliasFanouts = MailAliasFanoutPolicy
+            .Resolve(
+                domains,
+                aliases
+                    .Select(row =>
+                    {
+                        return new MailAliasEntry(
+                            row.LocalPart,
+                            row.MailDomain.Name,
+                            row.Targets
+                                .Select(target =>
+                                {
+                                    return target.Address;
+                                })
+                                .ToList());
+                    })
+                    .ToList(),
+                mailboxLogins)
+            .OrderBy(fanout =>
+            {
+                return fanout.Key;
+            }, StringComparer.Ordinal)
+            .Select(fanout =>
+            {
+                return new AgentAliasFanout(fanout.Key, (uint)fanout.Value);
+            })
+            .ToList();
+
         // A non-positive plan figure is sent as zero so the agent refuses it, never read as "no limit".
         var limit = (uint)Math.Max(0, account.MailLimits.MailboxSendLimitPerHour);
 
         var sent = await _agent.SetLocalSubmissionAsync(
-            new AgentLocalSubmission(account.Username, domains, limit, mailboxLogins),
+            new AgentLocalSubmission(account.Username, domains, limit, mailboxLogins, aliasFanouts),
             cancellationToken);
 
         await RecordAsync(

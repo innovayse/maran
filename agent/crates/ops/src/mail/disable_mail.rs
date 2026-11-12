@@ -5,6 +5,7 @@ use maran_distro::DistroAdapter;
 use crate::mail::get_mail_status::get_mail_status;
 use crate::mail::mail_error::MailError;
 use crate::mail::mail_host::MailHost;
+use crate::mail::mail_lifecycle_lock::hold_mail_lifecycle;
 use crate::mail::model::mail_layout::MailLayout;
 use crate::mail::model::mail_state::MailState;
 use crate::mail::stop_mail_daemons::stop_mail_daemons;
@@ -40,6 +41,9 @@ pub fn disable_mail(
     distro: &dyn DistroAdapter,
     version_id: &str,
 ) -> Result<MailState, MailError> {
+    // One start, stop or address refresh at a time (see the lock): a refresh that checked
+    // "Postfix is running" must not reload it after this stopped it.
+    let _lifecycle = hold_mail_lifecycle();
     let layout = MailLayout::resolve(distro, version_id)?;
     stop_mail_daemons(host, distro, &layout)?;
     get_mail_status(host, distro, &layout)

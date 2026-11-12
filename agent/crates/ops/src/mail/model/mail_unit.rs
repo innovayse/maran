@@ -54,6 +54,14 @@ impl<'a> MailUnit<'a> {
         ["reload-or-restart", END_OF_OPTIONS, self.name]
     }
 
+    /// Ask a RUNNING unit to re-read its configuration. Unlike
+    /// [`Self::reload_or_restart`] it never starts a stopped unit: the service manager
+    /// refuses it for one, which is what a caller that must not bring a server up needs.
+    #[must_use]
+    pub fn reload(&self) -> [&'a str; 3] {
+        ["reload", END_OF_OPTIONS, self.name]
+    }
+
     /// Stop the unit and take it out of the boot sequence, in one command: a
     /// stopped unit that stays enabled is an operator's decision undone by the
     /// next reboot.

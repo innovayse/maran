@@ -10,6 +10,7 @@ use crate::firewall::firewall_lock::firewall_lock;
 use crate::firewall::list_rules::read_ruleset;
 use crate::firewall::model::firewall_rule::FirewallRule;
 use crate::firewall::model::ruleset_ports::RulesetPorts;
+use crate::firewall::read_output_policy::read_output_policy;
 
 /// Removes `rule` from the host's firewall and loads the result.
 ///
@@ -81,7 +82,8 @@ pub fn deny_port(
         return Err(FirewallError::NotFound);
     }
 
-    let contents = current.without(rule).render(ports)?;
+    let policy = read_output_policy(host, distro)?;
+    let contents = current.without(rule).render(ports, &policy)?;
 
     apply_ruleset(host, distro, AgentPaths::nftables_ruleset_path(), &contents)
 }

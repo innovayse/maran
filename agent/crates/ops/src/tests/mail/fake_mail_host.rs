@@ -5,20 +5,26 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 
 use maran_agent_core::command_outcome::CommandOutcome;
 use maran_agent_core::utils::call_class::CallClass;
+use maran_agent_core::utils::host_addresses::HostAddresses;
+use maran_agent_core::utils::host_addresses_error::HostAddressesError;
+use maran_agent_core::utils::ipv4_prefix::Ipv4Prefix;
 use maran_agent_core::validation::mail::mail_message_size_mib::MailMessageSizeMib;
 use maran_agent_core::validation::mail::mail_server_hostname::MailServerHostname;
 use maran_agent_core::validation::mail::spam_thresholds::SpamThresholds;
 use maran_agent_core::validation::web::domain::Domain;
 use maran_distro::{AdapterBinary, DistroAdapter, DistroFamily, adapter_for};
 
+use crate::mail::local_submission_tables::tables_are_held;
 use crate::mail::mail_error::MailError;
 use crate::mail::mail_host::MailHost;
+use crate::mail::mail_lifecycle_lock::mail_lifecycle_is_held;
 use crate::mail::model::listening_socket::ListeningSocket;
 use crate::mail::model::mail_daemon::MailDaemon;
 use crate::mail::model::mail_ports::MailPorts;
@@ -107,7 +113,25 @@ pub(crate) struct FakeMailHost {
     drop_binary: Option<PathFacts>,
     /// Whether Rspamd reports no settings section for the local-submission rule.
     rule_not_loaded: bool,
+    /// The addresses the host's interfaces carry; `None` when the kernel's table
+    /// cannot be read.
+    host_addresses: Mutex<Option<Vec<IpAddr>>>,
+    /// The IPv4 ranges the routing table marks local.
+    local_prefixes: Mutex<Vec<Ipv4Prefix>>,
+    /// A unit that stops right after it has answered `is-active` with "active": the
+    /// window between a caller's check and its reload, which another operation (a
+    /// disable) can land in when nothing serialises the two.
+    stops_after_check: Option<String>,
+    /// How many state-reading or state-changing calls reached the host while the mail lifecycle lock was
+    /// held, and while it was not.
+    lifecycle_calls: Mutex<(usize, usize)>,
+    /// The same count for the lock of the local-submission tables.
+    table_calls: Mutex<(usize, usize)>,
 }
+
+/// The addresses a fake host carries unless a test says otherwise: the loopback,
+/// one public IPv4 address and one IPv6 address.
+pub(crate) const DEFAULT_HOST_ADDRESSES: [&str; 3] = ["127.0.0.1", "192.0.2.10", "2001:db8::5"];
 
 /// The user database of a host that has the Postfix user installed.
 pub(crate) const DEFAULT_PASSWD: &str = "root:x:0:0::/root:/bin/bash\npostfix:x:105:119::/var/spool/postfix:/usr/sbin/nologin\nacme:x:1001:1001::/home/acme:/bin/bash\nother:x:1002:1002::/home/other:/bin/bash\n";
@@ -143,6 +167,16 @@ impl FakeMailHost {
                 gid: DROP_GID,
             }),
             rule_not_loaded: false,
+            host_addresses: Mutex::new(Some(
+                DEFAULT_HOST_ADDRESSES
+                    .iter()
+                    .map(|address| address.parse().unwrap())
+                    .collect(),
+            )),
+            local_prefixes: Mutex::new(Vec::new()),
+            stops_after_check: None,
+            lifecycle_calls: Mutex::new((0, 0)),
+            table_calls: Mutex::new((0, 0)),
         };
         for unit in host.all_units() {
             host.world.lock().unwrap().units.insert(
@@ -154,6 +188,35 @@ impl FakeMailHost {
             );
         }
         host
+    }
+
+    /// How many calls reached this host while the mail lifecycle lock was held, and while it was not. An
+    /// operation that starts, stops or reloads the daemons must make all of its calls under the lock; the
+    /// second count is the mistake this exists to show, observed from inside the host with no thread and no
+    /// sleep.
+    pub(crate) fn lifecycle_calls(&self) -> (usize, usize) {
+        *self.lifecycle_calls.lock().unwrap()
+    }
+
+    /// How many calls reached this host while the lock of the local-submission tables was held, and while
+    /// it was not: a change to those tables must make all of its reads and writes under it.
+    pub(crate) fn table_calls(&self) -> (usize, usize) {
+        *self.table_calls.lock().unwrap()
+    }
+
+    /// Notes whether the locks are held by whoever made the call that reached the host.
+    fn note_lifecycle(&self) {
+        for (held, counter) in [
+            (mail_lifecycle_is_held(), &self.lifecycle_calls),
+            (tables_are_held(), &self.table_calls),
+        ] {
+            let mut calls = counter.lock().unwrap();
+            if held {
+                calls.0 += 1;
+            } else {
+                calls.1 += 1;
+            }
+        }
     }
 
     /// The four unit names this release uses.
@@ -191,6 +254,12 @@ impl FakeMailHost {
     /// `daemon`'s own check refuses what it is given and prints `output`.
     pub(crate) fn with_refusing_check(mut self, daemon: MailDaemon, output: &str) -> Self {
         self.refusing_check = Some((daemon, output.to_owned()));
+        self
+    }
+
+    /// `unit` stops the moment after it has told a caller it is active.
+    pub(crate) fn with_unit_stopping_after_check(mut self, unit: &str) -> Self {
+        self.stops_after_check = Some(unit.to_owned());
         self
     }
 
@@ -248,6 +317,30 @@ impl FakeMailHost {
     pub(crate) fn with_unloaded_rule(mut self) -> Self {
         self.rule_not_loaded = true;
         self
+    }
+
+    /// The kernel's address tables cannot be read.
+    pub(crate) fn with_unreadable_host_addresses(self) -> Self {
+        *self.host_addresses.lock().unwrap() = None;
+        self
+    }
+
+    /// An interface of the running host gains `address`.
+    pub(crate) fn gain_address(&self, address: &str) {
+        self.host_addresses
+            .lock()
+            .unwrap()
+            .as_mut()
+            .unwrap()
+            .push(address.parse().unwrap());
+    }
+
+    /// The routing table of the running host gains a local range.
+    pub(crate) fn gain_local_range(&self, network: &str, length: u8) {
+        self.local_prefixes
+            .lock()
+            .unwrap()
+            .push(Ipv4Prefix::new(network.parse().unwrap(), length).unwrap());
     }
 
     /// `program` run with exactly `arguments` exits `status` printing `stdout`.
@@ -380,7 +473,18 @@ impl FakeMailHost {
                 state.enabled = true;
                 0
             }
-            "is-active" => i32::from(!state.active) * 3,
+            "is-active" => {
+                let answer = i32::from(!state.active) * 3;
+                if state.active && self.stops_after_check.as_deref() == Some(unit.as_str()) {
+                    state.active = false;
+                }
+                answer
+            }
+            // The plain reload of a running unit; a stopped or masked unit refuses it
+            // as `systemctl` does ("Job type reload is not applicable for inactive
+            // unit"), where reload-or-restart would start it.
+            "reload" if state.masked || !state.active => 1,
+            "reload" => 0,
             "reload-or-restart"
                 if state.masked || self.refusing_unit.as_deref() == Some(unit.as_str()) =>
             {
@@ -413,6 +517,7 @@ impl MailHost for FakeMailHost {
         arguments: &[&str],
         _class: CallClass,
     ) -> Result<CommandOutcome, MailError> {
+        self.note_lifecycle();
         let mut argv = vec![program.as_str().to_owned()];
         argv.extend(arguments.iter().map(|argument| (*argument).to_owned()));
         self.world
@@ -461,6 +566,7 @@ impl MailHost for FakeMailHost {
     }
 
     fn read_config(&self, target: &Path) -> Result<Option<String>, MailError> {
+        self.note_lifecycle();
         if let Some(contents) = self.identity_files.get(target) {
             return Ok(Some(contents.clone()));
         }
@@ -582,6 +688,17 @@ impl MailHost for FakeMailHost {
             }
         }
         Ok(sockets)
+    }
+
+    fn host_addresses(&self) -> Result<HostAddresses, MailError> {
+        let addresses = self.host_addresses.lock().unwrap().clone().ok_or(
+            MailError::HostAddressesUnreadable(HostAddressesError::Ipv4Missing),
+        )?;
+
+        Ok(HostAddresses {
+            addresses,
+            local_prefixes: self.local_prefixes.lock().unwrap().clone(),
+        })
     }
 
     fn certificate_state(&self, domain: &Domain) -> Result<CertificateState, MailError> {

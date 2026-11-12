@@ -10,10 +10,12 @@ use maran_templates::dovecot::dovecot_config_v24::DovecotConfigV24;
 use maran_templates::key_value::key_value_server_config::KeyValueServerConfig;
 use maran_templates::postfix::postfix_main_config::PostfixMainConfig;
 use maran_templates::postfix::postfix_master_config::PostfixMasterConfig;
+use maran_templates::postfix::postfix_self_clients::PostfixSelfClients;
 use maran_templates::rspamd::rspamd_actions::RspamdActions;
 use maran_templates::rspamd::rspamd_dkim_signing::RspamdDkimSigning;
 use maran_templates::rspamd::rspamd_redis::RspamdRedis;
 use maran_templates::rspamd::rspamd_worker_controller::RspamdWorkerController;
+use maran_templates::rspamd::rspamd_worker_normal::RspamdWorkerNormal;
 use maran_templates::rspamd::rspamd_worker_proxy::RspamdWorkerProxy;
 
 const CERTIFICATE: &str = "/etc/maran/certificates/mail.example.test/fullchain.pem";
@@ -30,6 +32,7 @@ fn main_config() -> PostfixMainConfig {
         hostname: "mail.example.test".to_owned(),
         message_size_bytes: 52_428_800,
         recipient_limit: 100,
+        alias_expansion_limit: 100,
         map_type: "lmdb".to_owned(),
         virtual_domains_path: "/etc/maran/mail/virtual_domains".to_owned(),
         virtual_mailboxes_path: "/etc/maran/mail/virtual_mailboxes".to_owned(),
@@ -41,6 +44,12 @@ fn main_config() -> PostfixMainConfig {
         milter_socket: "/run/rspamd/maran-milter.sock".to_owned(),
         certificate_path: CERTIFICATE.to_owned(),
         private_key_path: KEY.to_owned(),
+    }
+}
+
+fn master_config() -> PostfixMasterConfig {
+    PostfixMasterConfig {
+        self_clients_path: "/etc/maran/mail/self_clients.cidr".to_owned(),
     }
 }
 
@@ -176,25 +185,133 @@ fn the_local_submit_table_follows_the_path_it_is_given() {
 }
 
 #[test]
-fn the_port_25_service_overrides_only_its_daemon_name_so_it_keeps_the_strict_defaults() {
-    // The accepting side of the control below: `smtp inet` may carry exactly one
-    // `-o`, its milter daemon name (INBOUND), because any other could re-open
-    // what main.cf closed.
-    let rendered = PostfixMasterConfig {}.render_config().unwrap();
+fn the_port_25_service_overrides_only_its_client_restriction_and_daemon_name_so_it_keeps_the_strict_defaults()
+ {
+    // The accepting side of the control below: `smtp inet` carries exactly two
+    // `-o`, its client restriction (the host's own addresses, issue #531) and its
+    // milter daemon name (INBOUND), because any other could re-open what main.cf
+    // closed.
+    let rendered = master_config().render_config().unwrap();
     let block: Vec<&str> = rendered
         .lines()
         .skip_while(|line| !line.starts_with("smtp       inet"))
         .skip(1)
         .take_while(|line| line.starts_with(' '))
         .collect();
-    assert_eq!(block, vec!["  -o milter_macro_daemon_name=INBOUND"]);
+    assert_eq!(
+        block,
+        vec![
+            "  -o smtpd_client_restrictions=check_client_access,cidr:/etc/maran/mail/self_clients.cidr,permit",
+            "  -o milter_macro_daemon_name=INBOUND"
+        ]
+    );
+}
+
+#[test]
+fn the_port_25_service_refuses_this_hosts_own_clients_before_anything_else() {
+    // Issue #531: the restriction list of the public service is the table of the
+    // host's own addresses followed by `permit`, so any other client falls through
+    // to the relay and recipient restrictions of main.cf.
+    let rendered = master_config().render_config().unwrap();
+    let block: Vec<&str> = rendered
+        .lines()
+        .skip_while(|line| !line.starts_with("smtp       inet"))
+        .skip(1)
+        .take_while(|line| line.starts_with(' '))
+        .map(str::trim)
+        .collect();
+    assert!(block.contains(
+        &"-o smtpd_client_restrictions=check_client_access,cidr:/etc/maran/mail/self_clients.cidr,permit"
+    ));
+}
+
+#[test]
+fn only_the_public_service_carries_the_own_host_restriction() {
+    // Inverse control: the two login services keep their own client restrictions
+    // (a login, then reject), and the table is named exactly once.
+    let rendered = master_config().render_config().unwrap();
+    let options_using_the_table = rendered
+        .lines()
+        .filter(|line| line.starts_with("  -o") && line.contains("check_client_access"))
+        .count();
+    assert_eq!(options_using_the_table, 1);
+    assert_eq!(rendered.matches("self_clients.cidr").count(), 1);
+    assert_eq!(
+        rendered
+            .matches("smtpd_client_restrictions=permit_sasl_authenticated,reject")
+            .count(),
+        2
+    );
+}
+
+#[test]
+fn the_master_config_follows_the_path_it_is_given() {
+    let rendered = PostfixMasterConfig {
+        self_clients_path: "/srv/other/clients.cidr".to_owned(),
+    }
+    .render_config()
+    .unwrap();
+    assert!(rendered.contains("cidr:/srv/other/clients.cidr,permit"));
+    assert!(!rendered.contains("cidr:/etc/maran/mail/self_clients.cidr"));
+}
+
+#[test]
+fn postfix_self_clients_renders_its_golden() {
+    let rendered = PostfixSelfClients {
+        ipv4_ranges: Vec::new(),
+        ipv4: vec![
+            "192.0.2.10".parse().unwrap(),
+            "198.51.100.7".parse().unwrap(),
+        ],
+        ipv6: vec!["2001:db8::5".parse().unwrap()],
+    }
+    .render_config()
+    .unwrap();
+    assert_eq!(rendered, golden("postfix/postfix_self_clients.cidr"));
+}
+
+#[test]
+fn a_local_range_is_refused_as_a_whole_and_before_the_single_addresses() {
+    let rendered = PostfixSelfClients {
+        ipv4_ranges: vec![("203.0.113.0".parse().unwrap(), 24)],
+        ipv4: vec!["192.0.2.10".parse().unwrap()],
+        ipv6: Vec::new(),
+    }
+    .render_config()
+    .unwrap();
+    assert!(rendered.contains("203.0.113.0/24 REJECT"));
+    assert!(rendered.contains("192.0.2.10/32 REJECT"));
+    // Inverse control: a host with no routed block lists no range.
+    let plain = PostfixSelfClients {
+        ipv4_ranges: Vec::new(),
+        ipv4: vec!["192.0.2.10".parse().unwrap()],
+        ipv6: Vec::new(),
+    }
+    .render_config()
+    .unwrap();
+    assert!(!plain.contains("203.0.113.0/24"));
+}
+
+#[test]
+fn a_host_with_no_other_address_still_refuses_both_loopbacks() {
+    let rendered = PostfixSelfClients {
+        ipv4_ranges: Vec::new(),
+        ipv4: Vec::new(),
+        ipv6: Vec::new(),
+    }
+    .render_config()
+    .unwrap();
+    assert_eq!(
+        rendered,
+        golden("postfix/postfix_self_clients_loopback_only.cidr")
+    );
 }
 
 #[test]
 fn pickup_alone_uses_the_cleanup_service_that_names_the_local_road() {
     // Issue #518: the rule tells a local submission by the daemon name of the
     // cleanup service, so pickup gets its own and nothing else shares it.
-    let rendered = PostfixMasterConfig {}.render_config().unwrap();
+    let rendered = master_config().render_config().unwrap();
     let block_of = |service: &str| -> Vec<String> {
         rendered
             .lines()
@@ -232,7 +349,7 @@ fn the_received_header_text_the_rule_reads_does_not_depend_on_a_package_default(
 fn the_submission_services_take_a_login_and_bind_the_sender_to_it() {
     // Inverse control of the refusals above: the one way to relay is still open,
     // behind SASL and the sender-login check, on both submission services.
-    let rendered = PostfixMasterConfig {}.render_config().unwrap();
+    let rendered = master_config().render_config().unwrap();
     for service in ["submission inet", "smtps      inet"] {
         let block: Vec<&str> = rendered
             .lines()
@@ -258,7 +375,7 @@ fn the_submission_services_take_a_login_and_bind_the_sender_to_it() {
 #[test]
 fn postfix_master_config_renders_its_golden() {
     assert_eq!(
-        PostfixMasterConfig {}.render_config().unwrap(),
+        master_config().render_config().unwrap(),
         golden("postfix/postfix_master_config.cf")
     );
 }
@@ -267,7 +384,7 @@ fn postfix_master_config_renders_its_golden() {
 fn no_postfix_service_is_chrooted() {
     // The sockets to Dovecot and Rspamd are outside the queue directory, so a
     // chrooted service could not reach them.
-    let rendered = PostfixMasterConfig {}.render_config().unwrap();
+    let rendered = master_config().render_config().unwrap();
     for line in rendered
         .lines()
         .filter(|line| !line.starts_with('#') && !line.starts_with(' ') && !line.trim().is_empty())
@@ -367,6 +484,10 @@ fn rspamd_files_render_their_goldens() {
         golden("rspamd/rspamd_worker_controller.inc")
     );
     assert_eq!(
+        RspamdWorkerNormal.render_config().unwrap(),
+        golden("rspamd/rspamd_worker_normal.inc")
+    );
+    assert_eq!(
         RspamdRedis {
             socket_path: "/run/redis/redis-server.sock".to_owned(),
         }
@@ -388,10 +509,60 @@ fn rspamd_files_render_their_goldens() {
         RspamdDkimSigning {
             selectors_path: "/etc/maran/mail/dkim/selectors".to_owned(),
             keys_directory: "/etc/maran/mail/dkim".to_owned(),
+            condition_path: "/etc/rspamd/lua.local.d/maran_dkim_condition.lua".to_owned(),
         }
         .render_config()
         .unwrap(),
         golden("rspamd/rspamd_dkim_signing.conf")
+    );
+    assert_eq!(
+        maran_templates::rspamd::rspamd_conf_local::RspamdConfLocal
+            .render_config()
+            .unwrap(),
+        golden("rspamd/rspamd_conf_local.conf")
+    );
+}
+
+/// The rule reads a recipient the way Postfix resolves it, so the character it cuts an
+/// address extension at must be the one main.cf sets.
+#[test]
+fn the_rule_cuts_extensions_at_the_character_main_cf_sets() {
+    let main = main_config().render_config().unwrap();
+    assert!(main.contains("recipient_delimiter = +\n"));
+    assert!(
+        maran_templates::rspamd::rspamd_local_submit::RspamdLocalSubmit::lua_rule()
+            .contains("M.RECIPIENT_DELIMITER = '+'")
+    );
+}
+
+/// The packaged signing module maps a subdomain to its parent's key; both the
+/// switch and the closed worker that would let a header ask for a signature are
+/// part of the rendered files.
+#[test]
+fn signing_is_per_exact_domain_and_the_normal_worker_is_off() {
+    let signing = RspamdDkimSigning {
+        selectors_path: "/etc/maran/mail/dkim/selectors".to_owned(),
+        keys_directory: "/etc/maran/mail/dkim".to_owned(),
+        condition_path: "/etc/rspamd/lua.local.d/maran_dkim_condition.lua".to_owned(),
+    }
+    .render_config()
+    .unwrap();
+    assert!(signing.contains("use_esld = false;\n"));
+    // sign_condition is Lua SOURCE, not a path: a bare path fails to load and the module
+    // then falls back to signing everything from 127.0.0.1. The flags are off so that a
+    // condition that cannot load signs nothing.
+    assert!(signing.contains(
+        "sign_condition = \"return dofile(\\\"/etc/rspamd/lua.local.d/maran_dkim_condition.lua\\\")(...)\";\n"
+    ));
+    assert!(signing.contains("sign_local = false;\n"));
+    assert!(signing.contains("sign_authenticated = false;\n"));
+    assert!(!signing.contains("sign_local = true"));
+    assert!(!signing.contains("use_esld = true"));
+    assert!(
+        RspamdWorkerNormal
+            .render_config()
+            .unwrap()
+            .contains("enabled = false;\n")
     );
 }
 
@@ -424,7 +595,14 @@ fn a_line_appended_to_a_rendered_mail_file_is_a_line_of_its_own() {
     // keeps it; without it an appended parameter fuses with the last one.
     let renders = [
         main_config().render_config().unwrap(),
-        PostfixMasterConfig {}.render_config().unwrap(),
+        PostfixSelfClients {
+            ipv4_ranges: Vec::new(),
+            ipv4: Vec::new(),
+            ipv6: Vec::new(),
+        }
+        .render_config()
+        .unwrap(),
+        master_config().render_config().unwrap(),
         dovecot_v23(false).render_config().unwrap(),
         dovecot_v24(false).render_config().unwrap(),
         KeyValueServerConfig {

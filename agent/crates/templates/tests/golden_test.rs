@@ -5,12 +5,15 @@
 //! template's intention (rules/testing.md).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use std::net::{Ipv4Addr, Ipv6Addr};
+
 use maran_templates::nftables::nftables_allow::NftablesAllow;
 use maran_templates::nftables::nftables_allow_source::NftablesAllowSource;
 use maran_templates::nftables::nftables_bans_table::NftablesBansTable;
 use maran_templates::nftables::nftables_network::NftablesNetwork;
 use maran_templates::nftables::nftables_protocol::NftablesProtocol;
 use maran_templates::nftables::nftables_ruleset::NftablesRuleset;
+use maran_templates::nftables::nftables_self_sets::NftablesSelfSets;
 use maran_templates::nftables::nftables_ssh_port::NftablesSshPort;
 use maran_templates::nginx::php_site::PhpSite;
 use maran_templates::nginx::proxy_site::ProxySite;
@@ -407,6 +410,12 @@ fn a_firewall_ruleset_renders_its_golden() {
                 }),
             },
         ],
+        customer_uid_min: 1000,
+        // The host's own addresses of both families, so a template that rendered
+        // only one set (or dropped the list) cannot match the golden.
+        self_v4_prefixes: Vec::new(),
+        self_v4: vec![Ipv4Addr::new(203, 0, 113, 7)],
+        self_v6: vec![Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1)],
     };
 
     assert_eq!(
@@ -488,6 +497,10 @@ fn a_ruleset_with_a_restricted_ssh_rule_renders_its_golden() {
                 }),
             },
         ],
+        customer_uid_min: 1000,
+        self_v4_prefixes: Vec::new(),
+        self_v4: Vec::new(),
+        self_v6: Vec::new(),
     };
 
     assert_eq!(
@@ -526,6 +539,10 @@ fn a_ruleset_with_an_any_source_ssh_rule_renders_its_golden() {
         // iterations, and a fresh host before its first allow looks exactly
         // like this.
         allows: Vec::new(),
+        customer_uid_min: 1000,
+        self_v4_prefixes: Vec::new(),
+        self_v4: Vec::new(),
+        self_v6: Vec::new(),
     };
 
     assert_eq!(
@@ -580,6 +597,10 @@ fn a_ruleset_with_port_ranges_renders_its_golden() {
             // that do carry one.
             allow_from_anywhere(8080, NftablesProtocol::Tcp),
         ],
+        customer_uid_min: 1000,
+        self_v4_prefixes: Vec::new(),
+        self_v4: Vec::new(),
+        self_v6: Vec::new(),
     };
 
     assert_eq!(
@@ -865,4 +886,74 @@ fn every_golden_ends_with_a_newline() {
         Vec::<String>::new(),
         "these renders do not end with a newline"
     );
+}
+
+#[test]
+fn the_self_sets_script_replaces_only_the_two_sets() {
+    let script = NftablesSelfSets {
+        self_v4_prefixes: vec![(Ipv4Addr::new(203, 0, 113, 0), 24)],
+        self_v4: vec![Ipv4Addr::new(192, 0, 2, 10)],
+        self_v6: vec!["2001:db8::5".parse().unwrap()],
+    }
+    .render_config()
+    .unwrap();
+    let lines: Vec<&str> = script
+        .lines()
+        .filter(|line| !line.starts_with('#'))
+        .collect();
+
+    assert_eq!(
+        lines,
+        [
+            "flush set inet maran self_v4",
+            "add element inet maran self_v4 { 127.0.0.0/8, 203.0.113.0/24, 192.0.2.10 }",
+            "flush set inet maran self_v6",
+            "add element inet maran self_v6 { ::1, 2001:db8::5 }",
+        ]
+    );
+    assert!(script.ends_with('\n'));
+    // Inverse control: the script has no rule, chain or table statement.
+    assert!(
+        lines
+            .iter()
+            .all(|line| !line.contains("chain") && !line.contains("table"))
+    );
+}
+
+/// The loopback constants of the refresh script are the ones of the full ruleset,
+/// so a refreshed set and a freshly rendered one never differ.
+#[test]
+fn the_self_sets_script_and_the_ruleset_agree_on_the_elements() {
+    let ruleset = NftablesRuleset {
+        ssh_ports: vec![NftablesSshPort {
+            port: 22,
+            rules: Vec::new(),
+        }],
+        panel_port: 8443,
+        allows: Vec::new(),
+        customer_uid_min: 1000,
+        self_v4_prefixes: vec![(Ipv4Addr::new(203, 0, 113, 0), 24)],
+        self_v4: vec![Ipv4Addr::new(192, 0, 2, 10)],
+        self_v6: vec!["2001:db8::5".parse().unwrap()],
+    }
+    .render_config()
+    .unwrap();
+    let script = NftablesSelfSets {
+        self_v4_prefixes: vec![(Ipv4Addr::new(203, 0, 113, 0), 24)],
+        self_v4: vec![Ipv4Addr::new(192, 0, 2, 10)],
+        self_v6: vec!["2001:db8::5".parse().unwrap()],
+    }
+    .render_config()
+    .unwrap();
+
+    for list in [
+        "{ 127.0.0.0/8, 203.0.113.0/24, 192.0.2.10 }",
+        "{ ::1, 2001:db8::5 }",
+    ] {
+        assert!(ruleset.contains(&format!("elements = {list}")));
+        assert!(
+            script.contains(&format!("self_v4 {list}"))
+                || script.contains(&format!("self_v6 {list}"))
+        );
+    }
 }

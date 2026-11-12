@@ -1010,9 +1010,15 @@ printf "%s" "$MARAN_WEB_SERVER_GROUP"' _ "$INSTALLER_ENTRY_POINT"
 #
 # A CHILD, for the reason run_installer_step gives at length: `exit` and `set -e` mean different
 # things inside this script's `if` than they do in the installer, and step 70 aborts with `exit 1`.
+#
+# The release is the image's own (/etc/os-release VERSION_ID, as install.sh's detect_os reads it)
+# unless the caller exported MARAN_OS_VERSION_ID first: that is how an assertion simulates another
+# release of the family, for instance the RHEL 10 generation on the alma9 image (issue #542).
 run_services_step() {
-  local socket_path="$1" web_group="$2" snippet="$3"
-  MARAN_API_SOCKET_PATH="$socket_path" \
+  local socket_path="$1" web_group="$2" snippet="$3" release
+  release="${MARAN_OS_VERSION_ID:-$(. /etc/os-release && printf '%s' "${VERSION_ID:-unknown}")}"
+  MARAN_OS_VERSION_ID="$release" \
+    MARAN_API_SOCKET_PATH="$socket_path" \
     MARAN_WEB_SERVER_GROUP="$web_group" \
     MARAN_USER="$POLYGON_SERVICE_USER" \
     MARAN_GROUP="$POLYGON_SERVICE_GROUP" \

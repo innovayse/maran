@@ -43,6 +43,10 @@ smtpd_client_connection_rate_limit = 60
 virtual_mailbox_domains = lmdb:/etc/maran/mail/virtual_domains
 virtual_mailbox_maps = lmdb:/etc/maran/mail/virtual_mailboxes
 virtual_alias_maps = lmdb:/etc/maran/mail/virtual_aliases
+# Postfix expands an alias AFTER the filter counted the recipient once, so the
+# expansion is bounded here and the filter charges an alias its external targets
+# (alias_fanout.map, issue #531). Beyond the bound Postfix defers the message.
+virtual_alias_expansion_limit = 100
 smtpd_sender_login_maps = lmdb:/etc/maran/mail/sender_login_maps
 virtual_transport = lmtp:unix:/run/dovecot/maran-lmtp
 

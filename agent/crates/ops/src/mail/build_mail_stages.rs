@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::utils::call_class::CallClass;
+use maran_agent_core::utils::host_addresses::HostAddresses;
 use maran_distro::{DistroAdapter, DovecotMajor};
 use maran_templates::dovecot::dovecot_config_v23::DovecotConfigV23;
 use maran_templates::dovecot::dovecot_config_v24::DovecotConfigV24;
@@ -11,10 +12,12 @@ use maran_templates::key_value::key_value_server_config::KeyValueServerConfig;
 use maran_templates::postfix::postfix_main_config::PostfixMainConfig;
 use maran_templates::postfix::postfix_master_config::PostfixMasterConfig;
 use maran_templates::rspamd::rspamd_actions::RspamdActions;
+use maran_templates::rspamd::rspamd_conf_local::RspamdConfLocal;
 use maran_templates::rspamd::rspamd_dkim_signing::RspamdDkimSigning;
 use maran_templates::rspamd::rspamd_local_submit::RspamdLocalSubmit;
 use maran_templates::rspamd::rspamd_redis::RspamdRedis;
 use maran_templates::rspamd::rspamd_worker_controller::RspamdWorkerController;
+use maran_templates::rspamd::rspamd_worker_normal::RspamdWorkerNormal;
 use maran_templates::rspamd::rspamd_worker_proxy::RspamdWorkerProxy;
 
 use crate::mail::mail_error::MailError;
@@ -25,6 +28,7 @@ use crate::mail::model::mail_sockets::MailSockets;
 use crate::mail::model::mail_stage::MailStage;
 use crate::mail::model::mail_unit::MailUnit;
 use crate::mail::model::staged_file::StagedFile;
+use crate::mail::render_self_clients::render_self_clients;
 use crate::ssl::CertificateState;
 
 /// The mode every rendered mail configuration file lands at.
@@ -33,7 +37,7 @@ use crate::ssl::CertificateState;
 /// (`postfix`, `redis`, `_rspamd`) and the files hold paths and numbers, never a
 /// secret. What must stay private — password hashes, signing keys — lives in
 /// directories that are not world-traversable, not in a file of a tighter mode.
-const CONFIG_MODE: u32 = 0o644;
+pub(crate) const CONFIG_MODE: u32 = 0o644;
 
 /// Renders every file of the mail stack and groups them by the daemon that reads
 /// them, in start order.
@@ -44,7 +48,9 @@ const CONFIG_MODE: u32 = 0o644;
 /// (the maps, the sockets) from [`AgentPaths`]; the certificate paths from
 /// `certificate`, the store's own answer. `postfix_uid` is the host's Postfix
 /// user (see `postfix_uid_from_passwd`): the local-submission rule leaves its
-/// mail and root's alone.
+/// mail and root's alone. `host_addresses` are the addresses the host's interfaces
+/// carry; they become the table of clients the port 25 service refuses, and it is
+/// a file of the Postfix stage so a changed address list is a changed stage.
 ///
 /// # Errors
 ///
@@ -56,6 +62,7 @@ pub fn build_mail_stages(
     settings: &MailSettings,
     certificate: &CertificateState,
     postfix_uid: u32,
+    host_addresses: &HostAddresses,
 ) -> Result<Vec<MailStage>, MailError> {
     let manager = distro.service_manager();
     let reload_or_restart = |unit: &str| MailUnit::new(unit).reload_or_restart().map(str::to_owned);
@@ -71,7 +78,7 @@ pub fn build_mail_stages(
                 socket_path: layout.key_value_socket(),
             }
             .render_config()
-            .map_err(|_| MailError::Render)?,
+            .map_err(MailError::from)?,
         )],
         // The server has no check that reads a file, so the service manager
         // restarting it onto the new file is the check, and the question of
@@ -94,7 +101,7 @@ pub fn build_mail_stages(
                     socket_path: layout.key_value_socket(),
                 }
                 .render_config()
-                .map_err(|_| MailError::Render)?,
+                .map_err(MailError::from)?,
             ),
             file(
                 &rspamd_directory.join("local.d/actions.conf"),
@@ -104,16 +111,20 @@ pub fn build_mail_stages(
                     reject: settings.spam.reject(),
                 }
                 .render_config()
-                .map_err(|_| MailError::Render)?,
+                .map_err(MailError::from)?,
             ),
             file(
                 &rspamd_directory.join("local.d/dkim_signing.conf"),
                 RspamdDkimSigning {
                     selectors_path: AgentPaths::MAIL_DKIM_SELECTORS_PATH.to_owned(),
                     keys_directory: AgentPaths::MAIL_DKIM_DIRECTORY.to_owned(),
+                    condition_path: rspamd_directory
+                        .join("lua.local.d/maran_dkim_condition.lua")
+                        .to_string_lossy()
+                        .into_owned(),
                 }
                 .render_config()
-                .map_err(|_| MailError::Render)?,
+                .map_err(MailError::from)?,
             ),
             file(
                 &rspamd_directory.join("local.d/maran_local_submit.conf"),
@@ -121,13 +132,27 @@ pub fn build_mail_stages(
                     maps_directory: AgentPaths::MAIL_CONFIG_DIRECTORY.to_owned(),
                     max_recipients: MailSettings::RECIPIENT_LIMIT,
                     exempt_uids: vec![0, postfix_uid],
+                    host_mail_name: settings.hostname.as_str().to_owned(),
                 }
                 .render_config()
-                .map_err(|_| MailError::Render)?,
+                .map_err(MailError::from)?,
+            ),
+            // The rule is a Rspamd MODULE (the file name is the module name), so it lives in
+            // plugins.d, and its settings are included from rspamd.conf.local: Rspamd reads
+            // neither lua.local.d nor a local.d file of a module it does not ship.
+            file(
+                &rspamd_directory.join("plugins.d/maran_local_submit.lua"),
+                RspamdLocalSubmit::lua_rule().to_owned(),
             ),
             file(
-                &rspamd_directory.join("lua.local.d/maran_local_submit.lua"),
-                RspamdLocalSubmit::lua_rule().to_owned(),
+                &rspamd_directory.join("rspamd.conf.local"),
+                RspamdConfLocal.render_config().map_err(MailError::from)?,
+            ),
+            // NOT in plugins.d: the condition is run by the signing module through
+            // sign_condition, and Rspamd would try to load it as a module of its own.
+            file(
+                &rspamd_directory.join("lua.local.d/maran_dkim_condition.lua"),
+                RspamdDkimSigning::lua_condition().to_owned(),
             ),
             file(
                 &rspamd_directory.join("override.d/worker-proxy.inc"),
@@ -136,7 +161,7 @@ pub fn build_mail_stages(
                     postfix_group: distro.postfix_user().to_owned(),
                 }
                 .render_config()
-                .map_err(|_| MailError::Render)?,
+                .map_err(MailError::from)?,
             ),
             file(
                 &rspamd_directory.join("override.d/worker-controller.inc"),
@@ -144,7 +169,13 @@ pub fn build_mail_stages(
                     socket_path: MailSockets::CONTROLLER.to_owned(),
                 }
                 .render_config()
-                .map_err(|_| MailError::Render)?,
+                .map_err(MailError::from)?,
+            ),
+            file(
+                &rspamd_directory.join("override.d/worker-normal.inc"),
+                RspamdWorkerNormal
+                    .render_config()
+                    .map_err(MailError::from)?,
             ),
         ],
         validator_program: distro.rspamadm_binary(),
@@ -178,7 +209,7 @@ pub fn build_mail_stages(
         }
         .render_config(),
     }
-    .map_err(|_| MailError::Render)?;
+    .map_err(MailError::from)?;
     let dovecot = MailStage {
         daemon: MailDaemon::Dovecot,
         unit: dovecot_unit.to_owned(),
@@ -204,6 +235,7 @@ pub fn build_mail_stages(
                     hostname: settings.hostname.as_str().to_owned(),
                     message_size_bytes: settings.message_size_bytes(),
                     recipient_limit: MailSettings::RECIPIENT_LIMIT,
+                    alias_expansion_limit: MailSettings::ALIAS_EXPANSION_LIMIT,
                     map_type: distro.postfix_map_type().to_owned(),
                     virtual_domains_path: AgentPaths::MAIL_VIRTUAL_DOMAINS_PATH.to_owned(),
                     virtual_mailboxes_path: AgentPaths::MAIL_VIRTUAL_MAILBOXES_PATH.to_owned(),
@@ -217,13 +249,19 @@ pub fn build_mail_stages(
                     private_key_path: certificate.private_key_path.clone(),
                 }
                 .render_config()
-                .map_err(|_| MailError::Render)?,
+                .map_err(MailError::from)?,
             ),
             file(
                 &postfix_directory.join("master.cf"),
-                PostfixMasterConfig {}
-                    .render_config()
-                    .map_err(|_| MailError::Render)?,
+                PostfixMasterConfig {
+                    self_clients_path: AgentPaths::MAIL_SELF_CLIENTS_PATH.to_owned(),
+                }
+                .render_config()
+                .map_err(MailError::from)?,
+            ),
+            file(
+                Path::new(AgentPaths::MAIL_SELF_CLIENTS_PATH),
+                render_self_clients(host_addresses)?,
             ),
         ],
         validator_program: distro.postfix_binary(),

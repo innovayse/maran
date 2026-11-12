@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # the app store's host side (issue #517): the first-run state, one app installed and removed through
-# the package units' stand-in, and the uninstaller taking the two units back
+# the package units' stand-in, and the uninstaller taking the app package units back
 #
 # Part of docker/polygon/asserts/assert-installer-steps.sh, which sources every file in this
 # directory in order and then runs them. Sourced, never executed: it defines functions and the
@@ -191,6 +191,178 @@ assert_an_app_installs_and_uninstalls_through_the_package_units() {
   echo "UNOBSERVED HERE: the units' sandbox and a booted PID 1. The stand-in runs the same argv as a plain root process."
 }
 
+# nodejs_enabled_stream_lines: one line per Node.js module stream dnf lists as enabled, empty when
+# none is. `dnf module list --enabled` exits non-zero and prints "No matching Modules" when there is
+# none, which is the empty answer and not a failure here.
+nodejs_enabled_stream_lines() {
+  dnf module list --enabled nodejs 2>&1 | { grep -E '^nodejs[[:space:]].*\[e\]' || true; }
+}
+
+# assert_a_nodejs_module_stream_installs_once_and_uninstalls_clean: issue #532, the alma9 half.
+#
+# On the RHEL family Node.js versions are module streams. Through the systemctl stand-in (which runs
+# the two fixed dnf argvs of maran-app-nodejs-install@ and maran-app-nodejs-remove@, minus the sandbox):
+#   * the stream list the agent parses (`dnf -C module list nodejs`) offers the supported majors with
+#     the `common` profile; the inverse control is a stream nobody offers (a major absent from it);
+#   * starting the install unit for 20 puts node v20 on the host;
+#   * a non-digit instance is refused by the stand-in before any dnf runs (the unit itself does not
+#     re-check; the agent's NodejsModuleStream type does, and its refusal of a second major with the
+#     code apps.nodeMajorActive is held by the agent's tests, not by this shell);
+#   * the removal unit leaves `rpm -q nodejs` absent and NO enabled stream, so any major may follow.
+# Debian and SUSE hosts skip it: they install Node.js as a plain package through the generic units.
+assert_a_nodejs_module_stream_installs_once_and_uninstalls_clean() {
+  local listing node_version enabled
+  if [ "${MARAN_OS_FAMILY:-}" != rhel ]; then
+    echo "SKIPPED on the ${MARAN_OS_FAMILY:-unknown} family: Node.js module streams exist on the RHEL family only."
+    return 0
+  fi
+  rpm -q nodejs >/dev/null 2>&1 \
+    && fail "nodejs is installed before this assertion started, so installing a stream proves nothing"
+  [ -z "$(nodejs_enabled_stream_lines)" ] \
+    || fail "a Node.js module stream is enabled before this assertion started"
+
+  # The cache must exist for `-C`, as it does on a panel host that has run any dnf command.
+  dnf -q makecache >/dev/null 2>&1 || fail "dnf makecache failed, so the stream list below would test the network and not the parser's input"
+  if ! listing="$(dnf -C module list nodejs 2>&1)"; then
+    # The 10 generation ships no module streams at all (issue #542): that is an answer, not a
+    # failure, and the assertion for plain per-major packages below is the one that holds there.
+    case "$listing" in
+      *"No matching Modules"*)
+        echo "SKIPPED: this release's sources carry no Node.js module streams; Node.js is checked as per-major packages instead."
+        return 0 ;;
+      *) fail "dnf -C module list nodejs failed: ${listing}" ;;
+    esac
+  fi
+  printf '%s\n' "$listing" | grep -Eq '^nodejs[[:space:]]+20[[:space:]].*common' \
+    || fail "the nodejs stream list does not offer 20 with the common profile: ${listing}"
+  printf '%s\n' "$listing" | grep -Eq '^nodejs[[:space:]]+999[[:space:]]' \
+    && fail "the nodejs stream list offered a planted stream 999, so the census above reads nothing"
+
+  if systemctl start 'maran-app-nodejs-install@2x.service' >/dev/null 2>&1; then
+    fail "a non-digit instance was ACCEPTED by the Node.js install unit's stand-in"
+  fi
+  rpm -q nodejs >/dev/null 2>&1 && fail "a refused non-digit instance installed nodejs anyway"
+
+  systemctl start 'maran-app-nodejs-install@20.service' \
+    || fail "maran-app-nodejs-install@20.service failed on AlmaLinux 9"
+  node_version="$(/usr/bin/node --version 2>&1)" || fail "node is not runnable after the stream install: ${node_version}"
+  case "$node_version" in
+    v20.*) ;;
+    *) fail "the stream install of 20 put node '${node_version}' on the host, not v20.x" ;;
+  esac
+  [ -n "$(nodejs_enabled_stream_lines)" ] \
+    || fail "no Node.js stream is enabled after the install of 20, so the host cannot say which major it has"
+
+  systemctl start 'maran-app-nodejs-remove@20.service' \
+    || fail "maran-app-nodejs-remove@20.service failed on AlmaLinux 9"
+  rpm -q nodejs >/dev/null 2>&1 \
+    && fail "nodejs is still installed after the stream removal"
+  enabled="$(nodejs_enabled_stream_lines)"
+  [ -z "$enabled" ] \
+    || fail "a Node.js stream is still enabled after the removal, so a different major could not follow: ${enabled}"
+  command -v nginx >/dev/null 2>&1 \
+    || fail "installing and removing a Node.js stream took nginx, the panel's front, with it"
+
+  echo "Node.js 20 was installed as a module stream (node ${node_version}) and removed with no package left and no stream enabled; a non-digit instance was refused."
+  echo "UNOBSERVED HERE: the units' sandbox, a booted PID 1, and the agent's refusal of a second major (apps.nodeMajorActive), which the agent's own tests hold."
+}
+
+# assert_node_majors_are_plain_packages_that_coexist_where_the_release_has_no_modules: issue #542, the
+# alma10 half.
+#
+# The 10 generation of the RHEL family has no module streams; Node.js is one package per major
+# (`nodejs` is the default major 22, `nodejs24` is 24, each with its own `-npm` package), and the
+# majors install beside each other with a versioned interpreter each (`/usr/bin/node-22`,
+# `/usr/bin/node-24`). Through the generic package units' stand-in (the argv the agent starts for
+# these packages):
+#   * the availability query the agent runs (`dnf -q -C list --available -- <names>`) lists the four
+#     package names; the inverse control is `nodejs20`, a name that looks like the pattern and that
+#     the sources do not carry, which must NOT be listed;
+#   * installing 24 and then the default major leaves BOTH interpreters running (v24 and v22);
+#   * the dry run of removing 24 names its own packages and not the default major's;
+#   * removing the default major (npm first, as the agent does) leaves 24 running and no
+#     `/usr/bin/node` at all, and removing 24 leaves no Node.js package.
+# A release with module streams skips it (the module-stream assertion above holds there), as do the
+# Debian and SUSE families.
+assert_node_majors_are_plain_packages_that_coexist_where_the_release_has_no_modules() {
+  local listing available package version plan
+  if [ "${MARAN_OS_FAMILY:-}" != rhel ]; then
+    echo "SKIPPED on the ${MARAN_OS_FAMILY:-unknown} family: this assertion is for the RHEL family's release without module streams."
+    return 0
+  fi
+  for package in nodejs nodejs-npm nodejs24 nodejs24-npm; do
+    package_is_installed "$package" \
+      && fail "${package} is installed before this assertion started, so installing it proves nothing"
+  done
+  dnf -q makecache >/dev/null 2>&1 || fail "dnf makecache failed, so the availability query below would test the network and not the parser's input"
+  if listing="$(dnf -C module list nodejs 2>&1)"; then
+    echo "SKIPPED: this release carries Node.js module streams; assert_a_nodejs_module_stream_installs_once_and_uninstalls_clean holds them."
+    return 0
+  fi
+  case "$listing" in
+    *"No matching Modules"*) ;;
+    *) fail "dnf -C module list nodejs failed, but not with 'No matching Modules', so this is not a release without modules: ${listing}" ;;
+  esac
+
+  available="$(dnf -q -C list --available -- nodejs nodejs-npm nodejs20 nodejs24 nodejs24-npm 2>&1)" \
+    || fail "the availability query failed: ${available}"
+  for package in nodejs nodejs-npm nodejs24 nodejs24-npm; do
+    printf '%s\n' "$available" | grep -Eq "^${package}\.[A-Za-z0-9_]+[[:space:]]" \
+      || fail "the sources do not list ${package}, so the per-major package names are not what this release carries: ${available}"
+  done
+  printf '%s\n' "$available" | grep -Eq '^nodejs20\.' \
+    && fail "the availability query listed nodejs20, a name this release does not carry, so the check above reads nothing"
+
+  systemctl start 'maran-app-install@nodejs24.service' \
+    || fail "maran-app-install@nodejs24.service failed on a release without module streams"
+  systemctl start 'maran-app-install@nodejs24-npm.service' \
+    || fail "maran-app-install@nodejs24-npm.service failed on a release without module streams"
+  version="$(/usr/bin/node-24 --version 2>&1)" || fail "node-24 is not runnable after the install: ${version}"
+  case "$version" in v24.*) ;; *) fail "nodejs24 put node '${version}' at /usr/bin/node-24, not v24.x" ;; esac
+  /usr/bin/npm-24 --version >/dev/null 2>&1 || fail "/usr/bin/npm-24 does not run after nodejs24-npm was installed"
+  [ ! -e /usr/bin/node ] \
+    || fail "/usr/bin/node exists with only nodejs24 installed, so the versioned file is not the only one a major can be asked for"
+
+  systemctl start 'maran-app-install@nodejs.service' \
+    || fail "maran-app-install@nodejs.service failed on a release without module streams"
+  systemctl start 'maran-app-install@nodejs-npm.service' \
+    || fail "maran-app-install@nodejs-npm.service failed on a release without module streams"
+  version="$(/usr/bin/node-22 --version 2>&1)" || fail "node-22 is not runnable after the install: ${version}"
+  case "$version" in v22.*) ;; *) fail "nodejs put node '${version}' at /usr/bin/node-22, not v22.x" ;; esac
+  version="$(/usr/bin/node-24 --version 2>&1)" || fail "installing the default major broke node-24: ${version}"
+  case "$version" in v24.*) ;; *) fail "node-24 reports '${version}' after the default major was installed beside it" ;; esac
+
+  assert_a_removal_dry_run_changes_nothing nodejs24
+  # Read from a variable: the dry run exits 1 after printing its plan, which a pipeline under
+  # `pipefail` would report as the pipeline's own failure.
+  plan="$(removal_dry_run nodejs24 || true)"
+  if printf '%s\n' "$plan" | grep -Eq '^ nodejs(-npm)? '; then
+    fail "the dry run of removing nodejs24 would take the default major's packages with it: ${plan}"
+  fi
+  printf '%s\n' "$plan" | grep -Eq '^ nodejs24-npm ' \
+    || fail "the dry run of removing nodejs24 does not name its npm package, so the check above reads nothing: ${plan}"
+
+  # The agent removes the npm package first and the interpreter after it.
+  systemctl start 'maran-app-remove@nodejs-npm.service' || fail "maran-app-remove@nodejs-npm.service failed"
+  systemctl start 'maran-app-remove@nodejs.service' || fail "maran-app-remove@nodejs.service failed"
+  package_is_installed nodejs && fail "nodejs is still installed after its removal"
+  package_is_installed nodejs-npm && fail "nodejs-npm is still installed after its removal"
+  version="$(/usr/bin/node-24 --version 2>&1)" || fail "removing the default major took node-24 with it: ${version}"
+  [ ! -e /usr/bin/node-22 ] || fail "/usr/bin/node-22 is still there after nodejs was removed"
+  [ ! -e /usr/bin/node ] || fail "/usr/bin/node is still there after nodejs was removed"
+
+  systemctl start 'maran-app-remove@nodejs24-npm.service' || fail "maran-app-remove@nodejs24-npm.service failed"
+  systemctl start 'maran-app-remove@nodejs24.service' || fail "maran-app-remove@nodejs24.service failed"
+  for package in nodejs nodejs-npm nodejs24 nodejs24-npm; do
+    package_is_installed "$package" && fail "${package} is still installed after every removal"
+  done
+  command -v nginx >/dev/null 2>&1 \
+    || fail "installing and removing Node.js packages took nginx, the panel's front, with it"
+
+  echo "Node.js 24 and 22 were installed as plain packages beside each other (node-24 ${version}, node-22 v22.x), each run from its own interpreter, and removed leaving no package; a name the sources do not carry was not offered."
+  echo "UNOBSERVED HERE: the units' sandbox and a booted PID 1, which the stand-in does not have."
+}
+
 # assert_the_uninstaller_removes_the_app_package_units: both templates go with the panel.
 #
 # The units are root command lines that survive a panel which no longer exists; a template left behind
@@ -204,14 +376,21 @@ assert_the_uninstaller_removes_the_app_package_units() {
 
   run_services_step "$socket_path" "$web_group" 'install_units' \
     || fail "step 70's install_units failed, so there is no unit for the uninstaller to remove"
-  for unit_file in "$APP_INSTALL_UNIT_FILE" "$APP_REMOVE_UNIT_FILE"; do
+  # The RHEL-only Node.js pair is part of the set only where step 70 laid it down: the RHEL family.
+  local all_units="$APP_INSTALL_UNIT_FILE $APP_REMOVE_UNIT_FILE"
+  if [ "${MARAN_OS_FAMILY:-}" = rhel ]; then
+    all_units="$all_units $APP_NODEJS_INSTALL_UNIT_FILE $APP_NODEJS_REMOVE_UNIT_FILE"
+  fi
+  for unit_file in $all_units; do
     [ -f "/etc/systemd/system/${unit_file}" ] \
       || fail "/etc/systemd/system/${unit_file} is absent before the uninstaller runs, so its absence afterwards would prove nothing"
   done
 
   mutant="$(mktemp)"
   sed -e '\|^  rm -f /etc/systemd/system/maran-app-install@.service$|d' \
-      -e '\|^  rm -f /etc/systemd/system/maran-app-remove@.service$|d' "$UNINSTALLER" > "$mutant"
+      -e '\|^  rm -f /etc/systemd/system/maran-app-remove@.service$|d' \
+      -e '\|^  rm -f /etc/systemd/system/maran-app-nodejs-install@.service$|d' \
+      -e '\|^  rm -f /etc/systemd/system/maran-app-nodejs-remove@.service$|d' "$UNINSTALLER" > "$mutant"
   cmp -s "$UNINSTALLER" "$mutant" \
     && fail "uninstall.sh no longer carries the two 'rm -f /etc/systemd/system/maran-app-*@.service' lines in the form this assertion mutates; it would be mutating nothing"
   output="$(bash -c 'set -euo pipefail
@@ -219,14 +398,14 @@ assert_the_uninstaller_removes_the_app_package_units() {
 remove_systemd_units' _ "$mutant" 2>&1)" \
     || fail "the mutated uninstaller's remove_systemd_units failed: ${output}"
   rm -f -- "$mutant"
-  for unit_file in "$APP_INSTALL_UNIT_FILE" "$APP_REMOVE_UNIT_FILE"; do
+  for unit_file in $all_units; do
     [ -f "/etc/systemd/system/${unit_file}" ] \
       || fail "an uninstaller WITHOUT the removal lines still removed ${unit_file}, so something else removes it and this assertion cannot attribute the removal below to those lines"
   done
 
   output="$(run_uninstaller 'remove_systemd_units' 2>&1)" \
     || fail "the real uninstaller's remove_systemd_units failed: ${output}"
-  for unit_file in "$APP_INSTALL_UNIT_FILE" "$APP_REMOVE_UNIT_FILE"; do
+  for unit_file in $all_units; do
     [ ! -e "/etc/systemd/system/${unit_file}" ] \
       || fail "the uninstaller left /etc/systemd/system/${unit_file} behind"
   done

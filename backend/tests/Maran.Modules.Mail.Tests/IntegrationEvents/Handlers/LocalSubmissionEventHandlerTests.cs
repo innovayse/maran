@@ -60,8 +60,8 @@ public sealed class LocalSubmissionEventHandlerTests
         using var context = await ArrangeAsync(new MailLimitsSnapshot(10, 1024, 500, 10240));
         var handler = new AccountPlanChangedHandler(context.LocalSubmission);
 
-        await handler.HandleAsync(new AccountPlanChanged(AccountId), CancellationToken.None);
-        await handler.HandleAsync(new AccountPlanChanged(Guid.NewGuid()), CancellationToken.None);
+        await handler.HandleAsync(new AccountPlanChanged(AccountId, false), CancellationToken.None);
+        await handler.HandleAsync(new AccountPlanChanged(Guid.NewGuid(), false), CancellationToken.None);
 
         Assert.Equal(500u, Assert.Single(context.Agent.LocalSubmissions).SendLimitPerHour);
     }
@@ -73,7 +73,7 @@ public sealed class LocalSubmissionEventHandlerTests
         using var context = await ArrangeAsync(null, AccountState.Suspended);
 
         await new AccountPlanChangedHandler(context.LocalSubmission)
-            .HandleAsync(new AccountPlanChanged(AccountId), CancellationToken.None);
+            .HandleAsync(new AccountPlanChanged(AccountId, false), CancellationToken.None);
 
         Assert.Empty(context.Agent.LocalSubmissions);
     }

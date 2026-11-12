@@ -5,6 +5,8 @@ use std::time::{Duration, Instant};
 
 use maran_agent_core::command_outcome::CommandOutcome;
 use maran_agent_core::utils::call_class::CallClass;
+use maran_agent_core::utils::host_addresses::HostAddresses;
+use maran_agent_core::utils::read_host_addresses::read_host_addresses;
 use maran_agent_core::utils::spawn_argv::spawn_argv;
 use maran_agent_core::validation::web::domain::Domain;
 use maran_distro::AdapterBinary;
@@ -208,6 +210,16 @@ impl MailHost for ProcessMailHost {
             Err(_) => return Err(MailError::SocketsUnreadable),
         };
         Ok(parse_listening_sockets(&v4, &v6))
+    }
+
+    /// Reads the kernel's address tables.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MailError::HostAddressesUnreadable`] when either table that
+    /// exists cannot be read.
+    fn host_addresses(&self) -> Result<HostAddresses, MailError> {
+        read_host_addresses().map_err(MailError::HostAddressesUnreadable)
     }
 
     /// Answers what certificate material is installed for `domain`.

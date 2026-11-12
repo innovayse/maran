@@ -50,6 +50,9 @@ public sealed class UpdateMailAliasCommandHandler
     /// <summary>This module's audit journal.</summary>
     private readonly MailAuditJournal _journal;
 
+    /// <summary>Republishes the account's local submission binding, whose fan-out figures an alias change moves.</summary>
+    private readonly MailLocalSubmissionPublisher _submission;
+
     /// <summary>The module's localized names, for the kind shown in the answer.</summary>
     private readonly IStringLocalizer<DisplayNames> _displayNames;
 
@@ -59,6 +62,7 @@ public sealed class UpdateMailAliasCommandHandler
     /// <param name="accounts">The owning account's system user name.</param>
     /// <param name="publisher">Reads the domain's alias set and sends it to the agent.</param>
     /// <param name="journal">This module's audit journal.</param>
+    /// <param name="submission">Republishes the account's local submission binding after the change.</param>
     /// <param name="displayNames">The module's localized names.</param>
     public UpdateMailAliasCommandHandler(
         MailDbContext dbContext,
@@ -66,6 +70,7 @@ public sealed class UpdateMailAliasCommandHandler
         IAccountDirectory accounts,
         MailAliasSetPublisher publisher,
         MailAuditJournal journal,
+        MailLocalSubmissionPublisher submission,
         IStringLocalizer<DisplayNames> displayNames)
     {
         _dbContext = dbContext;
@@ -73,6 +78,7 @@ public sealed class UpdateMailAliasCommandHandler
         _accounts = accounts;
         _publisher = publisher;
         _journal = journal;
+        _submission = submission;
         _displayNames = displayNames;
     }
 
@@ -182,6 +188,10 @@ public sealed class UpdateMailAliasCommandHandler
 
         await _journal.RecordSuccessAsync(
             ActionOf(alias.LocalPart), address, command.IpAddress, command.UserAgent, cancellationToken);
+
+        // The new target list changes how many deliveries one message to this address makes: the sender's
+        // cost is charged by it from now on, not from the next reconcile.
+        await _submission.TryPublishAfterChangeAsync(account, cancellationToken);
 
         var ownerNames = await _accounts.NamesOfAsync([alias.AccountId], cancellationToken);
 

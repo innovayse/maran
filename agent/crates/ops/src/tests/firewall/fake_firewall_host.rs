@@ -38,7 +38,9 @@ use maran_templates::nftables::nftables_protocol::NftablesProtocol;
 
 use crate::firewall::firewall_error::FirewallError;
 use crate::firewall::firewall_host::FirewallHost;
+use crate::firewall::firewall_lock::firewall_lock_is_held;
 use crate::firewall::model::firewall_rule::FirewallRule;
+use crate::firewall::model::output_policy::OutputPolicy;
 use crate::firewall::model::port_span::PortSpan;
 use crate::firewall::model::ruleset_ports::RulesetPorts;
 use crate::firewall::model::ruleset_state::RulesetState;
@@ -115,8 +117,13 @@ pub(crate) struct FakeFirewallHost {
     classes: Mutex<Vec<(Vec<String>, CallClass)>>,
     /// Every path that was really loaded with `nft -f`, in order.
     applies: Mutex<Vec<String>>,
+    /// The text of every file that was really loaded with `nft -f`, in order.
+    loaded_texts: Mutex<Vec<String>>,
     /// Whether `table inet maran_bans` is loaded.
     bans_table: Mutex<bool>,
+    /// Whether `table inet maran` (the rules table, output chain included) is
+    /// loaded.
+    rules_table: Mutex<bool>,
     /// The members of the two ban sets.
     elements: Mutex<Vec<FakeElement>>,
     /// The status `nft --check` exits with.
@@ -127,6 +134,9 @@ pub(crate) struct FakeFirewallHost {
     load_status: Mutex<i32>,
     /// Raw JSON to answer `nft -j list set` with, when a test installed some.
     bans_json: Mutex<Option<String>>,
+    /// What `nft list set|chain inet maran ...` fails with instead of answering, when a
+    /// test installed a transient failure (a busy netlink socket, a permission error).
+    listing_failure: Mutex<Option<String>>,
     /// Whether `nft` cannot be started at all.
     nft_missing: Mutex<bool>,
     /// The verb of the `nft` call that is killed at its deadline, when a test
@@ -139,24 +149,35 @@ pub(crate) struct FakeFirewallHost {
     /// The rendezvous the bans-table check waits at, when a test installed
     /// one.
     gate: Mutex<Option<ArrivalGate>>,
+    /// How many times the kernel's address table was read while the firewall lock was held,
+    /// and while it was not.
+    address_reads: Mutex<(usize, usize)>,
 }
 
 impl FakeFirewallHost {
-    /// A host with no ruleset file, no bans table, and nothing refusing.
+    /// A host with no ruleset file, no bans table, and nothing refusing; its
+    /// kernel lists the loopback address only, as every host's does.
     pub(crate) fn new() -> Self {
         Self {
-            files: Mutex::new(HashMap::new()),
+            files: Mutex::new(HashMap::from([(
+                FIB_TRIE.to_owned(),
+                LOOPBACK_FIB_TRIE.to_owned(),
+            )])),
             steps: Mutex::new(Vec::new()),
             classes: Mutex::new(Vec::new()),
             applies: Mutex::new(Vec::new()),
+            loaded_texts: Mutex::new(Vec::new()),
             bans_table: Mutex::new(false),
+            rules_table: Mutex::new(false),
             elements: Mutex::new(Vec::new()),
             check_status: Mutex::new(0),
             check_stderr: Mutex::new(String::new()),
             load_status: Mutex::new(0),
             bans_json: Mutex::new(None),
+            listing_failure: Mutex::new(None),
             nft_missing: Mutex::new(false),
             times_out_on: Mutex::new(None),
+            address_reads: Mutex::new((0, 0)),
             read_refuses: Mutex::new(false),
             write_refuses: Mutex::new(false),
             gate: Mutex::new(None),
@@ -178,6 +199,19 @@ impl FakeFirewallHost {
             .lock()
             .unwrap()
             .insert(path.to_owned(), contents.to_owned());
+    }
+
+    /// Takes `path` off the "disk".
+    pub(crate) fn remove_file(&self, path: &str) {
+        self.files.lock().unwrap().remove(path);
+    }
+
+    /// Marks `table inet maran` (the rules table, output chain included) as
+    /// loaded.
+    pub(crate) fn with_rules_loaded(self) -> Self {
+        *self.rules_table.lock().unwrap() = true;
+
+        self
     }
 
     /// What is at `path` now, if anything.
@@ -203,6 +237,13 @@ impl FakeFirewallHost {
         self
     }
 
+    /// How often the kernel's address table was read while the firewall lock was held, and while it was
+    /// not. A read made by the operation under test is expected under the lock; one made outside it is
+    /// the mistake this counts.
+    pub(crate) fn address_reads(&self) -> (usize, usize) {
+        *self.address_reads.lock().unwrap()
+    }
+
     /// Makes the first caller of the bans-table check wait for a second one.
     pub(crate) fn with_arrival_gate(self) -> Self {
         *self.gate.lock().unwrap() = Some(ArrivalGate::new());
@@ -226,6 +267,12 @@ impl FakeFirewallHost {
     /// reports it.
     pub(crate) fn time_out_on(&self, verb: &str) {
         *self.times_out_on.lock().unwrap() = Some(verb.to_owned());
+    }
+
+    /// Makes `nft list set|chain inet maran ...` fail with `stderr`, whatever is loaded: a
+    /// failure that is NOT "the object is absent".
+    pub(crate) fn fail_listing_with(&self, stderr: &str) {
+        *self.listing_failure.lock().unwrap() = Some(stderr.to_owned());
     }
 
     /// Makes `nft` unstartable.
@@ -256,6 +303,12 @@ impl FakeFirewallHost {
     /// Every path that was loaded with `nft -f`, in order.
     pub(crate) fn applies(&self) -> Vec<String> {
         self.applies.lock().unwrap().clone()
+    }
+
+    /// The text of every file that was loaded with `nft -f`, as it was when it
+    /// was loaded, in order.
+    pub(crate) fn loaded_texts(&self) -> Vec<String> {
+        self.loaded_texts.lock().unwrap().clone()
     }
 
     /// The members of the ban sets now.
@@ -319,6 +372,8 @@ impl FakeFirewallHost {
             ["--check", "-f", _] => self.answer_check(),
             ["-f", path] => self.answer_load(path),
             ["list", "table", _, _] => self.answer_table_listing(),
+            ["list", "chain", _, "maran", _] => self.answer_rules_table_listing(),
+            ["list", "set", _, "maran", _] => self.answer_rules_table_listing(),
             ["list", "chain", _, _, _] => self.answer_table_listing(),
             ["-j", "list", "set", _, _, set] => self.answer_set_listing(set),
             ["add", "element", ..] => self.answer_add(arguments),
@@ -342,7 +397,13 @@ impl FakeFirewallHost {
         let status = *self.load_status.lock().unwrap();
         if status == 0 {
             self.applies.lock().unwrap().push(path.to_owned());
+            if let Some(text) = self.file(path) {
+                self.loaded_texts.lock().unwrap().push(text);
+            }
 
+            if path == ruleset_path() {
+                *self.rules_table.lock().unwrap() = true;
+            }
             if path == bans_path() {
                 // The measured behaviour, and the whole reason
                 // `ensure_bans_table` refuses to run twice: the bans file
@@ -357,6 +418,29 @@ impl FakeFirewallHost {
             status,
             stdout: String::new(),
             stderr: String::new(),
+        }
+    }
+
+    /// `nft list chain inet maran output`: exit 0 when the rules table is loaded.
+    fn answer_rules_table_listing(&self) -> CommandOutcome {
+        if let Some(stderr) = self.listing_failure.lock().unwrap().clone() {
+            return CommandOutcome {
+                status: 1,
+                stdout: String::new(),
+                stderr,
+            };
+        }
+        let present = *self.rules_table.lock().unwrap();
+
+        CommandOutcome {
+            status: i32::from(!present),
+            stdout: String::new(),
+            // As the real tool says it, with the pinned locale.
+            stderr: if present {
+                String::new()
+            } else {
+                String::from("Error: No such file or directory\nlist set inet maran self_v4\n")
+            },
         }
     }
 
@@ -499,6 +583,15 @@ impl FirewallHost for FakeFirewallHost {
     /// Answers with what is on the "disk", or refuses when a test said reads
     /// must.
     fn read_file(&self, path: &Path) -> Result<Option<String>, FirewallError> {
+        if path == Path::new(FIB_TRIE) {
+            let mut reads = self.address_reads.lock().unwrap();
+            if firewall_lock_is_held() {
+                reads.0 += 1;
+            } else {
+                reads.1 += 1;
+            }
+        }
+
         if *self.read_refuses.lock().unwrap() {
             return Err(FirewallError::RulesetUnreadable);
         }
@@ -597,6 +690,12 @@ pub(crate) fn staged_path(target: &Path) -> String {
     format!("{}.staged", target.display())
 }
 
+/// The kernel's route table path the host's own addresses are read from.
+const FIB_TRIE: &str = "/proc/net/fib_trie";
+
+/// What every host's route table holds at the least: the loopback address.
+const LOOPBACK_FIB_TRIE: &str = "Local:\n     |-- 127.0.0.1\n        /32 host LOCAL\n";
+
 /// The adapter every test in this folder asks its platform facts of.
 pub(crate) fn distro() -> &'static dyn DistroAdapter {
     adapter_for(DistroFamily::Debian)
@@ -623,6 +722,13 @@ pub(crate) fn ports() -> RulesetPorts {
         ssh_ports: vec![port(22)],
         panel_port: port(8443),
     }
+}
+
+/// The output policy of a fake host that holds no `login.defs` and no address
+/// table: the documented uid floor and loopback only, which is exactly what
+/// [`read_output_policy`](crate::firewall::read_output_policy) reads from it.
+pub(crate) fn policy() -> OutputPolicy {
+    OutputPolicy::new(1000, [])
 }
 
 /// A validated port number.
@@ -664,7 +770,9 @@ pub(crate) fn rendered(rules: &[FirewallRule]) -> String {
         state = state.with(rule);
     }
 
-    state.render(&ports()).expect("the ruleset renders")
+    state
+        .render(&ports(), &policy())
+        .expect("the ruleset renders")
 }
 
 /// The JSON `nft -j list set` answers with for `elements` of `set`.

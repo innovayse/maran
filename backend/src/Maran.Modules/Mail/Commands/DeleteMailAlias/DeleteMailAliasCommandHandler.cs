@@ -38,21 +38,27 @@ public sealed class DeleteMailAliasCommandHandler
     /// <summary>This module's audit journal.</summary>
     private readonly MailAuditJournal _journal;
 
+    /// <summary>Republishes the account's local submission binding, whose fan-out figures an alias change moves.</summary>
+    private readonly MailLocalSubmissionPublisher _submission;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Mail module's database context.</param>
     /// <param name="accounts">The owning account's system user name.</param>
     /// <param name="publisher">Reads the domain's alias set and sends it to the agent.</param>
     /// <param name="journal">This module's audit journal.</param>
+    /// <param name="submission">Republishes the account's local submission binding after the change.</param>
     public DeleteMailAliasCommandHandler(
         MailDbContext dbContext,
         IAccountDirectory accounts,
         MailAliasSetPublisher publisher,
-        MailAuditJournal journal)
+        MailAuditJournal journal,
+        MailLocalSubmissionPublisher submission)
     {
         _dbContext = dbContext;
         _accounts = accounts;
         _publisher = publisher;
         _journal = journal;
+        _submission = submission;
     }
 
     /// <summary>Removes the address from the host and then from the database.</summary>
@@ -129,6 +135,10 @@ public sealed class DeleteMailAliasCommandHandler
 
         await _journal.RecordSuccessAsync(
             ActionOf(localPart), address, command.IpAddress, command.UserAgent, cancellationToken);
+
+        // The deleted alias no longer fans out: the sender's cost for it falls back to one delivery now,
+        // not at the next reconcile.
+        await _submission.TryPublishAfterChangeAsync(account, cancellationToken);
 
         return Result.Ok();
     }

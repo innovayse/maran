@@ -3,6 +3,7 @@
 // A failing assertion IS the reporting mechanism for a test.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_agent_core::validation::mail::alias_fanout::AliasFanout;
 use maran_agent_core::validation::mail::local_submission::LocalSubmission;
 use maran_agent_core::validation::mail::mail_address::MailAddress;
 use maran_agent_core::validation::mail::mail_domain::MailDomain;
@@ -20,6 +21,7 @@ const ACCOUNTS: &str = "/etc/maran/mail/local_submit_accounts.map";
 const DOMAINS: &str = "/etc/maran/mail/account_sender_domains.map";
 const LIMITS: &str = "/etc/maran/mail/account_send_limits.map";
 const LOGINS: &str = "/etc/maran/mail/mailbox_accounts.map";
+const FANOUTS: &str = "/etc/maran/mail/alias_fanout.map";
 const USERS: &str = "/etc/postfix/maran_local_submit_users";
 
 fn submission(account: &str, uid: u32, domains: &[&str], limit: u32) -> LocalSubmission {
@@ -32,6 +34,7 @@ fn submission(account: &str, uid: u32, domains: &[&str], limit: u32) -> LocalSub
             .collect(),
         send_limit_per_hour: SendLimitPerHour::parse(limit).unwrap(),
         mailbox_logins: vec![MailAddress::parse(&format!("info@{}", domains[0])).unwrap()],
+        alias_fanouts: Vec::new(),
     }
 }
 
@@ -54,6 +57,46 @@ fn every_table_receives_the_accounts_lines() {
     assert_eq!(host.file(LIMITS).as_deref(), Some("acme 200\n"));
     assert_eq!(host.file(LOGINS).as_deref(), Some("info@a.test acme\n"));
     assert_eq!(host.file(USERS).as_deref(), Some("acme OK\n"));
+}
+
+#[test]
+fn an_alias_with_external_targets_is_written_with_its_count_and_owner() {
+    let host = FakeMailHost::new().enabled();
+    let mut bound = submission("acme", 1001, &["a.test"], 200);
+    bound.alias_fanouts = vec![AliasFanout::parse("team@a.test", 7).unwrap()];
+
+    set_local_submission(&host, distro(), &bound).unwrap();
+
+    assert_eq!(host.file(FANOUTS).as_deref(), Some("team@a.test 7 acme\n"));
+}
+
+#[test]
+fn a_catch_all_is_written_under_its_at_key_with_its_count_and_owner() {
+    let host = FakeMailHost::new().enabled();
+    let mut bound = submission("acme", 1001, &["a.test"], 200);
+    bound.alias_fanouts = vec![
+        AliasFanout::parse("@a.test", 9).unwrap(),
+        AliasFanout::parse("team@a.test", 70).unwrap(),
+    ];
+
+    set_local_submission(&host, distro(), &bound).unwrap();
+
+    assert_eq!(
+        host.file(FANOUTS).as_deref(),
+        Some("@a.test 9 acme\nteam@a.test 70 acme\n")
+    );
+}
+
+#[test]
+fn a_push_without_the_alias_drops_it_and_keeps_another_accounts_aliases() {
+    // Inverse control of the case above: the fan-out line follows the push.
+    let host = FakeMailHost::new()
+        .enabled()
+        .with_file(FANOUTS, "list@o.test 4 other\nteam@a.test 7 acme\n");
+
+    set_local_submission(&host, distro(), &submission("acme", 1001, &["a.test"], 200)).unwrap();
+
+    assert_eq!(host.file(FANOUTS).as_deref(), Some("list@o.test 4 other\n"));
 }
 
 #[test]
@@ -90,7 +133,7 @@ fn the_filter_is_validated_reloaded_and_the_postfix_table_indexed() {
 
     let writes = host.writes();
     assert_eq!(writes[0].daemon, MailDaemon::Rspamd);
-    assert_eq!(writes[0].targets.len(), 4);
+    assert_eq!(writes[0].targets.len(), 5);
     assert_eq!(writes[1].daemon, MailDaemon::Postfix);
     assert!(
         host.spawns()

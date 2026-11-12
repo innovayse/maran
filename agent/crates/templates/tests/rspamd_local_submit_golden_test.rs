@@ -4,6 +4,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use maran_templates::postfix::postfix_master_config::PostfixMasterConfig;
+use maran_templates::rspamd::rspamd_dkim_signing::RspamdDkimSigning;
 use maran_templates::rspamd::rspamd_local_submit::RspamdLocalSubmit;
 
 fn golden(relative: &str) -> String {
@@ -16,6 +17,7 @@ fn settings(exempt_uids: Vec<u32>) -> RspamdLocalSubmit {
         maps_directory: "/etc/maran/mail".to_owned(),
         max_recipients: 100,
         exempt_uids,
+        host_mail_name: "mail.example.test".to_owned(),
     }
 }
 
@@ -63,7 +65,11 @@ fn the_shipped_lua_rule_refuses_unowned_senders_and_fails_closed() {
 #[test]
 fn the_rule_and_master_cf_agree_on_the_daemon_names() {
     let rule = RspamdLocalSubmit::lua_rule();
-    let master = PostfixMasterConfig {}.render_config().unwrap();
+    let master = PostfixMasterConfig {
+        self_clients_path: "/etc/maran/mail/self_clients.cidr".to_owned(),
+    }
+    .render_config()
+    .unwrap();
     for name in ["MARAN_LOCAL", "INBOUND", "ORIGINATING"] {
         assert!(rule.contains(name), "the rule does not know {name}");
         assert!(
@@ -105,6 +111,44 @@ fn a_missing_settings_section_registers_a_refusing_stand_in() {
     assert!(rule.contains("opts.enabled == false"));
 }
 
+/// The proof key is one spelling, rendered into the settings; neither Lua file
+/// spells it, and the five maps and the proof are all named by the rendered file.
+#[test]
+fn the_proof_key_and_the_fan_out_map_are_rendered_not_hard_coded() {
+    let rendered = settings(vec![0]).render_config().unwrap();
+    assert!(rendered.contains("alias_fanout_map = \"/etc/maran/mail/alias_fanout.map\";\n"));
+    assert!(rendered.contains("bound_domain_key = \"maran_bound_domain\";\n"));
+    assert!(!RspamdLocalSubmit::lua_rule().contains("maran_bound_domain"));
+    assert!(!RspamdDkimSigning::lua_condition().contains("maran_bound_domain"));
+}
+
+/// Both roads are signed only on the proof the local-submission rule left on the
+/// message: a login is not a statement about the From: header.
+#[test]
+fn the_dkim_condition_asks_for_the_proof_on_every_road() {
+    let condition = RspamdDkimSigning::lua_condition();
+    assert!(!condition.contains("return true\n  end\n  if daemon_name ~= M.LOCAL"));
+    assert!(condition.contains("daemon_name ~= M.LOCAL and daemon_name ~= M.ORIGINATING"));
+    let rule = RspamdLocalSubmit::lua_rule();
+    assert!(rule.contains("sender not owned by account"));
+    assert!(rule.contains("M.deliveries"));
+}
+
+/// The signing condition refuses by default: it signs only the two roads it
+/// names, takes the road from the daemon name and never from the connection.
+#[test]
+fn the_dkim_condition_is_a_closed_allow_list_of_two_roads() {
+    let condition = RspamdDkimSigning::lua_condition();
+    assert!(condition.ends_with('\n'));
+    assert!(condition.contains("MARAN_LOCAL"));
+    assert!(condition.contains("ORIGINATING"));
+    assert!(condition.contains("MTA-Name"));
+    assert!(condition.contains("cache_get"));
+    assert!(!condition.contains("get_from_ip"));
+    assert!(!condition.contains("set_user"));
+    assert!(!RspamdLocalSubmit::lua_rule().contains("set_user"));
+}
+
 /// Runs the Lua unit tests with the host's `lua`. Where no interpreter is on
 /// PATH the test passes quietly unless `MARAN_REQUIRE_LUA=1` is set, which CI
 /// sets so a missing interpreter fails the gate instead of skipping the rule's
@@ -112,23 +156,71 @@ fn a_missing_settings_section_registers_a_refusing_stand_in() {
 #[test]
 fn the_lua_unit_tests_pass() {
     let required = std::env::var("MARAN_REQUIRE_LUA").is_ok_and(|value| value == "1");
+    let mut ran = false;
     for interpreter in ["lua", "lua5.4", "luajit"] {
-        let Ok(output) = std::process::Command::new(interpreter)
-            .arg("tests/lua/maran_local_submit_test.lua")
-            .output()
-        else {
-            continue;
-        };
-        assert!(
-            output.status.success(),
-            "lua tests failed:\n{}{}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        );
+        let mut found = true;
+        for script in [
+            "tests/lua/maran_local_submit_test.lua",
+            "tests/lua/maran_dkim_condition_test.lua",
+        ] {
+            let Ok(output) = std::process::Command::new(interpreter).arg(script).output() else {
+                found = false;
+                break;
+            };
+            assert!(
+                output.status.success(),
+                "lua tests failed ({script}):\n{}{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        if found {
+            ran = true;
+            break;
+        }
+    }
+    if ran {
         return;
     }
     assert!(
         !required,
         "MARAN_REQUIRE_LUA=1 but no lua interpreter is on PATH"
     );
+}
+
+/// The rule is guarded where Rspamd raises (an unknown action) and falls back to a
+/// reject, and no reply text repeats the class and code Rspamd prepends itself.
+#[test]
+fn the_rule_guards_set_pre_result_and_carries_no_enhanced_status_codes() {
+    let rule = RspamdLocalSubmit::lua_rule();
+    assert!(
+        rule.contains("pcall(task.set_pre_result, task, answer.action, answer.message, MODULE)")
+    );
+    assert!(rule.contains("task:set_pre_result('reject', answer.message, MODULE)"));
+    for code in ["4.4.3", "4.7.1", "5.5.3", "5.7.1"] {
+        assert!(
+            !rule.contains(&format!("'{code} ")),
+            "a reply text starts with {code}"
+        );
+    }
+}
+
+/// The condition hands the signing module a domain, a selector and a key, or false:
+/// an empty table is an error in the module.
+#[test]
+fn the_dkim_condition_returns_parameters_or_false_never_an_empty_table() {
+    let condition = RspamdDkimSigning::lua_condition();
+    assert!(!condition.contains("return {}"));
+    assert!(condition.contains("M.parameters("));
+    assert!(condition.contains("selectors:get_key("));
+    assert!(condition.contains("return false"));
+}
+
+/// Internationalised From: domains are compared as A-labels.
+#[test]
+fn the_rule_compares_from_domains_as_a_labels() {
+    let rule = RspamdLocalSubmit::lua_rule();
+    assert!(rule.contains("function M.to_ascii_domain("));
+    assert!(rule.contains("function M.punycode_encode("));
+    assert!(rule.contains("return M.to_ascii_domain(tostring(address.domain))"));
 }

@@ -26,6 +26,9 @@ pub struct PostfixMainConfig {
     pub message_size_bytes: u64,
     /// The most recipients one message may name.
     pub recipient_limit: u32,
+    /// The most addresses Postfix expands aliases into for one message
+    /// (`virtual_alias_expansion_limit`, issue #531).
+    pub alias_expansion_limit: u32,
     /// The Postfix lookup-table type every map is written in (`MailFacts::postfix_map_type`).
     pub map_type: String,
     /// Absolute path of the list of served mail domains.

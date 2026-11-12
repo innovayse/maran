@@ -16,6 +16,7 @@ fn each_command_names_the_unit_after_the_end_of_options_marker() {
         unit.reload_or_restart(),
         ["reload-or-restart", "--", "postfix"]
     );
+    assert_eq!(unit.reload(), ["reload", "--", "postfix"]);
     assert_eq!(unit.mask(), ["mask", "--", "postfix"]);
 }
 

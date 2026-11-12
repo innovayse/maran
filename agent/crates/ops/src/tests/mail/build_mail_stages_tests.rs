@@ -4,16 +4,28 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use maran_agent_core::utils::call_class::CallClass;
+use maran_agent_core::utils::host_addresses::HostAddresses;
 use maran_distro::{DistroFamily, adapter_for};
 
 use crate::mail::build_mail_stages::build_mail_stages;
 use crate::mail::fake_mail_host::{
-    FakeMailHost, VERSION_ID, distro, hostname, settings, settings_with_pop3,
+    DEFAULT_HOST_ADDRESSES, FakeMailHost, VERSION_ID, distro, hostname, settings,
+    settings_with_pop3,
 };
 use crate::mail::mail_host::MailHost;
 use crate::mail::model::mail_daemon::MailDaemon;
 use crate::mail::model::mail_layout::MailLayout;
 use crate::mail::model::mail_stage::MailStage;
+
+fn host_addresses() -> HostAddresses {
+    HostAddresses {
+        addresses: DEFAULT_HOST_ADDRESSES
+            .iter()
+            .map(|address| address.parse().unwrap())
+            .collect(),
+        local_prefixes: Vec::new(),
+    }
+}
 
 fn stages_for(family: DistroFamily, version_id: &str, pop3: bool) -> Vec<MailStage> {
     let adapter = adapter_for(family);
@@ -24,7 +36,15 @@ fn stages_for(family: DistroFamily, version_id: &str, pop3: bool) -> Vec<MailSta
         settings()
     };
     let certificate = FakeMailHost::new().certificate_state(&hostname()).unwrap();
-    build_mail_stages(adapter, &layout, &settings, &certificate, 105).unwrap()
+    build_mail_stages(
+        adapter,
+        &layout,
+        &settings,
+        &certificate,
+        105,
+        &host_addresses(),
+    )
+    .unwrap()
 }
 
 fn stage_of(stages: &[MailStage], daemon: MailDaemon) -> &MailStage {
@@ -58,7 +78,7 @@ fn every_file_is_world_readable_and_never_writable_by_others() {
 }
 
 #[test]
-fn postfix_gets_its_two_files_checked_by_postfix_check() {
+fn postfix_gets_its_three_files_checked_by_postfix_check() {
     let stages = stages_for(DistroFamily::Debian, VERSION_ID, false);
     let postfix = stage_of(&stages, MailDaemon::Postfix);
 
@@ -67,7 +87,14 @@ fn postfix_gets_its_two_files_checked_by_postfix_check() {
         .iter()
         .map(|file| file.target.to_string_lossy().into_owned())
         .collect();
-    assert_eq!(targets, ["/etc/postfix/main.cf", "/etc/postfix/master.cf"]);
+    assert_eq!(
+        targets,
+        [
+            "/etc/postfix/main.cf",
+            "/etc/postfix/master.cf",
+            "/etc/maran/mail/self_clients.cidr"
+        ]
+    );
     assert_eq!(
         postfix.validator_program.as_str(),
         distro().postfix_binary().as_str()
@@ -163,7 +190,7 @@ fn dovecot_is_checked_by_doveconf_and_rspamd_by_its_configtest() {
 }
 
 #[test]
-fn rspamd_gets_five_additions_and_two_overrides() {
+fn rspamd_gets_its_additions_the_rule_as_a_module_and_three_overrides() {
     let stages = stages_for(DistroFamily::Debian, VERSION_ID, false);
     let rspamd = stage_of(&stages, MailDaemon::Rspamd);
 
@@ -179,12 +206,38 @@ fn rspamd_gets_five_additions_and_two_overrides() {
             "/etc/rspamd/local.d/actions.conf",
             "/etc/rspamd/local.d/dkim_signing.conf",
             "/etc/rspamd/local.d/maran_local_submit.conf",
-            "/etc/rspamd/lua.local.d/maran_local_submit.lua",
+            "/etc/rspamd/plugins.d/maran_local_submit.lua",
+            "/etc/rspamd/rspamd.conf.local",
+            "/etc/rspamd/lua.local.d/maran_dkim_condition.lua",
             "/etc/rspamd/override.d/worker-proxy.inc",
             "/etc/rspamd/override.d/worker-controller.inc",
+            "/etc/rspamd/override.d/worker-normal.inc",
         ]
     );
+    // The packaged normal worker listens on a loopback port that takes the sending
+    // road from a request header; only the override switches it off.
+    assert!(text_of(rspamd, "worker-normal.inc").contains("enabled = false;\n"));
     assert!(text_of(rspamd, "actions.conf").contains("reject = 15;\n"));
+    // The rule is only ever run if Rspamd loads it: as a module under plugins.d with its
+    // settings included from rspamd.conf.local (Rspamd reads neither lua.local.d nor an
+    // unknown local.d file). The condition is NOT a module and stays out of plugins.d.
+    assert!(text_of(rspamd, "rspamd.conf.local").contains(
+        "maran_local_submit {\n  .include \"$LOCAL_CONFDIR/local.d/maran_local_submit.conf\"\n}\n"
+    ));
+    assert!(
+        !targets
+            .iter()
+            .any(|target| target.contains("plugins.d/maran_dkim_condition"))
+    );
+    assert!(
+        !targets
+            .iter()
+            .any(|target| target.contains("lua.local.d/maran_local_submit"))
+    );
+    // `discard` is no built-in action; the rule asks for it.
+    assert!(
+        text_of(rspamd, "actions.conf").contains("discard {\n  flags = [\"no_threshold\"];\n}\n")
+    );
 }
 
 #[test]
@@ -233,4 +286,99 @@ fn the_local_submission_rule_exempts_root_and_the_postfix_uid() {
         .unwrap();
     assert!(settings.contents.contains("exempt_uids = [0, 105];"));
     assert!(settings.contents.contains("max_recipients = 100;"));
+    assert!(
+        settings
+            .contents
+            .contains("alias_fanout_map = \"/etc/maran/mail/alias_fanout.map\";")
+    );
+}
+
+#[test]
+fn dkim_signing_names_the_condition_the_stage_installs() {
+    let stages = stages_for(DistroFamily::Debian, VERSION_ID, false);
+    let rspamd = stage_of(&stages, MailDaemon::Rspamd);
+    let signing = rspamd
+        .files
+        .iter()
+        .find(|file| file.target.ends_with("local.d/dkim_signing.conf"))
+        .unwrap();
+    let condition = rspamd
+        .files
+        .iter()
+        .find(|file| {
+            file.target
+                .ends_with("lua.local.d/maran_dkim_condition.lua")
+        })
+        .expect("the condition file is part of the stage");
+    assert!(signing.contents.contains(&format!(
+        "sign_condition = \"return dofile(\\\"{}\\\")(...)\";",
+        condition.target.display()
+    )));
+}
+
+#[test]
+fn postfix_main_cf_bounds_alias_expansion() {
+    let stages = stages_for(DistroFamily::Debian, VERSION_ID, false);
+    let postfix = stage_of(&stages, MailDaemon::Postfix);
+    let main = postfix
+        .files
+        .iter()
+        .find(|file| file.target.ends_with("main.cf"))
+        .unwrap();
+    assert!(
+        main.contents
+            .contains("virtual_alias_expansion_limit = 100\n")
+    );
+}
+
+#[test]
+fn the_port_25_service_names_the_table_the_stage_writes_with_the_hosts_addresses() {
+    // Issue #531: master.cf points at the very file that is in the same change,
+    // and that file lists the loopback and the addresses the host was asked for.
+    let stages = stages_for(DistroFamily::Debian, VERSION_ID, false);
+    let postfix = stage_of(&stages, MailDaemon::Postfix);
+    let master = text_of(postfix, "master.cf");
+    let table = text_of(postfix, "self_clients.cidr");
+
+    assert!(master.contains("cidr:/etc/maran/mail/self_clients.cidr,permit\n"));
+    for refused in [
+        "127.0.0.0/8 ",
+        "::1/128 ",
+        "192.0.2.10/32 ",
+        "2001:db8::5/128 ",
+    ] {
+        assert!(
+            table.lines().any(|line| line.starts_with(refused)),
+            "{refused}"
+        );
+    }
+}
+
+#[test]
+fn an_address_the_host_does_not_carry_is_not_in_the_stage() {
+    // Inverse control: the table is built from the addresses given, not from a
+    // fixed list, so a client at any other address passes the restriction.
+    let stages = stages_for(DistroFamily::Rhel, "10.0", false);
+    let table = text_of(stage_of(&stages, MailDaemon::Postfix), "self_clients.cidr");
+
+    assert!(!table.contains("198.51.100.7"));
+    assert!(!table.contains("192.0.2.11"));
+}
+
+#[test]
+fn every_family_writes_the_table_at_the_same_agent_owned_path() {
+    for (family, version_id) in [
+        (DistroFamily::Debian, VERSION_ID),
+        (DistroFamily::Rhel, "10.0"),
+    ] {
+        let stages = stages_for(family, version_id, false);
+        let postfix = stage_of(&stages, MailDaemon::Postfix);
+        assert!(
+            postfix
+                .files
+                .iter()
+                .any(|file| file.target.to_string_lossy() == "/etc/maran/mail/self_clients.cidr"),
+            "{family:?}"
+        );
+    }
 }

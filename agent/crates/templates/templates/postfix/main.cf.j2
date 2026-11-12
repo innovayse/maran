@@ -43,6 +43,10 @@ smtpd_client_connection_rate_limit = 60
 virtual_mailbox_domains = {{ map_type }}:{{ virtual_domains_path }}
 virtual_mailbox_maps = {{ map_type }}:{{ virtual_mailboxes_path }}
 virtual_alias_maps = {{ map_type }}:{{ virtual_aliases_path }}
+# Postfix expands an alias AFTER the filter counted the recipient once, so the
+# expansion is bounded here and the filter charges an alias its external targets
+# (alias_fanout.map, issue #531). Beyond the bound Postfix defers the message.
+virtual_alias_expansion_limit = {{ alias_expansion_limit }}
 smtpd_sender_login_maps = {{ map_type }}:{{ sender_login_maps_path }}
 virtual_transport = lmtp:unix:{{ lmtp_socket }}
 

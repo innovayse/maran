@@ -1,0 +1,13 @@
+# Rendered by the Maran agent. Hand edits are overwritten on the next apply.
+#
+# Every address a connection to this host's own port 25 can come from when the
+# caller is on this host: the loopback ranges and each address of an interface.
+# The port 25 service refuses them (master.cf), so a customer's process can reach
+# neither the loopback nor the public address of this server with an SMTP client;
+# local mail goes through sendmail and the maildrop road, which carries the
+# customer's identity. A cidr table needs no index.
+127.0.0.0/8 REJECT Port 25 does not take mail from this server's own users
+::1/128 REJECT Port 25 does not take mail from this server's own users
+192.0.2.10/32 REJECT Port 25 does not take mail from this server's own users
+198.51.100.7/32 REJECT Port 25 does not take mail from this server's own users
+2001:db8::5/128 REJECT Port 25 does not take mail from this server's own users

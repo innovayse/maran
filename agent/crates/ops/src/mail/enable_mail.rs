@@ -10,6 +10,7 @@ use crate::mail::converge_mail_stage::converge_mail_stage;
 use crate::mail::get_mail_status::get_mail_status;
 use crate::mail::mail_error::MailError;
 use crate::mail::mail_host::MailHost;
+use crate::mail::mail_lifecycle_lock::hold_mail_lifecycle;
 use crate::mail::model::mail_daemon::MailDaemon;
 use crate::mail::model::mail_layout::MailLayout;
 use crate::mail::model::mail_ports::MailPorts;
@@ -68,8 +69,8 @@ use crate::mail::wait_for_mail_ports::wait_for_mail_ports;
 /// # Errors
 ///
 /// Returns [`MailError::UnsupportedRelease`], [`MailError::HostnameNotUsable`],
-/// [`MailError::CertificateMissing`] and [`MailError::NotInstalled`] with nothing
-/// written. Returns
+/// [`MailError::CertificateMissing`], [`MailError::NotInstalled`] and
+/// [`MailError::HostAddressesUnreadable`] with nothing written. Returns
 /// [`MailError::ConfigRejected`] when a daemon's own check refuses its files,
 /// [`MailError::ServiceRefused`] when a unit will not come up, and
 /// [`MailError::NotListening`] when the units are up and an expected port stays
@@ -83,6 +84,8 @@ pub fn enable_mail(
     version_id: &str,
     settings: &MailSettings,
 ) -> Result<MailState, MailError> {
+    // One start, stop or address refresh at a time (see the lock).
+    let _lifecycle = hold_mail_lifecycle();
     let layout = MailLayout::resolve(distro, version_id)?;
 
     let hostname =
@@ -109,7 +112,18 @@ pub fn enable_mail(
         .read_config(Path::new(distro.passwd_database()))?
         .unwrap_or_default();
     let postfix_uid = postfix_uid_from_passwd(&passwd, distro.postfix_user())?;
-    let stages = build_mail_stages(distro, &layout, settings, &certificate, postfix_uid)?;
+    // Asked on every enable, and the table it feeds is a file of the Postfix stage:
+    // an address the host gained since the last call makes that stage differ, so it
+    // is written and Postfix reloaded, and an unchanged host writes nothing.
+    let host_addresses = host.host_addresses()?;
+    let stages = build_mail_stages(
+        distro,
+        &layout,
+        settings,
+        &certificate,
+        postfix_uid,
+        &host_addresses,
+    )?;
 
     if let Err(failure) = bring_up(host, distro, &stages, settings) {
         if !was_running {

@@ -6,6 +6,7 @@
 use std::time::Duration;
 
 use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::host_addresses_error::HostAddressesError;
 use maran_agent_core::utils::spawn_error::SpawnError;
 
 use crate::mail::mail_error::MailError;
@@ -112,9 +113,12 @@ fn a_mechanical_write_failure_carries_the_protocols_message() {
 fn every_remaining_variant_has_a_message_for_the_operator_log() {
     for error in [
         MailError::UnsupportedRelease,
-        MailError::Render,
+        MailError::Render {
+            reason: "drifted".to_owned(),
+        },
         MailError::ConfigUnreadable,
         MailError::SocketsUnreadable,
+        MailError::HostAddressesUnreadable(HostAddressesError::Ipv4Missing),
         MailError::HostnameNotUsable,
         MailError::UnsafeLocalSubmission {
             hazard: LocalSubmissionHazard::DropGroupUnknown {

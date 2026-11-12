@@ -1,5 +1,7 @@
 //! The firewall's whole policy: `table inet maran`, rendered as one file.
 
+use std::net::{Ipv4Addr, Ipv6Addr};
+
 use askama::Template;
 
 use crate::nftables::nftables_allow::NftablesAllow;
@@ -25,6 +27,15 @@ use crate::render_error::RenderError;
 /// the same exemption for the same reason: it hooks at a lower priority and so
 /// runs BEFORE this chain (see
 /// [`NftablesBansTable`](crate::nftables::nftables_bans_table::NftablesBansTable)).
+///
+/// **The output chain.** After the input chain, `table inet maran` holds an
+/// `output` chain with `policy accept` and two rules: a uid at or above
+/// [`Self::customer_uid_min`] connecting to port 25 of one of this host's own
+/// addresses is reset. It is the second layer of the port-25 lockdown
+/// (issue #531); the first is Postfix's own refusal of the host's addresses.
+/// Stopping nftables loses only this layer. A reader of the file compares the
+/// tail after the input chain with the current render, with the two
+/// host-dependent values (the uid and the address list) masked.
 ///
 /// Bans deliberately do not live in this table: `delete table` above would
 /// erase them on every apply, so they get a table of their own.
@@ -55,6 +66,25 @@ pub struct NftablesRuleset {
     pub panel_port: u16,
     /// Every other rule the operator has added, rendered in the given order.
     pub allows: Vec<NftablesAllow>,
+    /// The first uid of the customer range (`UID_MIN` of the host's
+    /// `login.defs`): the output chain rejects port-25 connections to this
+    /// host from every uid at or above it, and from no uid below it.
+    pub customer_uid_min: u32,
+    /// The IPv4 ranges the host's routing table marks local, as the first
+    /// address and the prefix length, NOT counting loopback. None is inside
+    /// another and no address of [`Self::self_v4`] is inside one: the set is a
+    /// set of intervals and `nft` refuses two that overlap.
+    pub self_v4_prefixes: Vec<(Ipv4Addr, u8)>,
+    /// The host's own IPv4 addresses, NOT counting loopback.
+    ///
+    /// The template writes the loopback network itself as a constant, so a
+    /// loopback address passed here would overlap it and `nft` would refuse
+    /// the whole file. Typed `Ipv4Addr` so that only an address can reach a
+    /// line-oriented file `nft -f` applies as root.
+    pub self_v4: Vec<Ipv4Addr>,
+    /// The host's own IPv6 addresses, NOT counting `::1`. See
+    /// [`Self::self_v4`].
+    pub self_v6: Vec<Ipv6Addr>,
 }
 
 impl NftablesRuleset {

@@ -146,7 +146,7 @@ pub(super) fn ensure_bans_table_under_lock(
 
     let contents = NftablesBansTable {}
         .render_config()
-        .map_err(|_| FirewallError::RenderFailed)?;
+        .map_err(FirewallError::from)?;
 
     apply_ruleset(host, distro, AgentPaths::nftables_bans_path(), &contents)
 }

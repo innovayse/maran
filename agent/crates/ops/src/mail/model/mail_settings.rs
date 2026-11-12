@@ -30,6 +30,15 @@ impl MailSettings {
     /// The most recipients one message may name.
     pub const RECIPIENT_LIMIT: u32 = 100;
 
+    /// The most addresses Postfix expands one alias (or all aliases of one
+    /// message) into: `virtual_alias_expansion_limit`. A bound on what the
+    /// local-submission rule's per-alias cost can be underestimated by (issue #531).
+    pub const ALIAS_EXPANSION_LIMIT: u32 = 100;
+
+    // The fan-out the local-submission binding accepts is this limit, one number
+    // (`maran_agent_core::validation::mail::alias_fanout::MAXIMUM_FANOUT`); the
+    // test `the_fan_out_bound_is_the_expansion_limit` holds them together.
+
     /// The largest message accepted, in bytes.
     #[must_use]
     pub fn message_size_bytes(&self) -> u64 {

@@ -115,6 +115,7 @@ fn the_last_account_leaves_a_comment_line_so_rspamd_refreshes_its_maps() {
         )
         .with_file("/etc/maran/mail/account_send_limits.map", "acme 200\n")
         .with_file("/etc/maran/mail/mailbox_accounts.map", "info@a.test acme\n")
+        .with_file("/etc/maran/mail/alias_fanout.map", "team@a.test 3 acme\n")
         .with_file("/etc/postfix/maran_local_submit_users", "acme OK\n");
 
     remove_local_submission(&host, distro(), "acme").unwrap();
@@ -124,6 +125,7 @@ fn the_last_account_leaves_a_comment_line_so_rspamd_refreshes_its_maps() {
         "/etc/maran/mail/account_sender_domains.map",
         "/etc/maran/mail/account_send_limits.map",
         "/etc/maran/mail/mailbox_accounts.map",
+        "/etc/maran/mail/alias_fanout.map",
         "/etc/postfix/maran_local_submit_users",
     ] {
         let contents = host.file(table).unwrap();

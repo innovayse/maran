@@ -1,10 +1,14 @@
-//! How Rspamd finds the key to sign a domain's mail with.
+//! How Rspamd finds the key to sign a domain's mail with, and which mail it signs.
+
+/// The Lua condition that decides which mail is signed, shipped byte for byte.
+const LUA_CONDITION: &str = include_str!("../../templates/rspamd/lua/maran_dkim_condition.lua");
 
 use askama::Template;
 
 use crate::render_error::RenderError;
 
-/// Renders `local.d/dkim_signing.conf`: the selector map and the key directory.
+/// Renders `local.d/dkim_signing.conf`: the selector map, the key directory and the
+/// condition that gates signing.
 #[derive(Template)]
 #[template(path = "rspamd/dkim_signing.conf.j2", escape = "none")]
 pub struct RspamdDkimSigning {
@@ -12,6 +16,8 @@ pub struct RspamdDkimSigning {
     pub selectors_path: String,
     /// Absolute path of the directory holding `<domain>.<selector>.key` files.
     pub keys_directory: String,
+    /// Absolute path the Lua condition is installed at (`sign_condition`).
+    pub condition_path: String,
 }
 
 impl RspamdDkimSigning {
@@ -23,5 +29,11 @@ impl RspamdDkimSigning {
     /// drifted apart.
     pub fn render_config(&self) -> Result<String, RenderError> {
         self.render().map_err(RenderError::Askama)
+    }
+
+    /// The text of `lua.local.d/maran_dkim_condition.lua`.
+    #[must_use]
+    pub const fn lua_condition() -> &'static str {
+        LUA_CONDITION
     }
 }

@@ -6,4 +6,5 @@ pub mod nftables_bans_table;
 pub mod nftables_network;
 pub mod nftables_protocol;
 pub mod nftables_ruleset;
+pub mod nftables_self_sets;
 pub mod nftables_ssh_port;

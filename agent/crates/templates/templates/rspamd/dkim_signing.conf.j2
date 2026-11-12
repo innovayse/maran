@@ -3,11 +3,42 @@
 # Signs outgoing mail with the key named by the domain's active selector. The
 # selector map and the key files are written by the mail data plane; with none
 # of them present nothing is signed.
+#
+# WHICH mail is signed is decided by sign_condition, not by where the connection
+# came from: a customer process reaches 127.0.0.1 too, and a From: header is
+# whatever the sender typed. sign_condition is Lua SOURCE (not a path): it runs the
+# condition file (lua_dir/maran_dkim_condition.lua) for every message. The condition
+# signs mail only when the local-submission rule has bound its From: domain to the
+# account that submitted it, on the authenticated road (a mailbox login) and on the
+# local road (a system user) alike, and then hands the module the domain, the
+# selector from the selector map and the key path. A From: of another tenant's
+# domain, an unauthenticated SMTP session and a message the rule refused are not
+# signed. With a condition the module signs with only what it returns, so the
+# selector map and path below are read by the condition itself.
+#
+# sign_local and sign_authenticated are off as the fail-closed fallback: should the
+# condition ever fail to load, the module signs nothing instead of everything that
+# reaches it from 127.0.0.1.
+#
+# What "fail to load" does depends on the Rspamd major version (verified on 3.4, 3.8
+# and 4.2): on 3.x Rspamd starts, accepts the mail and signs nothing; on 4.x Rspamd
+# does NOT start (the broken file is read while the configuration is parsed), so the
+# milter socket is gone and Postfix queues all mail (milter_default_action = tempfail).
+# Either way no message leaves unsigned-but-claimed-signed. The agent runs
+# `rspamadm configtest` on the written files before it reloads Rspamd and restores the
+# previous files when it refuses, so a broken condition file does not go live.
+#
+# use_esld is off: the packaged default maps a From: of shop.example.org to the key
+# of example.org, so a tenant that hosts a subdomain would sign as the owner of the
+# parent domain. With it off the selector map is read for the exact From: domain, and
+# a domain with no entry there is not signed.
 enabled = true;
 selector_map = "{{ selectors_path }}";
 path = "{{ keys_directory }}/$domain.$selector.key";
-sign_authenticated = true;
-sign_local = true;
+sign_authenticated = false;
+sign_local = false;
+sign_condition = "return dofile(\"{{ condition_path }}\")(...)";
 use_domain = "header";
+use_esld = false;
 allow_username_mismatch = true;
 {# A trailing comment keeps the final newline, which askama would otherwise drop. #}

@@ -44,6 +44,13 @@
 #                           no `EnvironmentFile=`), which is the only thing a
 #                           container with no manager can offer; the SUSE family's
 #                           step 68 asks for it. See show_environment.
+#   start|stop|restart|reload|reload-or-restart|disable --now <mail unit>
+#                           WHEN THE MAIL SUITE HAS SWITCHED IT ON (the marker file
+#                           MAIL_DAEMONS_MARKER exists) drives the real daemon of that
+#                           unit by its own program: Postfix, Dovecot, Rspamd, or the
+#                           key-value server. Without the marker these verbs are the
+#                           recording arms described above, so no other suite sees a
+#                           difference. See "Real mail daemons" below.
 #   anything else           succeeds silently. It never starts a service and
 #                           never enables one at boot; the polygon suites assert
 #                           what the agent WRITES and what the real tools make of
@@ -579,6 +586,202 @@ run_app_package_unit() {
     exit 0
 }
 
+# run_nodejs_module_unit: the `start maran-app-nodejs-install@<major>` and
+# `start maran-app-nodejs-remove@<major>` arms (issue #532). Never returns.
+#
+# The real units run two fixed dnf argvs in order (installer/systemd/maran-app-nodejs-*@.service) and
+# stop at the first failure; this runs the same two, minus the sandbox, so the alma9 assertions
+# install and remove a real module stream. The instance is digits only, like the agent's type.
+run_nodejs_module_unit() {
+    local verb_word="$1" major="$2" status=0
+    case "$major" in
+        '' | *[!0-9]*) fail "a Node.js module unit was started with the instance '${major}', which is not digits only" ;;
+    esac
+    command -v dnf >/dev/null 2>&1 || fail "no dnf in this image for a Node.js module unit"
+    if [ "$verb_word" = install ]; then
+        dnf module reset -y nodejs >&2 && dnf module install -y -- "nodejs:${major}/common" >&2 || status=$?
+    else
+        dnf module remove -y -- "nodejs:${major}/common" >&2 && dnf module reset -y nodejs >&2 || status=$?
+    fi
+    if [ "$status" -ne 0 ]; then
+        printf 'Job for maran-app-nodejs-%s@%s.service failed because the control process exited with error code.\n' \
+            "$verb_word" "$major" >&2
+        exit 1
+    fi
+    exit 0
+}
+
+# Real mail daemons
+# -----------------
+# `ops::mail::enable_mail` renders four stages, and for each one it writes the files, has the daemon's
+# own check read them, asks the service manager to `reload-or-restart` the unit, and finally waits for
+# the ports to be bound by the kernel's own socket table. With a manager that starts nothing the wait
+# can never succeed, so the mail suite (agent/crates/agent/tests/mail_server_on_a_real_host.rs) creates
+# MAIL_DAEMONS_MARKER, and from then on the verbs below act on the real daemons, started by their own
+# programs on the files the agent rendered. This is the same posture as the other fixtures that run a
+# unit's own ExecStart line; here it lives in the stand-in because the start has to happen at the exact
+# moment the agent asks for it (after that stage's files are in place, before the next stage), which a
+# test thread racing the agent cannot guarantee.
+#
+# The marker is never removed: the mail lane (docker/polygon/asserts/mail-lane.sh) runs its assertions
+# after the suite has exited, and those reload Rspamd through this very script.
+#
+# UNVERIFIED (no container was run when this was written): every command below against the packaged
+# daemons of each family.
+MAIL_DAEMONS_MARKER="${STATE_DIRECTORY}/.mail-daemons-are-real"
+
+# How long a daemon is given to show the socket it is judged by.
+MAIL_START_TIMEOUT=30
+
+# The key-value server's own socket directory and the programs of the mail daemons.
+MAIL_DOVECOT_PID=/run/dovecot/master.pid
+MAIL_DOVECOT_SOCKET=/run/dovecot/maran-auth
+MAIL_RSPAMD_DIRECTORY=/run/rspamd
+MAIL_RSPAMD_PID=/run/rspamd/rspamd.pid
+MAIL_RSPAMD_SOCKET=/run/rspamd/maran-milter.sock
+
+# mail_program: the absolute path of a mail program, searched where both families install them.
+mail_program() {
+    for directory in /usr/sbin /usr/bin /sbin /bin /usr/libexec; do
+        if [ -x "${directory}/$1" ]; then
+            printf '%s' "${directory}/$1"
+            return 0
+        fi
+    done
+    fail "the real mail daemon program '$1' is not installed in this image"
+}
+
+# classify_mail_unit: sets MAIL_DAEMON to the kind of daemon <unit> is, or to nothing when the unit is
+# not a mail unit or the mail suite has not switched the real daemons on. Sets variables and returns,
+# and is never called inside `$( … )`, because `fail` must be able to end the script.
+classify_mail_unit() {
+    MAIL_DAEMON=""
+    [ -f "$MAIL_DAEMONS_MARKER" ] || return 0
+    MAIL_UNIT_NAME="${1%.service}"
+    case "$MAIL_UNIT_NAME" in
+        postfix) MAIL_DAEMON=postfix ;;
+        dovecot) MAIL_DAEMON=dovecot ;;
+        rspamd) MAIL_DAEMON=rspamd ;;
+        redis-server | redis)
+            MAIL_DAEMON=keyvalue
+            MAIL_KV_PROGRAM=redis-server
+            MAIL_KV_USER=redis
+            MAIL_KV_CONFIG=/etc/redis/redis.conf
+            ;;
+        valkey)
+            MAIL_DAEMON=keyvalue
+            MAIL_KV_PROGRAM=valkey-server
+            MAIL_KV_USER=valkey
+            MAIL_KV_CONFIG=/etc/valkey/valkey.conf
+            ;;
+    esac
+    return 0
+}
+
+# pid_is_alive: whether the pid in file <1> names a live process.
+pid_is_alive() {
+    [ -s "$1" ] || return 1
+    kill -0 "$(head -1 "$1")" 2>/dev/null
+}
+
+# wait_until: run the command in <2…> once a second until it succeeds, for at most MAIL_START_TIMEOUT
+# seconds; <1> names what is awaited for the refusal.
+wait_until() {
+    what="$1"
+    shift
+    waited=0
+    while ! "$@"; do
+        waited=$((waited + 1))
+        [ "$waited" -le "$MAIL_START_TIMEOUT" ] || fail "${what} did not come up within ${MAIL_START_TIMEOUT} seconds"
+        sleep 1
+    done
+}
+
+# socket_exists: whether <1> is a socket.
+socket_exists() {
+    [ -S "$1" ]
+}
+
+# mail_daemon_is_running: whether the classified daemon is running.
+mail_daemon_is_running() {
+    case "$MAIL_DAEMON" in
+        postfix) "$(mail_program postfix)" status >/dev/null 2>&1 ;;
+        dovecot) pid_is_alive "$MAIL_DOVECOT_PID" ;;
+        rspamd) pid_is_alive "$MAIL_RSPAMD_PID" ;;
+        keyvalue) pid_is_alive "/run/${MAIL_KV_USER}/${MAIL_UNIT_NAME}.pid" ;;
+    esac
+}
+
+# start_mail_daemon: starts the classified daemon by its own program and waits until it shows the socket
+# the rest of the stack uses, so the next stage finds it there. A daemon that is already running is left.
+start_mail_daemon() {
+    mail_daemon_is_running && return 0
+    case "$MAIL_DAEMON" in
+        postfix)
+            "$(mail_program postfix)" start >&2 || fail "postfix start refused"
+            wait_until "postfix" mail_daemon_is_running
+            ;;
+        dovecot)
+            "$(mail_program dovecot)" >&2 || fail "dovecot refused to start"
+            wait_until "dovecot's authentication socket" socket_exists "$MAIL_DOVECOT_SOCKET"
+            ;;
+        rspamd)
+            rspamd_user=_rspamd
+            getent passwd "$rspamd_user" >/dev/null || rspamd_user=rspamd
+            mkdir -p "$MAIL_RSPAMD_DIRECTORY"
+            chown "${rspamd_user}:${rspamd_user}" "$MAIL_RSPAMD_DIRECTORY"
+            "$(mail_program rspamd)" -u "$rspamd_user" -g "$rspamd_user" >&2 || fail "rspamd refused to start"
+            wait_until "rspamd's milter socket" socket_exists "$MAIL_RSPAMD_SOCKET"
+            ;;
+        keyvalue)
+            run_directory="/run/${MAIL_KV_USER}"
+            mkdir -p "$run_directory"
+            chown "${MAIL_KV_USER}:${MAIL_KV_USER}" "$run_directory"
+            # As its own user, like the packaged unit: the rendered socket is mode 660 and the spam filter
+            # reaches it through the group the installer put it in.
+            su -s /bin/sh -c "cd '${run_directory}' && '$(mail_program "$MAIL_KV_PROGRAM")' '${MAIL_KV_CONFIG}' --daemonize yes --pidfile '${run_directory}/${MAIL_UNIT_NAME}.pid'" "$MAIL_KV_USER" >&2 \
+                || fail "${MAIL_KV_PROGRAM} refused to start"
+            wait_until "the key-value server's socket" socket_exists "${run_directory}/${MAIL_UNIT_NAME}.sock"
+            ;;
+    esac
+}
+
+# mail_daemon_is_stopped: the negation `wait_until` needs.
+mail_daemon_is_stopped() {
+    ! mail_daemon_is_running
+}
+
+# stop_mail_daemon: stops the classified daemon by its own means and waits until it is gone.
+stop_mail_daemon() {
+    mail_daemon_is_running || return 0
+    case "$MAIL_DAEMON" in
+        postfix) "$(mail_program postfix)" stop >&2 || fail "postfix stop refused" ;;
+        dovecot) "$(mail_program doveadm)" stop >&2 || fail "dovecot stop refused" ;;
+        rspamd) kill "$(head -1 "$MAIL_RSPAMD_PID")" ;;
+        keyvalue) kill "$(head -1 "/run/${MAIL_KV_USER}/${MAIL_UNIT_NAME}.pid")" ;;
+    esac
+    wait_until "${MAIL_DAEMON} to stop" mail_daemon_is_stopped
+}
+
+# reload_mail_daemon: asks the running classified daemon to re-read its files, the way its unit's
+# ExecReload does. The key-value server has no reload and systemd restarts it; a daemon that is not
+# running is started, which is what `reload-or-restart` means.
+reload_mail_daemon() {
+    if ! mail_daemon_is_running; then
+        start_mail_daemon
+        return 0
+    fi
+    case "$MAIL_DAEMON" in
+        postfix) "$(mail_program postfix)" reload >&2 || fail "postfix reload refused" ;;
+        dovecot) "$(mail_program doveadm)" reload >&2 || fail "dovecot reload refused" ;;
+        rspamd) kill -HUP "$(head -1 "$MAIL_RSPAMD_PID")" ;;
+        keyvalue)
+            stop_mail_daemon
+            start_mail_daemon
+            ;;
+    esac
+}
+
 # The verb, taken off the front so every arm below sees only its own arguments.
 verb="${1:-}"
 if [ "$#" -gt 0 ]; then
@@ -602,13 +805,42 @@ case "$verb" in
                 package="${unit#maran-app-remove@}"
                 run_app_package_unit remove "${package%.service}"
                 ;;
+            start:maran-app-nodejs-install@*.service)
+                package="${unit#maran-app-nodejs-install@}"
+                run_nodejs_module_unit install "${package%.service}"
+                ;;
+            start:maran-app-nodejs-remove@*.service)
+                package="${unit#maran-app-nodejs-remove@}"
+                run_nodejs_module_unit remove "${package%.service}"
+                ;;
+            start:* | restart:*)
+                classify_mail_unit "$unit"
+                if [ -n "$MAIL_DAEMON" ]; then
+                    [ "$verb" != restart ] || stop_mail_daemon
+                    start_mail_daemon
+                fi
+                ;;
         esac
         record_state "$unit" active
+        exit 0
+        ;;
+    reload-or-restart | try-reload-or-restart)
+        # Only a mail unit the mail suite has switched on is acted on; every other unit keeps the
+        # silent success this verb always had here.
+        unit="$(unit_from "$@")"
+        require_unit_name "$unit"
+        classify_mail_unit "$unit"
+        if [ -n "$MAIL_DAEMON" ]; then
+            reload_mail_daemon
+            record_state "$unit" active
+        fi
         exit 0
         ;;
     stop)
         unit="$(unit_from "$@")"
         require_unit_name "$unit"
+        classify_mail_unit "$unit"
+        [ -z "$MAIL_DAEMON" ] || stop_mail_daemon
         record_state "$unit" inactive
         exit 0
         ;;
@@ -691,7 +923,11 @@ case "$verb" in
                     exit 1
                 fi
                 record_enablement "$1" disabled
-                [ -n "$stopped" ] && record_state "$1" inactive
+                if [ -n "$stopped" ]; then
+                    classify_mail_unit "$1"
+                    [ -z "$MAIL_DAEMON" ] || stop_mail_daemon
+                    record_state "$1" inactive
+                fi
                 exit 0
                 ;;
         esac
@@ -729,6 +965,11 @@ case "$verb" in
         unit="$(unit_from "$@")"
         require_unit_name "$unit"
         record_reload "$unit"
+        classify_mail_unit "$unit"
+        if [ -n "$MAIL_DAEMON" ]; then
+            reload_mail_daemon
+            exit 0
+        fi
         case "$unit" in
             php*-fpm | php*-php-fpm) reload_php_fpm ;;
         esac

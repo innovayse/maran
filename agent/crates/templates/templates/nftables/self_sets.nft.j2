@@ -1,0 +1,10 @@
+# Rendered by the Maran agent. Hand edits are overwritten on the next refresh.
+# Replaces the CONTENTS of the two address sets of table inet maran and nothing
+# else; the rules and the output chain are not in this file. flush and add are one
+# nft -f transaction, so the sets are never seen empty. The loopback entries are
+# the constants of ruleset.nft.j2 and must stay equal to them.
+flush set inet maran self_v4
+add element inet maran self_v4 { 127.0.0.0/8{% for prefix in self_v4_prefixes %}, {{ prefix.0 }}/{{ prefix.1 }}{% endfor %}{% for address in self_v4 %}, {{ address }}{% endfor %} }
+flush set inet maran self_v6
+add element inet maran self_v6 { ::1{% for address in self_v6 %}, {{ address }}{% endfor %} }
+{# A trailing comment keeps the final newline, which askama would otherwise drop. #}
