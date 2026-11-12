@@ -64,7 +64,7 @@ public sealed class SimulatedAgentAppsClient : IAgentAppsClient
     }
 
     /// <inheritdoc />
-    public Task<Result<IReadOnlyList<AgentInstallableApp>>> ListInstallableAppsAsync(CancellationToken cancellationToken)
+    public Task<Result<AgentInstallableApps>> ListInstallableAppsAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -73,7 +73,7 @@ public sealed class SimulatedAgentAppsClient : IAgentAppsClient
             .Select(id => { return new AgentInstallableApp(id, KindOf(id), apps.ContainsKey(id)); })
             .ToList();
 
-        return Task.FromResult(Result<IReadOnlyList<AgentInstallableApp>>.Ok(offered));
+        return Task.FromResult(Result<AgentInstallableApps>.Ok(new AgentInstallableApps(offered, null)));
     }
 
     /// <inheritdoc />

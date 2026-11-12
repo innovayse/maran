@@ -76,6 +76,10 @@ public static class MessagingExtensions
             // CompleteSetupCommandValidator's password policy real.
             options.UseFluentValidation();
 
+            // How a message whose handler said "not now" is tried again is stated here and not left to the
+            // library's defaults (an immediate retry that queues behind the same stuck operation).
+            MessagingFailurePolicies.Apply(options);
+
             // Handlers live in the module assemblies, not in the host, and Wolverine scans only the
             // entry assembly by default — which left every module message with no handler and every
             // module request failing at runtime. The assemblies come from the explicit module

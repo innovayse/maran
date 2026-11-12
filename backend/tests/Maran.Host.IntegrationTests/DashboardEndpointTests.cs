@@ -170,6 +170,7 @@ public sealed class DashboardEndpointTests : IAsyncLifetime
         AssertLoaded(attention.GetProperty("bannedAddresses"), 0);
         AssertLoaded(attention.GetProperty("failedTasks"), 0);
         AssertLoaded(attention.GetProperty("sitesOnEndOfLifePhp"), 0);
+        AssertLoaded(attention.GetProperty("licenceExpiring"), 0);
 
         // The alert channels were read too; nothing has been sent, so neither is failing.
         Assert.Equal("loaded", attention.GetProperty("alertDelivery").GetProperty("state").GetString());

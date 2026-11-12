@@ -28,7 +28,8 @@ public enum SmtpSecurity
     ImplicitTls = 2,
 
     /// <summary>
-    /// No transport security. Only ever right for a relay on the same machine (<c>127.0.0.1:25</c>),
+    /// No transport security. Only ever right for a relay on the same machine (a local relay on its own port, not
+    /// port 25, which the mail server of this machine closes to local clients),
     /// where there is no network for anything to be read from — and the credentials travel in the
     /// clear, which is why it is never a default and has to be named.
     /// </summary>

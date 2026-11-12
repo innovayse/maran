@@ -30,9 +30,21 @@ before options existed.
   password would refuse. A redirect reveals only the target its owner wrote.
 - **A prefix redirect keeps the rest of the path.** Both the path and the target end with `/`;
   `/blog/a?x=1` under `/blog/` → `https://new.example/` becomes `https://new.example/a?x=1`.
-- **The default upload ceiling is replaced, not added to.** Without the option a PHP or proxied
-  site accepts bodies up to 512 MiB (the largest value PHP's `upload_max_filesize` accepts); with it
-  the ceiling is the option's value.
+- **The default upload ceiling follows the plan for a PHP site.** Without the option a PHP site's vhost
+  carries the plan's upload bound (`limits.UploadMaxMb`, the same figure that bounds `upload_max_filesize` and
+  `post_max_size`) as its `client_max_body_size` in nginx and Apache, decided once in the backend and sent to the
+  agent. With the option the ceiling is the option's value, but never above the bound: a figure above it is
+  refused (`SiteBodySizeAbovePlan`), and a stored figure that a later plan edit left above it is cut to the bound
+  when the vhost is rendered (the row keeps it, so raising the bound gives it back). Saving other options while
+  the stored figure is above the bound is allowed; only a figure that changes is refused. A plan edit that moves
+  the upload bound renders the account's enabled PHP vhosts again in the background, never switching a suspended
+  account's sites on. **This is a change for existing sites:** a PHP site that never stated a size used to carry the
+  agent's 512 MiB default and now carries the plan's bound (64 MiB on the default plan) from its next render, so a
+  body between the bound and 512 MiB is refused by the web server, as PHP would refuse it. A proxied site without the option keeps the agent's default of 512 MiB;
+  with it the ceiling is the option's value, as a static site has no such part of the vhost.
+- **The screen shows the cap.** The options answer carries `limits.planMaximumBodySizeMib`, the same ceiling clamped to
+  1..1024 (null for a site the plan does not cap). The Options tab shows it under the upload field and refuses a larger
+  figure before sending; that check is advice, and `SiteBodySizeAbovePlan` from the server stays the enforcement.
 - **The request limit is per visitor address.** It is an nginx `limit_req` zone (`rl_<domain>`, one
   mebibyte) keyed on the connecting address, so behind a proxy or CDN every visitor shares the
   proxy's address and one budget. A rate of 0 means no limit; a burst without a rate is refused, not
@@ -83,5 +95,5 @@ before options existed.
   they reach the host when the site is enabled again.
 - **Options a backend cannot use are refused.** An upload size on a static site and cache headers on a
   reverse-proxied one are answered `SiteOptionNotForBackend` before the agent is asked.
-- **A new site starts with no options**, so site creation sends none (`CreateSiteRequest.options` stays
-  absent); they are set afterwards from the Options tab.
+- **A new site starts with no options of its own**, so site creation sends none except, for a PHP site, the
+  plan-derived upload ceiling in `CreateSiteRequest.options`; they are set afterwards from the Options tab.

@@ -60,6 +60,8 @@ public sealed class NotificationTextResolverTests
     [InlineData("FeedAlertPanelUpdateRollbackFailedCritical", "ru")]
     [InlineData("FeedTaskFailed", "hy")]
     [InlineData("FeedAlertGeneric", "en")]
+    [InlineData("FeedAlertLicenceExpiringWarning", "ru")]
+    [InlineData("FeedAlertLicenceExpiringWarning", "hy")]
     public void The_shipped_resources_name_the_key_in_each_language(string key, string culture)
     {
         var factory = new ResourceManagerStringLocalizerFactory(
@@ -82,6 +84,38 @@ public sealed class NotificationTextResolverTests
             {
                 Assert.NotEqual(english.Value, localized.Value);
             }
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = previous;
+        }
+    }
+
+    /// <summary>
+    /// The licence expiry sentence names the expiry day and the days left in every language (the feed values are the
+    /// day and the days left). The control is the arguments being absent, which leaves neither figure in the sentence.
+    /// </summary>
+    [Theory]
+    [InlineData("en")]
+    [InlineData("ru")]
+    [InlineData("hy")]
+    public void The_licence_expiry_sentence_names_the_day_and_the_days_left(string culture)
+    {
+        var factory = new ResourceManagerStringLocalizerFactory(
+            new OptionsWrapper<LocalizationOptions>(new LocalizationOptions()),
+            NullLoggerFactory.Instance);
+        var localizer = new StringLocalizer<NotificationMessages>(factory);
+        var previous = System.Globalization.CultureInfo.CurrentUICulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = new System.Globalization.CultureInfo(culture);
+
+            var with = localizer["FeedAlertLicenceExpiringWarning", "licence", "2026-12-26", "14", string.Empty, string.Empty].Value;
+            var without = localizer["FeedAlertLicenceExpiringWarning", "licence", string.Empty, string.Empty, string.Empty, string.Empty].Value;
+
+            Assert.Contains("2026-12-26", with, StringComparison.Ordinal);
+            Assert.Contains("14", with, StringComparison.Ordinal);
+            Assert.DoesNotContain("2026-12-26", without, StringComparison.Ordinal);
         }
         finally
         {

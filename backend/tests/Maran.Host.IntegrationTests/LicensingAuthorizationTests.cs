@@ -141,6 +141,12 @@ public sealed class LicensingAuthorizationTests : IAsyncLifetime
         // shape rather than a source type that could be extended later without this test noticing.
         Assert.False(body.RootElement.TryGetProperty("signature", out _));
         Assert.False(body.RootElement.TryGetProperty("fingerprint", out _));
+
+        // The one machine fact it does carry is the server id (issue #536), on the wire under that name
+        // whether or not this host's agent could read one, and a plain read made no lease request (#537).
+        Assert.True(body.RootElement.TryGetProperty("serverId", out _));
+        Assert.True(body.RootElement.TryGetProperty("claimUrl", out _));
+        Assert.Equal(JsonValueKind.Null, body.RootElement.GetProperty("leaseRequest").ValueKind);
     }
 
     /// <summary>

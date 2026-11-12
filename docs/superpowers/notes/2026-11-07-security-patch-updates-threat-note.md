@@ -145,13 +145,13 @@ What this does NOT defend against, stated plainly:
   exposure score has a ceiling in `installer/systemd/unit-security-ceilings.txt`, enforced by
   `maran units`. What the hardening cannot do: the job must write the code root runs, so a flaw in
   `maran update` is a flaw of root in a service sandbox that was opened wide enough to do the update.
-- **Enabled by default, and the default is told.** The installer enables the timer when it installs the
-  unit for the first time on a host, and does NOT enable it on an offline install (a server that must
-  not reach the internet gets no daily failing job). A re-run of the installer, and `maran update`,
-  never change an operator's choice: the installer enables the timer only when the unit file did not
-  exist before the run, so `maran update-schedule disable` survives a reboot (the `systemctl disable`
-  symlink removal is persistent), an installer re-run and a panel update. The first-ever install is
-  announced on the terminal in one sentence with the command that turns it off.
+- **Off by default, and the default is told (owner decision O-3, issue #550).** The installer installs the
+  two units and runs `daemon-reload`, and never enables the timer, online or offline: an unattended root job
+  that changes software on a customer's host is the operator's decision. The terminal gets one line
+  saying the updates are installed but off and naming `sudo maran update-schedule enable`. A re-run of the
+  installer, and `maran update`, never touch the enablement, so an operator's `enable` or `disable`
+  survives a reboot (the `systemctl enable|disable` link is persistent), an installer re-run and a panel
+  update. `maran update-schedule status` says `installed, off` for a timer never enabled.
 - `maran update-schedule enable` refuses when the units are not installed (an older installer) and
   never edits a unit; `disable` stops and disables and writes nothing else. Both write an audit line
   (`verb=update-schedule outcome=enabled|disabled`) through `cli_audit_log`.
@@ -221,7 +221,7 @@ What this does NOT defend against, stated plainly:
    rollback functions.
 5. The unit's `ExecStart` and the timer's `OnCalendar` are literals; `ReadWritePaths` names no path the
    unprivileged service account can write (`/var/lib/maran` is NOT in it).
-6. The installer enables the timer only on first install of the unit and never on an offline install.
+6. The installer never enables the timer, on any install, and never changes its enablement on a re-run.
 7. `report-update` re-validates its arguments and writes through `MonitoringAuditJournal`; a failure
    outcome mails through `OperatorAlertMailer` only.
 8. The key-handling statements in the release-bundle signing note and `docs/operations/release-process.md`

@@ -462,4 +462,96 @@ composition of the new hosted service and the pipeline on the named client is co
 `LeaseServiceClient.RequestAsync`); nothing outside `LeaseRenewer` calls `ILeaseWriter`; the final judgement is inside
 the install lock; the demonstration's client makes no call.
 
+## Fifth amendment 2026-11-12: the server's id is shown, and installing a licence asks for its lease (issues #536, #537)
+
+Two changes, written with the code in a session that cannot obtain a second reviewer: the requirement stays OUTSTANDING
+below. They found the same gap from two sides (the compatibility check of 2026-11-12 between this panel and the
+marketplace service): a customer could not learn the id a licence is bound to, and a licence just installed covered
+nothing for up to an hour. `rules/security.md` item 10 (fifth exception) now says the lease pass also runs once when an
+administrator installs a licence.
+
+**What was built** (`backend/src/Maran.Modules/Licensing`, the SPA's Licence screen, `maran status`):
+
+- `Services/LicenceServerFactsSource` reads the machine id through `IServerIdentitySource`, the seam the verifier, the
+  coverage source and the renewer already use, and returns it as read. `Common/LicenceStatusDto` gains `ServerId` and
+  `ClaimUrl` (from `Domain/Policies/LicenceClaimLinkPolicy`: only 32 hexadecimal digits, only a well-formed https origin
+  from `Licensing__ClaimPageBaseUrl`, default `https://plugins-maran.innovayse.com`). Both endpoints of the Licence screen
+  are administrator-only. `maran status` prints the id on a `Server ID:` line.
+- `Commands/InstallLicence/InstallLicenceCommandHandler` calls `ILeaseRenewalRequester.RequestNowAsync` after the install
+  lock is released. The requester is `LeaseRenewalWorker`, so the request is `RunPassAsync`: the same serialisation gate,
+  `LeaseRenewer.RenewAsync` (offline licence: nothing; stored lease recent for this licence: nothing), journal entry,
+  run of failures and alert. `Services/LeaseWaitSignal` ends the loop's current wait and starts the one the pass's
+  outcome calls for (a day after a stored lease, 6 to 7 hours after a failure). The answer carries the outcome
+  (`LeaseRequest`, `LeaseRequestDisplayName`) so the screen can say how it went.
+
+**What an attacker could do, and why it is safe once the requirements hold.**
+
+21. *Read the id.* An administrator-only response now carries the machine id, which the threat note of 2026-09-22 (section
+    4) kept out of logs and the journal because it is a stable identifier of one machine. The id is not a secret on its
+    own host and the reader is the administrator who can read `/etc/machine-id`; the change moves it to a response and
+    to the console of the root `maran` command, not to a log, an audit entry, an error text or a URL the panel calls.
+    `LicenceServerFactsSource` writes to none of them, and `IServerIdentitySource` still logs nothing. The customer
+    and reseller roles are refused at the controller (403), as for every licence route.
+22. *The link leaks the id to the website.* The link carries the id (32 hexadecimal digits) and nothing else: no panel
+    address, licence id or account. It is built on the server, opened by the administrator's browser with
+    `rel="noopener noreferrer"` and is not requested by the panel. The id reaches `plugins-maran.innovayse.com` only when
+    the administrator follows it, which is the purpose. The base address must pass `PublicUrlRule` (https, no user
+    information, no path), so a configured value cannot turn the link into a `javascript:` or another site's address; only
+    someone who can write `panel.env` can change it.
+23. *Use the install to hammer the licence service.* The route is administrator-only and rate-limited (`api`). Each
+    install makes at most one request, through the same gate as the schedule (passes are serialised) and the same
+    due-check (a recent lease for the same licence asks for nothing). The request sends the licence id and nothing else,
+    exactly as the scheduled one (section above, "What was built" of the fourth amendment). An administrator who installs
+    different licences in a loop can cause a request per install; that is the administrator's act, bounded by the rate
+    limit and by the service's own limits. A failed request counts toward the alert like a scheduled failure.
+24. *A hung service holds the install.* The request is made inside the install request, after the licence is on disk and
+    the lock is released, so the licence is installed whatever the service does. The administrator's request waits for the
+    service's answer for at most `Licensing__LeaseRequestTimeoutSeconds` (default 30, at most 120), then gets the
+    install answer with `unreachable`. The lock is not held during that wait, so another install or a scheduled store is
+    not blocked by it.
+25. *Deadlock.* Storing a lease takes `LicenceInstallLock`; the request must therefore run outside it.
+    `InstallLicenceLeaseRequestTests` observes that the lock is free at the moment of the request.
+
+**Difference from the fourth amendment.** Item 17 above ("the first lease arrives up to about an hour after a licence is
+installed ... up to a day after one that replaces another") no longer holds: installing a licence asks at once. A panel
+that has no licence still asks nothing, and a request that fails is retried by the schedule after the failure wait.
+
+**What a reviewer must check (added).** That `RequestNowAsync` is reached from exactly one place outside the worker (the
+install handler) and only after `RunExclusiveAsync` has returned; that `LicenceServerFactsSource` and its callers write
+the id to no log, journal entry or error text (`grep -rn "ServerId" backend/src/Maran.Modules/Licensing` lists the DTO,
+the facts source, the two handlers and the status line); that the DTO carries no other fingerprint input (the primary
+interface); and that `LicenceClaimLinkPolicy` is the only place the claim address is spelled.
+
+**Tests that hold it** (written, not run): `LicenceClaimLinkPolicyTests`, `LicenceServerFactsSourceTests`,
+`GetLicenceStatusQueryHandlerTests` (the id in every state, none on a host that cannot read it, no lease request on a
+read), `InstallLicenceLeaseRequestTests` (one request per successful install, none for a refused one, outside the lock),
+`InstallLicenceRealRenewalTests` (a lease appears at install; a down service, an offline licence, a replaced licence and a
+repeated install each behave as stated), `LeaseWaitSignalTests`, `LeaseRenewalWorkerTests` (a requested pass is
+journalled and counted like a scheduled one), `LicenceStatusLineTests`, `LicenceStatusCliCommandTests`,
+`LicensingAuthorizationTests` (the wire names), and the SPA's `settings/licence.spec.ts`. Each refusing case sits beside
+an accepting control.
+
+**What the author could not verify (added).** Nothing here was built or run (coding-phase lock). Whether
+`https://plugins-maran.innovayse.com/claim?server=<id>` exists is the marketplace website's to decide: the path and the
+`server` parameter are this panel's proposal (`LicenceClaimLinkPolicy.ClaimPath`) and are recorded in the issue for the
+website's owner. The loop's early wake is covered through `LeaseWaitSignal` only; the worker's `ExecuteAsync` is not run by
+any test, as before.
+
+## Amendment (#547 review): the expiry announcement note
+
+The panel now writes one more file in the state directory, `licence-expiry-announced.json` (default beside `licence.json`):
+an expiry instant and a threshold in days, so a restart does not announce the same threshold again. Assets and abuse:
+
+- It holds nothing that identifies the machine or the licence (no licence id, no server id). Written through the same
+  atomic writer as the licence and the lease, mode `0640`, by the panel's own user only; the install and renewal paths are
+  not changed and no request, header or response of any caller reaches it.
+- It is read with a size cap of 1 KiB; a missing, oversized, malformed or incomplete note reads as "nothing announced".
+  The worst a planted or corrupted note can do is suppress or repeat one notice about the expiry; it can never widen the
+  licence's cover, because nothing in the gate reads it.
+- A write that fails is logged by exception type and the announcement is kept in memory for the process; it never stops
+  the watcher or the panel (the core does not die).
+
+**Tests that hold it** (written, not run): `FileLicenceExpiryAnnouncementStoreTests` (round trip, forget, untrusted and
+oversized notes), `LicenceCoverageWatcherTests` (restart, unreadable pass, replacement licence, failed recipient read).
+
 ## Second review: OUTSTANDING (#331)

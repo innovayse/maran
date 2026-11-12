@@ -82,10 +82,26 @@ public sealed class UpdatePlanPhpLimitsTests : IDisposable
         Assert.Equal(2, bus.Invoked.Count);
         foreach (var account in _onPlan)
         {
-            Assert.Contains(new AccountPlanChanged(account.Id), bus.Invoked);
+            Assert.Contains(new AccountPlanChanged(account.Id, true), bus.Invoked);
         }
 
-        Assert.DoesNotContain(new AccountPlanChanged(_onOther.Id), bus.Invoked);
+        Assert.DoesNotContain(new AccountPlanChanged(_onOther.Id, true), bus.Invoked);
+    }
+
+    /// <summary>A bound other than the upload one is announced with the upload bound reported as unchanged.</summary>
+    [Fact]
+    public async Task A_bound_other_than_the_upload_one_is_announced_with_the_upload_bound_unchanged()
+    {
+        var bus = new StubMessageBus();
+
+        var result = await NewHandler(bus).HandleAsync(Edit(Current with { MemoryLimitMaxMb = 512 }), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, bus.Invoked.Count);
+        foreach (var account in _onPlan)
+        {
+            Assert.Contains(new AccountPlanChanged(account.Id, false), bus.Invoked);
+        }
     }
 
     /// <summary>Stating the bounds the plan already has announces nothing.</summary>

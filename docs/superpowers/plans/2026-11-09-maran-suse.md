@@ -10,7 +10,7 @@ system.** Every task below is built and UNVERIFIED until the first `leap16` poly
 
 ## Decisions that shaped it (owner decisions 217-224)
 
-- Rows are openSUSE Leap 16.0 and 16.1; SLES 16.0 is claimed through Leap. Leap 15.6 (end of support
+- Rows are openSUSE Leap 16.0 and 16.1 (16.0 kept until its vendor date is confirmed, #559) and SLES 16.0 and 16.1, claimed through Leap. Leap 15.6 (end of support
   2026-04-30), SLES 15 SP6 (paid extended support only) and SLES 15 SP7 (untestable without a
   subscription) are left out. Tumbleweed, MicroOS, SLED and SLES for SAP are refused although their
   `ID_LIKE` says SUSE.

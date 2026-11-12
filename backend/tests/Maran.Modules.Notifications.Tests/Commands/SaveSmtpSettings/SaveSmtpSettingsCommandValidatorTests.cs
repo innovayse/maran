@@ -1,6 +1,11 @@
+using System.Net;
 using FluentValidation.TestHelper;
 using Maran.Modules.Notifications.Commands.SaveSmtpSettings;
 using Maran.Modules.Notifications.Domain.Enums;
+using Maran.Modules.Notifications.Options;
+using Maran.SharedKernel.Interfaces;
+using Maran.SharedKernel.Utilities.Network;
+using Microsoft.Extensions.Options;
 
 namespace Maran.Modules.Notifications.Tests.Commands.SaveSmtpSettings;
 
@@ -8,7 +13,7 @@ namespace Maran.Modules.Notifications.Tests.Commands.SaveSmtpSettings;
 public sealed class SaveSmtpSettingsCommandValidatorTests
 {
     /// <summary>The validator under test.</summary>
-    private readonly SaveSmtpSettingsCommandValidator _validator = new();
+    private readonly SaveSmtpSettingsCommandValidator _validator = Validator(allowLocalRelay: false);
 
     /// <summary>A well-formed configuration is accepted.</summary>
     [Fact]
@@ -136,6 +141,112 @@ public sealed class SaveSmtpSettingsCommandValidatorTests
     public void An_empty_password_is_accepted_because_a_relay_may_take_none()
     {
         _validator.TestValidate(Valid() with { Password = string.Empty }).ShouldNotHaveAnyValidationErrors();
+    }
+
+    /// <summary>Port 25 of this machine is closed to local clients, so a setting that points the panel at it is refused.</summary>
+    [Theory]
+    [InlineData("localhost")]
+    [InlineData("LocalHost.")]
+    [InlineData("127.0.0.1")]
+    [InlineData("127.1.2.3")]
+    [InlineData("::1")]
+    [InlineData("[::1]")]
+    public void Port_25_of_this_machine_is_refused(string host)
+    {
+        _validator.TestValidate(Valid() with { Host = host, Port = 25 })
+            .ShouldHaveValidationErrorFor(candidate => candidate.Port);
+    }
+
+    /// <summary>Inverse controls: the submission port of this machine, and port 25 of another one, are accepted.</summary>
+    [Theory]
+    [InlineData("localhost", 587)]
+    [InlineData("127.0.0.1", 465)]
+    [InlineData("smtp.example.com", 25)]
+    [InlineData("203.0.113.9", 25)]
+    public void The_submission_port_of_this_machine_and_port_25_elsewhere_are_accepted(string host, int port)
+    {
+        _validator.TestValidate(Valid() with { Host = host, Port = port }).ShouldNotHaveAnyValidationErrors();
+    }
+
+    /// <summary>The machine's own public address and name are this machine too, not only loopback.</summary>
+    [Theory]
+    [InlineData("198.51.100.20")]
+    [InlineData("2001:db8::20")]
+    [InlineData("[2001:db8::20]")]
+    [InlineData("::ffff:198.51.100.20")]
+    [InlineData("panel.host.test")]
+    [InlineData("PANEL.host.test.")]
+    public void Port_25_of_the_machines_own_address_or_name_is_refused(string host)
+    {
+        _validator.TestValidate(Valid() with { Host = host, Port = 25 })
+            .ShouldHaveValidationErrorFor(candidate => candidate.Port);
+    }
+
+    /// <summary>Inverse control: the same addresses on the submission port, and other hosts on port 25, are accepted.</summary>
+    [Theory]
+    [InlineData("198.51.100.20", 587)]
+    [InlineData("panel.host.test", 465)]
+    [InlineData("198.51.100.21", 25)]
+    [InlineData("other.host.test", 25)]
+    public void The_machines_own_address_on_another_port_and_other_hosts_on_port_25_are_accepted(string host, int port)
+    {
+        _validator.TestValidate(Valid() with { Host = host, Port = port }).ShouldNotHaveAnyValidationErrors();
+    }
+
+    /// <summary>With the deployment's explicit opt-in a relay of its own on port 25 of this machine is accepted.</summary>
+    [Theory]
+    [InlineData("localhost")]
+    [InlineData("127.0.0.1")]
+    [InlineData("198.51.100.20")]
+    [InlineData("panel.host.test")]
+    public void The_opt_in_allows_a_relay_of_its_own_on_port_25(string host)
+    {
+        var optedIn = Validator(allowLocalRelay: true);
+
+        optedIn.TestValidate(Valid() with { Host = host, Port = 25 }).ShouldNotHaveAnyValidationErrors();
+    }
+
+    /// <summary>An address the machine gains after the validator exists is known to the next validation.</summary>
+    [Fact]
+    public void An_address_added_after_start_is_recognised_at_the_next_validation()
+    {
+        var machine = new ChangingMachine(new ThisMachineFacts([IPAddress.Parse("198.51.100.20")], []));
+        var validator = new SaveSmtpSettingsCommandValidator(
+            new OptionsWrapper<SmtpLocalRelayOptions>(new SmtpLocalRelayOptions()),
+            machine);
+        var command = Valid() with { Host = "203.0.113.99", Port = 25 };
+
+        validator.TestValidate(command).ShouldNotHaveAnyValidationErrors();
+
+        machine.Facts = new ThisMachineFacts([IPAddress.Parse("198.51.100.20"), IPAddress.Parse("203.0.113.99")], []);
+
+        validator.TestValidate(command).ShouldHaveValidationErrorFor(c => c.Port);
+    }
+
+    /// <summary>Builds the validator for a machine with one public address and one name.</summary>
+    /// <param name="allowLocalRelay">The deployment's opt-in.</param>
+    /// <returns>The validator.</returns>
+    private static SaveSmtpSettingsCommandValidator Validator(bool allowLocalRelay)
+    {
+        return new SaveSmtpSettingsCommandValidator(
+            new OptionsWrapper<SmtpLocalRelayOptions>(
+                new SmtpLocalRelayOptions { AllowLocalPort25Relay = allowLocalRelay }),
+            new ChangingMachine(
+                new ThisMachineFacts([IPAddress.Parse("198.51.100.20"), IPAddress.Parse("2001:db8::20")], ["panel.host.test"])));
+    }
+
+    /// <summary>A machine whose facts a test can change between two validations.</summary>
+    /// <param name="initial">The facts the first read returns.</param>
+    private sealed class ChangingMachine(ThisMachineFacts initial) : IThisMachineFactsSource
+    {
+        /// <summary>The facts the next read returns.</summary>
+        public ThisMachineFacts Facts { get; set; } = initial;
+
+        /// <inheritdoc />
+        public ThisMachineFacts Read()
+        {
+            return Facts;
+        }
     }
 
     /// <summary>A configuration the panel would accept.</summary>

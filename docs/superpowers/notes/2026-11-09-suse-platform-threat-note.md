@@ -24,7 +24,7 @@ one arm in `adapter_for`, the os-release ids `opensuse-leap` and `sles` in the a
 arm in each per-family installer function (steps 20, 30, 68, 70, 80, 85, 86, 87, 88 and the skips in 89),
 the uninstaller's counterparts, and a polygon image (`docker/polygon/images/leap16`,
 `install-suse.Dockerfile`) that runs the whole installer and the agent suite on openSUSE Leap 16. The
-supported pairs are `opensuse-leap:16.0 opensuse-leap:16.1 sles:16.0`; SLES 16 is claimed through its
+supported pairs are `opensuse-leap:16.0 opensuse-leap:16.1 sles:16.0 sles:16.1`; SLES 16 is claimed through its
 community sibling Leap 16 (same base), exactly as RHEL is claimed through its rebuilds. No daemon, port or
 rpc is added. The ONE wire change is forced: `DISTRO_FAMILY_SUSE = 3` (additive) in
 `proto/agent/v1/common.proto`, `AgentDistroFamily.Suse` in the C# client, contract revision 25, because
@@ -125,7 +125,7 @@ SUSE arm must FAIL when a declared path is absent (inverse control: a path that 
 
 - The installer names the family from the exact ids `opensuse-leap` and `sles`, and falls back to
   `ID_LIKE` `*suse*` for DETECTION only; `10-preflight.sh` then judges the exact `ID:VERSION_ID` pair
-  against `MARAN_SUPPORTED_MATRIX` (`opensuse-leap:16.0 opensuse-leap:16.1 sles:16.0`). The agent's
+  against `MARAN_SUPPORTED_MATRIX` (`opensuse-leap:16.0 opensuse-leap:16.1 sles:16.0 sles:16.1`). The agent's
   `os_release.rs` accepts only `opensuse-leap` and `sles`.
 - Several ids carry "suse" in `ID_LIKE` and are NOT admitted: `opensuse-tumbleweed` (a rolling release
   has no version to pin), `opensuse-microos` (a read-only transactional root: installs do not persist),
@@ -308,7 +308,7 @@ exists to us, and no step below was exercised on a real Leap host:
 
 | # | Decision |
 |---|---|
-| 217 | Rows: openSUSE Leap 16.x only (`opensuse-leap:16.0 opensuse-leap:16.1 sles:16.0`); SLES 16 claimed through Leap; Leap 15.x and SLES 15 are out of support or untestable. |
+| 217 | Rows: openSUSE Leap 16.0 and 16.1 (`opensuse-leap:16.0 opensuse-leap:16.1 sles:16.0 sles:16.1`, amended by #559, see "Vendor lifecycle"); SLES 16 claimed through Leap; Leap 15.x and SLES 15 are out of support or untestable. |
 | 218 | Fedora and Alpine are declined and refused by preflight and by the agent; a refusal test, no support code. |
 | 219 | One PHP minor from the distribution's own repositories; no third-party repository. |
 | 220 | One firewall owner (the agent's nftables); firewalld stopped, disabled and masked after SSH is confirmed in the loaded ruleset. |
@@ -318,5 +318,20 @@ exists to us, and no step below was exercised on a real Leap host:
 | 224 | Scope: v1.0.0. |
 
 Mail is not offered on the family until measured (follows from the decisions; `None` for every release).
+
+## Vendor lifecycle (#559, checked 2026-11-12)
+
+| Release | Released | End of support | Source |
+|---|---|---|---|
+| Leap 15.6 | 2024-06-12 | 2026-04-30 | https://en.opensuse.org/Lifetime (rescheduled date), cross-read at https://endoflife.date/opensuse |
+| Leap 16.0 | 2025-10-01 | 2027-10-31 per endoflife.date; the vendor policy is six months after the next minor, so 16.0 may end earlier (UNVERIFIED) | https://en.opensuse.org/Lifetime |
+| Leap 16.1 | 2026-11-03 | 24 months of community support from release (about 2028-11, UNVERIFIED exact date) | https://en.opensuse.org/openSUSE:Roadmap, https://get.opensuse.org/leap/ |
+
+The vendor pages returned HTTP 403 to the automated fetch of this session, so the dates above come from the
+search results and a third-party tracker that mirrors them; the owner or the lead must confirm them on the
+vendor's Lifetime page before release. Until those dates are read from the vendor page the matrix keeps BOTH Leap 16.0 and 16.1; SLES is claimed
+through Leap, so its rows follow (`sles:16.0`, `sles:16.1`). Version matching is exact major.minor
+(`16.1` or `16.1.x`), so `16.10` to `16.19` are refused. Dropping 16.0 is a later change, once its end of
+support is confirmed.
 
 Second review: OUTSTANDING (#331)

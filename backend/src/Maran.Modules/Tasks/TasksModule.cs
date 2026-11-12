@@ -68,6 +68,10 @@ public sealed class TasksModule : IPanelModule
         // INSIDE another module's scoped handler, which is where every task is recorded from.
         services.AddScoped<ITaskRecorder, TaskRecorder>();
 
+        // The read-only window another module asks whether a task it holds the id of is still running
+        // through (issue #533). Scoped, for the same reason the recorder is.
+        services.AddScoped<ITaskStateReader, TaskStateReader>();
+
         // The stream's settings, validated at startup like every other options class.
         services.AddOptions<TaskStreamOptions>()
             .Bind(configuration.GetSection(TaskStreamOptions.SectionName))

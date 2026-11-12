@@ -57,11 +57,15 @@ public sealed class AccountPlanChangeAnnouncer
 
     /// <summary>Announces the change for each account. Never throws for a subscriber's failure.</summary>
     /// <param name="accountIds">The accounts whose plan figures changed.</param>
+    /// <param name="uploadBoundChanged">Whether the plan's upload bound moved, as <see cref="AccountPlanChanged.UploadBoundChanged"/> says.</param>
     /// <param name="cancellationToken">Stops the announcements when the request is cancelled.</param>
     /// <returns>A task that completes when every account has been announced or the request is cancelled.</returns>
-    public async Task AnnounceAsync(IReadOnlyCollection<Guid> accountIds, CancellationToken cancellationToken)
+    public async Task AnnounceAsync(
+        IReadOnlyCollection<Guid> accountIds,
+        bool uploadBoundChanged,
+        CancellationToken cancellationToken)
     {
-        if (accountIds.Count == 0 || !_bus.PreviewSubscriptions(new AccountPlanChanged(accountIds.First())).Any())
+        if (accountIds.Count == 0 || !_bus.PreviewSubscriptions(new AccountPlanChanged(accountIds.First(), uploadBoundChanged)).Any())
         {
             return;
         }
@@ -70,7 +74,7 @@ public sealed class AccountPlanChangeAnnouncer
         {
             try
             {
-                await _bus.InvokeAsync(new AccountPlanChanged(accountId), cancellationToken);
+                await _bus.InvokeAsync(new AccountPlanChanged(accountId, uploadBoundChanged), cancellationToken);
             }
             catch (Exception exception)
             {

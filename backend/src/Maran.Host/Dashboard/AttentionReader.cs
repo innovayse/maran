@@ -1,5 +1,6 @@
 using Maran.Modules.Backups.Queries.CountFailedBackups;
 using Maran.Modules.Firewall.Queries.CountBans;
+using Maran.Modules.Licensing.Queries.CountExpiringLicence;
 using Maran.Modules.Monitoring.Common;
 using Maran.Modules.Monitoring.Queries.GetClockSync;
 using Maran.Modules.Notifications.Common;
@@ -75,8 +76,18 @@ public static class AttentionReader
         var alertDelivery = DashboardSectionReader.ReadAsync<AlertDeliveryStatusDto>(
             bus, logger, new GetAlertDeliveryStatusQuery(), cancellationToken);
 
+        var licenceExpiring = DashboardSectionReader.ReadAsync<int>(
+            bus, logger, new CountExpiringLicenceQuery(), cancellationToken);
+
         await Task.WhenAll(
-            certificates, failedBackups, bans, failedTasks, sitesOnEndOfLifePhp, clockSync, alertDelivery);
+            certificates,
+            failedBackups,
+            bans,
+            failedTasks,
+            sitesOnEndOfLifePhp,
+            clockSync,
+            alertDelivery,
+            licenceExpiring);
 
         return new DashboardAttentionDto(
             // Already-expired certificates are included, deliberately: the horizon is an upper
@@ -88,6 +99,7 @@ public static class AttentionReader
             FailedTasks: await failedTasks,
             SitesOnEndOfLifePhp: await sitesOnEndOfLifePhp,
             Clock: await clockSync,
-            AlertDelivery: await alertDelivery);
+            AlertDelivery: await alertDelivery,
+            LicenceExpiring: await licenceExpiring);
     }
 }

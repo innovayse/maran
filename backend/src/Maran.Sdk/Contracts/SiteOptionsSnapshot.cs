@@ -11,7 +11,11 @@ namespace Maran.Sdk.Contracts;
 /// that has none set.
 /// </remarks>
 /// <param name="CanonicalHost">Which of the apex / "www." pair is canonical.</param>
-/// <param name="ClientMaxBodySizeMib">The largest request body in MiB, or null for the web server's default.</param>
+/// <param name="ClientMaxBodySizeMib">
+/// The largest request body in MiB the site's vhost carries, already decided by the Sites module (the owner's
+/// figure under the plan's upload bound, or the bound itself for a PHP site that stated none), or null for the
+/// web server's default. Re-render with exactly this figure and never with a default of your own.
+/// </param>
 /// <param name="StaticCacheDays">How many days browsers may cache static files, or null for no cache headers.</param>
 /// <param name="Redirects">The redirect rules, in the order they are rendered.</param>
 /// <param name="BasicAuthUsers">The basic-authentication users; empty means no authentication.</param>

@@ -71,6 +71,11 @@ public sealed class NotificationsModule : IPanelModule
             options.UseNpgsql(connectionString);
         });
 
+        // The settings form's advice about port 25 of this machine: the deployment's opt-in for a relay
+        // Maran does not manage. The machine's own addresses and names come from the shared IThisMachineFactsSource.
+        services.AddOptions<Options.SmtpLocalRelayOptions>()
+            .Bind(configuration.GetSection(Options.SmtpLocalRelayOptions.SectionName));
+
         // Singleton and stateless: it opens a scope of its own per call, so the Host's migrate verb can bring this
         // module's schema up to date without knowing NotificationsDbContext.
         services.AddSingleton<IModuleMigrations, NotificationsModuleMigrations>();

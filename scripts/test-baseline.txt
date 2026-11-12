@@ -21,6 +21,7 @@ rust	firewall_on_a_real_host [tests/firewall_on_a_real_host.rs]	0	0	11
 rust	fleet_listener [tests/fleet_listener.rs]	11	0	0
 rust	ftps_on_a_real_host [tests/ftps_on_a_real_host.rs]	0	0	19
 rust	handshake [tests/handshake.rs]	10	0	0
+rust	mail_server_on_a_real_host [tests/mail_server_on_a_real_host.rs]	0	0	1
 rust	monitor_on_a_real_host [tests/monitor_on_a_real_host.rs]	0	0	11
 rust	panel_certificate_on_a_real_host [tests/panel_certificate_on_a_real_host.rs]	0	0	6
 rust	php_extensions_on_a_real_host [tests/php_extensions_on_a_real_host.rs]	0	0	4
@@ -58,37 +59,37 @@ rust	doc-tests maran_agent_core	0	0	0
 rust	doc-tests maran_distro	1	0	0
 rust	doc-tests maran_ops	1	0	0
 rust	doc-tests maran_templates	0	0	0
-backend	Maran.Host.Tests.dll	1084	0	0
-backend	Maran.SharedKernel.Tests.dll	669	0	0
-backend	Maran.Agent.Client.Tests.dll	813	0	0
-backend	Maran.ArchitectureTests.dll	254	0	0
-backend	Maran.Host.IntegrationTests.dll	1783	0	0
-backend	Maran.Agent.Simulated.Tests.dll	343	0	0
-backend	Maran.Host.Demo.Tests.dll	179	0	0
-backend	Maran.Host.DemoIntegrationTests.dll	21	0	0
-backend	Maran.Modules.Accounts.Tests.dll	1541	0	0
-backend	Maran.Modules.Apps.Tests.dll	77	0	0
-backend	Maran.Modules.Identity.Tests.dll	1507	0	0
-backend	Maran.Modules.Sites.Tests.dll	750	0	0
-backend	Maran.Modules.Ssl.Tests.dll	428	0	0
+backend	Maran.Host.Tests.dll	1113	0	0
+backend	Maran.SharedKernel.Tests.dll	694	0	0
+backend	Maran.Agent.Client.Tests.dll	859	0	0
+backend	Maran.ArchitectureTests.dll	261	0	0
+backend	Maran.Host.IntegrationTests.dll	1786	0	0
+backend	Maran.Agent.Simulated.Tests.dll	348	0	0
+backend	Maran.Host.Demo.Tests.dll	444	0	0
+backend	Maran.Host.DemoIntegrationTests.dll	26	0	0
+backend	Maran.Modules.Accounts.Tests.dll	1544	0	0
+backend	Maran.Modules.Apps.Tests.dll	125	0	0
+backend	Maran.Modules.Identity.Tests.dll	1515	0	0
+backend	Maran.Modules.Sites.Tests.dll	905	0	0
+backend	Maran.Modules.Ssl.Tests.dll	452	0	0
 backend	Maran.Modules.Databases.Tests.dll	250	0	0
 backend	Maran.Modules.Ftp.Tests.dll	188	0	0
-backend	Maran.Modules.Mail.Tests.dll	499	0	0
+backend	Maran.Modules.Mail.Tests.dll	555	0	0
 backend	Maran.Modules.Dns.Tests.dll	456	0	0
 backend	Maran.Modules.Sftp.Tests.dll	287	0	0
-backend	Maran.Modules.Tasks.Tests.dll	130	0	0
+backend	Maran.Modules.Tasks.Tests.dll	133	0	0
 backend	Maran.Modules.Cron.Tests.dll	258	0	0
 backend	Maran.Modules.Files.Tests.dll	749	0	0
 backend	Maran.Modules.Idempotency.Tests.dll	58	0	0
 backend	Maran.Modules.Updates.Tests.dll	151	0	0
-backend	Maran.Modules.Marketplace.Tests.dll	345	0	0
+backend	Maran.Modules.Marketplace.Tests.dll	389	0	0
 backend	Maran.Modules.Firewall.Tests.dll	354	0	0
 backend	Maran.Modules.Monitoring.Tests.dll	292	0	0
-backend	Maran.Modules.Notifications.Tests.dll	145	0	0
+backend	Maran.Modules.Notifications.Tests.dll	175	0	0
 backend	Maran.Modules.Backups.Tests.dll	490	0	0
-backend	Maran.Sdk.Tests.dll	896	0	0
+backend	Maran.Sdk.Tests.dll	943	0	0
 backend	Maran.Packaging.Tests.dll	118	0	0
-backend	Maran.Modules.Licensing.Tests.dll	288	0	0
+backend	Maran.Modules.Licensing.Tests.dll	393	0	0
 backend	Maran.Modules.Fleet.Tests.dll	71	0	0
 backend	Maran.Modules.ServerMigration.Tests.dll	400	0	0
 backend	Maran.Host.IntegrationTests.dll [PerformanceBudget]	20	0	0
@@ -300,7 +301,7 @@ spa	reseller/reseller-role-exact.spec.ts	46	0	0
 spa	reseller/view-as-reseller.spec.ts	8	0	0
 spa	settings/alert-settings.spec.ts	7	0	0
 spa	settings/api-keys.spec.ts	22	0	0
-spa	settings/licence.spec.ts	14	0	0
+spa	settings/licence.spec.ts	21	0	0
 spa	settings/numeric-fields-and-stale-feedback.spec.ts	4	0	0
 spa	settings/php-eol.spec.ts	5	0	0
 spa	settings/php-extensions.spec.ts	7	0	0
@@ -387,6 +388,7 @@ spa	ui-kit/actions-and-links.spec.ts	8	0	0
 spa	ui-kit/badge-narrow.spec.ts	2	0	0
 spa	ui-kit/chart.spec.ts	5	0	0
 spa	ui-kit/combobox.spec.ts	6	0	0
+spa	ui-kit/control-contrast.spec.ts	23	0	0
 spa	ui-kit/dropdown-landing-focus.spec.ts	5	0	0
 spa	ui-kit/field-error-state.spec.ts	4	0	0
 spa	ui-kit/filter-sheet.spec.ts	9	0	0
@@ -409,3 +411,4 @@ spa	ui-kit/toolbar-alignment.spec.ts	8	0	0
 spa	ui-kit/type-consistency.spec.ts	7	0	0
 spa	ui-kit/unfilled-select-prompt.spec.ts	4	0	0
 spa	upgrade/tier-name.spec.ts	3	0	0
+spa	utils/format-utc-date.spec.ts	5	0	0

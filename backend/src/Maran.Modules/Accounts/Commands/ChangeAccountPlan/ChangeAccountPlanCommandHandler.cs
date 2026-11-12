@@ -209,7 +209,8 @@ public sealed class ChangeAccountPlanCommandHandler
             // After the commit, and only when the two plans bound PHP differently: the account's pools
             // carry the customer's settings clamped to the plan, so only then is there anything to
             // re-render. A subscriber's failure is logged and never fails the move that already happened.
-            await _announcer.AnnounceAsync([account.Id], cancellationToken);
+            await _announcer.AnnounceAsync(
+                [account.Id], current.PhpLimits.UploadMaxMb != target.PhpLimits.UploadMaxMb, cancellationToken);
         }
 
         await _journal.RecordSuccessAsync(

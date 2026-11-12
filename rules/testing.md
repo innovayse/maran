@@ -21,6 +21,7 @@ A PR missing any of these is incomplete, independent of code quality.
 ## Where tests live
 
 - C#: `backend/tests/<Project>.Tests` mirrors `src/`; integration tests in `<Project>.IntegrationTests` on Testcontainers-PostgreSQL; `Maran.ArchitectureTests` holds NetArchTest module-isolation rules.
+  **The customer-operations census** (`Baselines/customer-operations.txt`, checked by `CustomerOperationMatrixTests`, issue #147): every operation a customer's token can reach is a row, naming its module and the integration test class that holds the "another account's resource is answered not found" case (or the reason it reaches no other account's resource). Adding a customer operation without its row is red, and so is a row naming an operation that no longer exists or a test class no integration test file declares; the file is the list a reviewer reads to see what customers can do.
 - Rust: unit tests live under the crate's `src/tests/` **mirror** of its module tree, never beside or inside the unit they exercise — `src/validation/name.rs` is tested by `src/tests/validation/name_tests.rs`, the same separation the backend gets from `backend/tests/`. The unit declares them at the end of the file:
 
   ```rust
@@ -41,6 +42,7 @@ A PR missing any of these is incomplete, independent of code quality.
   The one exception is `e2e/install/`: specs that need a panel a real installer set up, run only
   through `playwright.install.config.ts` by `maran installer --browser` (docker/README.md), and
   ignored by the everyday config so `maran test spa` and its baseline never collect them.
+  The same holds for `e2e/screens/` (`npm run screens`, via `playwright.screens.config.ts`: every screen at 1440, 768 and 390 px in both themes, a capture tool and not a gate) and, held with the demo, `e2e/demo/` (`playwright.demo.config.ts`).
   The second exception is `e2e/real/` (issue #519): journeys per role against a panel and agent that are
   really running, with no `page.route`, reached by clicks only, run through `playwright.real.config.ts` by
   `maran e2e-real` (`maran test e2e-real` is the same command), ignored by the everyday config. A journey fails
@@ -49,8 +51,8 @@ A PR missing any of these is incomplete, independent of code quality.
   `e2e/fixtures/guarded-test.ts` gets the same guard (an unstubbed request, an unannounced refusal, a console
   error and a drifted stub body fail it); new specs use it. The lane needs a running panel and six role logins
   (`MARAN_REAL_*`, header of `scripts/lib/e2e-real.sh`); without them it prints `E2E-REAL VERDICT: DID NOT RUN`
-  and exits 2, never a pass. It runs nightly in `nightly.yml` when the repository variable `MARAN_E2E_REAL_URL`
-  is set, and by hand against a release candidate before release.
+  and exits 2, never a pass. It runs daily in `e2e-real.yml` (its own schedule since issue #553) when the repository variable
+  `MARAN_E2E_REAL_URL` is set, and by hand against a release candidate before release.
 
 ## Naming
 
@@ -427,6 +429,7 @@ Each row names the workflow that runs it, so this list can be checked against
   only a finalizer releases; the fixes and their measurements are in `Program.Main`,
   `RateLimitingExtensions.UsePanelRateLimiting` and the integration `PostgresFixture`.
 - Rust: fmt --check, clippy -D warnings, tests, doc build clean (`agent.yml`).
+  The AlmaLinux 9 polygon image is built with buildx and a layer cache scoped to the image and the ISO week; the `maran.polygon.fingerprint` label and the currency check below are unchanged, so a cached layer cannot hide a stale image.
   **Not** cargo-deny or cargo-audit: this row claimed both for months and no workflow has
   ever invoked either — measured against every step of every file in `.github/workflows/`.
   A gate not named in a workflow is not a gate, and a gate named here and nowhere else is
@@ -503,6 +506,7 @@ Each row names the workflow that runs it, so this list can be checked against
   host or whether the service still works under it. `maran structure` (check 31) separately holds
   the two files' names together.
 - `maran licenses --check` — third-party notices cover every declared dependency (`notices.yml`).
+- `maran operator-commands` — **the operator's verbs are a checked catalogue.** `installer/cli/commands.json` is the machine-readable list of the `maran` verbs and installer flags (`maran help --json`); the gate checks it against the dispatcher, the flag parsers and `docs/operations` (`cross.yml`), after `maran operator-commands selftest` (issue #155).
 
 **Counting, and the guards against a run that measured nothing**
 
@@ -535,6 +539,12 @@ Each row names the workflow that runs it, so this list can be checked against
   for that suite; over the run it requires at least one test executed, and it reconciles every named
   failure against the totals. Its suite list is **discovered** from `agent/crates/*/tests`, never
   written down, so a new `*_on_a_real_host.rs` that no `--test` list names fails this job by name.
+  The one exception is a suite another lane owns (`POLYGON_LANE_OWNED_SUITES` in
+  `scripts/lib/polygon.sh`, today `mail_server_on_a_real_host` in the `polygon-mail` lane): it is
+  declared once, `verify` does not require it in the `polygon` logs and says so (`lane-owned:` line),
+  and the owning lane script requires it to start and pass exactly the declared count
+  (`polygon_lane_verdict`). It is a moved proof, not a skip: an ignored suite that is not declared is
+  still required here, and `maran polygon selftest` holds both directions.
 - **The image currency axis, asked before any count is believed** (`polygon_currency_from_log` in
   `scripts/lib/polygon.sh`, wired into `maran polygon verify`). Every other axis asks whether the
   container said enough; this one asks whether it was the right container. Measured 2026-09-11: a
@@ -563,7 +573,10 @@ Each row names the workflow that runs it, so this list can be checked against
   warning did not stop it being read as a product defect. It refuses rather than rebuilds because a
   bring-up that disappears into a minutes-long build is indistinguishable from a hang.
   `maran polygon selftest` proves the gate against a stubbed `docker`: three refusals, the inverse
-  control (a current image proceeds), and `maran dev --selfcheck` refusing with nothing started.
+  control (a current image proceeds), and `maran dev --selfcheck` refusing with nothing started. It
+  also proves the lane-ownership rule (`polygon-lanes-selftest.sh`): an owned suite absent from the
+  polygon logs is accepted, the same suite missing from its own lane is refused, and an undeclared
+  ignored suite missing from the polygon logs is still refused.
 - `polygon_verify_ran`'s **fifth axis** (`scripts/lib/polygon.sh`). The first four axes are all axes
   of PRESENCE — did the suite appear, did it print a result line, did the container exit, did
   anything run. All four are satisfied by a suite that ran a fraction of itself. The fifth axis is
@@ -598,18 +611,21 @@ Each row names the workflow that runs it, so this list can be checked against
   locally but killed on the polygon means the protection has **no local test at all**. In
   `--polygon` mode no repository file is written — the mutation is applied to an rsync snapshot.
 
-**PR and nightly matrices**
+**PR and installer matrices**
 
-- PR smoke matrix: Ubuntu 24.04 + AlmaLinux 9 polygons (`agent.yml`). `nightly.yml` (owner
-  decision D10) builds one offline bundle signed with a throwaway key and runs the installer polygon
-  (`maran installer --mode offline --bundle`, every stage at its default) on Ubuntu 24.04 and
-  AlmaLinux 9 daily, and on the other twelve images under `docker/polygon/images/*` weekly (Sunday)
-  or by `workflow_dispatch`, each leg passing only on its printed `INSTALL-POLYGON-OK (...)` line.
+- PR smoke matrix: Ubuntu 24.04, AlmaLinux 9 and openSUSE Leap 16 polygons (`agent.yml`), plus the
+  `polygon-mail` lane (Ubuntu 24.04 + AlmaLinux 9) that runs the mail assertions against a running stack. `nightly.yml` (owner
+  decision D10; the file keeps its name) builds one offline bundle signed with a throwaway key and runs the installer polygon
+  (`maran installer --mode offline --bundle`, every stage at its default) on dispatch and before a
+  release tag, on no schedule (issue #553): `release.yml` calls it as a `needs` of its `sign` job with
+  the default scope (Ubuntu 24.04 and AlmaLinux 9), so a tag cannot be signed without a green run, and
+  a dispatch with scope `weekly` or `both` runs the other twelve images under
+  `docker/polygon/images/*`. Each leg passes only on its printed `INSTALL-POLYGON-OK (...)` line.
   It runs under a throwaway key, so it exercises the signature path and not which key the product
   trusts. Still workstation-only, because nothing here can run them on a hosted runner: the
   Playwright golden path (it needs a real backend), `maran installer --browser`, `--mode get` and
   `--arch aarch64`. The openSUSE Leap 16 image (`leap16`, issue #59) is one of the twelve and also runs the
-  agent suite as a third leg of the agent workflow's nightly run; PR smoke stays Ubuntu 24.04 + AlmaLinux 9. The older sentence promising "full six-OS matrix + Playwright golden path"
+  agent suite as a third leg of both the agent workflow's nightly run and its pull-request run. The older sentence promising "full six-OS matrix + Playwright golden path"
   nightly described no workflow and has been replaced by this one.
 
 ### Where this list is enforced, and the one place it is not
@@ -632,30 +648,13 @@ other two stacks, keyed **one row per spec file** in `scripts/test-baseline.txt`
 total, because the failure this exists to catch is a spec file that quietly stops being collected —
 a rename, a bad import, a `testMatch` that no longer matches — and a run whose collected total held
 steady because another file grew by as much would report nothing. A vanished file is named. The
-count is 212 spec files, 1455 passed and 2 skipped against 1457 collected (re-derived 2026-11-07 with the
-`awk` below), and it is a measurement, not a number quoted from memory between readers, which is what
-it had been. It has now gone stale three
-times, which is the point of writing down **how** it was re-derived rather than only what it is: it
-read `64 spec files, 318 passed` in the morning of 2026-09-10, was corrected to `70 spec files, 354
-passed` at midday against a run printing `70 targets: 354 passed / 0 failed / 1 ignored`, the suite
-grew again the same afternoon (`71` rows summing to `357`, confirmed by a run printing
-`71 targets: 357 passed / 0 failed / 1 ignored`), and it grew a fourth time on 2026-09-12. So do not
-read the digits — re-derive them, with the one command that cannot disagree with the gate, because it
-reads the gate's own input:
+count lives in `scripts/test-baseline.txt` and is a measurement, not a number to quote between readers (it goes stale within days), so re-derive it with the one command that reads the gate's own input:
 
 ```
 awk -F'\t' '$1=="spa"{n++; p+=$3; f+=$4; i+=$5} END{print n, p, f, i}' scripts/test-baseline.txt
 ```
 
-which prints `212 1455 0 2` as this sentence is written. The five rows for the audit export,
-retention, integrity and filter specs and the personal-data export spec (issues #145 and #146) were
-declared by reading the specs, and no `maran test spa` run had measured them when this was written, so
-this figure is the baseline's, not a run's; CI re-measures every row, and the `awk` is the half a
-reader can re-run in a second, and is what this paragraph is pointing at. A count in this file is a map of the gate, so a
-stale one is the defect rules/architecture.md names: it stops the next reader re-deriving it. Four
-staleness events in three days is also the evidence for a narrower claim — the SPA row total is the
-fastest-moving number in these rules, so a reader who needs it exact runs the `awk` and a reader who
-needs only the shape reads "two hundred-odd spec files, two skipped".
+which printed `317 2634 0 2` on 2026-11-12 (317 spec files, 2634 passed, 0 failed, 2 skipped). CI re-measures every row; the `awk` is the half a reader can re-run in a second. A count in this file is a map of the gate, so a stale one is the defect rules/architecture.md names: it stops the next reader re-deriving it.
 
 The wiring landed with it: `.github/workflows/frontend.yml` runs `maran test spa` and gates on the
 printed verdict line, the same shape as the other two lanes, and its path filters gained `scripts/**`

@@ -81,6 +81,9 @@
   <data name="FeedAlertPanelUpdateInterruptedCritical">
     <value>Плановое обновление прервано: {0}</value>
   </data>
+  <data name="FeedAlertLicenceExpiringWarning">
+    <value>Установленная лицензия истекает {1} (осталось дней: {2}). Откройте «Настройки», затем «Лицензия», чтобы продлить её.</value>
+  </data>
   <data name="FeedBackupScheduledRunFailedWarning">
     <value>Резервное копирование по расписанию не удалось: {0}</value>
   </data>

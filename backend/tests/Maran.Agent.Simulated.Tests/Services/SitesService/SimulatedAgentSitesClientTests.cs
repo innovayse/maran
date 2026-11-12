@@ -62,7 +62,7 @@ public sealed class SimulatedAgentSitesClientTests
             SiteNodeApp.None,
             7,
             [new PhpSettingDto("memory_limit", "256M")],
-            CancellationToken.None);
+            SiteOptionsDescriptor.None, CancellationToken.None);
 
         Assert.True(created.IsSuccess);
         Assert.True(ledger.Vhosts.TryGet(Domain, out var vhost));
@@ -93,7 +93,7 @@ public sealed class SimulatedAgentSitesClientTests
         var (_, client) = NewHost();
         await client.CreateAsync(
             "acme", Domain, ["www.example.test"], SiteBackendKind.Static, string.Empty, string.Empty, SiteWebServer.Nginx, SiteNodeApp.None, 0, [],
-            CancellationToken.None);
+            SiteOptionsDescriptor.None, CancellationToken.None);
 
         var clash = await CreatePhpAsync(client, "www.example.test");
 
@@ -109,7 +109,7 @@ public sealed class SimulatedAgentSitesClientTests
 
         var clash = await client.CreateAsync(
             "acme", "blog.example.test", [Domain], SiteBackendKind.Static, string.Empty, string.Empty, SiteWebServer.Nginx, SiteNodeApp.None, 0, [],
-            CancellationToken.None);
+            SiteOptionsDescriptor.None, CancellationToken.None);
 
         Assert.Equal("AgentAlreadyExists", clash.Error!.Code);
     }
@@ -121,7 +121,7 @@ public sealed class SimulatedAgentSitesClientTests
         var (ledger, client) = NewHost();
 
         var created = await client.CreateAsync(
-            "ghost", Domain, [], SiteBackendKind.Static, string.Empty, string.Empty, SiteWebServer.Nginx, SiteNodeApp.None, 0, [], CancellationToken.None);
+            "ghost", Domain, [], SiteBackendKind.Static, string.Empty, string.Empty, SiteWebServer.Nginx, SiteNodeApp.None, 0, [], SiteOptionsDescriptor.None, CancellationToken.None);
 
         Assert.Equal("AgentNotFound", created.Error!.Code);
         Assert.Equal(0, ledger.Vhosts.Count);
@@ -134,7 +134,7 @@ public sealed class SimulatedAgentSitesClientTests
         var (_, client) = NewHost();
 
         var created = await client.CreateAsync(
-            "acme", Domain, [], SiteBackendKind.Php, "7.4", string.Empty, SiteWebServer.Nginx, SiteNodeApp.None, 5, [], CancellationToken.None);
+            "acme", Domain, [], SiteBackendKind.Php, "7.4", string.Empty, SiteWebServer.Nginx, SiteNodeApp.None, 5, [], SiteOptionsDescriptor.None, CancellationToken.None);
 
         Assert.Equal("AgentValidationFailed", created.Error!.Code);
     }
@@ -158,7 +158,7 @@ public sealed class SimulatedAgentSitesClientTests
         var (ledger, client) = NewHost();
 
         var created = await client.CreateAsync(
-            "acme", domain, [], kind, "8.3", upstream, SiteWebServer.Nginx, SiteNodeApp.None, 5, [], CancellationToken.None);
+            "acme", domain, [], kind, "8.3", upstream, SiteWebServer.Nginx, SiteNodeApp.None, 5, [], SiteOptionsDescriptor.None, CancellationToken.None);
 
         Assert.Equal("AgentInvalidInput", created.Error!.Code);
         Assert.Equal(0, ledger.Vhosts.Count);
@@ -193,7 +193,7 @@ public sealed class SimulatedAgentSitesClientTests
             new SiteNodeApp(version, port, command),
             0,
             [],
-            CancellationToken.None);
+            SiteOptionsDescriptor.None, CancellationToken.None);
 
         Assert.Equal(accepted, created.IsSuccess);
         Assert.Equal(accepted ? 1 : 0, ledger.Vhosts.Count);
@@ -208,10 +208,10 @@ public sealed class SimulatedAgentSitesClientTests
 
         var aliases = await client.CreateAsync(
             "acme", Domain, ["a.example.test", "b.example.test"], SiteBackendKind.Static, string.Empty, string.Empty, SiteWebServer.Nginx, SiteNodeApp.None, 0,
-            [], CancellationToken.None);
+            [], SiteOptionsDescriptor.None, CancellationToken.None);
         var overrides = await client.CreateAsync(
             "acme", Domain, [], SiteBackendKind.Php, "8.3", string.Empty, SiteWebServer.Nginx, SiteNodeApp.None, 5,
-            [new PhpSettingDto("a", "1"), new PhpSettingDto("b", "2")], CancellationToken.None);
+            [new PhpSettingDto("a", "1"), new PhpSettingDto("b", "2")], SiteOptionsDescriptor.None, CancellationToken.None);
 
         Assert.Equal("AgentInvalidInput", aliases.Error!.Code);
         Assert.Equal("AgentInvalidInput", overrides.Error!.Code);
@@ -225,7 +225,7 @@ public sealed class SimulatedAgentSitesClientTests
 
         var created = await client.CreateAsync(
             "acme", Domain, [], SiteBackendKind.Php, "8.3", string.Empty, SiteWebServer.Nginx, SiteNodeApp.None, 5,
-            [new PhpSettingDto("memory_limit", "256M\nauto_prepend_file=x")], CancellationToken.None);
+            [new PhpSettingDto("memory_limit", "256M\nauto_prepend_file=x")], SiteOptionsDescriptor.None, CancellationToken.None);
 
         Assert.Equal("AgentInvalidInput", created.Error!.Code);
     }
@@ -269,7 +269,7 @@ public sealed class SimulatedAgentSitesClientTests
     {
         var (_, client) = NewHost();
         await client.CreateAsync(
-            "acme", Domain, [], SiteBackendKind.Static, string.Empty, string.Empty, SiteWebServer.Nginx, SiteNodeApp.None, 0, [], CancellationToken.None);
+            "acme", Domain, [], SiteBackendKind.Static, string.Empty, string.Empty, SiteWebServer.Nginx, SiteNodeApp.None, 0, [], SiteOptionsDescriptor.None, CancellationToken.None);
         await CreatePhpAsync(client, "php.example.test");
 
         var staticSite = await client.ChangePhpVersionAsync(
@@ -658,6 +658,6 @@ public sealed class SimulatedAgentSitesClientTests
     private static Task<Result<CreatedSiteDto>> CreatePhpAsync(SimulatedAgentSitesClient client, string domain)
     {
         return client.CreateAsync(
-            "acme", domain, [], SiteBackendKind.Php, "8.3", string.Empty, SiteWebServer.Nginx, SiteNodeApp.None, 5, [], CancellationToken.None);
+            "acme", domain, [], SiteBackendKind.Php, "8.3", string.Empty, SiteWebServer.Nginx, SiteNodeApp.None, 5, [], SiteOptionsDescriptor.None, CancellationToken.None);
     }
 }

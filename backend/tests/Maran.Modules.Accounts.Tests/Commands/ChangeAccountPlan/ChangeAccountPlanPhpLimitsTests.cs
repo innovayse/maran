@@ -78,7 +78,7 @@ public sealed class ChangeAccountPlanPhpLimitsTests : IDisposable
         var result = await NewHandler(bus).HandleAsync(MoveTo(_bounded.Id), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(new AccountPlanChanged(_account.Id), Assert.Single(bus.Invoked));
+        Assert.Equal(new AccountPlanChanged(_account.Id, true), Assert.Single(bus.Invoked));
     }
 
     /// <summary>A move to a plan with the same bounds announces nothing.</summary>

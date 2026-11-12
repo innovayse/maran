@@ -14,9 +14,15 @@
 # A reviewer, when this file grows, asks: why does every module need to see this type, and could a
 # message or an interface the owning module implements carry it instead (rules/architecture.md,
 # "A shared facility's contract lives in Maran.Sdk")?
-total 179
+# #531: ISiteOperationLock (and its in-process SiteOperationLock) join the surface. Sites and Ssl both change
+# one site's host state (vhost, pool, certificate), so the per-site lock must be one object they share; a
+# lock owned by either module would be invisible to the other. The lock is taken on a typed key (SiteLockKey and its
+# SiteLockScope: one site, or one account's php-fpm pools) so an account id can never be mistaken for a site id.
+# Sites +3 (the interface, the key, and the concrete lock's busy code that names a refusal), Ssl +2 (the interface
+# and the key it converts a site id into), total +2 (the same types).
+total 183
 module Accounts 83
-module Apps 21
+module Apps 23
 module Backups 45
 module Cron 42
 module Databases 40
@@ -34,9 +40,9 @@ module Monitoring 43
 module Notifications 22
 module ServerMigration 44
 module Sftp 42
-module Sites 74
-module Ssl 63
-module Tasks 29
+module Sites 77
+module Ssl 65
+module Tasks 31
 module Updates 17
 type Maran.Sdk.Alerts.OperatorAlertDispatcher
 type Maran.Sdk.Contracts.AccountAuditActions
@@ -173,6 +179,7 @@ type Maran.Sdk.Contracts.SiteSnapshot
 type Maran.Sdk.Contracts.SystemAuditEntry
 type Maran.Sdk.Contracts.TaskAudience
 type Maran.Sdk.Contracts.TaskKinds
+type Maran.Sdk.Contracts.TaskState
 type Maran.Sdk.Contracts.UnavailableCodeIntegrityVerdict
 type Maran.Sdk.Contracts.UpdatesAuditActions
 type Maran.Sdk.Contracts.ViewAsAccess
@@ -256,10 +263,14 @@ type Maran.Sdk.Interfaces.IReservedHostDirectory
 type Maran.Sdk.Interfaces.ISearchProvider
 type Maran.Sdk.Interfaces.ISiteDirectory
 type Maran.Sdk.Interfaces.ISiteHostnameDirectory
+type Maran.Sdk.Interfaces.ISiteOperationLock
 type Maran.Sdk.Interfaces.ISiteRuntimeUsage
 type Maran.Sdk.Interfaces.ISystemAuditJournal
 type Maran.Sdk.Interfaces.ITaskRecorder
+type Maran.Sdk.Interfaces.ITaskStateReader
 type Maran.Sdk.Interfaces.IVerifiedModulePackageSource
+type Maran.Sdk.Interfaces.SiteLockKey
+type Maran.Sdk.Interfaces.SiteLockScope
 type Maran.Sdk.Manifests.Enums.ManifestFindingKind
 type Maran.Sdk.Manifests.ManifestFinding
 type Maran.Sdk.Manifests.ManifestPermissionVocabulary
@@ -274,6 +285,7 @@ type Maran.Sdk.Modules.ModuleRefusals
 type Maran.Sdk.Modules.NoLeaseRequestAuthorizer
 type Maran.Sdk.Modules.NullModuleLoader
 type Maran.Sdk.Modules.NullModuleSpaAssets
+type Maran.Sdk.Modules.SiteOperationLock
 type Maran.Sdk.Navigation.ModuleIconKeys
 type Maran.Sdk.Navigation.ModuleMenuItem
 type Maran.Sdk.Navigation.ModuleRoute

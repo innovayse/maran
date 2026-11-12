@@ -246,4 +246,6 @@ contradict a choice instead of validating one.
 - Closed: "Administrator oversight of reseller keys" (built, revoke only) and "Reseller UI" (built).
 - Raised: whether the oversight should also let the administrator revoke ALL of a reseller's keys in
   one action (not built; suspending the reseller does that today without deleting the keys).
-- Still open from above: writes by key, and whether a resumed reseller's old keys come back.
+- Still open from above: writes by key. Answered by issue #551: a resumed reseller's keys come back
+  (the creator rule judges the login on every call, and a suspension is reversible), a deleted
+  reseller's do not (see the #551 addendum in `2026-11-05-api-keys-threat-note.md`).

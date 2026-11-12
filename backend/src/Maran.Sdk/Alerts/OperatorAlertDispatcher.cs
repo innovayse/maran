@@ -25,13 +25,15 @@ namespace Maran.Sdk.Alerts;
 /// (rules/architecture.md "A shared facility's contract").
 /// </para>
 /// <para>
-/// <b>Order: the journal entry first, then the outputs, independent of one another.</b> "The disk
-/// filled at 02:14" is a fact about the server; whether a mail, a webhook or a bell entry about it was
-/// delivered is a fact about somebody else's system, and an operator investigating needs the first even
-/// when the rest never happened. The outputs are separate publishes onto local queues: publishing only
-/// enqueues, the handlers run later on their own, so a handler that fails never reaches this method and
-/// one output cannot block another. The webhook and the feed entry are published whether or not any mail
-/// address exists.
+/// <b>Order: the recipients are read first, then the journal entry, then the outputs, independent of one
+/// another.</b> The one step that can fail for a reason of the panel's own (the settings read) comes before anything
+/// is written or published, so a caller that retries after a failure repeats nothing: no second journal row, no
+/// second webhook event, no second bell entry. After that the journal entry comes before the outputs: "the disk
+/// filled at 02:14" is a fact about the server; whether a mail, a webhook or a bell entry about it was delivered is
+/// a fact about somebody else's system, and an operator investigating needs the first even when the rest never
+/// happened. The outputs are separate publishes onto local queues: publishing only enqueues, the handlers run later
+/// on their own, so a handler that fails never reaches this method and one output cannot block another. The webhook
+/// and the feed entry are published whether or not any mail address exists.
 /// </para>
 /// <para>
 /// <b>No address is <see cref="OutgoingMailAuditActions.MailSkippedNoSmtp"/>, SUCCEEDED.</b> Outgoing mail not
@@ -78,8 +80,11 @@ public sealed class OperatorAlertDispatcher
     /// <param name="alert">The alert, described without words: what, about which thing, which figure.</param>
     /// <param name="mailSubject">The localized subject line.</param>
     /// <param name="mailBody">The localized body.</param>
-    /// <param name="cancellationToken">Cancels the journal writes and the recipient read.</param>
+    /// <param name="cancellationToken">Cancels the recipient read and the journal writes.</param>
     /// <returns>A task that completes once the alert is journalled and every output published or skipped.</returns>
+    /// <exception cref="Exception">
+    /// The recipient read failed: nothing was journalled or published, so the caller may try the same alert again.
+    /// </exception>
     public async Task AlertAsync(
         ISystemAuditJournal journal,
         string action,
@@ -89,13 +94,14 @@ public sealed class OperatorAlertDispatcher
         string mailBody,
         CancellationToken cancellationToken)
     {
+        var recipients = await _recipients.GetAlertRecipientsAsync(cancellationToken);
+
         await journal.RecordSystemAsync(action, auditSubject, succeeded: true, cancellationToken);
 
         var now = _clock.UtcNow;
         await _bus.PublishAsync(new OperatorAlertRaised(alert, now));
         await _bus.PublishAsync(FeedEntryFor(alert, now));
 
-        var recipients = await _recipients.GetAlertRecipientsAsync(cancellationToken);
         if (recipients.Count == 0)
         {
             await journal.RecordSystemAsync(
@@ -114,8 +120,8 @@ public sealed class OperatorAlertDispatcher
     /// <param name="now">When it was handled.</param>
     /// <returns>
     /// The feed message: critical for a condition that began, informational for one that ended, a
-    /// warning for a one-off event. The detail travels as the first argument and the destination is the
-    /// page of the module that raised it.
+    /// warning for a one-off event. The feed values (the detail unless the alert carries its own) travel as the
+    /// arguments and the destination is the page of the module that raised it.
     /// </returns>
     private static PanelNotificationRaised FeedEntryFor(OperatorAlert alert, DateTimeOffset now)
     {
@@ -130,9 +136,10 @@ public sealed class OperatorAlertDispatcher
         {
             AlertSource.Monitoring => NotificationDeepLinks.Monitoring,
             AlertSource.Backups => NotificationDeepLinks.Backups,
+            AlertSource.Licensing => NotificationDeepLinks.Licence,
             _ => null,
         };
 
-        return new PanelNotificationRaised(source, alert.Code, severity, alert.Subject, [alert.Detail], deepLink, now);
+        return new PanelNotificationRaised(source, alert.Code, severity, alert.Subject, alert.FeedValues ?? [alert.Detail], deepLink, now);
     }
 }

@@ -53,7 +53,7 @@ public sealed class SimulatedAgentMailClientTests
         var client = new SimulatedAgentMailClient();
 
         var set = await client.SetLocalSubmissionAsync(
-            new AgentLocalSubmission("alice", ["a.test"], 100, []), CancellationToken.None);
+            new AgentLocalSubmission("alice", ["a.test"], 100, [], []), CancellationToken.None);
         var removed = await client.RemoveLocalSubmissionAsync("alice", CancellationToken.None);
 
         Assert.True(set.IsSuccess);
