@@ -9,6 +9,9 @@ public sealed class StubLeaseAuthorizer : ILeaseRequestAuthorizer
     /// <summary>Whether the panel holds a lease.</summary>
     public bool HasLease { get; set; }
 
+    /// <summary>The credential attached while the panel holds a lease; change it to stand for a renewed lease.</summary>
+    public string Token { get; set; } = "test-lease";
+
     /// <summary>How many times the transport asked.</summary>
     public int Calls { get; private set; }
 
@@ -19,7 +22,7 @@ public sealed class StubLeaseAuthorizer : ILeaseRequestAuthorizer
 
         if (HasLease)
         {
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", "test-lease");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token);
         }
 
         return Task.FromResult(HasLease);

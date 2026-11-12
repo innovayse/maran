@@ -101,4 +101,16 @@ public static class ErrorCodes
 
     /// <summary>The code <c>MarketplaceCursorInvalid</c>.</summary>
     public const string MarketplaceCursorInvalid = "MarketplaceCursorInvalid";
+
+    /// <summary>The code <c>LicenceUnknown</c>.</summary>
+    public const string LicenceUnknown = "LicenceUnknown";
+
+    /// <summary>The code <c>LicenceRevoked</c>.</summary>
+    public const string LicenceRevoked = "LicenceRevoked";
+
+    /// <summary>The code <c>MarketplaceRateLimited</c>.</summary>
+    public const string MarketplaceRateLimited = "MarketplaceRateLimited";
+
+    /// <summary>The code <c>DownloadGrantUnusable</c>.</summary>
+    public const string DownloadGrantUnusable = "DownloadGrantUnusable";
 }

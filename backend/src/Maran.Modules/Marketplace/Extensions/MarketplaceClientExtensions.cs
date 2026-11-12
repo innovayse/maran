@@ -47,6 +47,7 @@ public static class MarketplaceClientExtensions
         services.AddSingleton<SignedResponseReader>();
         services.AddSingleton<DisabledMarketplaceTransport>();
         services.AddScoped<MarketplaceHttpTransport>();
+        services.AddScoped<LeaseFingerprintReader>();
         services.AddScoped<PackageDownloader>();
         services.AddScoped<IMarketplaceSwitch, MarketplaceSwitch>();
         services.AddScoped<IMarketplaceClient, MarketplaceClient>();

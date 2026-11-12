@@ -56,7 +56,8 @@ public sealed class GetModuleDetailsQueryHandlerTests
             ["accounts"],
             [new CatalogueNamedItem("Firewall", "Firewall control")],
             [new CatalogueNamedItem("AdminOnly", "Administrator only")],
-            "mail");
+            "mail",
+            "innovayse");
         world.Client.Details["mail"] = CatalogueSamples.Details(module, CatalogueSamples.Version("1.2.0")) with { Manifest = manifest };
 
         var details = await HandlerFor(world).HandleAsync(Query, CancellationToken.None);
@@ -64,6 +65,8 @@ public sealed class GetModuleDetailsQueryHandlerTests
         var summary = details.Value.Manifest!;
         Assert.Equal("MarketplaceTierAddOn", summary.TierDisplayName);
         Assert.Equal("mail", summary.SchemaName);
+        Assert.Equal("Innovayse", summary.Publisher);
+        Assert.Equal("innovayse", summary.PublisherId);
         Assert.Equal("accounts", Assert.Single(summary.Dependencies));
         Assert.Equal("Firewall control", Assert.Single(summary.AgentCapabilities).DisplayName);
         Assert.Equal("AdminOnly", Assert.Single(summary.Permissions).Key);

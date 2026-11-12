@@ -22,11 +22,11 @@ public sealed class CatalogueCacheTests
         using var world = new MarketplaceTestWorld();
         var page = PageOf(world);
 
-        world.Cache.Store(CatalogueCache.KeyOf("stable", "en", null, null), page, "\"1\"");
+        world.Cache.Store(CatalogueCache.KeyOf("stable", "en", null, null, string.Empty), page, "\"1\"");
 
-        Assert.Same(page, world.Cache.Find(CatalogueCache.KeyOf("stable", "en", null, null))!.Page);
-        Assert.Null(world.Cache.Find(CatalogueCache.KeyOf("beta", "en", null, null)));
-        Assert.Null(world.Cache.Find(CatalogueCache.KeyOf("stable", "ru", null, null)));
+        Assert.Same(page, world.Cache.Find(CatalogueCache.KeyOf("stable", "en", null, null, string.Empty))!.Page);
+        Assert.Null(world.Cache.Find(CatalogueCache.KeyOf("beta", "en", null, null, string.Empty)));
+        Assert.Null(world.Cache.Find(CatalogueCache.KeyOf("stable", "ru", null, null, string.Empty)));
     }
 
     /// <summary>A different search term or cursor is a different page; an absent one and an empty one are the same request.</summary>
@@ -34,12 +34,24 @@ public sealed class CatalogueCacheTests
     public void Search_and_cursor_extend_the_key()
     {
         using var world = new MarketplaceTestWorld();
-        world.Cache.Store(CatalogueCache.KeyOf("stable", "en", "mail", null), PageOf(world), null);
+        world.Cache.Store(CatalogueCache.KeyOf("stable", "en", "mail", null, string.Empty), PageOf(world), null);
 
-        Assert.NotNull(world.Cache.Find(CatalogueCache.KeyOf("stable", "en", "mail", string.Empty)));
-        Assert.Null(world.Cache.Find(CatalogueCache.KeyOf("stable", "en", "dns", null)));
-        Assert.Null(world.Cache.Find(CatalogueCache.KeyOf("stable", "en", "mail", "page2")));
-        Assert.Null(world.Cache.Find(CatalogueCache.KeyOf("stable", "en", null, null)));
+        Assert.NotNull(world.Cache.Find(CatalogueCache.KeyOf("stable", "en", "mail", string.Empty, string.Empty)));
+        Assert.Null(world.Cache.Find(CatalogueCache.KeyOf("stable", "en", "dns", null, string.Empty)));
+        Assert.Null(world.Cache.Find(CatalogueCache.KeyOf("stable", "en", "mail", "page2", string.Empty)));
+        Assert.Null(world.Cache.Find(CatalogueCache.KeyOf("stable", "en", null, null, string.Empty)));
+    }
+
+    /// <summary>A page asked with one lease is not found for another lease or for none; the same lease finds it.</summary>
+    [Fact]
+    public void The_lease_fingerprint_extends_the_key()
+    {
+        using var world = new MarketplaceTestWorld();
+        world.Cache.Store(CatalogueCache.KeyOf("stable", "en", null, null, "lease-a"), PageOf(world), null);
+
+        Assert.NotNull(world.Cache.Find(CatalogueCache.KeyOf("stable", "en", null, null, "lease-a")));
+        Assert.Null(world.Cache.Find(CatalogueCache.KeyOf("stable", "en", null, null, "lease-b")));
+        Assert.Null(world.Cache.Find(CatalogueCache.KeyOf("stable", "en", null, null, string.Empty)));
     }
 
     /// <summary>An entry is fresh inside the configured minutes and not after them.</summary>
@@ -47,7 +59,7 @@ public sealed class CatalogueCacheTests
     public void An_entry_is_fresh_for_the_configured_minutes_only()
     {
         using var world = new MarketplaceTestWorld();
-        var key = CatalogueCache.KeyOf("stable", "en", null, null);
+        var key = CatalogueCache.KeyOf("stable", "en", null, null, string.Empty);
         world.Cache.Store(key, PageOf(world), null);
         var entry = world.Cache.Find(key)!;
 
@@ -63,8 +75,8 @@ public sealed class CatalogueCacheTests
     public void Invalidation_forgets_every_entry()
     {
         using var world = new MarketplaceTestWorld();
-        var first = CatalogueCache.KeyOf("stable", "en", null, null);
-        var second = CatalogueCache.KeyOf("stable", "ru", null, null);
+        var first = CatalogueCache.KeyOf("stable", "en", null, null, string.Empty);
+        var second = CatalogueCache.KeyOf("stable", "ru", null, null, string.Empty);
         world.Cache.Store(first, PageOf(world), null);
         world.Cache.Store(second, PageOf(world), null);
 
@@ -82,8 +94,8 @@ public sealed class CatalogueCacheTests
     public void Removing_one_entry_leaves_the_others()
     {
         using var world = new MarketplaceTestWorld();
-        var first = CatalogueCache.KeyOf("stable", "en", null, null);
-        var second = CatalogueCache.KeyOf("stable", "ru", null, null);
+        var first = CatalogueCache.KeyOf("stable", "en", null, null, string.Empty);
+        var second = CatalogueCache.KeyOf("stable", "ru", null, null, string.Empty);
         world.Cache.Store(first, PageOf(world), null);
         world.Cache.Store(second, PageOf(world), null);
 

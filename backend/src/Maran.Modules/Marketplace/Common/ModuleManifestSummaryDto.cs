@@ -4,7 +4,8 @@ namespace Maran.Modules.Marketplace.Common;
 /// The server's copy of a module's signed manifest summary, which the install dialog shows BEFORE the
 /// administrator confirms. It is never text from the package itself.
 /// </summary>
-/// <param name="Publisher">Who publishes the module.</param>
+/// <param name="Publisher">The publisher's display name; what the dialog prints.</param>
+/// <param name="PublisherId">The publisher's stable id, or null when the service sent none; never printed.</param>
 /// <param name="TierDisplayName">The licence tier in the caller's language.</param>
 /// <param name="MinPanelVersion">The oldest panel version the module runs on.</param>
 /// <param name="SchemaName">The database schema the module owns, or null when it owns none.</param>
@@ -13,6 +14,7 @@ namespace Maran.Modules.Marketplace.Common;
 /// <param name="Permissions">The permissions it declares.</param>
 public sealed record ModuleManifestSummaryDto(
     string Publisher,
+    string? PublisherId,
     string TierDisplayName,
     string MinPanelVersion,
     string? SchemaName,

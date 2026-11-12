@@ -24,20 +24,42 @@ public static class MarketplaceProblemMapper
             "incompatible_panel" => MarketplaceClientRefusals.IncompatiblePanel,
             "revoked" => MarketplaceClientRefusals.PackageRevoked,
             "not_found" => MarketplaceClientRefusals.ModuleNotInCatalogue,
+            "licence_unknown" => MarketplaceClientRefusals.LicenceUnknown,
+            "licence_revoked" => MarketplaceClientRefusals.LicenceRevoked,
+            "rate_limited" => MarketplaceClientRefusals.RateLimited,
             _ => FromStatus(statusCode),
         };
     }
 
+    /// <summary>
+    /// Maps a non-success answer to a package download. The address is the only credential, so "not found"
+    /// and "gone" there mean the grant (unknown, expired or already used) and not a missing module; every
+    /// other code reads as it does for any request.
+    /// </summary>
+    /// <param name="statusCode">The HTTP status.</param>
+    /// <param name="body">The (capped) response body, which may or may not be a problem document.</param>
+    /// <returns>The coded failure.</returns>
+    public static Error ToDownloadError(int statusCode, ReadOnlySpan<byte> body)
+    {
+        var error = ToError(statusCode, body);
+
+        return error == MarketplaceClientRefusals.ModuleNotInCatalogue
+            || (statusCode == 410 && error == MarketplaceClientRefusals.RequestRefused)
+            ? MarketplaceClientRefusals.DownloadGrantUnusable
+            : error;
+    }
+
     /// <summary>Maps by status when the body carried no code the panel knows.</summary>
     /// <param name="statusCode">The HTTP status.</param>
-    /// <returns>The coded failure: a server-side trouble reads as unreachable, anything else as a refused answer.</returns>
+    /// <returns>The coded failure: a server-side trouble reads as unreachable, a limit as rate limited, anything else as a refused answer.</returns>
     private static Error FromStatus(int statusCode)
     {
         return statusCode switch
         {
             401 => MarketplaceClientRefusals.LeaseRequired,
             404 => MarketplaceClientRefusals.ModuleNotInCatalogue,
-            408 or 429 or >= 500 => MarketplaceClientRefusals.Unreachable,
+            429 => MarketplaceClientRefusals.RateLimited,
+            408 or >= 500 => MarketplaceClientRefusals.Unreachable,
             _ => MarketplaceClientRefusals.RequestRefused,
         };
     }

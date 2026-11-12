@@ -26,6 +26,22 @@ public sealed class MarketplaceJsonTests
         Assert.Null(page.NextCursor);
     }
 
+    /// <summary>The publisher's display name and id are two members with two meanings: both are read when sent, and a service that sends only the name leaves the id empty.</summary>
+    [Fact]
+    public void The_publisher_name_and_id_are_read_apart()
+    {
+        var withId = new { id = "mail", displayName = "m", summary = "s", publisher = "Innovayse", publisherId = "innovayse", tier = "AddOn", entitlement = new { state = "Entitled" }, revoked = false };
+        var withoutId = new { id = "mail", displayName = "m", summary = "s", publisher = "Innovayse", tier = "AddOn", entitlement = new { state = "Entitled" }, revoked = false };
+
+        var both = MarketplaceJson.TryParse<CataloguePage>(MarketplaceTestWorld.BytesOf(MarketplaceDocuments.Page(Now, Now, withId)));
+        var nameOnly = MarketplaceJson.TryParse<CataloguePage>(MarketplaceTestWorld.BytesOf(MarketplaceDocuments.Page(Now, Now, withoutId)));
+
+        Assert.Equal("Innovayse", both!.Items[0].Publisher);
+        Assert.Equal("innovayse", both.Items[0].PublisherId);
+        Assert.Equal("Innovayse", nameOnly!.Items[0].Publisher);
+        Assert.Null(nameOnly.Items[0].PublisherId);
+    }
+
     /// <summary>A member the panel does not know is ignored, so the service can add fields within a version.</summary>
     [Fact]
     public void An_unknown_member_is_ignored()

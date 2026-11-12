@@ -28,6 +28,10 @@ public sealed class ResourceTripleTests
         "ModuleOperationInProgress",
         "ModuleVersionNotInstallable",
         "InstallNotAcknowledged",
+        "LicenceUnknown",
+        "LicenceRevoked",
+        "MarketplaceRateLimited",
+        "DownloadGrantUnusable",
     ];
 
     /// <summary>Every display name the module asks for.</summary>
@@ -114,6 +118,17 @@ public sealed class ResourceTripleTests
                 Assert.DoesNotContain("http", pair.Value, StringComparison.OrdinalIgnoreCase);
                 Assert.DoesNotContain('/', pair.Value);
             });
+        }
+    }
+
+    /// <summary>A refused grant address names the setting the operator must check, in every language, so the cause of a host mismatch is not a guess.</summary>
+    [Fact]
+    public void The_grant_host_refusal_names_the_setting_to_check()
+    {
+        foreach (var file in new[] { "ErrorMessages.resx", "ErrorMessages.ru.resx", "ErrorMessages.hy.resx" })
+        {
+            Assert.Contains("Marketplace__BaseUrl", Read(file)["GrantHostRefused"], StringComparison.Ordinal);
+            Assert.DoesNotContain("Marketplace__BaseUrl", Read(file)["DownloadSizeMismatch"], StringComparison.Ordinal);
         }
     }
 

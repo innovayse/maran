@@ -1,7 +1,9 @@
 using System.Net;
 using System.Text.Json;
 using Maran.Modules.Marketplace.Models;
+using Maran.Modules.Marketplace.Services;
 using Maran.Modules.Marketplace.Tests.TestSupport;
+using Maran.SharedKernel.Results;
 
 namespace Maran.Modules.Marketplace.Tests.Services;
 
@@ -244,6 +246,9 @@ public sealed class MarketplaceClientTests
     [InlineData(409, "incompatible_panel", "IncompatiblePanel")]
     [InlineData(410, "revoked", "PackageRevoked")]
     [InlineData(404, "not_found", "ModuleNotInCatalogue")]
+    [InlineData(404, "licence_unknown", "LicenceUnknown")]
+    [InlineData(403, "licence_revoked", "LicenceRevoked")]
+    [InlineData(429, "rate_limited", "MarketplaceRateLimited")]
     public async Task The_services_problem_codes_select_the_behaviour(int status, string code, string expected)
     {
         using var world = new MarketplaceTestWorld();
@@ -252,6 +257,128 @@ public sealed class MarketplaceClientTests
         var result = await world.Client.GetModuleAsync("mail", "en", CancellationToken.None);
 
         Assert.Equal(expected, result.Error!.Code);
+    }
+
+    /// <summary>Asks for the first English page.</summary>
+    /// <param name="world">The test world.</param>
+    /// <returns>The answer of the request.</returns>
+    private static Task<Result<CataloguePage>> ListEnglish(MarketplaceTestWorld world)
+    {
+        return world.Client.ListCatalogueAsync("stable", "en", null, null, CancellationToken.None);
+    }
+
+    /// <summary>
+    /// A lease that arrives, is renewed or ends is a different question for the service, so the list is asked
+    /// again at once; the same lease, asked twice, is still served from memory.
+    /// </summary>
+    [Fact]
+    public async Task A_changed_lease_is_not_answered_from_the_old_catalogue()
+    {
+        using var world = new MarketplaceTestWorld();
+        world.Handler.Reply(_ => { return Page(world, "\"v1\""); });
+
+        await ListEnglish(world);
+        await ListEnglish(world);
+        Assert.Equal(1, world.Handler.Count);
+
+        world.Lease.HasLease = true;
+        await ListEnglish(world);
+        Assert.Equal(2, world.Handler.Count);
+        Assert.True(world.Handler.Requests[1].Headers.ContainsKey("Authorization"));
+        Assert.False(world.Handler.Requests[1].Headers.ContainsKey("If-None-Match"));
+        await ListEnglish(world);
+        Assert.Equal(2, world.Handler.Count);
+
+        world.Lease.Token = "renewed-lease";
+        await ListEnglish(world);
+        Assert.Equal(3, world.Handler.Count);
+        await ListEnglish(world);
+        Assert.Equal(3, world.Handler.Count);
+
+        // The lease ended: the page held for "no lease" is the right one again, and is served.
+        world.Lease.HasLease = false;
+        await ListEnglish(world);
+        Assert.Equal(3, world.Handler.Count);
+    }
+
+    /// <summary>The fingerprint is a digest: the token never becomes part of what the cache holds.</summary>
+    [Fact]
+    public async Task The_cache_key_holds_a_digest_and_not_the_token()
+    {
+        using var world = new MarketplaceTestWorld();
+        world.Lease.HasLease = true;
+        world.Lease.Token = "secret-token-value";
+        world.Handler.Reply(_ => { return Page(world); });
+
+        await world.Client.ListCatalogueAsync("stable", "en", null, null, CancellationToken.None);
+
+        var fingerprint = await new LeaseFingerprintReader(world.Lease).ReadAsync(CancellationToken.None);
+        Assert.Equal(64, fingerprint.Length);
+        Assert.DoesNotContain("secret-token-value", fingerprint, StringComparison.Ordinal);
+        Assert.NotNull(world.Cache.Find(CatalogueCache.KeyOf("stable", "en", null, null, fingerprint)));
+        Assert.Null(world.Cache.Find(CatalogueCache.KeyOf("stable", "en", null, null, string.Empty)));
+    }
+
+    /// <summary>Scripts the download so the grant is fine and the package address answers with a failure.</summary>
+    /// <param name="world">The test world.</param>
+    /// <param name="download">The answer of the package address.</param>
+    private static void ScriptFailingDownload(MarketplaceTestWorld world, Func<HttpResponseMessage> download)
+    {
+        world.Lease.HasLease = true;
+        world.Handler.Reply(request =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path.EndsWith("/download-grant", StringComparison.Ordinal))
+            {
+                return world.SignedResponse(MarketplaceDocuments.Grant(
+                    "https://marketplace.test/downloads/g1",
+                    MarketplaceTestWorld.Sha256Of(Package),
+                    Package.Length,
+                    world.Clock.UtcNow.AddMinutes(5)));
+            }
+
+            return path.StartsWith("/downloads/", StringComparison.Ordinal) ? download() : Details(world);
+        });
+    }
+
+    /// <summary>A download address the service answers with a problem is reported by that problem; the same script with a good body downloads.</summary>
+    [Theory]
+    [InlineData(404, "not_found", "DownloadGrantUnusable")]
+    [InlineData(410, "revoked", "PackageRevoked")]
+    [InlineData(429, "rate_limited", "MarketplaceRateLimited")]
+    [InlineData(503, "package_unavailable", "MarketplaceUnreachable")]
+    public async Task A_download_problem_is_reported_by_its_code(int status, string code, string expected)
+    {
+        using var world = new MarketplaceTestWorld();
+        ScriptFailingDownload(world, () => { return MarketplaceTestWorld.Problem((HttpStatusCode)status, code); });
+
+        var result = await world.Client.DownloadPackageAsync("mail", "1.0.0", CancellationToken.None);
+
+        Assert.Equal(expected, result.Error!.Code);
+
+        ScriptFailingDownload(world, () => { return MarketplaceTestWorld.Raw(HttpStatusCode.OK, Package); });
+        var good = await world.Client.DownloadPackageAsync("mail", "1.0.0", CancellationToken.None);
+        Assert.True(good.IsSuccess);
+        await good.Value.DisposeAsync();
+    }
+
+    /// <summary>A grant refused because the licence is gone says so, and is not the "not in catalogue" a plain 404 means.</summary>
+    [Fact]
+    public async Task A_grant_for_an_unknown_licence_is_not_a_missing_module()
+    {
+        using var world = new MarketplaceTestWorld();
+        world.Lease.HasLease = true;
+        world.Handler.Reply(request =>
+        {
+            return request.Method == HttpMethod.Post
+                ? MarketplaceTestWorld.Problem(HttpStatusCode.NotFound, "licence_unknown")
+                : Details(world);
+        });
+
+        var result = await world.Client.DownloadPackageAsync("mail", "1.0.0", CancellationToken.None);
+
+        Assert.Equal(MarketplaceClientRefusals.LicenceUnknown, result.Error);
+        Assert.Equal(1, world.Handler.Requests.Count(request => { return request.Method == HttpMethod.Post; }));
     }
 
     /// <summary>The update check sends the channel and each installed module's id, version and digest, and nothing else.</summary>

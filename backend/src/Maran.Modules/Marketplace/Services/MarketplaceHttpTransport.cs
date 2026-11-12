@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using Maran.Modules.Marketplace.Domain.Enums;
 using Maran.Modules.Marketplace.Domain.Policies;
 using Maran.Modules.Marketplace.Interfaces;
+using Maran.Modules.Marketplace.Mappers;
 using Maran.Modules.Marketplace.Models;
 using Maran.Modules.Marketplace.Options;
 using Maran.Sdk.Interfaces;
@@ -59,6 +60,15 @@ public sealed class MarketplaceHttpTransport : IMarketplaceTransport
 
     /// <summary>The pause before the second attempt; the third waits twice as long.</summary>
     private static readonly TimeSpan RetryDelay = TimeSpan.FromMilliseconds(200);
+
+    /// <summary>The longest a request waits on a host's <c>Retry-After</c> in all, however many attempts it makes.</summary>
+    private static readonly TimeSpan MaxTotalRetryWait = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// The longest one pause between two attempts is: the total wait shared by the pauses a request can make, so
+    /// a request that is told to wait every time still holds the caller for no more than <see cref="MaxTotalRetryWait"/>.
+    /// </summary>
+    private static readonly TimeSpan MaxRetryAfter = MaxTotalRetryWait / (MaxAttempts - 1);
 
     /// <summary>How long a new connection may take to be made.</summary>
     private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(10);
@@ -214,11 +224,12 @@ public sealed class MarketplaceHttpTransport : IMarketplaceTransport
         var response = followed.Value;
         if (response.StatusCode != HttpStatusCode.OK)
         {
-            var error = (int)response.StatusCode >= 500
-                ? MarketplaceClientRefusals.Unreachable
-                : MarketplaceClientRefusals.RequestRefused;
+            // The refusal's problem document says which grant failure it is; it is read under the grant cap.
+            var problem = await ReadAsync(response, options.MaxGrantBytes, timeout, ct);
+            var status = (int)response.StatusCode;
             response.Dispose();
-            return Result<MarketplaceDownload>.Fail(error);
+            return Result<MarketplaceDownload>.Fail(
+                MarketplaceProblemMapper.ToDownloadError(status, problem.IsSuccess ? problem.Value.Body : Array.Empty<byte>()));
         }
 
         try
@@ -237,6 +248,24 @@ public sealed class MarketplaceHttpTransport : IMarketplaceTransport
             response.Dispose();
             return Result<MarketplaceDownload>.Fail(MarketplaceClientRefusals.Unreachable);
         }
+    }
+
+    /// <summary>
+    /// How long to wait before an attempt. A host that says when to come back (<c>Retry-After</c> in
+    /// seconds) is believed, but never for longer than <see cref="MaxRetryAfter"/>, so a hostile or mistaken
+    /// header cannot hold a request open; otherwise the short growing pause applies.
+    /// </summary>
+    /// <param name="nextAttempt">The number of the attempt about to be made (2 or 3).</param>
+    /// <param name="retryAfter">The failed answer's <c>Retry-After</c> header, or null.</param>
+    /// <returns>The pause.</returns>
+    public static TimeSpan PauseBefore(int nextAttempt, RetryConditionHeaderValue? retryAfter)
+    {
+        if (retryAfter?.Delta is { } asked && asked >= TimeSpan.Zero)
+        {
+            return asked < MaxRetryAfter ? asked : MaxRetryAfter;
+        }
+
+        return RetryDelay * (nextAttempt - 1);
     }
 
     /// <summary>Whether a status is one of the redirects the transport recognises.</summary>
@@ -477,6 +506,7 @@ public sealed class MarketplaceHttpTransport : IMarketplaceTransport
             }
 
             LogAttemptFailed(_logger, attempt, null);
+            var pause = PauseBefore(attempt + 1, response?.Headers.RetryAfter);
             response?.Dispose();
 
             if (attempt >= attempts)
@@ -484,7 +514,7 @@ public sealed class MarketplaceHttpTransport : IMarketplaceTransport
                 return Result<HttpResponseMessage>.Fail(MarketplaceClientRefusals.Unreachable);
             }
 
-            await Task.Delay(RetryDelay * attempt, ct);
+            await Task.Delay(pause, ct);
         }
     }
 }

@@ -43,7 +43,10 @@ paths:
         - name: locale
           in: query
           required: true
-          description: The language of every display string in the answer.
+          description: >-
+            The language of every display string in the answer. The panel clamps its interface language to the
+            three listed values (English otherwise) and never sends another. A value outside the set is answered
+            `400` (`locale_invalid`) today; the service SHOULD fall back to `en` instead.
           schema:
             $ref: '#/components/schemas/Locale'
         - name: search
@@ -330,8 +333,16 @@ components:
       enum: [NotRequired, Entitled, NotPurchased, LeaseExpired, Unknown]
     ProblemCode:
       type: string
-      description: Stable snake_case codes the panel acts on. Other codes are allowed; the panel then uses the status.
-      examples: [entitlement_missing, lease_expired, incompatible_panel, revoked, not_found, licence_unknown, licence_revoked]
+      description: >-
+        Stable snake_case codes. The panel acts on `entitlement_missing` (403), `lease_expired` (401),
+        `incompatible_panel` (409), `revoked` (410), `not_found` (404), `licence_unknown` (404), `licence_revoked`
+        (403) and `rate_limited` (429). `licence_offline` (409) is answered by `POST /lease` only. Every 400
+        validation code (`panel_version_invalid`, `channel_invalid`, `locale_invalid`, `search_too_long`,
+        `cursor_invalid`, `module_id_invalid`, `version_invalid`, `licence_id_invalid`, `installed_list_too_long`,
+        `installed_entry_invalid`, `request_parameter_invalid`) reads as a refused request. `authentication_required`
+        (401) and `unexpected_failure` (500) are read by status. Any other code is allowed; the panel then uses the
+        status.
+      examples: [entitlement_missing, lease_expired, incompatible_panel, revoked, not_found, licence_unknown, licence_revoked, licence_offline, rate_limited, locale_invalid]
     Problem:
       type: object
       required: [code]
@@ -457,6 +468,12 @@ components:
           type: string
         publisher:
           type: string
+          description: The publisher's display name, already the text to print. Never an identifier.
+        publisherId:
+          type: [string, 'null']
+          description: >-
+            The publisher's stable identifier, kept by the panel and never printed. Required of the service; the panel
+            reads a missing member as null until every deployed service sends it.
         tier:
           type: string
           description: The licence tier's wire name.
@@ -491,6 +508,10 @@ components:
       properties:
         publisher:
           type: string
+          description: The publisher's display name, already the text to print. Never an identifier.
+        publisherId:
+          type: [string, 'null']
+          description: The publisher's stable identifier; kept, never printed.
         tier:
           type: string
         minPanelVersion:
@@ -632,6 +653,10 @@ components:
         url:
           type: string
           format: uri
+          description: >-
+            The service's `Marketplace__PublicBaseUrl` origin plus `/api/v1/downloads/{grantId}`. Its scheme, host and
+            port must equal the origin of the panel's `Marketplace__BaseUrl`, else the panel refuses the grant
+            (`GrantHostRefused`). `PublicBaseUrl` is an origin with no path; a path prefix would be dropped.
         expiresAt:
           type: string
           format: date-time

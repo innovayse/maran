@@ -1,6 +1,7 @@
 using System.Net;
 using Maran.Modules.Marketplace.Domain.Enums;
 using Maran.Modules.Marketplace.Models;
+using Maran.Modules.Marketplace.Services;
 using Maran.Modules.Marketplace.Tests.TestSupport;
 
 namespace Maran.Modules.Marketplace.Tests.Services;
@@ -375,5 +376,100 @@ public sealed class MarketplaceHttpTransportTests
         Assert.Equal(MarketplaceClientRefusals.Unreachable, result.Error);
         Assert.Equal(1, world.Handler.Count);
         Assert.False(world.Handler.Requests[0].Headers.ContainsKey("Authorization"));
+    }
+
+    /// <summary>
+    /// A host that says when to come back is believed, but only up to the cap; a header that says nothing leaves
+    /// the short growing pause. Each case is paired with the one beside it.
+    /// </summary>
+    [Fact]
+    public void The_retry_pause_follows_the_hosts_retry_after_up_to_a_cap()
+    {
+        var none = MarketplaceHttpTransport.PauseBefore(2, null);
+        var second = MarketplaceHttpTransport.PauseBefore(3, null);
+        var asked = MarketplaceHttpTransport.PauseBefore(2, new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromSeconds(2)));
+        var tooLong = MarketplaceHttpTransport.PauseBefore(2, new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromHours(1)));
+        var dated = MarketplaceHttpTransport.PauseBefore(2, new System.Net.Http.Headers.RetryConditionHeaderValue(new DateTimeOffset(2031, 1, 1, 0, 0, 0, TimeSpan.Zero)));
+
+        Assert.Equal(TimeSpan.FromMilliseconds(200), none);
+        Assert.Equal(TimeSpan.FromMilliseconds(400), second);
+        Assert.Equal(TimeSpan.FromSeconds(2), asked);
+        Assert.Equal(TimeSpan.FromSeconds(2.5), tooLong);
+        Assert.Equal(TimeSpan.FromMilliseconds(200), dated);
+    }
+
+    /// <summary>
+    /// A request told to wait at every attempt waits no more than five seconds in all: the pauses a GET can make are
+    /// each capped at their share of that total. The control is a pause the host asked for within the share, which is
+    /// believed in full.
+    /// </summary>
+    [Fact]
+    public void The_pauses_of_one_get_add_up_to_no_more_than_five_seconds()
+    {
+        var hostile = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromHours(1));
+        var modest = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromSeconds(1));
+
+        var worst = MarketplaceHttpTransport.PauseBefore(2, hostile) + MarketplaceHttpTransport.PauseBefore(3, hostile);
+        var believed = MarketplaceHttpTransport.PauseBefore(2, modest) + MarketplaceHttpTransport.PauseBefore(3, modest);
+
+        Assert.Equal(TimeSpan.FromSeconds(5), worst);
+        Assert.Equal(TimeSpan.FromSeconds(2), believed);
+    }
+
+    /// <summary>A GET answered 429 with a Retry-After of zero is asked three times and the last answer is handed on; a POST is asked once.</summary>
+    [Fact]
+    public async Task A_rate_limited_get_is_retried_and_its_answer_is_returned()
+    {
+        using var world = new MarketplaceTestWorld();
+        world.Handler.Reply(_ =>
+        {
+            var limited = MarketplaceTestWorld.Problem(HttpStatusCode.TooManyRequests, "rate_limited");
+            limited.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.Zero);
+            return limited;
+        });
+
+        var get = await world.Transport.SendAsync(Get(), CancellationToken.None);
+
+        Assert.Equal(3, world.Handler.Count);
+        Assert.Equal(429, get.Value.StatusCode);
+
+        world.Lease.HasLease = true;
+        var before = world.Handler.Count;
+        var post = await world.Transport.SendAsync(GrantPost(), CancellationToken.None);
+
+        Assert.Equal(1, world.Handler.Count - before);
+        Assert.Equal(429, post.Value.StatusCode);
+    }
+
+    /// <summary>A refused download is read for its problem: each code names its own refusal, and a body that is not a problem falls back to the status.</summary>
+    [Theory]
+    [InlineData(404, "not_found", "DownloadGrantUnusable")]
+    [InlineData(410, "revoked", "PackageRevoked")]
+    [InlineData(429, "rate_limited", "MarketplaceRateLimited")]
+    [InlineData(410, "something_new", "DownloadGrantUnusable")]
+    public async Task A_refused_download_is_named_by_the_problem_the_service_sent(int status, string code, string expected)
+    {
+        using var world = new MarketplaceTestWorld();
+        world.Handler.Reply(_ => { return MarketplaceTestWorld.Problem((HttpStatusCode)status, code); });
+
+        var result = await world.Transport.OpenDownloadAsync(new Uri("https://marketplace.test/d/1"), CancellationToken.None);
+
+        Assert.Equal(expected, result.Error!.Code);
+        Assert.Equal(1, world.Handler.Count);
+    }
+
+    /// <summary>A refused download with a body that is not a problem document, or none, is named by its status alone.</summary>
+    [Fact]
+    public async Task A_refused_download_without_a_problem_body_is_named_by_its_status()
+    {
+        using var world = new MarketplaceTestWorld();
+        world.Handler.Reply(_ => { return MarketplaceTestWorld.Raw(HttpStatusCode.NotFound, "<html>"u8.ToArray()); });
+        var notFound = await world.Transport.OpenDownloadAsync(new Uri("https://marketplace.test/d/1"), CancellationToken.None);
+
+        world.Handler.Reply(_ => { return new HttpResponseMessage(HttpStatusCode.BadRequest); });
+        var refused = await world.Transport.OpenDownloadAsync(new Uri("https://marketplace.test/d/1"), CancellationToken.None);
+
+        Assert.Equal(MarketplaceClientRefusals.DownloadGrantUnusable, notFound.Error);
+        Assert.Equal(MarketplaceClientRefusals.RequestRefused, refused.Error);
     }
 }

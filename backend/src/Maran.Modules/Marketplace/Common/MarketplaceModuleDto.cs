@@ -6,7 +6,8 @@ namespace Maran.Modules.Marketplace.Common;
 /// <param name="Id">The module id.</param>
 /// <param name="DisplayName">The module's name.</param>
 /// <param name="Summary">A one-line description, plain text.</param>
-/// <param name="Publisher">Who publishes the module.</param>
+/// <param name="Publisher">The publisher's display name; what the screen prints.</param>
+/// <param name="PublisherId">The publisher's stable id, or null when the service sent none; never printed.</param>
 /// <param name="Tier">The licence tier as the service names it.</param>
 /// <param name="TierDisplayName">The tier in the caller's language.</param>
 /// <param name="Price">The price, or null when the service states none.</param>
@@ -22,6 +23,7 @@ public sealed record MarketplaceModuleDto(
     string DisplayName,
     string Summary,
     string Publisher,
+    string? PublisherId,
     string Tier,
     string TierDisplayName,
     MarketplacePriceDto? Price,

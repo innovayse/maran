@@ -16,7 +16,8 @@ namespace Maran.Modules.Marketplace.Interfaces;
 /// <c>MarketplaceStorageUnavailable</c>, <c>CatalogueUnsigned</c>, <c>CatalogueStale</c>,
 /// <c>CatalogueKeyMissing</c>, <c>LeaseRequired</c>, <c>EntitlementMissing</c>, <c>IncompatiblePanel</c>,
 /// <c>PackageRevoked</c>, <c>ModuleNotInCatalogue</c>, <c>GrantHostRefused</c>, <c>DownloadSizeMismatch</c>,
-/// <c>DownloadDigestMismatch</c>.
+/// <c>DownloadDigestMismatch</c>, <c>LicenceUnknown</c>, <c>LicenceRevoked</c>, <c>MarketplaceRateLimited</c>,
+/// <c>DownloadGrantUnusable</c>.
 /// </remarks>
 public interface IMarketplaceClient
 {

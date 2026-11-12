@@ -32,7 +32,7 @@ public sealed class ModuleOperationRunnerTests
     {
         using var world = new OperationWorld();
         var request = await AcceptedInstallAsync(world);
-        var key = CatalogueCache.KeyOf("stable", "en", null, null);
+        var key = CatalogueCache.KeyOf("stable", "en", null, null, string.Empty);
         world.Cache.Store(key, CatalogueSamples.Page(), etag: null);
 
         await world.Runner.RunAsync(request, CancellationToken.None);
@@ -49,7 +49,7 @@ public sealed class ModuleOperationRunnerTests
         using var world = new OperationWorld();
         var request = await AcceptedInstallAsync(world);
         world.Loader.Refusal = Error.Of("MarketplaceNotAvailable", ErrorType.Unavailable);
-        var key = CatalogueCache.KeyOf("stable", "en", null, null);
+        var key = CatalogueCache.KeyOf("stable", "en", null, null, string.Empty);
         world.Cache.Store(key, CatalogueSamples.Page(), etag: null);
 
         await world.Runner.RunAsync(request, CancellationToken.None);

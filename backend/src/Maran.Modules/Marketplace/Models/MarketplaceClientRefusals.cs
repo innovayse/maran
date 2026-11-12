@@ -61,6 +61,22 @@ public static class MarketplaceClientRefusals
     public static readonly Error EntitlementMissing =
         Error.Of(nameof(ErrorMessages.EntitlementMissing), ErrorType.Forbidden);
 
+    /// <summary>The service no longer knows the licence the lease names.</summary>
+    public static readonly Error LicenceUnknown =
+        Error.Of(nameof(ErrorMessages.LicenceUnknown), ErrorType.Forbidden);
+
+    /// <summary>The service refuses the request because the licence was revoked.</summary>
+    public static readonly Error LicenceRevoked =
+        Error.Of(nameof(ErrorMessages.LicenceRevoked), ErrorType.Forbidden);
+
+    /// <summary>The service (or the host in front of it) is limiting how often this server may ask.</summary>
+    public static readonly Error RateLimited =
+        Error.Of(nameof(ErrorMessages.MarketplaceRateLimited), ErrorType.Unavailable);
+
+    /// <summary>The service no longer accepts the download address: its grant expired, was already used or is unknown.</summary>
+    public static readonly Error DownloadGrantUnusable =
+        Error.Of(nameof(ErrorMessages.DownloadGrantUnusable), ErrorType.UpstreamRefused);
+
     /// <summary>The module version does not run on this panel version.</summary>
     public static readonly Error IncompatiblePanel =
         Error.Of(nameof(ErrorMessages.IncompatiblePanel), ErrorType.Conflict);
