@@ -194,6 +194,22 @@ local_submit_plant() {
   systemctl reload rspamd.service >/dev/null 2>&1 || rspamadm control reload >/dev/null 2>&1 || true
 }
 
+# local_submit_diagnose <marker>: on stderr, what the host holds when the first case does not come out as
+# the rule says it must: the maps as planted, the user's id, Rspamd's and Postfix's last lines for the message.
+local_submit_diagnose() {
+  local marker="$1" map log
+  {
+    echo "local_submit_diagnose: ${marker}"
+    echo "--- ids: $(id "$LOCAL_SUBMIT_USER_OWN" 2>&1)"
+    for map in $LOCAL_SUBMIT_MAPS; do echo "--- ${map}:"; cat "${LOCAL_SUBMIT_DIRECTORY}/${map}" 2>&1 | head -n 6; done
+    log="$(local_submit_mail_log)"
+    echo "--- mail log, lines for the message:"; grep -F -- "$marker" "$log" 2>/dev/null | head -n 5
+    echo "--- mail log, last lines:"; tail -n 12 "$log" 2>/dev/null
+    echo "--- rspamd log, last lines:"
+    for log in /var/log/rspamd/rspamd.log /var/log/rspamd/rspamd.err; do [ -r "$log" ] && tail -n 25 "$log"; done
+  } >&2 || true
+}
+
 # local_submit_restore <backup dir>: put the maps back as they were, remove the ones that did not exist.
 local_submit_restore() {
   local backup="$1" map specification
@@ -241,7 +257,7 @@ assert_local_submission_is_bound_to_the_account() {
   marker="lsub-own-$$-$RANDOM"
   local_submit_send "$LOCAL_SUBMIT_USER_OWN" "${LOCAL_SUBMIT_USER_OWN}@one.test" one.test "$marker"
   result="$(local_submit_outcome "$marker")"
-  [ "$result" = accepted ] || { local_submit_restore "$backup"; fail "an allowed account sending from its own domain was ${result}, not accepted"; }
+  [ "$result" = accepted ] || { local_submit_diagnose "$marker"; local_submit_restore "$backup"; fail "an allowed account sending from its own domain was ${result}, not accepted"; }
 
   # 2. Another account's domain as the ENVELOPE sender: refused, and Postfix must not mail a failure notice
   # to the forged address (a discard, not a bounce).
