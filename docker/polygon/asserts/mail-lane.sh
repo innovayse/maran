@@ -119,12 +119,12 @@ postdrop_binary="$(command -v postdrop || true)"
 chown root:postdrop "$postdrop_binary"
 chmod 2755 "$postdrop_binary"
 
-# Redis-protocol client, nftables and a syslog daemon: the assertions read the hourly counter and the
+# Redis-protocol client, nftables, `ip` (the address-follow case adds an address to lo) and a syslog daemon: the assertions read the hourly counter and the
 # table with the first two, and Postfix logs through syslog into the mail log they read its verdicts from
 # (/var/log/mail.log or /var/log/maillog), which an image without an init system has no daemon for.
 case "$MARAN_OS_FAMILY" in
-  debian) pkg_install redis-tools nftables rsyslog util-linux ;;
-  rhel)   pkg_install nftables rsyslog ;;
+  debian) pkg_install redis-tools nftables rsyslog util-linux iproute2 ;;
+  rhel)   pkg_install nftables rsyslog iproute ;;
 esac
 mail_log=/var/log/mail.log
 [ "$MARAN_OS_FAMILY" = debian ] || mail_log=/var/log/maillog
@@ -185,6 +185,23 @@ read -r key_value_unit _ key_value_user <<<"$(mail_key_value_service)"
 MARAN_LOCAL_SUBMIT_REDIS_SOCKET="/run/${key_value_user}/${key_value_unit}.sock"
 [ -S "$MARAN_LOCAL_SUBMIT_REDIS_SOCKET" ] || lane_fail "the key-value socket $MARAN_LOCAL_SUBMIT_REDIS_SOCKET is not there after the suite."
 export MARAN_LOCAL_SUBMIT_REDIS_SOCKET
+
+# The address-follow case (issue #535) needs the agent RUNNING, because the host-address watch is part of
+# the daemon and the suite above runs the server only for as long as its test lasts. The daemon is built by
+# the same cargo target as the suite and started as the service would be, on a socket of its own; it stays
+# up for the assertions and is stopped with the lane.
+(cd "$repo/agent" && CARGO_TARGET_DIR=/tmp/maran-agent-target cargo build --bin maran-agent) \
+  || lane_fail "the agent daemon could not be built for the address-follow case."
+agent_log="$(mktemp)"
+install -d -m 0755 /run/maran-lane
+/tmp/maran-agent-target/debug/maran-agent --socket /run/maran-lane/agent.sock >"$agent_log" 2>&1 &
+agent_pid=$!
+trap 'kill "$agent_pid" 2>/dev/null || true' EXIT
+for _ in $(seq 1 20); do [ -S /run/maran-lane/agent.sock ] && break; sleep 0.5; done
+if [ ! -S /run/maran-lane/agent.sock ] || ! kill -0 "$agent_pid" 2>/dev/null; then
+  cat "$agent_log" >&2
+  lane_fail "the agent daemon did not start; the address-follow case has nothing to judge."
+fi
 
 export MARAN_MAIL_LOCAL_SUBMIT_REQUIRED=yes MARAN_MAIL_PORT25_REQUIRED=yes
 # A named subset, announced as such by the script it runs: this lane is not the build gate, and its
