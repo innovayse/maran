@@ -123,18 +123,20 @@ chmod 2755 "$postdrop_binary"
 # table with the first two, and Postfix logs through syslog into the mail log they read its verdicts from
 # (/var/log/mail.log or /var/log/maillog), which an image without an init system has no daemon for.
 case "$MARAN_OS_FAMILY" in
-  debian) pkg_install redis-tools nftables rsyslog ;;
+  debian) pkg_install redis-tools nftables rsyslog util-linux ;;
   rhel)   pkg_install nftables rsyslog ;;
 esac
 mail_log=/var/log/mail.log
 [ "$MARAN_OS_FAMILY" = debian ] || mail_log=/var/log/maillog
 touch "$mail_log"
-# The mail facility goes to the file the assertions read, by a rule of this lane's own: a distribution's
-# default rules differ (and Ubuntu's sends the facility elsewhere), and the logging socket is the one thing
-# Postfix's daemons write to without a service manager. Then the claim is checked, not assumed.
-mkdir -p /etc/rsyslog.d
-printf '%s\n' "mail.* -${mail_log}" > /etc/rsyslog.d/00-maran-mail-lane.conf
-rsyslogd || lane_fail "rsyslogd did not start; Postfix would have nowhere to log."
+# The mail facility goes to the file the assertions read, by a configuration of this lane's own: a
+# distribution's default one differs (RHEL's reads the journal and loads no socket module, Ubuntu's drops to
+# an unprivileged user that cannot write the root-owned file), and the logging socket is the one thing
+# Postfix's daemons write to without a service manager. It runs as root, and the claim is checked below,
+# not assumed.
+lane_syslog_conf=/tmp/maran-lane-rsyslog.conf
+printf '%s\n' 'module(load="imuxsock")' "mail.* -${mail_log}" > "$lane_syslog_conf"
+rsyslogd -f "$lane_syslog_conf" -i /tmp/maran-lane-rsyslog.pid || lane_fail "rsyslogd did not start; Postfix would have nowhere to log."
 for _ in $(seq 1 20); do [ -S /dev/log ] && break; sleep 0.5; done
 [ -S /dev/log ] || lane_fail "rsyslogd left no /dev/log; Postfix would have nowhere to log."
 logger -p mail.info "maran-lane-probe-$$"
