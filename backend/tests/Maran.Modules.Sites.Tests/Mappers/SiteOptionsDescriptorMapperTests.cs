@@ -3,6 +3,7 @@ using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Domain.ValueObjects;
 using Maran.Modules.Sites.Mappers;
 using Maran.Modules.Sites.Tests.TestSupport;
+using Maran.Sdk.Contracts;
 
 namespace Maran.Modules.Sites.Tests.Mappers;
 
@@ -13,14 +14,14 @@ namespace Maran.Modules.Sites.Tests.Mappers;
 /// </summary>
 public sealed class SiteOptionsDescriptorMapperTests
 {
-    /// <summary>A site with no options is described with none.</summary>
+    /// <summary>A site with no options is described with none, except the plan's bound as its PHP body limit.</summary>
     [Fact]
-    public void A_site_with_no_options_is_described_with_none()
+    public void A_site_with_no_options_is_described_with_none_except_the_plans_bound_as_its_body_limit()
     {
-        var descriptor = SiteDescriptorMapper.From(SitesTestContext.PhpSite(Guid.NewGuid(), "example.com"), SiteWebServer.Nginx);
+        var descriptor = SiteDescriptorMapper.From(SitesTestContext.PhpSite(Guid.NewGuid(), "example.com"), SiteWebServer.Nginx, PhpLimitsSnapshot.Default);
 
         Assert.Equal(CanonicalHostKind.None, descriptor.Options.CanonicalHost);
-        Assert.Null(descriptor.Options.ClientMaxBodySizeMib);
+        Assert.Equal(64u, descriptor.Options.ClientMaxBodySizeMib);
         Assert.Null(descriptor.Options.StaticCacheDays);
         Assert.Empty(descriptor.Options.Redirects);
         Assert.Empty(descriptor.Options.BasicAuthUsers);
@@ -35,7 +36,7 @@ public sealed class SiteOptionsDescriptorMapperTests
         var site = SitesTestContext.PhpSite(Guid.NewGuid(), "example.com");
         site.ReplaceOptions(SiteOptionsSamples.Full());
 
-        var options = SiteDescriptorMapper.From(site, SiteWebServer.Nginx).Options;
+        var options = SiteDescriptorMapper.From(site, SiteWebServer.Nginx, PhpLimitsSnapshot.Default).Options;
 
         Assert.Equal(CanonicalHostKind.Www, options.CanonicalHost);
         Assert.Equal(64u, options.ClientMaxBodySizeMib);
@@ -60,7 +61,7 @@ public sealed class SiteOptionsDescriptorMapperTests
         var site = SitesTestContext.PhpSite(Guid.NewGuid(), "example.com");
         site.ReplaceOptions(SiteOptionsSamples.Empty() with { IpAccessMode = IpAccessMode.DenyList, IpRules = ["198.51.100.7/32"] });
 
-        Assert.Equal(IpAccessKind.DenyList, SiteDescriptorMapper.From(site, SiteWebServer.Nginx).Options.IpAccess!.Mode);
+        Assert.Equal(IpAccessKind.DenyList, SiteDescriptorMapper.From(site, SiteWebServer.Nginx, PhpLimitsSnapshot.Default).Options.IpAccess!.Mode);
     }
 
     /// <summary>Redirects and users are described in the order they were stated in.</summary>
@@ -82,7 +83,7 @@ public sealed class SiteOptionsDescriptorMapperTests
             ],
         });
 
-        var options = SiteDescriptorMapper.From(site, SiteWebServer.Nginx).Options;
+        var options = SiteDescriptorMapper.From(site, SiteWebServer.Nginx, PhpLimitsSnapshot.Default).Options;
 
         Assert.Equal(["/z", "/a/"], options.Redirects.Select(rule =>
         {

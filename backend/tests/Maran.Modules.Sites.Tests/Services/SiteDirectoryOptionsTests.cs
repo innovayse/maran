@@ -25,7 +25,7 @@ public sealed class SiteDirectoryOptionsTests
         }
 
         await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(account), database);
-        var snapshot = await new SiteDirectory(context).FindByDomainAsync("example.com", CancellationToken.None);
+        var snapshot = await SiteDirectories.Over(context).FindByDomainAsync("example.com", CancellationToken.None);
 
         var options = snapshot!.Options;
         Assert.Equal(SiteCanonicalHost.Www, options.CanonicalHost);
@@ -47,7 +47,7 @@ public sealed class SiteDirectoryOptionsTests
         }
 
         await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(account), database);
-        var snapshot = await new SiteDirectory(context).FindByDomainAsync("example.com", CancellationToken.None);
+        var snapshot = await SiteDirectories.Over(context).FindByDomainAsync("example.com", CancellationToken.None);
 
         Assert.Equal(SiteCanonicalHost.None, snapshot!.Options.CanonicalHost);
         Assert.Empty(snapshot.Options.Redirects);
@@ -70,7 +70,7 @@ public sealed class SiteDirectoryOptionsTests
         }
 
         await using var context = SitesTestContext.Create(FakeCurrentUser.Admin(), database);
-        var snapshot = await new SiteDirectory(context).FindByIdUnscopedAsync(siteId, CancellationToken.None);
+        var snapshot = await SiteDirectories.Over(context).FindByIdUnscopedAsync(siteId, CancellationToken.None);
 
         Assert.Equal("alice", Assert.Single(snapshot!.Options.BasicAuthUsers).Name);
     }

@@ -4,6 +4,7 @@ using Maran.Agent.Client.Services.SitesService;
 using Maran.Modules.Sites.Common;
 using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
+using Maran.Modules.Sites.Domain.Policies;
 using Maran.Modules.Sites.Interfaces;
 using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Sites.Resources;
@@ -64,6 +65,15 @@ namespace Maran.Modules.Sites.Commands.CreateSite;
 /// <para>
 /// <b>Which failures after the agent are compensated</b>, and why a loser's vhost goes while a pool never
 /// does, are argued on <see cref="SiteRecorder"/> and <see cref="SiteVhostCompensator"/>.
+/// </para>
+/// <para>
+/// <b>The plan's upload bound is read once, before the agent is called.</b> A plan edit committed between that
+/// read and the row's insert is not seen by the render the edit queues (it lists rows that exist then), so the
+/// new site's vhost keeps the previous bound until the next plan edit or panel start, which render it from the
+/// row. The window is the length of one agent call, and until then the site's vhost (and its pool, which the
+/// same creation writes) carry the previous bound. Reading the plan again after the insert
+/// would close it but needs a second render path inside the creation for a window this short, so it is documented
+/// and not built.
 /// </para>
 /// <para>
 /// <b>The creation is announced last</b> (<see cref="SiteCreated"/>, through <see cref="SiteCreationAnnouncer"/>),
@@ -293,6 +303,15 @@ public sealed class CreateSiteCommandHandler
             command.BackendType == SiteBackendType.Php
                 ? await _poolSettings.EffectiveAsync(command.AccountId, account.PhpLimits, cancellationToken)
                 : NoSettingOverrides,
+            // A new site has no options of its own yet, but a PHP site's vhost carries the plan's upload
+            // bound as its request body limit from the first render (SiteBodySizePolicy); any other
+            // backend is created without one.
+            SiteOptionsDescriptor.None with
+            {
+                ClientMaxBodySizeMib = SiteBodySizePolicy.Effective(command.BackendType, null, account.PhpLimits) is { } bodySize
+                    ? checked((uint)bodySize)
+                    : null,
+            },
             cancellationToken);
         if (!provisioned.IsSuccess)
         {

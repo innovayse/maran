@@ -39,6 +39,9 @@ public sealed class EnableSiteCommandHandler
     /// <summary>Refuses the operation while no site web server is installed.</summary>
     private readonly SiteStackGate _stack;
 
+    /// <summary>Serialises the operations that change one site's host state.</summary>
+    private readonly ISiteOperationLock _locks;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Sites module's database context.</param>
     /// <param name="accounts">The owning account's system user name.</param>
@@ -46,14 +49,17 @@ public sealed class EnableSiteCommandHandler
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="siteNames">Names the site's backend and serving state for the request's culture.</param>
     /// <param name="stack">Refuses the operation while no site web server is installed.</param>
+    /// <param name="locks">Serialises the operations that change one site's host state.</param>
     public EnableSiteCommandHandler(
         SitesDbContext dbContext,
         IAccountDirectory accounts,
         IAgentSitesClient agent,
         SiteAuditJournal journal,
         SiteDisplayNames siteNames,
-        SiteStackGate stack)
+        SiteStackGate stack,
+        ISiteOperationLock locks)
     {
+        _locks = locks;
         _stack = stack;
         _dbContext = dbContext;
         _siteNames = siteNames;
@@ -79,6 +85,33 @@ public sealed class EnableSiteCommandHandler
             return await FailAsync(command, command.SiteId.ToString(), notReady, cancellationToken);
         }
 
+        // The site is held for the whole change, from reading its row to saving it, so no other
+        // operation on it interleaves; the row is read inside the guard for that reason (#531).
+        var guarded = await SiteGuard.RunAsync(
+            _locks,
+            command.SiteId,
+            SiteLockWait.Interactive,
+            () =>
+            {
+                return ApplyAsync(command, installed, cancellationToken);
+            },
+            cancellationToken);
+
+        return !guarded.IsSuccess && SiteBusyFailure.Is(guarded.Error)
+            ? await FailAsync(command, command.SiteId.ToString(), guarded.Error!, cancellationToken)
+            : guarded;
+    }
+
+    /// <summary>Applies the change to the site, which the caller holds.</summary>
+    /// <param name="command">Which site to act on.</param>
+    /// <param name="installed">The apps the stack gate found installed.</param>
+    /// <param name="cancellationToken">Cancels the operation.</param>
+    /// <returns>The site in its new state, or the typed failure.</returns>
+    private async Task<Result<SiteDto>> ApplyAsync(
+        EnableSiteCommand command,
+        SiteHostApps installed,
+        CancellationToken cancellationToken)
+    {
         var site = await _dbContext.Sites.SingleOrDefaultAsync(s => s.Id == command.SiteId, cancellationToken);
         if (site is null)
         {
@@ -98,7 +131,7 @@ public sealed class EnableSiteCommandHandler
         var applied = await _agent.EnableAsync(
             account.Username,
             site.Domain,
-            SiteDescriptorMapper.From(site, installed.WebServer!.Value),
+            SiteDescriptorMapper.From(site, installed.WebServer!.Value, account.PhpLimits),
             cancellationToken);
         if (!applied.IsSuccess)
         {

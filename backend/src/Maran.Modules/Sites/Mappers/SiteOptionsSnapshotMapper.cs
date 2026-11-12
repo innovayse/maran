@@ -16,14 +16,18 @@ public static class SiteOptionsSnapshotMapper
 {
     /// <summary>Restates a site's options for another module.</summary>
     /// <param name="options">The stored options, or null when the site has none.</param>
+    /// <param name="bodySizeMib">
+    /// The request body limit the vhost carries, decided by <c>SiteBodySizePolicy</c>: the other module
+    /// re-renders the vhost from this figure, so it has to be the one this module's own renders use.
+    /// </param>
     /// <returns>The snapshot carrying those options.</returns>
-    public static SiteOptionsSnapshot From(SiteOptions? options)
+    public static SiteOptionsSnapshot From(SiteOptions? options, int? bodySizeMib)
     {
         var values = SiteOptionsValuesMapper.From(options);
 
         return new SiteOptionsSnapshot(
             ToSdkCanonicalHost(values.CanonicalHost),
-            values.ClientMaxBodySizeMib,
+            bodySizeMib,
             values.StaticCacheDays,
             values.Redirects
                 .Select(redirect =>

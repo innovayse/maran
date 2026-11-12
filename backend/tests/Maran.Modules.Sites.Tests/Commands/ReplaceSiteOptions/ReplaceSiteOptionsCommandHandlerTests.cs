@@ -8,6 +8,8 @@ using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Sites.Services;
 using Maran.Modules.Sites.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.Sdk.Interfaces;
+using Maran.Sdk.Modules;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 
@@ -511,6 +513,96 @@ public sealed class ReplaceSiteOptionsCommandHandlerTests
         Assert.True(result.IsSuccess);
     }
 
+    /// <summary>A figure above what the plan allows a PHP site is refused before the host is touched.</summary>
+    [Fact]
+    public async Task A_figure_above_what_the_plan_allows_a_php_site_is_refused_before_the_host_is_touched()
+    {
+        var account = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        var siteId = await SeedAsync(database, account, "example.com");
+        var agent = new RecordingAgentSitesClient();
+        await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(account), database);
+
+        var result = await Handler(context, account, agent, limits: new PhpLimitsSnapshot(256, 64, 120, 3000)).HandleAsync(
+            Command(siteId) with { ClientMaxBodySizeMib = 65 },
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("SiteBodySizeAbovePlan", result.Error!.Code);
+        Assert.Equal(ErrorType.Validation, result.Error.Type);
+        Assert.Empty(agent.Calls);
+    }
+
+    /// <summary>A stored figure a lowered plan left above the bound does not block saving the other options.</summary>
+    [Fact]
+    public async Task A_stored_figure_a_lowered_plan_left_above_the_bound_does_not_block_saving_the_other_options()
+    {
+        var account = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        var siteId = await SeedAsync(database, account, "example.com");
+        var agent = new RecordingAgentSitesClient();
+        await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(account), database);
+        var stored = await Handler(context, account, agent, limits: new PhpLimitsSnapshot(256, 512, 120, 3000)).HandleAsync(
+            Command(siteId) with { ClientMaxBodySizeMib = 400 },
+            CancellationToken.None);
+        Assert.True(stored.IsSuccess);
+
+        var lowered = new PhpLimitsSnapshot(256, 100, 120, 3000);
+        var unchanged = await Handler(context, account, agent, limits: lowered).HandleAsync(
+            Command(siteId) with { ClientMaxBodySizeMib = 400, StaticCacheDays = 7 },
+            CancellationToken.None);
+        var raised = await Handler(context, account, agent, limits: lowered).HandleAsync(
+            Command(siteId) with { ClientMaxBodySizeMib = 401, StaticCacheDays = 7 },
+            CancellationToken.None);
+
+        Assert.True(unchanged.IsSuccess);
+        Assert.Equal(100u, agent.Descriptors.ToList()[^1].Options.ClientMaxBodySizeMib);
+        Assert.False(raised.IsSuccess);
+        Assert.Equal("SiteBodySizeAbovePlan", raised.Error!.Code);
+    }
+
+    /// <summary>The same figure is accepted once the plan allows it, and a figure at the bound always is (inverse controls).</summary>
+    [Fact]
+    public async Task The_same_figure_is_accepted_once_the_plan_allows_it_and_a_figure_at_the_bound_always_is()
+    {
+        var account = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        var siteId = await SeedAsync(database, account, "example.com");
+        var agent = new RecordingAgentSitesClient();
+        await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(account), database);
+
+        var atBound = await Handler(context, account, agent, limits: new PhpLimitsSnapshot(256, 64, 120, 3000)).HandleAsync(
+            Command(siteId) with { ClientMaxBodySizeMib = 64 },
+            CancellationToken.None);
+        var raised = await Handler(context, account, agent, limits: new PhpLimitsSnapshot(256, 128, 120, 3000)).HandleAsync(
+            Command(siteId) with { ClientMaxBodySizeMib = 65 },
+            CancellationToken.None);
+
+        Assert.True(atBound.IsSuccess);
+        Assert.True(raised.IsSuccess);
+        Assert.Equal(65u, agent.Descriptors.Last().Options.ClientMaxBodySizeMib);
+    }
+
+    /// <summary>A site that states no figure is rendered with the plan's bound, and an explicit one overrides it.</summary>
+    [Fact]
+    public async Task A_site_that_states_no_figure_is_rendered_with_the_plans_bound_and_an_explicit_one_overrides_it()
+    {
+        var account = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        var siteId = await SeedAsync(database, account, "example.com");
+        var agent = new RecordingAgentSitesClient();
+        await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(account), database);
+        var handler = Handler(context, account, agent, limits: new PhpLimitsSnapshot(256, 96, 120, 3000));
+
+        await handler.HandleAsync(Command(siteId), CancellationToken.None);
+        var unstated = agent.Descriptors.Last().Options.ClientMaxBodySizeMib;
+        await handler.HandleAsync(Command(siteId) with { ClientMaxBodySizeMib = 8 }, CancellationToken.None);
+        var stated = agent.Descriptors.Last().Options.ClientMaxBodySizeMib;
+
+        Assert.Equal(96u, unstated);
+        Assert.Equal(8u, stated);
+    }
+
     /// <summary>Builds a command that states nothing.</summary>
     /// <param name="siteId">The site to replace the options of.</param>
     private static ReplaceSiteOptionsCommand Command(Guid siteId)
@@ -547,12 +639,16 @@ public sealed class ReplaceSiteOptionsCommandHandlerTests
     /// <param name="agent">The agent double.</param>
     /// <param name="audit">The journal double.</param>
     /// <param name="stack">The installed stack; defaults to a host with nginx and runtimes installed.</param>
+    /// <param name="limits"></param>
+    /// <param name="locks">The per-site lock; defaults to a private real one, shared when a test passes it.</param>
     private static ReplaceSiteOptionsCommandHandler Handler(
         SitesDbContext context,
         Guid accountId,
         RecordingAgentSitesClient agent,
         RecordingAuditWriter? audit = null,
-        SiteStackGate? stack = null)
+        SiteStackGate? stack = null,
+        PhpLimitsSnapshot? limits = null,
+        ISiteOperationLock? locks = null)
     {
         var accounts = new StubAccountDirectory(new AccountSnapshot(
             accountId,
@@ -562,7 +658,8 @@ public sealed class ReplaceSiteOptionsCommandHandlerTests
             MaxSftpUsers: 3,
             MaxCronEntries: 7,
             MaxPhpWorkersPerPool: 10,
-            DiskQuotaMb: 1_024, AccountState.Active));
+            DiskQuotaMb: 1_024, AccountState.Active) with
+        { PhpLimits = limits ?? PhpLimitsSnapshot.Default });
         return new ReplaceSiteOptionsCommandHandler(
             context,
             accounts,
@@ -570,7 +667,8 @@ public sealed class ReplaceSiteOptionsCommandHandlerTests
             new SiteAuditJournal(audit ?? new RecordingAuditWriter(), FakeCurrentUser.Customer(accountId)),
             SitesTestContext.SiteNames(),
             new RecordingLogger<ReplaceSiteOptionsCommandHandler>(),
-            stack ?? SiteStacks.Ready());
+            stack ?? SiteStacks.Ready(),
+            locks ?? new SiteOperationLock());
     }
 
     /// <summary>Seeds one site and returns its id.</summary>

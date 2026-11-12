@@ -5,8 +5,11 @@ using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Sites.Services;
 using Maran.Modules.Sites.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.Sdk.Interfaces;
+using Maran.Sdk.Modules;
 using Maran.SharedKernel.Apps;
 using Maran.SharedKernel.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Sites.Tests.Services;
 
@@ -164,7 +167,7 @@ public sealed class StartupPhpSiteReconcilerTests
         {
             return entry.Message
                 == "Converged 2 of 3 PHP sites to the current pool and vhost layout; "
-                + "1 failed and 0 were skipped because their account is missing";
+                + "1 failed and 0 were skipped because their account is gone or the site itself is gone or no longer PHP";
         });
     }
 
@@ -184,7 +187,7 @@ public sealed class StartupPhpSiteReconcilerTests
         {
             return entry.Message
                 == "Converged 1 of 2 PHP sites to the current pool and vhost layout; "
-                + "1 failed and 0 were skipped because their account is missing";
+                + "1 failed and 0 were skipped because their account is gone or the site itself is gone or no longer PHP";
         });
     }
 
@@ -244,10 +247,66 @@ public sealed class StartupPhpSiteReconcilerTests
         Assert.True(await world.Reconciler.ReconcileAsync(CancellationToken.None));
     }
 
+    /// <summary>A site another operation holds for the whole wait is not converged, and the pass reports failure so it is retried.</summary>
+    [Fact]
+    public async Task A_site_that_stays_busy_is_not_converged_and_the_pass_reports_failure()
+    {
+        var locks = new BusySiteLock();
+        using var world = WorldLocked(locks, [Account(FirstAccount, "alpha")], Php(FirstAccount, "one.example"));
+
+        Assert.False(await world.Reconciler.ReconcileAsync(CancellationToken.None));
+
+        Assert.Empty(world.Agent.Calls);
+        Assert.Equal(1, locks.Attempts);
+    }
+
+    /// <summary>A site deleted between the listing and the lock is skipped and not rendered from the listing.</summary>
+    [Fact]
+    public async Task A_site_deleted_while_the_pass_waited_is_skipped()
+    {
+        var site = Php(FirstAccount, "one.example");
+        var locks = new ScriptedSiteLock(new SiteOperationLock());
+        using var world = WorldLocked(locks, [Account(FirstAccount, "alpha")], site);
+        locks.AfterGrant = async _ =>
+        {
+            world.Context.Sites.Remove(await world.Context.Sites.SingleAsync(row => row.Id == site.Id));
+            await world.Context.SaveChangesAsync();
+        };
+
+        Assert.True(await world.Reconciler.ReconcileAsync(CancellationToken.None));
+
+        Assert.Empty(world.Agent.Calls);
+        Assert.Contains(world.Log.Entries, entry => { return entry.Message.StartsWith("Converged 0 of 1", StringComparison.Ordinal); });
+    }
+
+    /// <summary>The vhost is rendered from the options saved while the pass waited for the site, not from the listing.</summary>
+    [Fact]
+    public async Task The_vhost_carries_the_options_saved_while_the_pass_waited()
+    {
+        var site = Php(FirstAccount, "one.example");
+        var locks = new ScriptedSiteLock(new SiteOperationLock());
+        using var world = WorldLocked(locks, [Account(FirstAccount, "alpha")], site);
+        locks.AfterGrant = async _ =>
+        {
+            (await world.Context.Sites.SingleAsync(row => row.Id == site.Id)).ReplaceOptions(SiteOptionsSamples.Full());
+            await world.Context.SaveChangesAsync();
+        };
+
+        await world.Reconciler.ReconcileAsync(CancellationToken.None);
+
+        Assert.Single(Assert.Single(world.Agent.Descriptors).Options.BasicAuthUsers);
+    }
+
     /// <summary>Builds a world with the given accounts and sites.</summary>
     private static ReconcilerWorld World(IReadOnlyList<AccountSnapshot> accounts, params Site[] sites)
     {
         return new ReconcilerWorld(accounts, sites);
+    }
+
+    /// <summary>Builds a world over a given per-site lock.</summary>
+    private static ReconcilerWorld WorldLocked(ISiteOperationLock siteLock, IReadOnlyList<AccountSnapshot> accounts, params Site[] sites)
+    {
+        return new ReconcilerWorld(accounts, sites, siteLock: siteLock);
     }
 
     /// <summary>Builds a world over a given stack.</summary>
@@ -295,6 +354,15 @@ public sealed class StartupPhpSiteReconcilerTests
         /// <summary>The container the reconciler's scopes come from.</summary>
         private readonly StartupPhpSiteScopeFactory _scopes;
 
+        /// <summary>The store the pass reads, which a test changes to model another request committing meanwhile.</summary>
+        public SitesDbContext Context
+        {
+            get
+            {
+                return _dbContext;
+            }
+        }
+
         /// <summary>The agent double.</summary>
         public RecordingAgentSitesClient Agent { get; } = new();
 
@@ -308,7 +376,12 @@ public sealed class StartupPhpSiteReconcilerTests
         /// <param name="accounts">The accounts the directory knows.</param>
         /// <param name="sites">The rows the panel stores.</param>
         /// <param name="stack">The installed apps; nginx and PHP when omitted.</param>
-        public ReconcilerWorld(IReadOnlyList<AccountSnapshot> accounts, IReadOnlyList<Site> sites, IStackStatus? stack = null)
+        /// <param name="siteLock">The per-site lock; a real in-process one when omitted.</param>
+        public ReconcilerWorld(
+            IReadOnlyList<AccountSnapshot> accounts,
+            IReadOnlyList<Site> sites,
+            IStackStatus? stack = null,
+            ISiteOperationLock? siteLock = null)
         {
             // Seeded as an administrator and read back with no principal at all, which is what
             // startup has.
@@ -316,7 +389,7 @@ public sealed class StartupPhpSiteReconcilerTests
             _dbContext.Sites.AddRange(sites);
             _dbContext.SaveChanges();
 
-            _scopes = new StartupPhpSiteScopeFactory(_dbContext, Agent, new StubAccountDirectory(accounts.ToArray()), stack);
+            _scopes = new StartupPhpSiteScopeFactory(_dbContext, Agent, new StubAccountDirectory(accounts.ToArray()), stack, siteLock);
             Reconciler = new StartupPhpSiteReconciler(_scopes.Scopes, Log);
         }
 

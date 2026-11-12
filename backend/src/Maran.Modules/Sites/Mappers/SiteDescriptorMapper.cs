@@ -1,6 +1,8 @@
 using Maran.Agent.Client.Services.SitesService;
 using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
+using Maran.Modules.Sites.Domain.Policies;
+using Maran.Sdk.Contracts;
 
 namespace Maran.Modules.Sites.Mappers;
 
@@ -23,8 +25,12 @@ public static class SiteDescriptorMapper
     /// The installed site web server. Not a column: exactly one is installed at a time and uninstalling it is
     /// refused while a site exists, so every site is served by it (docs/apps/README.md).
     /// </param>
+    /// <param name="limits">
+    /// The plan's PHP bounds of the site's account: the request body limit a PHP site carries follows
+    /// the plan unless its owner stated one (<see cref="SiteBodySizePolicy"/>).
+    /// </param>
     /// <returns>The descriptor carrying that row's own facts.</returns>
-    public static SiteDescriptor From(Site site, SiteWebServer webServer)
+    public static SiteDescriptor From(Site site, SiteWebServer webServer, PhpLimitsSnapshot limits)
     {
         return new SiteDescriptor(
             site.Aliases,
@@ -37,7 +43,7 @@ public static class SiteDescriptorMapper
             // Read from the row like every other fact, so the options travel with the site on every
             // re-render: a vhost written without them loses the site's redirects, credentials and
             // IP rules on an action that had nothing to do with them.
-            SiteOptionsDescriptorMapper.From(site.Options));
+            SiteOptionsDescriptorMapper.From(site.Options, SiteBodySizePolicy.Effective(site, limits)));
     }
 
     /// <summary>Maps the module's backend enum onto the agent client's.</summary>

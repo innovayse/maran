@@ -19,7 +19,13 @@ public sealed class RemoveCertificateCommandHandlerTests
     private static RemoveCertificateCommandHandler HandlerFor(SslHandlerFixture fixture)
     {
         return new RemoveCertificateCommandHandler(
-            fixture.DbContext, fixture.Sites, fixture.Accounts, fixture.Agent, fixture.Journal, fixture.Stack);
+            fixture.DbContext,
+            fixture.Sites,
+            fixture.Accounts,
+            fixture.Agent,
+            fixture.Journal,
+            fixture.Stack,
+            fixture.SiteLocks);
     }
 
     /// <summary>Seeds a certificate for the fixture's own account and returns its identity.</summary>

@@ -6,6 +6,8 @@ using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Sites.Services;
 using Maran.Modules.Sites.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.Sdk.Interfaces;
+using Maran.Sdk.Modules;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 
@@ -232,12 +234,14 @@ public sealed class EnableSiteCommandHandlerTests
     /// <param name="agent">The agent double.</param>
     /// <param name="audit">The journal double.</param>
     /// <param name="stack">The installed stack; defaults to a host with nginx and runtimes installed.</param>
+    /// <param name="locks">The per-site lock; defaults to a private real one, shared when a test passes it.</param>
     private static EnableSiteCommandHandler Handler(
         SitesDbContext context,
         Guid accountId,
         RecordingAgentSitesClient agent,
         RecordingAuditWriter? audit = null,
-        SiteStackGate? stack = null)
+        SiteStackGate? stack = null,
+        ISiteOperationLock? locks = null)
     {
         var accounts = new StubAccountDirectory(
             new AccountSnapshot(
@@ -255,7 +259,8 @@ public sealed class EnableSiteCommandHandlerTests
             agent,
             new SiteAuditJournal(audit ?? new RecordingAuditWriter(), FakeCurrentUser.Customer(accountId)),
             SitesTestContext.SiteNames(),
-            stack ?? SiteStacks.Ready());
+            stack ?? SiteStacks.Ready(),
+            locks ?? new SiteOperationLock());
     }
 
     /// <summary>Seeds one site in the state this operation acts from, and returns its id.</summary>

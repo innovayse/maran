@@ -2,6 +2,7 @@ using Maran.Agent.Client.Services.SitesService;
 using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Mappers;
+using Maran.Sdk.Contracts;
 
 namespace Maran.Modules.Sites.Tests.Mappers;
 
@@ -27,7 +28,7 @@ public sealed class SiteDescriptorMapperTests
         var site = PhpSite();
         site.AttachCertificate();
 
-        var descriptor = SiteDescriptorMapper.From(site, SiteWebServer.Nginx);
+        var descriptor = SiteDescriptorMapper.From(site, SiteWebServer.Nginx, PhpLimitsSnapshot.Default);
 
         Assert.True(descriptor.HasCertificate);
     }
@@ -38,7 +39,7 @@ public sealed class SiteDescriptorMapperTests
     {
         // The other direction, so the field is read rather than hardcoded either way: a literal
         // `true` would be caught here and a literal `false` by the test above.
-        var descriptor = SiteDescriptorMapper.From(PhpSite(), SiteWebServer.Nginx);
+        var descriptor = SiteDescriptorMapper.From(PhpSite(), SiteWebServer.Nginx, PhpLimitsSnapshot.Default);
 
         Assert.False(descriptor.HasCertificate);
     }
@@ -51,7 +52,7 @@ public sealed class SiteDescriptorMapperTests
         site.AttachCertificate();
         site.DetachCertificate();
 
-        var descriptor = SiteDescriptorMapper.From(site, SiteWebServer.Nginx);
+        var descriptor = SiteDescriptorMapper.From(site, SiteWebServer.Nginx, PhpLimitsSnapshot.Default);
 
         Assert.False(descriptor.HasCertificate);
     }
@@ -76,7 +77,7 @@ public sealed class SiteDescriptorMapperTests
             "/home/acct/sites/proxy.example.com",
             CreatedAt);
 
-        var descriptor = SiteDescriptorMapper.From(site, SiteWebServer.Nginx);
+        var descriptor = SiteDescriptorMapper.From(site, SiteWebServer.Nginx, PhpLimitsSnapshot.Default);
 
         Assert.Equal("127.0.0.1:8080", descriptor.ProxyUpstream);
         Assert.Equal(SiteBackendKind.ReverseProxy, descriptor.Backend);
@@ -100,7 +101,7 @@ public sealed class SiteDescriptorMapperTests
             "/home/acct/sites/static.example.com",
             CreatedAt);
 
-        var descriptor = SiteDescriptorMapper.From(site, SiteWebServer.Nginx);
+        var descriptor = SiteDescriptorMapper.From(site, SiteWebServer.Nginx, PhpLimitsSnapshot.Default);
 
         Assert.Equal(SiteBackendKind.Static, descriptor.Backend);
         Assert.Equal(string.Empty, descriptor.PhpVersion);
@@ -125,7 +126,7 @@ public sealed class SiteDescriptorMapperTests
             "/home/acct/sites/app.example.com",
             CreatedAt);
 
-        var descriptor = SiteDescriptorMapper.From(site, SiteWebServer.Nginx);
+        var descriptor = SiteDescriptorMapper.From(site, SiteWebServer.Nginx, PhpLimitsSnapshot.Default);
 
         Assert.Equal(SiteBackendKind.Node, descriptor.Backend);
         Assert.Equal(new SiteNodeApp("22", 3100, "npm start"), descriptor.Node);
@@ -135,7 +136,7 @@ public sealed class SiteDescriptorMapperTests
     [Fact]
     public void A_site_that_is_not_a_node_site_is_described_with_no_node_application()
     {
-        var descriptor = SiteDescriptorMapper.From(PhpSite(), SiteWebServer.Nginx);
+        var descriptor = SiteDescriptorMapper.From(PhpSite(), SiteWebServer.Nginx, PhpLimitsSnapshot.Default);
 
         Assert.Equal(SiteNodeApp.None, descriptor.Node);
     }
@@ -144,7 +145,7 @@ public sealed class SiteDescriptorMapperTests
     [Fact]
     public void The_stored_aliases_and_php_version_are_carried_into_the_descriptor()
     {
-        var descriptor = SiteDescriptorMapper.From(PhpSite(), SiteWebServer.Nginx);
+        var descriptor = SiteDescriptorMapper.From(PhpSite(), SiteWebServer.Nginx, PhpLimitsSnapshot.Default);
 
         Assert.Equal(["www.example.com", "cdn.example.com"], descriptor.Aliases);
         Assert.Equal("8.3", descriptor.PhpVersion);
@@ -158,7 +159,7 @@ public sealed class SiteDescriptorMapperTests
     {
         // The web server is not a column: it is the installed one, passed in. A mapper that fixed it to nginx
         // would re-render every Apache site's vhost for nginx on the next enable or suspend.
-        var descriptor = SiteDescriptorMapper.From(PhpSite(), webServer);
+        var descriptor = SiteDescriptorMapper.From(PhpSite(), webServer, PhpLimitsSnapshot.Default);
 
         Assert.Equal(webServer, descriptor.WebServer);
     }

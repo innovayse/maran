@@ -42,6 +42,9 @@
   <data name="SiteNotFound">
     <value>Сайт не найден.</value>
   </data>
+  <data name="SiteBusy">
+    <value>Другое изменение этого сайта ещё выполняется. Подождите немного и повторите попытку.</value>
+  </data>
   <data name="AccountNotFound">
     <value>Аккаунт не найден.</value>
   </data>

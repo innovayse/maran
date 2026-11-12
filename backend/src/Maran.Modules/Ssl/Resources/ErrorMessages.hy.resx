@@ -42,6 +42,9 @@
   <data name="SiteNotFound">
     <value>Կայքը չի գտնվել։</value>
   </data>
+  <data name="SiteBusy">
+    <value>Այս կայքի մեկ այլ փոփոխություն դեռ ընթացքի մեջ է։ Սպասեք մի պահ և կրկին փորձեք։</value>
+  </data>
   <data name="AccountNotFound">
     <value>Այս հաշիվը չի գտնվել։</value>
   </data>

@@ -40,19 +40,25 @@ public sealed class DeleteSiteCommandHandler
     /// <summary>Refuses the operation while no site web server is installed.</summary>
     private readonly SiteStackGate _stack;
 
+    /// <summary>Serialises the operations that change one site's host state.</summary>
+    private readonly ISiteOperationLock _locks;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Sites module's database context.</param>
     /// <param name="accounts">The owning account's system user name.</param>
     /// <param name="agent">The agent client that removes the vhost.</param>
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="stack">Refuses the operation while no site web server is installed.</param>
+    /// <param name="locks">Serialises the operations that change one site's host state.</param>
     public DeleteSiteCommandHandler(
         SitesDbContext dbContext,
         IAccountDirectory accounts,
         IAgentSitesClient agent,
         SiteAuditJournal journal,
-        SiteStackGate stack)
+        SiteStackGate stack,
+        ISiteOperationLock locks)
     {
+        _locks = locks;
         _stack = stack;
         _dbContext = dbContext;
         _accounts = accounts;
@@ -78,6 +84,33 @@ public sealed class DeleteSiteCommandHandler
             return await FailAsync(command, command.SiteId.ToString(), notReady, cancellationToken);
         }
 
+        // The site is held for the whole change, from reading its row to saving it, so no other
+        // operation on it interleaves; the row is read inside the guard for that reason (#531).
+        var guarded = await SiteGuard.RunAsync(
+            _locks,
+            command.SiteId,
+            SiteLockWait.Interactive,
+            () =>
+            {
+                return ApplyAsync(command, installed, cancellationToken);
+            },
+            cancellationToken);
+
+        return !guarded.IsSuccess && SiteBusyFailure.Is(guarded.Error)
+            ? await FailAsync(command, command.SiteId.ToString(), guarded.Error!, cancellationToken)
+            : guarded;
+    }
+
+    /// <summary>Applies the change to the site, which the caller holds.</summary>
+    /// <param name="command">Which site to act on.</param>
+    /// <param name="installed">The apps the stack gate found installed.</param>
+    /// <param name="cancellationToken">Cancels the operation.</param>
+    /// <returns>The change's outcome, or the typed failure.</returns>
+    private async Task<Result> ApplyAsync(
+        DeleteSiteCommand command,
+        SiteHostApps installed,
+        CancellationToken cancellationToken)
+    {
         // The hostname claims are loaded with the site so that removing it frees the names it held
         // through the tracked graph, rather than relying on the database's cascade alone: a name
         // still claimed by a deleted site is a name its owner can never use again.
@@ -97,6 +130,37 @@ public sealed class DeleteSiteCommandHandler
             return await FailAsync(command, site.Domain, Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound), cancellationToken);
         }
 
+        // A site that holds a php-fpm pool decides, and acts on, "may the pool go with it" under the
+        // account's pool lock (#561): a pool belongs to an ACCOUNT and a version, so a version change of
+        // ANOTHER site moving onto this version would otherwise lose the pool it has just been given
+        // between the question and the agent call. The site's own lock, held by the caller, cannot cover it.
+        return site.BackendType == SiteBackendType.Php && !string.IsNullOrEmpty(site.PhpVersion)
+            ? await PhpPoolGuard.RunAsync(
+                _locks,
+                site.AccountId,
+                SiteLockWait.Interactive,
+                () =>
+                {
+                    return RemoveAsync(command, installed, site, account, cancellationToken);
+                },
+                cancellationToken)
+            : await RemoveAsync(command, installed, site, account, cancellationToken);
+    }
+
+    /// <summary>Removes the vhost and then the row of a site the caller holds, and journals it.</summary>
+    /// <param name="command">Which site to act on.</param>
+    /// <param name="installed">The apps the stack gate found installed.</param>
+    /// <param name="site">The tracked row, with its hostname claims.</param>
+    /// <param name="account">The owning account.</param>
+    /// <param name="cancellationToken">Cancels the operation.</param>
+    /// <returns>The change's outcome, or the typed failure.</returns>
+    private async Task<Result> RemoveAsync(
+        DeleteSiteCommand command,
+        SiteHostApps installed,
+        Site site,
+        AccountSnapshot account,
+        CancellationToken cancellationToken)
+    {
         // Whether the site's php-fpm pool may go with it is a question only the panel can answer,
         // and it is answered from the rows rather than from anything on the host: a pool belongs to
         // an ACCOUNT and a version, and two of the account's sites on the same version share one

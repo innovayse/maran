@@ -75,6 +75,7 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
         SiteNodeApp node,
         uint maxChildren,
         IReadOnlyList<PhpSettingDto> settingOverrides,
+        SiteOptionsDescriptor options,
         CancellationToken cancellationToken)
     {
         throw new NotSupportedException("The Ssl module never creates a site.");

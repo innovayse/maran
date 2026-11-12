@@ -1,13 +1,16 @@
+using Maran.Modules.Sites.IntegrationEvents.Events;
 using Maran.Modules.Sites.Services;
 using Maran.Sdk.Events;
 using Maran.Sdk.Interfaces;
 using Microsoft.Extensions.Logging;
+using Wolverine;
 
 namespace Maran.Modules.Sites.IntegrationEvents.Handlers;
 
 /// <summary>
-/// Rewrites an account's php-fpm pools when its plan figures changed, so the new bounds reach the
-/// pools now and not at the next panel start (<see cref="AccountPlanChanged"/>, issue #138).
+/// Rewrites an account's php-fpm pools when its plan figures changed, and queues the render of its PHP vhosts
+/// when the plan's upload bound moved, so the new bounds reach them now and not at the next panel start
+/// (<see cref="AccountPlanChanged"/>, issues #138 and #556).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -21,6 +24,15 @@ namespace Maran.Modules.Sites.IntegrationEvents.Handlers;
 /// logged and returned from, not thrown: the row is written and nothing a subscriber does can undo it.
 /// What it misses the start-up pass converges (<see cref="StartupPhpSiteReconciler"/>), because both
 /// read the same stored settings and cut them to the same bound.
+/// </para>
+/// <para>
+/// <b>The vhosts follow the plan too, in the background.</b> A PHP site's request body limit is the plan's
+/// upload bound unless its owner stated one (<see cref="Domain.Policies.SiteBodySizePolicy"/>), so a changed
+/// bound changes what the vhost must carry. That is one agent call per site, so it is not done here, inside the
+/// administrator's request: this handler publishes <see cref="PhpSiteVhostsRerenderRequested"/> and
+/// <see cref="PhpSiteVhostsRerenderRequestedHandler"/> renders them. It does so only when
+/// <see cref="AccountPlanChanged.UploadBoundChanged"/> says the bound moved; the plan's other figures change
+/// pools alone. A disabled site's stub carries no options and takes the figure when it is enabled.
 /// </para>
 /// <para>
 /// An account with no PHP site has no pool and nothing to write. The previous pool contents are not
@@ -53,6 +65,9 @@ public sealed class AccountPlanChangedHandler
     /// <summary>Rewrites those pools.</summary>
     private readonly PhpPoolApplier _applier;
 
+    /// <summary>Queues the render of the account's vhosts.</summary>
+    private readonly IMessageBus _bus;
+
     /// <summary>Where a failure is recorded.</summary>
     private readonly ILogger<AccountPlanChangedHandler> _logger;
 
@@ -60,23 +75,26 @@ public sealed class AccountPlanChangedHandler
     /// <param name="accounts">The account's system user, worker budget and plan bounds.</param>
     /// <param name="pools">Which versions the account has pools at, and what its pools carry.</param>
     /// <param name="applier">Rewrites those pools.</param>
+    /// <param name="bus">Queues the render of the account's vhosts.</param>
     /// <param name="logger">Where a failure is recorded.</param>
     public AccountPlanChangedHandler(
         IAccountDirectory accounts,
         PhpAccountPoolSettings pools,
         PhpPoolApplier applier,
+        IMessageBus bus,
         ILogger<AccountPlanChangedHandler> logger)
     {
         _accounts = accounts;
         _pools = pools;
         _applier = applier;
+        _bus = bus;
         _logger = logger;
     }
 
-    /// <summary>Rewrites the account's pools with the settings its customer chose, cut to the new bound.</summary>
+    /// <summary>Rewrites the account's pools for the new bounds and queues its vhosts when the upload bound moved.</summary>
     /// <param name="message">The account whose plan figures changed.</param>
     /// <param name="cancellationToken">Cancels the writes.</param>
-    /// <returns>A task that completes when every pool was written or one refused.</returns>
+    /// <returns>A task that completes when every pool was written or one refused, and the vhosts are queued.</returns>
     public async Task HandleAsync(AccountPlanChanged message, CancellationToken cancellationToken)
     {
         // Read through the directory of the request that announced the change: an administrator or the
@@ -100,6 +118,11 @@ public sealed class AccountPlanChangedHandler
         if (!applied.IsSuccess)
         {
             LogApplyFailed(_logger, account.Id, applied.Error!.Code, null);
+        }
+
+        if (message.UploadBoundChanged)
+        {
+            await _bus.PublishAsync(new PhpSiteVhostsRerenderRequested(account.Id));
         }
     }
 }

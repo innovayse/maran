@@ -107,6 +107,10 @@ public sealed class SitesModule : IPanelModule
         // Scoped, because it reads the Apps module's installed-stack answer, which is request-scoped.
         services.AddScoped<SiteStackGate>();
 
+        // Scoped, because it reads through the account directory of the request or job it serves: the plan
+        // bounds a vhost's request body limit follows, for the paths that have no principal (issue #556).
+        services.AddScoped<SitePlanLimits>();
+
         // Scoped, because it asks the claims reader above and drives the agent on the request's behalf.
         services.AddScoped<SiteVhostCompensator>();
 

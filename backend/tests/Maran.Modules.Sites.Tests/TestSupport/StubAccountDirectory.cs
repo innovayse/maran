@@ -22,6 +22,12 @@ public sealed class StubAccountDirectory : IAccountDirectory
     /// <summary>Each term <see cref="FindIdsByNameAsync"/> was asked for, in order.</summary>
     public List<string> NameSearches { get; } = [];
 
+    /// <summary>
+    /// What <see cref="FindForSystemAsync"/> answers for an account this double was not given, or null to
+    /// answer null as the real directory does for an account that does not exist.
+    /// </summary>
+    public Func<Guid, AccountSnapshot>? Fallback { get; init; }
+
     /// <summary>Creates a directory knowing the given snapshots.</summary>
     /// <param name="snapshots">The accounts this directory can answer for.</param>
     public StubAccountDirectory(params AccountSnapshot[] snapshots)
@@ -113,7 +119,9 @@ public sealed class StubAccountDirectory : IAccountDirectory
     /// <inheritdoc />
     public Task<AccountSnapshot?> FindForSystemAsync(Guid accountId, CancellationToken cancellationToken)
     {
-        throw new NotSupportedException("These tests read no account unscoped.");
+        // Unscoped, as the contract says: no reference to any current user. Answers null for an account
+        // this double was not given, as the real one does for an account that does not exist.
+        return Task.FromResult(_snapshots.GetValueOrDefault(accountId) ?? Fallback?.Invoke(accountId));
     }
 
     /// <summary>Answers an account's system user name without any tenant scope, exactly as the contract says the real one does.</summary>

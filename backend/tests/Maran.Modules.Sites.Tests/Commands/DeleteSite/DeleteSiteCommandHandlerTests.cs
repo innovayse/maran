@@ -6,6 +6,8 @@ using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Sites.Services;
 using Maran.Modules.Sites.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.Sdk.Interfaces;
+using Maran.Sdk.Modules;
 using Maran.SharedKernel.Apps;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
@@ -231,12 +233,14 @@ public sealed class DeleteSiteCommandHandlerTests
     /// <param name="agent">The agent double.</param>
     /// <param name="audit">The journal double.</param>
     /// <param name="stack">The installed stack; defaults to a host with nginx and runtimes installed.</param>
+    /// <param name="locks">The per-site lock; defaults to a private real one, shared when a test passes it.</param>
     private static DeleteSiteCommandHandler Handler(
         SitesDbContext context,
         Guid accountId,
         RecordingAgentSitesClient agent,
         RecordingAuditWriter? audit = null,
-        SiteStackGate? stack = null)
+        SiteStackGate? stack = null,
+        ISiteOperationLock? locks = null)
     {
         var accounts = new StubAccountDirectory(
             new AccountSnapshot(
@@ -253,7 +257,8 @@ public sealed class DeleteSiteCommandHandlerTests
             accounts,
             agent,
             new SiteAuditJournal(audit ?? new RecordingAuditWriter(), FakeCurrentUser.Customer(accountId)),
-            stack ?? SiteStacks.Ready());
+            stack ?? SiteStacks.Ready(),
+            locks ?? new SiteOperationLock());
     }
 
     /// <summary>Seeds one site and returns its id.</summary>
