@@ -10,14 +10,16 @@
 # The cases (all through the real `sendmail`/`postdrop`, run as a real system user, into the real Postfix
 # `postdrop` -> `pickup` -> `cleanup_local` road and the real Rspamd milter):
 #   1. an allowed account sending from its own domain: accepted (delivered or queued). This also proves the
-#      milter is handed pickup's own Received line as the topmost header and the daemon name MARAN_LOCAL
+#      milter is handed the X-Maran-Local-Submitter header the cleanup_local table makes from pickup's own
+#      Received line (topmost) and the daemon name MARAN_LOCAL
 #      (otherwise the rule would refuse or pass the message for the wrong reason);
 #   2. the envelope sender is another account's domain: refused WITHOUT a delivery failure notice
 #      (discarded, no backscatter to the forged address);
 #   3. the envelope sender is owned but the From: header is another account's domain: rejected 5.7.1;
 #   4. a uid the data plane does not list: refused (by postdrop, or by the rule);
 #   5. the N+1th message inside the hour: deferred 4.7.1, not rejected;
-#   6. a customer-written second Received header naming another uid: ignored, only the topmost counts;
+#   6. a customer-written Received line and X-Maran-Local-Submitter header naming another uid: ignored, only
+#      the topmost submitter header counts;
 #   7. more recipients than the cap: rejected (too many recipients);
 #   8. PHP mail() without -f (envelope user@host): refused, not delivered (supported config is -f);
 #   9. a hand-built postdrop stream carrying forged sasl_username / client_address attributes: still
@@ -315,14 +317,14 @@ assert_local_submission_is_bound_to_the_account() {
   result="$(local_submit_outcome "$marker")"
   [ "$result" = deferred ] || { local_submit_restore "$backup"; fail "the message after the hourly limit was ${result}, not deferred 4.7.1"; }
 
-  # 6. A forged second Received header naming the listed uid, sent by the UNLISTED user: a forgery
-  # that would work if the rule read any header but the topmost.
+  # 6. A forged Received line and a forged submitter header naming the listed uid, sent by the UNLISTED
+  # user: a forgery that would work if the rule read any header but the topmost submitter header.
   marker="lsub-forged-$$-$RANDOM"
   local_submit_send "$LOCAL_SUBMIT_USER_UNLISTED" "${LOCAL_SUBMIT_USER_UNLISTED}@one.test" one.test "$marker" \
-    "Received: by forged.test (Postfix, from userid $(id -u "$LOCAL_SUBMIT_USER_OWN"))"
+    "$(printf 'X-Maran-Local-Submitter: %s FORGED\nReceived: by forged.test (Postfix, from userid %s)\n\tid FORGED;' "$(id -u "$LOCAL_SUBMIT_USER_OWN")" "$(id -u "$LOCAL_SUBMIT_USER_OWN")")"
   result="$(local_submit_outcome "$marker")"
   case "$result" in
-    accepted|deferred) local_submit_restore "$backup"; fail "a forged second Received header made an unlisted uid's message ${result}; only the topmost header is trusted" ;;
+    accepted|deferred) local_submit_restore "$backup"; fail "a forged Received line and submitter header made an unlisted uid's message ${result}; only the topmost submitter header is trusted" ;;
   esac
 
   # 7. More recipients than the cap (sendmail has no smtpd_recipient_limit). acc2 is used so acc1's

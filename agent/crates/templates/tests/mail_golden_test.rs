@@ -50,6 +50,7 @@ fn main_config() -> PostfixMainConfig {
 fn master_config() -> PostfixMasterConfig {
     PostfixMasterConfig {
         self_clients_path: "/etc/maran/mail/self_clients.cidr".to_owned(),
+        local_submitter_headers_path: "/etc/maran/mail/local_submitter_headers.regexp".to_owned(),
     }
 }
 
@@ -248,6 +249,7 @@ fn only_the_public_service_carries_the_own_host_restriction() {
 fn the_master_config_follows_the_path_it_is_given() {
     let rendered = PostfixMasterConfig {
         self_clients_path: "/srv/other/clients.cidr".to_owned(),
+        local_submitter_headers_path: "/srv/other/submitter.regexp".to_owned(),
     }
     .render_config()
     .unwrap();
@@ -327,7 +329,10 @@ fn pickup_alone_uses_the_cleanup_service_that_names_the_local_road() {
     );
     assert_eq!(
         block_of("cleanup_local unix"),
-        vec!["-o milter_macro_daemon_name=MARAN_LOCAL"]
+        vec![
+            "-o milter_macro_daemon_name=MARAN_LOCAL",
+            "-o header_checks=regexp:/etc/maran/mail/local_submitter_headers.regexp"
+        ]
     );
     // Accepting control: the ordinary cleanup service keeps the default name, and
     // no smtpd service reports the local one.

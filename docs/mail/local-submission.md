@@ -43,12 +43,19 @@ Postfix owner, which is exempt.
 
 ## What identifies the submitter
 
-`pickup` writes the first `Received:` header of a locally submitted message itself:
+`pickup` writes the first `Received:` line of a locally submitted message itself:
 `Received: by <host> (Postfix, from userid <uid>)`, the owner `postdrop` recorded for the queue file
-(the caller's real uid). It is unconditional and sits above everything the customer wrote, so only the
-**topmost** `Received:` header is trusted, and only on the `MARAN_LOCAL` road. `mail_name` is pinned to
-`Postfix` in `main.cf` because it is the text of that line. A message on the local road without a
-topmost header of exactly that shape is refused.
+(the caller's real uid). It is unconditional and sits above everything the customer wrote. Postfix does
+**not** show that line to a milter (Rspamd never sees it), so the uid is carried to the rule another way:
+the `cleanup_local` service, which only `pickup` feeds, runs a `header_checks` table
+(`/etc/maran/mail/local_submitter_headers.regexp`, rendered by the agent) that copies the uid and the
+maildrop id out of the line into a header, `X-Maran-Local-Submitter: <uid> <id>`. The table prepends,
+and pickup's line is first in the message, so that header is the **topmost** one; a header of that
+name, or a `Received:` line of that shape, written by the customer sits below it and only the topmost
+`X-Maran-Local-Submitter:` header is trusted, and only on the `MARAN_LOCAL` road. `mail_name` is pinned to
+`Postfix` in `main.cf` because it is the text the table matches. A message on the local road without a
+topmost header of exactly that shape is refused. The header stays on the delivered message; it names a
+system uid and a queue id, nothing a recipient can use.
 
 Exempt uids are exactly root (`0`) and the Postfix owner (`$mail_owner`), rendered by the agent from the
 host's user database and never derived from a customer. No other user is exempt. In particular no
@@ -59,9 +66,10 @@ exempt list deliberately, in the same change. The mail of an exempt uid records 
 domain only when that domain is the host's own mail name (`host_mail_name`, rendered into the settings from the
 mail server hostname); a trusted uid is never proven for a tenant's domain.
 
-UNVERIFIED (polygon case 1 proves it on a live stack): that Postfix hands pickup's own `Received:` line
-to the milter as the first header, that the `MTA-Name` header carries `{daemon_name}`, and the exact
-header text per Postfix version.
+Verified against Postfix 3.5 and 3.10: a milter is NOT handed pickup's own `Received:` line (issue #591),
+`header_checks` of the `cleanup_local` service does see it, and the header it prepends reaches the milter
+first. UNVERIFIED (polygon case 1 proves it on a live stack): that the `MTA-Name` header carries
+`{daemon_name}` through Rspamd, and the exact header text per Postfix version.
 
 ## Data the agent renders (`/etc/maran/mail/`, root-owned, Rspamd-readable)
 
@@ -104,7 +112,7 @@ message reads `554 5.7.1 sender not owned by account`, a deferred one `451 4.7.1
 
 On the `MARAN_LOCAL` road:
 
-1. Topmost `Received` uid, then account via `local_submit_accounts.map`. An unrecognised shape or an
+1. Topmost `X-Maran-Local-Submitter` uid, then account via `local_submit_accounts.map`. An unrecognised shape or an
    unknown uid (not root / `$mail_owner`) is **discarded** (see "Refusals and backscatter").
 2. The envelope sender domain must be one of the account's `account_sender_domains.map` entries, else
    **discard** (`sender not owned by account`). Every `From:` domain must be too (and there must be
@@ -144,7 +152,7 @@ unidentified path, and passes only inbound mail (`INBOUND`). `enabled = false` i
 A deferral (`4.x`) from the milter leaves a locally submitted message in the maildrop queue and
 `pickup` offers it again on a later scan (expected, UNVERIFIED: polygon case 10). Counting is therefore
 idempotent per message identity. The cleanup queue id changes on every re-offer, so the identity is the
-`id` of the topmost `Received` header pickup wrote (the maildrop file name, stable across re-offers): the
+`id` of the topmost submitter header (copied from the line pickup wrote) (the maildrop file name, stable across re-offers): the
 script does `SET maran:send:seen:<account>:id:<maildrop id> NX EX 3600` and only increments the bucket when
 that key was new; a retry reads the bucket without adding. A message without that id is counted every time,
 which only over-counts. `Message-ID` is never used: the sender controls it, and repeating one would make a
@@ -250,7 +258,7 @@ attributes, unknown and missing daemon names, recipient cost and cap, discard ve
 message-identity key, the unknown-login refusal and the unconfigured stand-in; agent tests for the host invariants, key conflicts, the comment-line empty table, the loaded-rule check and the table lock; polygon (`mail-local-submit.sh`, twelve cases): local
 `sendmail` as an allowed account with its own domain is accepted, with another account's envelope sender
 discarded, with another account's `From:` rejected, as an unlisted uid refused, the N+1th message in an
-hour deferred, a forged second `Received` header ignored, the recipient cap enforced, the default PHP
+hour deferred, a forged `Received` line and submitter header ignored, the recipient cap enforced, the default PHP
 sender refused, a hand-built `postdrop` stream with forged `sasl_username`/client attributes still
 refused, a retry not counted twice, the drop-group and `postdrop` invariants, and the last account removed (comment-only maps refresh the rule).
 

@@ -8,8 +8,9 @@
 # is empty and local delivery is an error); every mailbox is a virtual one
 # served by Dovecot over the LMTP socket below, under its account's own uid.
 compatibility_level = 2
-# Pinned, not left to the package default: pickup writes it into the Received header
-# the local-submission rule reads ("by <host> (Postfix, from userid N)", issue #518).
+# Pinned, not left to the package default: pickup writes it into the Received line
+# the cleanup_local header_checks table matches ("by <host> (Postfix, from userid N)",
+# issues #518 and #591).
 mail_name = Postfix
 myhostname = mail.example.test
 myorigin = $myhostname

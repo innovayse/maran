@@ -136,6 +136,12 @@ fn mail_is_enabled_through_the_agent_and_the_stack_is_left_running() {
         master.contains("cleanup_local"),
         "master.cf must carry the cleanup_local service of the local-submission road"
     );
+    let submitter_headers =
+        PolygonMail::read_rendered(Path::new(AgentPaths::MAIL_LOCAL_SUBMITTER_HEADERS_PATH));
+    assert!(
+        submitter_headers.contains("PREPEND X-Maran-Local-Submitter:"),
+        "the local service's header_checks table must make the submitter header: {submitter_headers:?}"
+    );
     let self_clients = PolygonMail::read_rendered(Path::new(AgentPaths::MAIL_SELF_CLIENTS_PATH));
     assert!(
         self_clients

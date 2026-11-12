@@ -92,7 +92,8 @@ fn postfix_gets_its_three_files_checked_by_postfix_check() {
         [
             "/etc/postfix/main.cf",
             "/etc/postfix/master.cf",
-            "/etc/maran/mail/self_clients.cidr"
+            "/etc/maran/mail/self_clients.cidr",
+            "/etc/maran/mail/local_submitter_headers.regexp"
         ]
     );
     assert_eq!(
@@ -329,6 +330,21 @@ fn postfix_main_cf_bounds_alias_expansion() {
         main.contents
             .contains("virtual_alias_expansion_limit = 100\n")
     );
+}
+
+#[test]
+fn the_local_service_names_the_submitter_table_the_stage_writes() {
+    // Issue #591: master.cf points at the very file that is in the same change, and
+    // that file is the one that makes the header the Rspamd rule reads.
+    let stages = stages_for(DistroFamily::Debian, VERSION_ID, false);
+    let postfix = stage_of(&stages, MailDaemon::Postfix);
+    let master = text_of(postfix, "master.cf");
+    let table = text_of(postfix, "local_submitter_headers.regexp");
+
+    assert!(
+        master.contains("header_checks=regexp:/etc/maran/mail/local_submitter_headers.regexp\n")
+    );
+    assert!(table.contains("PREPEND X-Maran-Local-Submitter: $1 $2"));
 }
 
 #[test]

@@ -78,45 +78,55 @@ function M.parse_sets(text)
   return map
 end
 
--- The uid Postfix's pickup recorded in one Received header value, or nil when the
--- value is not that exact shape.
-function M.uid_from_received(value)
+-- The header Postfix writes for the milter, naming who submitted the message locally.
+-- Postfix hands a milter only what the sender wrote, never the Received line pickup
+-- adds (the uid is nowhere else a milter can read), so Postfix's own `header_checks`
+-- table for the local service (postfix/local_submitter_headers.regexp) copies
+-- the uid and the maildrop id out of that line into this header. It prepends, and
+-- pickup's line is the first thing in the message, so the header it makes is the
+-- topmost one; a header of the same name written by the sender sits below it.
+M.SUBMITTER_HEADER = 'X-Maran-Local-Submitter'
+
+-- The uid and the maildrop id in one submitter header value ("<uid> <id>"), or nil
+-- when the value is not exactly that shape.
+function M.parse_submitter(value)
   if type(value) ~= 'string' then
     return nil
   end
-  local uid = value:match('^%s*by%s+%S+%s+%(Postfix,%s+from%s+userid%s+(%d+)%)')
-  return uid
+  local uid, id = value:match('^%s*(%d+)%s+(%w+)%s*$')
+  return uid, id
 end
 
--- Only the topmost Received header is Postfix's own; everything below it was
+-- Only the topmost submitter header is Postfix's own; everything below it was
 -- written by the sender and is never read. `values` is in message order.
 function M.topmost_uid(values)
   if type(values) ~= 'table' or values[1] == nil then
     return nil
   end
-  return M.uid_from_received(values[1])
+  local uid = M.parse_submitter(values[1])
+  return uid
 end
 
--- The message id Postfix's pickup recorded on its own Received header (the name of
--- the maildrop file, stable across every re-offer of a deferred message), or nil.
--- Only meaningful for the topmost header; M.uid_from_received guards the shape.
-function M.id_from_received(value)
-  if M.uid_from_received(value) == nil then
+-- The maildrop id Postfix recorded in the topmost submitter header (the name of the
+-- maildrop file, stable across every re-offer of a deferred message), or nil.
+function M.topmost_id(values)
+  if type(values) ~= 'table' or values[1] == nil then
     return nil
   end
-  return value:match('^%s*by%s+%S+%s+%(Postfix,%s+from%s+userid%s+%d+%)%s+id%s+(%w+)')
+  local _, id = M.parse_submitter(values[1])
+  return id
 end
 
 -- One stable identity per message, used to count it once however often it is
--- offered again: the id Postfix's pickup wrote on the topmost Received header of a
+-- offered again: the maildrop id in the topmost submitter header of a
 -- locally submitted message, or nil. Nothing else identifies a message safely: a
 -- Message-ID header is the sender's own text, so keying on it would let a customer
 -- repeat one and send without ever being counted. Nil means the message cannot be
 -- remembered and is counted every time, which only ever over-counts (the
 -- authenticated road is in that case: a client retry opens a new transaction).
 function M.message_identity(ctx)
-  if ctx.daemon_name == M.LOCAL_DAEMON and type(ctx.received) == 'table' then
-    local id = M.id_from_received(ctx.received[1])
+  if ctx.daemon_name == M.LOCAL_DAEMON then
+    local id = M.topmost_id(ctx.submitters)
     if id then
       return 'id:' .. id
     end
@@ -463,7 +473,7 @@ end
 -- refusal with an owned envelope sender is a `reject`: its notice goes to the
 -- account itself.
 local function decide_local(ctx, maps)
-  local uid = M.topmost_uid(ctx.received)
+  local uid = M.topmost_uid(ctx.submitters)
   if uid == nil then
     return verdict('discard', 'local submitter unknown')
   end
@@ -515,7 +525,7 @@ end
 -- Decides one message. `ctx`:
 --   daemon_name       the MTA-Name Postfix reported (see M.LOCAL_DAEMON)
 --   user              authenticated login or nil
---   received          Received header values, topmost first
+--   submitters        values of the X-Maran-Local-Submitter header, topmost first
 --   envelope_domain, from_domains   lowercase sender domains
 --   recipient_count   number of envelope recipients
 --   recipients        the envelope recipient addresses, lowercase (alias fan-out cost)
@@ -602,7 +612,7 @@ end
 -- Verified on a live Rspamd 3.8 to 4.2 (milter path, container): the add_map callback
 -- type, the prefilter at priority 100, set_pre_result for 'reject' and 'soft reject'
 -- (and for 'discard' only with the custom `discard` action rendered into actions.conf),
--- has_pre_result, MTA-Name from the {daemon_name} macro, topmost-first Received order,
+-- has_pre_result, MTA-Name from the {daemon_name} macro, topmost-first header order,
 -- lua_redis.request, cache_set/cache_get across modules, the `addr` field of
 -- get_recipients. Not verified here: the real Postfix side (docker/polygon).
 -- ---------------------------------------------------------------------------
@@ -745,7 +755,7 @@ local redis_params = lua_redis.parse_redis_server('maran_local_submit')
 
 -- Adds `cost` to the account's bucket unless this message identity was counted
 -- already (a message the milter defers is re-offered under a NEW queue id, but
--- with the same maildrop id on its pickup Received header). Returns the
+-- with the same maildrop id in its submitter header). Returns the
 -- bucket's value.
 local INCREMENT = "if KEYS[2] ~= '' and not redis.call('SET', KEYS[2], '1', 'NX', 'EX', ARGV[1]) then "
   .. "return tonumber(redis.call('GET', KEYS[1]) or '0') end; "
@@ -760,9 +770,9 @@ local function check(task)
     -- never stand for the whole header.
     from_domains[#from_domains + 1] = domain_of(address) or ''
   end
-  local received = {}
-  for _, header in ipairs(task:get_header_full('Received') or {}) do
-    received[#received + 1] = header.decoded or header.value
+  local submitters = {}
+  for _, header in ipairs(task:get_header_full(M.SUBMITTER_HEADER) or {}) do
+    submitters[#submitters + 1] = header.decoded or header.value
   end
   local recipients = {}
   for _, address in ipairs(task:get_recipients('smtp') or {}) do
@@ -772,15 +782,15 @@ local function check(task)
   end
   local envelope = task:get_from('smtp')
   if request_header(task, 'MTA-Name') == M.LOCAL_DAEMON then
-    -- The one fact the local road rests on, in the log: which uid the topmost Received header names, and the
-    -- header itself, so a refusal as "unknown submitter" can be told apart from a map that has no such uid.
-    rspamd_logger.infox(task, 'maran_local_submit local road: uid=%s topmost Received=%s',
-      tostring(M.topmost_uid(received)), tostring(received[1]))
+    -- The one fact the local road rests on, in the log: which uid the topmost submitter header names, and
+    -- the header itself, so a refusal as "unknown submitter" can be told apart from a map that has no such uid.
+    rspamd_logger.infox(task, 'maran_local_submit local road: uid=%s topmost submitter header=%s',
+      tostring(M.topmost_uid(submitters)), tostring(submitters[1]))
   end
   local decision = M.decide({
     daemon_name = request_header(task, 'MTA-Name'),
     user = task:get_user(),
-    received = received,
+    submitters = submitters,
     envelope_domain = envelope and envelope[1] and domain_of(envelope[1]) or nil,
     from_domains = from_domains,
     recipient_count = #(task:get_recipients('smtp') or {}),

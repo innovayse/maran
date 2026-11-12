@@ -444,6 +444,14 @@ impl AgentPaths {
     /// family.
     pub const MAIL_SELF_CLIENTS_PATH: &'static str = "/etc/maran/mail/self_clients.cidr";
 
+    /// The Postfix `header_checks` table of the local-submission service
+    /// (`cleanup_local`, master.cf): it copies the submitting uid out of the
+    /// Received line `pickup` writes into a header the Rspamd milter can read,
+    /// because Postfix shows a milter no Received line of its own (issue #591).
+    /// A static file, the same on every family, read by Postfix as its own user.
+    pub const MAIL_LOCAL_SUBMITTER_HEADERS_PATH: &'static str =
+        "/etc/maran/mail/local_submitter_headers.regexp";
+
     /// File name of the table of system users allowed to submit mail through
     /// the local `sendmail` and `postdrop` commands (issue #500).
     ///

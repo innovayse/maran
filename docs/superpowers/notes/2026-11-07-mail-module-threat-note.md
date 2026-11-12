@@ -309,10 +309,12 @@ reporting `milter_macro_daemon_name=MARAN_LOCAL`, port 25 reports `INBOUND`, the
 missing name is a soft reject (fail-closed). A forged `sasl_username`/client attribute in a hand-built
 queue file therefore cannot take a message off the local road (polygon case 9).
 
-**Trust of the topmost `Received` header.** `pickup` writes `Received: by <host> (Postfix, from userid
+**Trust of the topmost submitter header (amended #591).** `pickup` writes `Received: by <host> (Postfix, from userid
 <uid>)` itself, on top of whatever the customer wrote (`mail_name` is pinned so the text cannot drift with a
-package default). The rule trusts only the topmost `Received` header, and only on the `MARAN_LOCAL` road; a
-customer-forged second header sits below it and is ignored (polygon case 6). Any other shape is refused.
+package default), but Postfix does not show that line to a milter. The `cleanup_local` service's `header_checks`
+table copies the uid and maildrop id into `X-Maran-Local-Submitter` by PREPEND, so the header is the topmost one.
+The rule trusts only the topmost `X-Maran-Local-Submitter` header, and only on the `MARAN_LOCAL` road; a
+customer-forged header or Received line sits below it and is ignored (polygon case 6). Any other shape is refused.
 The uid maps to an account through `local_submit_accounts.map`; the envelope sender and `From:` domain must
 both be that account's domains (`5.7.1`); the counter is shared with authenticated SMTP (`4.7.1` deferral
 over the limit) and counts per envelope recipient, once per message identity (`SET NX` guard keyed on the

@@ -3,6 +3,7 @@
 //! (docs/mail/local-submission.md).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_templates::postfix::postfix_local_submitter_headers::PostfixLocalSubmitterHeaders;
 use maran_templates::postfix::postfix_master_config::PostfixMasterConfig;
 use maran_templates::rspamd::rspamd_dkim_signing::RspamdDkimSigning;
 use maran_templates::rspamd::rspamd_local_submit::RspamdLocalSubmit;
@@ -67,6 +68,7 @@ fn the_rule_and_master_cf_agree_on_the_daemon_names() {
     let rule = RspamdLocalSubmit::lua_rule();
     let master = PostfixMasterConfig {
         self_clients_path: "/etc/maran/mail/self_clients.cidr".to_owned(),
+        local_submitter_headers_path: "/etc/maran/mail/local_submitter_headers.regexp".to_owned(),
     }
     .render_config()
     .unwrap();
@@ -79,6 +81,29 @@ fn the_rule_and_master_cf_agree_on_the_daemon_names() {
     }
     assert!(!rule.contains("get_from_ip"));
     assert!(!rule.contains("has_client_ip"));
+}
+
+/// Postfix shows a milter no Received line of its own, so the uid reaches the rule in
+/// a header the `cleanup_local` service's table makes: the rule and the table must
+/// spell that header the same, the table must run only on that service, and the
+/// rule must no longer read the Received line (issue #591).
+#[test]
+fn the_rule_and_the_local_service_table_agree_on_the_submitter_header() {
+    let rule = RspamdLocalSubmit::lua_rule();
+    let table = PostfixLocalSubmitterHeaders::table();
+    assert!(rule.contains("M.SUBMITTER_HEADER = 'X-Maran-Local-Submitter'"));
+    assert!(table.contains("PREPEND X-Maran-Local-Submitter: $1 $2"));
+    assert!(!rule.contains("get_header_full('Received')"));
+    let master = PostfixMasterConfig {
+        self_clients_path: "/etc/maran/mail/self_clients.cidr".to_owned(),
+        local_submitter_headers_path: "/etc/maran/mail/local_submitter_headers.regexp".to_owned(),
+    }
+    .render_config()
+    .unwrap();
+    let local = master.split("cleanup_local unix").nth(1).unwrap();
+    let local = local.split("qmgr").next().unwrap();
+    assert!(local.contains("header_checks=regexp:/etc/maran/mail/local_submitter_headers.regexp"));
+    assert_eq!(master.matches("header_checks=").count(), 1);
 }
 
 /// A Lua error in the prefilter must refuse the mail, not let it through; the

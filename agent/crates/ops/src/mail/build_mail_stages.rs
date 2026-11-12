@@ -9,6 +9,7 @@ use maran_distro::{DistroAdapter, DovecotMajor};
 use maran_templates::dovecot::dovecot_config_v23::DovecotConfigV23;
 use maran_templates::dovecot::dovecot_config_v24::DovecotConfigV24;
 use maran_templates::key_value::key_value_server_config::KeyValueServerConfig;
+use maran_templates::postfix::postfix_local_submitter_headers::PostfixLocalSubmitterHeaders;
 use maran_templates::postfix::postfix_main_config::PostfixMainConfig;
 use maran_templates::postfix::postfix_master_config::PostfixMasterConfig;
 use maran_templates::rspamd::rspamd_actions::RspamdActions;
@@ -255,6 +256,8 @@ pub fn build_mail_stages(
                 &postfix_directory.join("master.cf"),
                 PostfixMasterConfig {
                     self_clients_path: AgentPaths::MAIL_SELF_CLIENTS_PATH.to_owned(),
+                    local_submitter_headers_path: AgentPaths::MAIL_LOCAL_SUBMITTER_HEADERS_PATH
+                        .to_owned(),
                 }
                 .render_config()
                 .map_err(MailError::from)?,
@@ -262,6 +265,10 @@ pub fn build_mail_stages(
             file(
                 Path::new(AgentPaths::MAIL_SELF_CLIENTS_PATH),
                 render_self_clients(host_addresses)?,
+            ),
+            file(
+                Path::new(AgentPaths::MAIL_LOCAL_SUBMITTER_HEADERS_PATH),
+                PostfixLocalSubmitterHeaders::table().to_owned(),
             ),
         ],
         validator_program: distro.postfix_binary(),

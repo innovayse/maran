@@ -1,0 +1,16 @@
+# Rendered by the Maran agent. Hand edits are overwritten on the next apply.
+#
+# The `header_checks` table of the `cleanup_local` service, the one only `pickup`
+# feeds (master.cf). Postfix never shows a milter the Received line pickup writes
+# ("Received: by <host> (Postfix, from userid <uid>)", first in the message), and
+# that line is the only place the real uid of the submitting user is recorded. The
+# table copies the uid and the maildrop id out of it into a header the milter does
+# see, which the Rspamd local-submission rule reads (issue #518,
+# docs/mail/local-submission.md).
+#
+# PREPEND puts the new header before the line that matched, and pickup's line is the
+# first one, so the header made here is the topmost of its name. A line of the same
+# shape written by the sender comes later and makes a header below it; the rule
+# trusts only the topmost. `mail_name` is pinned to Postfix in main.cf because it is
+# the text matched here.
+/^Received: by [^ ]+ \(Postfix, from userid ([0-9]+)\)[[:space:]]+id ([0-9A-Za-z]+);/ PREPEND X-Maran-Local-Submitter: $1 $2
