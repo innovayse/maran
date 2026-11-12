@@ -1,6 +1,11 @@
-name: nightly
+name: installer-polygon
 
-# THE NIGHTLY AND WEEKLY INSTALLER RUNS (issue #8, owner decision D10).
+# THE INSTALLER POLYGON RUNS (issue #8, owner decision D10; trigger changed by issue #553).
+#
+# It runs on `workflow_dispatch` and before a release tag, and on no schedule: release.yml calls this
+# file (`workflow_call`) as a `needs` of its `sign` job, with the default scope, so a tag cannot be
+# signed without a green run on ubuntu24 and alma9. The file keeps its name `nightly.yml` and its
+# scope values `nightly|weekly|both`, which now only choose the image set (see `scope`), not a time.
 #
 # rules/testing.md promised a nightly fresh-container installer run for as long as it has existed and
 # no workflow ran one; the installer polygon (`maran installer`, docker/README.md "The install
@@ -13,12 +18,13 @@ name: nightly
 #
 #   bundle           builds ONE signed offline bundle from this tree, with a throwaway signing key
 #                    (see "THE KEY" below), and uploads it with the throwaway public key.
-#   installer        daily: the installer polygon on ubuntu24 and alma9 through
-#                    `maran installer --mode offline --bundle <bundle>`.
-#   installer-weekly weekly (Sunday), or by dispatch: the same run on the other twelve images under
+#   installer        scope `nightly` (the default) or `both`: the installer polygon on ubuntu24 and alma9
+#                    through `maran installer --mode offline --bundle <bundle>`.
+#   installer-weekly scope `weekly` or `both`: the same run on the other twelve images under
 #                    docker/polygon/images/* that agent.yml does not run, fail-fast off.
-#   e2e-real         daily, when the repository variable MARAN_E2E_REAL_URL names a panel: the real-stack
-#                    browser lane (`maran e2e-real`, issue #519); skipped, not green, until it is set.
+#
+# The real-stack browser lane (`maran e2e-real`, issue #519) is NOT here any more: it shares no state
+# with the installer legs, and it keeps its daily schedule in e2e-real.yml.
 #
 # WHAT EACH INSTALLER LEG RUNS: `maran installer` with its defaults, which is the install checks, the
 # lockout-recovery and diagnostics stages, and the panel-recovery, update-and-rollback and
@@ -67,12 +73,12 @@ name: nightly
 # for its durations and the numbers replaced with the run ids and times they were sized from.
 
 on:
-  schedule:
-    # Daily, on the default branch: ubuntu24 and alma9. Scheduled workflows only run from the default
-    # branch, so nothing happens here until this file is on it.
-    - cron: '41 1 * * *'
-    # Weekly (Sunday), the remaining twelve images.
-    - cron: '41 3 * * 0'
+  workflow_call:
+    inputs:
+      scope:
+        description: 'Which installer images to run: nightly (ubuntu24 and alma9), weekly (the other twelve) or both'
+        type: string
+        default: nightly
   workflow_dispatch:
     inputs:
       scope:
@@ -88,11 +94,11 @@ on:
 permissions:
   contents: read
 
-# One run at a time and none cancelled: a run killed half-way leaves a half-measured image and no
-# verdict. A run that is queued while one is in progress waits; GitHub keeps only the newest pending
-# run, which is right for a nightly (the older pending one is superseded by the same tree anyway).
+# None cancelled: a run killed half-way leaves a half-measured image and no verdict. The group is the
+# run's own id, because a called workflow inherits the caller's `github.workflow` and a group shared
+# with the release run's own would block this one behind its caller.
 concurrency:
-  group: ${{ github.workflow }}
+  group: installer-polygon-${{ github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -181,7 +187,7 @@ jobs:
 
   installer:
     needs: bundle
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.scope != 'weekly' || github.event_name == 'schedule' && github.event.schedule == '41 1 * * *' }}
+    if: ${{ inputs.scope != 'weekly' }}
     runs-on: ubuntu-24.04
     # UNMEASURED: not run in this session. Four full installs (the install, then the panel-recovery,
     # update-and-rollback and account-restore servers) plus the image build, with the account-restore
@@ -257,7 +263,7 @@ jobs:
 
   installer-weekly:
     needs: bundle
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.scope != 'nightly' || github.event_name == 'schedule' && github.event.schedule == '41 3 * * 0' }}
+    if: ${{ inputs.scope != 'nightly' }}
     runs-on: ubuntu-24.04
     # UNMEASURED: not run in this session; the same reasoning and the same guess as `installer`.
     # Several of these images are unproven on a hosted runner at all: the EL8 family boots systemd 239
@@ -269,7 +275,7 @@ jobs:
       fail-fast: false
       matrix:
         # Every folder under docker/polygon/images that agent.yml does not run (agent.yml runs
-        # ubuntu24 and alma9, and the daily `installer` job above runs the same two). Control that
+        # ubuntu24 and alma9, and the `installer` job above runs the same two). Control that
         # this list is complete:
         #   ls -d docker/polygon/images/*/ | sed 's#.*/images/##; s#/$##' | sort
         # must equal this list plus ubuntu24 and alma9. leap16 is the SUSE family's folder (issue #59):
@@ -333,99 +339,5 @@ jobs:
           path: |
             ${{ runner.temp }}/installer-logs
             .polygon-logs
-          if-no-files-found: warn
-          retention-days: 7
-
-  # THE REAL-STACK BROWSER LANE (issue #519): `maran e2e-real`, daily, against a long-lived dev panel.
-  #
-  # The everyday suite stubs every API route, so it cannot see a backend or agent failure, an
-  # authorization mismatch between the SPA and the panel, or a stub that drifted from the API; this
-  # lane signs in to a panel that is really running, with a real agent, and clicks through the journeys
-  # in frontend/e2e/real/ for the administrator, the reseller and the customer.
-  #
-  # WHY IT RUNS AGAINST A HOST AND NOT A CONTAINER THIS WORKFLOW STARTS. The installer legs above end by
-  # discarding the container they installed into, and no verb here stands a panel up on a runner and
-  # keeps it for a browser (see "WHAT THIS FILE DOES NOT RUN" in the header). So the subject is a
-  # persistent panel installed with `maran deploy-local` (docs/operations/deploy-local.md), named by the
-  # repository variable MARAN_E2E_REAL_URL, with the six logins in repository secrets of the same names
-  # as the lane's environment variables.
-  #
-  # UNMEASURED, and honest about when it does not run: until MARAN_E2E_REAL_URL is set this job is
-  # SKIPPED, which GitHub draws as skipped and not as green. That is the owner's action, not an
-  # oversight; a job that failed every night until a host existed would be a gate people learn to ignore
-  # (rules/testing.md). Once the variable is set, a missing secret or an unreachable panel makes the
-  # harness print `E2E-REAL VERDICT: DID NOT RUN`, which this step turns into a red job under its own
-  # message, because from then on the lane is expected to run.
-  #
-  # Before a release the same lane is run by hand against the release candidate's host:
-  #   MARAN_REAL_URL=... bash scripts/maran e2e-real
-  #
-  # The pass condition is the harness's printed verdict line and not its exit status, the shape of every
-  # other lane in this file.
-  e2e-real:
-    if: ${{ vars.MARAN_E2E_REAL_URL != '' && (github.event_name == 'workflow_dispatch' && inputs.scope != 'weekly' || github.event_name == 'schedule' && github.event.schedule == '41 1 * * *') }}
-    runs-on: ubuntu-24.04
-    # UNMEASURED: not run in this session. Twelve journeys, several of which delete an account (a final
-    # backup first) on a real agent; 60 is a hang guard and not a measurement. Re-measure from the first
-    # dispatched run and write its id and duration here.
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install the frontend dependencies
-        working-directory: frontend
-        run: npm ci
-
-      # Not cached, for the reason frontend.yml gives beside the same step.
-      - name: Install the Playwright browser
-        timeout-minutes: 20
-        working-directory: frontend
-        run: npx playwright install --with-deps chromium
-
-      - name: Real-stack lane
-        env:
-          MARAN_REAL_URL: ${{ vars.MARAN_E2E_REAL_URL }}
-          MARAN_REAL_ADMIN_USERNAME: ${{ secrets.MARAN_REAL_ADMIN_USERNAME }}
-          MARAN_REAL_ADMIN_PASSWORD: ${{ secrets.MARAN_REAL_ADMIN_PASSWORD }}
-          MARAN_REAL_RESELLER_USERNAME: ${{ secrets.MARAN_REAL_RESELLER_USERNAME }}
-          MARAN_REAL_RESELLER_PASSWORD: ${{ secrets.MARAN_REAL_RESELLER_PASSWORD }}
-          MARAN_REAL_CUSTOMER_USERNAME: ${{ secrets.MARAN_REAL_CUSTOMER_USERNAME }}
-          MARAN_REAL_CUSTOMER_PASSWORD: ${{ secrets.MARAN_REAL_CUSTOMER_PASSWORD }}
-        run: |
-          set -o pipefail
-          mkdir -p "$RUNNER_TEMP/e2e-real-logs"
-          log="$RUNNER_TEMP/e2e-real-logs/e2e-real.log"
-          status=0
-          bash scripts/maran e2e-real 2>&1 | tee "$log" || status=$?
-          echo "harness exit status: $status (recorded; the verdict is the line below, not this)"
-          if grep -qaF 'E2E-REAL VERDICT: DID NOT RUN' "$log"; then
-            echo "::error::the real-stack lane did not run: nothing was measured. See the REFUSED / DID NOT RUN lines above (a missing secret, an unreachable panel, or a missing toolchain)."
-            exit 1
-          fi
-          if ! grep -qaE '^E2E-REAL VERDICT: OK ' "$log"; then
-            echo "::error::the real-stack lane did not print 'E2E-REAL VERDICT: OK'. This lane passes on that line, never on an exit code."
-            exit 1
-          fi
-          if [ "$status" -ne 0 ]; then
-            echo "::error::the harness printed the OK line and then exited $status. Those two disagree, so neither is evidence."
-            exit 1
-          fi
-
-      - name: Keep the logs and traces
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: e2e-real-logs
-          path: |
-            ${{ runner.temp }}/e2e-real-logs
-            frontend/test-results
           if-no-files-found: warn
           retention-days: 7

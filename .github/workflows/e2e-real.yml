@@ -1,0 +1,119 @@
+name: e2e-real
+
+# THE REAL-STACK BROWSER LANE (issue #519), on its own daily schedule.
+#
+# It used to share nightly.yml with the installer polygon and its daily cron. Issue #553 removed every
+# schedule from the installer polygon (it runs on dispatch and before a release tag), and this lane
+# moved here UNCHANGED so that its daily run is not lost. The job below is the one that lived in
+# nightly.yml, with only its `if:` reduced to the repository variable.
+on:
+  schedule:
+    # Daily, on the default branch. Scheduled workflows only run from the default branch, so nothing
+    # happens here until this file is on it.
+    - cron: '41 1 * * *'
+  workflow_dispatch:
+
+# Least privilege: reads the repository, writes nothing.
+permissions:
+  contents: read
+
+# One run at a time and none cancelled: a run killed half-way leaves a half-measured journey and no
+# verdict. A run queued while one is in progress waits.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  # THE REAL-STACK BROWSER LANE (issue #519): `maran e2e-real`, daily, against a long-lived dev panel.
+  #
+  # The everyday suite stubs every API route, so it cannot see a backend or agent failure, an
+  # authorization mismatch between the SPA and the panel, or a stub that drifted from the API; this
+  # lane signs in to a panel that is really running, with a real agent, and clicks through the journeys
+  # in frontend/e2e/real/ for the administrator, the reseller and the customer.
+  #
+  # WHY IT RUNS AGAINST A HOST AND NOT A CONTAINER THIS WORKFLOW STARTS. The installer legs (nightly.yml)
+  # end by discarding the container they installed into, and no verb here stands a panel up on a runner
+  # and keeps it for a browser (see "WHAT THIS FILE DOES NOT RUN" in nightly.yml's header). So the subject is a
+  # persistent panel installed with `maran deploy-local` (docs/operations/deploy-local.md), named by the
+  # repository variable MARAN_E2E_REAL_URL, with the six logins in repository secrets of the same names
+  # as the lane's environment variables.
+  #
+  # UNMEASURED, and honest about when it does not run: until MARAN_E2E_REAL_URL is set this job is
+  # SKIPPED, which GitHub draws as skipped and not as green. That is the owner's action, not an
+  # oversight; a job that failed every night until a host existed would be a gate people learn to ignore
+  # (rules/testing.md). Once the variable is set, a missing secret or an unreachable panel makes the
+  # harness print `E2E-REAL VERDICT: DID NOT RUN`, which this step turns into a red job under its own
+  # message, because from then on the lane is expected to run.
+  #
+  # Before a release the same lane is run by hand against the release candidate's host:
+  #   MARAN_REAL_URL=... bash scripts/maran e2e-real
+  #
+  # The pass condition is the harness's printed verdict line and not its exit status, the shape of every
+  # other lane in this file.
+  e2e-real:
+    if: ${{ vars.MARAN_E2E_REAL_URL != '' }}
+    runs-on: ubuntu-24.04
+    # UNMEASURED: not run in this session. Twelve journeys, several of which delete an account (a final
+    # backup first) on a real agent; 60 is a hang guard and not a measurement. Re-measure from the first
+    # dispatched run and write its id and duration here.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install the frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      # Not cached, for the reason frontend.yml gives beside the same step.
+      - name: Install the Playwright browser
+        timeout-minutes: 20
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Real-stack lane
+        env:
+          MARAN_REAL_URL: ${{ vars.MARAN_E2E_REAL_URL }}
+          MARAN_REAL_ADMIN_USERNAME: ${{ secrets.MARAN_REAL_ADMIN_USERNAME }}
+          MARAN_REAL_ADMIN_PASSWORD: ${{ secrets.MARAN_REAL_ADMIN_PASSWORD }}
+          MARAN_REAL_RESELLER_USERNAME: ${{ secrets.MARAN_REAL_RESELLER_USERNAME }}
+          MARAN_REAL_RESELLER_PASSWORD: ${{ secrets.MARAN_REAL_RESELLER_PASSWORD }}
+          MARAN_REAL_CUSTOMER_USERNAME: ${{ secrets.MARAN_REAL_CUSTOMER_USERNAME }}
+          MARAN_REAL_CUSTOMER_PASSWORD: ${{ secrets.MARAN_REAL_CUSTOMER_PASSWORD }}
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/e2e-real-logs"
+          log="$RUNNER_TEMP/e2e-real-logs/e2e-real.log"
+          status=0
+          bash scripts/maran e2e-real 2>&1 | tee "$log" || status=$?
+          echo "harness exit status: $status (recorded; the verdict is the line below, not this)"
+          if grep -qaF 'E2E-REAL VERDICT: DID NOT RUN' "$log"; then
+            echo "::error::the real-stack lane did not run: nothing was measured. See the REFUSED / DID NOT RUN lines above (a missing secret, an unreachable panel, or a missing toolchain)."
+            exit 1
+          fi
+          if ! grep -qaE '^E2E-REAL VERDICT: OK ' "$log"; then
+            echo "::error::the real-stack lane did not print 'E2E-REAL VERDICT: OK'. This lane passes on that line, never on an exit code."
+            exit 1
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo "::error::the harness printed the OK line and then exited $status. Those two disagree, so neither is evidence."
+            exit 1
+          fi
+
+      - name: Keep the logs and failure screenshots
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-real-logs
+          path: |
+            ${{ runner.temp }}/e2e-real-logs
+            frontend/test-results
+          if-no-files-found: warn
+          retention-days: 7

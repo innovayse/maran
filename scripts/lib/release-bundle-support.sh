@@ -28,14 +28,19 @@ usage: maran release <build|sign|verify|package|sbom|changelog|rebuild|openapi|s
             known vulnerability and a server with the automatic security-update timer may apply it
             unattended (docs/operations/panel-update.md); without it the flag is false.
             --publish declares the bundle is meant to be served and REFUSES anything but
-            `both`. A single-architecture bundle also gets the unsuffixed tarball names the
+            `both`; only a --publish build is shipping (the panel build then needs all five pinned
+            public keys of installer/keys/, and the manifest lists them as `pinned_keys`). A single-architecture bundle also gets the unsuffixed tarball names the
             offline installer path reads.
-  sign      --key <path> [--bundle <dir>] [--publish]
+  sign      --key <path> [--bundle <dir>] [--publish] [--openapi <dir>]
                                                 sign the bundle's manifest.json with an ECDSA P-384 key;
-                                                --publish first refuses a manifest lacking either arch
-  verify    --bundle <dir> [--pubkey <path>] [--publish]
+                                                --publish first refuses a manifest lacking either arch, or
+                                                one whose pinned_keys differ from installer/keys/;
+                                                --openapi also signs <dir>/openapi.json into openapi.json.sig
+  verify    --bundle <dir> [--pubkey <path>] [--publish] [--openapi <dir>]
                                                 verify signature+checksums the way the installer does;
                                                 --publish also requires api/agent/frontend for BOTH arches
+                                                and the pinned_keys of installer/keys/ (manifest and api archive);
+                                                --openapi also refuses a missing or wrong openapi.json.sig
   package   [--bundle <dir>] [--arch <list>|both] [--out <dir>|<file>.tar.gz] [--pubkey <path>]
                                                 one offline tarball per architecture, each extracted
                                                 and verified with the installer's own checks before it
@@ -46,7 +51,7 @@ usage: maran release <build|sign|verify|package|sbom|changelog|rebuild|openapi|s
                                                 pull requests, rebuild of the agent from a tag
   openapi   --out <dir>                         write the tree's OpenAPI document as <dir>/openapi.json and
                                                 print its sha256; refuses a document that was not generated
-                                                or describes no operation. Not signed.
+                                                or describes no operation. Signed by `sign --openapi`.
   sbom-selftest|changelog-selftest|rebuild-selftest|reproducible-selftest|openapi-selftest
                                                 the matching selftests; none needs docker (the last
                                                 names that blind spot itself)
@@ -157,6 +162,64 @@ manifest_security_field() {
   esac
 }
 
+# The five public keys a release pins (issue #544): the first two are embedded in the panel build, the
+# other three are installed beside it. The MSBuild check of the Licensing project names the same five
+# (PinnedKeys.targets); the selftest cross-checks this list, that file and docs/operations/licensing.md.
+readonly MARAN_PINNED_KEYS="licence-verification.pub lease-verification.pub marketplace-metadata.pub module-signing.pub release-signing.pub"
+
+# pinned_key_shape_ok: <file>. Succeeds for a file that looks like a public key, by the same rule as the
+# Licensing project's PinnedKeys.targets applies to the whole file text: it begins (after optional
+# whitespace) with `-----BEGIN PUBLIC KEY-----`, or it is the 64 hexadecimal characters of an Ed25519 public
+# key surrounded only by whitespace (no whitespace INSIDE the hex). An empty file or a placeholder is no key:
+# it would be embedded or hashed into the signed manifest and yield the panel that trusts nothing, which is
+# the defect #544 closes. The selftest drives both sides with the same fixtures.
+pinned_key_shape_ok() {
+  local text
+  [ -f "$1" ] && [ -s "$1" ] || return 1
+  text="$(cat -- "$1")" || return 1
+  [[ "$text" =~ ^[[:space:]]*-----BEGIN\ PUBLIC\ KEY----- ]] && return 0
+  [[ "$text" =~ ^[[:space:]]*[0-9a-fA-F]{64}[[:space:]]*$ ]]
+}
+
+# pinned_keys_lines: <keys dir>. Prints `<file name> <sha256>` for each pinned key, one per line, in the
+# fixed order above; the hash of the file's bytes, never its content. Refuses (release_failed) when any
+# of the five is missing, empty or not shaped like a key, or cannot be hashed, because a release that pins
+# fewer than five is the build error #544 closes and a signed manifest must never carry an empty hash.
+pinned_keys_lines() {
+  local dir="$1" key hash
+  for key in $MARAN_PINNED_KEYS; do
+    [ -f "${dir}/${key}" ] \
+      || release_failed "the pinned public key installer/keys/${key} is missing; a published release pins all five (issue #544)"
+    pinned_key_shape_ok "${dir}/${key}" \
+      || release_failed "the pinned public key installer/keys/${key} is empty or not a public key (a PEM block or 64 hexadecimal characters); never a placeholder (issue #544)"
+    # A separate assignment, so a failing hash aborts here instead of being swallowed by the
+    # substitution inside printf's arguments.
+    hash="$(sha256_of "${dir}/${key}")" || release_failed "could not hash installer/keys/${key}"
+    [[ "$hash" =~ ^[0-9a-f]{64}$ ]] || release_failed "hashing installer/keys/${key} did not give a SHA-256 (got '${hash}')"
+    printf '%s %s\n' "$key" "$hash"
+  done
+}
+
+# manifest_pinned_keys_field: <keys dir>. Prints the signed top-level "pinned_keys" object that precedes
+# "artifacts" in a published manifest: file name to sha256, flat, so the installer's brace-depth reader
+# (which only looks for `<component>-<arch>` blocks) never confuses it with an artifact. The object is
+# closed with `},` because "artifacts" follows.
+manifest_pinned_keys_field() {
+  local lines name sha count=0 total
+  lines="$(pinned_keys_lines "$1")" || exit 1  # the failure was already printed inside the substitution
+  total="$(wc -l <<<"$lines")"
+  echo '  "pinned_keys": {'
+  while read -r name sha; do
+    count=$((count + 1))
+    if [ "$count" -lt "$total" ]; then
+      echo "    \"${name}\": \"${sha}\","
+    else
+      echo "    \"${name}\": \"${sha}\""
+    fi
+  done <<<"$lines"
+  echo '  },'
+}
+
 # manifest_missing_keys: <manifest.json>. Prints each `<component>-<arch>` key a published release
 # needs and the manifest does not hold, one per line. The key is matched as a quoted string, the
 # same shape verify_bundle and installer/lib/50-artifacts.sh's reader scan for, so a key that is
@@ -182,6 +245,35 @@ require_publishable_manifest() {
     echo "publish check: ${manifest} lacks: ${missing}— a published release needs api, agent and frontend for BOTH x86_64 and aarch64" >&2
     return 1
   fi
+  return 0
+}
+
+# require_pinned_keys: <bundle dir> <keys dir>. Returns 1 naming the defect unless a published bundle pins
+# exactly the five public keys of <keys dir> (the checkout's installer/keys/): the signed manifest holds a
+# `pinned_keys` object that equals what the checkout's files hash to, and each api archive carries a
+# `pinned-keys.txt` that agrees. A bundle built without --publish has neither, and without this check could
+# still be signed and verified for publication (issue #544).
+require_pinned_keys() {
+  local bundle="$1" keys_dir="$2" manifest expected_lines actual archive arch listed
+  manifest="${bundle}/manifest.json"
+  [ -f "$manifest" ] || { echo "publish check: no manifest at ${manifest}" >&2; return 1; }
+  grep -qE '^[[:space:]]*"pinned_keys"[[:space:]]*:[[:space:]]*\{' "$manifest" \
+    || { echo "publish check: ${manifest} has no pinned_keys object — the bundle was not built with 'maran release build --publish' (issue #544)" >&2; return 1; }
+  expected_lines="$(pinned_keys_lines "$keys_dir")" || return 1  # the reason was printed by release_failed
+  actual="$(sed -n '/^[[:space:]]*"pinned_keys"[[:space:]]*:/,/^[[:space:]]*},/p' "$manifest")"
+  if [ "$actual" != "$(manifest_pinned_keys_field "$keys_dir")" ]; then
+    echo "publish check: the pinned_keys object of ${manifest} is not the five keys (names and SHA-256) of ${keys_dir} (issue #544)" >&2
+    return 1
+  fi
+  for arch in $MARAN_PUBLISH_ARCHES; do
+    archive="${bundle}/api-${arch}.tar.gz"
+    [ -f "$archive" ] || { echo "publish check: no ${archive}" >&2; return 1; }
+    listed="$(tar -xzOf "$archive" ./pinned-keys.txt 2>/dev/null || tar -xzOf "$archive" pinned-keys.txt 2>/dev/null)" || listed=""
+    if [ "$listed" != "$expected_lines" ]; then
+      echo "publish check: ${archive##*/} has no pinned-keys.txt, or it disagrees with the manifest and ${keys_dir} (issue #544)" >&2
+      return 1
+    fi
+  done
   return 0
 }
 

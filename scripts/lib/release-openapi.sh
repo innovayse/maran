@@ -12,12 +12,36 @@
 # generated, is not JSON, or describes no operation: a release never carries a document that is
 # empty or that came from somewhere else.
 #
-# NOT SIGNED. The document is attached to the release and listed in SHA256SUMS with the other assets,
-# and nothing more: the manifest signature and the integrity manifest do not cover it (owner
-# decision, issue #143). SHA256SUMS is a convenience for downloads, not a trust anchor.
+# SIGNED SEPARATELY (issue #552). This command only writes the document: the release workflow's
+# `sign` job, the one job that holds the release key, signs it with `maran release sign --openapi
+# <dir>` (openapi_sign below, the same ECDSA P-384 / SHA-384 invocation as the manifest) into
+# `<dir>/openapi.json.sig`, and `maran release verify --openapi <dir>` (openapi_verify below) refuses
+# a document whose signature is missing or does not match. The manifest signature and the integrity
+# manifest still do not cover it; the detached signature does. SHA256SUMS stays a convenience for
+# downloads, not a trust anchor.
 #
 # UNOBSERVED HERE: that the document matches what a deployed panel serves (it is generated from the
 # controllers of the tagged tree, not read from a server), and anything the generator does not list.
+
+# openapi_sign <private key> <dir>: signs <dir>/openapi.json into <dir>/openapi.json.sig. Fails, writing
+# no signature, when the document is absent.
+openapi_sign() {
+  local key="$1" dir="$2"
+  [ -s "${dir}/openapi.json" ] || { echo "release sign: no openapi.json under ${dir} to sign" >&2; return 1; }
+  sign_release_file "$key" "${dir}/openapi.json" "${dir}/openapi.json.sig"
+}
+
+# openapi_verify <public key> <dir>: succeeds only when <dir>/openapi.json and <dir>/openapi.json.sig exist
+# and the signature verifies against the key. Says why on stderr when it does not.
+openapi_verify() {
+  local pubkey="$1" dir="$2"
+  [ -s "${dir}/openapi.json" ] || { echo "verify: no openapi.json in ${dir}" >&2; return 1; }
+  [ -s "${dir}/openapi.json.sig" ] || { echo "verify: no openapi.json.sig in ${dir} — the OpenAPI document is UNSIGNED" >&2; return 1; }
+  if ! verify_release_file "$pubkey" "${dir}/openapi.json" "${dir}/openapi.json.sig"; then
+    echo "verify: openapi.json signature does NOT verify against ${pubkey}" >&2
+    return 1
+  fi
+}
 
 # release_openapi_main: parses the arguments and writes the document. Exits through release_failed.
 release_openapi_main() {
@@ -55,5 +79,5 @@ release_openapi_main() {
   cp "$work/openapi.json" "$out/openapi.json"
   sum="$(sha256sum "$out/openapi.json" | awk '{print $1}')"
   echo "openapi.json sha256 ${sum}"
-  release_ok "openapi.json written to ${out} ($(tail -n 1 "$work/self.log")); NOT signed, listed in SHA256SUMS only."
+  release_ok "openapi.json written to ${out} ($(tail -n 1 "$work/self.log")); signed later by the sign job (maran release sign --openapi)."
 }

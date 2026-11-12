@@ -84,6 +84,8 @@ cmd_selftest() {
   selftest_channel_outcome
   selftest_notes_outcome
   selftest_security_outcome
+  selftest_pinned_keys_outcome
+  selftest_publish_wiring_outcome
 
   echo
   release_ok "selftest: build -> sign -> verify accepted a good bundle, refused a tampered one and" \
@@ -93,7 +95,9 @@ cmd_selftest() {
     "published release to both architectures, and held the signed channel field (tamper, absence" \
     "and url disagreement refused; a correct beta accepted), and held the signed notes_url and" \
     "released fields (tamper refused, hostile build-time URLs refused), and held the signed" \
-    "security flag (tamper refused by the signature, a correctly signed one accepted)."
+    "security flag (tamper refused by the signature, a correctly signed one accepted), and refused a" \
+    "shipping build of the panel with a pinned public key missing or empty (a non-shipping Release build accepted) while accepting one with all five, listed the five in the manifest, and held the" \
+    "sign and verify commands to the publish gates end to end (an unpinned bundle, a changed key, a disagreeing api archive and a changed or unsigned openapi.json refused; the shipping flag reaching the build)."
 }
 
 # selftest_signature_outcomes: outcomes 1 to 6. Called by cmd_selftest and reads its locals (work, keydir, bundle).

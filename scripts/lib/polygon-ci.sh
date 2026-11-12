@@ -52,6 +52,9 @@
 #
 #   `selftest` proves the `maran dev` image gate both ways against a stubbed `docker`
 #   (dev-image-selftest.sh): a stale image is refused with the rebuild command, a current one passes.
+#   It then proves the lane-ownership rule (polygon-lanes-selftest.sh): a lane-owned suite absent from
+#   the polygon logs is accepted, the same suite missing from its own lane is refused, and an
+#   undeclared ignored suite missing from the polygon logs is still refused.
 #
 #   `stamp` is the run-time half of the image currency check, and it belongs to this command because
 #   the line it prints is what `verify` later reads. A caller emits it into the log it is about to
@@ -178,7 +181,8 @@ case "${1:-}" in
   selftest)
     shift
     [ $# -eq 0 ] || usage
-    exec bash "$root/scripts/lib/dev-image-selftest.sh"
+    bash "$root/scripts/lib/dev-image-selftest.sh" || exit 1
+    exec bash "$root/scripts/lib/polygon-lanes-selftest.sh"
     ;;
   stamp)
     shift
@@ -305,8 +309,29 @@ skip_problems=""
 if ! skip_agreement="$(polygon_skips_agree_with_installer "$root")"; then
   skip_problems="$skip_problems$skip_agreement"
 fi
+# THE LANE-OWNED SUITES (polygon.sh POLYGON_LANE_OWNED_SUITES): suites another lane runs and proves.
+# They are not required in THESE logs, and the output says so by name; the owning lane's verdict
+# (polygon_lane_verdict, called by its script) requires them to have passed exactly. A suite not
+# declared there is required here like any other. Guards: the declaration points at a real suite, a
+# lane script that reads it and a workflow job; and an owned suite that RAN in these logs is a finding.
+lane_owned_suites=()
+for suite in "${suites[@]}"; do
+  polygon_lane_of "$suite" >/dev/null && lane_owned_suites+=("$suite")
+done
+if ! lane_agreement="$(polygon_lane_declaration_problems "$root")"; then
+  skip_problems="$skip_problems$lane_agreement"
+fi
+for suite in "${lane_owned_suites[@]+"${lane_owned_suites[@]}"}"; do
+  if polygon_banner_seen "$work/combined.log" "$suite"; then
+    skip_problems="$skip_problems
+  suite '$suite' RAN in these logs although lane $(polygon_lane_of "$suite") owns it."
+  fi
+done
 required_suites=()
 for suite in "${suites[@]}"; do
+  if polygon_lane_of "$suite" >/dev/null; then
+    continue
+  fi
   is_skipped=0
   for skipped in ${skipped_suites[@]+"${skipped_suites[@]}"}; do
     [ "$skipped" = "$suite" ] && is_skipped=1
@@ -337,6 +362,9 @@ else
   echo "-- declared skips: none for ${log_family:-an unidentified family}; every discovered suite is required"
 fi
 
+for suite in "${lane_owned_suites[@]+"${lane_owned_suites[@]}"}"; do
+  echo "-- lane-owned: $suite is run and proved by lane $(polygon_lane_of "$suite") ($(polygon_lane_script_of "$suite") requires it to pass exactly $(polygon_lane_expected_passed "$suite")); it is not required in these logs"
+done
 echo "-- polygon suites discovered from the tree (${#suites[@]}): ${suites[*]}"
 echo "   Derived, never written down here or in the workflow. A suite added to agent/crates/*/tests"
 echo "   is required to have spoken in these logs by the next run."

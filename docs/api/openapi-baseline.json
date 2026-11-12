@@ -109,6 +109,9 @@
           "failedTasks": {
             "$ref": "#/components/schemas/Host.Dashboard.DashboardSectionOfSystem.Int32"
           },
+          "licenceExpiring": {
+            "$ref": "#/components/schemas/Host.Dashboard.DashboardSectionOfSystem.Int32"
+          },
           "sitesOnEndOfLifePhp": {
             "$ref": "#/components/schemas/Host.Dashboard.DashboardSectionOfSystem.Int32"
           }
@@ -1951,6 +1954,30 @@
         },
         "type": "object"
       },
+      "Modules.Apps.Common.InstallableAppsDto": {
+        "additionalProperties": false,
+        "properties": {
+          "apps": {
+            "items": {
+              "$ref": "#/components/schemas/Modules.Apps.Common.InstallableAppDto"
+            },
+            "type": "array"
+          },
+          "nodejsUnavailable": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Modules.Apps.Domain.Enums.NodejsUnavailableReason"
+              }
+            ],
+            "nullable": true
+          },
+          "nodejsUnavailableName": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "Modules.Apps.Common.StackStatusDto": {
         "additionalProperties": false,
         "properties": {
@@ -2008,6 +2035,13 @@
           "installed",
           "failed",
           "removing"
+        ],
+        "type": "string"
+      },
+      "Modules.Apps.Domain.Enums.NodejsUnavailableReason": {
+        "enum": [
+          "noModuleStreams",
+          "listingFailed"
         ],
         "type": "string"
       },
@@ -6047,10 +6081,27 @@
             "nullable": true,
             "type": "string"
           },
+          "claimUrl": {
+            "nullable": true,
+            "type": "string"
+          },
           "expiry": {
             "format": "date-time",
             "nullable": true,
             "type": "string"
+          },
+          "expiryRenewalAdvice": {
+            "nullable": true,
+            "type": "string"
+          },
+          "expiryWarning": {
+            "nullable": true,
+            "type": "string"
+          },
+          "expiryWarningDaysLeft": {
+            "format": "int32",
+            "nullable": true,
+            "type": "integer"
           },
           "isOffline": {
             "type": "boolean"
@@ -6059,6 +6110,18 @@
             "$ref": "#/components/schemas/Modules.Licensing.Domain.Enums.LeaseStandingKind"
           },
           "leaseDisplayName": {
+            "type": "string"
+          },
+          "leaseRequest": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Modules.Licensing.Domain.Enums.LeaseRenewalOutcome"
+              }
+            ],
+            "nullable": true
+          },
+          "leaseRequestDisplayName": {
+            "nullable": true,
             "type": "string"
           },
           "leaseValidUntil": {
@@ -6092,6 +6155,10 @@
           "sentence": {
             "type": "string"
           },
+          "serverId": {
+            "nullable": true,
+            "type": "string"
+          },
           "state": {
             "$ref": "#/components/schemas/Modules.Licensing.Domain.Enums.LicenceStateKind"
           },
@@ -6104,6 +6171,22 @@
           }
         },
         "type": "object"
+      },
+      "Modules.Licensing.Domain.Enums.LeaseRenewalOutcome": {
+        "enum": [
+          "renewed",
+          "notDue",
+          "skippedOffline",
+          "skippedNoLicence",
+          "notConfigured",
+          "unreachable",
+          "refused",
+          "answerRejected",
+          "notNewer",
+          "writeFailed",
+          "licenceChanged"
+        ],
+        "type": "string"
       },
       "Modules.Licensing.Domain.Enums.LeaseStandingKind": {
         "enum": [
@@ -7118,6 +7201,10 @@
           "publisher": {
             "type": "string"
           },
+          "publisherId": {
+            "nullable": true,
+            "type": "string"
+          },
           "restartRequired": {
             "type": "boolean"
           },
@@ -7243,6 +7330,10 @@
             "type": "array"
           },
           "publisher": {
+            "type": "string"
+          },
+          "publisherId": {
+            "nullable": true,
             "type": "string"
           },
           "schemaName": {
@@ -10026,6 +10117,11 @@
           },
           "minimumRequestsPerSecond": {
             "format": "int32",
+            "type": "integer"
+          },
+          "planMaximumBodySizeMib": {
+            "format": "int32",
+            "nullable": true,
             "type": "integer"
           }
         },
@@ -14819,10 +14915,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/Modules.Apps.Common.InstallableAppDto"
-                  },
-                  "type": "array"
+                  "$ref": "#/components/schemas/Modules.Apps.Common.InstallableAppsDto"
                 }
               }
             },

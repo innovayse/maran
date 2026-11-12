@@ -20,9 +20,8 @@ unnoticed.
 - **Held in `docs/api/openapi-baseline.json`.** The committed baseline is the contract integrators are
   promised. The generated document is compared against it by `scripts/lib/openapi-diff.mjs`.
 - **Attached to every release** as `openapi.json`, generated from the tagged tree by
-  `maran release openapi`. It is checksummed in `SHA256SUMS` with the other assets and is **not
-  signed**: the manifest signature and the integrity manifest do not cover it (owner decision). See
-  `docs/operations/release-process.md`.
+  `maran release openapi`. It is signed with the release key (`openapi.json.sig`, attached beside it)
+  and checksummed in `SHA256SUMS` with the other assets. See `docs/operations/release-process.md`.
 
 ## Running the check
 

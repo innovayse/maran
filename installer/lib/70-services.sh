@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Step 70: install the systemd units from installer/systemd/ and enable the panel's two.
-# The package-install and package-removal template units are installed too, but never enabled: only the agent starts them.
+# The package-install and package-removal template units (and, on a release that has dnf module streams, the Node.js module-stream pair) are installed too, but never enabled: only the agent starts them.
 # Does not start them yet — 80-nginx.sh must install the vhost first so the api's first
 # health check has something proxying to it, and both are started together at the end
 # of this step's counterpart call order in install.sh (api after nginx is configured
@@ -34,6 +34,12 @@ readonly MARAN_HOST_TMPFILES_NAME="maran-host.conf"
 # without one there installs or removes nothing.
 readonly MARAN_APP_INSTALL_UNIT_NAME="maran-app-install@.service"
 readonly MARAN_APP_REMOVE_UNIT_NAME="maran-app-remove@.service"
+# The two templates through which the agent installs and removes a Node.js MODULE STREAM
+# (issue #532). Same contract: the agent starts maran-app-nodejs-install@<major>.service and
+# maran-app-nodejs-remove@<major>.service. Only a release that has module streams gets them: not
+# Debian, not SUSE, and not the RHEL 10 generation (issue #542), which delivers Node.js as plain packages.
+readonly MARAN_APP_NODEJS_INSTALL_UNIT_NAME="maran-app-nodejs-install@.service"
+readonly MARAN_APP_NODEJS_REMOVE_UNIT_NAME="maran-app-nodejs-remove@.service"
 
 # api_socket_directory: the directory half of MARAN_API_SOCKET_PATH.
 #
@@ -236,6 +242,41 @@ render_app_remove_unit() {
   render_package_unit "$MARAN_APP_REMOVE_UNIT_NAME" remove "$1"
 }
 
+# release_has_module_streams: succeeds when this host's release ships dnf module streams.
+#
+# The RHEL family up to major 9 does; the 10 generation dropped modularity (issue #542), as do the
+# Debian and SUSE families. The release is MARAN_OS_VERSION_ID, which install.sh's detect_os reads
+# from /etc/os-release and the preflight validates against the supported matrix: the same single
+# source, not a second read of the file. It mirrors the agent's RhelGeneration::of, which the agent
+# applies to the same VERSION_ID: a major of 10 or more has no streams, and a version that is not
+# a number is read as the older generation, so the two sides cannot disagree on a release.
+release_has_module_streams() {
+  : "${MARAN_OS_FAMILY:?must be set by install.sh before this step is sourced}"
+  [ "$MARAN_OS_FAMILY" = rhel ] || return 1
+  : "${MARAN_OS_VERSION_ID:?must be set by install.sh before this step is sourced}"
+  local major="${MARAN_OS_VERSION_ID%%.*}"
+  case "$major" in
+    '' | *[!0-9]*) return 0 ;;
+  esac
+  [ "$((10#$major))" -lt 10 ]
+}
+
+# render_nodejs_module_unit: one of the Node.js module-stream template units.
+#
+# Arguments: the template's file name and the output path. Module streams are a dnf feature of the
+# RHEL releases before 10, so any other release is a refusal, never a unit that names a program or a
+# module the host lacks. The template holds its fixed argv already (nothing to substitute); the copy
+# still goes through the placeholder check so a placeholder added later cannot ship unrendered.
+render_nodejs_module_unit() {
+  local template="$1" out="$2"
+  if ! release_has_module_streams; then
+    echo "70-services.sh: ${template} is for a release with dnf module streams (RHEL family before 10), not '${MARAN_OS_FAMILY}' ${MARAN_OS_VERSION_ID:-}; aborting." >&2
+    exit 1
+  fi
+  cp "${LIB_DIR}/../systemd/${template}" "$out"
+  refuse_unsubstituted_placeholder "$out" "$template"
+}
+
 install_units() {
   local tmp
   tmp="$(mktemp)"
@@ -254,6 +295,13 @@ install_units() {
   install -m 0644 "$tmp" "${MARAN_UNIT_DIR}/${MARAN_APP_INSTALL_UNIT_NAME}"
   render_app_remove_unit "$tmp"
   install -m 0644 "$tmp" "${MARAN_UNIT_DIR}/${MARAN_APP_REMOVE_UNIT_NAME}"
+  # Node.js module streams exist on the RHEL releases before 10 only; every other release installs Node.js as a package.
+  if release_has_module_streams; then
+    render_nodejs_module_unit "$MARAN_APP_NODEJS_INSTALL_UNIT_NAME" "$tmp"
+    install -m 0644 "$tmp" "${MARAN_UNIT_DIR}/${MARAN_APP_NODEJS_INSTALL_UNIT_NAME}"
+    render_nodejs_module_unit "$MARAN_APP_NODEJS_REMOVE_UNIT_NAME" "$tmp"
+    install -m 0644 "$tmp" "${MARAN_UNIT_DIR}/${MARAN_APP_NODEJS_REMOVE_UNIT_NAME}"
+  fi
   rm -f "$tmp"
 }
 

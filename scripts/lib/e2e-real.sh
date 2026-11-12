@@ -14,8 +14,8 @@
 # It needs a panel it did not start. That is deliberate: a deploy-local host (`maran deploy-local`,
 # docs/operations/deploy-local.md) or an installer-polygon panel published on a port
 # (`maran installer --publish`) is the only honest subject, and a hand-assembled backend on a
-# runner would be a gate nobody could show observing anything (.github/workflows/nightly.yml says
-# the same of the golden path). So the panel and four logins come in through the environment:
+# runner would be a gate nobody could show observing anything (the installer-polygon workflow,
+# .github/workflows/nightly.yml, says the same of the golden path). So the panel and four logins come in through the environment:
 #
 #   MARAN_REAL_URL                                       https://host:port of the running panel
 #   MARAN_REAL_ADMIN_USERNAME / _PASSWORD                an administrator

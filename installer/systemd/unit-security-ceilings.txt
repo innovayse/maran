@@ -2,10 +2,13 @@
 # <unit><TAB><ceiling>: the highest 'systemd-analyze security --offline=yes' score the unit may have.
 # Written by 'maran units --accept' from the units as the installer renders them; edit by re-measuring.
 # maran-app-install@.service and maran-app-remove@.service are each the worst of their Debian-family, RHEL-family and SUSE-family renders.
+# maran-app-nodejs-install@.service and maran-app-nodejs-remove@.service exist on the RHEL 9 generation only (no module streams on RHEL 10), so that render is the one scored.
 # A ceiling above 9 is a unit shipped as weakly sandboxed as it is today, not a target.
 maran-agent.service	3.6
 maran-api.service	1.8
 maran-app-install@.service	4.4
+maran-app-nodejs-install@.service	4.4
+maran-app-nodejs-remove@.service	4.4
 maran-app-remove@.service	4.4
 maran-dns.service	5.9
 maran-ftps.service	5.9

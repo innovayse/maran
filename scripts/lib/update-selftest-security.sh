@@ -284,7 +284,7 @@ selftest_pass "the ReadWritePaths scan hits the backup unit (the scan is capable
 
 # ---------------------------------------------------------------------------------------------
 echo
-echo "-- case 30: the installer step - on after a first online install, then the operator's choice stands --"
+echo "-- case 30: the installer step - off after a first install, and the operator's choice stands --"
 # ---------------------------------------------------------------------------------------------
 # Step 69 is run from a COPY whose absolute paths point into the temporary root (the same rewrite the
 # libraries get), with a recording systemctl in front of PATH. The step is the real file; only where it
@@ -317,6 +317,10 @@ run_step_69() {
 rm -rf -- "$step_unit_dir" "$step_dump_dir"
 install -d "$step_unit_dir"
 : > "$STEP_SYSTEMCTL_LOG"
+# Control: the shim records an enable call, so the empty answer below means the step made none.
+PATH="${step_shims}:${PATH}" systemctl enable --now maran-update-security.timer
+grep -qx 'enable --now maran-update-security.timer' "$STEP_SYSTEMCTL_LOG" || selftest_failed "the systemctl shim does not record an enable call, so 'not enabled' below proves nothing."
+: > "$STEP_SYSTEMCTL_LOG"
 run_step_69 MARAN_OFFLINE_TARBALL=
 [ "$RUN_STATUS" -eq 0 ] || selftest_failed "the step failed on a first online install: ${RUN_OUT}"
 [ -f "${step_unit_dir}/maran-update-security.service" ] && [ -f "${step_unit_dir}/maran-update-security.timer" ] \
@@ -325,21 +329,38 @@ cmp -s "${root}/installer/systemd/maran-update-security.timer" "${step_unit_dir}
   || selftest_failed "the installed timer differs from the shipped one."
 expect_equal "the units are installed as they ship, mode 0644" "644" "$(stat -c '%a' -- "${step_unit_dir}/maran-update-security.timer")"
 expect_equal "the dump directory is created root-only" "700" "$(stat -c '%a' -- "$step_dump_dir")"
-grep -qx 'enable --now maran-update-security.timer' "$STEP_SYSTEMCTL_LOG" \
-  || selftest_failed "a first online install did not enable the timer: $(cat "$STEP_SYSTEMCTL_LOG")"
-selftest_pass "a first online install enables the timer (on by default)"
-case "$RUN_OUT" in *"are ON"*"maran update-schedule disable"*) selftest_pass "...and says it is on and how to turn it off" ;; *) selftest_failed "the first install did not tell the operator: ${RUN_OUT}" ;; esac
+grep -q 'enable' "$STEP_SYSTEMCTL_LOG" && selftest_failed "a first online install enabled the timer; it must be off until the operator enables it: $(cat "$STEP_SYSTEMCTL_LOG")"
+grep -qx 'daemon-reload' "$STEP_SYSTEMCTL_LOG" || selftest_failed "the first install did not reload systemd after installing the units."
+selftest_pass "a first online install installs the units and does not enable the timer (off by default)"
+case "$RUN_OUT" in *"installed but off"*"maran update-schedule enable"*) selftest_pass "...and says it is off and how to enable it" ;; *) selftest_failed "the first install did not tell the operator: ${RUN_OUT}" ;; esac
 
-# The operator disables it; the installer runs again with the unit file already present.
+# A re-run with the unit file already present changes nothing about the enablement, in either state.
 : > "$STEP_SYSTEMCTL_LOG"
 run_step_69 MARAN_OFFLINE_TARBALL=
 [ "$RUN_STATUS" -eq 0 ] || selftest_failed "the step failed on a re-run: ${RUN_OUT}"
-grep -q 'enable' "$STEP_SYSTEMCTL_LOG" && selftest_failed "a re-run enabled the timer again, undoing the operator's disable: $(cat "$STEP_SYSTEMCTL_LOG")"
+grep -q 'enable\|disable\|start\|stop' "$STEP_SYSTEMCTL_LOG" && selftest_failed "a re-run touched the timer's enablement, undoing the operator's choice: $(cat "$STEP_SYSTEMCTL_LOG")"
 grep -qx 'daemon-reload' "$STEP_SYSTEMCTL_LOG" || selftest_failed "the re-run did not reload systemd after replacing the units."
-selftest_pass "a re-run replaces the units and never enables the timer again (a disable survives an installer run)"
-case "$RUN_OUT" in *"left as they were"*) selftest_pass "...and says it left the choice alone" ;; *) selftest_failed "the re-run did not say so: ${RUN_OUT}" ;; esac
+selftest_pass "a re-run replaces the units and never touches the timer's enablement (an enable or a disable survives an installer run)"
 
-# An offline install: fresh units, no enablement.
+# The operator has enabled the timer (what `systemctl enable` leaves: the wants link) and the installer is
+# re-run: the link is still there and the step asked systemd for nothing but the reload. The inverse of
+# the first install above, where nothing is enabled, so a step that enables or disables would fail one of
+# the two.
+wants_dir="${step_unit_dir}/timers.target.wants"
+install -d "$wants_dir"
+ln -sf "${step_unit_dir}/maran-update-security.timer" "${wants_dir}/maran-update-security.timer"
+: > "$STEP_SYSTEMCTL_LOG"
+run_step_69 MARAN_OFFLINE_TARBALL=
+[ "$RUN_STATUS" -eq 0 ] || selftest_failed "the step failed on a re-run over an enabled timer: ${RUN_OUT}"
+[ -L "${wants_dir}/maran-update-security.timer" ] \
+  || selftest_failed "a re-run over an enabled timer removed the operator's enablement."
+grep -q 'enable\|disable\|start\|stop' "$STEP_SYSTEMCTL_LOG" \
+  && selftest_failed "a re-run over an enabled timer touched its enablement: $(cat "$STEP_SYSTEMCTL_LOG")"
+grep -qx 'daemon-reload' "$STEP_SYSTEMCTL_LOG" || selftest_failed "the re-run over an enabled timer did not reload systemd."
+selftest_pass "an operator-enabled timer stays enabled when the installer is re-run"
+rm -rf -- "$wants_dir"
+
+# An offline install behaves the same as an online one: fresh units, no enablement, the same line.
 rm -rf -- "$step_unit_dir"
 install -d "$step_unit_dir"
 : > "$STEP_SYSTEMCTL_LOG"
@@ -347,7 +368,7 @@ run_step_69 MARAN_OFFLINE_TARBALL=/root/maran-offline.tar.gz
 [ "$RUN_STATUS" -eq 0 ] || selftest_failed "the step failed on an offline install: ${RUN_OUT}"
 grep -q 'enable' "$STEP_SYSTEMCTL_LOG" && selftest_failed "an offline install enabled a timer that cannot reach the release host."
 [ -f "${step_unit_dir}/maran-update-security.timer" ] || selftest_failed "an offline install did not install the units."
-case "$RUN_OUT" in *"NOT enabled on an offline install"*"update-schedule enable"*) selftest_pass "an offline install installs the units and leaves the timer off, saying how to enable it" ;; *) selftest_failed "the offline install did not say so: ${RUN_OUT}" ;; esac
+case "$RUN_OUT" in *"installed but off"*"update-schedule enable"*) selftest_pass "an offline install installs the units and leaves the timer off, saying how to enable it" ;; *) selftest_failed "the offline install did not say so: ${RUN_OUT}" ;; esac
 
 # A dump directory that is a symbolic link is refused before anything is written (root's dumps must not follow it).
 rm -rf -- "$step_unit_dir" "$step_dump_dir"

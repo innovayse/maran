@@ -205,9 +205,13 @@ remove_systemd_units() {
   # The package-install and package-removal templates (issues #93, #517) are never enabled, so
   # stop_and_disable_services has no line for them. An instance still running is stopped first so
   # its package manager is not left orphaned by the removal of its own unit file.
-  systemctl stop 'maran-app-install@*.service' 'maran-app-remove@*.service' 2>/dev/null || true
+  systemctl stop 'maran-app-install@*.service' 'maran-app-remove@*.service' \
+    'maran-app-nodejs-install@*.service' 'maran-app-nodejs-remove@*.service' 2>/dev/null || true
   rm -f /etc/systemd/system/maran-app-install@.service
   rm -f /etc/systemd/system/maran-app-remove@.service
+  # The Node.js module-stream pair (issues #532, #542), removed wherever present whatever the release: rm -f is a no-op where they were never laid down (every host but RHEL 9).
+  rm -f /etc/systemd/system/maran-app-nodejs-install@.service
+  rm -f /etc/systemd/system/maran-app-nodejs-remove@.service
   # The api's socket directory is built by a tmpfiles snippet rather than by the unit's
   # RuntimeDirectory=, so removing the unit does not remove the directory: both go here.
   # Left behind, the snippet would go on recreating an empty 2710 directory on every boot of a
