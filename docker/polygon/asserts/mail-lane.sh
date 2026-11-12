@@ -87,6 +87,14 @@ esac
 . "$installer_root/lib/89-mail.sh"
 rm -rf "$MARAN_MAIL_CONFIG_DIR"
 [ "$MARAN_OS_FAMILY" != debian ] || apt-get update >/dev/null
+# A fresh container reads every unit it has no record of as active and enabled, the way a real host's
+# installed units are, and the step refuses a host whose mail daemons already run (they would be an
+# operator's). This lane stands for the host with the daemons installed and idle, so it records them stopped
+# and disabled first.
+for mail_unit in $(mail_units); do
+  systemctl stop "${mail_unit}.service"
+  systemctl disable "${mail_unit}.service"
+done
 step_mail
 
 # Redis-protocol client, nftables and a syslog daemon: the assertions read the hourly counter and the
