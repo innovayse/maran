@@ -315,6 +315,10 @@ assert_port_25_local_mail_is_signed_and_charged_for_what_it_is() {
   chmod 0644 "${LOCAL_SUBMIT_DIRECTORY}/account_send_limits.map" "${LOCAL_SUBMIT_DIRECTORY}/alias_fanout.map"
   planted_files="$(port25_plant_dkim_key one.test || true)"
   systemctl reload rspamd.service >/dev/null 2>&1 || rspamadm control reload >/dev/null 2>&1 || true
+  # The cases below read the header block of the message as the milter left it, from the queue. The probe
+  # recipient's domain refuses mail at once, which would bounce and remove the message before it is read, so
+  # delivery over smtp is deferred until port25_restore takes the setting out again.
+  postconf -e 'defer_transports = smtp' && postfix reload >/dev/null 2>&1 || true
   sleep 2
 
   if [ -z "$planted_files" ]; then
@@ -396,6 +400,7 @@ port25_restore() {
     fi
   done
   rm -rf -- "${backup:?}"
+  postconf -X defer_transports >/dev/null 2>&1 && postfix reload >/dev/null 2>&1 || true
   if [ -n "$planted" ]; then
     key="$(printf '%s\n' "$planted" | sed -n 1p)"
     selectors="$(printf '%s\n' "$planted" | sed -n 2p)"
