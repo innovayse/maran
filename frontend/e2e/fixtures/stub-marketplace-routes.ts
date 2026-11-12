@@ -101,6 +101,7 @@ export interface MarketplaceRecorder {
 export const manifestOf = (overrides: Partial<ModuleManifestSummary> = {}): ModuleManifestSummary => {
   return {
     publisher: 'Innovayse',
+    publisherId: 'innovayse',
     tierDisplayName: 'Included',
     minPanelVersion: '1.0.0',
     schemaName: 'weather',
@@ -128,6 +129,7 @@ export const catalogueModule = (
     displayName,
     summary: `${displayName} for the panel.`,
     publisher: 'Innovayse',
+    publisherId: 'innovayse',
     tier: 'free',
     tierDisplayName: 'Free',
     price: null,

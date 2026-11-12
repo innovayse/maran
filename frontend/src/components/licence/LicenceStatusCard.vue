@@ -4,7 +4,8 @@
  * then the licence id, tier, expiry, covered modules and the lease line.
  *
  * Every sentence and display name comes already localized from the backend and is rendered as plain
- * text; this component only adds its own chrome (labels, the offline note, the lease notice). It
+ * text; this component only adds its own chrome (labels, the offline note, the lease notice, the link in
+ * the expiry warning). It
  * holds no state and calls nothing: the page hands it the status.
  */
 import { computed, type ComputedRef } from 'vue'
@@ -14,10 +15,14 @@ import UiBadge, { type BadgeVariant } from '../ui/UiBadge.vue'
 import UiCard from '../ui/UiCard.vue'
 import UiDescriptionItem from '../ui/UiDescriptionItem.vue'
 import UiDescriptionList from '../ui/UiDescriptionList.vue'
+import UiExternalLink from '../ui/UiExternalLink.vue'
+import UiFieldHint from '../ui/UiFieldHint.vue'
 import UiSectionHeading from '../ui/UiSectionHeading.vue'
+import UiStack from '../ui/UiStack.vue'
 import { useLocaleStore } from '../../stores/locale'
 import type { LicenceStatus } from '../../types/licence'
 import { formatDate } from '../../utils/formatDate'
+import { formatUtcDate } from '../../utils/formatUtcDate'
 
 /** Props accepted by {@link LicenceStatusCard}. */
 const props = defineProps<{
@@ -56,16 +61,16 @@ const leaseExpired: ComputedRef<boolean> = computed(() => {
   <UiCard data-testid="licence-status">
     <UiSectionHeading class="mb-4" :title="t('licence.statusTitle')" />
 
-    <div class="flex flex-col gap-2">
-      <div>
+    <UiStack gap="sm">
+      <UiStack direction="row">
         <UiBadge :variant="badgeVariant">{{ status.stateDisplayName }}</UiBadge>
-      </div>
+      </UiStack>
       <p class="text-sm text-text-primary">{{ status.sentence }}</p>
-      <p v-if="status.refusalReasonDisplayName !== null" class="text-sm text-text-muted">
+      <UiFieldHint v-if="status.refusalReasonDisplayName !== null">
         {{ status.refusalReasonDisplayName }}
-      </p>
-      <p v-if="status.advice !== null" class="text-sm text-text-muted">{{ status.advice }}</p>
-    </div>
+      </UiFieldHint>
+      <UiFieldHint v-if="status.advice !== null">{{ status.advice }}</UiFieldHint>
+    </UiStack>
 
     <UiDescriptionList class="mt-4">
       <UiDescriptionItem v-if="status.licenceId !== null" :term="t('licence.licenceIdLabel')" mono>
@@ -75,7 +80,7 @@ const leaseExpired: ComputedRef<boolean> = computed(() => {
         {{ status.tier }}
       </UiDescriptionItem>
       <UiDescriptionItem v-if="status.expiry !== null" :term="t('licence.expiryLabel')">
-        {{ formatDate(status.expiry, localeStore.current) }}
+        {{ formatUtcDate(status.expiry, localeStore.current) }}
       </UiDescriptionItem>
       <UiDescriptionItem v-if="status.modules !== null" :term="t('licence.modulesLabel')">
         <ul v-if="status.modules.length > 0" class="flex flex-wrap gap-x-3 gap-y-1 font-mono">
@@ -88,12 +93,32 @@ const leaseExpired: ComputedRef<boolean> = computed(() => {
       </UiDescriptionItem>
     </UiDescriptionList>
 
+    <!-- The backend decides whether the licence is close to its expiry and words both texts; the claim link is the
+         same one the server card carries, repeated here so the renewal steps and their first step are together. -->
+    <UiAlert
+      v-if="status.expiryWarning !== null"
+      class="mt-4"
+      variant="warning"
+      data-testid="licence-expiry-warning"
+    >
+      <p class="font-semibold">{{ status.expiryWarning }}</p>
+      <p v-if="status.expiryRenewalAdvice !== null" class="mt-1">{{ status.expiryRenewalAdvice }}</p>
+      <UiExternalLink
+        v-if="status.claimUrl !== null"
+        class="mt-2 inline-block"
+        :href="status.claimUrl"
+        data-testid="licence-expiry-claim-link"
+      >
+        {{ t('licence.expiryClaimAgain') }}
+      </UiExternalLink>
+    </UiAlert>
+
     <UiAlert v-if="leaseExpired" class="mt-4" variant="warning" data-testid="licence-lease-notice">
       {{ t('licence.leaseExpiredNotice') }}
     </UiAlert>
 
-    <p v-if="status.isOffline" class="mt-4 text-sm text-text-muted" data-testid="licence-offline">
+    <UiFieldHint v-if="status.isOffline" class="mt-4" data-testid="licence-offline">
       {{ t('licence.offlineNote') }}
-    </p>
+    </UiFieldHint>
   </UiCard>
 </template>

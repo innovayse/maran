@@ -78,6 +78,8 @@ export interface DashboardAttention {
   failedTasks: DashboardSection<number>
   /** Sites running on a PHP version past its end of life, which no longer receives security fixes (issue #157). */
   sitesOnEndOfLifePhp: DashboardSection<number>
+  /** One while the installed licence is within the backend's expiry warning thresholds, zero otherwise (issue #547). */
+  licenceExpiring: DashboardSection<number>
   /**
    * Whether alert mail and the alert webhook reached their destination the last time the panel tried
    * (issue #142). Not a count: each failing channel is a row of its own, and a state that could not be

@@ -161,7 +161,7 @@ const DASHBOARD: Dashboard = {
     sites: loaded(27),
     databases: loaded(14),
   },
-  attention: { certificatesExpiringSoon: loaded(2), failedBackups: loaded(5), sitesOnEndOfLifePhp: loaded(0), alertDelivery: ALERT_DELIVERY_OK, bannedAddresses: loaded(9), failedTasks: loaded(6), clock: SYNCHRONIZED_CLOCK },
+  attention: { certificatesExpiringSoon: loaded(2), failedBackups: loaded(5), sitesOnEndOfLifePhp: loaded(0), licenceExpiring: loaded(0), alertDelivery: ALERT_DELIVERY_OK, bannedAddresses: loaded(9), failedTasks: loaded(6), clock: SYNCHRONIZED_CLOCK },
   recentAudit: loaded([
     {
       id: '11111111-1111-1111-1111-111111111111',

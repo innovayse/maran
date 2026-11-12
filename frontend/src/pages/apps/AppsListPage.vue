@@ -36,6 +36,7 @@ import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
 import UiTable from '../../components/ui/UiTable.vue'
 import UiToolbar from '../../components/ui/UiToolbar.vue'
 import AvailableAppsTable from '../../components/apps/AvailableAppsTable.vue'
+import NodejsUnavailableAlert from '../../components/apps/NodejsUnavailableAlert.vue'
 import HostAppInUseAlert from '../../components/apps/HostAppInUseAlert.vue'
 import HostAppProgress from '../../components/apps/HostAppProgress.vue'
 import HostAppServiceBadge from '../../components/apps/HostAppServiceBadge.vue'
@@ -418,6 +419,11 @@ onBeforeUnmount(() => {
           <template #error>
             <UiAlert variant="error">{{ store.installableErrorMessage ?? t('apps.list.unreachable') }}</UiAlert>
           </template>
+          <NodejsUnavailableAlert
+            v-if="store.nodejsUnavailable !== null && store.nodejsUnavailableMessage !== null"
+            :reason="store.nodejsUnavailable"
+            :message="store.nodejsUnavailableMessage"
+          />
           <AvailableAppsTable :apps="available" :busy="busyIds" @install="install" />
         </UiLoadingRegion>
       </div>

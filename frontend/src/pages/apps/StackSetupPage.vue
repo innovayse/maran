@@ -99,6 +99,8 @@ onBeforeUnmount(store.stopAll)
             :node-choices="wizard.nodeChoices.value"
             :php-ids="wizard.phpIds.value"
             :node-ids="wizard.nodeIds.value"
+            :node-unavailable="store.nodejsUnavailable"
+            :node-unavailable-message="store.nodejsUnavailableMessage"
             @toggle="wizard.toggle"
           />
           <StackReviewStep v-else-if="wizard.step.value === 'review'" :chosen="wizard.chosen.value" />

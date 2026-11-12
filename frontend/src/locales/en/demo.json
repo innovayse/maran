@@ -3,7 +3,9 @@
     "banner": {
       "region": "About this demo",
       "text": "This is a public demo on a simulated server, not a real one. Other visitors can see what you enter, and the demo resets on a schedule. Never enter real data.",
-      "nextReset": "Next reset: {time}."
+      "nextReset": "Next reset: {time}.",
+      "filtered": "Offensive words and links to outside sites are refused.",
+      "reportAbuse": "Report abusive content:"
     },
     "credentials": {
       "region": "Demo sign-in details",

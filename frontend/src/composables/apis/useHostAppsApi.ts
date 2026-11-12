@@ -7,7 +7,7 @@ import type {
   HostAppServiceAction,
   HostAppServiceState,
   HostAppsApi,
-  InstallableHostApp,
+  InstallableHostApps,
   StackStatus,
 } from '../../types/hostApp'
 
@@ -38,10 +38,10 @@ export const useHostAppsApi = (): HostAppsApi => {
   /**
    * Lists the apps the host's package sources can install.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Every installable app.
+   * @returns Every installable app, and why Node.js is missing if it is.
    */
-  const listInstallable = (signal?: AbortSignal): Promise<InstallableHostApp[]> => {
-    return api.get<InstallableHostApp[]>(`${APPS_PATH}/installable`, signal)
+  const listInstallable = (signal?: AbortSignal): Promise<InstallableHostApps> => {
+    return api.get<InstallableHostApps>(`${APPS_PATH}/installable`, signal)
   }
 
   /**

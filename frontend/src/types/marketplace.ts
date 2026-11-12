@@ -60,8 +60,10 @@ export interface MarketplaceModule {
   displayName: string
   /** One-line description, plain text. */
   summary: string
-  /** Who publishes the module. */
+  /** The publisher's display name, as the panel prints it; never an identifier. */
   publisher: string
+  /** The publisher's stable id, kept for reference and never printed; `null` when the service sent none. */
+  publisherId: string | null
   /** The licence tier, machine-stable. */
   tier: string
   /** The tier as an operator reads it, localized by the panel. */
@@ -138,8 +140,10 @@ export interface ModuleDeclaration {
  * server's text, never text from the package's own bundle.
  */
 export interface ModuleManifestSummary {
-  /** Who publishes the module. */
+  /** The publisher's display name, as the dialog prints it; never an identifier. */
   publisher: string
+  /** The publisher's stable id, kept for reference and never printed; `null` when the service sent none. */
+  publisherId: string | null
   /** The licence tier as an operator reads it. */
   tierDisplayName: string
   /** The oldest panel version the module runs on. */

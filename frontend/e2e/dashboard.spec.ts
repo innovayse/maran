@@ -62,7 +62,7 @@ const FULL: Dashboard = {
     sites: loaded(7),
     databases: loaded(4),
   },
-  attention: { certificatesExpiringSoon: loaded(2), failedBackups: loaded(5), sitesOnEndOfLifePhp: loaded(0), alertDelivery: ALERT_DELIVERY_OK, bannedAddresses: loaded(9), failedTasks: loaded(6), clock: SYNCHRONIZED_CLOCK },
+  attention: { certificatesExpiringSoon: loaded(2), failedBackups: loaded(5), sitesOnEndOfLifePhp: loaded(0), licenceExpiring: loaded(0), alertDelivery: ALERT_DELIVERY_OK, bannedAddresses: loaded(9), failedTasks: loaded(6), clock: SYNCHRONIZED_CLOCK },
   recentAudit: loaded([
     {
       id: '11111111-1111-1111-1111-111111111111',
@@ -101,7 +101,7 @@ const FRESHLY_INSTALLED: Dashboard = {
     sites: loaded(0),
     databases: loaded(0),
   },
-  attention: { certificatesExpiringSoon: loaded(0), failedBackups: loaded(0), sitesOnEndOfLifePhp: loaded(0), alertDelivery: ALERT_DELIVERY_OK, bannedAddresses: loaded(0), failedTasks: loaded(0), clock: SYNCHRONIZED_CLOCK },
+  attention: { certificatesExpiringSoon: loaded(0), failedBackups: loaded(0), sitesOnEndOfLifePhp: loaded(0), licenceExpiring: loaded(0), alertDelivery: ALERT_DELIVERY_OK, bannedAddresses: loaded(0), failedTasks: loaded(0), clock: SYNCHRONIZED_CLOCK },
   recentAudit: loaded([]),
 }
 
@@ -250,6 +250,7 @@ test.describe('the landing page', () => {
         certificatesExpiringSoon: loaded(0),
         failedBackups: UNAVAILABLE,
         sitesOnEndOfLifePhp: loaded(0),
+        licenceExpiring: loaded(0),
         alertDelivery: ALERT_DELIVERY_OK,
         bannedAddresses: loaded(0),
         failedTasks: loaded(0),
@@ -273,6 +274,7 @@ test.describe('the landing page', () => {
         certificatesExpiringSoon: loaded(2),
         failedBackups: loaded(5),
         sitesOnEndOfLifePhp: loaded(0),
+        licenceExpiring: loaded(0),
         alertDelivery: ALERT_DELIVERY_OK,
         bannedAddresses: loaded(9),
         failedTasks: UNAVAILABLE,
@@ -292,6 +294,29 @@ test.describe('the landing page', () => {
     await expect(page.getByText('Nothing has been recorded yet.')).toHaveCount(0)
   })
 
+  test('a licence close to its expiry needs attention and links to the licence screen', async ({ page }) => {
+    // #547: every other source holds zero and only the licence is within the backend's warning thresholds.
+    await openLandingPage(page, {
+      ...FRESHLY_INSTALLED,
+      attention: {
+        certificatesExpiringSoon: loaded(0),
+        failedBackups: loaded(0),
+        sitesOnEndOfLifePhp: loaded(0),
+        licenceExpiring: loaded(1),
+        alertDelivery: ALERT_DELIVERY_OK,
+        bannedAddresses: loaded(0),
+        failedTasks: loaded(0),
+        clock: SYNCHRONIZED_CLOCK,
+      },
+    })
+
+    await expect(page.getByRole('link', { name: /licence close to its expiry/ })).toHaveAttribute(
+      'href',
+      '/settings/licence',
+    )
+    await expect(page.getByText('Nothing needs attention.')).toHaveCount(0)
+  })
+
   test('a clock that is not synchronised needs attention, and is not an all-clear', async ({ page }) => {
     // #150: every count holds zero and only the clock is wrong. Left out of the notice, this screen
     // would say "Nothing needs attention." while two-factor codes fail.
@@ -301,6 +326,7 @@ test.describe('the landing page', () => {
         certificatesExpiringSoon: loaded(0),
         failedBackups: loaded(0),
         sitesOnEndOfLifePhp: loaded(0),
+        licenceExpiring: loaded(0),
         alertDelivery: ALERT_DELIVERY_OK,
         bannedAddresses: loaded(0),
         failedTasks: loaded(0),
@@ -324,6 +350,7 @@ test.describe('the landing page', () => {
         certificatesExpiringSoon: loaded(0),
         failedBackups: loaded(0),
         sitesOnEndOfLifePhp: loaded(0),
+        licenceExpiring: loaded(0),
         alertDelivery: ALERT_DELIVERY_OK,
         bannedAddresses: loaded(0),
         failedTasks: loaded(0),
@@ -346,6 +373,7 @@ test.describe('the landing page', () => {
         certificatesExpiringSoon: loaded(0),
         failedBackups: loaded(0),
         sitesOnEndOfLifePhp: loaded(0),
+        licenceExpiring: loaded(0),
         alertDelivery: loaded({
           mail: { state: 'failing', lastFailureAt: '2026-11-07T10:00:00Z', failureMessage: 'The mail server refused the message.' },
           webhook: { state: 'ok', lastFailureAt: null, failureMessage: null },
@@ -371,6 +399,7 @@ test.describe('the landing page', () => {
         certificatesExpiringSoon: loaded(0),
         failedBackups: loaded(0),
         sitesOnEndOfLifePhp: loaded(0),
+        licenceExpiring: loaded(0),
         alertDelivery: UNAVAILABLE,
         bannedAddresses: loaded(0),
         failedTasks: loaded(0),

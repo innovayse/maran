@@ -1,6 +1,6 @@
 import type { Page, Route } from '@playwright/test'
 import { pagedAnswer, type PagedRules } from './paged-answer'
-import type { HostApp, HostAppServiceAction, InstallableHostApp } from '../../src/types/hostApp'
+import type { HostApp, HostAppServiceAction, HostNodejsUnavailable, InstallableHostApp } from '../../src/types/hostApp'
 import type { PanelTask } from '../../src/types/panelTask'
 
 /** The id of the task every stubbed install and uninstall is answered with. */
@@ -70,6 +70,8 @@ export interface AppsWorld {
   installed: HostApp[]
   /** The catalogue of what can be installed, installed apps flagged. */
   installable: InstallableHostApp[]
+  /** Why the catalogue carries no Node.js app, with the panel's sentence for it; `null` when nothing is missing for a reason. */
+  nodejsUnavailable: { reason: HostNodejsUnavailable; message: string } | null
   /** Apps whose removal is refused with `AppsInUse`, by id, with the domains of the using sites. */
   inUse: Record<string, string[]>
   /** The task reads of a followed operation: the n-th read answers the n-th entry, the last repeats. */
@@ -188,6 +190,7 @@ export const appsWorld = (overrides: Partial<AppsWorld> = {}): AppsWorld => {
       installableApp('php-8.4', 'PHP 8.4'),
       installableApp('nodejs-22', 'Node.js 22'),
     ],
+    nodejsUnavailable: null,
     inUse: {},
     taskScript: [appTask(), FINISHED_APP_TASK],
     onInstall: null,
@@ -226,7 +229,11 @@ export const stubApps = async (page: Page, world: AppsWorld): Promise<AppsRecord
 
   await page.route(INSTALLABLE_PATTERN, async (route: Route) => {
     requests.push({ method: 'GET', path: '/api/v1/apps/installable' })
-    await fulfilJson(route, 200, world.installable)
+    await fulfilJson(route, 200, {
+      apps: world.installable,
+      nodejsUnavailable: world.nodejsUnavailable?.reason ?? null,
+      nodejsUnavailableName: world.nodejsUnavailable?.message ?? null,
+    })
   })
 
   await page.route(OPERATION_PATTERN, async (route: Route) => {

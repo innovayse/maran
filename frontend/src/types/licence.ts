@@ -28,6 +28,21 @@ export type LicenceLeaseState =
   | 'wrongMachine'
   | 'notRequired'
 
+/** What asking the licensing service for a lease amounted to, as the panel reports it after an install. */
+export type LicenceLeaseRequest =
+  | 'renewed'
+  | 'notDue'
+  | 'skippedOffline'
+  | 'skippedNoLicence'
+  | 'notConfigured'
+  | 'unreachable'
+  | 'refused'
+  | 'answerRejected'
+  | 'notNewer'
+  | 'writeFailed'
+  | 'licenceChanged'
+  | 'renewalInProgress'
+
 /** What `GET /api/v1/licence-status` answers, and what a successful install answers with. */
 export interface LicenceStatus {
   /** Whether a licence is installed and accepted. */
@@ -58,6 +73,24 @@ export interface LicenceStatus {
   leaseDisplayName: string
   /** Until when the lease is valid, as an ISO 8601 timestamp, or `null` when there is no lease. */
   leaseValidUntil: string | null
+  /** This server's ID exactly as a licence names it to be bound here, or `null` when the panel could not read it. */
+  serverId: string | null
+  /** The marketplace page where a licence is claimed for this server, or `null` when none can be made. */
+  claimUrl: string | null
+  /** What the lease request made by the install this answers amounted to; `null` on a plain read. */
+  leaseRequest: LicenceLeaseRequest | null
+  /** `leaseRequest` as a sentence, already localized by the backend; `null` exactly when it is. */
+  leaseRequestDisplayName: string | null
+  /**
+   * Whole days until the licence expires (rounded up), present exactly when it is still in date and within one of
+   * the backend's warning thresholds (30, 14 and 3 days by default); `null` otherwise. The backend owns the
+   * thresholds: this SPA never compares dates to decide whether to warn.
+   */
+  expiryWarningDaysLeft: number | null
+  /** The expiry warning as a sentence naming the expiry day, already localized; `null` exactly when there is no warning. */
+  expiryWarning: string | null
+  /** The renewal steps (claim the licence again, or install a new licence file), already localized; `null` exactly when there is no warning. */
+  expiryRenewalAdvice: string | null
 }
 
 /** What `POST /api/v1/licence-status/install` takes. */

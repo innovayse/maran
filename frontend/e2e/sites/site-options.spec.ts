@@ -114,6 +114,87 @@ test('the bounds in the hints come from the panel, not from the page', async ({ 
   await expect(page.getByText(/From 1 to 90 days/)).toBeVisible()
 })
 
+const PLAN_CAPPED: SiteOptions = {
+  ...EMPTY_SITE_OPTIONS,
+  limits: { ...EMPTY_SITE_OPTIONS.limits, planMaximumBodySizeMib: 64 },
+}
+
+test('the plan upload cap is shown as a hint when the panel states one', async ({ page }) => {
+  await stubOptionsTab(page, PLAN_CAPPED)
+
+  await openOptions(page)
+
+  await expect(page.getByText('Your plan allows uploads of up to 64 MiB; a larger figure is refused.')).toBeVisible()
+})
+
+test('no plan cap hint is shown for a site the plan does not cap', async ({ page }) => {
+  await stubOptionsTab(page)
+
+  await openOptions(page)
+
+  await expect(page.getByText(/Your plan allows uploads/)).toHaveCount(0)
+})
+
+test('an upload size above the plan cap is refused by the page before anything is sent', async ({ page }) => {
+  const stub = await stubOptionsTab(page, PLAN_CAPPED)
+  await openOptions(page)
+
+  await page.getByLabel('Largest upload (MiB)').fill('65')
+  await page.getByRole('button', { name: 'Save options' }).click()
+
+  await expect(page.getByText("That size is above your plan's limit of 64 MiB.")).toBeVisible()
+  expect(stub.saved).toHaveLength(0)
+})
+
+test('an upload size within the plan cap is sent, and the cap itself is accepted', async ({ page }) => {
+  const stub = await stubOptionsTab(page, PLAN_CAPPED)
+  await openOptions(page)
+
+  await page.getByLabel('Largest upload (MiB)').fill('64')
+  await page.getByRole('button', { name: 'Save options' }).click()
+
+  await expect(page.getByText('The options were saved.')).toBeVisible()
+  expect(stub.saved).toHaveLength(1)
+  expect(stub.saved[0].clientMaxBodySizeMib).toBe(64)
+})
+
+test('a stored upload size above a lowered plan cap does not block saving the other options', async ({ page }) => {
+  const stub = await stubOptionsTab(page, { ...PLAN_CAPPED, clientMaxBodySizeMib: 400, staticCacheDays: 30 })
+  await openOptions(page)
+
+  await page.getByLabel('Browser cache for static files (days)').fill('7')
+  await page.getByRole('button', { name: 'Save options' }).click()
+
+  await expect(page.getByText('The options were saved.')).toBeVisible()
+  expect(stub.saved).toHaveLength(1)
+  expect(stub.saved[0].clientMaxBodySizeMib).toBe(400)
+  expect(stub.saved[0].staticCacheDays).toBe(7)
+})
+
+test('the panel own refusal of an upload size above the plan is shown under the field', async ({ page, guard }) => {
+  guard.allow(400, /\/api\/v1\/sites\/[^/]+\/options$/)
+  await stubSignedIn(page)
+  await stubShellReads(page)
+  await stubHealthy(page)
+  await stubModules(page, LICENSED_SITES)
+  await stubSites(page, [])
+  await stubSiteDetail(page, SITE)
+  await stubPhpVersions(page, [])
+  await stubSiteOptionsRefusal(
+    page,
+    'SiteBodySizeAbovePlan',
+    'That request size is above what your plan allows for uploads.',
+    EMPTY_SITE_OPTIONS,
+  )
+  await openOptions(page)
+
+  await page.getByLabel('Largest upload (MiB)').fill('65')
+  await page.getByRole('button', { name: 'Save options' }).click()
+
+  await expect(page.getByText('That request size is above what your plan allows for uploads.')).toBeVisible()
+  await expect(page.getByText('The options were saved.')).toHaveCount(0)
+})
+
 test('the password of an existing user is never shown and is not sent when left empty', async ({ page }) => {
   const stub = await stubOptionsTab(page, CONFIGURED)
   await openOptions(page)

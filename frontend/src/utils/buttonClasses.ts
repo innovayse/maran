@@ -31,7 +31,9 @@ const SPRING_CLASSES =
   'motion-safe:pointer-fine:not-disabled:hover:scale-105 motion-safe:not-disabled:active:scale-95'
 
 /**
- * Shape, focus ring, fill, text colour and hover of one variant. Hover is written
+ * Shape, focus ring, fill, text colour and hover of one variant. A variant whose border is the only
+ * thing that identifies it as a control (`secondary`, `field`) takes the control-edge token
+ * (`--bc`, 3:1 or more, WCAG 1.4.11), never the decorative `--b1`/`--b2`. Hover is written
  * `not-disabled:hover:` so a disabled button never answers the pointer, and so a link rendering of
  * the same classes (an `<a>` is never `:enabled`) still gets its hover.
  * @param variant The visual weight asked for.
@@ -40,13 +42,13 @@ const SPRING_CLASSES =
 const variantClasses = (variant: ButtonVariant): string => {
   switch (variant) {
     case 'secondary':
-      return 'rounded-control focus-visible:shadow-focus border-border-subtle bg-surface-2 text-text-primary not-disabled:hover:border-border-strong not-disabled:hover:bg-surface-3'
+      return 'rounded-control focus-visible:shadow-focus border-border-control bg-surface-2 text-text-primary not-disabled:hover:border-border-control-hover not-disabled:hover:bg-surface-3'
     case 'ghost':
       return 'rounded-control focus-visible:shadow-focus border-transparent text-text-secondary not-disabled:hover:bg-surface-3 not-disabled:hover:text-text-primary'
     case 'quiet':
       return 'rounded-control focus-visible:shadow-focus border-transparent text-text-muted not-disabled:hover:bg-surface-3 not-disabled:hover:text-text-primary'
     case 'field':
-      return 'rounded-control focus-visible:shadow-focus border-border-control bg-surface-2 text-text-muted not-disabled:hover:border-border-strong'
+      return 'rounded-control focus-visible:shadow-focus border-border-control bg-surface-2 text-text-muted not-disabled:hover:border-border-control-hover'
     case 'destructive':
       return 'rounded-control focus-visible:shadow-focus-danger border-danger bg-surface-1 text-danger not-disabled:hover:bg-page'
     case 'ai':

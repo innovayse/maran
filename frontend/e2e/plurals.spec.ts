@@ -37,6 +37,7 @@ const dashboardWith = (count: number): Dashboard => {
       certificatesExpiringSoon: loaded(count),
       failedBackups: loaded(count),
       sitesOnEndOfLifePhp: loaded(0),
+      licenceExpiring: loaded(0),
       alertDelivery: ALERT_DELIVERY_OK,
       bannedAddresses: loaded(count),
       failedTasks: loaded(count),
