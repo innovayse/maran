@@ -88,8 +88,7 @@ public static class EndpointHarness
         await scope.ServiceProvider.GetRequiredService<AccountsDbContext>().Database.MigrateAsync();
         await scope.ServiceProvider.GetRequiredService<NotificationsDbContext>().Database.MigrateAsync();
 
-        // A created account is announced to Mail, which reads the server settings to decide whether the
-        // account's local-submission binding is owed (issue #518).
+        // Creating an account notifies Mail, which reads its own tables to bind local submission (issue #518).
         await scope.ServiceProvider.GetRequiredService<MailDbContext>().Database.MigrateAsync();
 
         // A refused two-factor code reads the latest clock reading from Monitoring (issue #150).

@@ -50,10 +50,20 @@ public sealed class AccountCreatedHandler
     /// <returns>A task that completes when the binding was pushed or its failure logged.</returns>
     public async Task HandleAsync(AccountCreated message, CancellationToken cancellationToken)
     {
-        var bound = await _submission.PublishAsSystemAsync(message.AccountId, cancellationToken);
-        if (!bound.IsSuccess)
+        // The creation is already committed: a binding that cannot be made now (agent down, a fault
+        // reading the mail ledger) is logged and left to the reconcile pass, never turned into a
+        // failed creation of an account that exists.
+        try
         {
-            LogBindFailed(_logger, message.AccountId, bound.Error!.Code, null);
+            var bound = await _submission.PublishAsSystemAsync(message.AccountId, cancellationToken);
+            if (!bound.IsSuccess)
+            {
+                LogBindFailed(_logger, message.AccountId, bound.Error!.Code, null);
+            }
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            LogBindFailed(_logger, message.AccountId, exception.GetType().Name, exception);
         }
     }
 }
