@@ -16,6 +16,9 @@ internal sealed class ScriptedLeaseServiceClient : ILeaseServiceClient
     /// <summary>Run while a request is in flight, so a test can change the world between the question and the answer.</summary>
     internal Action? WhileAsking { get; set; }
 
+    /// <summary>Awaited while a request is in flight, so a test can hold the service for as long as it wants; honours cancellation.</summary>
+    internal Func<CancellationToken, Task>? WhileAskingAsync { get; set; }
+
     /// <summary>The licence id of every request, in order.</summary>
     internal List<string> Requests { get; } = [];
 
@@ -27,12 +30,16 @@ internal sealed class ScriptedLeaseServiceClient : ILeaseServiceClient
     }
 
     /// <inheritdoc />
-    public Task<LeaseServiceAnswer> RequestAsync(string licenceId, CancellationToken cancellationToken)
+    public async Task<LeaseServiceAnswer> RequestAsync(string licenceId, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         Requests.Add(licenceId);
         WhileAsking?.Invoke();
+        if (WhileAskingAsync is not null)
+        {
+            await WhileAskingAsync(cancellationToken);
+        }
 
-        return Task.FromResult(Answer);
+        return Answer;
     }
 }

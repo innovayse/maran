@@ -1,3 +1,4 @@
+using Maran.Modules.Licensing.Options;
 using Maran.Modules.Licensing.Resources;
 using Maran.Modules.Licensing.Services;
 using Maran.Sdk.Alerts;
@@ -36,7 +37,8 @@ internal sealed class RenewalWorld : IDisposable
     internal LeaseRenewalWorker Worker { get; }
 
     /// <summary>Builds the world.</summary>
-    internal RenewalWorld()
+    /// <param name="installDeadlineSeconds">How long a requested pass may take, gate wait included.</param>
+    internal RenewalWorld(int installDeadlineSeconds = 12)
     {
         Harness = new RenewalHarness();
         Audit = new FlakyAuditWriter();
@@ -57,7 +59,9 @@ internal sealed class RenewalWorld : IDisposable
         Worker = new LeaseRenewalWorker(
             Harness.Renewer,
             _provider.GetRequiredService<IServiceScopeFactory>(),
-            NullLogger<LeaseRenewalWorker>.Instance);
+            NullLogger<LeaseRenewalWorker>.Instance,
+            new OptionsWrapper<LeaseServiceOptions>(
+                new LeaseServiceOptions { InstallRequestDeadlineSeconds = installDeadlineSeconds }));
     }
 
     /// <summary>The alert text, read from the module's embedded resources.</summary>

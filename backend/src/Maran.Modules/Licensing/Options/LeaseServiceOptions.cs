@@ -27,6 +27,9 @@ public sealed class LeaseServiceOptions
     /// <summary>The longest request deadline an operator can set, in seconds.</summary>
     public const int MaxRequestTimeoutSeconds = 120;
 
+    /// <summary>The longest install deadline an operator can set, in seconds; it must stay under a reverse proxy's read timeout.</summary>
+    public const int MaxInstallRequestDeadlineSeconds = 30;
+
     /// <summary>
     /// The licence service's origin: <c>https://host[:port]</c> and nothing after it. Checked by
     /// <c>PublicUrlRule</c> when a request is made, not at start-up, so a typo can never stop the panel booting
@@ -37,4 +40,12 @@ public sealed class LeaseServiceOptions
     /// <summary>How long one request may take before it is given up, in seconds.</summary>
     [Range(MinRequestTimeoutSeconds, MaxRequestTimeoutSeconds)]
     public int LeaseRequestTimeoutSeconds { get; set; } = 30;
+
+    /// <summary>
+    /// How long installing a licence waits for its own lease request, in seconds, counting any wait behind a
+    /// scheduled renewal. Shorter than the proxy's read timeout, so the install always answers; a request that
+    /// does not finish in time is reported as such and the schedule tries again.
+    /// </summary>
+    [Range(MinRequestTimeoutSeconds, MaxInstallRequestDeadlineSeconds)]
+    public int InstallRequestDeadlineSeconds { get; set; } = 12;
 }

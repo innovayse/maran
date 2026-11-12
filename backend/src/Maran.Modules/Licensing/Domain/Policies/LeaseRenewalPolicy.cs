@@ -142,7 +142,8 @@ public static class LeaseRenewalPolicy
             LeaseRenewalOutcome.SkippedOffline
                 or LeaseRenewalOutcome.SkippedNoLicence
                 or LeaseRenewalOutcome.NotConfigured
-                or LeaseRenewalOutcome.LicenceChanged => (IdleWait, IdleJitter),
+                or LeaseRenewalOutcome.LicenceChanged
+                or LeaseRenewalOutcome.RenewalInProgress => (IdleWait, IdleJitter),
             _ => (FailedWait, FailedJitter),
         };
 

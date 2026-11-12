@@ -60,7 +60,10 @@ public sealed class InstallLicenceCommandHandlerTests : IDisposable
             LicensingTestContext.StatusText(),
             journal,
             coverageSource,
-            cache);
+            new RecordingLeaseRenewalRequester(),
+            LicensingTestContext.ServerFacts(),
+            cache,
+            LicensingTestContext.ExpiryWarnings(clock));
 
         return (handler, auditWriter);
     }

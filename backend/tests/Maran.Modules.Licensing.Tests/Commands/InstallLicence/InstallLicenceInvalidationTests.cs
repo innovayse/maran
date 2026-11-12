@@ -42,7 +42,10 @@ public sealed class InstallLicenceInvalidationTests
             LicensingTestContext.StatusText(),
             new LicensingAuditJournal(new RecordingAuditWriter(), new FakeCurrentUser(isAdmin: true)),
             harness.Source,
-            harness.Cache);
+            new RecordingLeaseRenewalRequester(),
+            LicensingTestContext.ServerFacts(),
+            harness.Cache,
+            LicensingTestContext.ExpiryWarnings(harness.Clock));
     }
 
     /// <summary>Installing a licence is seen by the window's very next answer, with no waiting for the remembered one to age out.</summary>
@@ -94,5 +97,32 @@ public sealed class InstallLicenceInvalidationTests
         Assert.Equal(LeaseStandingKind.Fresh, fresh.Value!.Lease);
         Assert.Equal(CoverageHarness.Start.AddDays(14), fresh.Value.LeaseValidUntil);
         Assert.Equal(LeaseStandingKind.Missing, missing.Value!.Lease);
+    }
+
+    /// <summary>
+    /// Installing a licence far from its expiry over one that was about to expire leaves the answer without a warning;
+    /// installing one that is itself near its expiry still carries it. The pair proves the answer follows the new licence.
+    /// </summary>
+    [Fact]
+    public async Task The_install_answer_carries_the_expiry_warning_of_the_licence_just_installed_only()
+    {
+        using var harness = new CoverageHarness(ValidLeaseSource());
+        var handler = HandlerOver(harness);
+        var near = await handler.HandleAsync(
+            new InstallLicenceCommand(
+                LicenceEnvelopeBuilder.Build(TestKeys.RealPrivateKeyHex, expiry: CoverageHarness.Start.AddDays(3))),
+            CancellationToken.None);
+
+        var far = await handler.HandleAsync(
+            new InstallLicenceCommand(
+                LicenceEnvelopeBuilder.Build(TestKeys.RealPrivateKeyHex, expiry: CoverageHarness.Start.AddDays(365))),
+            CancellationToken.None);
+
+        Assert.Equal(3, near.Value!.ExpiryWarningDaysLeft);
+        Assert.NotNull(near.Value.ExpiryWarning);
+        Assert.NotNull(near.Value.ExpiryRenewalAdvice);
+        Assert.Null(far.Value!.ExpiryWarningDaysLeft);
+        Assert.Null(far.Value.ExpiryWarning);
+        Assert.Null(far.Value.ExpiryRenewalAdvice);
     }
 }

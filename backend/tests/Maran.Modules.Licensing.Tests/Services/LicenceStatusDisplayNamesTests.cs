@@ -161,6 +161,35 @@ public sealed class LicenceStatusDisplayNamesTests
         Assert.Equal(3, Enum.GetValues<LicenceStateKind>().Length);
     }
 
+    /// <summary>Every outcome of a lease request has its sentence in every language, and the server label and its fallback too.</summary>
+    [Fact]
+    public void Every_lease_request_outcome_and_the_server_id_label_have_text_in_every_language()
+    {
+        var problems = new List<string>();
+        foreach (var culture in Cultures)
+        {
+            using var _ = new CultureScope(culture);
+            var text = LicensingTestContext.StatusText();
+
+            foreach (var outcome in Enum.GetValues<LeaseRenewalOutcome>())
+            {
+                if (string.Equals(text.LeaseRequestNameFor(outcome), "LicenceLeaseRequest" + outcome, StringComparison.Ordinal))
+                {
+                    problems.Add($"Outcome '{outcome}' has no sentence in {culture}; the screen would print its key.");
+                }
+            }
+
+            if (string.Equals(text.ServerIdLabel(), "LicenceServerIdLabel", StringComparison.Ordinal)
+                || string.Equals(text.ServerIdUnavailable(), "LicenceServerIdUnavailable", StringComparison.Ordinal))
+            {
+                problems.Add($"The server id label or its fallback has no text in {culture}.");
+            }
+        }
+
+        Assert.Empty(problems);
+        Assert.Equal(12, Enum.GetValues<LeaseRenewalOutcome>().Length);
+    }
+
     /// <summary>Absent's own sentence does not read as an error — the ordinary-state requirement.</summary>
     /// <remarks>
     /// A narrow, mechanical check on a requirement that is otherwise a judgement call: it cannot prove

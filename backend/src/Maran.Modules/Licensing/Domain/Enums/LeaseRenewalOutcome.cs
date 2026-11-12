@@ -46,4 +46,11 @@ public enum LeaseRenewalOutcome
 
     /// <summary>The installed licence was replaced while the service was being asked, so its answer was dropped unwritten.</summary>
     LicenceChanged,
+
+    /// <summary>
+    /// A renewal pass was already running and did not finish within the deadline an install allows itself, so the
+    /// install asked nothing of the service. Nothing failed and the schedule is unaffected; the running pass decides
+    /// the lease.
+    /// </summary>
+    RenewalInProgress,
 }

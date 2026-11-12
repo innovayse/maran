@@ -100,4 +100,52 @@
   <data name="LicenceLeaseNotRequired" xml:space="preserve">
     <value>Аренда не нужна (офлайн-лицензия)</value>
   </data>
+  <data name="LicenceServerIdLabel" xml:space="preserve">
+    <value>ID сервера</value>
+  </data>
+  <data name="LicenceServerIdUnavailable" xml:space="preserve">
+    <value>недоступен</value>
+  </data>
+  <data name="LicenceLeaseRequestRenewed" xml:space="preserve">
+    <value>Аренда запрошена у сервиса лицензий и сохранена.</value>
+  </data>
+  <data name="LicenceLeaseRequestNotDue" xml:space="preserve">
+    <value>Сохранённая аренда ещё свежая, поэтому новая не запрашивалась.</value>
+  </data>
+  <data name="LicenceLeaseRequestSkippedOffline" xml:space="preserve">
+    <value>Это офлайн-лицензия, ей не нужна аренда, поэтому она не запрашивалась.</value>
+  </data>
+  <data name="LicenceLeaseRequestSkippedNoLicence" xml:space="preserve">
+    <value>Действующая лицензия не установлена, поэтому аренда не запрашивалась.</value>
+  </data>
+  <data name="LicenceLeaseRequestNotConfigured" xml:space="preserve">
+    <value>Адрес сервиса лицензий настроен неверно, поэтому аренда не запрашивалась.</value>
+  </data>
+  <data name="LicenceLeaseRequestUnreachable" xml:space="preserve">
+    <value>Сервис лицензий недоступен. Панель повторит попытку позже.</value>
+  </data>
+  <data name="LicenceLeaseRequestRefused" xml:space="preserve">
+    <value>Сервис лицензий не выдал аренду для этой лицензии. Панель повторит попытку позже.</value>
+  </data>
+  <data name="LicenceLeaseRequestAnswerRejected" xml:space="preserve">
+    <value>Сервис лицензий ответил арендой, которую эта панель не может использовать. Панель повторит попытку позже.</value>
+  </data>
+  <data name="LicenceLeaseRequestNotNewer" xml:space="preserve">
+    <value>Сервис лицензий вернул аренду не новее сохранённой, поэтому она не изменена.</value>
+  </data>
+  <data name="LicenceLeaseRequestWriteFailed" xml:space="preserve">
+    <value>Аренда получена, но её не удалось сохранить на этом сервере. Панель повторит попытку позже.</value>
+  </data>
+  <data name="LicenceLeaseRequestLicenceChanged" xml:space="preserve">
+    <value>Лицензия была заменена, пока запрашивалась аренда, поэтому ответ отброшен.</value>
+  </data>
+  <data name="LicenceLeaseRequestRenewalInProgress" xml:space="preserve">
+    <value>Запрос аренды уже выполняется, поэтому результат пока неизвестен. Панель продолжит попытки по своему расписанию.</value>
+  </data>
+  <data name="LicenceExpiryWarning" xml:space="preserve">
+    <value>Срок действия установленной лицензии истекает {0} (осталось дней: {1}).</value>
+  </data>
+  <data name="LicenceExpiryRenewalAdvice" xml:space="preserve">
+    <value>Как продлить: получите лицензию для этого сервера на сайте маркетплейса ещё раз или установите новый файл лицензии. Дополнительные модули перестанут работать после истечения лицензии; модули, входящие в панель, это не затрагивает.</value>
+  </data>
 </root>

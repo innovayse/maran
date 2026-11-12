@@ -27,7 +27,12 @@ internal sealed class CoverageHarness : IDisposable
         Clock = new MutableClock(Start);
         Lease = lease;
         var options = new Microsoft.Extensions.Options.OptionsWrapper<LicenceStorageOptions>(
-            new LicenceStorageOptions { LicenceFilePath = LicenceFilePath });
+            new LicenceStorageOptions
+            {
+                LicenceFilePath = LicenceFilePath,
+                ExpiryAnnouncementFilePath = Path.Combine(_directory, "licence-expiry-announced.json"),
+            });
+        Announcements = new FileLicenceExpiryAnnouncementStore(options);
         RawText = new FileLicenceRawTextSource(options);
         var verifier = new LicenceVerifier(
             new Ed25519LicenceSignatureVerifier(TestKeys.TrustedKey),
@@ -46,6 +51,9 @@ internal sealed class CoverageHarness : IDisposable
 
     /// <summary>The licence file reader.</summary>
     internal FileLicenceRawTextSource RawText { get; }
+
+    /// <summary>The store of what the operator was told about the expiry, a real file in the harness directory.</summary>
+    internal FileLicenceExpiryAnnouncementStore Announcements { get; }
 
     /// <summary>The uncached reader.</summary>
     internal LicenceCoverageSource Source { get; }

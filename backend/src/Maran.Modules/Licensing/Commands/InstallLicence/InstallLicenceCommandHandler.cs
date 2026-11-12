@@ -2,6 +2,7 @@ using Maran.Modules.Licensing.Common;
 using Maran.Modules.Licensing.Domain.Enums;
 using Maran.Modules.Licensing.Domain.ValueObjects;
 using Maran.Modules.Licensing.Interfaces;
+using Maran.Modules.Licensing.Models;
 using Maran.Modules.Licensing.Resources;
 using Maran.Modules.Licensing.Services;
 using Maran.Sdk.Contracts;
@@ -51,6 +52,19 @@ namespace Maran.Modules.Licensing.Commands.InstallLicence;
 /// silently implied away.
 /// </para>
 /// <para>
+/// <b>Installing asks for a lease at once, after the install lock is released.</b> A licence that needs a lease
+/// covers nothing until one is stored, and the schedule would not ask for up to an hour (a day when it replaces
+/// another licence). So once the new licence is on disk and the lock is free,
+/// <see cref="Interfaces.ILeaseRenewalRequester.RequestNowAsync"/> runs the renewal pass the schedule runs: the same
+/// serialisation, journal entries, run of failures and alert, and the schedule's next wait follows its outcome.
+/// It must run OUTSIDE the lock because storing a lease takes the same lock. A pass that fails never fails the
+/// install (the licence is installed; the answer says what the request amounted to), and an offline licence makes
+/// no request at all. The request is about the installed licence's id and is bounded by a deadline well under a
+/// reverse proxy's read timeout, so the answer comes in time even when a scheduled renewal holds the way or the
+/// service is slow; a request that ran out of time is reported as such and the schedule tries again. The request sends what the scheduled one sends, the licence id and nothing else
+/// (rules/security.md item 10, fifth exception).
+/// </para>
+/// <para>
 /// <b>What the response and the audit entry never carry</b> — threat note §5: the raw signed bytes
 /// and the Ed25519 signature are never echoed back and never journalled; on success this handler
 /// returns the same <see cref="LicenceStatusDto"/> shape the read-only status route already returns —
@@ -90,8 +104,17 @@ public sealed class InstallLicenceCommandHandler
     /// <summary>Judges the new licence's lease for the answer, uncached.</summary>
     private readonly LicenceCoverageSource _coverageSource;
 
+    /// <summary>Asks for the new licence's lease at once.</summary>
+    private readonly ILeaseRenewalRequester _leaseRequester;
+
+    /// <summary>Reads this server's id and the claim link, for the answer.</summary>
+    private readonly LicenceServerFactsSource _serverFacts;
+
     /// <summary>Makes the licence window forget its remembered verdict.</summary>
     private readonly ILicenceCoverageInvalidator _coverageInvalidator;
+
+    /// <summary>Says whether the licence just installed is already close to its expiry.</summary>
+    private readonly LicenceExpiryWarningSource _expiryWarnings;
 
     /// <summary>Creates the handler.</summary>
     /// <param name="rawTextSource">Where the currently installed licence's raw text, if any, is read from.</param>
@@ -101,7 +124,10 @@ public sealed class InstallLicenceCommandHandler
     /// <param name="displayNames">Resolves the operator-facing sentence for the newly installed status.</param>
     /// <param name="auditJournal">Writes this module's audit entries.</param>
     /// <param name="coverageSource">Judges the new licence's lease for the answer, uncached.</param>
+    /// <param name="leaseRequester">Asks for the new licence's lease at once, once the install lock is released.</param>
+    /// <param name="serverFacts">Reads this server's id and the claim link, for the answer.</param>
     /// <param name="coverageInvalidator">Makes the licence window forget its remembered verdict once the new licence is on disk.</param>
+    /// <param name="expiryWarnings">Says whether the licence just installed is already close to its expiry.</param>
     public InstallLicenceCommandHandler(
         ILicenceRawTextSource rawTextSource,
         LicenceVerifier verifier,
@@ -110,7 +136,10 @@ public sealed class InstallLicenceCommandHandler
         LicenceStatusDisplayNames displayNames,
         LicensingAuditJournal auditJournal,
         LicenceCoverageSource coverageSource,
-        ILicenceCoverageInvalidator coverageInvalidator)
+        ILeaseRenewalRequester leaseRequester,
+        LicenceServerFactsSource serverFacts,
+        ILicenceCoverageInvalidator coverageInvalidator,
+        LicenceExpiryWarningSource expiryWarnings)
     {
         _rawTextSource = rawTextSource;
         _verifier = verifier;
@@ -119,7 +148,10 @@ public sealed class InstallLicenceCommandHandler
         _displayNames = displayNames;
         _auditJournal = auditJournal;
         _coverageSource = coverageSource;
+        _leaseRequester = leaseRequester;
+        _serverFacts = serverFacts;
         _coverageInvalidator = coverageInvalidator;
+        _expiryWarnings = expiryWarnings;
     }
 
     /// <summary>Verifies the uploaded licence text and installs it only when it verifies <c>Valid</c>.</summary>
@@ -133,12 +165,28 @@ public sealed class InstallLicenceCommandHandler
         InstallLicenceCommand command,
         CancellationToken cancellationToken)
     {
-        return await _installLock.RunExclusiveAsync(
+        var installed = await _installLock.RunExclusiveAsync(
             token =>
             {
                 return VerifyThenInstallAsync(command, token);
             },
             cancellationToken);
+
+        if (!installed.IsSuccess)
+        {
+            return Result<LicenceStatusDto>.Fail(installed.Error!);
+        }
+
+        // The lock is free again, which the request needs: storing a lease takes it. The request never throws
+        // for what the network or the disk does, so a licence that is installed is never reported as failed.
+        // Everything below describes THIS install's licence, captured here: a second install that replaces it in the
+        // meantime is judged in its own answer, not lent to this one.
+        var valid = installed.Value!;
+        var request = await _leaseRequester.RequestNowAsync(valid.Licence.Id.Value, cancellationToken);
+        var lease = await _coverageSource.LeaseStandingForAsync(valid.Licence, cancellationToken);
+        var server = await _serverFacts.ReadAsync(cancellationToken);
+
+        return Result<LicenceStatusDto>.Ok(ToDto(valid, lease, request.Outcome, server));
     }
 
     /// <summary>
@@ -147,7 +195,8 @@ public sealed class InstallLicenceCommandHandler
     /// </summary>
     /// <param name="command">The uploaded licence text, and who is asking.</param>
     /// <param name="cancellationToken">Cancellation token for the sequence.</param>
-    private async Task<Result<LicenceStatusDto>> VerifyThenInstallAsync(
+    /// <returns>The licence now installed, or one of the five refusals.</returns>
+    private async Task<Result<LicenceStatus.Valid>> VerifyThenInstallAsync(
         InstallLicenceCommand command,
         CancellationToken cancellationToken)
     {
@@ -158,7 +207,7 @@ public sealed class InstallLicenceCommandHandler
             var reason = ReasonOf(status);
             await RecordAsync(command, succeeded: false, SubjectForRefusal(reason), cancellationToken);
 
-            return Result<LicenceStatusDto>.Fail(Error.Of(CodeFor(reason), ErrorType.Validation));
+            return Result<LicenceStatus.Valid>.Fail(Error.Of(CodeFor(reason), ErrorType.Validation));
         }
 
         // Read the PREVIOUS licence's id, if any, before it is replaced — safe to journal (LicenceId's
@@ -199,9 +248,7 @@ public sealed class InstallLicenceCommandHandler
             SubjectForSuccess(valid, previousId),
             cancellationToken);
 
-        var coverage = await _coverageSource.ReadAsync(cancellationToken);
-
-        return Result<LicenceStatusDto>.Ok(ToDto(valid, coverage.Lease));
+        return Result<LicenceStatus.Valid>.Ok(valid);
     }
 
     /// <summary>Re-verifies whatever was installed BEFORE this write, so its id can be journalled if valid.</summary>
@@ -310,14 +357,22 @@ public sealed class InstallLicenceCommandHandler
 
     /// <summary>Maps the newly installed, verified licence to the same wire shape the read-only status route returns.</summary>
     /// <param name="valid">The newly verified licence.</param>
-    /// <param name="lease">The standing of its lease, judged after the install.</param>
+    /// <param name="lease">The standing of its lease, judged after the install and the request for a lease.</param>
+    /// <param name="leaseRequest">What the request for a lease, made by this install, amounted to.</param>
+    /// <param name="server">This server's id and the link to the claim page.</param>
     /// <returns>
     /// The DTO — never a copy of the uploaded request body (threat note §5). Its sentence also says
     /// what decides whether the licence is tied to this server: the licence's own `server` claim,
     /// which a licence naming no server simply does not carry.
     /// </returns>
-    private LicenceStatusDto ToDto(LicenceStatus.Valid valid, LeaseStanding lease)
+    private LicenceStatusDto ToDto(
+        LicenceStatus.Valid valid,
+        LeaseStanding lease,
+        LeaseRenewalOutcome leaseRequest,
+        LicenceServerFacts server)
     {
+        var warning = _expiryWarnings.For(valid);
+
         return new LicenceStatusDto(
             State: LicenceStateKind.Valid,
             LicenceId: valid.Licence.Id.Value,
@@ -336,6 +391,13 @@ public sealed class InstallLicenceCommandHandler
             IsOffline: valid.Licence.IsOffline,
             Lease: lease.Kind,
             LeaseDisplayName: _displayNames.LeaseNameFor(lease.Kind),
-            LeaseValidUntil: lease.ValidUntil);
+            LeaseValidUntil: lease.ValidUntil,
+            ServerId: server.ServerId,
+            ClaimUrl: server.ClaimUrl,
+            LeaseRequest: leaseRequest,
+            LeaseRequestDisplayName: _displayNames.LeaseRequestNameFor(leaseRequest),
+            ExpiryWarningDaysLeft: warning?.DaysLeft,
+            ExpiryWarning: warning is null ? null : _displayNames.ExpiryWarningFor(warning),
+            ExpiryRenewalAdvice: warning is null ? null : _displayNames.ExpiryRenewalAdvice());
     }
 }
