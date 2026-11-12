@@ -153,6 +153,12 @@ local_submit_outcome() {
   echo unknown
 }
 
+# local_submit_submit_table: print the lookup table item of Postfix's `authorized_submit_users` (type:path),
+# which the setting lists after the names `root` and `$mail_owner`; nothing when there is none.
+local_submit_submit_table() {
+  postconf -h authorized_submit_users 2>/dev/null | tr ',' '\n' | sed 's/^[[:space:]]*//' | grep -E '^[a-z]+:/' | head -n 1 || true
+}
+
 # local_submit_admit_users: Postfix's own gate, `authorized_submit_users`, admits only the users the agent
 # listed, and it runs before the rule this part judges. The three users here are the rule's subjects, so
 # they are admitted at Postfix and the rule alone decides what happens to their mail. The table is the one
@@ -160,11 +166,8 @@ local_submit_outcome() {
 # back by local_submit_restore.
 local_submit_admit_users() {
   local specification table user
-  specification="$(postconf -h authorized_submit_users 2>/dev/null || true)"
-  case "$specification" in
-    *:/*) ;;
-    *) return 0 ;;
-  esac
+  specification="$(local_submit_submit_table)"
+  [ -n "$specification" ] || return 0
   table="${specification#*:}"
   [ -f "$table" ] || : > "$table"
   for user in "$LOCAL_SUBMIT_USER_OWN" "$LOCAL_SUBMIT_USER_OTHER" "$LOCAL_SUBMIT_USER_UNLISTED"; do
@@ -201,16 +204,12 @@ local_submit_restore() {
       rm -f -- "${LOCAL_SUBMIT_DIRECTORY:?}/${map:?}"
     fi
   done
-  specification="$(postconf -h authorized_submit_users 2>/dev/null || true)"
-  case "$specification" in
-    *:/*)
-      if [ -e "${backup:?}/authorized_submit_users" ]; then
-        cp -p -- "${backup:?}/authorized_submit_users" "${specification#*:}"
-        postmap "$specification" >/dev/null 2>&1 || true
-        postfix reload >/dev/null 2>&1 || true
-      fi
-      ;;
-  esac
+  specification="$(local_submit_submit_table)"
+  if [ -n "$specification" ] && [ -e "${backup:?}/authorized_submit_users" ]; then
+    cp -p -- "${backup:?}/authorized_submit_users" "${specification#*:}"
+    postmap "$specification" >/dev/null 2>&1 || true
+    postfix reload >/dev/null 2>&1 || true
+  fi
   rm -rf -- "${backup:?}"
 }
 
@@ -230,10 +229,9 @@ assert_local_submission_is_bound_to_the_account() {
     id "$user" >/dev/null 2>&1 || useradd -m -s /bin/sh "$user"
   done
   mkdir -p "$LOCAL_SUBMIT_DIRECTORY"
-  submit_table_specification="$(postconf -h authorized_submit_users 2>/dev/null || true)"
-  case "$submit_table_specification" in
-    *:/*) [ ! -f "${submit_table_specification#*:}" ] || cp -p -- "${submit_table_specification#*:}" "${backup}/authorized_submit_users" ;;
-  esac
+  submit_table_specification="$(local_submit_submit_table)"
+  [ -z "$submit_table_specification" ] || [ ! -f "${submit_table_specification#*:}" ] \
+    || cp -p -- "${submit_table_specification#*:}" "${backup}/authorized_submit_users"
   for map in $LOCAL_SUBMIT_MAPS; do
     [ ! -e "${LOCAL_SUBMIT_DIRECTORY}/${map}" ] || cp -p -- "${LOCAL_SUBMIT_DIRECTORY}/${map}" "${backup}/${map}"
   done
