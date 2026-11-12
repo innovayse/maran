@@ -130,6 +130,10 @@ const paintOf = async (page: Page, control: Control): Promise<Painted> => {
 const open = async (page: Page, theme: string): Promise<void> => {
   await page.goto(`/e2e/fixtures/control-contrast-harness.html?theme=${theme}`)
   await expect(page.getByRole('region', { name: 'Kit controls' })).toBeVisible()
+  // The kit eases colour and shadow changes; a style read while one is running measures a colour that
+  // is on its way, which is the figure of a slow machine and not of the control. The measurement is of
+  // the end state, so the easing is switched off for it.
+  await page.addStyleTag({ content: '*, *::before, *::after { transition: none !important; animation: none !important; }' })
 }
 
 for (const theme of THEMES) {

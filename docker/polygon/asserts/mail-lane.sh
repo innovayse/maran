@@ -91,6 +91,18 @@ rm -rf "$MARAN_MAIL_CONFIG_DIR"
 # installed units are, and the step refuses a host whose mail daemons already run (they would be an
 # operator's). This lane stands for the host with the daemons installed and idle, so it records them stopped
 # and disabled first.
+# Rspamd is in no RHEL-family base repository and the installer adds no package source (rules/security.md
+# item 10), so a host of that family has it only because the operator supplied the vendor's repository. This
+# lane is that operator: it supplies it, as a test fixture, before the step looks for the package.
+if [ "$MARAN_OS_FAMILY" = rhel ] && ! dnf -q list --available rspamd >/dev/null 2>&1; then
+  major="${VERSION_ID%%.*}"
+  curl -fsSL -o /etc/yum.repos.d/rspamd.repo "https://rspamd.com/rpm-stable/centos-${major}/rspamd.repo" \
+    || lane_fail "the vendor repository file for Rspamd could not be fetched."
+  rpm --import https://rspamd.com/rpm-stable/gpg.key \
+    || lane_fail "the vendor repository's signing key could not be imported."
+  dnf -q list --available rspamd >/dev/null 2>&1 \
+    || lane_fail "the vendor repository does not carry rspamd for ${ID} ${VERSION_ID}."
+fi
 for mail_unit in $(mail_units); do
   systemctl stop "${mail_unit}.service"
   systemctl disable "${mail_unit}.service"
