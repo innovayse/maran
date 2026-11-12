@@ -20,7 +20,7 @@ use crate::safe_write::model::config_file::ConfigFile;
 ///
 /// An empty map is the closed state: the rule finds no account for any uid and
 /// refuses the message (an empty fan-out map only means no alias fans out). Existing maps are never touched, for the reason
-/// [`seed_mail_maps`] gives.
+/// `seed_mail_maps` gives.
 pub(crate) fn seed_local_submission_maps(
     host: &dyn MailHost,
     distro: &dyn DistroAdapter,

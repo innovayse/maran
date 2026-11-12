@@ -440,6 +440,7 @@ RUN bash -c 'set -euo pipefail; \
       zypper --non-interactive install --no-recommends openssh-server openssh-clients $(mysql_packages_for_family); \
       getent passwd mysql >/dev/null || { echo "85-mysql.sh: mysql_packages_for_family produced no MariaDB SERVER package" >&2; exit 1; }; \
       install -d -o mysql -g mysql -m 0755 /run/mysqld /var/lib/mysql; \
+      install -d -o mysql -g mysql -m 0750 /var/lib/mysql-files; \
       mariadb-install-db --user=mysql --datadir=/var/lib/mysql >/dev/null; \
       ssh-keygen -A; \
       install -d -m 0755 /run/sshd; \

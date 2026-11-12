@@ -18,13 +18,13 @@ use crate::mail::seed_local_submission_maps::seed_local_submission_maps;
 /// every message while a map it reads is missing. Seeding it empty at the agent's
 /// start closes that window without waiting for the panel's next push. A host that
 /// never enabled mail (no accounts map) is left alone, and a map that exists is
-/// never touched, for the reason [`seed_mail_maps`] gives.
+/// never touched, for the reason [`seed_mail_maps()`](crate::mail::seed_mail_maps()) gives.
 ///
 /// Answers whether mail was found enabled.
 ///
 /// # Errors
 ///
-/// The errors of [`seed_mail_maps`].
+/// The errors of [`seed_mail_maps()`](crate::mail::seed_mail_maps()).
 pub fn seed_missing_local_submission_maps(
     host: &dyn MailHost,
     distro: &dyn DistroAdapter,

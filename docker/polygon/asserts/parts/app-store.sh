@@ -195,7 +195,7 @@ assert_an_app_installs_and_uninstalls_through_the_package_units() {
 # none is. `dnf module list --enabled` exits non-zero and prints "No matching Modules" when there is
 # none, which is the empty answer and not a failure here.
 nodejs_enabled_stream_lines() {
-  dnf module list --enabled nodejs 2>&1 | { grep -E '^nodejs[[:space:]].*\[e\]' || true; }
+  { dnf module list --enabled nodejs 2>&1 || true; } | { grep -E '^nodejs[[:space:]].*\[e\]' || true; }
 }
 
 # assert_a_nodejs_module_stream_installs_once_and_uninstalls_clean: issue #532, the alma9 half.

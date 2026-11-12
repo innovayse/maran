@@ -21,7 +21,7 @@ use crate::safe_write::model::{Reload, Validator};
 /// Brings the table the port 25 service refuses to the host's present addresses, and
 /// has a RUNNING Postfix read it.
 ///
-/// The table is rendered by the same [`render_self_clients`] that `enable_mail`
+/// The table is rendered by the same `render_self_clients` that `enable_mail`
 /// renders it with, from the same [`HostAddresses`] reading the firewall's address
 /// sets are filled from, so the two layers of the port-25 lockdown follow one
 /// host. Only that one file is written, through the config-write protocol, and the
