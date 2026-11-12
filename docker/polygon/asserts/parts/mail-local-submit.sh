@@ -210,6 +210,24 @@ local_submit_diagnose() {
   } >&2 || true
 }
 
+# local_submit_wait_for_the_maps: Rspamd loads the planted maps asynchronously after its reload, and a message
+# that reaches it first is judged against the ones it had (the agent's empty tables). The probe is a message
+# from the first user naming more recipients than the rule allows: once the planted accounts map is loaded the
+# rule finds the account and refuses the recipient count, which counts nothing against the hourly limit, and
+# before that it discards the sender as unknown. It waits for the first answer and fails by name otherwise.
+local_submit_wait_for_the_maps() {
+  local attempt marker result=""
+  for attempt in $(seq 1 40); do
+    marker="lsub-ready-$$-${attempt}"
+    local_submit_send "$LOCAL_SUBMIT_USER_OWN" "${LOCAL_SUBMIT_USER_OWN}@one.test" one.test "$marker" "" 101
+    result="$(local_submit_outcome "$marker" 2>/dev/null)"
+    [ "$result" != rejected-recipients ] || return 0
+    sleep 1
+  done
+  local_submit_diagnose "lsub-ready-$$-40"
+  fail "Rspamd never loaded the planted accounts map: a probe of the first user was ${result}, not refused for its recipient count"
+}
+
 # local_submit_restore <backup dir>: put the maps back as they were, remove the ones that did not exist.
 local_submit_restore() {
   local backup="$1" map specification
@@ -252,6 +270,7 @@ assert_local_submission_is_bound_to_the_account() {
     [ ! -e "${LOCAL_SUBMIT_DIRECTORY}/${map}" ] || cp -p -- "${LOCAL_SUBMIT_DIRECTORY}/${map}" "${backup}/${map}"
   done
   local_submit_plant
+  local_submit_wait_for_the_maps
 
   # 1. Accepting control: own account, own domain, under the limit.
   marker="lsub-own-$$-$RANDOM"
