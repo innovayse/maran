@@ -531,6 +531,16 @@ RUN zypper --non-interactive install --no-recommends at \
     && test -d /var/spool/atjobs \
     && test -x /usr/bin/at && test -x /usr/bin/atq && test -x /usr/bin/atrm
 
+# The mail spool directory, which the account-deletion suites plant a customer's mailbox in. The base
+# image has no mail package, and on this family it is a mail package that brings the directory: with
+# none installed neither `/var/spool/mail` (the real directory, which is what the adapter answers) nor
+# `/var/mail` exists. A host that runs mail has both, `/var/mail` a link to the real one, and that is
+# the layout made here so the suites meet the host they are about. UNVERIFIED: the mode 1777 is
+# the one a mail package gives it; confirm with `rpm -ql postfix | grep spool/mail` in the pinned image.
+RUN install -d -m 1777 /var/spool/mail \
+    && ln -s spool/mail /var/mail \
+    && test "$(readlink -f /var/mail)" = /var/spool/mail
+
 # The tmpfiles snippet that builds /run/maran-host, the mount points the agent unit binds the host's
 # shared temporary directories onto. The directory-layout assertion applies THIS file with the
 # family's real systemd-tmpfiles and stats the result, not a mkdir invented here.
