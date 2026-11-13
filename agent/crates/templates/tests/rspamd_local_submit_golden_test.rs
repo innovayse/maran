@@ -121,6 +121,16 @@ fn the_rule_fails_closed_and_charges_only_what_fits_the_limit() {
     assert!(rule.contains("priority = 100"));
 }
 
+/// The signing selector map must exist before the first message (issue #591): the rule
+/// creates it while the configuration loads, under the name the DKIM condition reads.
+#[test]
+fn the_selector_map_is_created_at_load_under_the_name_the_condition_reads() {
+    let rule = RspamdLocalSubmit::lua_rule();
+    let condition = RspamdDkimSigning::lua_condition();
+    assert!(rule.contains("package.loaded['maran_dkim_selectors']"));
+    assert!(condition.contains("local CACHE = 'maran_dkim_selectors'"));
+}
+
 /// A settings section that is missing or incomplete must register a stand-in that
 /// refuses the local road, never skip the registration (a rule that is not
 /// registered examines nothing and the local road would be accepted unexamined).
