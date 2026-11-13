@@ -333,6 +333,7 @@ assert_port_25_local_mail_is_signed_and_charged_for_what_it_is() {
       {
         echo "port25 case 6a: what Rspamd and the signing configuration held for ${marker}:"
         echo "--- dkim_signing as Rspamd reads it:"; rspamadm configdump -j dkim_signing 2>&1 | head -n 30
+        echo "--- who may reach the key:"; ls -ld /etc/maran /etc/maran/mail "$(dirname "$(printf '%s\n' "$planted_files" | sed -n 1p)")" 2>&1; id _rspamd 2>&1
         echo "--- selector map and key:"; cat "$(printf '%s\n' "$planted_files" | sed -n 2p)" 2>&1; ls -l "$(printf '%s\n' "$planted_files" | sed -n 1p)" 2>&1
         echo "--- rspamd log, lines about signing, the rule or the message:"
         grep -hiE "dkim|maran|${marker}|selector" /var/log/rspamd/rspamd.log 2>/dev/null | grep -v "rspamd.com" | tail -n 30

@@ -589,17 +589,6 @@ end
 
 local MODULE = 'maran_local_submit'
 
--- The DKIM condition (maran_dkim_condition.lua) reads the signing selector map. It is
--- evaluated afresh for every message, so a map it created itself would be created while
--- the first message is being scanned and would not have loaded yet: that message would
--- go out unsigned. The map is created here instead, while the configuration loads, and
--- handed over under the name the condition looks it up by.
-local dkim_options = rspamd_config:get_all_opt('dkim_signing')
-if dkim_options and dkim_options.selector_map and package.loaded['maran_dkim_selectors'] == nil then
-  package.loaded['maran_dkim_selectors'] = require('lua_maps').map_add_from_ucl(
-    dkim_options.selector_map, 'map', 'Maran DKIM selectors')
-end
-
 -- The A-label spelling of an address's domain (M.to_ascii_domain), or nil.
 local function domain_of(address)
   if address and address.domain and address.domain ~= '' then
