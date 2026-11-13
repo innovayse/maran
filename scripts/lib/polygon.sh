@@ -829,12 +829,12 @@ baseline declares for $lanes runs of every suite — reconciled PER LANE, never 
 # route around it.
 #
 # What refuses the trap this axis exists for is NOT the line anchor, which never contributed
-# anything: it is the word `Running` and the `(<dir>/deps/<suite>-<hex>)` tail. A container that
+# anything: it is the word `Running` and the `(<dir>/(deps|out)/<suite>-<hex>)` tail (`out` is the layout of cargo 1.100). A container that
 # executed nothing exits 0 printing `Finished` and naming every suite executable; `Finished` is a
 # different word, it does not match, and the binary named in the tail must be this suite's own.
 polygon_banner_seen() {
   local log="$1" suite="$2"
-  grep -qE "[[:space:]]Running .*tests/$suite\.rs \(\S*deps/$suite-[0-9a-f]+\)" "$log"
+  grep -qE "[[:space:]]Running .*tests/$suite\.rs \(\S*/(deps|out)/$suite-[0-9a-f]+\)" "$log"
 }
 
 # polygon_selftest_presence: the POSITIVE and NEGATIVE control for polygon_banner_seen.
@@ -849,16 +849,21 @@ polygon_selftest_presence() {
   sample="$(mktemp)"
   printf '%s\n' \
     'test something_in_the_previous_suite ...      Running tests/selftest_spliced_on_a_real_host.rs (/tmp/target/debug/deps/selftest_spliced_on_a_real_host-0123456789abcdef)' \
+    '     Running tests/selftest_newlayout_on_a_real_host.rs (/tmp/target/debug/build/pkg/0123456789abcdef/out/selftest_newlayout_on_a_real_host-0123456789abcdef)' \
     '     Finished tests/selftest_absent_on_a_real_host.rs (/tmp/target/debug/deps/selftest_absent_on_a_real_host-0123456789abcdef)' \
     >"$sample"
-  polygon_banner_seen "$sample" selftest_spliced_on_a_real_host && accepted=1
+  if polygon_banner_seen "$sample" selftest_spliced_on_a_real_host &&
+    polygon_banner_seen "$sample" selftest_newlayout_on_a_real_host; then
+    accepted=1
+  fi
   polygon_banner_seen "$sample" selftest_absent_on_a_real_host || refused=1
   rm -f "$sample"
 
   if [ "$accepted" -ne 1 ]; then
     echo "SELF-TEST FAILED: the presence axis was handed a banner spliced into a test line — the" >&2
-    echo "                  shape a real ubuntu24 run produced for three of eleven suites — and" >&2
-    echo "                  did not see it. It would report a suite that ran as never started." >&2
+    echo "                  shape a real ubuntu24 run produced for three of eleven suites — and a" >&2
+    echo "                  banner in the cargo 1.100 build layout (.../out/<suite>-<hex>), and did" >&2
+    echo "                  not see both. It would report a suite that ran as never started." >&2
     return 1
   fi
   if [ "$refused" -ne 1 ]; then

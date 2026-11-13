@@ -578,7 +578,7 @@ if stack != "spa":
 
 rows = []
 if stack == "rust":
-    # The build directory is NOT matched at all, only the `deps/<binary>-<hash>` tail. It was once
+    # The build directory is NOT matched at all, only the `(deps|out)/<binary>-<hash>` tail. It was once
     # anchored on a literal `target/`, and that is exactly the shape of check this repository keeps
     # paying for: a run with CARGO_TARGET_DIR elsewhere — which every polygon lane and every snapshot
     # lane uses, so that no lane can write into the tree's own agent/target — prints an absolute path
@@ -609,7 +609,15 @@ if stack == "rust":
     # measured shape — a last-banner-wins reader files the current target's result under the next
     # target's name and shifts every row by one. Measured on the ubuntu24 log: account_deletion's two
     # tests were filed under backup, backup's eleven under cron, and so on down the run.
-    running = re.compile(r"\s+Running\s+(.*?)\s+\(\S*deps/([A-Za-z0-9_]+)-[0-9a-f]+\)(?=\s|$)")
+    #
+    # The executable's directory is `deps` OR `out`, and the second is not a precaution. cargo 1.100
+    # (the CI `stable` of 2026-11) moved test executables from `<target>/debug/deps/<bin>-<hex>` to
+    # `<target>/debug/build/<package>/<hash>/out/<bin>-<hex>` (the new build-dir layout). The banner
+    # kept its words and changed only that directory, so a pattern reading `deps/` alone matched no
+    # unittest and no integration banner at all — only the `Doc-tests` banners, which carry no path
+    # — and the whole workspace parsed as five doc-test rows and every other target VANISHED, while
+    # the suite underneath passed. Measured on rustc 1.100.0 against 1.98.0, the local toolchain.
+    running = re.compile(r"\s+Running\s+(.*?)\s+\(\S*/(?:deps|out)/([A-Za-z0-9_]+)-[0-9a-f]+\)(?=\s|$)")
     doctests = re.compile(r"\s+Doc-tests\s+(\S+)(?=\s|$)")
     result = re.compile(
         r"^test result: \w+\. (\d+) passed; (\d+) failed; (\d+) ignored;"
@@ -856,6 +864,9 @@ suite_selftest_parsers() {
         'test result: FAILED. 2 passed; 2 failed; 3 ignored; 0 measured; 0 filtered out' \
         $'   \033[1m\033[92mRunning\033[0m unittests src/lib.rs (/tmp/x/deps/selftest_coloured-0123456789abcdef)' \
         $'test result: \033[32mok\033[0m. 4 passed; 0 failed; 5 ignored; 0 measured; 0 filtered out' \
+        '   Running unittests src/lib.rs (/tmp/x/build/selftest_newlayout/0123456789abcdef/out/selftest_newlayout-0123456789abcdef)' \
+        $'test result: \033[32mok\033[0m. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out' \
+        'test result: ok. 6 passed; 0 failed; 7 ignored; 0 measured; 0 filtered out' \
         >"$sample"
       # The second line is the rust lane's answer to the theory argument: libtest puts
       # `- should panic` between the name and the marker, so a fixture without it would let the
@@ -1047,7 +1058,9 @@ selftest/control.spec.ts:22 [chromium] a planted flaky case (flaky: passed on re
   if [ "$stack" = rust ]; then
     local expected
     expected="selftest_control [unittests src/lib.rs]	2	2	3
-selftest_spliced [tests/selftest_spliced.rs]	4	0	5"
+selftest_spliced [tests/selftest_spliced.rs]	4	0	5
+selftest_coloured [unittests src/lib.rs]	1	0	1
+selftest_newlayout [unittests src/lib.rs]	6	0	7"
     if [ "$rows" != "$expected" ]; then
       rm -f "$sample" "$sample.json"
       echo "SELF-TEST FAILED: the rust totals parser was handed two targets, the second announced" >&2
