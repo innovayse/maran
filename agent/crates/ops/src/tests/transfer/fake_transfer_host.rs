@@ -18,6 +18,7 @@ use std::sync::Mutex;
 
 use maran_agent_core::command_outcome::CommandOutcome;
 use maran_agent_core::utils::call_class::CallClass;
+use maran_agent_core::utils::host_addresses_error::HostAddressesError;
 use maran_agent_core::validation::web::port::Port;
 use maran_agent_core::validation::web::remote_host::RemoteHost;
 use maran_distro::AdapterBinary;
@@ -245,6 +246,8 @@ impl TransferHost for FakeTransferHost {
     fn local_addresses(&self) -> Result<Vec<IpAddr>, TransferOpError> {
         self.local
             .clone()
-            .ok_or(TransferOpError::HostAddressesUnavailable)
+            .ok_or(TransferOpError::HostAddressesUnavailable(
+                HostAddressesError::Ipv4Missing,
+            ))
     }
 }

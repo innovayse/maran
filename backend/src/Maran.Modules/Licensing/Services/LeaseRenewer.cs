@@ -129,10 +129,23 @@ public sealed class LeaseRenewer
         _logger = logger;
     }
 
-    /// <summary>Runs one renewal pass.</summary>
+    /// <summary>Runs one renewal pass for whichever licence is installed.</summary>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>What the pass did.</returns>
-    public async Task<LeaseRenewalResult> RenewAsync(CancellationToken cancellationToken)
+    public Task<LeaseRenewalResult> RenewAsync(CancellationToken cancellationToken)
+    {
+        return RenewAsync(null, cancellationToken);
+    }
+
+    /// <summary>
+    /// Runs one renewal pass, for one named licence when the caller names it: an install asks about the licence it
+    /// has just installed, and a second install that replaced it in the meantime must not have its licence leased
+    /// under the first caller's name.
+    /// </summary>
+    /// <param name="onlyLicenceId">The licence the caller means, or null for whichever is installed.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>What the pass did; <see cref="LeaseRenewalOutcome.LicenceChanged"/> when the installed licence is not the named one.</returns>
+    public async Task<LeaseRenewalResult> RenewAsync(string? onlyLicenceId, CancellationToken cancellationToken)
     {
         var status = await _verifier.VerifyAsync(_rawTextSource.ReadRawLicenceText(), cancellationToken);
         if (status is not LicenceStatus.Valid valid)
@@ -141,6 +154,11 @@ public sealed class LeaseRenewer
         }
 
         var licence = valid.Licence;
+        if (onlyLicenceId is not null && !string.Equals(licence.Id.Value, onlyLicenceId, StringComparison.Ordinal))
+        {
+            return LeaseRenewalResult.Of(LeaseRenewalOutcome.LicenceChanged);
+        }
+
         if (licence.IsOffline)
         {
             return LeaseRenewalResult.Of(LeaseRenewalOutcome.SkippedOffline);

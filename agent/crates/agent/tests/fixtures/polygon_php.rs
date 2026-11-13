@@ -11,7 +11,7 @@
 use std::sync::Once;
 
 use maran_agent_core::validation::web::php_version::PhpVersion;
-use maran_distro::DistroAdapter;
+use maran_distro::{DistroAdapter, DistroFamily, detect};
 
 /// The argument that makes php-fpm check its configuration instead of serving.
 ///
@@ -36,14 +36,27 @@ static INSTALLED: Once = Once::new();
 pub struct PolygonPhp;
 
 impl PolygonPhp {
-    /// The PHP version the Debian and RHEL polygon images install: `8.3` on Sury, `83` on Remi.
+    /// The PHP version the polygon suites write pools for, as the label the adapter is asked about.
     ///
-    /// On the SUSE family this is a label and not the installed version: the family ships one
-    /// distribution minor (8.4, UNVERIFIED) under unversioned paths, so its adapter answers the
-    /// same binary, pool directory and unit for `8.3` as for `8.4`, and the suites that stat or
-    /// write those answers do the same thing there. Confirm with `php-fpm -v` in the pinned Leap
-    /// image.
-    pub const VERSION: &'static str = "8.3";
+    /// `8.3` on the Debian and RHEL images (`8.3` on Sury, `83` on Remi). The SUSE family offers one
+    /// distribution minor under unversioned packages and paths (`php8-fpm`, `/etc/php8/fpm`), and its
+    /// adapter answers a real package, pool directory and unit only for that one minor, `8.4`; any
+    /// other label names a package no repository carries, so the install the suites start would fail
+    /// there. Spelled again here and not imported from the adapter, for the reason
+    /// `VALIDATE_ARGUMENT` is.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the host is not a supported family.
+    pub fn label() -> &'static str {
+        match detect()
+            .expect("a polygon image is a supported host")
+            .family
+        {
+            DistroFamily::Suse => "8.4",
+            DistroFamily::Debian | DistroFamily::Rhel => "8.3",
+        }
+    }
 
     /// The validated version the polygon suites write pools for.
     ///
@@ -51,7 +64,7 @@ impl PolygonPhp {
     ///
     /// Panics if the constant above stops being a valid version.
     pub fn version() -> PhpVersion {
-        PhpVersion::parse(Self::VERSION).expect("a valid PHP version")
+        PhpVersion::parse(Self::label()).expect("a valid PHP version")
     }
 
     /// Installs this version's php-fpm through the installer's app unit, once per test
@@ -67,7 +80,7 @@ impl PolygonPhp {
     /// Panics when the unit cannot be started or its run fails.
     pub fn ensure_installed(distro: &dyn DistroAdapter) {
         INSTALLED.call_once(|| {
-            let pool_directory = distro.php_fpm_pool_directory(Self::VERSION);
+            let pool_directory = distro.php_fpm_pool_directory(Self::label());
             if std::path::Path::new(&pool_directory).is_dir() {
                 return;
             }
@@ -85,7 +98,7 @@ impl PolygonPhp {
             }
             let unit = format!(
                 "{INSTALL_UNIT_PREFIX}{}.service",
-                distro.php_package(Self::VERSION)
+                distro.php_package(Self::label())
             );
             let status = std::process::Command::new(distro.service_manager())
                 .args(["start", "--", unit.as_str()])

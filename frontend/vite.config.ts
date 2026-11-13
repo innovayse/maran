@@ -83,6 +83,9 @@ export default defineConfig(({ mode }) => {return {
         // The toolbar's Playwright-only mount point (e2e/fixtures/toolbar-harness.html), for the
         // same reason.
         toolbarHarness: fileURLToPath(new URL('./e2e/fixtures/toolbar-harness.html', import.meta.url)),
+        // The kit controls' contrast Playwright-only mount point
+        // (e2e/fixtures/control-contrast-harness.html), for the same reason.
+        controlContrastHarness: fileURLToPath(new URL('./e2e/fixtures/control-contrast-harness.html', import.meta.url)),
       },
     },
   },

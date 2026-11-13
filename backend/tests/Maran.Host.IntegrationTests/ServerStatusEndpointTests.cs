@@ -233,9 +233,14 @@ public sealed class ServerStatusEndpointTests : IAsyncLifetime
         var identity = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         var now = scope.ServiceProvider.GetRequiredService<IClock>().UtcNow;
 
+        // A key authenticates only while the login that created it exists and may sign in (issue #551).
+        var creator = new User(
+            Guid.NewGuid(), "key-creator", "key-creator@example.com", string.Empty, UserRole.Admin, now);
+        identity.Users.Add(creator);
+
         var minted = ApiKeyHasher.Mint();
         var key = ApiKey.Issue(
-            Guid.NewGuid(), "integration test", minted.Prefix, minted.Digest, scopes, null, Guid.NewGuid(), now, null);
+            Guid.NewGuid(), "integration test", minted.Prefix, minted.Digest, scopes, null, creator.Id, now, null);
         if (revoke)
         {
             key.Revoke(now);

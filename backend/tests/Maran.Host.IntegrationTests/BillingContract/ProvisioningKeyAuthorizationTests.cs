@@ -313,11 +313,11 @@ public sealed class ProvisioningKeyAuthorizationTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// The keys of a suspended reseller are refused on every route from the next call, and work again once the
-    /// reseller is reactivated.
+    /// The keys of a suspended reseller are refused on every route from the next call, and stay refused once the
+    /// reseller is reactivated: the suspension revoked them (issue #551), so new keys have to be issued.
     /// </summary>
     [Fact]
-    public async Task The_keys_of_a_suspended_reseller_are_refused_on_every_route_until_it_is_reactivated()
+    public async Task The_keys_of_a_suspended_reseller_are_refused_on_every_route_and_reactivation_does_not_revive_them()
     {
         await using var world = await BillingContractWorld.BootAsync(_pg);
         using var admin = await world.World.SignInAsync("admin");
@@ -330,8 +330,7 @@ public sealed class ProvisioningKeyAuthorizationTests : IAsyncLifetime
         Assert.Empty(world.Backup.Creates);
 
         Assert.Equal(HttpStatusCode.OK, (await admin.PostAsync($"/api/v1/resellers/{resellerId}/reactivate", null)).StatusCode);
-        using var resumed = await world.SendAsync(HttpMethod.Get, "/info", world.Full.Secret);
-        Assert.Equal(HttpStatusCode.OK, resumed.StatusCode);
+        await AssertAnsweredAsync(world, RoutesOf(world), world.Full.Secret, HttpStatusCode.Unauthorized, "a revoked key after reactivation");
     }
 
     /// <summary>

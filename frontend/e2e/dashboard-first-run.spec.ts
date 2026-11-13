@@ -30,6 +30,7 @@ const DASHBOARD: Dashboard = {
     certificatesExpiringSoon: loaded(0),
     failedBackups: loaded(0),
     sitesOnEndOfLifePhp: loaded(0),
+    licenceExpiring: loaded(0),
     alertDelivery: ALERT_DELIVERY_OK,
     bannedAddresses: loaded(0),
     failedTasks: loaded(0),

@@ -129,12 +129,30 @@ that is the safe direction, and the reset bounds it.
 
 T7. **Turn the demo into an amplifier of other people's content.** Offensive or phishing text in names,
 domains, file contents, cron commands, notes, shown to the next visitor; a site "visit" link pointing at
-an attacker domain. Control: the SPA renders customer text as text only (rules/vue.md bans `v-html`);
-the demo distribution renders no hostname of a visitor-created site as a live link (frontend task 6
-must verify and, where a link exists, drop it in the demo build); the banner says what is shown to
-others and that it resets; the reset bounds the lifetime. **Residual risk, accepted and stated:** for up
-to one interval an abusive string can be shown to other visitors. The owner decides whether a
-profanity/URL filter on free-text fields is worth it (decision D9).
+an attacker domain. Control: **filter plus contact** (issue #560, owner decision O-231). (1) The SPA
+renders customer text as text only (rules/vue.md bans `v-html`); the demo distribution renders no hostname
+of a visitor-created site as a live link (frontend task 6 must verify and, where a link exists, drop it in
+the demo build). (2) **The content filter:** `DemoContentFilter`, an MVC action filter over the bound
+arguments of every action the refusal table lets through (`DemoEndpointRule.ScreensText`; a sign-in is not
+screened), refuses a write with a 400 `DemoContentRefused` (en/ru/hy, the member's name and never the text)
+before the action stores anything. `DemoFreeText` walks the bound command for every string wherever it sits
+(secrets and `SensitiveString` excluded); `DemoTextScreen` judges each one with no outbound call: a term
+from `Resources/DemoBlockedTerms.<language>.txt` (whole words or, for a term ending in `*`, any word that
+starts with it; after folding case, accents, invisible characters, full-width forms, digit swaps and Latin,
+Cyrillic, Greek and Armenian look-alikes, with spaced-out or separator-broken letters read as one word),
+or a link (`scheme://host` for any scheme, `http:/host`, `//host.tld`, `www.host`) whose host is not in
+`Resources/DemoAllowedHosts.txt` (the `example.*`, `test` and `invalid` names only; never loopback) or, for
+`http` and `https`, in `Resources/DemoDocumentationHosts.txt` (`w3.org`, `apache.org`, `schema.org`), or a
+script or content scheme (`javascript:`, `vbscript:`, `magnet:?`, `data:` with a media type). Text
+the screen cannot read or finish in time is refused, not passed. The refusal is journaled by action and member
+under the same bounded allowance as other refusals. (3) **The contact:** `Demo__AbuseContact` (an e-mail
+address or an https URL, required: `DemoOptionsValidator` stops the demo starting without one) is returned by
+the status endpoint and printed in the banner in every language, with a sentence saying offensive text and
+outside links are refused. (4) The banner says what is shown to others and that it resets; the reset bounds
+the lifetime. **Residual risk, accepted and stated:** the list is a floor, not a moderator (a paraphrase, a
+spelling neither fold maps, or a bare `name.tld` with no scheme and no `www.`, which a domain field must be
+able to hold, passes); an abusive string that passes can be shown to other visitors for up to one interval,
+and the contact is how it is reported. The word lists are a seed for the owner to extend.
 
 T8. **Reach the stored credentials or keys of the operator.** The demo's JWT signing key, encryption key
 and database password live in `/etc/maran-demo/panel.env` (root:service group 0640) on a VM that holds
@@ -222,6 +240,69 @@ licence and keeps the installed text in memory; F-12 the API unit carries `Memor
 `LimitNOFILE` and `CPUQuota`, and the one-time setup token moved from the service's environment file to
 `/etc/maran-demo/seed.env`, read by the deploy script only; F-13 the scan scope is stated above.
 The second review stays OUTSTANDING; these fixes were written by the session that wrote the code.
+
+## Addendum: content filter and abuse contact (issue #560)
+
+T7 changed from "accepted residual, filter undecided (D9)" to "filter plus contact" (owner decision O-231,
+applied from the recommended option). What a reviewer checks: `Guard/DemoTextScreen.cs` (the folds, the three
+URL patterns and their time limit, fail-closed on malformed Unicode or a timeout), `Guard/DemoFreeText.cs` (what
+it reads and what it leaves out by design: secrets, `SensitiveString`, bytes and streams, an upload's content),
+`Guard/DemoContentFilter.cs` (which actions it screens: only what the table's `ScreensText` says) and
+`Options/DemoOptionsValidator.cs` (the contact is required and well-formed). What the author could not verify:
+no build or test had run when this was written; whether `string.Normalize` throws on a lone surrogate on every
+supported platform (the screen relies on it to refuse malformed text); the false-positive rate of the seed word
+lists on real demo use; and that a command member the walk reads (a path, a DNS value) never needs a host
+off the allow-list in a legitimate demo walkthrough. A write that does not pass through an MVC action (a
+minimal endpoint, the seed's own bus calls) is not screened; the only mutating minimal endpoint is read-only
+search, and the seed is the operator's own.
+
+**Review follow-up (issue #560, second pass).** What changed, and what a reviewer re-checks:
+
+- *Link reading* (`Guard/Text/DemoLinkScreen.cs`). The text is folded for links (`DemoTextFold.ForLinks`) with
+  tab, line feed, carriage return and every other control character removed (a browser strips them from a URL, so
+  `http://example.com<TAB>.evil.com` is one host and `java<LF>script:` is one scheme) and with accents KEPT (so
+  `exämple.com` is non-ASCII and refused, not read as `example.com`). The authority ends at `/ \ ? #`, white space and
+  `< >`; quotes and the backtick do NOT end it (a browser keeps them in a host), and only punctuation at its very end
+  is taken as the text around the link. A host must be made of `a-z 0-9 . -` in non-empty labels or it is refused:
+  percent escapes, quotes inside a host, internationalised names and bracketed IPv6 are beyond what the screen can
+  judge, and what it cannot judge it refuses (the screen uses its own strict parser, not `System.Uri`, whose host
+  rules differ from a browser's). `http:/x`, `http:x`, `https:///x` and a protocol-relative `//host.tld` are links;
+  a link after another scheme (`blob:https://...`) is found in turn. `localhost` and `127.0.0.1` are NOT allowed
+  hosts any more (a link a server later fetches must not reach the panel's own services).
+- *Other schemes.* `s3://`, `git://`, `php://`, `redis://`, `ssh://` and the like are links subject to the host
+  rule: allowed only with an `example.*` / `test` / `invalid` host. `data:` is refused only at the start of a URL
+  with a media type (`data:text/html`, `data:,`), so `url(data:image/png...)` in a style sheet and `{data:1}` in a
+  script pass; `src="data:image/png..."` in markup is still refused (it is a URL start).
+- *Documentation namespaces.* `http` and `https` links to `w3.org`, `apache.org` and `schema.org` (and names under
+  them) pass anywhere in visitor text, so XML namespaces, DOCTYPEs, licence headers and JSON schemas in saved files
+  are not refused. The list is curated (`DemoDocumentationHosts.txt`), and not allowed for another scheme.
+- *Terms.* A listed term ending in `*` is a stem (any word starting with it) so inflected forms of English,
+  Russian and Armenian words are found; every other term is a whole word; a stem has at least three letters or the
+  screen does not start. Characters written inside a word to break it (`. - * _ ' + ~ ^`) are read through (second
+  reading). Digit and symbol swaps (`5h1t`, `@ss`) apply only inside words that have a letter, so `455` or a cron
+  field is a number and never a word. Look-alikes now include dotless i, `ø ł đ ħ ŧ ð`, more Cyrillic and Greek
+  letters and the Armenian `ս օ ո ց հ ք զ`; Hangul fillers, the blank braille cell and Unicode tag characters are
+  dropped. `xxx` and `click here` were removed from the lists (code and markup carry them).
+- *The walk* (`Guard/DemoFreeText.cs`). It reflects only into types in the `Maran` namespace (an allow-list; a
+  framework or third-party object is never entered), keeps a visited set (a repeat is read once, a cycle ends) and a
+  node budget (`MaximumNodes`), and READS `JsonElement`, `JsonNode` and `JsonValue` bodies (strings and property
+  names). It REFUSES, with `DemoFreeTextUnreadableException` turned into the usual `DemoContentRefused`, when it
+  reaches `MaximumDepth`, exhausts the budget or meets a getter that throws; it no longer ends quietly. Secret
+  members are exempt by exact name (`DemoFreeText.SecretNames`), not by substring: `TokenName` and `SecretNote` are
+  screened. `ArchitectureTests/DemoFreeTextCensusTests` holds every screened action of the composed panel to the
+  depth cap, so a deeper command fails CI instead of every write to it failing in the demo.
+- *Banner.* The filter notice and the abuse contact no longer wait for the first recorded reset.
+
+Still stated, not fixed: the content of an uploaded file is not read (only its name); a multi-word term or a link
+whose parts are in different fields is judged per field; doubled letters (`fuuuck`) and paraphrases pass; a
+`bit.ch`-shaped domain written without a scheme is read as a word by the separator-joining reading; the Russian and
+Armenian lists are seeds a native speaker must review; a refusal is a blocklist oracle (the list is in the
+repository anyway); a very large saved file is folded several times, so the request-size limit of that endpoint is
+the bound on the cost. What the author could not verify (no build or test ran): that every composed command is
+within `MaximumDepth` (the census answers it), that `JsonValue.TryGetValue<JsonElement>` behaves as read on every
+supported runtime, and the false-positive rate of the seed lists on real demo use.
+
+Second review: OUTSTANDING (#331).
 
 ## Reviewer checklist (what the second reviewer must do)
 

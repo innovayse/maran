@@ -81,8 +81,9 @@ readonly MARAN_MAIL_CONFIG_DIR="/etc/maran/mail"
 readonly MARAN_MAIL_DOVECOT_DIR="/etc/maran/mail/dovecot"
 
 # Where the DKIM private keys live, matching `AgentPaths::MAIL_DKIM_DIRECTORY`.
-# root:<rspamd group> 0750.
-readonly MARAN_MAIL_DKIM_DIR="/etc/maran/mail/dkim"
+# root:<rspamd group> 0750. Under Rspamd's own directory, not /etc/maran (root:<service group>
+# 0750), which its worker cannot traverse to read a key (issue #593).
+readonly MARAN_MAIL_DKIM_DIR="/etc/rspamd/maran-dkim"
 
 # The parent of the directories above, created by step 60. Named here only so that this step, run
 # on its own, does not invent a mode for a directory somebody else owns.
@@ -100,6 +101,8 @@ readonly MARAN_MAIL_KEY_VALUE_UNIT_FILE="/etc/maran/mail/key-value-unit"
 # the RHEL family's vendor Rspamd package.
 readonly MARAN_MAIL_DOVECOT_GROUP="dovecot"
 readonly MARAN_MAIL_RSPAMD_USER="_rspamd"
+# Rspamd's configuration directory, the same on every family (`MailFacts::rspamd_config_directory`).
+readonly MARAN_MAIL_RSPAMD_CONFIG_DIR="/etc/rspamd"
 
 # mail_key_value_service: the unit, package and user of the Redis-protocol server this release runs,
 # matching `MailFacts::key_value_server`. One line, "<service> <package> <user>". The RHEL family
@@ -298,6 +301,14 @@ ensure_mail_directories() {
     rspamd_group="$MARAN_MAIL_RSPAMD_USER"
   fi
   install -d -o root -g "$rspamd_group" -m 0750 "$MARAN_MAIL_DKIM_DIR"
+  # The agent writes the local-submission rule into plugins.d and the DKIM signing condition into
+  # lua.local.d, and the config-write protocol writes beside the target and never creates the
+  # directory. Some packages (Debian and Ubuntu's among them) ship neither, so they are made here,
+  # where Rspamd is installed.
+  if [ -d "$MARAN_MAIL_RSPAMD_CONFIG_DIR" ]; then
+    install -d -o root -g root -m 0755 \
+      "$MARAN_MAIL_RSPAMD_CONFIG_DIR/plugins.d" "$MARAN_MAIL_RSPAMD_CONFIG_DIR/lua.local.d"
+  fi
 }
 
 # record_taken_over_key_value_unit: write the name of the key-value server unit this step masked, so

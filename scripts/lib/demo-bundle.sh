@@ -184,6 +184,10 @@ cmd_verify() {
 
 cmd_seed() {
   require_tool dotnet "runs the demo binary"
+  # The demo host validates its options at start and has no default contact (a default would ship in every build),
+  # so the seed run needs one in its environment, like the deployed service reads it from panel.env.
+  [ -n "${Demo__AbuseContact:-}" ] \
+    || demo_failed "Demo__AbuseContact is not set; export a role mailbox or https URL first, e.g. Demo__AbuseContact=abuse@example.test"
   exec dotnet run --project "$root/backend/src/Maran.Host.Demo" -- --cli demo-seed "$@"
 }
 

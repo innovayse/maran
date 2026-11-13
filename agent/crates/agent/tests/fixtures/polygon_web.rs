@@ -10,6 +10,7 @@ use std::io::{Read as _, Write as _};
 use std::path::Path;
 use std::time::{Duration, Instant};
 
+use maran_agent_core::agent_paths::AgentPaths;
 use maran_distro::DistroAdapter;
 
 /// How long one HTTP exchange against the polygon's nginx is given.
@@ -23,6 +24,20 @@ const SERVE_DEADLINE: Duration = Duration::from_secs(20);
 
 /// How long [`PolygonWeb::fetch_until`] waits between two attempts.
 const SERVE_POLL_INTERVAL: Duration = Duration::from_millis(100);
+
+/// Linux reports process start times in units of 1/100 s on every architecture this runs on
+/// (`USER_HZ`), whatever the kernel's own tick rate.
+const CLOCK_TICKS_PER_SECOND: f64 = 100.0;
+
+/// The directories whose files nginx's configuration reads, newest of which decides whether a
+/// worker is current: the distribution's `conf.d`, the agent's include directory, the per-site
+/// vhost directory beneath it and the directory the panel's certificate and key are read from.
+const CONFIGURATION_DIRECTORIES: [&str; 4] = [
+    "/etc/nginx/conf.d",
+    "/etc/maran/nginx",
+    "/etc/maran/nginx/sites",
+    AgentPaths::PANEL_TLS_DIRECTORY,
+];
 
 /// The polygon's nginx: one unit, because starting it, reloading it and asking
 /// it for a page are one subject — what this host's web server answers.
@@ -124,6 +139,86 @@ impl PolygonWeb {
             last = Self::fetch(host, path);
         }
 
+        if accepted(&last) {
+            Self::wait_until_the_previous_workers_are_gone();
+            last = Self::fetch(host, path);
+        }
+
         last
+    }
+
+    /// Waits until every nginx worker was started after the newest configuration file was written,
+    /// or the deadline passes.
+    ///
+    /// A reload is asynchronous: the master re-reads the tree, starts new workers and only then
+    /// tells the old ones to finish, and until they have, the old ones share the listening sockets
+    /// and answer some connections from the OLD tree. One answer from the new tree therefore proves
+    /// nothing about the next connection, which is how a check that follows "it is served" came to
+    /// see a 404 for a site that had just been served, or the previous certificate, on a runner
+    /// slow to retire its workers. Asked of the processes themselves, because nothing else says
+    /// it: a worker started before the newest file under the directories nginx reads was started
+    /// by a configuration that did not have that file, and one already told to finish says so in
+    /// its title (`nginx: worker process is shutting down`). It returns after the deadline
+    /// instead of panicking, and the caller's own assertion reports the wrong answer.
+    pub fn wait_until_the_previous_workers_are_gone() {
+        let deadline = Instant::now() + SERVE_DEADLINE;
+        while Self::a_worker_predates_the_configuration() && Instant::now() < deadline {
+            std::thread::sleep(SERVE_POLL_INTERVAL);
+        }
+    }
+
+    /// Whether any nginx worker is retiring or was started before the newest configuration file.
+    fn a_worker_predates_the_configuration() -> bool {
+        let newest_age = CONFIGURATION_DIRECTORIES
+            .iter()
+            .filter_map(|directory| std::fs::read_dir(directory).ok())
+            .flat_map(|entries| entries.flatten())
+            .filter_map(|entry| entry.metadata().ok()?.modified().ok())
+            .filter_map(|modified| modified.elapsed().ok())
+            .min();
+        let Ok(uptime) = std::fs::read_to_string("/proc/uptime") else {
+            return false;
+        };
+        let Some(uptime) = uptime
+            .split_whitespace()
+            .next()
+            .and_then(|seconds| seconds.parse::<f64>().ok())
+        else {
+            return false;
+        };
+        let Ok(processes) = std::fs::read_dir("/proc") else {
+            return false;
+        };
+
+        processes.flatten().any(|process| {
+            let path = process.path();
+            let Ok(title) = std::fs::read(path.join("cmdline")) else {
+                return false;
+            };
+            let title = String::from_utf8_lossy(&title);
+            if !title.contains("nginx: worker process") {
+                return false;
+            }
+            if title.contains("is shutting down") {
+                return true;
+            }
+            // Field 22 of /proc/<pid>/stat is the start time in clock ticks since boot; the command
+            // name before it may contain spaces, so the fields are counted from the closing bracket.
+            let Some(started) = std::fs::read_to_string(path.join("stat"))
+                .ok()
+                .and_then(|stat| {
+                    stat.rsplit_once(')')?
+                        .1
+                        .split_whitespace()
+                        .nth(19)?
+                        .parse::<f64>()
+                        .ok()
+                })
+            else {
+                return false;
+            };
+            let worker_age = uptime - started / CLOCK_TICKS_PER_SECOND;
+            newest_age.is_some_and(|age| worker_age > age.as_secs_f64())
+        })
     }
 }

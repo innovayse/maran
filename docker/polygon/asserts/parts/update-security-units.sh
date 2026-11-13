@@ -16,9 +16,9 @@
 #      paths, none of them /var/lib/maran (which the panel's service account can write) or a parent.
 #   3. The timer fires once a day with a random delay and no other trigger: a boot-time or
 #      unit-active trigger is the same unattended root job by another spelling.
-#   4. The default is told and is kept: a first online install enables the timer, an offline install
-#      does not, and neither a re-run of the step nor anything else switches back on a timer an
-#      operator disabled with `maran update-schedule disable`.
+#   4. The default is OFF, is told, and is kept (issue #550): no install, online or offline, enables
+#      the timer; an operator's `maran update-schedule enable` survives a re-run of the step, and a
+#      timer disabled with `maran update-schedule disable` stays off.
 #
 # Every checker below is shown to refuse before it is trusted: copies of the real unit with ONE
 # property broken at a time must each be refused, and copies that differ only in a comment must be
@@ -317,9 +317,9 @@ TIMER_CONTROLS
 #
 # Looked at, and not assumed: the two units are root:root 0644 and byte-identical to the package's; the
 # dump directory is a real root:root 0700 directory (a symbolic link planted at its name is refused
-# BEFORE anything is written); an online first install enables the timer and says so; an offline first
-# install does not; and a timer an operator disabled with the REAL `maran update-schedule disable` stays
-# disabled through a re-run of the step. Each "not enabled" answer is asked of the stand-in after a
+# BEFORE anything is written); a first install, online or offline, installs the units and leaves the timer
+# off, saying how to enable it; a timer the operator switched on with the REAL `maran update-schedule enable` stays
+# enabled, and one disabled with `disable` stays disabled, through re-runs of the step. Each "not enabled" answer is asked of the stand-in after a
 # positive control shows the stand-in can answer "enabled" for this very unit.
 #
 # UNOBSERVED HERE: this image boots no systemd; "enabled" means "the polygon's systemctl stand-in was
@@ -363,16 +363,16 @@ assert_step_69_installs_the_security_update_units_and_keeps_the_operators_choice
     rm -rf -- "$aside"
   fi
 
-  # An online first install: the units land, the timer is enabled, and the operator is told how to turn
-  # it off.
+  # An online first install: the units land, the timer is NOT enabled, and the operator is told how to
+  # enable it.
   output="$(run_update_security_step 2>&1)" \
     || fail "step 69's step_update_schedule failed in this image: ${output}"
   case "$output" in
-    *"are ON"*"maran update-schedule disable"*) ;;
-    *) fail "step 69 ran but did not tell the operator that automatic security-patch updates are ON and how to turn them off: ${output}" ;;
+    *"installed but off"*"maran update-schedule enable"*) ;;
+    *) fail "step 69 ran but did not tell the operator that automatic security-patch updates are off and how to enable them: ${output}" ;;
   esac
   systemctl is-enabled -- "$timer" >/dev/null 2>&1 \
-    || fail "step 69's online first install did not enable ${timer}; the feature is on by default (issue #383)"
+    && fail "step 69's online first install enabled ${timer}; the feature is off until the operator enables it (issue #550)"
   for unit in "$UPDATE_SECURITY_SERVICE_FILE" "$timer"; do
     path="${UPDATE_SECURITY_UNIT_DIR}/${unit}"
     assert_file_is "$path" "0:0:644"
@@ -387,41 +387,46 @@ assert_step_69_installs_the_security_update_units_and_keeps_the_operators_choice
     || fail "step 69 failed on its second run (installers get re-run): ${output}"
   assert_directory_is "$UPDATE_SECURITY_DUMP_DIR" "0:0:700"
 
-  # The operator turns it off with the real verb. The verb needs the wrapper, which step 66 installs.
-  run_cli_step >/dev/null || fail "step 66's step_cli could not install the command the disable below runs"
+  # The operator turns it ON with the real verb (the inverse control of the default above). The verb
+  # needs the wrapper, which step 66 installs.
+  run_cli_step >/dev/null || fail "step 66's step_cli could not install the command the enable below runs"
+  output="$(/usr/local/sbin/maran update-schedule enable 2>&1)" \
+    || fail "'maran update-schedule enable' failed in this image: ${output}"
+  systemctl is-enabled -- "$timer" >/dev/null 2>&1 \
+    || fail "'maran update-schedule enable' ran and the timer does not read enabled, so the survival check below would prove nothing"
+  for status in 1 2; do
+    output="$(run_update_security_step 2>&1)" \
+      || fail "step 69 failed on re-run ${status} over an enabled timer: ${output}"
+    systemctl is-enabled -- "$timer" >/dev/null 2>&1 \
+      || fail "step 69's re-run ${status} switched off a timer the operator enabled; an installer re-run must not change the choice"
+  done
+
+  # The operator turns it off again; a re-run keeps it off.
   output="$(/usr/local/sbin/maran update-schedule disable 2>&1)" \
     || fail "'maran update-schedule disable' failed in this image: ${output}"
   systemctl is-enabled -- "$timer" >/dev/null 2>&1 \
-    && fail "'maran update-schedule disable' ran and the timer still reads enabled, so the survival check below would prove nothing"
-
-  # The choice survives a re-run of the installer step: the unit file is present, so the step leaves the
-  # enablement alone and says so. Twice, because the second run is the one an upgrade is.
+    && fail "'maran update-schedule disable' ran and the timer still reads enabled, so the check below would prove nothing"
   for status in 1 2; do
     output="$(run_update_security_step 2>&1)" \
       || fail "step 69 failed on re-run ${status} over a disabled timer: ${output}"
-    case "$output" in
-      *"left as they were"*) ;;
-      *) fail "step 69's re-run ${status} over a disabled timer did not say it left the schedule as it was: ${output}" ;;
-    esac
     systemctl is-enabled -- "$timer" >/dev/null 2>&1 \
-      && fail "step 69's re-run ${status} switched a timer the operator disabled back on; a choice made with 'maran update-schedule disable' must survive an installer re-run and an update"
+      && fail "step 69's re-run ${status} switched a timer the operator disabled back on"
   done
   remove_the_installed_break_glass_command
 
-  # An offline first install (the inverse control of the online one above): a host that was carried a
-  # bundle must not get a daily job that cannot reach the release host.
+  # An offline first install behaves the same: units installed, timer off, same line.
   update_security_forget_units
   output="$(run_update_security_step MARAN_OFFLINE_TARBALL=/nonexistent/bundle.tar.gz 2>&1)" \
     || fail "step 69's offline first install failed in this image: ${output}"
   case "$output" in
-    *"NOT enabled on an offline install"*"maran update-schedule enable"*) ;;
-    *) fail "step 69's offline first install did not say the timer is NOT enabled and how to enable it: ${output}" ;;
+    *"installed but off"*"maran update-schedule enable"*) ;;
+    *) fail "step 69's offline first install did not say the timer is off and how to enable it: ${output}" ;;
   esac
   systemctl is-enabled -- "$timer" >/dev/null 2>&1 \
     && fail "step 69's offline first install enabled ${timer}"
   assert_file_is "${UPDATE_SECURITY_UNIT_DIR}/${timer}" "0:0:644"
 
   update_security_restore_prior_state
-  echo "Step 69 installed ${UPDATE_SECURITY_SERVICE_FILE} and ${timer} as 644 root:root byte for byte as packaged and the dump directory as 700 root:root, refused a symbolic link at ${UPDATE_SECURITY_DUMP_DIR} before writing anything, enabled the timer on an online first install and told the operator how to turn it off, left it disabled on an offline first install, and left a timer disabled with 'maran update-schedule disable' disabled through two re-runs."
+  echo "Step 69 installed ${UPDATE_SECURITY_SERVICE_FILE} and ${timer} as 644 root:root byte for byte as packaged and the dump directory as 700 root:root, refused a symbolic link at ${UPDATE_SECURITY_DUMP_DIR} before writing anything, left the timer off on an online and an offline first install and told the operator how to enable it, and left a timer enabled (then disabled) with 'maran update-schedule' as the operator set it through two re-runs each."
   echo "UNOBSERVED HERE: this image boots no systemd. 'Enabled' means the polygon's systemctl stand-in was asked; a disabled timer staying off across a reboot, Persistent=true catching up a missed run, the timer firing at its calendar time and the service starting under ProtectSystem=strict are claims about a booted host."
 }

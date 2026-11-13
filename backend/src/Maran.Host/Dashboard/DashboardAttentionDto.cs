@@ -44,6 +44,11 @@ namespace Maran.Host.Dashboard;
 /// names it when it is anything but synchronised, and names it as unchecked when the agent could
 /// not be asked — never as synchronised.
 /// </param>
+/// <param name="LicenceExpiring">
+/// 1 while the installed licence is within an expiry warning threshold (<c>Licensing:ExpiryWarningDays</c>), 0
+/// otherwise: a count like the others, of a thing that is about to go wrong and that the licence screen explains.
+/// It adds to the navigation figure, and is unavailable when the licence could not be read.
+/// </param>
 /// <param name="AlertDelivery">
 /// Whether the alert mail and the alert webhook reached their destination the last time the panel
 /// tried (issue #142). Not a count: each failing channel adds one to the navigation figure and gets
@@ -57,4 +62,5 @@ public sealed record DashboardAttentionDto(
     DashboardSection<int> FailedTasks,
     DashboardSection<int> SitesOnEndOfLifePhp,
     DashboardSection<ClockSyncDto> Clock,
-    DashboardSection<AlertDeliveryStatusDto> AlertDelivery);
+    DashboardSection<AlertDeliveryStatusDto> AlertDelivery,
+    DashboardSection<int> LicenceExpiring);

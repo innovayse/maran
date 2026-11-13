@@ -1123,7 +1123,11 @@ ${output}"
 $(grep -cF "$broken" "$dest" || true) time(s) instead of the last vhost this installer validated. The
 run deleted ${dest}${previous_suffix} — the only validated copy on the machine — took its backup from
 the never-validated file the killed run had left on the served path, and restored that. An operator
-who interrupts an install and re-runs it is left serving a configuration nginx refuses."
+who interrupts an install and re-runs it is left serving a configuration nginx refuses.
+What the run itself said:
+${output}
+What the working files hold now:
+$(ls -l "${dest}"* 2>&1)"
     return
   fi
   if ! nginx -t >/dev/null 2>&1; then

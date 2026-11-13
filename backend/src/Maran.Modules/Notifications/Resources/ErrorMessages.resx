@@ -21,6 +21,9 @@
   <data name="SmtpHostInvalid">
     <value>The mail server's name is required and must be a single line of ordinary text.</value>
   </data>
+  <data name="SmtpLocalPort25Refused">
+    <value>The mail server on this machine does not accept mail from the panel on port 25. Use its submission port (587) with a mailbox login instead, and set the sender address to an address on a domain of that mailbox's account: the mail server refuses any other sender.</value>
+  </data>
   <data name="SmtpPortInvalid">
     <value>The mail server's port must be between 1 and 65535.</value>
   </data>

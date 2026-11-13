@@ -39,6 +39,9 @@ public sealed class FakeMarketplaceClient : IMarketplaceClient
     /// <summary>The paths of the files handed out, so a test can see they were deleted.</summary>
     public List<string> DownloadedFiles { get; } = [];
 
+    /// <summary>The locale the last catalogue, details or update call was made with.</summary>
+    public string? LastLocale { get; private set; }
+
     /// <summary>The installed references the last update check sent.</summary>
     public IReadOnlyList<InstalledModuleReference> LastReferences { get; private set; } = [];
 
@@ -58,6 +61,7 @@ public sealed class FakeMarketplaceClient : IMarketplaceClient
         CancellationToken ct)
     {
         ReadCalls++;
+        LastLocale = locale;
         return Task.FromResult(Page);
     }
 
@@ -65,6 +69,7 @@ public sealed class FakeMarketplaceClient : IMarketplaceClient
     public Task<Result<CatalogueModuleDetails>> GetModuleAsync(string moduleId, string locale, CancellationToken ct)
     {
         ReadCalls++;
+        LastLocale = locale;
 
         if (Failure is not null)
         {
@@ -84,6 +89,7 @@ public sealed class FakeMarketplaceClient : IMarketplaceClient
         CancellationToken ct)
     {
         ReadCalls++;
+        LastLocale = locale;
         LastReferences = installed;
         return Task.FromResult(Updates);
     }

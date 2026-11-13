@@ -11,6 +11,7 @@
 use std::time::Duration;
 
 use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::host_addresses_error::HostAddressesError;
 use maran_agent_core::utils::spawn_error::SpawnError;
 use maran_ops::transfer::TransferOpError;
 
@@ -27,7 +28,7 @@ fn every_variant() -> Vec<TransferOpError> {
         TransferOpError::Unreachable,
         TransferOpError::KeyGenerationFailed,
         TransferOpError::ScratchUnavailable,
-        TransferOpError::HostAddressesUnavailable,
+        TransferOpError::HostAddressesUnavailable(HostAddressesError::Ipv4Missing),
         TransferOpError::OutputBound(BoundExceeded::TimedOut {
             program: "ssh".to_owned(),
             deadline: Duration::from_secs(1),
@@ -102,7 +103,7 @@ fn a_silent_source_a_bound_and_the_faults_of_this_host_are_system_failures() {
         TransferOpError::Unreachable,
         TransferOpError::KeyGenerationFailed,
         TransferOpError::ScratchUnavailable,
-        TransferOpError::HostAddressesUnavailable,
+        TransferOpError::HostAddressesUnavailable(HostAddressesError::Ipv4Missing),
         TransferOpError::OutputBound(BoundExceeded::OutputTooLarge {
             program: "ssh".to_owned(),
             stream: maran_agent_core::utils::output_stream::OutputStream::Stdout,

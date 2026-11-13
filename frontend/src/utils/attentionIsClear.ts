@@ -16,6 +16,7 @@ export const attentionIsClear = (attention: DashboardAttention): boolean => {
     attention.failedTasks,
     attention.bannedAddresses,
     attention.sitesOnEndOfLifePhp,
+    attention.licenceExpiring,
   ]
   const countsClear = counts.every((section) => {
     return section.state === 'loaded' && section.data === 0

@@ -1,0 +1,59 @@
+# Removes ONE Node.js module stream through dnf, as root, outside the agent's sandbox (issue #532).
+# RHEL releases with module streams only (before 10, issue #542); the sibling of maran-app-nodejs-install@.service, whose comment gives the
+# reasons (module streams, fixed argv, digits-only instance, no re-check, same sandbox).
+#
+# Only the agent starts it, as
+#   systemctl start maran-app-nodejs-remove@<major>.service
+# where <major> is DIGITS ONLY, the supported Node.js major the agent parsed into its
+# NodejsModuleStream type, after it checked that the stream is installed and that no site uses it.
+#
+# Two fixed ExecStart= lines run in order:
+#   dnf module remove -y -- nodejs:%i/common
+#   dnf module reset -y nodejs
+# The reset leaves NO stream enabled, so the next install may pick any major. What is deliberately
+# absent: --allowerasing, autoremove and any force option. A removal dnf resolves by also removing a
+# dependent package is dnf's normal behaviour, which is why THIS UNIT MUST NOT BE THE ONLY GUARD:
+# before the agent starts it, the agent runs `dnf module remove --assumeno` for the same spec and
+# refuses when the transaction would remove anything outside the Node.js packages or the panel's
+# nginx, or when that output cannot be read. A host started by hand does not get that check.
+# UNCONFIRMED: an enforcing SELinux host and a booted-systemd run (threat note
+# docs/superpowers/notes/2026-11-10-app-install-uninstall-threat-note.md).
+[Unit]
+Description=Maran Node.js module stream removal (%i)
+# The start rate limit would refuse a sixth start within ten seconds with an error that never ran dnf.
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin
+UMask=0022
+ExecStart=/usr/bin/dnf module remove -y -- nodejs:%i/common
+ExecStart=/usr/bin/dnf module reset -y nodejs
+# A ceiling for a hung script, not an expected duration.
+TimeoutStartSec=1800
+# The sandbox: exactly maran-app-install@.service's (issue #408), directive for directive, so the
+# root package routes cannot drift apart. Measured there with `dnf install` on AlmaLinux 9
+# (systemd 252) with an inverse control (ProtectSystem=strict must fail, and did). UNCONFIRMED here:
+# `dnf module install` and `module remove` under it on a booted systemd, an enforcing SELinux host.
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectHostname=yes
+ProtectClock=yes
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+# AF_NETLINK stays: name resolution asks for it, and account tools write audit records over it.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+# EPERM and not the default kill: a SIGSYS death leaves no package-manager text for
+# classify_install_failure to read. A deny-list, so a syscall an older systemd does not know is
+# simply not denied.
+SystemCallFilter=~@mount @swap @reboot @raw-io @module @cpu-emulation @debug @clock
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=~CAP_SYS_MODULE CAP_SYS_RAWIO CAP_SYS_BOOT CAP_SYS_TIME CAP_SYS_PACCT CAP_SYS_TTY_CONFIG CAP_WAKE_ALARM CAP_BLOCK_SUSPEND CAP_BPF CAP_PERFMON CAP_SYSLOG CAP_NET_RAW CAP_NET_BROADCAST CAP_LEASE

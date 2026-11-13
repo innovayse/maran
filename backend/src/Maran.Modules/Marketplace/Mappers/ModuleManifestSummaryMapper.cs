@@ -16,6 +16,7 @@ public static class ModuleManifestSummaryMapper
 
         return new ModuleManifestSummaryDto(
             manifest.Publisher,
+            manifest.PublisherId,
             tierDisplayName,
             manifest.MinPanelVersion,
             manifest.SchemaName,

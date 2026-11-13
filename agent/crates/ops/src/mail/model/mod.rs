@@ -18,5 +18,6 @@ pub mod observed_mail;
 pub mod path_facts;
 pub mod port_binding;
 pub mod port_state;
+pub mod self_clients_outcome;
 pub mod staged_file;
 pub mod tool_version;

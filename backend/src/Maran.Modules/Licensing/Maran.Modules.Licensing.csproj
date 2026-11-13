@@ -64,6 +64,11 @@
                       LogicalName="lease-verification.pub" />
   </ItemGroup>
 
+  <!-- Issue #544: a SHIPPING build trusts exactly the keys the release pins. The check lives in
+       PinnedKeys.targets, imported here, so the release selftest builds a minimal project that imports the
+       very same file instead of building (and restoring) this project: one source. -->
+  <Import Project="PinnedKeys.targets" />
+
   <ItemGroup>
     <!-- Resx-backed user-facing message text (rules/csharp.md "The backend owns all user-facing
          message text"), one file per purpose: ErrorMessages for InstallLicenceCommandHandler's five

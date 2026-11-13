@@ -13,6 +13,7 @@
 //! can start a real server in-process, on a temporary socket, and drive it
 //! through the generated client.
 
+pub(crate) mod address_watch;
 pub mod audit;
 pub mod config;
 pub mod error;

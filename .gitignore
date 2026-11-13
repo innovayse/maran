@@ -154,3 +154,7 @@ Thumbs.db
 frontend/dist-demo/
 .claude/coding-phase.lock
 .claude/coding-phase.d/
+
+# Local research and reports: never committed (owner rule)
+reports/
+research_notes/

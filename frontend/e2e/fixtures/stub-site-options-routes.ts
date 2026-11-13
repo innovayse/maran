@@ -27,6 +27,7 @@ export const EMPTY_SITE_OPTIONS: SiteOptions = {
     maximumIpRules: 25,
     minimumBodySizeMib: 1,
     maximumBodySizeMib: 1024,
+    planMaximumBodySizeMib: null,
     minimumCacheDays: 1,
     maximumCacheDays: 365,
     minimumPasswordLength: 8,

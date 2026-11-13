@@ -21,6 +21,13 @@ namespace Maran.Host.Dashboard;
 /// dashboard). The dashboard still names the unread source; the badge, which has no room to, shows
 /// nothing rather than less than the truth.
 /// </para>
+/// <para>
+/// <b>The licence is the one source that may be unread without silencing the badge.</b> It is not a count of
+/// work found by a scan that nobody checked but one fact about one file, and it comes through the licence window's
+/// own memory; when that read is slow or fails, the dashboard's licence row says it could not be read and the badge
+/// counts the rest, so a stuck licence read cannot hide a failed backup or a banned address behind an empty badge.
+/// The badge does not claim the licence is fine: it is the figure of the sources that were read.
+/// </para>
 /// </remarks>
 public static class AttentionTally
 {
@@ -48,7 +55,15 @@ public static class AttentionTally
             attention.FailedTasks,
             attention.SitesOnEndOfLifePhp,
         };
-        var total = 0;
+        var total = attention.LicenceExpiring.Match(
+            expiring =>
+            {
+                return expiring;
+            },
+            () =>
+            {
+                return 0;
+            });
         foreach (var count in counts)
         {
             if (count.State != DashboardSectionState.Loaded)

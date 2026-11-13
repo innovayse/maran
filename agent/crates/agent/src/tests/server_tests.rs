@@ -58,8 +58,9 @@ fn startup_reconcilers() -> Vec<String> {
 /// The startup pass covers interrupted restores, the web tree, the php-fpm
 /// pool trees, the OPcache drop-ins (issue #157), the SFTP key directory and
 /// the sites' credential files (issue #151), the DNS zone files (issue #178) and
-/// the temporary database users of an interrupted import (issue #127), and
-/// nothing else. The first three
+/// the temporary database users of an interrupted import (issue #127), the
+/// local-submission maps of a host that enabled mail under an earlier release and
+/// the firewall's output chain (issue #531), and nothing else. The first three
 /// are the still-OPEN part of the config-write midpoint written down as a check
 /// instead of as a sentence; the drop-ins are the isolation settings of a cache
 /// every tenant of a version shares; the key directory and the credential files
@@ -97,6 +98,8 @@ fn the_only_startup_reconciliations_are_the_ones_serve_names() {
             "reconcile_site_auth_files".to_owned(),
             "reconcile_dns_zones".to_owned(),
             "reconcile_import_users".to_owned(),
+            "reconcile_mail_maps".to_owned(),
+            "reconcile_firewall_output_chain".to_owned(),
         ],
         "a startup reconciliation was added or removed; update reconcile_web_tree's \
          stated blind spots and its log line, then update this list"

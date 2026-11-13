@@ -42,6 +42,9 @@
   <data name="SiteNotFound">
     <value>This site could not be found.</value>
   </data>
+  <data name="SiteBusy">
+    <value>Another change to this site is still in progress. Wait a moment and try again.</value>
+  </data>
   <data name="AccountNotFound">
     <value>This account could not be found.</value>
   </data>

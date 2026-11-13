@@ -51,7 +51,7 @@ The other two documented outbound destinations are separate: the release host fo
 The marketplace sends this and nothing else:
 
 - the panel's version, in a request header, on every request except the package download;
-- the interface language (`en`, `ru` or `hy`);
+- the interface language (`en`, `ru` or `hy`; a language outside these three is sent as `en`);
 - the release channel (`stable` unless configured);
 - the text the administrator typed into the catalogue search, and the page cursor of the next page;
 - the id and version of the module being looked at or installed;
@@ -99,6 +99,26 @@ The panel also holds the host to size and time limits (`RequestTimeoutSeconds` 3
 The settings are checked the first time an administrator uses the marketplace, never at start-up: a server whose
 `panel.env` carries a mistake still starts, and the marketplace then answers "The marketplace address is not set up
 correctly on this server" instead of connecting.
+
+### The download address must be on the same origin
+
+A download is a separate request to the address the signed grant carries. The panel accepts that address only when it is
+`https` on the same host name and port as `Marketplace__BaseUrl`, with no user information; anything else is refused with
+"The marketplace sent a download address whose scheme, host or port differs from the marketplace address configured on
+this server" and nothing is downloaded. The service builds the address from its own `Marketplace__PublicBaseUrl`, so
+the two settings must name **the same origin** in every environment:
+
+| Service `Marketplace__PublicBaseUrl` | Panel `Marketplace__BaseUrl` | Result |
+|---|---|---|
+| `https://api-marketplace-maran.innovayse.com` | `https://api-marketplace-maran.innovayse.com` | Works. |
+| `https://marketplace.internal:8443` | `https://marketplace.internal:8443` | Works (the port is part of the origin). |
+| `https://marketplace.internal` | `https://marketplace.internal:8443` | Every download is refused: the port differs. |
+| `https://other-host.example` | `https://api-marketplace-maran.innovayse.com` | Every download is refused: the host differs. |
+
+The service requires `PublicBaseUrl` to be an origin (scheme, host, optional port) with no path, user information, query
+or fragment and refuses to start otherwise, because the grant address is formed from the origin alone and a path prefix
+would be dropped silently. A service behind a reverse proxy that serves it under a path prefix therefore cannot hand out
+a working grant address; publish it at the root of its host.
 
 A different host also needs its own signing key: the panel believes only answers signed by the key in
 `Marketplace__MetadataKeyPath` (below), so the host you point it at must sign with a key you have installed there.
@@ -175,7 +195,7 @@ the panel's own text; the host's sentences are never shown.
 |---|---|
 | The marketplace is switched off. | An administrator has not switched it on (or has switched it off). |
 | The marketplace address is not set up correctly on this server. | `Marketplace__BaseUrl` or another setting fails its check. Fix `panel.env` and restart the panel service. |
-| The marketplace could not be reached. | Network failure, a timeout, or the host answered with a server error or "try again later". A read is retried twice before this is shown. |
+| The marketplace could not be reached. | Network failure, a timeout, or the host answered with a server error or "try again later". A read is retried twice before this is shown. When the host says when to come back (`Retry-After`), the panel waits for that long, but never more than 2.5 seconds before each retry and 5 seconds in all, so a host that asks for more cannot keep the page waiting. |
 | The marketplace answer could not be verified. | The answer carried no valid signature from a key the panel trusts. Nothing was used. |
 | The marketplace answer is too old to be trusted. | The signature is genuine but older than 24 hours, dated in the future, or past its expiry. Check again in a few minutes. |
 | This server has no marketplace verification key. | The key file is missing or unreadable. Restore `/usr/local/maran/keys/marketplace-metadata.pub`. |
@@ -183,7 +203,11 @@ the panel's own text; the host's sentences are never shown.
 | Your licence does not include this module. | The host says the licence does not cover it. Buying happens in the vendor's own account, never in the panel. |
 | This version of the module does not work with the version of the panel. | The version is outside the panel version range. |
 | This version of the module has been withdrawn by its publisher. | The version is revoked. |
-| The marketplace sent a download address that this panel does not trust. | The grant pointed at another host or port. Nothing was downloaded. |
+| The marketplace sent a download address whose scheme, host or port differs from the marketplace address configured on this server (Marketplace__BaseUrl), so nothing was downloaded. The service's public address and this setting must name the same origin. | The grant pointed at another origin than `Marketplace__BaseUrl`. Nothing was downloaded. Make the service's `Marketplace__PublicBaseUrl` and this setting name the same origin (above). |
+| The marketplace no longer knows this server's licence. | The service has no record of the licence id in the lease (`licence_unknown`). Install the licence again. |
+| This server's licence has been revoked. | The service revoked the licence (`licence_revoked`). Contact the licence issuer. |
+| The marketplace is receiving too many requests from this server. | The host answered "too many requests" (`rate_limited`). Wait and try again. |
+| The marketplace no longer accepts this download. | The grant expired or was already used (`not_found` or `410` on the download). Start the installation again. |
 | The downloaded package is not the size / does not match the fingerprint the marketplace announced. | The download was discarded. Nothing was installed. |
 | The marketplace tried to send this panel to another address / sent more data than this panel accepts / sent an answer this panel could not understand / refused the request. | The conversation was stopped on the panel's side. |
 | Confirm that you have read what this module is allowed to do. | The acknowledgement box was not ticked. |

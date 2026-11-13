@@ -2,6 +2,7 @@ using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Sites.Services;
 using Maran.Sdk.Interfaces;
+using Maran.Sdk.Modules;
 using Maran.SharedKernel.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -28,11 +29,13 @@ public sealed class StartupPhpSiteScopeFactory : IDisposable
     /// <param name="agent">The agent client every scope resolves.</param>
     /// <param name="accounts">The account directory every scope resolves.</param>
     /// <param name="stack">The installed apps every scope resolves; nginx and PHP when omitted.</param>
+    /// <param name="siteLock">The per-site lock every scope resolves; a real in-process one when omitted.</param>
     public StartupPhpSiteScopeFactory(
         SitesDbContext dbContext,
         IAgentSitesClient agent,
         IAccountDirectory accounts,
-        IStackStatus? stack = null)
+        IStackStatus? stack = null,
+        ISiteOperationLock? siteLock = null)
     {
         var services = new ServiceCollection();
 
@@ -42,6 +45,7 @@ public sealed class StartupPhpSiteScopeFactory : IDisposable
         services.AddSingleton(agent);
         services.AddSingleton(accounts);
         services.AddSingleton(stack ?? new FakeStackStatus());
+        services.AddSingleton(siteLock ?? new SiteOperationLock());
         services.AddScoped<SiteStackGate>();
         services.AddScoped<PhpAccountPoolSettings>();
 

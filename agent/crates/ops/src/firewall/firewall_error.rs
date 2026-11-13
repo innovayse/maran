@@ -3,6 +3,8 @@
 #[cfg(doc)]
 use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::host_addresses_error::HostAddressesError;
+use maran_templates::render_error::RenderError;
 
 /// What can go wrong while reading, changing or loading the host firewall.
 ///
@@ -176,12 +178,42 @@ pub enum FirewallError {
     #[error("the ruleset file could not be read")]
     RulesetUnreadable,
 
+    /// A `login.defs` sets `UID_MIN` to something that is not a positive
+    /// number, so the output chain's uid floor cannot be known.
+    ///
+    /// Refused rather than defaulted: the floor decides which uids are
+    /// rejected, and guessing it would reject the wrong ones silently.
+    #[error("the host's login.defs sets UID_MIN to a value this agent cannot use")]
+    CustomerUidFloorUnusable,
+
+    /// The kernel's address tables cannot be read as this host's own addresses;
+    /// the cause says which table and how (missing, unreadable, over its bound).
+    ///
+    /// Refused rather than read as "no addresses": the output chain's second layer
+    /// matches the host's own addresses, and a chain rendered without them would
+    /// look applied while matching nothing, where the mail layer (which reads the
+    /// same tables the same way) refuses.
+    #[error("the host's own addresses cannot be read: {0}")]
+    HostAddressesUnreadable(#[from] HostAddressesError),
+
+    /// The live firewall has no output chain, or the ruleset file's tail is not
+    /// one this agent can bring up to date.
+    ///
+    /// Reported by the startup reconcile, never by a request: a host whose file
+    /// predates the chain, or whose kernel never loaded it, is on the first layer
+    /// of the port-25 lockdown only.
+    #[error("the firewall's output chain is missing")]
+    OutputChainMissing,
+
     /// A template failed to render.
     ///
     /// Can only happen if a template and its render type have drifted apart,
     /// since every value reaching one is already validated.
-    #[error("the firewall configuration could not be rendered")]
-    RenderFailed,
+    #[error("the firewall configuration could not be rendered: {reason}")]
+    RenderFailed {
+        /// The template engine's own message, for the operator log.
+        reason: String,
+    },
 
     /// The staged file could not be written, flushed, renamed into place, or
     /// made durable afterwards.
@@ -228,3 +260,11 @@ pub enum FirewallError {
 #[cfg(test)]
 #[path = "../tests/firewall/firewall_error_tests.rs"]
 mod tests;
+
+impl From<RenderError> for FirewallError {
+    fn from(error: RenderError) -> Self {
+        Self::RenderFailed {
+            reason: error.to_string(),
+        }
+    }
+}

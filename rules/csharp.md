@@ -227,6 +227,9 @@ backend/
 │   │   │                                 #   SearchModuleGate (a provider is asked only if its module is enabled: an
 │   │   │                                 #   included module always, a paid one while the licence window covers it)
 │   │   ├── Behaviors/                   # Wolverine message middleware (logging, tx, validation)
+│   │   ├── Dashboard/                   # dashboard reads that span modules: the first-run checklist (GET /api/v1/dashboard/first-run,
+│   │   │                                 #   five derived steps, each answered by a count query of the owning module through
+│   │   │                                 #   the bus) and, held with issue #199, the live stream (GET /api/v1/dashboard/stream)
 │   │   ├── Idempotency/                 # deliberately holds nothing but its .gitkeep: Idempotency-Key
 │   │   │                                 #   handling is the Sdk's IdempotentAttribute filter over the
 │   │   │                                 #   Idempotency module's store, and the Host adds only the
@@ -265,12 +268,15 @@ backend/
 │   │   │                                 #   IEncryptionService, ISubKeyDeriver, IErrorTextProvider
 │   │   ├── Callers/                     # who a request or message runs as, ONE closed type: Caller and its
 │   │   │                                 #   cases AnonymousCaller, AdministratorCaller, CustomerCaller,
-│   │   │                                 #   account), ResellerCaller (a reseller login: it carries the
+│   │   │                                 #   AccountlessCustomerCaller (a customer login with no active
+│   │   │                                 #   account: the customer id and no account id), ResellerCaller (a reseller login: it carries the
 │   │   │                                 #   reseller id and no account id), ApiKeyCaller (a machine caller
-│   │   │                                 #   authenticated by an API key: key id and scopes, NO user, account
-│   │   │                                 #   or reseller id, and not a PrincipalCaller — every role check
-│   │   │                                 #   refuses it and every tenant filter shows it nothing; six cases in
-│   │   │                                 #   all with AnonymousCaller, AdministratorCaller and CustomerCaller),
+│   │   │                                 #   authenticated by an API key: key id, scopes and, for a key a
+│   │   │                                 #   reseller owns, that reseller's id — NO user or account id, and
+│   │   │                                 #   not a PrincipalCaller — every role check refuses it and every
+│   │   │                                 #   tenant filter shows it nothing, bar the Accounts module's
+│   │   │                                 #   narrowing to the owning reseller's rows; six cases in
+│   │   │                                 #   all),
 │   │   │                                 #   the shared PrincipalCaller base and ViewingOperator
 │   │   │                                 #   (the operator viewing as a login). ICurrentUser.Caller hands it
 │   │   │                                 #   out; a member exists only on the case that has it
@@ -292,7 +298,7 @@ backend/
 │   │   │                                 #   and EnumerablePagingExtensions are the ONLY two pagers — a
 │   │   │                                 #   handler never writes Skip/Take/CountAsync for a list itself
 │   │   ├── Enums/                       # kernel-wide enums (SortDirection, SearchTermVerdict)
-│   │   ├── Persistence/ · Exceptions/ · Constants/
+│   │   ├── Persistence/ · Exceptions/ · Constants/   # Constants/FleetServers: the id of the local server (issue #180)
 │   │   ├── Localization/                # resx-backed IErrorTextProvider implementations (contract in Interfaces/)
 │   │   ├── Security/                    # what holds a secret or states a policy: the encryption key
 │   │   │                                #   and its EF converter, HkdfSubKeyDeriver (a key per purpose
@@ -378,8 +384,14 @@ backend/
 │   │   │                                #   Enums/ManifestFindingKind (the closed set of rules it can
 │   │   │                                #   break), ManifestPermissionVocabulary (the policy names a
 │   │   │                                #   permission may take, read from the Sdk's own constants)
+│   │   ├── Modules/                     # NullModuleLoader (the open build's loader; answers MarketplaceNotAvailable) and the
+│   │   │                                 #   other null or refusing seams. The loader contract itself is IModuleLoader, IModulePackageSource,
+│   │   │                                 #   IVerifiedModulePackageSource, ILeaseRequestAuthorizer, ILicenceLease, IModuleRegistry in
+│   │   │                                 #   Interfaces/ and ModuleInstallResult, LoadedModuleInfo, RegisteredModule in Contracts/;
+│   │   │                                 #   the Host composes the real loader from them
 │   │   ├── Filters/                     # action filters modules may opt into: IdempotentAttribute (with
-│   │   │                                 #   IdempotencyFilter behind it and IdempotencyNoStoreAttribute for an
+│   │   │                                 #   IdempotencyFilter behind it, `Required = true` making the header mandatory and
+│   │   │                                 #   answering IdempotencyKeyRequired when it is absent, and IdempotencyNoStoreAttribute for an
 │   │   │                                 #   action whose answer carries a secret), and
 │   │   │                                 #   RequiresAccountFeatureAttribute and RequiresLicensedModuleAttribute
 │   │   │                                 #   (with its filter: refuses a request for a module the licence window
@@ -414,6 +426,8 @@ backend/
 │   ├── Maran.Agent.Client/          # the ONLY project generating agent gRPC code
 │   │   ├── DependencyInjection.cs       # AddAgentClient — the project's registrations
 │   │   ├── Channels/                    # AgentChannel.cs — unix-socket channel construction
+│   │   ├── Targets/                     # which server a call is for: the agent target, the per-server channel pool (IAgentChannels)
+│   │   │                                 #   and the mutual-TLS channel factory that pins the server's certificate
 │   │   ├── Errors/                      # AgentErrorTranslator.cs — the ONE place a wire AgentError
 │   │   │                                #   becomes a code, and the ONE place the agent's own text
 │   │   │                                #   is logged (and redacted). Shared by every service
@@ -440,11 +454,19 @@ backend/
 │   │                                    #  new ErrorCode. Its credential type redacts the private
 │   │                                    #  key in ToString; ResilientAgentTransferClient (Host)
 │   │                                    #  retries only a connect that failed, never a started call
+│   ├── Maran.Agent.Simulated/       # in-memory simulations of every Agent.Client interface and the ledger they share, for the public demo only
+│   ├── Maran.Host.Demo/             # the demo's composition root: guard, seeding, reset and the simulated agent; never shipped to a customer
+│   │                                 #   Resources/ also holds the content filter's data as plain text, one entry per line:
+│   │                                 #   DemoBlockedTerms.<language>.txt, DemoAllowedHosts.txt and DemoDocumentationHosts.txt, read by DemoTextLists;
+│   │                                 #   Guard/Text/ holds the text screen's folds, term index and link reader, Guard/Exceptions/ its typed refusal
+│   ├── Maran.Packaging/             # the .ipm module package: its format, the signed manifest with SHA-384 pins, a safe archive reader and
+│   │                                 #   an ECDSA P-384 signature check with a key the caller supplies. Used by `maran ipm` and the
+│   │                                 #   Host `--cli module-manifest` / `module-verify` verbs; `backend/samples/hello-module` is its reference.
 │   └── Maran.Modules/               # grouping folder for all module projects
 │       └── <Name>/                      # short folder (Sites/, Accounts/…); the project inside
 │                                        #   is the full Maran.Modules.<Name>.csproj. A facility more than
 │                                        #   one module needs is a module of its own (rules/architecture.md):
-│                                        #   Notifications (outgoing mail) and Idempotency (the store behind
+│                                        #   Notifications (outgoing mail, the operator-alert recipients and their delivery state, and the notification feed) and Idempotency (the store behind
 │                                        #   the Idempotency-Key header, schema `idempotency`, no agent
 │                                        #   capability, no endpoints — the Sdk filter reaches it only
 │                                        #   through IIdempotencyStore, so no module hosts another's keys),
@@ -557,7 +579,8 @@ backend/
 │           │   ├── Configurations/      # <Entity>Configuration.cs — one per entity
 │           │   ├── Interceptors/        # SaveChanges interceptors (audit, timestamps)
 │           │   └── Migrations/          # EF-generated, module-scoped
-│           ├── Seeders/                 # initial data owned by this module
+│           ├── Seeders/                 # initial data owned by this module, and start-up backfills of rows an earlier release
+│           │                            #   did not record (Databases/DatabaseUserBackfillSeeder, issue #156)
 │           └── Resources/              # the module's resx triples (X.resx · X.ru.resx ·
 │                                        #   X.hy.resx); ErrorMessages.resx also DEFINES the
 │                                        #   module's error codes (see below)
@@ -977,6 +1000,8 @@ writer takes an `HttpResponse`, and `Maran.SharedKernel.csproj` carries no
 `FrameworkReference Include="Microsoft.AspNetCore.App"` while `Maran.Sdk.csproj` does. A module that
 streams **MUST NOT** write its own SSE pump — the wire shape is read by one SPA stream helper, and a
 second implementation of it is a second thing to drift.
+
+**The Sdk grows by a reviewed edit.** `backend/tests/Maran.ArchitectureTests/Baselines/sdk-surface.txt` records every public type of `Maran.Sdk` and a per-module ceiling on the Sdk types each module uses; `SdkSurfaceTests` fail when a public type appears or disappears, or a module crosses its ceiling. Regenerate the file in the same change that deliberately grows the shared project, so the diff of the baseline is the review artifact (issue #105).
 
 `BaseApiController` carries what every module controller needs and nothing else: `[ApiController]`, the `api/v1/[controller]` route convention, the current user, the correlation id, and the `Result`→HTTP translation. **A module controller inherits it — never `ControllerBase` directly**, and never re-implements result translation.
 
@@ -1417,7 +1442,7 @@ Rules for this layer:
 - **`Program.cs` contains no logic** — only `builder.Services.AddX()` and `app.UseX()` calls in order. Anything longer than a line moves into the matching `Extensions/` file. If `Program.cs` stops reading like a table of contents, it is wrong.
 - **One concern per extension file**, named after the concern, exposing one `Add<Concern>` and/or `Use<Concern>` method. No `ServiceCollectionExtensions.cs` catch-all.
 - **Every `*Extensions` type lives in `Extensions/`, always.** No exceptions, in any project: `Middleware/ExceptionMiddleware.cs` holds the middleware, `Extensions/ExceptionMiddlewareExtensions.cs` holds its `Use…` method; `Sdk/Extensions/ApiResultExtensions.cs` likewise. The suffix decides the folder, and a `static class` of extensions is a type like any other under the one-type-per-file law.
-- **Rate limiting is mandatory** on authentication, the provisioning API, and any expensive operation; policies live in `RateLimiting/`, never inline in an endpoint. Repeated offenders are escalated to a firewall ban through the agent (rules/security.md).
+- **Rate limiting is mandatory** on authentication, the reseller API (`ProvisioningRateLimitPolicy`, per API key), and any expensive operation; policies live in `RateLimiting/`, never inline in an endpoint. Repeated offenders are escalated to a firewall ban through the agent (rules/security.md).
 - **Every outbound call goes through a named resilience pipeline** from `Resilience/` — the agent, ACME, the licence server, S3, SMTP. Raw `HttpClient` calls with no timeout policy are rejected; a timeout is always set.
 - **Every project exposes its registrations through one `DependencyInjection.cs`** at its root, with a single `Add<Project>` extension method (`AddSharedKernel`, `AddAgentClient`). A project never asks the Host to new up its types, and the Host never registers another project's internals — that is how `Program.cs` stays a table of contents.
 - **`GlobalUsings.cs` exists in every project** and holds only genuinely universal namespaces for that project (its own core namespaces, `System.*` basics, `Microsoft.Extensions.DependencyInjection` where apt). It is not a place to hide module-specific imports, and it never contains aliases that make code ambiguous to a reader.

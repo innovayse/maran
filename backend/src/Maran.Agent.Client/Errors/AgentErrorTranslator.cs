@@ -123,6 +123,11 @@ internal static class AgentErrorTranslator
             ErrorCode.AppNotInstalled => ErrorType.NotFound,
             ErrorCode.AppInUse => ErrorType.Conflict,
             ErrorCode.WebServerAlreadyInstalled => ErrorType.Conflict,
+            ErrorCode.NodeMajorAlreadyInstalled => ErrorType.Conflict,
+            ErrorCode.NodeUnmanagedInstall => ErrorType.Conflict,
+            ErrorCode.NodeStreamEnabledByOperator => ErrorType.Conflict,
+            ErrorCode.NodeInterpreterUnreadable => ErrorType.Conflict,
+            ErrorCode.NodeOperationInProgress => ErrorType.Conflict,
             _ => ErrorType.Failure,
         };
     }
@@ -222,14 +227,21 @@ internal static class AgentErrorTranslator
     /// travels as its own code so the backups module can tell the operator to check the destination's
     /// archive key, which the shared validation sentence ("correct these details") does not say.
     ///
-    /// <see cref="ErrorCode.AppNotInstalled"/>, <see cref="ErrorCode.AppInUse"/> and
-    /// <see cref="ErrorCode.WebServerAlreadyInstalled"/> are the three refusals of the app store
-    /// (issue #517). Each is a state the host is in and the request cannot change: removing or
+    /// <see cref="ErrorCode.AppNotInstalled"/>, <see cref="ErrorCode.AppInUse"/>,
+    /// <see cref="ErrorCode.WebServerAlreadyInstalled"/> and <see cref="ErrorCode.NodeMajorAlreadyInstalled"/>
+    /// are the refusals of the app store (issues #517 and #532). Each is a state the host is in and the request cannot change: removing or
     /// controlling an app that is not installed is <see cref="ErrorType.NotFound"/> (the app is not
-    /// there), and removing an app a site still uses, or installing a second site web server, is
+    /// there), and removing an app a site still uses, or installing a second site web server or a second Node.js major on a host that keeps one, is
     /// <see cref="ErrorType.Conflict"/> (the host's state forbids the request as asked). They travel
     /// as their own codes so the page can say which app and why, which the generic validation
     /// sentence does not.
+    ///
+    /// <see cref="ErrorCode.NodeUnmanagedInstall"/>, <see cref="ErrorCode.NodeStreamEnabledByOperator"/>,
+    /// <see cref="ErrorCode.NodeInterpreterUnreadable"/> and <see cref="ErrorCode.NodeOperationInProgress"/>
+    /// (issue #532) are the Node.js refusals the operator answers by a different act each, so each has its own
+    /// code and its own sentence (the command to run is in it) instead of sharing the "another major" one.
+    /// All four are <see cref="ErrorType.Conflict"/>: nothing changed, and the host's state forbids the request
+    /// as asked.
     /// </remarks>
     public static string ToErrorCode(ErrorCode code)
     {
@@ -257,6 +269,11 @@ internal static class AgentErrorTranslator
             ErrorCode.AppNotInstalled => nameof(ErrorMessages.AgentAppNotInstalled),
             ErrorCode.AppInUse => nameof(ErrorMessages.AgentAppInUse),
             ErrorCode.WebServerAlreadyInstalled => nameof(ErrorMessages.AgentWebServerAlreadyInstalled),
+            ErrorCode.NodeMajorAlreadyInstalled => nameof(ErrorMessages.AgentNodeMajorAlreadyInstalled),
+            ErrorCode.NodeUnmanagedInstall => nameof(ErrorMessages.AgentNodeUnmanagedInstall),
+            ErrorCode.NodeStreamEnabledByOperator => nameof(ErrorMessages.AgentNodeStreamEnabledByOperator),
+            ErrorCode.NodeInterpreterUnreadable => nameof(ErrorMessages.AgentNodeInterpreterUnreadable),
+            ErrorCode.NodeOperationInProgress => nameof(ErrorMessages.AgentNodeOperationInProgress),
             _ => nameof(ErrorMessages.AgentUnspecified),
         };
     }

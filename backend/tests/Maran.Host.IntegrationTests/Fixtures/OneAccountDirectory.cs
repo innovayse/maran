@@ -123,7 +123,8 @@ public sealed class OneAccountDirectory : IAccountDirectory
     /// <inheritdoc />
     public Task<AccountSnapshot?> FindForSystemAsync(Guid accountId, CancellationToken cancellationToken)
     {
-        throw new NotSupportedException("These tests read no account unscoped.");
+        // Answers for its one account, like every other lookup here; it models no tenant scope.
+        return Task.FromResult(accountId == _snapshot.Id ? _snapshot : null);
     }
 
     /// <inheritdoc />

@@ -45,7 +45,9 @@ readonly MARAN_REQUIRED_PORTS="${MARAN_PANEL_PORT:?must be set by install.sh bef
 # the same code path — the rhel family — so listing them costs one word each and claims nothing that
 # AlmaLinux's and Rocky's polygon runs do not already exercise.
 #
-# SUSE (issue #59): `opensuse-leap:16.0 opensuse-leap:16.1 sles:16.0`. SLES 16 is claimed THROUGH its
+# SUSE (issue #59, #559): `opensuse-leap:16.0 opensuse-leap:16.1 sles:16.0 sles:16.1`. Leap 16.1 was released
+# 2026-11-03; 16.0 stays until the vendor's end-of-support dates are confirmed (see the SUSE threat note).
+# SLES 16 is claimed THROUGH its
 # community sibling Leap 16 (same base, same packages), exactly as RHEL is claimed through its
 # rebuilds: the polygon runs Leap, because SLES needs a subscription we do not hold. Several ids
 # carry "suse" in ID_LIKE and are deliberately NOT here, so detection (install.sh) names the family
@@ -53,7 +55,7 @@ readonly MARAN_REQUIRED_PORTS="${MARAN_PANEL_PORT:?must be set by install.sh bef
 # opensuse-microos (read-only transactional root: zypper installs do not persist), sled (a desktop),
 # sles_sap (an SAP-specific product) and sles 15.x / Leap 15.x (out of general support, and their
 # default MAC is AppArmor, which no step here was written for).
-readonly MARAN_SUPPORTED_MATRIX="ubuntu:22.04 ubuntu:24.04 ubuntu:26.04 debian:12 debian:13 almalinux:8 almalinux:9 almalinux:10 rocky:8 rocky:9 rocky:10 rhel:8 rhel:9 rhel:10 ol:8 ol:9 ol:10 opensuse-leap:16.0 opensuse-leap:16.1 sles:16.0"
+readonly MARAN_SUPPORTED_MATRIX="ubuntu:22.04 ubuntu:24.04 ubuntu:26.04 debian:12 debian:13 almalinux:8 almalinux:9 almalinux:10 rocky:8 rocky:9 rocky:10 rhel:8 rhel:9 rhel:10 ol:8 ol:9 ol:10 opensuse-leap:16.0 opensuse-leap:16.1 sles:16.0 sles:16.1"
 
 # fail: print a uniform "what failed / what to do" message and mark preflight failed.
 # Preflight collects ALL failures before exiting so the operator does not have to
@@ -126,7 +128,7 @@ check_os_supported() {
   local pair="${MARAN_OS_ID}:${MARAN_OS_VERSION_ID}" candidate matched=0
   for candidate in $MARAN_SUPPORTED_MATRIX; do
     local cid="${candidate%%:*}" cver="${candidate##*:}"
-    if [ "$MARAN_OS_ID" = "$cid" ] && [[ "$MARAN_OS_VERSION_ID" == "${cver}"* ]]; then
+    if [ "$MARAN_OS_ID" = "$cid" ] && { [ "$MARAN_OS_VERSION_ID" = "$cver" ] || [[ "$MARAN_OS_VERSION_ID" == "${cver}."* ]]; }; then
       matched=1
       break
     fi
@@ -135,7 +137,7 @@ check_os_supported() {
     ok "OS ${MARAN_OS_ID} ${MARAN_OS_VERSION_ID} is supported"
   else
     fail "OS ${MARAN_OS_ID} ${MARAN_OS_VERSION_ID} is not a supported target" \
-      "Install on one of: Ubuntu 22.04/24.04/26.04, Debian 12/13, RHEL/AlmaLinux/Rocky/Oracle 8/9/10, openSUSE Leap 16.0/16.1, or SLES 16.0."
+      "Install on one of: Ubuntu 22.04/24.04/26.04, Debian 12/13, RHEL/AlmaLinux/Rocky/Oracle 8/9/10, openSUSE Leap 16.0/16.1, or SLES 16.0/16.1."
   fi
 }
 

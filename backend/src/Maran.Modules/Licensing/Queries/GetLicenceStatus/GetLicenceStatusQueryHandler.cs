@@ -44,18 +44,30 @@ public sealed class GetLicenceStatusQueryHandler
     /// <summary>Writes this module's audit entries.</summary>
     private readonly LicensingAuditJournal _auditJournal;
 
+    /// <summary>Reads this server's id and the claim link.</summary>
+    private readonly LicenceServerFactsSource _serverFacts;
+
+    /// <summary>Says whether the licence is close to its expiry.</summary>
+    private readonly LicenceExpiryWarningSource _expiryWarnings;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="coverageSource">Reads the installed licence and its lease and judges both now, uncached.</param>
     /// <param name="displayNames">Resolves the operator-facing sentence and advice for a status.</param>
     /// <param name="auditJournal">Writes this module's audit entries.</param>
+    /// <param name="serverFacts">Reads this server's id and the claim link.</param>
+    /// <param name="expiryWarnings">Says whether the licence is close to its expiry.</param>
     public GetLicenceStatusQueryHandler(
         LicenceCoverageSource coverageSource,
         LicenceStatusDisplayNames displayNames,
-        LicensingAuditJournal auditJournal)
+        LicensingAuditJournal auditJournal,
+        LicenceServerFactsSource serverFacts,
+        LicenceExpiryWarningSource expiryWarnings)
     {
         _coverageSource = coverageSource;
         _displayNames = displayNames;
         _auditJournal = auditJournal;
+        _serverFacts = serverFacts;
+        _expiryWarnings = expiryWarnings;
     }
 
     /// <summary>Reads, verifies and reports the installed licence's status.</summary>
@@ -70,16 +82,21 @@ public sealed class GetLicenceStatusQueryHandler
 
         await _auditJournal.RecordReadAsync(coverage.Status, query.IpAddress, query.UserAgent, cancellationToken);
 
-        return Result<LicenceStatusDto>.Ok(ToDto(coverage));
+        var server = await _serverFacts.ReadAsync(cancellationToken);
+
+        return Result<LicenceStatusDto>.Ok(ToDto(coverage, server));
     }
 
     /// <summary>Maps the verified status to its wire shape, adding only text already judged safe to disclose.</summary>
     /// <param name="coverage">The three-state outcome <see cref="LicenceVerifier"/> produced and the standing of its lease.</param>
+    /// <param name="server">This server's id and the link to the claim page, which every state carries.</param>
     /// <returns>The DTO — see <see cref="LicenceStatusDto"/>'s own remarks for what it may never carry.</returns>
-    private LicenceStatusDto ToDto(LicenceCoverage coverage)
+    private LicenceStatusDto ToDto(LicenceCoverage coverage, LicenceServerFacts server)
     {
         var status = coverage.Status;
         var leaseName = _displayNames.LeaseNameFor(coverage.Lease.Kind);
+
+        var warning = _expiryWarnings.For(status);
 
         switch (status)
         {
@@ -98,7 +115,14 @@ public sealed class GetLicenceStatusQueryHandler
                     IsOffline: valid.Licence.IsOffline,
                     Lease: coverage.Lease.Kind,
                     LeaseDisplayName: leaseName,
-                    LeaseValidUntil: coverage.Lease.ValidUntil);
+                    LeaseValidUntil: coverage.Lease.ValidUntil,
+                    ServerId: server.ServerId,
+                    ClaimUrl: server.ClaimUrl,
+                    LeaseRequest: null,
+                    LeaseRequestDisplayName: null,
+                    ExpiryWarningDaysLeft: warning?.DaysLeft,
+                    ExpiryWarning: warning is null ? null : _displayNames.ExpiryWarningFor(warning),
+                    ExpiryRenewalAdvice: warning is null ? null : _displayNames.ExpiryRenewalAdvice());
 
             case LicenceStatus.Absent:
                 return new LicenceStatusDto(
@@ -115,7 +139,14 @@ public sealed class GetLicenceStatusQueryHandler
                     IsOffline: false,
                     Lease: coverage.Lease.Kind,
                     LeaseDisplayName: leaseName,
-                    LeaseValidUntil: null);
+                    LeaseValidUntil: null,
+                    ServerId: server.ServerId,
+                    ClaimUrl: server.ClaimUrl,
+                    LeaseRequest: null,
+                    LeaseRequestDisplayName: null,
+                    ExpiryWarningDaysLeft: null,
+                    ExpiryWarning: null,
+                    ExpiryRenewalAdvice: null);
 
             case LicenceStatus.Refused refused:
                 return new LicenceStatusDto(
@@ -132,7 +163,14 @@ public sealed class GetLicenceStatusQueryHandler
                     IsOffline: false,
                     Lease: coverage.Lease.Kind,
                     LeaseDisplayName: leaseName,
-                    LeaseValidUntil: null);
+                    LeaseValidUntil: null,
+                    ServerId: server.ServerId,
+                    ClaimUrl: server.ClaimUrl,
+                    LeaseRequest: null,
+                    LeaseRequestDisplayName: null,
+                    ExpiryWarningDaysLeft: null,
+                    ExpiryWarning: null,
+                    ExpiryRenewalAdvice: null);
 
             default:
                 throw new InvalidOperationException($"Unknown LicenceStatus case: {status}.");

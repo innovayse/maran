@@ -1,4 +1,4 @@
-//! The five tables the local-submission binding is rendered into (issue #518).
+//! The six tables the local-submission binding is rendered into (issue #518).
 
 use std::path::Path;
 use std::sync::{Mutex, MutexGuard, PoisonError};
@@ -22,7 +22,7 @@ const TABLE_MODE: u32 = 0o644;
 /// The lines one account owns in each table, already rendered.
 ///
 /// An empty vector means "the account has no line there". Removal passes all
-/// five empty.
+/// six empty.
 #[derive(Debug, Default)]
 pub(crate) struct AccountLines {
     /// `<uid> <account>` lines of `local_submit_accounts.map`.
@@ -35,6 +35,8 @@ pub(crate) struct AccountLines {
     pub(crate) mailbox_accounts: Vec<String>,
     /// The `<account> OK` line of Postfix's `maran_local_submit_users`.
     pub(crate) submit_users: Vec<String>,
+    /// `<alias> <external target count> <account>` lines of `alias_fanout.map`.
+    pub(crate) alias_fanouts: Vec<String>,
 }
 
 /// What an empty table holds: a comment line, never zero bytes. Rspamd feeds a
@@ -61,6 +63,13 @@ static TABLES: Mutex<()> = Mutex::new(());
 /// safe to take.
 pub(crate) fn hold_tables() -> MutexGuard<'static, ()> {
     TABLES.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// Whether some thread holds [`TABLES`] right now. A test double calls this from inside a host method to
+/// learn whether the change that reached it runs under the lock, without a thread, a sleep or a race.
+#[cfg(test)]
+pub(crate) fn tables_are_held() -> bool {
+    matches!(TABLES.try_lock(), Err(std::sync::TryLockError::WouldBlock))
 }
 
 /// How a table treats a key that another account already holds.
@@ -189,7 +198,7 @@ fn render_table(current: &str, table: &Table<'_>, account: &str) -> Result<Strin
     }
 }
 
-/// Replaces `account`'s entries in all five tables.
+/// Replaces `account`'s entries in all six tables.
 ///
 /// The whole change, reads included, runs under [`hold_tables`]: every table is
 /// read and rendered first (a key conflict is found here, before any write), then
@@ -227,7 +236,7 @@ pub(crate) fn apply_account_lines(
     }
 }
 
-/// Reads and renders the four Rspamd maps.
+/// Reads and renders the five Rspamd maps.
 fn render_rspamd_maps(
     host: &dyn MailHost,
     account: &str,
@@ -264,6 +273,12 @@ fn render_rspamd_maps(
             },
             added: &lines.mailbox_accounts,
         },
+        Table {
+            path: AgentPaths::MAIL_ALIAS_FANOUT_PATH,
+            owner_column: 2,
+            rule: KeyRule::Account,
+            added: &lines.alias_fanouts,
+        },
     ];
     let mut rendered = Vec::with_capacity(tables.len());
     for table in &tables {
@@ -290,7 +305,7 @@ fn render_postfix_users(
     ))
 }
 
-/// Writes the four rendered Rspamd maps as one change and reloads Rspamd.
+/// Writes the five rendered Rspamd maps as one change and reloads Rspamd.
 fn write_rspamd_maps(
     host: &dyn MailHost,
     distro: &dyn DistroAdapter,

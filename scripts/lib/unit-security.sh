@@ -23,6 +23,7 @@
 #
 # The package-install template unit is rendered for BOTH OS families and the worse score is the one
 # held (the keys are maran-app-install@.service and maran-app-remove@.service, the templates' names). Today the two are equal.
+# The two Node.js module-stream templates (issue #532) exist for the RHEL 9 generation only (no module streams on RHEL 10, issue #542), so only that render is scored.
 #
 # THREE ANSWERS, the vocabulary of `maran test` and `maran openapi` (scripts/lib/suite.sh):
 #
@@ -91,6 +92,9 @@ units_render_all() {
   MARAN_GROUP="maran"
   MARAN_API_SOCKET_PATH="/run/maran-api/api.sock"
   MARAN_OS_FAMILY="$family"
+  # The Node.js module-stream units are rendered for a release that has module streams, which is the
+  # RHEL 9 generation; the rendered text does not depend on the version, only whether it is rendered.
+  MARAN_OS_VERSION_ID="9"
   # shellcheck disable=SC1091
   . "$root/installer/lib/70-services.sh"
   # The one stub: see the header. Defined after sourcing so it replaces the installer's.
@@ -106,6 +110,8 @@ units_render_all() {
       maran-agent.service)         render_agent_unit "$out/$name" ;;
       maran-app-install@.service)  render_app_install_unit "$out/maran-app-install@i.service" ;;
       maran-app-remove@.service)   render_app_remove_unit "$out/maran-app-remove@i.service" ;;
+      maran-app-nodejs-install@.service) if release_has_module_streams; then render_nodejs_module_unit "$name" "$out/maran-app-nodejs-install@i.service"; fi ;;
+      maran-app-nodejs-remove@.service)  if release_has_module_streams; then render_nodejs_module_unit "$name" "$out/maran-app-nodejs-remove@i.service"; fi ;;
       maran-dns.service|maran-ftps.service|maran-panel-backup.service|maran-update-security.service|maran-update-request.service|maran-update-check.service) cp "$file" "$out/$name" ;;
       *) echo "installer/systemd/$name: scripts/lib/unit-security.sh does not know how the installer installs this unit" >&2; return 1 ;;
     esac
@@ -199,6 +205,7 @@ units_write_ceilings() {
     echo "# <unit><TAB><ceiling>: the highest 'systemd-analyze security --offline=yes' score the unit may have."
     echo "# Written by 'maran units --accept' from the units as the installer renders them; edit by re-measuring."
     echo "# maran-app-install@.service and maran-app-remove@.service are each the worst of its Debian-family, RHEL-family and SUSE-family renders."
+    echo "# maran-app-nodejs-install@.service and maran-app-nodejs-remove@.service exist on the RHEL 9 generation only (no module streams on RHEL 10), so that render is the one scored."
     echo "# A ceiling above 9 is a unit shipped as weakly sandboxed as it is today, not a target."
     sort -k1,1 "$1"
   } > "$3"

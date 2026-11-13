@@ -47,6 +47,9 @@ public sealed class ChangeSitePhpVersionCommandHandler
     /// <summary>Refuses the operation while no site web server is installed.</summary>
     private readonly SiteStackGate _stack;
 
+    /// <summary>Serialises the operations that change one site's host state.</summary>
+    private readonly ISiteOperationLock _locks;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Sites module's database context.</param>
     /// <param name="accounts">The owning account's system user name and per-pool worker budget.</param>
@@ -55,6 +58,7 @@ public sealed class ChangeSitePhpVersionCommandHandler
     /// <param name="siteNames">Names the site's backend and serving state for the request's culture.</param>
     /// <param name="poolSettings">The settings the account's pools carry, sent with every pool write.</param>
     /// <param name="stack">Refuses the operation while no site web server is installed.</param>
+    /// <param name="locks">Serialises the operations that change one site's host state.</param>
     public ChangeSitePhpVersionCommandHandler(
         SitesDbContext dbContext,
         IAccountDirectory accounts,
@@ -62,8 +66,10 @@ public sealed class ChangeSitePhpVersionCommandHandler
         SiteAuditJournal journal,
         SiteDisplayNames siteNames,
         PhpAccountPoolSettings poolSettings,
-        SiteStackGate stack)
+        SiteStackGate stack,
+        ISiteOperationLock locks)
     {
+        _locks = locks;
         _stack = stack;
         _dbContext = dbContext;
         _siteNames = siteNames;
@@ -92,6 +98,33 @@ public sealed class ChangeSitePhpVersionCommandHandler
             return await FailAsync(command, command.SiteId.ToString(), notReady, cancellationToken);
         }
 
+        // The site is held for the whole change, from reading its row to saving it, so no other
+        // operation on it interleaves; the row is read inside the guard for that reason (#531).
+        var guarded = await SiteGuard.RunAsync(
+            _locks,
+            command.SiteId,
+            SiteLockWait.Interactive,
+            () =>
+            {
+                return ApplyAsync(command, installed, cancellationToken);
+            },
+            cancellationToken);
+
+        return !guarded.IsSuccess && SiteBusyFailure.Is(guarded.Error)
+            ? await FailAsync(command, command.SiteId.ToString(), guarded.Error!, cancellationToken)
+            : guarded;
+    }
+
+    /// <summary>Applies the change to the site, which the caller holds.</summary>
+    /// <param name="command">Which site to act on.</param>
+    /// <param name="installed">The apps the stack gate found installed.</param>
+    /// <param name="cancellationToken">Cancels the operation.</param>
+    /// <returns>The change's outcome, or the typed failure.</returns>
+    private async Task<Result<SiteDto>> ApplyAsync(
+        ChangeSitePhpVersionCommand command,
+        SiteHostApps installed,
+        CancellationToken cancellationToken)
+    {
         var site = await _dbContext.Sites.SingleOrDefaultAsync(s => s.Id == command.SiteId, cancellationToken);
         if (site is null)
         {
@@ -123,6 +156,35 @@ public sealed class ChangeSitePhpVersionCommandHandler
             return await FailAsync(command, site.Domain, SiteHostApps.NotInstalledFailure(), cancellationToken);
         }
 
+        // The pools of the account are held from the question "is this the last site on the version being
+        // left" to the save (#561): a pool belongs to an account and a version, so a delete of ANOTHER site
+        // that is last on the version this one moves to would otherwise retire the pool this call has just
+        // created. The site's own lock, held by the caller, cannot cover it.
+        return await PhpPoolGuard.RunAsync(
+            _locks,
+            site.AccountId,
+            SiteLockWait.Interactive,
+            () =>
+            {
+                return RebindAsync(command, installed, site, account, cancellationToken);
+            },
+            cancellationToken);
+    }
+
+    /// <summary>Renders the new version and records it, for a site and an account pool the caller holds.</summary>
+    /// <param name="command">Which site, and which version.</param>
+    /// <param name="installed">The apps the stack gate found installed.</param>
+    /// <param name="site">The tracked row, still carrying its OLD version.</param>
+    /// <param name="account">The owning account.</param>
+    /// <param name="cancellationToken">Cancels the operation.</param>
+    /// <returns>The site in its new state, or the typed failure.</returns>
+    private async Task<Result<SiteDto>> RebindAsync(
+        ChangeSitePhpVersionCommand command,
+        SiteHostApps installed,
+        Site site,
+        AccountSnapshot account,
+        CancellationToken cancellationToken)
+    {
         // The descriptor is built from the STORED row, never assembled here, so the re-rendered
         // vhost is the site's own — the same aliases, the same backend, and the same TLS block it
         // already had (see SiteDescriptorMapper).
@@ -130,7 +192,7 @@ public sealed class ChangeSitePhpVersionCommandHandler
             account.Username,
             site.Domain,
             command.PhpVersion,
-            SiteDescriptorMapper.From(site, installed.WebServer!.Value),
+            SiteDescriptorMapper.From(site, installed.WebServer!.Value, account.PhpLimits),
             (uint)account.MaxPhpWorkersPerPool,
             await _poolSettings.EffectiveAsync(site.AccountId, account.PhpLimits, cancellationToken),
             // Whether the version being LEFT may lose its pool, answered from the panel's own rows:

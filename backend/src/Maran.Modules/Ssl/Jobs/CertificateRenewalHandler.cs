@@ -339,7 +339,12 @@ public sealed class CertificateRenewalHandler
         await _tasks.ReportAsync(taskId, 70, "installing the renewed material", cancellationToken);
 
         var installed = await _installer.InstallAsync(
-            account.Username, site, issued.Value.CertificatePem, issued.Value.PrivateKeyPem, cancellationToken);
+            account.Username,
+            site,
+            issued.Value.CertificatePem,
+            issued.Value.PrivateKeyPem,
+            CertificateLockWait.Unattended,
+            cancellationToken);
         if (!installed.IsSuccess)
         {
             return await RecordFailureAsync(certificate, installed.Error!.Code, taskId, cancellationToken);

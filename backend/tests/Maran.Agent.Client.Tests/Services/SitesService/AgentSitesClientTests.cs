@@ -281,7 +281,7 @@ public sealed class AgentSitesClientTests
             SiteNodeApp.None,
             0,
             [],
-            CancellationToken.None);
+            SiteOptionsDescriptor.None, CancellationToken.None);
 
         var returned = result.Error!.ToString();
         Assert.Equal("AgentValidationFailed", result.Error.Code);
@@ -439,9 +439,27 @@ public sealed class AgentSitesClientTests
             SiteNodeApp.None,
             10,
             [],
-            CancellationToken.None);
+            SiteOptionsDescriptor.None, CancellationToken.None);
 
         Assert.Equal(expected, stub.LastCreateRequest!.BackendType);
+    }
+
+    /// <summary>A creation carries the request body limit of its first vhost to the agent, and none when none is stated.</summary>
+    [Fact]
+    public async Task Create_carries_the_request_body_limit_of_the_first_vhost()
+    {
+        var stated = new StubSitesService();
+        var absent = new StubSitesService();
+
+        await NewClient(stated).CreateAsync(
+            "acc1", "example.com", [], SiteBackendKind.Php, "8.3", string.Empty, SiteWebServer.Nginx, SiteNodeApp.None, 10, [],
+            SiteOptionsDescriptor.None with { ClientMaxBodySizeMib = 96 }, CancellationToken.None);
+        await NewClient(absent).CreateAsync(
+            "acc1", "example.com", [], SiteBackendKind.Php, "8.3", string.Empty, SiteWebServer.Nginx, SiteNodeApp.None, 10, [],
+            SiteOptionsDescriptor.None, CancellationToken.None);
+
+        Assert.Equal(96u, stated.LastCreateRequest!.Options.ClientMaxBodySizeMib);
+        Assert.Equal(0u, absent.LastCreateRequest!.Options.ClientMaxBodySizeMib);
     }
 
     /// <summary>A creation carries the web server and the Node application to the agent.</summary>
@@ -463,7 +481,7 @@ public sealed class AgentSitesClientTests
             new SiteNodeApp("22", 3100, "npm start"),
             0,
             [],
-            CancellationToken.None);
+            SiteOptionsDescriptor.None, CancellationToken.None);
 
         var request = stub.LastCreateRequest!;
         Assert.Equal(expected, request.WebServer);
@@ -840,7 +858,7 @@ public sealed class AgentSitesClientTests
             SiteNodeApp.None,
             10,
             [],
-            CancellationToken.None);
+            SiteOptionsDescriptor.None, CancellationToken.None);
     }
 
     /// <summary>Calls the production php-version path with fixed arguments.</summary>

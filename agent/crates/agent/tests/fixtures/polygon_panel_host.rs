@@ -258,6 +258,13 @@ impl PolygonPanelHost {
             last = self.presented_certificate();
         }
 
+        // One answer from the new tree is not the end of the reload: workers of the previous one
+        // keep answering some handshakes until they have retired.
+        if accepted(&last) {
+            crate::polygon_web::PolygonWeb::wait_until_the_previous_workers_are_gone();
+            last = self.presented_certificate();
+        }
+
         last
     }
 

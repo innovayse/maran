@@ -28,7 +28,8 @@ The service behind that host is implemented in C# (.NET), following the same con
 - The panel does not ask for compressed responses. The bytes the service signs are the bytes of the body on the wire.
 - Display text (names, summaries, release notes, reasons, price text, capability names) arrives already localized in
   the language the request asked for (`Accept-Language` and the `locale` query parameter, `en`, `ru` or `hy`). The panel
-  stores no domain constants and translates none of it.
+  stores no domain constants and translates none of it. See "Locale" below for what each side does with a language
+  outside that set.
 - Additive only within `v1` (see "Evolution").
 
 ## Authentication
@@ -88,6 +89,21 @@ A lease credential is never placed in a URL.
 **The grant.** A download address is single use, short lived and bound by the service to (licence, server identity,
 module, version). The panel treats the grant id and the address as secrets: neither is logged, journalled or shown.
 
+## Locale
+
+The contract lists three languages: `en`, `ru` and `hy`.
+
+- **The panel clamps; it never sends a fourth.** It takes the two-letter language of the administrator's interface
+  culture (`ru-RU` is `ru`) and, when that is not one of the three (a language the panel gains later, or the invariant
+  culture of a thread that has none), sends `en`. The clamp is `MarketplaceLocalePolicy`, and every request takes its
+  language from it, so the `Accept-Language` header and the `locale` query parameter always agree and always name a
+  listed language.
+- **The service must not make an unlisted language fatal.** A `Accept-Language` header the service cannot match falls
+  back to `en`. A `locale` query value outside the set is, today, answered `400` with `locale_invalid`; the service SHOULD
+  fall back to `en` for it as well (so a panel that gains a language before the service does still browses), and the
+  panel does not depend on it because it never sends such a value.
+- Text that has no translation in the requested language arrives in `en`.
+
 ## What the panel sends, and never sends
 
 The list is the whole of it for the marketplace's requests (the lease renewal is the next section, and sends less). Anything else on a request is a defect in the panel, and a field for a host name, an
@@ -140,6 +156,7 @@ Answer (`200`, signed):
       "displayName": "Mail",
       "summary": "Mailboxes and domains",
       "publisher": "Innovayse",
+      "publisherId": "innovayse",
       "tier": "AddOn",
       "entitlement": { "state": "Entitled", "until": "2027-01-01T00:00:00Z" },
       "revoked": false,
@@ -165,6 +182,12 @@ Answer (`200`, signed):
 
 - `items` lists only modules for which at least one version fits the panel version in the request header. `latest` is the
   newest such version, or absent when none is compatible.
+- `publisher` is the publisher's **display name** (`Innovayse`), already the text to print; the panel shows it as it
+  is. `publisherId` is the publisher's stable identifier (`innovayse`), the value the service's own publisher
+  administration uses. The panel keeps it and never prints it. The two never share a field: a service that put the
+  identifier into `publisher` would show administrators an internal key. `publisherId` is required of the service;
+  the panel reads it as optional until every deployed service sends it (a missing `publisherId` is `null`, a
+  missing `publisher` makes the answer unusable). The same two members appear in `manifest`.
 - `tier` is the licence tier's wire name (`Included`, `AddOn`, `PlanGated`).
 - `entitlement.state` is one of `NotRequired` (an `Included` module), `Entitled`, `NotPurchased`, `LeaseExpired`,
   `Unknown` (no lease credential, or the lease could not be judged). `until` is the end of the entitlement or absent.
@@ -187,7 +210,7 @@ inside the 24-hour freshness window, and otherwise answer `200` with a fresh sig
 
 ```json
 {
-  "module": { "id": "mail", "displayName": "Mail", "summary": "…", "publisher": "Innovayse", "tier": "AddOn",
+  "module": { "id": "mail", "displayName": "Mail", "summary": "…", "publisher": "Innovayse", "publisherId": "innovayse", "tier": "AddOn",
               "entitlement": { "state": "Entitled", "until": null }, "revoked": false },
   "versions": [
     { "version": "1.2.0", "minPanelVersion": "1.3.0", "maxPanelVersion": null, "sizeBytes": 8123456,
@@ -195,6 +218,7 @@ inside the 24-hour freshness window, and otherwise answer `200` with a fresh sig
   ],
   "manifest": {
     "publisher": "Innovayse",
+    "publisherId": "innovayse",
     "tier": "AddOn",
     "minPanelVersion": "1.3.0",
     "schemaName": "mail",
@@ -271,12 +295,23 @@ No request body. Answer (`200` or `201`, signed):
 
 The panel accepts the grant only if all of these hold, and otherwise downloads nothing:
 
-- `url` is `https` on the SAME host and port as the configured base address, without user information
-  (`GrantHostRefused` otherwise);
+- `url` is `https` on the SAME host and port as the configured base address (`Marketplace__BaseUrl`), without user
+  information (`GrantHostRefused` otherwise; see "The grant address" below);
 - `expiresAt` is in the future;
 - `sizeBytes` equals the size the signed catalogue announced for that version, and is between 1 and the panel's
   `MaxPackageBytes` (never above 256 MiB, the package reader's unpacked total);
 - `sha256` equals the digest the signed catalogue announced (compared as 32 bytes).
+
+**The grant address.** The panel compares scheme, host and port only; the path is the service's. The service forms the
+address from its own `Marketplace__PublicBaseUrl` and the grant's path (`/api/v1/downloads/{grantId}`), so:
+
+- `Marketplace__PublicBaseUrl` on the service and `Marketplace__BaseUrl` on the panel must name the **same origin**
+  (scheme `https`, same host, same port) in every environment. A mismatch is not detected until the first install,
+  where the panel refuses the grant with `GrantHostRefused` and the administrator is told to compare the two settings
+  (`docs/operations/marketplace.md`, "The download address must be on the same origin").
+- `PublicBaseUrl` MUST be an origin: no path, user information, query or fragment. A path prefix would be dropped from
+  the grant address, so the service refuses such a value at start-up rather than issue grants that cannot work.
+  A service published under a path prefix on its host cannot satisfy this contract; serve it at the root.
 
 `encrypted` says the package body is encrypted for this panel; decrypting it belongs to the loader.
 The grant is single use. The service MUST bind it to (licence, server identity, module, version) and SHOULD refuse a
@@ -396,22 +431,33 @@ A failure is an RFC 7807 `application/problem+json` document with a stable snake
   "detail": "Your licence does not include this module.", "code": "entitlement_missing" }
 ```
 
-| `code` | Suggested status | What the panel does |
+| `code` | Status | What the panel does |
 |---|---|---|
 | `entitlement_missing` | 403 | The licence does not cover the module; install is refused with the panel's own text (`EntitlementMissing`). |
 | `lease_expired` | 401 | The lease is not valid (expired, absent, bound to another server than the licence, or the licence is revoked); the panel reports `LeaseRequired`. |
 | `incompatible_panel` | 409 | No version fits this panel (`IncompatiblePanel`). |
 | `revoked` | 410 | The version or module was withdrawn (`PackageRevoked`). |
-| `not_found` | 404 | Unknown module or version (`ModuleNotInCatalogue`). |
+| `not_found` | 404 | Unknown module or version (`ModuleNotInCatalogue`); on a package download, an unknown, expired or already used grant (`DownloadGrantUnusable`). |
+| `licence_unknown` | 404 | The licence the lease names is no longer known to the service (`LicenceUnknown`). |
+| `licence_revoked` | 403 | The licence was revoked (`LicenceRevoked`). |
+| `licence_offline` | 409 | `POST /lease` only: the licence is an offline licence and takes no lease. The marketplace module never sees it; the Licensing module treats it as a refused renewal (it never sends a lease request for an offline licence, so this is a defensive code). |
+| `rate_limited` | 429 | The server asks too often (`MarketplaceRateLimited`); send `Retry-After` in seconds. |
+| `panel_version_invalid`, `channel_invalid`, `locale_invalid`, `search_too_long`, `cursor_invalid`, `module_id_invalid`, `version_invalid`, `licence_id_invalid`, `installed_list_too_long`, `installed_entry_invalid`, `request_parameter_invalid` | 400 | The request broke a bound this page states. The panel treats any `400` as a refused request (`MarketplaceRequestRefused`) and shows its own sentence. A correct panel never provokes them (the locale is clamped, the channel and ids are validated before sending), so seeing one means a panel and a service that disagree about a bound: a defect to report. |
+| `authentication_required` | 401 | The service endpoints for publishers and administrators answer it; the panel never calls those. On a panel endpoint a `401` without a known code is read as `LeaseRequired`. |
+| `unexpected_failure` | 500 | The service failed. Read by status: the marketplace is unreachable (`MarketplaceUnreachable`); a `GET` is retried. |
+| any other code | any | Read by status (below). |
 
 The panel selects its behaviour from `code`. When the code is absent or unknown it falls back to the status: `401`
-means `LeaseRequired`, `404` means not found, `408`, `429` and every `5xx` mean the marketplace is unreachable, and any
-other status means the marketplace refused the request. **The panel does not show the service's `title` or `detail`**: it
+means `LeaseRequired`, `404` means not found, `429` means rate limited, `408` and every `5xx` mean the marketplace is
+unreachable, and any other status means the marketplace refused the request. A refused package download is read the same
+way (its body is capped like a grant), except that there a `404` or `410` without a known code means the grant is no
+longer usable. **The panel does not show the service's `title` or `detail`**: it
 renders its own localized sentence for the code it selected, so a service sentence is for logs and humans reading the
 raw response. (This differs from an earlier draft of the issue, which had the panel render `detail` as received.)
 
 A `GET` that fails to connect, or answers `408`, `429` or a `5xx`, is retried up to two more times after a short growing
-pause; anything else is not retried. Each attempt has a 30-second deadline (`RequestTimeoutSeconds`, at most 300).
+pause, or after the `Retry-After` the answer carried (seconds only, waited for at most 10 seconds); anything else is not
+retried. Each attempt has a 30-second deadline (`RequestTimeoutSeconds`, at most 300).
 
 ## Limits the panel holds the service to
 

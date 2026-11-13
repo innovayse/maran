@@ -57,6 +57,18 @@ public enum MarketplaceAuditReason
     /// <summary>The downloaded package did not match the announced digest.</summary>
     DownloadDigestMismatch,
 
+    /// <summary>The service no longer knows the server's licence.</summary>
+    LicenceUnknown,
+
+    /// <summary>The service refused because the licence was revoked.</summary>
+    LicenceRevoked,
+
+    /// <summary>The service limited how often the server may ask.</summary>
+    MarketplaceRateLimited,
+
+    /// <summary>The service no longer accepted the download address.</summary>
+    DownloadGrantUnusable,
+
     /// <summary>The module is not in the catalogue.</summary>
     ModuleNotInCatalogue,
 

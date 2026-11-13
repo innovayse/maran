@@ -66,4 +66,10 @@
   <data name="AppFamilyNode">
     <value>Node.js {0}</value>
   </data>
+  <data name="NodejsUnavailableNoModuleStreams">
+    <value>Node.js is not offered on this server: its package sources carry no Node.js module streams. Nothing is wrong; the other apps are listed as usual.</value>
+  </data>
+  <data name="NodejsUnavailableListingFailed">
+    <value>Node.js could not be listed: the package manager could not be asked or its answer was not understood. Try again in a moment; the other apps are listed as usual.</value>
+  </data>
 </root>

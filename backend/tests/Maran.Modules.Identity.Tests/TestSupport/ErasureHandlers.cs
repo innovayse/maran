@@ -46,6 +46,20 @@ public static class ErasureHandlers
             NullLogger<AuditPseudonymiser>.Instance);
     }
 
+    /// <summary>Builds the revoker of the keys a suspended login created over <paramref name="context"/>.</summary>
+    /// <param name="context">The Identity database.</param>
+    /// <param name="caller">Who the journal reads as the current principal; an administrator when null.</param>
+    /// <returns>The revoker, reading the clock at <see cref="Now"/>, staging its entries on <paramref name="context"/>.</returns>
+    public static ApiKeyCreatorRevoker KeyRevoker(IdentityDbContext context, ICurrentUser? caller = null)
+    {
+        var clock = new FakeClock(Now);
+
+        return new ApiKeyCreatorRevoker(
+            context,
+            clock,
+            new DatabaseAuditWriter(context, clock, new FakeCorrelationIdAccessor(null), caller ?? new StubCurrentUser()));
+    }
+
     /// <summary>Builds the account-deletion handler over <paramref name="context"/>.</summary>
     /// <param name="context">The Identity database.</param>
     /// <param name="audit">Where the summary entries are kept.</param>

@@ -12,9 +12,17 @@ public sealed class RecordingAuditWriter : IAuditWriter
     /// <summary>Everything this writer was handed, in order.</summary>
     public List<AuditEntry> Entries { get; } = [];
 
+    /// <summary>When set, every write after this many have been stored throws, as a store that went down would.</summary>
+    public int? FailAfterWrites { get; set; }
+
     /// <inheritdoc />
     public Task WriteAsync(AuditEntry entry, CancellationToken cancellationToken)
     {
+        if (FailAfterWrites is { } limit && Entries.Count >= limit)
+        {
+            throw new InvalidOperationException("The journal is down.");
+        }
+
         Entries.Add(entry);
         return Task.CompletedTask;
     }

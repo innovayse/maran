@@ -1,0 +1,11 @@
+# Rendered by the Maran agent. Hand edits are overwritten on the next apply.
+#
+# The normal scanner worker is switched off. Packaged, it listens on a loopback TCP
+# port and takes the sending road (MTA-Name), the login (User) and the client address
+# from request headers, which any process on the host can send; the DKIM signing
+# condition reads the road, so that port would let a customer ask for a signature.
+# The proxy worker scans in its own process (self_scan) and needs no normal worker.
+# An override and not a local addition: a local addition is merged into the packaged
+# section, and the packaged port stays bound.
+enabled = false;
+{# A trailing comment keeps the final newline, which askama would otherwise drop. #}

@@ -41,6 +41,17 @@ public sealed class DemoEndpointRuleTests
         Assert.False(DemoEndpointRule.AllowUncounted().CountsTowardSignInBudget);
     }
 
+    /// <summary>Text is screened for every call that runs except a sign-in, and never for a refusal.</summary>
+    [Fact]
+    public void Text_is_screened_for_every_call_that_runs_except_sign_in()
+    {
+        Assert.True(DemoEndpointRule.Allow().ScreensText);
+        Assert.True(DemoEndpointRule.AllowUncounted().ScreensText);
+        Assert.True(DemoEndpointRule.AllowUnlessProtected("id").ScreensText);
+        Assert.False(DemoEndpointRule.AllowSignIn().ScreensText);
+        Assert.False(DemoEndpointRule.Refuse(DemoRefusalArea.Smtp).ScreensText);
+    }
+
     /// <summary>A protected-resource allowance names the route value it checks.</summary>
     [Fact]
     public void A_protected_check_names_its_route_value()

@@ -52,6 +52,11 @@ public sealed class AgentErrorTranslatorTests
     [InlineData(ErrorCode.AppNotInstalled, "AgentAppNotInstalled", ErrorType.NotFound)]
     [InlineData(ErrorCode.AppInUse, "AgentAppInUse", ErrorType.Conflict)]
     [InlineData(ErrorCode.WebServerAlreadyInstalled, "AgentWebServerAlreadyInstalled", ErrorType.Conflict)]
+    [InlineData(ErrorCode.NodeMajorAlreadyInstalled, "AgentNodeMajorAlreadyInstalled", ErrorType.Conflict)]
+    [InlineData(ErrorCode.NodeUnmanagedInstall, "AgentNodeUnmanagedInstall", ErrorType.Conflict)]
+    [InlineData(ErrorCode.NodeStreamEnabledByOperator, "AgentNodeStreamEnabledByOperator", ErrorType.Conflict)]
+    [InlineData(ErrorCode.NodeInterpreterUnreadable, "AgentNodeInterpreterUnreadable", ErrorType.Conflict)]
+    [InlineData(ErrorCode.NodeOperationInProgress, "AgentNodeOperationInProgress", ErrorType.Conflict)]
     public void The_app_store_refusals_have_their_own_code_and_kind(
         ErrorCode code,
         string expectedCode,

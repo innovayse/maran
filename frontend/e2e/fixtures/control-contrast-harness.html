@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Control contrast harness</title>
+  </head>
+  <body>
+    <!--
+      Playwright-only mount point for the kit's form controls and buttons, drawn on a panel
+      (`--s1`) without the router, shell or authentication (e2e/ui-kit/control-contrast.spec.ts).
+      Query parameter: `theme` (dark, light).
+
+      Registered as a Vite build entry (vite.config.ts) so `vite preview`, what the e2e run serves,
+      reaches it at the same path as `vite dev`.
+    -->
+    <div id="app"></div>
+    <script type="module" src="./control-contrast-harness.ts"></script>
+  </body>
+</html>

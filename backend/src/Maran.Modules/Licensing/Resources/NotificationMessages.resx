@@ -39,4 +39,10 @@
   <data name="LeaseRenewalRecoveredAlertBody">
     <value>The panel renewed its licence lease after repeated failures. Paid modules are covered again for the whole life of the new lease.</value>
   </data>
+  <data name="LicenceExpiryAlertSubject">
+    <value>The licence expires soon</value>
+  </data>
+  <data name="LicenceExpiryAlertBody">
+    <value>The installed licence expires on {0} (days left: {1}). Add-on modules stop working when it expires; the modules included with the panel are not affected. To renew, open Settings, then Licence, and claim the licence again for this server on the marketplace, or install a new licence file.</value>
+  </data>
 </root>

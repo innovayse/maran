@@ -51,7 +51,7 @@ fn an_unknown_debian_family_release_has_no_dovecot_generation() {
 fn the_rhel_family_ships_the_first_dovecot_generation_on_every_minor() {
     for release in ["9", "9.4", "9.7", "10", "10.0"] {
         assert_eq!(
-            RhelAdapter.dovecot_major(release),
+            RhelAdapter::EL9.dovecot_major(release),
             Some(DovecotMajor::V23),
             "{release}"
         );
@@ -62,10 +62,10 @@ fn the_rhel_family_ships_the_first_dovecot_generation_on_every_minor() {
 /// does not make `19` a `9`.
 #[test]
 fn an_unknown_rhel_family_release_has_no_dovecot_generation() {
-    assert_eq!(RhelAdapter.dovecot_major("8.10"), None);
-    assert_eq!(RhelAdapter.dovecot_major("11"), None);
-    assert_eq!(RhelAdapter.dovecot_major("19"), None);
-    assert_eq!(RhelAdapter.dovecot_major(""), None);
+    assert_eq!(RhelAdapter::EL9.dovecot_major("8.10"), None);
+    assert_eq!(RhelAdapter::EL9.dovecot_major("11"), None);
+    assert_eq!(RhelAdapter::EL9.dovecot_major("19"), None);
+    assert_eq!(RhelAdapter::EL9.dovecot_major(""), None);
 }
 
 /// The Debian family runs Redis on every release it lists.
@@ -92,8 +92,8 @@ fn the_debian_family_runs_redis_on_every_listed_release() {
 /// user and configuration file.
 #[test]
 fn the_rhel_family_runs_redis_on_nine_and_valkey_on_ten() {
-    let redis = RhelAdapter.key_value_server("9.4").unwrap();
-    let valkey = RhelAdapter.key_value_server("10.0").unwrap();
+    let redis = RhelAdapter::EL9.key_value_server("9.4").unwrap();
+    let valkey = RhelAdapter::EL9.key_value_server("10.0").unwrap();
 
     assert_eq!(
         (redis.package, redis.service, redis.user, redis.config_file),
@@ -108,7 +108,7 @@ fn the_rhel_family_runs_redis_on_nine_and_valkey_on_ten() {
         ),
         ("valkey", "valkey", "valkey", "/etc/valkey/valkey.conf")
     );
-    assert_eq!(RhelAdapter.key_value_server("8.10"), None);
+    assert_eq!(RhelAdapter::EL9.key_value_server("8.10"), None);
 }
 
 /// The Debian family hashes mailbox passwords with Argon2id and the RHEL family, whose
@@ -120,7 +120,7 @@ fn the_two_families_name_the_password_scheme_their_dovecot_is_built_for() {
         MailPasswordScheme::Argon2id
     );
     assert_eq!(
-        RhelAdapter.mail_password_scheme(),
+        RhelAdapter::EL9.mail_password_scheme(),
         MailPasswordScheme::BlowfishCrypt
     );
 }
@@ -130,9 +130,9 @@ fn the_two_families_name_the_password_scheme_their_dovecot_is_built_for() {
 #[test]
 fn both_families_write_postfix_maps_as_lmdb_and_install_its_package() {
     assert_eq!(DebianAdapter.postfix_map_type(), "lmdb");
-    assert_eq!(RhelAdapter.postfix_map_type(), "lmdb");
+    assert_eq!(RhelAdapter::EL9.postfix_map_type(), "lmdb");
     assert!(DebianAdapter.mail_packages().contains(&"postfix-lmdb"));
-    assert!(RhelAdapter.mail_packages().contains(&"postfix-lmdb"));
+    assert!(RhelAdapter::EL9.mail_packages().contains(&"postfix-lmdb"));
 }
 
 /// The two families split the stack into different packages, and each list names its
@@ -153,7 +153,7 @@ fn each_family_lists_its_own_dovecot_and_sieve_packages() {
         ]
     );
     assert_eq!(
-        RhelAdapter.mail_packages(),
+        RhelAdapter::EL9.mail_packages(),
         [
             "postfix",
             "postfix-lmdb",
@@ -168,7 +168,10 @@ fn each_family_lists_its_own_dovecot_and_sieve_packages() {
 /// administrator turns the antivirus on.
 #[test]
 fn clamav_is_never_in_the_default_mail_package_list() {
-    for packages in [DebianAdapter.mail_packages(), RhelAdapter.mail_packages()] {
+    for packages in [
+        DebianAdapter.mail_packages(),
+        RhelAdapter::EL9.mail_packages(),
+    ] {
         assert!(!packages.iter().any(|name| name.contains("clam")));
         assert!(
             !packages
@@ -181,7 +184,7 @@ fn clamav_is_never_in_the_default_mail_package_list() {
         ["clamav", "clamav-daemon", "clamav-freshclam"]
     );
     assert_eq!(
-        RhelAdapter.antivirus_packages(),
+        RhelAdapter::EL9.antivirus_packages(),
         ["clamav", "clamd", "clamav-update"]
     );
 }
@@ -191,7 +194,7 @@ fn clamav_is_never_in_the_default_mail_package_list() {
 fn the_families_agree_on_the_mail_units_and_differ_on_the_antivirus_one() {
     for adapter in [
         &DebianAdapter as &dyn MailFacts,
-        &RhelAdapter as &dyn MailFacts,
+        &RhelAdapter::EL9 as &dyn MailFacts,
     ] {
         assert_eq!(adapter.postfix_service(), "postfix");
         assert_eq!(adapter.dovecot_service(), "dovecot");
@@ -199,7 +202,7 @@ fn the_families_agree_on_the_mail_units_and_differ_on_the_antivirus_one() {
         assert_eq!(adapter.freshclam_service(), "clamav-freshclam");
     }
     assert_eq!(DebianAdapter.clamd_service(), "clamav-daemon");
-    assert_eq!(RhelAdapter.clamd_service(), "clamd@scan");
+    assert_eq!(RhelAdapter::EL9.clamd_service(), "clamd@scan");
 }
 
 /// The service users, with the ClamAV daemon's the one that differs.
@@ -207,7 +210,7 @@ fn the_families_agree_on_the_mail_units_and_differ_on_the_antivirus_one() {
 fn the_service_users_are_the_ones_the_packages_create() {
     for adapter in [
         &DebianAdapter as &dyn MailFacts,
-        &RhelAdapter as &dyn MailFacts,
+        &RhelAdapter::EL9 as &dyn MailFacts,
     ] {
         assert_eq!(adapter.postfix_user(), "postfix");
         assert_eq!(adapter.postdrop_group(), "postdrop");
@@ -216,7 +219,7 @@ fn the_service_users_are_the_ones_the_packages_create() {
         assert_eq!(adapter.rspamd_user(), "_rspamd");
     }
     assert_eq!(DebianAdapter.clamd_user(), "clamav");
-    assert_eq!(RhelAdapter.clamd_user(), "clamscan");
+    assert_eq!(RhelAdapter::EL9.clamd_user(), "clamscan");
 }
 
 /// The configuration directories are the packages' own, and every one is absolute.
@@ -224,7 +227,7 @@ fn the_service_users_are_the_ones_the_packages_create() {
 fn the_configuration_paths_are_the_packages_own_absolute_paths() {
     for adapter in [
         &DebianAdapter as &dyn MailFacts,
-        &RhelAdapter as &dyn MailFacts,
+        &RhelAdapter::EL9 as &dyn MailFacts,
     ] {
         assert_eq!(adapter.postfix_config_directory(), "/etc/postfix");
         assert_eq!(adapter.dovecot_config_directory(), "/etc/dovecot");
@@ -232,7 +235,10 @@ fn the_configuration_paths_are_the_packages_own_absolute_paths() {
         assert!(adapter.clamd_config_file().starts_with('/'));
     }
     assert_eq!(DebianAdapter.clamd_config_file(), "/etc/clamav/clamd.conf");
-    assert_eq!(RhelAdapter.clamd_config_file(), "/etc/clamd.d/scan.conf");
+    assert_eq!(
+        RhelAdapter::EL9.clamd_config_file(),
+        "/etc/clamd.d/scan.conf"
+    );
 }
 
 /// The Postfix tools live in `/usr/sbin` and the Dovecot and Rspamd ones in `/usr/bin`.
@@ -240,7 +246,7 @@ fn the_configuration_paths_are_the_packages_own_absolute_paths() {
 fn the_postfix_tools_are_in_sbin_and_the_dovecot_and_rspamd_tools_in_bin() {
     for adapter in [
         &DebianAdapter as &dyn MailFacts,
-        &RhelAdapter as &dyn MailFacts,
+        &RhelAdapter::EL9 as &dyn MailFacts,
     ] {
         assert_eq!(adapter.postfix_binary(), "/usr/sbin/postfix");
         assert_eq!(adapter.postconf_binary(), "/usr/sbin/postconf");

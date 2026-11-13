@@ -6,10 +6,11 @@
  */
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../ui/UiAlert.vue'
+import NodejsUnavailableAlert from './NodejsUnavailableAlert.vue'
 import UiCheckbox from '../ui/UiCheckbox.vue'
 import UiFieldHint from '../ui/UiFieldHint.vue'
 import UiSectionHeading from '../ui/UiSectionHeading.vue'
-import type { InstallableHostApp } from '../../types/hostApp'
+import type { HostNodejsUnavailable, InstallableHostApp } from '../../types/hostApp'
 
 /** Props accepted by {@link StackRuntimesStep}. */
 defineProps<{
@@ -21,6 +22,10 @@ defineProps<{
   phpIds: readonly string[]
   /** The ids of the Node.js runtimes chosen so far. */
   nodeIds: readonly string[]
+  /** Why no Node.js runtime is on offer, or `null` when nothing is missing for a reason. */
+  nodeUnavailable: HostNodejsUnavailable | null
+  /** The panel's sentence for {@link nodeUnavailable}, in the user's language, or `null`. */
+  nodeUnavailableMessage: string | null
 }>()
 
 /** Events emitted by {@link StackRuntimesStep}. */
@@ -47,6 +52,11 @@ const { t } = useI18n()
         @update:model-value="$emit('toggle', 'php', app.appId, $event)"
       />
     </section>
+    <NodejsUnavailableAlert
+      v-if="nodeUnavailable !== null && nodeUnavailableMessage !== null"
+      :reason="nodeUnavailable"
+      :message="nodeUnavailableMessage"
+    />
     <section v-if="nodeChoices.length > 0" class="flex flex-col gap-2" :aria-label="t('apps.setup.runtimes.node')">
       <UiSectionHeading :title="t('apps.setup.runtimes.node')" />
       <UiCheckbox

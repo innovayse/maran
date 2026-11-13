@@ -41,6 +41,7 @@ public sealed class PhpConvergeRecordingAgent : IAgentSitesClient
         SiteNodeApp node,
         uint maxChildren,
         IReadOnlyList<PhpSettingDto> settingOverrides,
+        SiteOptionsDescriptor options,
         CancellationToken cancellationToken)
     {
         throw new NotSupportedException("This double answers a PHP version change only.");

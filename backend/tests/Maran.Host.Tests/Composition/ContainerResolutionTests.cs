@@ -3,7 +3,16 @@ using Maran.Agent.Client.Interfaces;
 using Maran.Host.Modules;
 using Maran.Host.Resilience;
 using Maran.Host.Tests.Resilience;
+using Maran.Modules.Apps.Services;
 using Maran.Modules.Identity.Interfaces;
+using Maran.Modules.Identity.Services;
+using Maran.Modules.Licensing.Interfaces;
+using Maran.Modules.Licensing.Services;
+using Maran.Modules.Mail.Services;
+using Maran.Modules.Marketplace.Services;
+using Maran.Modules.Sites.Commands.DeleteSite;
+using Maran.Modules.Sites.Services;
+using Maran.Modules.Ssl.Services;
 using Maran.Sdk.Interfaces;
 using Maran.SharedKernel.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -69,11 +78,63 @@ public sealed class ContainerResolutionTests : IClassFixture<PanelTestFactory>
     // unregistered ITaskRecorder is invisible until Wolverine tries to build one of those handlers,
     // and it does that on the first real deletion on a customer's server.
     [InlineData(typeof(ITaskRecorder))]
+    // The read-only window the Apps module settles stale rows through (issue #533).
+    [InlineData(typeof(ITaskStateReader))]
+    // Services added by issues #531-#533. Each is injected into a handler or a hosted service, so an
+    // unregistered one fails only when that handler first runs. StaleOperationSettler crosses modules
+    // (it needs the Tasks module's ITaskStateReader) and has no Sdk fallback.
+    [InlineData(typeof(StaleOperationSettler))]
+    [InlineData(typeof(SitePlanLimits))]
+    [InlineData(typeof(ApiKeyCreatorRevoker))]
+    [InlineData(typeof(LicenceExpiryAlerter))]
+    [InlineData(typeof(LeaseFingerprintReader))]
+    [InlineData(typeof(ILeaseRenewalRequester))]
+    [InlineData(typeof(LicenceServerFactsSource))]
+    [InlineData(typeof(LicenceExpiryWarningSource))]
+    [InlineData(typeof(ILicenceExpiryAnnouncementStore))]
+    [InlineData(typeof(ISiteOperationLock))]
+    [InlineData(typeof(MailSubmissionGate))]
+    [InlineData(typeof(MailLocalSubmissionPublisher))]
+    // Registered once by AddSharedKernel, not by a module, so any module may consume it.
+    [InlineData(typeof(IThisMachineFactsSource))]
     public void Every_identity_service_resolves(Type serviceType)
     {
         using var scope = _factory.Services.CreateScope();
 
         Assert.NotNull(scope.ServiceProvider.GetRequiredService(serviceType));
+    }
+
+    /// <summary>
+    /// Sites and Ssl hold one and the same per-site lock. A second lock, however it came to be (a module
+    /// that builds its own, a registration under another type), would serialise each module's operations
+    /// against themselves and let the two interleave on one site without any test of either module noticing.
+    /// </summary>
+    [Fact]
+    public void Sites_and_Ssl_resolve_the_same_site_operation_lock_instance()
+    {
+        using var first = _factory.Services.CreateScope();
+        using var second = _factory.Services.CreateScope();
+        var shared = first.ServiceProvider.GetRequiredService<ISiteOperationLock>();
+
+        // A singleton: every scope, and so every request and every queued message, sees the same one.
+        Assert.Same(shared, second.ServiceProvider.GetRequiredService<ISiteOperationLock>());
+
+        // Built the way the message pipeline builds a handler: its constructor arguments come from the container.
+        var ssl = second.ServiceProvider.GetRequiredService<CertificateInstaller>();
+        var sites = ActivatorUtilities.CreateInstance<DeleteSiteCommandHandler>(first.ServiceProvider);
+
+        Assert.Same(shared, HeldLockOf(ssl));
+        Assert.Same(shared, HeldLockOf(sites));
+    }
+
+    /// <summary>Reads the lock a consumer was constructed with.</summary>
+    /// <param name="consumer">The service or handler.</param>
+    /// <returns>The lock it holds.</returns>
+    private static object? HeldLockOf(object consumer)
+    {
+        var field = consumer.GetType().GetField("_locks", BindingFlags.Instance | BindingFlags.NonPublic);
+
+        return Assert.IsAssignableFrom<FieldInfo>(field).GetValue(consumer);
     }
 
     /// <summary>Every database context every compiled-in module contributes.</summary>

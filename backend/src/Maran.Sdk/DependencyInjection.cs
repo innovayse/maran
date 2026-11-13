@@ -18,7 +18,9 @@ public static class DependencyInjection
     /// <see cref="IModuleLoader"/> only when none is registered yet (<c>TryAdd</c>), so a package that
     /// provides a real loader replaces it by registering first; <see cref="NullModuleSpaAssets"/> is the
     /// <see cref="IModuleSpaAssets"/> by the same rule, and <see cref="NoLeaseRequestAuthorizer"/> is the
-    /// <see cref="ILeaseRequestAuthorizer"/> until the Licensing module holds a lease.
+    /// <see cref="ILeaseRequestAuthorizer"/> until the Licensing module holds a lease. The
+    /// <see cref="SiteOperationLock"/> is the one <see cref="ISiteOperationLock"/> every module that
+    /// changes a site's host state shares, which is why it is a singleton registered here and not by a module.
     /// </summary>
     /// <param name="services">The application service collection.</param>
     /// <returns>The same collection, for chaining.</returns>
@@ -28,6 +30,7 @@ public static class DependencyInjection
         services.TryAddSingleton<IModuleLoader, NullModuleLoader>();
         services.TryAddSingleton<ILeaseRequestAuthorizer, NoLeaseRequestAuthorizer>();
         services.TryAddSingleton<IModuleSpaAssets, NullModuleSpaAssets>();
+        services.TryAddSingleton<ISiteOperationLock, SiteOperationLock>();
         return services;
     }
 }

@@ -10,15 +10,17 @@
 # The cases (all through the real `sendmail`/`postdrop`, run as a real system user, into the real Postfix
 # `postdrop` -> `pickup` -> `cleanup_local` road and the real Rspamd milter):
 #   1. an allowed account sending from its own domain: accepted (delivered or queued). This also proves the
-#      milter is handed pickup's own Received line as the topmost header and the daemon name MARAN_LOCAL
+#      milter is handed the X-Maran-Local-Submitter header the cleanup_local table makes from pickup's own
+#      Received line (topmost) and the daemon name MARAN_LOCAL
 #      (otherwise the rule would refuse or pass the message for the wrong reason);
 #   2. the envelope sender is another account's domain: refused WITHOUT a delivery failure notice
 #      (discarded, no backscatter to the forged address);
 #   3. the envelope sender is owned but the From: header is another account's domain: rejected 5.7.1;
 #   4. a uid the data plane does not list: refused (by postdrop, or by the rule);
 #   5. the N+1th message inside the hour: deferred 4.7.1, not rejected;
-#   6. a customer-written second Received header naming another uid: ignored, only the topmost counts;
-#   7. more recipients than the cap: rejected 5.5.3;
+#   6. a customer-written Received line and X-Maran-Local-Submitter header naming another uid: ignored, only
+#      the topmost submitter header counts;
+#   7. more recipients than the cap: rejected (too many recipients);
 #   8. PHP mail() without -f (envelope user@host): refused, not delivered (supported config is -f);
 #   9. a hand-built postdrop stream carrying forged sasl_username / client_address attributes: still
 #      judged by the uid, never taken for an authenticated login or an SMTP client;
@@ -44,6 +46,8 @@ readonly LOCAL_SUBMIT_MAPS="local_submit_accounts.map account_sender_domains.map
 readonly LOCAL_SUBMIT_USER_OWN="maranls1"
 readonly LOCAL_SUBMIT_USER_OTHER="maranls2"
 readonly LOCAL_SUBMIT_USER_UNLISTED="maranls3"
+# What sendmail printed to the submitting user, kept for the diagnosis printed when an outcome is unknown.
+readonly LOCAL_SUBMIT_SENDMAIL_LOG="/tmp/local-submit-sendmail.log"
 
 # local_submit_stack_present: the daemons this assertion drives exist and answer.
 local_submit_stack_present() {
@@ -75,7 +79,7 @@ local_submit_send() {
   {
     [ -z "$extra" ] || printf '%s\n' "$extra"
     printf 'From: <%s@%s>\nTo: <probe@example.net>\nSubject: %s\nMessage-ID: <%s@polygon.test>\n\nbody\n' "$user" "$domain" "$marker" "$marker"
-  } | su -s /bin/sh -c "sendmail -i ${from_flag} ${recipients}" "$user" >/dev/null 2>&1 || true
+  } | su -s /bin/sh -c "sendmail -i ${from_flag} ${recipients}" "$user" >/dev/null 2>>"${LOCAL_SUBMIT_SENDMAIL_LOG}" || true
 }
 
 # local_submit_record <type> <data>: one postdrop queue record (type byte, one length byte, data). Only for
@@ -121,20 +125,58 @@ local_submit_outcome() {
   [ -n "$log" ] || { echo unknown; return; }
   postqueue -f >/dev/null 2>&1 || true
   for attempt in 1 2 3 4 5 6 7 8 9 10; do
-    queue_id="$(grep -F -- "$marker" "$log" 2>/dev/null | grep -oE '[0-9A-F]{8,}' | head -n 1 || true)"
+    queue_id="$(grep -F -- "$marker" "$log" 2>/dev/null | sed -nE 's/.*\]: ([0-9A-F]{8,}): .*/\1/p' | head -n 1 || true)"
     if [ -n "$queue_id" ]; then
       line="$(grep -F -- "$queue_id" "$log" | tr '\n' ' ')"
       case "$line" in
         *"milter-discard"*|*"DISCARD"*) echo discarded; return ;;
-        *"5.5.3"*) echo rejected-recipients; return ;;
+        *"too many recipients"*|*"5.5.3"*) echo rejected-recipients; return ;;
         *"5.7.1"*) echo rejected; return ;;
         *"4.7.1"*|*"status=deferred"*) echo deferred; return ;;
         *"status=sent"*) echo accepted; return ;;
+        # Past the filter and queued for delivery. The rule's verdict is what these cases judge, and
+        # delivery to the probe address may take longer than the wait (an image with port 25 egress
+        # blocked sits in the connection attempt), so a message the queue manager took is accepted. A
+        # refusal or deferral by the filter is logged by cleanup and never reaches the queue manager, and
+        # the patterns above for those win over this one.
+        *"nrcpt="*"(queue active)"*) echo accepted; return ;;
       esac
     fi
     sleep 1
   done
+  # Said once, on stderr, so a lane that cannot tell what happened to a message shows what it saw.
+  {
+    echo "local_submit_outcome: no verdict for ${marker} in ${log}; what the host shows:"
+    echo "--- sendmail said:"; cat "${LOCAL_SUBMIT_SENDMAIL_LOG}" 2>/dev/null || true
+    echo "--- authorized_submit_users: $(postconf -h authorized_submit_users 2>&1)"
+    echo "--- the mail log's last lines:"; tail -n 30 "$log" 2>/dev/null || true
+    echo "--- the queue:"; postqueue -p 2>&1 | head -n 20 || true
+  } >&2
   echo unknown
+}
+
+# local_submit_submit_table: print the lookup table item of Postfix's `authorized_submit_users` (type:path),
+# which the setting lists after the names `root` and `$mail_owner`; nothing when there is none.
+local_submit_submit_table() {
+  postconf -h authorized_submit_users 2>/dev/null | tr ',' '\n' | sed 's/^[[:space:]]*//' | grep -E '^[a-z]+:/' | head -n 1 || true
+}
+
+# local_submit_admit_users: Postfix's own gate, `authorized_submit_users`, admits only the users the agent
+# listed, and it runs before the rule this part judges. The three users here are the rule's subjects, so
+# they are admitted at Postfix and the rule alone decides what happens to their mail. The table is the one
+# the agent rendered (its path and type come from the live configuration, not from a literal); it is put
+# back by local_submit_restore.
+local_submit_admit_users() {
+  local specification table user
+  specification="$(local_submit_submit_table)"
+  [ -n "$specification" ] || return 0
+  table="${specification#*:}"
+  [ -f "$table" ] || : > "$table"
+  for user in "$LOCAL_SUBMIT_USER_OWN" "$LOCAL_SUBMIT_USER_OTHER" "$LOCAL_SUBMIT_USER_UNLISTED"; do
+    grep -qx "${user} OK" "$table" || printf '%s OK\n' "$user" >> "$table"
+  done
+  postmap "$specification" >/dev/null 2>&1 || true
+  postfix reload >/dev/null 2>&1 || true
 }
 
 # local_submit_plant: write the four maps for the three users: maranls1 is account acc1 (domain
@@ -150,12 +192,52 @@ local_submit_plant() {
   # acc2's mailbox login is planted so a forged sasl_username naming it would matter if it were believed.
   printf 'info@two.test acc2\n' > "${LOCAL_SUBMIT_DIRECTORY}/mailbox_accounts.map"
   for map in $LOCAL_SUBMIT_MAPS; do chmod 0644 "${LOCAL_SUBMIT_DIRECTORY}/${map}"; done
+  local_submit_admit_users
   systemctl reload rspamd.service >/dev/null 2>&1 || rspamadm control reload >/dev/null 2>&1 || true
+}
+
+# local_submit_diagnose <marker>: on stderr, what the host holds when the first case does not come out as
+# the rule says it must: the maps as planted, the user's id, Rspamd's and Postfix's last lines for the message.
+local_submit_diagnose() {
+  local marker="$1" map log
+  {
+    echo "local_submit_diagnose: ${marker}"
+    echo "--- ids: $(id "$LOCAL_SUBMIT_USER_OWN" 2>&1)"
+    for map in $LOCAL_SUBMIT_MAPS; do echo "--- ${map}:"; cat "${LOCAL_SUBMIT_DIRECTORY}/${map}" 2>&1 | head -n 6; done
+    log="$(local_submit_mail_log)"
+    echo "--- mail log, lines for the message:"; grep -F -- "$marker" "$log" 2>/dev/null | head -n 5
+    echo "--- mail log, last lines:"; tail -n 12 "$log" 2>/dev/null
+    echo "--- the directory and who may read a map:"
+    ls -ld "$LOCAL_SUBMIT_DIRECTORY" "${LOCAL_SUBMIT_DIRECTORY}/local_submit_accounts.map" 2>&1
+    su -s /bin/sh -c "head -n 2 '${LOCAL_SUBMIT_DIRECTORY}/local_submit_accounts.map'" "$(ps -o user= -C rspamd 2>/dev/null | head -n 1 | tr -d ' ')" 2>&1 | head -n 3
+    echo "--- rspamd log, lines about the rule or a map (other than the vendor's):"
+    grep -hE "maran_local_submit|local_submit|maran/mail|SIGHUP|reload" /var/log/rspamd/rspamd.log 2>/dev/null | grep -v "rspamd.com" | tail -n 25
+    echo "--- rspamd log, last lines:"
+    for log in /var/log/rspamd/rspamd.log /var/log/rspamd/rspamd.err; do [ -r "$log" ] && tail -n 25 "$log"; done
+  } >&2 || true
+}
+
+# local_submit_wait_for_the_maps: Rspamd loads the planted maps asynchronously after its reload, and a message
+# that reaches it first is judged against the ones it had (the agent's empty tables). The probe is a message
+# from the first user naming more recipients than the rule allows: once the planted accounts map is loaded the
+# rule finds the account and refuses the recipient count, which counts nothing against the hourly limit, and
+# before that it discards the sender as unknown. It waits for the first answer and fails by name otherwise.
+local_submit_wait_for_the_maps() {
+  local attempt marker result=""
+  for attempt in $(seq 1 40); do
+    marker="lsub-ready-$$-${attempt}"
+    local_submit_send "$LOCAL_SUBMIT_USER_OWN" "${LOCAL_SUBMIT_USER_OWN}@one.test" one.test "$marker" "" 101
+    result="$(local_submit_outcome "$marker" 2>/dev/null)"
+    [ "$result" != rejected-recipients ] || return 0
+    sleep 1
+  done
+  local_submit_diagnose "lsub-ready-$$-40"
+  fail "Rspamd never loaded the planted accounts map: a probe of the first user was ${result}, not refused for its recipient count"
 }
 
 # local_submit_restore <backup dir>: put the maps back as they were, remove the ones that did not exist.
 local_submit_restore() {
-  local backup="$1" map
+  local backup="$1" map specification
   for map in $LOCAL_SUBMIT_MAPS; do
     if [ -e "${backup:?}/${map}" ]; then
       cp -p -- "${backup:?}/${map}" "${LOCAL_SUBMIT_DIRECTORY:?}/${map}"
@@ -163,6 +245,12 @@ local_submit_restore() {
       rm -f -- "${LOCAL_SUBMIT_DIRECTORY:?}/${map:?}"
     fi
   done
+  specification="$(local_submit_submit_table)"
+  if [ -n "$specification" ] && [ -e "${backup:?}/authorized_submit_users" ]; then
+    cp -p -- "${backup:?}/authorized_submit_users" "${specification#*:}"
+    postmap "$specification" >/dev/null 2>&1 || true
+    postfix reload >/dev/null 2>&1 || true
+  fi
   rm -rf -- "${backup:?}"
 }
 
@@ -176,22 +264,26 @@ assert_local_submission_is_bound_to_the_account() {
     return 0
   fi
 
-  local user backup marker result sent map before after
+  local user backup marker result sent map before after submit_table_specification
   backup="$(mktemp -d)"
   for user in "$LOCAL_SUBMIT_USER_OWN" "$LOCAL_SUBMIT_USER_OTHER" "$LOCAL_SUBMIT_USER_UNLISTED"; do
     id "$user" >/dev/null 2>&1 || useradd -m -s /bin/sh "$user"
   done
   mkdir -p "$LOCAL_SUBMIT_DIRECTORY"
+  submit_table_specification="$(local_submit_submit_table)"
+  [ -z "$submit_table_specification" ] || [ ! -f "${submit_table_specification#*:}" ] \
+    || cp -p -- "${submit_table_specification#*:}" "${backup}/authorized_submit_users"
   for map in $LOCAL_SUBMIT_MAPS; do
     [ ! -e "${LOCAL_SUBMIT_DIRECTORY}/${map}" ] || cp -p -- "${LOCAL_SUBMIT_DIRECTORY}/${map}" "${backup}/${map}"
   done
   local_submit_plant
+  local_submit_wait_for_the_maps
 
   # 1. Accepting control: own account, own domain, under the limit.
   marker="lsub-own-$$-$RANDOM"
   local_submit_send "$LOCAL_SUBMIT_USER_OWN" "${LOCAL_SUBMIT_USER_OWN}@one.test" one.test "$marker"
   result="$(local_submit_outcome "$marker")"
-  [ "$result" = accepted ] || { local_submit_restore "$backup"; fail "an allowed account sending from its own domain was ${result}, not accepted"; }
+  [ "$result" = accepted ] || { local_submit_diagnose "$marker"; local_submit_restore "$backup"; fail "an allowed account sending from its own domain was ${result}, not accepted"; }
 
   # 2. Another account's domain as the ENVELOPE sender: refused, and Postfix must not mail a failure notice
   # to the forged address (a discard, not a bounce).
@@ -225,14 +317,14 @@ assert_local_submission_is_bound_to_the_account() {
   result="$(local_submit_outcome "$marker")"
   [ "$result" = deferred ] || { local_submit_restore "$backup"; fail "the message after the hourly limit was ${result}, not deferred 4.7.1"; }
 
-  # 6. A forged second Received header naming the listed uid, sent by the UNLISTED user: a forgery
-  # that would work if the rule read any header but the topmost.
+  # 6. A forged Received line and a forged submitter header naming the listed uid, sent by the UNLISTED
+  # user: a forgery that would work if the rule read any header but the topmost submitter header.
   marker="lsub-forged-$$-$RANDOM"
   local_submit_send "$LOCAL_SUBMIT_USER_UNLISTED" "${LOCAL_SUBMIT_USER_UNLISTED}@one.test" one.test "$marker" \
-    "Received: by forged.test (Postfix, from userid $(id -u "$LOCAL_SUBMIT_USER_OWN"))"
+    "$(printf 'X-Maran-Local-Submitter: %s FORGED\nReceived: by forged.test (Postfix, from userid %s)\n\tid FORGED;' "$(id -u "$LOCAL_SUBMIT_USER_OWN")" "$(id -u "$LOCAL_SUBMIT_USER_OWN")")"
   result="$(local_submit_outcome "$marker")"
   case "$result" in
-    accepted|deferred) local_submit_restore "$backup"; fail "a forged second Received header made an unlisted uid's message ${result}; only the topmost header is trusted" ;;
+    accepted|deferred) local_submit_restore "$backup"; fail "a forged Received line and submitter header made an unlisted uid's message ${result}; only the topmost submitter header is trusted" ;;
   esac
 
   # 7. More recipients than the cap (sendmail has no smtpd_recipient_limit). acc2 is used so acc1's
@@ -269,7 +361,7 @@ assert_local_submission_is_bound_to_the_account() {
     before="$(redis-cli -s "$MARAN_LOCAL_SUBMIT_REDIS_SOCKET" GET maran:send:acc1 2>/dev/null || true)"
     sleep "$LOCAL_SUBMIT_PICKUP_WAIT"
     after="$(redis-cli -s "$MARAN_LOCAL_SUBMIT_REDIS_SOCKET" GET maran:send:acc1 2>/dev/null || true)"
-    [ "$before" = "$after" ] || { local_submit_restore "$backup"; fail "the retried message was counted again (bucket ${before} -> ${after}); counting must be once per message (the maildrop id of the pickup header)"; }
+    [ "$before" = "$after" ] || { local_submit_restore "$backup"; fail "the retried message was counted again (bucket ${before} -> ${after}); a message refused for the limit must not charge the bucket on every retry"; }
   else
     echo "UNOBSERVED HERE (GAP): the retry-is-not-counted-twice assertion did not run: set MARAN_LOCAL_SUBMIT_REDIS_SOCKET and install redis-cli."
   fi

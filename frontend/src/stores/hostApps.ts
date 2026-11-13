@@ -9,6 +9,7 @@ import type {
   HostAppInUse,
   HostAppOperationAccepted,
   HostAppServiceAction,
+  HostNodejsUnavailable,
   InstallableHostApp,
 } from '../types/hostApp'
 import type { ListLoad, ListRequest } from '../types/list'
@@ -49,6 +50,12 @@ export const useHostAppsStore = defineStore('hostApps', () => {
 
   /** The apps the package sources can install, as last read; empty before the first answer. */
   const installable: Ref<InstallableHostApp[]> = ref([])
+
+  /** Why no Node.js app is among {@link installable}, or `null` when nothing is missing for a reason. */
+  const nodejsUnavailable: Ref<HostNodejsUnavailable | null> = ref(null)
+
+  /** The reason in {@link nodejsUnavailable} as the panel's sentence in the user's language, or `null`. */
+  const nodejsUnavailableMessage: Ref<string | null> = ref(null)
 
   /** Where the read of {@link installable} stands. */
   const installableState: Ref<LoadingState> = ref('loading')
@@ -92,11 +99,16 @@ export const useHostAppsStore = defineStore('hostApps', () => {
   const loadInstallable = async (): Promise<void> => {
     installableState.value = 'loading'
     try {
-      installable.value = await api.listInstallable()
+      const answer = await api.listInstallable()
+      installable.value = answer.apps
+      nodejsUnavailable.value = answer.nodejsUnavailable
+      nodejsUnavailableMessage.value = answer.nodejsUnavailableName
       installableErrorMessage.value = null
       installableState.value = 'loaded'
     } catch (error) {
       installable.value = []
+      nodejsUnavailable.value = null
+      nodejsUnavailableMessage.value = null
       installableErrorMessage.value = error instanceof ApiError ? error.message : null
       installableState.value = 'error'
     }
@@ -293,6 +305,8 @@ export const useHostAppsStore = defineStore('hostApps', () => {
   return {
     apps,
     installable,
+    nodejsUnavailable,
+    nodejsUnavailableMessage,
     installableState,
     installableErrorMessage,
     operations,

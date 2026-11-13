@@ -20,9 +20,15 @@ namespace Maran.Sdk.Contracts;
 /// The figure or the closed words the mail body already uses. Never a path, a URL or tool output
 /// (rules/security.md item 8); consumers cap its length.
 /// </param>
+/// <param name="FeedValues">
+/// The values the notification feed words its sentence from, in the order the sentence takes them, or null when the
+/// <paramref name="Detail"/> is the one value. For an alert whose sentence needs more than one figure (a day and a
+/// number of days) in a form that is not the webhook's <paramref name="Detail"/>. Same limits as the detail.
+/// </param>
 public sealed record OperatorAlert(
     AlertSource Source,
     string Code,
     AlertTransition Transition,
     string Subject,
-    string Detail);
+    string Detail,
+    IReadOnlyList<string>? FeedValues = null);

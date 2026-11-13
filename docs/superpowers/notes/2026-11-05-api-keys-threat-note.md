@@ -512,3 +512,63 @@ differs from the design; stated), **NOT VERIFIED** (no code or test observed her
 - Timing equality of the unknown-prefix path against the known-prefix path: argued, not measured.
 - Whether the second-factor bypass of a machine credential is acceptable to the owner's threat
   model; this note records it, it cannot decide it.
+
+## Addendum (issue #551): a key lives only as long as its creator's right to sign in
+
+Status: **Second review: OUTSTANDING**, as the note above. Written after the code was read and before
+the change was built or run; nothing in it is a measurement.
+
+### What changed
+
+1. **The authenticator judges the creator of EVERY key** (`ApiKeyAuthenticator`, after the digest
+   comparison and the state and address checks, for a matching key only): the login named by
+   `ApiKey.CreatedByUserId` must exist and satisfy `User.MayAuthenticate` (active lifecycle, not
+   suspended), read on every call with no cache. This replaces the earlier rule, which looked only at
+   the login of a RESELLER owner (`ApiKey.ResellerId`); a key the administrator owns was never tied to
+   anybody's login. A reseller's key is created by the reseller's own login, so the one rule covers it.
+2. **Suspending a key creator revokes its keys, and a resume does not revive them.**
+   `ResellerSuspendingHandler` stages the revocation of every unrevoked key the reseller's login created
+   in the same save as the suspension (`ApiKeyCreatorRevoker`, Identity `Services/`) and journals one
+   `ApiKeyRevoked` entry per key after the commit: the panel as actor, the subject naming prefix, name
+   and scopes (never the digest) and the reason `CreatorDisabled`. The revocation is on the key row, so a
+   leaked key stays dead after a resume and a new key has to be issued. The authenticator's creator
+   check stays as defence in depth. No administrator-login suspension path exists today.
+3. **Deleting a login refuses its keys.** Only the administrator and reseller logins create keys
+   (`ApiKeysController`, `ResellerApiKeysController`); customer and sub-user logins cannot, so their
+   deletion paths do not call the revoker. The reseller-deletion handler already removes the reseller's
+   keys outright, which is stronger. Even with no row revoked, a deleted creator's key is refused (the
+   lookup finds no login).
+4. No migration: `RevokedAt` exists and the reason lives in the journal's subject text.
+
+### What an attacker could do with this surface, and why it is safe now
+
+- **Keep using a key after its issuer was shut out.** Before: an administrator-owned key never looked at
+  a login, and a reseller-owned one only at the reseller's. Now every key is judged on every call, so
+  the key dies with the creator's access on the next request.
+- **Learn which keys exist.** The creator check runs after the digest comparison and only for a matching
+  key, and its refusal is the same `ApiKeyDenied` as every other: no new difference between an unknown
+  prefix and a known one. The added read is one primary-key lookup for a matching key; its timing is
+  argued, not measured.
+- **Lock an integration out by suspending a person.** This is the intended consequence (owner decision O-12); an integration that must outlive one person's login is
+  issued by a login that is not expected to leave.
+
+### What a reviewer must check
+
+- `grep -n "CreatedByUserId" backend/src/Maran.Modules/Identity/Services/ApiKeyAuthenticator.cs` shows
+  the creator read; the refusal precedes `RecordUseAsync`, so a refused key moves no last-use stamp.
+- The unit tests `ApiKeyAuthenticatorTests` hold the active creator accepted (inverse control), a missing
+  and a not-yet-active creator refused, a suspended reseller's key refused (defence in depth) and a
+  deleted creator's key refused; `ApiKeyCreatorRevokerTests` and `ResellerSuspendingHandlerTests` hold
+  that only the suspended login's keys are revoked, journalled, and not revived by a resume.
+- That `ResellerSuspendingHandler` stages the revocation BEFORE its `SaveChangesAsync` and records the
+  entries AFTER it.
+
+### What the author could not verify
+
+- Nothing was built or run. The Wolverine handler classes are generated at build time and gitignored, so
+  the changed constructors are resolved by the container, which no test here exercises.
+- That no deployment issues keys from a login that is meant to be disabled routinely (a shared service
+  account that is suspended on holiday), which this change would now lock out.
+- Timing equality of the unknown-prefix and known-prefix paths with the extra read: argued, not measured.
+
+Second review: OUTSTANDING (#331)

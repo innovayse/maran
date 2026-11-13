@@ -223,7 +223,8 @@ public sealed class TransferAccountCommandHandler
             // After the commit, as a plan change announces it: the move re-pairs the account with a plan
             // of the new owner, and when that plan bounds PHP differently the account's pools carry
             // settings cut to the old bound. A subscriber's failure is logged, never failing the move.
-            await _announcer.AnnounceAsync([account.Id], cancellationToken);
+            await _announcer.AnnounceAsync(
+                [account.Id], current.PhpLimits.UploadMaxMb != target.PhpLimits.UploadMaxMb, cancellationToken);
         }
 
         await _journal.RecordSuccessAsync(

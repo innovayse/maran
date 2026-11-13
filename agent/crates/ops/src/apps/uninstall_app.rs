@@ -8,11 +8,14 @@ use maran_distro::DistroAdapter;
 
 use crate::apps::app_catalogue::ensure_in_catalogue;
 use crate::apps::app_in_use::ensure_not_in_use;
-use crate::apps::app_packages::packages_of;
+use crate::apps::app_packages::{module_stream_of, packages_of};
+use crate::apps::ensure_node_is_managed::ensure_node_is_managed;
 use crate::apps::installed_probe::{is_installed, package_present};
 use crate::apps::nginx_port80::restore_nginx_port80;
+use crate::apps::nodejs_module_operation::take_nodejs_module_operation;
 use crate::apps::removal_plan::ensure_removal_is_contained;
 use crate::apps::{AppsHost, AppsOpError};
+use crate::packages::run_nodejs_remove_unit;
 use crate::php::run_install_unit::run_remove_unit;
 
 /// Removes `id` by starting the root removal unit for each of its packages, in reverse install
@@ -25,6 +28,11 @@ use crate::php::run_install_unit::run_remove_unit;
 ///
 /// Refused as well when the package manager's dry run of the removal shows it would take other
 /// packages with it, or the panel's nginx (`removal_plan`): `-y` would remove them silently.
+///
+/// A Node.js major on a module-stream family is removed as its stream by the Node.js module
+/// removal unit, once, after one dry run of that module's removal. One that was not installed
+/// through a stream (the plain package) is refused with the operator's own command, and the
+/// removal runs under the lock the install takes.
 ///
 /// **nginx is never removed**: it is the panel's own front on port 8443, and its package stays.
 /// Uninstalling the `nginx` app checks that no site is served by it and then clears the site web
@@ -44,6 +52,9 @@ use crate::php::run_install_unit::run_remove_unit;
 /// [`AppsOpError::NotInstalled`] for an app that is not there, [`AppsOpError::InUse`] for an app
 /// something still uses, [`AppsOpError::RemovalWouldRemoveOthers`] for a removal that would take
 /// other packages, [`AppsOpError::RemovalNotSimulated`] for one whose dry run gave no answer,
+/// [`AppsOpError::UnmanagedNodeInstalled`] for a Node.js no stream installed,
+/// [`AppsOpError::NodeInterpreterUnreadable`] for an interpreter that reports no version,
+/// [`AppsOpError::NodejsOperationInProgress`] while another Node.js module operation runs,
 /// [`AppsOpError::Package`] for a removal unit that failed or outlived its
 /// deadline, and [`AppsOpError::StillAbsent`] when the unit succeeded and the app is still there.
 pub fn uninstall_app<H, P>(
@@ -57,6 +68,15 @@ where
     P: FnMut(u32, &str),
 {
     ensure_in_catalogue(id)?;
+    // A Node.js stream is removed under the same lock its install is made under, so a removal
+    // and an install of another major cannot interleave.
+    let _module_operation = if module_stream_of(distro, id).is_some() {
+        let guard = take_nodejs_module_operation(host)?;
+        ensure_node_is_managed(host, distro, id)?;
+        Some(guard)
+    } else {
+        None
+    };
     if !is_installed(host, distro, id)? {
         return Err(AppsOpError::NotInstalled { app: id.as_id() });
     }
@@ -74,10 +94,17 @@ where
     // Before the first unit starts: a removal that would take anything else with it is refused
     // whole, so no package of the app is gone when the refusal is reported.
     ensure_removal_is_contained(host, distro, id, &packages)?;
-    packages.reverse();
-    for package in packages {
+    if let Some(stream) = module_stream_of(distro, id) {
+        // A module stream goes as one unit: the removal and the module's reset, so no stream
+        // stays enabled behind the removed packages and a later install may pick another.
         progress(40, "remove");
-        run_remove_unit(host, distro, &package)?;
+        run_nodejs_remove_unit(host, distro, &stream)?;
+    } else {
+        packages.reverse();
+        for package in packages {
+            progress(40, "remove");
+            run_remove_unit(host, distro, &package)?;
+        }
     }
 
     if package_present(host, distro, id)? {

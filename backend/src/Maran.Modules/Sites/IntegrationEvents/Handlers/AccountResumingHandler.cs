@@ -1,9 +1,12 @@
 using Maran.Agent.Client.Interfaces;
+using Maran.Agent.Client.Services.SitesService;
 using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Mappers;
 using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Sites.Services;
+using Maran.Sdk.Contracts;
 using Maran.Sdk.Events;
+using Maran.Sdk.Interfaces;
 
 namespace Maran.Modules.Sites.IntegrationEvents.Handlers;
 
@@ -46,12 +49,28 @@ public sealed class AccountResumingHandler
     /// <summary>Names the installed site web server, which every vhost this handler touches belongs to.</summary>
     private readonly SiteStackGate _stack;
 
+    /// <summary>Reads the plan bounds the vhost's request body limit follows.</summary>
+    private readonly SitePlanLimits _planLimits;
+
+    /// <summary>Serialises the operations that change one site's host state.</summary>
+    private readonly ISiteOperationLock _locks;
+
+    /// <summary>The panel's clock, which bounds how long the cascade waits for busy sites.</summary>
+    private readonly IClock _clock;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Sites module's database context.</param>
     /// <param name="agent">The agent client that re-renders each vhost.</param>
     /// <param name="stack">Names the installed site web server the vhosts belong to.</param>
-    public AccountResumingHandler(SitesDbContext dbContext, IAgentSitesClient agent, SiteStackGate stack)
+    /// <param name="planLimits">Reads the plan bounds the vhost's request body limit follows.</param>
+    /// <param name="locks">Serialises the operations that change one site's host state.</param>
+    /// <param name="clock">The panel's clock, which bounds how long the cascade waits for busy sites.</param>
+    public AccountResumingHandler(SitesDbContext dbContext, IAgentSitesClient agent, SiteStackGate stack, SitePlanLimits planLimits,
+        ISiteOperationLock locks, IClock clock)
     {
+        _clock = clock;
+        _locks = locks;
+        _planLimits = planLimits;
         _dbContext = dbContext;
         _agent = agent;
         _stack = stack;
@@ -75,6 +94,7 @@ public sealed class AccountResumingHandler
 #pragma warning disable RS0030 // the account is being reactivated, so its rows must be found whoever asked for it
         var enabled = await _dbContext.Sites
             .IgnoreQueryFilters()
+            .AsNoTracking()
             .Where(site => site.AccountId == message.AccountId && site.Status == SiteStatus.Enabled)
             .OrderBy(site => site.Domain)
             .ToListAsync(cancellationToken);
@@ -86,15 +106,58 @@ public sealed class AccountResumingHandler
         }
 
         var webServer = await _stack.RequireWebServerAsync(cancellationToken);
-        foreach (var site in enabled)
+        var limitsRead = await _planLimits.ReadAsync(message.AccountId, cancellationToken);
+        if (!limitsRead.IsSuccess)
         {
-            var restored = await _agent.EnableAsync(
-                message.Username, site.Domain, SiteDescriptorMapper.From(site, webServer), cancellationToken);
-            if (!restored.IsSuccess)
-            {
-                throw new InvalidOperationException(
-                    $"the vhost of {site.Domain} could not be restored: {restored.Error?.Code}");
-            }
+            // Failing is a subscriber's only way to abort the lifecycle step, and a vhost cannot be
+            // rendered under a plan nobody can read.
+            throw new InvalidOperationException(
+                $"the plan of account {message.AccountId} could not be read: {limitsRead.Error?.Code}");
         }
+
+        var limits = limitsRead.Value;
+        // Every site is tried before this fails. The account stays suspended, which is the recoverable
+        // direction, and repeating the reactivation is the retry: the restore is idempotent. A site is
+        // restored only if the row, read again under its lock, is still enabled: a disable that committed
+        // since the listing is the customer's choice and must stay a stub (#531).
+        await SiteCascade.RunAsync(
+            enabled,
+            _locks,
+            _clock,
+            message.AccountId,
+            "restored",
+            (siteId, _) =>
+            {
+                return RestoreAsync(siteId, message.AccountId, message.Username, webServer, limits, cancellationToken);
+            },
+            cancellationToken);
+    }
+
+    /// <summary>Restores one site's vhost, which the caller holds, if the site is still enabled.</summary>
+    /// <param name="siteId">The listed site.</param>
+    /// <param name="accountId">The account being resumed.</param>
+    /// <param name="username">The owning account's system user name.</param>
+    /// <param name="webServer">The installed site web server.</param>
+    /// <param name="limits">The account's plan bounds.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>Success, or the agent's refusal.</returns>
+    private async Task<Result> RestoreAsync(
+        Guid siteId,
+        Guid accountId,
+        string username,
+        SiteWebServer webServer,
+        PhpLimitsSnapshot limits,
+        CancellationToken cancellationToken)
+    {
+        var site = await SiteRowRefresh.ReadAsync(_dbContext, siteId, accountId, cancellationToken);
+        if (site is null || site.Status != SiteStatus.Enabled)
+        {
+            return Result.Ok();
+        }
+
+        var restored = await _agent.EnableAsync(
+            username, site.Domain, SiteDescriptorMapper.From(site, webServer, limits), cancellationToken);
+
+        return restored.IsSuccess ? Result.Ok() : Result.Fail(restored.Error!);
     }
 }

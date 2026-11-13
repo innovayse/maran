@@ -96,13 +96,54 @@ pub(crate) fn apply_ruleset(
     target: &Path,
     contents: &str,
 ) -> Result<(), FirewallError> {
+    write_ruleset_file(host, distro, target, contents)?;
+
+    // `write_ruleset_file` proved that `target` can be named to `nft`.
+    let Some(target_path) = target.to_str() else {
+        return Err(FirewallError::StagingFailed);
+    };
+
+    let loaded = host.run(
+        &distro.nft_binary(),
+        &[FILE, target_path],
+        CallClass::Mutation,
+    )?;
+    if loaded.status != 0 {
+        return Err(FirewallError::NftFailed {
+            stderr: loaded.stderr,
+        });
+    }
+
+    Ok(())
+}
+
+/// Steps 1 to 5 of [`apply_ruleset`]: writes `contents` to `target` durably and
+/// atomically, after `nft --check` accepted them, and loads nothing.
+///
+/// The one writer of the ruleset file. `apply_ruleset` is this followed by the load; the
+/// refresh of the output chain's address sets (`refresh_self_sets`) is this followed by a
+/// load of the sets alone, so a later reload of the file by the system (`systemctl reload
+/// nftables` at an operator's hand) cannot revert the kernel to addresses the file no
+/// longer holds.
+///
+/// # Errors
+///
+/// As [`apply_ruleset`] for steps 1 to 5: [`FirewallError::StagingFailed`],
+/// [`FirewallError::RuleRefusedByNft`] and [`FirewallError::Bound`], with the live
+/// ruleset untouched, and the failure of the directory flush after the rename.
+pub(crate) fn write_ruleset_file(
+    host: &dyn FirewallHost,
+    distro: &dyn DistroAdapter,
+    target: &Path,
+    contents: &str,
+) -> Result<(), FirewallError> {
     // Read before anything is staged, so that a target this agent cannot name
     // to `nft` is refused while the live ruleset is still untouched. Checking
     // it after the rename would return a "nothing was touched" error at a
     // point where the file had already been replaced.
-    let Some(target_path) = target.to_str() else {
+    if target.to_str().is_none() {
         return Err(FirewallError::StagingFailed);
-    };
+    }
 
     let staged = host.stage_file(target, contents)?;
 
@@ -148,17 +189,6 @@ pub(crate) fn apply_ruleset(
     // flushing the directory beforehand would flush a state that predates the
     // new entry and would do nothing for the rename's durability.
     host.sync_directory(target)?;
-
-    let loaded = host.run(
-        &distro.nft_binary(),
-        &[FILE, target_path],
-        CallClass::Mutation,
-    )?;
-    if loaded.status != 0 {
-        return Err(FirewallError::NftFailed {
-            stderr: loaded.stderr,
-        });
-    }
 
     Ok(())
 }

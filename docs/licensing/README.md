@@ -7,7 +7,10 @@ This folder holds the one artefact that any implementation of the panel's licenc
 public. The file carries two TEST public keys (the licence key and the lease key) and no production key.
 A real build trusts the key its release embeds (`installer/keys/licence-verification.pub` and
 `installer/keys/lease-verification.pub`, generated offline by the issuing service and not in this
-repository) and refuses every licence or lease while it has none.
+repository) and refuses every licence or lease while it has none. A shipping build (`MaranShippingBuild=true`, set only by the release pipeline)
+cannot be produced without them: the Licensing project fails with `MARAN001`, naming the missing file, unless
+`installer/keys/` holds `licence-verification.pub`, `lease-verification.pub`, `marketplace-metadata.pub`,
+`module-signing.pub` and `release-signing.pub`. Every other build, plain Release included, and every test build is exempt.
 
 ## The licence file (`/var/lib/maran/licence.json`)
 

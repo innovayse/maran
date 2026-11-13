@@ -6,17 +6,18 @@ use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::utils::call_class::CallClass;
 use maran_distro::DistroAdapter;
 
-use crate::mail::local_submission_tables::{EMPTY_TABLE, hold_tables};
+use crate::mail::local_submission_tables::hold_tables;
 use crate::mail::mail_error::MailError;
 use crate::mail::mail_host::MailHost;
 use crate::mail::model::mail_daemon::MailDaemon;
+use crate::mail::seed_local_submission_maps::seed_local_submission_maps;
 use crate::safe_write::model::Validator;
 use crate::safe_write::model::config_file::ConfigFile;
 
 /// The mode a seeded table lands at. Postfix reads its maps as its own user, and
 /// the two files that hold anything private sit in directories that are not
 /// world-traversable.
-const TABLE_MODE: u32 = 0o644;
+pub(crate) const TABLE_MODE: u32 = 0o644;
 
 /// Creates every lookup table that does not exist yet, empty.
 ///
@@ -114,45 +115,6 @@ pub fn seed_mail_maps(host: &dyn MailHost, distro: &dyn DistroAdapter) -> Result
             &ConfigFile {
                 target: selectors,
                 contents: "",
-                mode: TABLE_MODE,
-            },
-            &Validator {
-                program: &distro.rspamadm_binary(),
-                arguments: &["configtest"],
-                class: CallClass::Reload,
-            },
-        )?;
-    }
-    Ok(())
-}
-
-/// Creates the four Rspamd maps of the local-submission binding empty (issue #518).
-/// "Empty" is the comment line [`EMPTY_TABLE`], not zero bytes: Rspamd does not
-/// refresh a map from an empty file.
-///
-/// An empty map is the closed state: the rule finds no account for any uid and
-/// refuses the message. Existing maps are never touched, for the reason
-/// [`seed_mail_maps`] gives.
-fn seed_local_submission_maps(
-    host: &dyn MailHost,
-    distro: &dyn DistroAdapter,
-) -> Result<(), MailError> {
-    for path in [
-        AgentPaths::MAIL_LOCAL_SUBMIT_ACCOUNTS_PATH,
-        AgentPaths::MAIL_ACCOUNT_SENDER_DOMAINS_PATH,
-        AgentPaths::MAIL_ACCOUNT_SEND_LIMITS_PATH,
-        AgentPaths::MAIL_MAILBOX_ACCOUNTS_PATH,
-    ] {
-        let target = Path::new(path);
-        if host.read_config(target)?.is_some() {
-            continue;
-        }
-        host.write_file_unreloaded(
-            MailDaemon::Rspamd,
-            distro.rspamd_service(),
-            &ConfigFile {
-                target,
-                contents: EMPTY_TABLE,
                 mode: TABLE_MODE,
             },
             &Validator {

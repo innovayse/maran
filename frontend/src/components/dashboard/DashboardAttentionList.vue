@@ -2,7 +2,7 @@
 /**
  * What on this server is asking to be looked at: certificates near expiry, backups that failed,
  * addresses the firewall is refusing, panel tasks that failed, sites running on a PHP version that
- * no longer receives security fixes.
+ * no longer receives security fixes, a licence close to its expiry.
  *
  * **Only the rows that are not zero are shown, and when none of them is, the notice says so in a
  * sentence.** That is the opposite of {@link DashboardTotalsGrid}, where every tile is always drawn,
@@ -39,7 +39,7 @@ import type { DashboardAttention, DashboardSection } from '../../types/dashboard
 import { attentionIsClear } from '../../utils/attentionIsClear'
 
 /** Which attention source a row is about; the list key and the i18n leaf it is worded by. */
-type AttentionKey = 'certificates' | 'backups' | 'tasks' | 'bans' | 'endOfLifePhp'
+type AttentionKey = 'certificates' | 'backups' | 'tasks' | 'bans' | 'endOfLifePhp' | 'licenceExpiring'
 
 /** A source the panel could not read: a counted one, the clock, or the alert delivery state. */
 interface UncheckedSource {
@@ -98,6 +98,7 @@ const sources: ComputedRef<AttentionSource[]> = computed(() => {
     { key: 'tasks', section: props.attention.failedTasks, to: '/tasks' },
     { key: 'bans', section: props.attention.bannedAddresses, to: '/firewall/bans' },
     { key: 'endOfLifePhp', section: props.attention.sitesOnEndOfLifePhp, to: '/settings/php' },
+    { key: 'licenceExpiring', section: props.attention.licenceExpiring, to: '/settings/licence' },
   ]
 })
 

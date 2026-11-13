@@ -108,4 +108,19 @@
   <data name="AgentWebServerAlreadyInstalled">
     <value>A web server for sites is already installed on this server, so nothing was installed. Remove the installed one first; only one can run sites at a time.</value>
   </data>
+  <data name="AgentNodeMajorAlreadyInstalled">
+    <value>A Node.js version is already installed on this server, so nothing was installed. Remove it first; this server keeps one Node.js version at a time.</value>
+  </data>
+  <data name="AgentNodeUnmanagedInstall">
+    <value>A Node.js that this panel did not install is already on this server, so nothing was installed or removed. The panel does not manage it. Remove it yourself on the server with `dnf remove nodejs`, then try again.</value>
+  </data>
+  <data name="AgentNodeStreamEnabledByOperator">
+    <value>A Node.js module stream was enabled on this server by hand, and installing would reset that choice, so nothing was installed. Release it yourself on the server with `dnf module reset nodejs`, then try again.</value>
+  </data>
+  <data name="AgentNodeInterpreterUnreadable">
+    <value>The Node.js program on this server does not report its version, so what is installed cannot be told and nothing was changed. Repair or remove it yourself on the server, then try again.</value>
+  </data>
+  <data name="AgentNodeOperationInProgress">
+    <value>Another Node.js install or removal is running on this server, so nothing was changed. Try again when it has finished.</value>
+  </data>
 </root>

@@ -2,6 +2,7 @@ using Maran.Agent.Client.Services.SitesService;
 using Maran.Modules.Sites.IntegrationEvents.Handlers;
 using Maran.Modules.Sites.Tests.TestSupport;
 using Maran.Sdk.Events;
+using Maran.Sdk.Modules;
 using Maran.SharedKernel.Apps;
 
 namespace Maran.Modules.Sites.Tests.IntegrationEvents.Handlers;
@@ -32,7 +33,7 @@ public sealed class AccountDeletionCascadeTests
         var agent = new RecordingAgentSitesClient();
         await using var context = SitesTestContext.Create(FakeCurrentUser.Admin(), database);
 
-        await new AccountDeletingHandler(context, agent, SiteStacks.With(installed, ["8.3"], [])).HandleAsync(
+        await new AccountDeletingHandler(context, agent, SiteStacks.With(installed, ["8.3"], []), new SiteOperationLock(), new FakeClock(DateTimeOffset.UnixEpoch)).HandleAsync(
             new AccountDeleting(account, Username), CancellationToken.None);
 
         Assert.Equal([expected, expected], agent.DeleteWebServers);
@@ -55,7 +56,7 @@ public sealed class AccountDeletionCascadeTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
         {
-            return new AccountDeletingHandler(context, agent, SiteStacks.NotReady()).HandleAsync(
+            return new AccountDeletingHandler(context, agent, SiteStacks.NotReady(), new SiteOperationLock(), new FakeClock(DateTimeOffset.UnixEpoch)).HandleAsync(
                 new AccountDeleting(account, Username), CancellationToken.None);
         });
         Assert.Empty(agent.DeleteWebServers);
@@ -67,7 +68,7 @@ public sealed class AccountDeletionCascadeTests
     {
         await using var context = SitesTestContext.Create(FakeCurrentUser.Admin(), Guid.NewGuid().ToString());
 
-        await new AccountDeletingHandler(context, new RecordingAgentSitesClient(), SiteStacks.NotReady()).HandleAsync(
+        await new AccountDeletingHandler(context, new RecordingAgentSitesClient(), SiteStacks.NotReady(), new SiteOperationLock(), new FakeClock(DateTimeOffset.UnixEpoch)).HandleAsync(
             new AccountDeleting(Guid.NewGuid(), Username), CancellationToken.None);
     }
 }

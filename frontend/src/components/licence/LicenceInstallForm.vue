@@ -1,6 +1,8 @@
 <script setup lang="ts">
 /**
- * The form that installs a pasted licence: one text area and the submit button.
+ * The form that installs a pasted licence: one text area and the submit button. Installing also asks the
+ * licensing service for the licence's lease, and the form shows the panel's sentence on how that went
+ * (issue #537).
  *
  * The licence text is a long JSON blob. It lives only in this component's local state, goes to the
  * store on submit, and is cleared as soon as the panel accepted it; it is rendered nowhere except
@@ -16,6 +18,7 @@ import UiCard from '../ui/UiCard.vue'
 import UiFieldHint from '../ui/UiFieldHint.vue'
 import UiForm from '../ui/UiForm.vue'
 import UiSectionHeading from '../ui/UiSectionHeading.vue'
+import UiStack from '../ui/UiStack.vue'
 import UiTextarea from '../ui/UiTextarea.vue'
 import { useLicenceStore } from '../../stores/licence'
 
@@ -57,7 +60,7 @@ watch(rawLicenceText, (value) => {
 <template>
   <UiCard>
     <UiForm @submit="submit">
-      <div class="flex flex-col gap-4">
+      <UiStack gap="lg">
         <UiSectionHeading :title="t('licence.installTitle')" />
 
         <UiAlert v-if="licenceStore.installMessage !== null" variant="error">
@@ -69,8 +72,17 @@ watch(rawLicenceText, (value) => {
         <UiAlert v-if="licenceStore.installed" variant="success" data-testid="licence-installed">
           {{ t('licence.installed') }}
         </UiAlert>
+        <!-- What asking the licensing service for the lease came to: the backend's sentence, a success
+             tone only when the licence now has the lease it needs. -->
+        <UiAlert
+          v-if="licenceStore.leaseRequestMessage !== null"
+          :variant="licenceStore.leaseRequestSucceeded ? 'success' : 'warning'"
+          data-testid="licence-lease-request"
+        >
+          {{ licenceStore.leaseRequestMessage }}
+        </UiAlert>
 
-        <div>
+        <UiStack gap="xs">
           <UiTextarea
             v-model="rawLicenceText"
             :label="t('licence.installLabel')"
@@ -80,15 +92,15 @@ watch(rawLicenceText, (value) => {
             no-wrap
             required
           />
-          <UiFieldHint class="mt-1">{{ t('licence.installHint') }}</UiFieldHint>
-        </div>
+          <UiFieldHint>{{ t('licence.installHint') }}</UiFieldHint>
+        </UiStack>
 
-        <div class="flex flex-wrap justify-end gap-2">
+        <UiStack direction="row" wrap justify="end" gap="sm">
           <UiButton type="submit" :disabled="licenceStore.installing">
             {{ licenceStore.installing ? t('licence.installing') : t('licence.installSubmit') }}
           </UiButton>
-        </div>
-      </div>
+        </UiStack>
+      </UiStack>
     </UiForm>
   </UiCard>
 </template>

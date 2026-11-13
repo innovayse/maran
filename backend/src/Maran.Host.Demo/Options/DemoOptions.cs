@@ -14,6 +14,15 @@ public sealed class DemoOptions
     /// <summary>Configuration section this type binds from.</summary>
     public const string SectionName = "Demo";
 
+    /// <summary>
+    /// Where a visitor reports abusive content: a bare e-mail address or an <c>https</c> URL. Required in demo
+    /// mode (<see cref="DemoOptionsValidator"/> refuses an empty or malformed value, so the demo does not start
+    /// without one), shown on the banner and returned by the status endpoint. It names a role mailbox of the
+    /// operator, never a person; there is no default in the code, and <c>demo/panel.env.example</c> carries the
+    /// documented placeholder.
+    /// </summary>
+    public string AbuseContact { get; set; } = string.Empty;
+
     /// <summary>Hours between resets; the status endpoint turns it into the next reset time.</summary>
     [Range(1, 168)]
     public int ResetIntervalHours { get; set; } = 2;

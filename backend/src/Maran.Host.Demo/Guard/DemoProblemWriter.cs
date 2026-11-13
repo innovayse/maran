@@ -22,6 +22,9 @@ public static class DemoProblemWriter
     /// </summary>
     public const string RefusedCode = "DemoActionRefused";
 
+    /// <summary>Code and resource key of text the content filter refuses (status 400).</summary>
+    public const string ContentRefusedCode = "DemoContentRefused";
+
     /// <summary>Code and resource key of a spent budget (status 409).</summary>
     public const string BudgetExhaustedCode = "DemoBudgetExhausted";
 
@@ -38,6 +41,18 @@ public static class DemoProblemWriter
         var result = Result<bool>.Fail(
             Error.Of(RefusedCode, ErrorType.Forbidden),
             ProblemExtension.Of("refusal", refusal));
+        await ExecuteAsync(context, result.ToActionResult(context));
+    }
+
+    /// <summary>Writes the 400 for refused text, naming the member and never echoing the text.</summary>
+    /// <param name="context">The current request.</param>
+    /// <param name="field">The member that held the text; a name from the code, not a visitor's value.</param>
+    /// <returns>Resolves once the body is written.</returns>
+    public static async Task WriteContentRefusedAsync(HttpContext context, string field)
+    {
+        var result = Result<bool>.Fail(
+            Error.Of(ContentRefusedCode, ErrorType.Validation),
+            ProblemExtension.Of("content", new DemoContentRefusalDto(field)));
         await ExecuteAsync(context, result.ToActionResult(context));
     }
 

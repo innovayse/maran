@@ -89,7 +89,12 @@ public sealed class InstallCustomCertificateCommandHandler
         }
 
         var installed = await _installer.InstallAsync(
-            account.Username, site, command.CertificatePem, command.PrivateKeyPem, cancellationToken);
+            account.Username,
+            site,
+            command.CertificatePem,
+            command.PrivateKeyPem,
+            CertificateLockWait.Interactive,
+            cancellationToken);
         if (!installed.IsSuccess)
         {
             return await FailAsync(command, installed.Error!, cancellationToken);

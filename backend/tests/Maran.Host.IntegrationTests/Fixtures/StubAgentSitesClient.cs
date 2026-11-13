@@ -98,6 +98,7 @@ public sealed class StubAgentSitesClient : IAgentSitesClient
     /// <param name="node"></param>
     /// <param name="maxChildren">Unused.</param>
     /// <param name="settingOverrides">Unused.</param>
+    /// <param name="options"></param>
     /// <param name="cancellationToken">Unused.</param>
     /// <returns>Never returns.</returns>
     public Task<Result<CreatedSiteDto>> CreateAsync(
@@ -111,6 +112,7 @@ public sealed class StubAgentSitesClient : IAgentSitesClient
         SiteNodeApp node,
         uint maxChildren,
         IReadOnlyList<PhpSettingDto> settingOverrides,
+        SiteOptionsDescriptor options,
         CancellationToken cancellationToken)
     {
         throw new NotSupportedException();

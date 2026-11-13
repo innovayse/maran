@@ -79,7 +79,7 @@ cmd_build() {
   for arch in ${arch_list//,/ }; do
     arch="$(arch_name "$arch")"
     echo "== building for ${arch}"
-    build_api "$out_dir" "$arch" "$version"
+    build_api "$out_dir" "$arch" "$version" "$publish"
     build_agent "$out_dir" "$arch"
     build_frontend "$out_dir" "$arch"
     for component in api agent frontend; do
@@ -122,6 +122,9 @@ cmd_build() {
     echo "  \"channel\": \"${channel}\","
     manifest_security_field "$security"
     manifest_release_fields "$notes_url"
+    # A published release lists the five public keys it pins with their SHA-256 (issue #544); a local
+    # build pins nothing it must name, so its manifest stays as before.
+    [ "$publish" -ne 1 ] || manifest_pinned_keys_field "${root}/installer/keys"
     echo "  \"artifacts\": {"
     local first=1
     for arch in ${arch_list//,/ }; do

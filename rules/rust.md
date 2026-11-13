@@ -100,6 +100,15 @@ agent/
     │   │   │                  reconcile_site_auth_files.rs (credential files whose vhost is
     │   │   │                  gone, issue #151) —
     │   │   │                  split out of server.rs, which keeps `serve` and the registry
+    │   │   ├── address_watch/ the periodic check of the host's own addresses (issue #535): the
+    │   │   │                  two layers of the port-25 lockdown are filled from them, so one reading
+    │   │   │                  a minute is handed to both. host_address_watch.rs (the check: read once,
+    │   │   │                  tell the layers that are behind, retry a failure alone) ·
+    │   │   │                  host_address_source.rs (where the reading comes from; the kernel's
+    │   │   │                  tables) · host_address_layer.rs + host_address_layer_error.rs (the layer
+    │   │   │                  trait and its failure) · firewall_sets_layer.rs · mail_clients_layer.rs
+    │   │   │                  (the two layers) · watch_tick.rs (what one check did) ·
+    │   │   │                  run_host_address_watch.rs (the loop, on the blocking pool)
     │   │   ├── audit/         the independent trail of what the root agent did, one line
     │   │   │                  per mutating rpc (issue #106): audit_layer.rs (the tower
     │   │   │                  Layer, installed in server.rs OUTSIDE the PeerGuard so a
@@ -108,15 +117,22 @@ agent/
     │   │   │                  response body, emits once at end of stream or on drop) ·
     │   │   │                  audit_slot.rs (the per-request record a handler fills with
     │   │   │                  validated types only) · audit_line.rs (the one line format) ·
-    │   │   │                  audit_rpc_class.rs (Mutating · ReadOnly) ·
-    │   │   │                  mutating_rpcs.rs · read_only_rpcs.rs (the two closed lists
-    │   │   │                  of full rpc paths) · audit_emission.rs (the once-only emitter
+    │   │   │                  audit_rpc_class.rs (Mutating · Disclosing · ReadOnly) ·
+    │   │   │                  mutating_rpcs.rs · disclosing_rpcs.rs · read_only_rpcs.rs (the three
+    │   │   │                  closed lists of full rpc paths) · audit_emission.rs (the once-only emitter
     │   │   │                  of one request's line) · audited_body.rs (the body wrapper
     │   │   │                  that decides WHEN it is written) · audit_outcome.rs (the closed
     │   │   │                  set of outcome spellings) · mod.rs, which also mounts the two
     │   │   │                  test-only files of src/tests/audit/ under #[cfg(test)]
-    │   │   ├── config/        invocation.rs (the command line) · agent_options.rs · options_error.rs
-    │   │   ├── peercred/      peer_policy.rs (who may connect) · peer_guard.rs (the check)
+    │   │   ├── config/        invocation.rs (the command line) · agent_options.rs · options_error.rs ·
+    │   │   │                  fleet_options.rs (--fleet-listen, --fleet-dir) · node_identity_request.rs
+    │   │   │                  (--generate-node-identity) · absolute_directory.rs
+    │   │   ├── peercred/      peer_policy.rs (who may connect) · peer_guard.rs (the check) · the two kinds of
+    │   │   │                  peer, local and fleet: agent_connection.rs · agent_peer.rs · fleet_peer.rs ·
+    │   │   │                  admitted_fleet_peer.rs (the mark only the fleet admission service leaves)
+    │   │   ├── fleet/         the optional TCP + mutual-TLS listener (off unless serve is handed a FleetListener)
+    │   │   │                  and the node identity (generate_node_identity.rs, node_identity.rs, panel_pin.rs);
+    │   │   │                  agent/CLAUDE.md has the file-by-file text
     │   │   └── services/      one FOLDER per proto service:
     │   │       ├── system/    system_service.rs
     │   │       ├── accounts/  accounts_service.rs · account_status.rs ·
@@ -164,7 +180,15 @@ agent/
     │   │       │              drains the stream) · write_collector.rs (the state machine that
     │   │       │              holds the header rules and the byte cap, so a unit test can drive
     │   │       │              them — a tonic Streaming cannot be constructed by one) ·
-    │   │       │              validated_delete.rs
+    │   │       │              validated_delete.rs · the read side (issue #166): validated_listing.rs ·
+    │   │       │              validated_read.rs · validated_search.rs · to_wire_directory_listing.rs ·
+    │   │       │              to_wire_listed_entry.rs · to_wire_search_outcome.rs · stream_chunk_sink.rs ·
+    │   │       │              read_terminal.rs · the mutations (issue #167): one validated_* and one
+    │   │       │              result builder per rpc (validated_move.rs and moved_entry.rs,
+    │   │       │              validated_copy.rs and copied_entry.rs, validated_trash.rs and
+    │   │       │              trashed_entry.rs, and so on), run through run_file_operation.rs · and the
+    │   │       │              archives (issue #168): validated_archive.rs · validated_extract.rs ·
+    │   │       │              created_archive.rs · extracted_archive.rs
     │   │       ├── sftp/      sftp_service.rs · sftp_status.rs ·
     │   │       │              validated_creation.rs · validated_credential.rs ·
     │   │       │              validated_password_change.rs · validated_sftp_user.rs ·
@@ -323,6 +347,10 @@ agent/
     │       │   │              database_privilege_set (the closed set of 18 database-level
     │       │   │              privileges a customer's login may hold; GRANT OPTION and every
     │       │   │              global privilege have no value, issue #156) — values that reach MySQL
+    │       │   ├── apps/      app_id_error · validated_app_id (the closed catalogue of the app
+    │       │   │              store) · nodejs_module_stream (a catalogue Node.js major as the
+    │       │   │              module stream the RHEL family installs it from, `nodejs:20/common`,
+    │       │   │              built from a NodeMajor only, issue #532)
     │       │   ├── web/       acme_token · acme_key_authorization (the panel's own HTTP-01
     │       │   │              file name and content, issue #132) ·
     │       │   │              client_body_size · static_cache_days · redirect_path ·
@@ -367,6 +395,8 @@ agent/
        │   │              (`K<zone>.+013+<tag>`, built from a ZoneName and that recomputed
        │   │              tag) — beside the zone-file kinds, issue #178
        │   ├── fs/        path (resolve_in_home) · relative_path · file_mode ·
+    │   │              browse_path · search_query · path_component (issue #166) ·
+    │   │              mutable_path · trash_entry_id · transfer_bounds · upload_limit (issue #167) ·
     │   │              remote_path (a path HOLE in a remote command on a migration source:
     │   │              absolute, allow-listed characters, no `..`, no `//`, no leading `-`
     │   │              in a segment; a path on ANOTHER host, so never resolved here, issue #197)
@@ -384,6 +414,8 @@ agent/
     │       │                  because each type still maps it onto its own error.
     │       ├── privs/         the ONLY home of unsafe syscall/setuid wrappers:
     │       │                  fork_as_account.rs (fork, then wait: the entry point) ·
+    │       │                  fork_reporting_as_account.rs (the same fork for work that must hand a typed
+    │       │                  report back: framed input, a 17-byte report, issue #167) ·
     │       │                  drop_to_account.rs (the child's setgroups/setgid/setuid and its
     │       │                  verification) · close_inherited_descriptors.rs ·
     │       │                  wait_for_child.rs (the bounded wait and the reap) ·
@@ -418,6 +450,10 @@ agent/
     │                          and the refusal the accounts, files and backup areas
     │                          share before their first write, issue #148 — a type
     │                          three areas need) ·
+    │                          read_host_addresses.rs + host_addresses_error.rs (the addresses
+    │                          configured on this host's interfaces, read from the kernel's
+    │                          fib_trie and if_inet6 tables through parse_fib_trie.rs (the routes, as fib_route.rs) filtered by parse_fib_trie_local.rs and
+    │                          parse_if_inet6.rs; asked by ops::transfer and ops::mail, issue #531) ·
     │                          pkill_uid_arguments.rs · pgrep_live_uid_arguments.rs
     │                          (the deletion check: live processes of a uid, zombies
     │                          excluded because they hold nothing) · pkill_answer.rs (the one
@@ -425,6 +461,10 @@ agent/
     │                          means, shared by suspension and deletion, issue #103) ·
     │                          account_slice_unit.rs (the one spelling of
     │                          user-<uid>.slice, issue #158) ·
+    │                          bounded_slots.rs + bounded_slot.rs + slots_full.rs (counting
+    │                          semaphores, host-wide and per account, that REFUSE instead of
+    │                          waiting; run-now, browse, archive and bulk file work share
+    │                          one type, issues #333, #166, #167) ·
     │                          apply_child_environment.rs
     │                          — the ONE environment any of them gives a child (cleared,
     │                          then the declared entries). A host whose spawn is
@@ -498,6 +538,9 @@ agent/
     │       │                  program's status gave no answer: an exit status, never a byte it
     │       │                  printed). Read through `PackageFacts::{security_pending_updates_arguments,
     │       │                  mark_security_updates, reboot_probe, read_reboot_probe_run}`
+    │       ├── nodejs_stream_listing.rs  NodejsStreamListing — what one read of the `nodejs`
+    │       │                  module's streams found (RHEL family): the catalogue streams the sources
+    │       │                  offer and the stream names the host has enabled, issue #532
     │       ├── package_query_failure.rs  PackageQueryFailure — why a read of what the
     │       │                  host's package manager OFFERS gave no answer (an exit status or
     │       │                  a line number, never a byte it printed); the reading is
@@ -516,7 +559,10 @@ agent/
     │       │                  the grammar of what the Debian family offers, issue #466) ·
     │       │                  debian_services.rs · debian_php_extensions.rs · debian_apps.rs
     │       ├── rhel/          rhel_adapter.rs · rhel_paths.rs · rhel_packages.rs ·
-    │       │                  rhel_services.rs · rhel_php_extensions.rs · rhel_apps.rs
+    │       │                  rhel_services.rs · rhel_php_extensions.rs · rhel_apps.rs ·
+    │       │                  rhel_generation.rs (RhelGeneration, the 9 or 10 generation read
+    │       │                  from the os-release VERSION_ID; `adapter_for_release` picks the
+    │       │                  adapter with it, issue #542)
     │       └── suse/          suse_adapter.rs · suse_paths.rs · suse_packages.rs ·
     │                          suse_package_candidates.rs (zypper: the program, its arguments and
     │                          the grammar of what the family offers, issue #59) ·
@@ -530,7 +576,7 @@ agent/
     ├── ops/
     │   ├── src/
     │       ├── {accounts,sites,php,db,sftp,ftps,logins,files,cron,firewall,ssl,
-    │       │    backup,monitor,transfer}/
+    │       │    backup,monitor,transfer,mail,dns}/
     │       │                  one folder per area; anatomy below. `ftp/` is NOT
     │       │                  one of them: it is a zero-byte skeleton left from
     │       │                  before the protocol was chosen, and the shipped
@@ -540,6 +586,17 @@ agent/
     │       │                  login protocols share, so the systemd
     │       │                  path-escaping rule is stated once instead of once
     │       │                  per protocol.
+    │       │                  mail/ keeps its lifecycle apart from its data plane: mail_lifecycle_lock.rs (the
+    │       │                  host-wide lock that every start, stop and reload of the mail daemons runs
+    │       │                  under, issue #535) · refresh_self_clients.rs + render_self_clients.rs (the
+    │       │                  table of the host's own addresses Postfix keeps off port 25) ·
+    │       │                  seed_mail_maps.rs · seed_local_submission_maps.rs ·
+    │       │                  seed_missing_local_submission_maps.rs (the empty lookup tables; the second
+    │       │                  and third are the maps of the local-submission binding, issue #531).
+    │       │                  firewall/ holds firewall_lock.rs (the host-wide lock of every ruleset write) ·
+    │       │                  refresh_self_sets.rs (the output chain's address sets, issue #535) ·
+    │       │                  reconcile_output_chain.rs · read_output_policy.rs + parse_login_defs_uid_min.rs
+    │       │                  (the uid floor and the addresses the output chain is rendered for).
     │       │                  accounts = system users: useradd/userdel, homes, quotas.
     │       │                  Deletion releases every uid-keyed leftover, in this order
     │       │                  (issue #139): crontab → at jobs → user manager → processes →
@@ -591,10 +648,10 @@ agent/
     │       │                  <account>:<web server group> 0750 gives an identity of
     │       │                  its own nothing at all.
     │       │                  cron/ also holds run-now's bound and its stop (issues
-    │       │                  #333, #336), none of them an rpc: run_now_slots.rs
-    │       │                  (tokio semaphores, host-wide and per account, taken
-    │       │                  without waiting) with run_now_slot.rs (the grant,
-    │       │                  released by drop), model/run_unit_name.rs (the unit
+    │       │                  #333, #336), none of them an rpc: the bound is
+    │       │                  agent-core's BoundedSlots (tokio semaphores, host-wide
+    │       │                  and per account, taken without waiting; the grant is a
+    │       │                  BoundedSlot, released by drop), model/run_unit_name.rs (the unit
     │       │                  the run is started under, named by the agent),
     │       │                  run_unit_must_stop.rs (whether a ceiling killed the
     │       │                  CLIENT and left the job) and stop_run_unit_arguments.rs +
@@ -644,10 +701,19 @@ agent/
     │       │                  it — it is done once and then bound by many sites — so
     │       │                  it gets `services/php/php_service.rs`. Everything about
     │       │                  a single site's PHP binding stays in `services/sites/`.
-    │       │                  files/ holds, besides the two operations, the three
-    │       │                  private units the privileged walk needs — they are named
+    │       │                  files/ is the largest area and holds, besides one file per rpc
+    │       │                  (read_file, list_directory, search_entries, write_file,
+    │       │                  create_directory, move_entry, copy_entry, change_permissions,
+    │       │                  delete_entry, force_delete_entry, trash_entry, list_trash,
+    │       │                  restore_trash_entry, empty_trash, purge_expired_trash,
+    │       │                  create_archive, extract_archive), the private units the
+    │       │                  privileged walk needs — they are named
     │       │                  here because they are not "one file per rpc" and would
-    │       │                  otherwise have no assigned place:
+    │       │                  otherwise have no assigned place: `*_in_home.rs` (what the forked
+    │       │                  child runs), `process_*_host.rs` and `files_host.rs` (the injectable
+    │       │                  seams), `fork_files_work.rs` and `fork_upload_work.rs`, `archive/`
+    │       │                  (the steps of one archive, issue #168), `tree/` and `model/`, and
+    │       │                  the three the first operations had:
     │       │                  open_parent_directory.rs (the O_NOFOLLOW descent) ·
     │       │                  write_in_home.rs · remove_in_home.rs. Each is what the
     │       │                  forked child actually runs, split from its host method so
@@ -698,7 +764,14 @@ agent/
     │       │                  and publishes it marked imported. package/ is the signed
     │       │                  package: package_signing_key.rs · signed_manifest.rs ·
     │       │                  transfer_manifest.rs · verify_package.rs · key_fingerprint.rs ·
-    │       │                  lowercase_hex.rs.
+    │       │                  lowercase_hex.rs. Dumps someone else wrote are loaded only
+    │       │                  by the restricted loader (issue #127): scan_dump.rs refuses
+    │       │                  client commands, unlisted statements, definers, stored
+    │       │                  programs and other databases BEFORE anything runs, then
+    │       │                  load_dump_restricted.rs loads it as a temporary user that
+    │       │                  holds one database only (the host seam is
+    │       │                  restricted_dump_host.rs). A partial restore (issue #160) goes
+    │       │                  through open_restore_directory.rs and restore_directory.rs.
     │       │                  verify_backup.rs is the third, read-only entry point
     │       │                  (issue #134): it takes the account's lock without
     │       │                  waiting, checks the artifact against its sidecar and
@@ -724,8 +797,7 @@ agent/
     │       │                  that removes the 0700 scratch directory on every path) ·
     │       │                  choose_source_address.rs (the address policy, applied to the
     │       │                  RESOLVED address: the name is resolved once and the literal is
-    │       │                  connected to) · parse_fib_trie_local.rs · parse_if_inet6.rs (this
-    │       │                  host's own addresses) · ssh_argv.rs (the ONE builder of an ssh
+    │       │                  connected to) · ssh_argv.rs (the ONE builder of an ssh
     │       │                  argument vector, every pinned option set on every call) ·
     │       │                  ssh_client_options.rs (the pinned option set) · write_known_hosts.rs
     │       │                  (+ known_hosts_line.rs, known_hosts_alias.rs) · classify_ssh_failure.rs · ssh_source_shell.rs
@@ -896,7 +968,7 @@ family's `DistroAdapter` methods ask; `debian_package_candidates.rs` /
 `rhel_package_candidates.rs` / `suse_package_candidates.rs` answer what the family's package manager offers (the program,
 its arguments and the grammar of its answer, issue #466); `suse_account_programs.rs`, `suse_mail_services.rs` and
 `suse_dns_services.rs` answer the account-deletion programs, the mail stack's units and the DNS daemon's
-identity for the SUSE family (issue #59); `debian_apps.rs` / `rhel_apps.rs` / `suse_apps.rs` answer every question the app store asks of a family (the packages behind each app, Apache's include snippet, modules and enabler, the Node.js binary and candidate, issue #517); `debian_removal.rs` / `rhel_removal.rs` / `suse_removal.rs` answer what the family's package manager says a removal would do (the arguments of its dry run and the grammar of its answer); `debian_php_extensions.rs` /
+identity for the SUSE family (issue #59); `debian_apps.rs` / `rhel_apps.rs` / `suse_apps.rs` answer every question the app store asks of a family (the packages behind each app, Apache's include snippet, modules and enabler, the Node.js binary and candidate, issue #517; on the RHEL family also the listing of the `nodejs` module's streams and what a stream's removal may take, issue #532); `debian_removal.rs` / `rhel_removal.rs` / `suse_removal.rs` answer what the family's package manager says a removal would do (the arguments of its dry run, a module stream's included, and the grammar of its answer); `debian_php_extensions.rs` /
 `rhel_php_extensions.rs` / `suse_php_extensions.rs` answer every question about a PHP extension (its package,
 its switch, its drop-in directory). `validation/path.rs` is the same pattern
 already, one file short of needing to be said out loud. Splitting these into one
@@ -1274,13 +1346,14 @@ the same command can complete.
   dumps — goes through `tokio::task::spawn_blocking`. A blocking call on a runtime
   worker stalls every other in-flight command.
 - No unbounded buffering of streamed data. The rpcs that stream today are
-  `TailSiteLog`, `CreateBackup`, `RestoreBackup` and `InstallPhpVersion`
-  (server-streaming) and `WriteFile` (client-streaming); each is bounded by a
+  `TailSiteLog`, `CreateBackup`, `RestoreBackup`, `InstallPhpVersion`,
+  `SetPhpExtension`, `InstallApp`, `UninstallApp`, `ReadFile`, `ExportBackup`,
+  `ReadSourceInventory`, `PullAccountFiles` and `StreamRemoteDatabase`
+  (server-streaming) and `WriteFile` and `ImportBackup` (client-streaming), the
+  `returns (stream` and `(stream` lines of `proto/agent/v1/*.proto`; each is bounded by a
   channel with a ceiling, and reading a customer's 4 GB file into a `Vec<u8>`
-  is a denial of service against the panel. `ReadFile` is declared in the
-  contract and answers `UNIMPLEMENTED`, so it is named here as reserved rather
-  than as shipped behaviour — an earlier version of this line listed it among
-  the bounded-chunk streams and described code that does not exist.
+  is a denial of service against the panel. `ReadFile` is capped at 512 MiB and
+  refuses hardlinks and links (issue #166).
 - Long-running operations answer a dropped stream deliberately, and "stop" is not
   always the right answer. Sort each one before writing it:
   - **Stop.** Work whose only product is the stream itself — `TailSiteLog` is the
@@ -1307,11 +1380,12 @@ the same command can complete.
     rather than describing the reclamation as if it existed: a class name is an
     obligation, and writing the obligation down as behaviour is how the next
     reader stops looking (rules/architecture.md).
-  State which of the three an rpc is, in its own doc comment, and say why. All
-  five say it today — `TailSiteLog` and `WriteFile` stop, `RestoreBackup` and
-  `InstallPhpVersion` run to completion, `CreateBackup` runs to completion and
-  owes a reclamation. Nothing mechanical checks that a sixth one does, so this is
-  a review item; the sentence is what a reviewer looks for. The panel's side is
+  State which of the three an rpc is, in its own doc comment, and say why. Each
+  says it in its own doc comment, and the list above is the census; the examples
+  here are `TailSiteLog` and `WriteFile` (stop), `RestoreBackup` and
+  `InstallPhpVersion` (run to completion) and `CreateBackup` (run to completion,
+  owes a reclamation). Nothing mechanical checks that a new streaming rpc says it,
+  so this is a review item; the sentence is what a reviewer looks for. The panel's side is
   bound by the same sort: a call it can no longer hear is not a call that did not
   happen.
 
@@ -1320,28 +1394,46 @@ the same command can complete.
 The agent serves rpcs concurrently and the panel issues them concurrently — two
 schedulers and an operator can aim three operations at one account with nothing
 between them. So every mutation of a shared host resource is serialised
-deliberately, and the whole set is listed here because a sixth lock added by
-someone who could not see the other five is how a deadlock gets built.
+deliberately, and the whole set is listed here because a further lock added by
+someone who could not see the others is how a deadlock gets built.
 
 | lock | reach | on contention |
 |---|---|---|
 | `ops::safe_write::config_tree_lock` | host-wide | waits |
 | `ops::firewall::firewall_lock` | host-wide | waits |
+| `ops::mail::mail_lifecycle_lock` (issue #535) | host-wide | waits |
 | `ops::cron::cron_lock` | one account | waits |
 | `ops::accounts::account_lock` | one account | **never waits** — refuses |
 | `STDIN_IS_THE_ARTIFACT` (`ops::backup`) | host-wide | waits |
+| `AppsHost::app_operation_lock` (`ops::apps`, Node.js module install and removal, issue #532) | host-wide (one host object) | **never waits** — refuses |
 
-`ops::cron::run_now_slots` (issue #333) is deliberately NOT a row: it is a pair of
-counting semaphores that bound how many runs by hand are in flight — a few per
+`agent_core::utils::BoundedSlots` (issue #333; since #166 and #167 also the bound on
+browsing, archiving and bulk file work) is deliberately NOT a row: each use is a pair of
+counting semaphores that bound how many operations are in flight — a few per
 account, a few for the host — and it **refuses**, never waits and never orders
 anything, so it contributes no wait-for edge and none of the four properties
 below depends on it. It is taken before any lock, as the first statement of
-`run_cron_entry`, and released by dropping its grant.
+each operation that uses it, and released by dropping its grant.
+
+`AppsHost::app_operation_lock` (issue #532) is a row and not a semaphore: one `Mutex<()>` owned by the
+host object, taken without waiting as the first statement of the install and of the removal of a
+Node.js major on a module-stream family, so the check "is another major there?" and the unit it
+authorises are one critical section. It refuses (`NodejsOperationInProgress`) because the work under
+it runs for minutes. It never waits and nothing under it takes another lock of this
+table, so it adds no wait-for edge.
 
 Four properties hold this together, and a change that breaks any one of them owes
 a new argument in its place:
 
-- **The four waiting locks are leaves.** Nothing holding one asks for another.
+- **The waiting locks are leaves, with one named exception.** Nothing holding the
+  config-tree, firewall, cron or backup lock asks for another. The exception is
+  `mail_lifecycle_lock`: it is always the OUTER lock, taken before anything else
+  by `enable_mail`, `disable_mail` and `refresh_self_clients`, and the only lock
+  taken inside it is the config-tree lock (through the `safe_write` protocol). It
+  never nests the firewall lock and the firewall operations never ask for it, so
+  the order is a line and not a cycle; the two address-watch layers run one after
+  the other, never one inside the other. Take them in any other order and the
+  argument is gone.
   That is what makes a wait-for cycle impossible, and it is why the config-tree
   lock lives *inside* the `safe_write` protocol rather than at the rpc entry
   points: two operations nest (`ssl::delete_site_with_certificate` calls
@@ -1402,7 +1494,8 @@ relies on. New `unsafe` outside that module fails to compile, and adding an
   nothing in the agent opens one (`grep -rn correlation_id agent/crates` finds no
   match), and this bullet used to claim both, describing code that was never written.
 - **The audit layer** (`crates/agent/src/audit/`, issue #106) writes exactly one line
-  per MUTATING rpc, on the target `maran_audit`, to stdout, which systemd captures
+  per MUTATING rpc and per DISCLOSING rpc (`ReadFile`, which hands a customer's file
+  contents back; the line carries the account and the outcome, never the path), on the target `maran_audit`, to stdout, which systemd captures
   into the journal under the agent's unit. The line is
   `event=rpc method=<Service/Method> outcome=<ok|ERROR_CODE|unset|transport:<code>>
   duration_ms=<n> account=<name|-> site=<domain|->`. It is built only from validated
@@ -1410,7 +1503,7 @@ relies on. New `unsafe` outside that module fails to compile, and adding an
   method): the `AuditSlot` a handler fills has no entry point for a string, a path, a
   `SecretString` or a message, so a caller's text cannot reach the line. Handlers never
   log it themselves; they take the slot, name the account or site, and settle it.
-  Read-only rpcs yield no line. The two lists of rpc paths are closed and a census
+  Read-only rpcs yield no line. The three lists of rpc paths are closed and a census
   against `proto/agent/v1/contract-baseline.txt` fails an unclassified rpc, so a new
   rpc is classified in the change that adds it. journald can rate-limit and drop
   lines, which the agent cannot see: the absence of a line proves nothing.
@@ -1460,13 +1553,7 @@ mod tests;
 
 `maran structure` runs in CI as a merge gate and rejects:
 
-- more than one public unit in a file, except the named concern files
-  (`debian_paths.rs`, `debian_packages.rs`, `debian_services.rs`,
-  `debian_php_extensions.rs`, `debian_package_candidates.rs`, `rhel_package_candidates.rs`,
-  `rhel_paths.rs`, `rhel_packages.rs`,
-  `rhel_services.rs`, `rhel_php_extensions.rs`, `suse_paths.rs`, `suse_packages.rs`,
-  `suse_package_candidates.rs`, `suse_services.rs`, `suse_account_programs.rs`,
-  `suse_mail_services.rs`, `suse_dns_services.rs`, `suse_php_extensions.rs`, `debian_apps.rs`, `rhel_apps.rs`, `suse_apps.rs` — see "One unit per file"), where the concern is the unit and several functions are expected;
+- more than one public unit in a file, except the named concern files (the one list is "One unit per file" and `concern_files` in `scripts/lib/check-structure.sh`), where the concern is the unit and several functions are expected;
 - a definition in a crate root or `mod.rs`;
 - a file whose name does not match its single public item, in snake_case. The
   subject-named exceptions are LISTED in the script rather than inferred — an inferred

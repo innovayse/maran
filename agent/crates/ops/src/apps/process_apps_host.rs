@@ -2,6 +2,7 @@
 //! programs and writes configuration, plus two filesystem questions.
 
 use std::path::Path;
+use std::sync::Mutex;
 
 use crate::apps::{AppsHost, AppsOpError};
 use crate::php::{PhpOpError, ProcessPhpHost};
@@ -12,6 +13,10 @@ use crate::safe_write::write_unchecked_config;
 const RECORD_MODE: u32 = 0o644;
 
 impl AppsHost for ProcessPhpHost {
+    fn app_operation_lock(&self) -> &Mutex<()> {
+        self.app_operations()
+    }
+
     fn path_exists(&self, path: &Path) -> bool {
         path.exists()
     }

@@ -5,6 +5,8 @@ use std::mem::MaybeUninit;
 
 use super::priv_error::PrivError;
 use crate::agent_paths::AgentPaths;
+use crate::utils::login_defs_floor::{DEFAULT_ID_FLOOR, LOGIN_DEFS_PATHS, login_defs_floor};
+use crate::utils::login_defs_floor_reading::LoginDefsFloorReading;
 use crate::validation::system::managed_account::ManagedAccount;
 use crate::validation::system::name::AccountName;
 
@@ -15,21 +17,6 @@ const INITIAL_BUFFER: usize = 1024;
 /// is not a large entry, it is a broken or hostile user database, and growing
 /// without a bound would let one turn a lookup into an allocation attack.
 const MAXIMUM_BUFFER: usize = 64 * 1024;
-
-/// Where `useradd` records the lowest id it will hand to a human account.
-const LOGIN_DEFS: &str = "/etc/login.defs";
-
-/// The id floor to assume when `/etc/login.defs` cannot be read, does not say, or
-/// says something unusable. Applies to `UID_MIN` and `GID_MIN` alike.
-///
-/// 1000 is the value shipped by every distribution in Maran's support matrix, and
-/// the fallback is safe in the only direction that matters: if the host's real
-/// `UID_MIN` were *lower* than 1000 we would refuse some accounts the host
-/// considers human, which is a false rejection an operator can see and report. A
-/// wrong answer in the other direction — accepting a system account — is the one
-/// that cannot be seen, and this constant cannot produce it, because no
-/// distribution places a service account above 1000 by default.
-const FALLBACK_MINIMUM_ID: u32 = 1000;
 
 /// The numeric identity a forked child drops to before touching customer files.
 ///
@@ -273,49 +260,40 @@ pub(crate) fn is_hosting_account(
 /// Deliberately not cached: the parse is a few lines over a file the page cache
 /// already holds, and a cached floor would go stale if an operator retuned it.
 pub(crate) fn account_id_floors() -> (u32, u32) {
-    // `unwrap_or_default` rather than an early return: an unreadable file and a
-    // file with neither key must give the same answer, and an empty string is
-    // exactly a file with neither key.
-    let contents = std::fs::read_to_string(LOGIN_DEFS).unwrap_or_default();
-
-    (
-        id_floor(&contents, "UID_MIN"),
-        id_floor(&contents, "GID_MIN"),
-    )
+    (id_floor("UID_MIN"), id_floor("GID_MIN"))
 }
 
-/// Reads one `<key> <value>` floor out of `login.defs` content.
+/// Reads one floor the way the firewall's output chain reads `UID_MIN`: through the shared
+/// [`login_defs_floor`], over the same list of files, the first that sets it deciding.
 ///
-/// Takes the content as a string rather than reading the file itself, so the
-/// parser can be tested against a hostile `login.defs` — which is the only way to
-/// cover the cases that matter, since the host's real file is well-formed.
-///
-/// Falls back to [`FALLBACK_MINIMUM_ID`] for every input that is not a usable
-/// floor: a missing key, a missing value, a non-numeric or negative value, a
-/// commented-out line, a `SYS_`-prefixed relative, and — the case that is not
-/// obvious — an explicit **zero**.
-fn id_floor(contents: &str, key: &str) -> u32 {
-    contents
-        .lines()
-        .filter_map(|line| {
-            // `split_whitespace` already skips leading whitespace and splits on
-            // the tabs `/etc/login.defs` actually uses, so no `trim` is needed.
-            let mut fields = line.split_whitespace();
-            // The key must be the FIRST field, so neither a `#` comment nor a
-            // `SYS_UID_MIN` line can answer for `UID_MIN`.
-            (fields.next() == Some(key)).then(|| fields.next())?
-        })
-        // The `> 0` filter is NOT redundant with the fallback below, and it must
-        // not be removed as a tidy-up: `"0".parse::<u32>()` SUCCEEDS, so without
-        // it a floor of zero is a value like any other and `unwrap_or` never
-        // runs. A zero floor then turns `id < minimum` into `id < 0`, which is
-        // never true for an unsigned integer, so every system-account refusal
-        // silently stops firing and `daemon`, `nginx` and `postgres` are hosting
-        // accounts again. One line in a config file, no error, no log. Zero is
-        // the single value that parses cleanly and means something dangerous, so
-        // it is treated as no value at all.
-        .find_map(|value| value.parse::<u32>().ok().filter(|id| *id > 0))
-        .unwrap_or(FALLBACK_MINIMUM_ID)
+/// Every input that is not a usable floor gives [`DEFAULT_ID_FLOOR`]: a missing or unreadable file, a
+/// missing key or value, a non-numeric or negative value, a commented-out line, a `SYS_`-prefixed relative
+/// and, the case that is not obvious, an explicit **zero**. The zero is NOT redundant with the fallback:
+/// `"0".parse::<u32>()` SUCCEEDS, so without it a floor of zero is a value like any other, `id < 0` is
+/// never true for an unsigned integer, and every system-account refusal silently stops firing; `daemon`,
+/// `nginx` and `postgres` are hosting accounts again. One line in a config file, no error, no log.
+fn id_floor(key: &str) -> u32 {
+    // An unreadable file reads as an empty one: the same answer as a file with neither key.
+    let contents: Vec<String> = LOGIN_DEFS_PATHS
+        .iter()
+        .map(|path| std::fs::read_to_string(path).unwrap_or_default())
+        .collect();
+
+    id_floor_in(contents.iter().map(String::as_str), key)
+}
+
+/// The decision of [`id_floor`] over the TEXTS of the files, most authoritative first, so it can be
+/// tested against a hostile `login.defs`, which the host's real, well-formed file cannot be.
+fn id_floor_in<'a>(files: impl IntoIterator<Item = &'a str>, key: &str) -> u32 {
+    for contents in files {
+        match login_defs_floor(contents, key) {
+            LoginDefsFloorReading::Unset => {}
+            LoginDefsFloorReading::Set(value) => return value,
+            LoginDefsFloorReading::Unusable => return DEFAULT_ID_FLOOR,
+        }
+    }
+
+    DEFAULT_ID_FLOOR
 }
 
 /// The buffer size the C library recommends for a `passwd` entry.

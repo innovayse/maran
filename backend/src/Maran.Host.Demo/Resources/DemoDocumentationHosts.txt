@@ -1,0 +1,7 @@
+# Documentation namespaces an http or https link in visitor-typed text may name (one per line; a host matches
+# itself and every name under it). The files a visitor edits carry these in XML namespaces, DOCTYPE
+# declarations, JSON schemas and licence headers, and a demo that refused them could not save a real file.
+# They are not allowed for any other scheme.
+w3.org
+apache.org
+schema.org

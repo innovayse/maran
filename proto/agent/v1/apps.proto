@@ -146,6 +146,26 @@ message ListInstallableAppsResponse {
 message ListInstallableAppsOk {
   // The installable apps, in catalogue order, installed ones included.
   repeated InstallableApp apps = 1;
+  // Why the Node.js apps that are not installed are missing from `apps`, or
+  // NODEJS_UNAVAILABLE_REASON_UNSPECIFIED when they are not missing for a reason
+  // (the host offers them, or its family does not use module streams). Added
+  // 2026-11-12, additively (issue #532): an older agent never sets it, which
+  // reads as "no reason to report".
+  NodejsUnavailableReason nodejs_unavailable_reason = 2;
+}
+
+// Why a host offers no Node.js app although it is otherwise listed in full.
+// The two reasons are different facts: one is an answer, the other the absence
+// of one.
+enum NodejsUnavailableReason {
+  // Not set: nothing is missing for a reason.
+  NODEJS_UNAVAILABLE_REASON_UNSPECIFIED = 0;
+  // The package sources carry no Node.js module streams (a release without
+  // modularity). The host has no Node.js to offer; this is not a fault.
+  NODEJS_UNAVAILABLE_REASON_NO_MODULE_STREAMS = 1;
+  // The module listing could not be run or read, so what is offered is
+  // unknown. A retry may succeed once the package manager is reachable.
+  NODEJS_UNAVAILABLE_REASON_LISTING_FAILED = 2;
 }
 
 // One app this host can install.

@@ -129,7 +129,8 @@ echo
 # eleven tests here. A harness with only the lane above would have answered SURVIVED — and SURVIVED
 # is the verdict an author quotes when deleting a check.
 if [ "$polygon" = 1 ]; then
-  mapfile -t suites < <(polygon_suites "$work_root")
+  mapfile -t suites < <(polygon_suites "$work_root" | polygon_without_lane_owned)
+  mapfile -t lane_owned < <(polygon_lane_owned_suites)
   if [ "${#suites[@]}" -eq 0 ]; then
     echo "VERDICT: ABORTED — no polygon suite could be identified in the tree, so there was"
     echo "nothing for these lanes to run. (A suite is identified by carrying #[ignore], the same"
@@ -138,7 +139,8 @@ if [ "$polygon" = 1 ]; then
   fi
   echo "-- polygon suites discovered from the tree (${#suites[@]}): ${suites[*]}"
   echo "   The list is derived, never written down here: a suite added to agent/crates/*/tests is"
-  echo "   scored by the next run. Nothing in this command can narrow it."
+  echo "   scored by the next run. The only suites left out are those another lane owns and proves"
+  echo "   (POLYGON_LANE_OWNED_SUITES, scripts/lib/polygon.sh): ${lane_owned[*]:-none}."
   echo
 
   for family in ubuntu24 alma9; do

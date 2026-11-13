@@ -309,14 +309,16 @@ reporting `milter_macro_daemon_name=MARAN_LOCAL`, port 25 reports `INBOUND`, the
 missing name is a soft reject (fail-closed). A forged `sasl_username`/client attribute in a hand-built
 queue file therefore cannot take a message off the local road (polygon case 9).
 
-**Trust of the topmost `Received` header.** `pickup` writes `Received: by <host> (Postfix, from userid
+**Trust of the topmost submitter header (amended #591).** `pickup` writes `Received: by <host> (Postfix, from userid
 <uid>)` itself, on top of whatever the customer wrote (`mail_name` is pinned so the text cannot drift with a
-package default). The rule trusts only the topmost `Received` header, and only on the `MARAN_LOCAL` road; a
-customer-forged second header sits below it and is ignored (polygon case 6). Any other shape is refused.
+package default), but Postfix does not show that line to a milter. The `cleanup_local` service's `header_checks`
+table copies the uid into `X-Maran-Local-Submitter` by PREPEND, so the header is the topmost one.
+The rule trusts only the topmost `X-Maran-Local-Submitter` header, and only on the `MARAN_LOCAL` road; a
+customer-forged header or Received line sits below it and is ignored (polygon case 6). Any other shape is refused.
 The uid maps to an account through `local_submit_accounts.map`; the envelope sender and `From:` domain must
 both be that account's domains (`5.7.1`); the counter is shared with authenticated SMTP (`4.7.1` deferral
-over the limit) and counts per envelope recipient, once per message identity (`SET NX` guard keyed on the
-maildrop id in the topmost `Received` header, so a re-offered message is not counted twice); a local message is capped at the SMTP recipient limit (`5.5.3`). Exempt uids are
+over the limit) and counts per envelope recipient, charging only a message that fits the
+limit (a deferred message is offered again under a new queue id, so a refused one charges nothing and a retry cannot grow the bucket, amended #591); a local message is capped at the SMTP recipient limit (`5.5.3`). Exempt uids are
 exactly root and the Postfix owner, rendered by the agent; no Dovecot uid submits locally. A missing or
 unreadable map tempfails, and a Lua error in the prefilter is a soft reject, not an acceptance. The
 installer adds no new directory or permission: the maps sit in the existing root-owned, readable
@@ -362,9 +364,9 @@ refused); a login or domain that another account holds is refused with the typed
 `LocalSubmissionConflict` (wire code `ALREADY_EXISTS`) before anything is written, so a moved domain waits
 for its previous owner's removal to land. (M4) An authenticated login missing from `mailbox_accounts.map`
 is a soft reject (`4.4.3`), not an exemption; the lookup and the map keys are lower-cased. (M5) The
-"counted once" key is the maildrop id from the topmost `Received` header, which survives re-offers (the
-cleanup queue id does not); a message without it is counted every time. `Message-ID` is deliberately NOT a
-fallback: it is the sender's own text, so repeating one would exempt a customer from the limit. (M6) A
+"counted once" key (the maildrop id of the pickup line) was withdrawn in #591: that id is the cleanup queue id and
+changes on every re-offer. The bucket is charged only by a message that fits the limit, and `Message-ID` is deliberately NOT
+a key: it is the sender's own text, so repeating one would exempt a customer from the limit. (M6) A
 missing or incomplete settings section registers a stand-in that soft-rejects the local road and any
 unidentified path (smtpd roads pass), and after the reload the agent runs `rspamadm configdump
 maran_local_submit` and refuses to tell Postfix to admit the account when the section is absent. (M7) An
@@ -374,6 +376,258 @@ configuration holds the section, not that the running worker registered the symb
 the controller and a password); the uid takeover leaves the displaced account's `maran_local_submit_users`
 line until its own removal, which only matters to an account whose rules are gone (its mail is discarded);
 M2, M3, M8 and H2 (backend, publisher) are outside this change.
+
+Second review: OUTSTANDING (#331).
+
+## Amendment (#531 part 3): DKIM follows the binding, aliases carry their fan-out
+
+Surface: which mail is signed with a tenant's key, and what an alias recipient costs the hourly bucket.
+Attacker: a customer process that connects to `127.0.0.1:25` (INBOUND road) and types a hosted tenant's
+`From:`, or one that mails an alias with many external targets to multiply its sent volume. Controls: the
+signing condition is an allow-list of two roads decided on the daemon name; the local road is signed only
+with a per-message proof written by the rule after the envelope, `From:` and rate checks passed (the proof
+name is one rendered setting both files read; no `task:set_user`); a message with several `From:` domains
+gets no proof; the rule charges `max(1, external targets)` per recipient from `alias_fanout.map`, and a
+missing map defers local mail (`4.4.3`); Postfix bounds expansion with `virtual_alias_expansion_limit`.
+Could not verify: that Rspamd accepts the condition file's returned function and an empty table as "sign
+as configured", that the signing callback runs after the prefilter that records the proof, `task:cache_set`
+and `cache_get` semantics, and that `sign_local = true` is required for the bound local road (the design
+text said `false`; with `false` Rspamd skips every 127.0.0.1 message before the condition is consulted, as
+far as the module's source is remembered). Residuals: authenticated submission is not charged alias fan-out
+(smtpd bounds its recipients, the expansion is bounded by the limit above); a lagging `alias_fanout.map`
+undercharges until the next push.
+
+Second review: OUTSTANDING (#331).
+
+## Amendment (#531 part 1): port 25 refuses the host's own users at the Postfix service
+
+Surface: the public SMTP service (`smtp inet` in master.cf) and the table the agent renders for it.
+Attacker: a customer process on the server that opens its own SMTP session to `127.0.0.1:25`, `[::1]:25` or
+the server's public address, which skips `postdrop`'s user table, the local-submission rule's road and its
+per-account limit, and arrives as INBOUND mail. Controls: the service carries
+`smtpd_client_restrictions=check_client_access,cidr:/etc/maran/mail/self_clients.cidr,permit`; the agent
+renders that table (`127.0.0.0/8`, `::1/128` and every address of an interface read from the kernel's own
+tables, each a `REJECT`) as a third file of the Postfix stage, so it is written with `main.cf` and
+`master.cf` as one change, checked by `postfix check`, and re-rendered on every `EnableMail` (an address the
+host gained makes the stage differ, an unchanged host writes nothing); unreadable address tables refuse the
+enable with nothing written, because a partial list would leave an address open. Any other client falls
+through to `permit` and still meets the relay and recipient restrictions of main.cf. The layers are
+independent of the firewall: stopping nftables loses only the second layer, this one is Postfix's own.
+Could not verify: that a `cidr:` table named after `check_client_access,` in an `-o` value is read by
+`smtpd` exactly as the same words in main.cf (master.cf splits `-o` values at whitespace, so the comma form
+is used), that `postfix check` rejects nothing about the table, that smtpd reads a changed table after the
+reload (it opens tables at process start and `max_use` recycles processes), and that Postfix matches an
+IPv6 client against a lower-case compressed `/128` entry. Residuals: an address added between two
+`EnableMail` calls is open until the next call (the panel's reconcile is what repeats it); a customer
+process cannot be told from a remote client when it connects through an address the host does not carry
+(for example a NAT or tunnel address of another machine), which is not a local submission.
+
+## Amendment (#531 part 2): the firewall refuses customer uids to the host's own port 25
+
+Second layer of the part 1 lockdown, in the kernel: `table inet maran` gets an `output` chain (hook output,
+`policy accept`) with two rules, `meta skuid >= UID_MIN ip daddr @self_v4 tcp dport 25 reject with tcp reset`
+and the `ip6` twin over `@self_v6`. The sets hold `127.0.0.0/8` and `::1` as constants and the host's own
+addresses beside them. The test is the uid RANGE and not a group, because an account's group includes the web
+server. `UID_MIN` is read from the host's `login.defs` through the distro adapter (`login_defs_paths`; absent
+key means the documented 1000; a value that is zero or not a number refuses the apply with
+`CustomerUidFloorUnusable` instead of being guessed), and the addresses from the kernel's two address tables
+through the same parsers the Postfix stage uses. Both are host facts re-read on every apply and are masked when
+the ruleset file is read back, so an address leased or a `login.defs` edited since the last apply does not make
+the agent's own file foreign; the output chain's shape (names, hook, policy, ports, verbs) is compared in full,
+so an edited chain is refused as a foreign ruleset. A file written before this change (tail of two closing
+braces) is still read and gets the chain on its next mutation. Bounds: root, the mail stack's users and every
+other uid below the floor are unaffected, as is every port other than 25 and every destination other than the
+host itself. Stopping nftables loses only this layer; the Postfix refusal of part 1 is independent.
+Could not verify: that `reject with tcp reset` over an `inet` output chain with a set-typed `daddr` loads on
+the oldest nftables of the three families, that `flags interval` accepts the loopback `/8` beside single host
+addresses on every release, and the `/usr/etc/login.defs` location on the SUSE family. Residuals: an address
+that appears after the last apply is not in the set until the next apply (the Postfix layer reads its table at
+enable time too, so the two layers share this window).
+
+Second review: OUTSTANDING (#331).
+
+## Amendment (#531 part 4): the alias fan-out reaches the host from the Mail module
+
+Surface: where `alias_fanout.map` gets its counts. Attacker: a customer mailing an alias with many outside
+targets to multiply its sent volume past the hourly limit. Controls: the panel computes, from the Mail module's
+own alias rows read as the system and closed over the account id, how many targets of each alias lie on a domain
+the account does not host (the same test as the forwarder kind), and sends them in `SetLocalSubmissionRequest.alias_fanouts`
+with the rest of the binding, so the map is replaced whole and an alias deleted or retargeted disappears from it
+on the next push. The agent revalidates each entry (address grammar, count `1..=20`, no repeat, alias on one of
+the account's own domains, list ceiling before any element is read) and refuses the call on the first fault, so
+an alias cannot be written under another account's binding and a separator cannot split a map line. A zero
+count is refused, never read as "no fan-out": an alias with no outside target is left out. The contract moved
+to revision 29 with the panel's window, so an agent that predates the field is refused at the handshake instead
+of silently leaving every alias charged once. Could not verify: that the oldest supported Postfix expands an
+alias exactly once per target for a local submission (the count assumes it), and the agent-side render of the
+map, which another change owns. Residuals: a catch-all has no address to key on, so mail to it is charged once
+whatever its targets (the expansion limit bounds it); a target on another account's domain of this host counts as
+outside (the safe side); a lagging push undercharges until the reconciler's next round, as before.
+
+Second review: OUTSTANDING (#331).
+
+## Amendment (#531 review): the authenticated road is bound too, the fan-out is the whole expansion, the normal worker is off
+
+Surface: the From: header of authenticated mail, what a recipient costs, Rspamd's own listeners, the output
+chain's life cycle. Attacker: (1) a tenant who logs in with its own mailbox, uses its own envelope sender (which
+`reject_sender_login_mismatch` checks) and types another tenant's domain in `From:`; (2) a customer mailing an
+alias of aliases, a catch-all or `alias+tag@`; (3) a hosted subdomain of another tenant's registrable domain;
+(4) a local process posting a message to a loopback worker with a forged `MTA-Name`; (5) a host upgraded from a
+ruleset without the output chain. Controls: (1) the rule binds `From:` on `ORIGINATING` as on the local road
+(every `From:` domain must be one of the login's account's domains, else `reject 5.7.1`), records the same
+proof, and the condition signs BOTH roads only on that proof; there is no unconditional branch left. (2) the panel
+resolves the whole expansion of every alias and catch-all of the account (nested aliases, cycle guard, an
+address extension cut at `+` as Postfix cuts it, catch-all keyed `@domain`, destinations counted once, capped at
+the expansion limit 100, which is also the figure the agent accepts), the rule looks a recipient up as Postfix
+resolves it (address, address without extension, `@domain`; a mailbox of the account is one delivery), and the
+authenticated road is charged the same cost in the same per-account bucket. (3) `use_esld = false` in the signing
+settings, verified on the 3.8.1 image to default to `true`: the selector map is read for the exact `From:`
+domain, and the proof compares that exact domain, so a subdomain hosted by one tenant is never signed with the
+parent's key. Cross-tenant subdomain policy: domain uniqueness is not changed here; with `use_esld` off a tenant
+that hosts `shop.example.org` while another hosts `example.org` can sign only if a key exists for the exact
+name, so the question left is DNS control of the subdomain, which the DKIM record publication already requires.
+(4) `override.d/worker-normal.inc` sets `enabled = false`; verified on the 3.8.1 image that the packaged worker
+listens on 11333 and that the override removes it, leaving only the proxy and controller (unix sockets in the
+shipped overrides); the polygon asserts that Rspamd has no TCP listener. (5) the agent reconciles the output chain
+at start (`reconcile_output_chain`): a ruleset file without it, or with other host facts, is re-rendered from the
+file itself with the rules carried over byte for byte (no ports needed) and loaded, a current file whose chain is
+not live is loaded, a file this agent did not write is untouched, and every failure is logged at error because the
+host is then on one layer of two. The host-fact masking is validated (the uid is decimal digits fitting `u32`, the
+element list is addresses and networks only), both address readers are one function that refuses an unreadable IPv4
+table, and the panel's mail settings refuse `localhost` port 25 (the mail server of the machine closes it to every
+local client; the panel submits on 587 with a login). Could not verify: the callback order of `sign_condition` and
+the prefilter that records the proof, `task:cache_set`/`cache_get`, that Rspamd rejects at DATA with the 5.7.1
+text on a milter, how a Postfix catch-all interacts with an address that is also a mailbox (the rule charges the
+mailbox once), and the whole authenticated case against a live SASL login (the polygon covers the local road only).
+Residuals: an alias of a second account that lists outside addresses is not followed when the first account's
+alias names it (the first account's figure counts it as one delivery; it needs two accounts of one owner); a
+lagging push undercharges as before; addresses that appear after startup are not in either layer until the next
+enable or apply, and provider-routed prefixes are not listed (issue #535).
+
+Second review: OUTSTANDING (#331).
+
+## Amendment (#535): the host's addresses are followed while the agent runs
+
+Surface: the two address collections of the port-25 lockdown, the nftables sets `self_v4` / `self_v6` of the
+output chain and Postfix's `self_clients.cidr`. Attacker: a customer process that uses an address the host gained
+after the last firewall change or mail enable (a DHCP lease, a new interface, an IPv6 privacy address, a block
+routed to the host with `ip route add local`), because the kernel layer did not list it and the mail layer listed
+only single addresses. Controls: (1) the agent reads the host's addresses ONCE per check, at start and then every
+60 s (`address_watch`), through the one reader the mail stage, the firewall reconcile and the migration policy
+already share, and hands that one reading to both layers, so they cannot follow different hosts; the reading is
+compared sorted and de-duplicated and a layer is written only when it differs from what it was last brought to.
+(2) The firewall layer replaces only the contents of the two sets with one `nft -f` transaction (flush and add per
+set, checked with `nft --check` first); no rule, counter or ban is reloaded and the sets are never seen empty. (The first
+version left the ruleset file as it was; the review amendment below writes it too.) `SelfAddressSets` is the single
+place that decides what the sets hold. (3) The mail layer rewrites the one table through the config-write protocol,
+Postfix's own `postfix check` judging it and a reload following, with the old table put back when either refuses; it
+writes nothing for a host that never enabled mail (the review amendment below makes the reload one that cannot start a
+stopped Postfix). (4) The reader now also lists the IPv4 ranges the routing table
+marks local (`/24 universe LOCAL`, created by `ip route add local`), which the review found missing: both layers
+refuse the range as a whole, and an address inside a kept range, a range inside a wider one and any range that
+overlaps the loopback constant are dropped because an interval set refuses overlapping elements. (5) An unreadable
+table is never read as an empty host: nothing is written and the failure is logged at error; a layer that fails is
+logged at error, keeps what it has and is asked again at the next check, alone, while the layer that succeeded is not
+written twice; a panic in a check is caught and logged, the loop goes on. Could not verify: the exact text the
+kernel prints for a `LOCAL` prefix route on every supported kernel (the parser reads `/<length> <scope> LOCAL` under
+a leaf), that `nft` flushes and refills an interval set in one transaction on the oldest supported nftables (the
+polygon case 10 asserts it on a real kernel), and IPv6 routed blocks (`local 2001:db8::/48`), which
+`/proc/net/if_inet6` does not list and the IPv6 set cannot hold as intervals. Residuals: an address is outside both
+layers for up to one interval (60 s) after it appears; a range that contains the loopback range (`local 0.0.0.0/0`,
+a host that answers everywhere) is out of this lockdown's reach; the migration source policy still compares single
+addresses only, not ranges.
+
+Second review: OUTSTANDING (#331).
+
+## Amendment (#535 review): followed means written, a stopped Postfix is never started, the file and the kernel agree
+
+Surface: the same two collections. Attacker: a customer process that reaches the host's own port 25 through an
+address the host gained while a layer was not in a state to take it, and an administrator's "mail is off" that a
+reload undoes. Findings and controls: (1) The watch used to record a layer as brought to a reading when the layer
+had found nothing to do (no `self_v4` set in the kernel, Postfix not running); a layer was then "current" with the
+new address in neither it nor, after Postfix started, the table. Now a layer answers followed or pending and only
+"followed" is recorded; a pending layer is asked again at every tick, which is two small reads. `nft list set`
+failing is told apart by its message ("No such file or directory", the locale is pinned to `C`): any other failure is
+an error and is retried, never "nothing to refresh". A stopped Postfix gets the table written and checked without a
+reload, so whoever starts it next starts it from the host's current addresses. (2) The ruleset file is rewritten by
+the refresh through the same atomic writer a rule change uses, BEFORE the kernel gets the sets, so a later `systemctl
+reload nftables` re-applies the current addresses and cannot revert the kernel to the file's older ones; a failure
+between the two leaves the file ahead of the kernel, which the next attempt finishes. (3) The refresh reloads Postfix
+with the plain `reload`, which the service manager refuses for a stopped unit, and not `reload-or-restart`, which starts
+it; and the running check and the reload are one critical section with `enable_mail` and `disable_mail` (a new mail
+lifecycle lock, taken outside the config-tree lock), so a disable cannot land between them and port 25 and 587 do not
+start listening while mail is off (rules/security.md item 10(8)). (4) The uid floor and the addresses are read inside
+the firewall lock, as every other firewall operation reads them, and when the host moved since the watch's reading
+the fresh one is applied and reported, so an older reading cannot overwrite a newer one. (5) A chain seeded inert
+because the host's facts were unreadable at install (default uid floor, empty sets) is repaired by the watch: when
+anything of the chain beyond its set elements differs, the whole ruleset is re-rendered, written and loaded as a rule
+change loads it, and the log says "Repaired" and not "Refreshed". (6) A `/32` route of type `LOCAL` is an address of
+the host whatever its scope (`ip route add local 192.0.2.5/32 dev lo` prints `universe`), and both layers now use one
+loopback filter (`HostAddresses::ranges_beside_loopback`), so a wide local route around the loopback network is
+dropped by both and no longer listed by the mail table alone. Could not verify: the text `nft` prints for an absent
+set on every supported nftables (a different text is an error that is retried, which is the safe direction), and that
+`systemctl reload` on an inactive Postfix is refused on every supported systemd (the fake models it as documented).
+Residuals: IPv6 local ranges (`ip -6 route add local 2001:db8::/64 dev lo`) are still not read, since
+`/proc/net/if_inet6` lists interface addresses only and neither layer has an IPv6 range type; a host that was given
+such a route by hand is outside the lockdown for those addresses. The edit and the check are not one atomic step with
+the system's own reload of `nftables.service` at boot: a reboot loads the file's addresses, which are now the last
+refresh's and not the last rule change's.
+
+Second review: OUTSTANDING (#331).
+
+## Amendment (#531 second review): the rule is loaded, the condition is real, aliases are always keyed
+
+Surface: the Rspamd rule and condition of the local-submission binding, the panel's alias handlers and the
+settings form of the panel's own mailer. Attacker: a customer process or login that wants to send as a domain it
+does not own, to pay one unit for a large fan-out, or to defeat the lockdown by a rule that is not running. A live
+Rspamd (3.8 to 4.2) check found three defects that made the design fail open, all fixed here: (1) Rspamd reads neither
+`lua.local.d/` nor an unknown `local.d` file, so the rule was never loaded (the local road accepted unexamined); it is
+now a module in `plugins.d/` with its settings included from `rspamd.conf.local`, and the condition stays outside
+`plugins.d/`. (2) `sign_condition` was a path where Rspamd wants Lua source: the condition failed to load and the module
+fell back to `sign_local`, signing inbound mail and foreign domains; it is now `return dofile(...)(...)`, returns the
+`{ domain, selector, key }` table the module needs (or `false`), and `sign_local` / `sign_authenticated` are `false` so
+a condition that cannot load signs nothing. (3) `discard` is not an Rspamd action and raised, deferring forever; it is
+defined in `actions.conf` and the rule retries a refused action as `reject`. Reply texts no longer repeat the
+enhanced code Rspamd prepends.
+
+Review findings closed: N1 alias create/update/delete republish the account's binding after the commit, through the
+same convergent publisher and ledger, so a new fan-out is charged at once and a removed one stops being charged. N2
+every alias is a key of the fan-out map, an internal one with `0` (cost one), so it never falls through to the
+catch-all; the lookup is address, then `+extension`, then the catch-all only for an address that is neither alias nor
+mailbox. N3 the agent seeds a missing `alias_fanout.map` empty at start for a host that already enabled mail, so an
+upgrade does not defer every message until the next publish. N4 (accepted behaviour change, documented in
+docs/mail/local-submission.md): an authenticated sender can send only as a domain of its own account (5.7.1 otherwise),
+which includes every alias and catch-all address of that account; the panel's mailer validator message now says so.
+N5 root and the Postfix owner mail is signed with the key of its single `From:` domain when the host has one and is
+unsigned otherwise; a customer is never exempt. N7 `From:` domains are compared as A-labels, an unreadable one is the
+empty name and refuses the message, and a Unicode spelling is never signed. N8 the alias expansion is iterative
+with the same cycle guard and cap. N9 the panel refuses port 25 of the machine itself in any spelling (loopback,
+interface addresses, the host name and its FQDN); a deployment whose port 25 is a relay Maran does not manage opts in
+with `Notifications__Smtp__AllowLocalPort25Relay=true`, which removes only the early refusal. N10 the installer's
+firewall seed no longer fails on an unsupported distribution or an unreadable `fib_trie`: it logs at error and seeds an
+inert output chain (empty address sets) that the agent's start-up pass fills in; the mail server's own refusal stands
+meanwhile.
+
+Could not verify: the real Postfix side (`{daemon_name}` in the connect macros, the pickup `Received:` placement,
+backscatter on `discard`), Debian 12's Rspamd 3.4.1 and the RHEL/SUSE packages (no image exists; every tested
+version agrees), and the exact IDN lower-casing of scripts beyond Latin-1, Greek and Cyrillic (an uncovered letter keeps
+its case and the comparison refuses, the safe side). Residuals (OUTSTANDING): a DNS name that merely points at the host
+is not recognised by the panel's early refusal (the mail server's refusal of the host's addresses is the enforcement);
+account A mailing a catch-all or alias of account B is charged B's count (over-charge only); an alias of a second
+account named by the first account's alias counts as one delivery; the fan-out map still lags the panel by one push.
+
+Branch security review (issues #531-#561), amendments. The local-submission rule that is not configured (its
+settings section lost) now soft-rejects the authenticated submission road as well as the local road; only inbound mail
+passes, so a mailbox login is never sent unbounded and unaccounted because a settings file went missing. The mail of
+root and the Postfix owner records the DKIM proof of its `From:` domain only when that domain is the host's own mail
+name (rendered into the rule's settings as `host_mail_name`), so a compromised Postfix-owner process or a root job built
+from user data cannot obtain a signature of a tenant's domain; with no host name rendered it records no proof. The
+firewall and the account module read `UID_MIN` through one parser over one list of files, so the second layer of the
+port-25 lockdown and the id checks cannot disagree about the customer range. The real-stack browser lane keeps no
+Playwright trace (a trace records the sign-in request bodies and was uploaded as a workflow artifact); a failure keeps
+its screenshot only.
+
+Second review: OUTSTANDING (#331).
 
 Second review: OUTSTANDING (#331).
 

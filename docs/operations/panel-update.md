@@ -58,8 +58,9 @@ failed and was rolled back), 64 on a usage error, 77 when not run as root.
 
 ## Automatic security-patch updates
 
-An operator who never logs in leaves a known vulnerability running, so a security fix should reach the
-server without waiting for someone to run `maran update`. A systemd timer does that, narrowly:
+An operator who never logs in leaves a known vulnerability running, so a security fix can reach the
+server without waiting for someone to run `maran update`. A systemd timer does that, narrowly, once you
+enable it (it is installed but off):
 
 - **What runs.** `maran-update-security.timer` starts `maran-update-security.service` once a day, at
   midnight server time plus a random delay of up to four hours (so a fleet does not call at the same
@@ -78,22 +79,22 @@ server without waiting for someone to run `maran update`. A systemd timer does t
   database dump, the migration by the new release, the restart and the health gate, and the automatic
   rollback of the code. Only the confirmation question is left out, because nobody is there to answer
   it. The automatic rollback never restores the database.
-- **On by default, and told.** A first online install enables the timer and prints a line saying so and
-  how to turn it off. An offline install (`--offline-tarball`) does not enable it. Re-running the
-  installer and `maran update` never change your choice, so a disabled timer stays disabled across a
-  reboot, an installer run and an update. The one exception: a server installed before this feature
-  gets the timer enabled by the first installer run that brings the units, because for that server the
-  units are new.
+- **Off by default, and told.** The installer (online or offline) installs the units and does not
+  enable the timer; it prints a line saying the updates are installed but off and how to enable them.
+  You opt in with `sudo maran update-schedule enable`. Re-running the installer and `maran update` never
+  change your choice, so an enabled timer stays enabled and a disabled one stays disabled across a
+  reboot, an installer run and an update.
 - **Servers that were updated, not installed.** `maran update` replaces the code only; it never
   installs or changes a systemd unit. The two units arrive with the installer (step 69), so a server
   that was moved to this release by `maran update` has no timer until the installer is run on it again
-  (the installer re-run then enables the timer, because for that server the units are new).
+  (the installer re-run installs the units and leaves the timer off; enable it with
+  `maran update-schedule enable`).
   `maran update-schedule status` says `not-installed` on such a server.
 - **Which `maran` runs.** The unit runs the installed command (`/usr/local/sbin/maran`), which an
   update does not replace, against whichever release it fetches. The command and the releases it
   fetches are kept compatible by the same rule as for an operator's update.
 - **The interval is fixed.** Daily with a random delay; there is no setting for it, so that nothing
-  you type reaches a unit. The switch is on, off or status.
+  you type reaches a unit. The switch is enable, disable or status.
 - **Switching it.** `sudo maran update-schedule enable|disable|status`. `status` shows whether the timer
   is enabled and active, when it fires next, how the last run ended and the installed version.
 - **When it fails.** A failed run rolls the code back (never the database), and is recorded in four

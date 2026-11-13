@@ -59,4 +59,14 @@
     </EmbeddedResource>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The data of the content filter (Guard/DemoTextScreen): the blocked terms of each language and the hosts a
+         link may name. Plain text, one entry per line, read by Resources/DemoTextLists. The blocked-term files
+         carry a language in their name, which the SDK would otherwise read as a culture and move into a
+         satellite assembly the list reader never looks in; WithCulture keeps them in this one. -->
+    <EmbeddedResource Include="Resources\DemoBlockedTerms.*.txt" WithCulture="false" />
+    <EmbeddedResource Include="Resources\DemoAllowedHosts.txt" />
+    <EmbeddedResource Include="Resources\DemoDocumentationHosts.txt" />
+  </ItemGroup>
+
 </Project>

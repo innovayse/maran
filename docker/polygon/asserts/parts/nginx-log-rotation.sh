@@ -112,6 +112,15 @@ eval "$(sed -n "/^make_distro_nginx_logrotate_reload()/,/^}/p" "$1")"
 make_distro_nginx_logrotate_reload "$2"' _ "$NGINX_STEP" "${scratch}/no-postrotate" >/dev/null 2>&1; then
     rm -rf "$scratch"; fail "make_distro_nginx_logrotate_reload accepted a stanza with no postrotate script"
   fi
+  # A family that writes its signalling in lastaction (openSUSE's package, `nginx -s reopen`) is rewritten like
+  # one that uses postrotate; the refusal above, which has neither, is its inverse control.
+  printf '%s\n' '/var/log/nginx/*.log {' '	lastaction' '		[ -f /run/nginx.pid ] && /usr/sbin/nginx -s reopen' '	endscript' '}' > "${scratch}/suse-lastaction"
+  bash -c 'set -euo pipefail
+eval "$(sed -n "/^make_distro_nginx_logrotate_reload()/,/^}/p" "$1")"
+make_distro_nginx_logrotate_reload "$2"' _ "$NGINX_STEP" "${scratch}/suse-lastaction" >/dev/null 2>&1 \
+    || { rm -rf "$scratch"; fail "make_distro_nginx_logrotate_reload refused a stanza that signals from lastaction"; }
+  grep -q 'nginx -s reload' "${scratch}/suse-lastaction" && ! grep -q 'reopen' "${scratch}/suse-lastaction" \
+    || { rm -rf "$scratch"; fail "make_distro_nginx_logrotate_reload left the lastaction stanza signalling reopen"; }
   # A stanza whose rotate verb hides OUTSIDE postrotate is still caught by the post-check.
   printf '%s\n' '/var/log/nginx/*.log {' '	prerotate' '		kill -USR1 1' '	endscript' '	postrotate' '		true' '	endscript' '}' > "${scratch}/usr1-in-prerotate"
   if bash -c 'set -euo pipefail

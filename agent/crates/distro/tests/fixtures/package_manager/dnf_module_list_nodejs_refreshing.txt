@@ -1,0 +1,11 @@
+AlmaLinux 9 - AppStream                         1.8 MB/s |  34 MB     00:18    
+AlmaLinux 9 - BaseOS                            5.3 MB/s |  57 MB     00:10    
+AlmaLinux 9 - Extras                             18 kB/s |  33 kB     00:01    
+AlmaLinux 9 - AppStream
+Name   Stream Profiles                              Summary           
+nodejs 18     common [d], development, minimal, s2i Javascript runtime
+nodejs 20     common [d], development, minimal, s2i Javascript runtime
+nodejs 22     common [d], development, minimal, s2i Javascript runtime
+nodejs 24     common [d], development, minimal, s2i Javascript runtime
+
+Hint: [d]efault, [e]nabled, [x]disabled, [i]nstalled

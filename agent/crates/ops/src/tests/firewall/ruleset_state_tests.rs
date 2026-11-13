@@ -2,6 +2,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use std::net::IpAddr;
 use std::slice;
 
 use maran_templates::nftables::nftables_bans_table::NftablesBansTable;
@@ -9,9 +10,10 @@ use maran_templates::nftables::nftables_protocol::NftablesProtocol;
 
 use crate::firewall::ensure_bans_table::{BANNED_V4_SET, BANNED_V6_SET, BANS_TABLE, TABLE_FAMILY};
 use crate::firewall::fake_firewall_host::{
-    open_range, open_rule, ports, rendered, restricted_rule,
+    open_range, open_rule, policy, ports, rendered, restricted_rule,
 };
 use crate::firewall::firewall_error::FirewallError;
+use crate::firewall::model::output_policy::OutputPolicy;
 use crate::firewall::model::ruleset_state::RulesetState;
 
 /// The lines of `text` that say something, the way the parser reads them.
@@ -252,7 +254,7 @@ fn a_range_is_read_back_out_of_the_file_with_both_of_its_bounds() {
 
     assert_eq!(state.rules(), &[rule]);
     assert_eq!(
-        state.render(&ports()).unwrap(),
+        state.render(&ports(), &policy()).unwrap(),
         text,
         "parse and render are inverses"
     );
@@ -271,5 +273,252 @@ fn a_range_that_starts_at_an_ssh_port_is_a_rule_and_the_fallback_is_still_not() 
         state.rules(),
         &[rule],
         "the range is the only rule: the ssh fallback and the panel accept are not rules"
+    );
+}
+
+/// A policy for a host whose customer range starts at 500 and which answers on
+/// one public address of each family.
+fn busy_policy() -> OutputPolicy {
+    OutputPolicy::new(
+        500,
+        [
+            "203.0.113.7".parse::<IpAddr>().unwrap(),
+            "2001:db8::1".parse::<IpAddr>().unwrap(),
+        ],
+    )
+}
+
+/// The render carries the output chain: the uid floor and the host's own
+/// addresses reach the file, and the chain only ever rejects port 25.
+#[test]
+fn the_render_carries_the_output_chain_for_the_hosts_policy() {
+    let text = RulesetState::empty()
+        .render(&ports(), &busy_policy())
+        .unwrap();
+    let lines = effective(&text);
+
+    assert!(lines.contains(&"elements = { 127.0.0.0/8, 203.0.113.7 }"));
+    assert!(lines.contains(&"elements = { ::1, 2001:db8::1 }"));
+    assert!(
+        lines.contains(&"meta skuid >= 500 ip daddr @self_v4 tcp dport 25 reject with tcp reset")
+    );
+    assert!(
+        lines.contains(&"meta skuid >= 500 ip6 daddr @self_v6 tcp dport 25 reject with tcp reset")
+    );
+    // Inverse control: the chain accepts everything it does not name.
+    assert!(lines.contains(&"type filter hook output priority 0; policy accept;"));
+}
+
+/// Loopback and the unspecified address are never carried by the policy: the
+/// template writes loopback itself and an overlap would fail the whole load.
+#[test]
+fn the_policy_drops_loopback_and_unspecified_and_sorts_the_rest() {
+    let policy = OutputPolicy::new(
+        1000,
+        [
+            "10.0.0.9".parse::<IpAddr>().unwrap(),
+            "127.0.0.1".parse::<IpAddr>().unwrap(),
+            "0.0.0.0".parse::<IpAddr>().unwrap(),
+            "::1".parse::<IpAddr>().unwrap(),
+            "10.0.0.2".parse::<IpAddr>().unwrap(),
+            "10.0.0.9".parse::<IpAddr>().unwrap(),
+        ],
+    );
+
+    assert_eq!(
+        policy
+            .self_v4()
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>(),
+        ["10.0.0.2", "10.0.0.9"]
+    );
+    assert!(policy.self_v6().is_empty());
+}
+
+/// A file rendered under one policy is still read back after the host's uid
+/// floor or addresses changed: they are host facts and not stored rules.
+#[test]
+fn a_file_rendered_for_other_host_facts_is_still_ours() {
+    let rule = restricted_rule(3306, NftablesProtocol::Tcp, "10.0.0.0/8");
+    let text = RulesetState::empty()
+        .with(&rule)
+        .render(&ports(), &busy_policy())
+        .unwrap();
+
+    let state = RulesetState::parse(&text, &ports()).expect("a changed policy is not foreign");
+
+    assert_eq!(state.rules(), &[rule]);
+    // Re-rendering under the host's present policy replaces the old values.
+    let again = state.render(&ports(), &policy()).unwrap();
+    assert_ne!(again, text);
+    assert!(effective(&again).contains(&"elements = { 127.0.0.0/8 }"));
+}
+
+/// An output chain that is not the template's is a file this agent did not
+/// write; the removed chain and the changed port are each refused alone.
+#[test]
+fn an_edited_or_missing_output_chain_is_foreign() {
+    let text = rendered(&[]);
+
+    let other_port = text.replace("tcp dport 25 reject", "tcp dport 26 reject");
+    assert_eq!(
+        RulesetState::parse(&other_port, &ports()),
+        Err(FirewallError::ForeignRuleset)
+    );
+
+    let accepting = text.replace("reject with tcp reset", "accept");
+    assert_eq!(
+        RulesetState::parse(&accepting, &ports()),
+        Err(FirewallError::ForeignRuleset)
+    );
+
+    let no_rule = without_line(
+        &text,
+        "meta skuid >= 1000 ip6 daddr @self_v6 tcp dport 25 reject with tcp reset",
+    );
+    assert_eq!(
+        RulesetState::parse(&no_rule, &ports()),
+        Err(FirewallError::ForeignRuleset)
+    );
+
+    // Accepting control: the untouched render still parses.
+    assert!(RulesetState::parse(&text, &ports()).is_ok());
+}
+
+/// A file rendered before the output chain existed is still read, and is
+/// re-rendered with the chain by the next mutation.
+#[test]
+fn a_file_from_before_the_output_chain_is_read_and_upgraded_on_render() {
+    let rule = restricted_rule(3306, NftablesProtocol::Tcp, "10.0.0.0/8");
+    let current = rendered(slice::from_ref(&rule));
+    let cut = current
+        .find("\n    # Every address this host answers on")
+        .unwrap();
+    let legacy = format!("{}\n}}\n", &current[..cut]);
+
+    let state = RulesetState::parse(&legacy, &ports()).expect("the legacy shape parses");
+
+    assert_eq!(state.rules(), &[rule]);
+    assert_eq!(state.render(&ports(), &policy()).unwrap(), current);
+}
+
+/// The masked host facts are checked to be what they stand for: a uid floor that
+/// is not a number, an operator with nothing after it, and an element list that
+/// is not addresses are each a file this agent did not write.
+#[test]
+fn a_masked_host_fact_that_is_not_the_fact_it_stands_for_is_foreign() {
+    let text = rendered(&[]);
+    let skuid = "meta skuid >= 1000 ip daddr @self_v4 tcp dport 25 reject with tcp reset";
+
+    for bad_floor in ["4294967296", "-1", "1e3", "any", "1000;accept", ""] {
+        let edited = text.replace(skuid, &skuid.replace("1000", bad_floor));
+        assert_eq!(
+            RulesetState::parse(&edited, &ports()),
+            Err(FirewallError::ForeignRuleset),
+            "floor {bad_floor:?}"
+        );
+    }
+
+    for bad_elements in [
+        "elements = { }",
+        "elements = { 127.0.0.0/8, evil }",
+        "elements = { 127.0.0.0/8 }; add rule inet maran output accept",
+        "elements = { 127.0.0.0/33 }",
+        "elements = { 127.0.0.0/ }",
+        "elements = 127.0.0.0/8",
+    ] {
+        let edited = text.replace("elements = { 127.0.0.0/8 }", bad_elements);
+        assert_eq!(
+            RulesetState::parse(&edited, &ports()),
+            Err(FirewallError::ForeignRuleset),
+            "{bad_elements:?}"
+        );
+    }
+
+    // Accepting controls: a different but well-formed floor, networks and a v6 list.
+    let edited = text
+        .replace(skuid, &skuid.replace("1000", "4294967295"))
+        .replace(
+            "elements = { 127.0.0.0/8 }",
+            "elements = { 127.0.0.0/8, 10.0.0.0/8, 203.0.113.7 }",
+        )
+        .replace("elements = { ::1 }", "elements = { ::1, 2001:db8::/32 }");
+    assert!(RulesetState::parse(&edited, &ports()).is_ok());
+}
+
+/// A file from before the output chain, or rendered for other host facts, is
+/// brought up to date without the ports: the rules stay byte for byte.
+#[test]
+fn the_tail_is_refreshed_for_the_present_host_without_touching_the_rules() {
+    let rule = restricted_rule(3306, NftablesProtocol::Tcp, "10.0.0.0/8");
+    let current = rendered(slice::from_ref(&rule));
+    let cut = current
+        .find("\n    # Every address this host answers on")
+        .unwrap();
+    let legacy = format!("{}\n}}\n", &current[..cut]);
+
+    let upgraded = RulesetState::with_current_host_facts(&legacy, &policy()).unwrap();
+
+    assert_eq!(upgraded, current);
+    assert!(upgraded.contains("chain output"));
+
+    // A file already current is returned unchanged (the reconcile compares).
+    assert_eq!(
+        RulesetState::with_current_host_facts(&current, &policy()).unwrap(),
+        current
+    );
+
+    // Moved host facts reach the file; the rule is still the only rule.
+    let moved = RulesetState::with_current_host_facts(&current, &busy_policy()).unwrap();
+    assert!(effective(&moved).contains(&"elements = { 127.0.0.0/8, 203.0.113.7 }"));
+    assert_eq!(
+        RulesetState::parse(&moved, &ports()).unwrap().rules(),
+        slice::from_ref(&rule)
+    );
+}
+
+/// Inverse control: a file this agent did not write is never refreshed.
+#[test]
+fn a_foreign_file_is_not_refreshed() {
+    let text = rendered(&[]);
+
+    for foreign in [
+        "table inet other {}\n".to_owned(),
+        text.replace("policy drop", "policy accept"),
+        text.replace("tcp dport 25 reject", "tcp dport 26 reject"),
+    ] {
+        assert_eq!(
+            RulesetState::with_current_host_facts(&foreign, &policy()),
+            Err(FirewallError::ForeignRuleset)
+        );
+    }
+}
+
+/// Issue #535: a routed block is a range of the IPv4 set, and a file carrying one
+/// is still a file this agent reads back (the element list may hold networks).
+#[test]
+fn a_local_range_renders_into_the_ipv4_set_and_the_file_reads_back() {
+    let host = maran_agent_core::utils::host_addresses::HostAddresses {
+        addresses: vec![
+            "203.0.113.7".parse::<IpAddr>().unwrap(),
+            "198.51.100.9".parse::<IpAddr>().unwrap(),
+        ],
+        local_prefixes: vec![
+            maran_agent_core::utils::ipv4_prefix::Ipv4Prefix::new(
+                "198.51.100.0".parse().unwrap(),
+                24,
+            )
+            .unwrap(),
+        ],
+    };
+    let policy = OutputPolicy::for_host(500, &host);
+
+    let text = RulesetState::empty().render(&ports(), &policy).unwrap();
+
+    assert!(effective(&text).contains(&"elements = { 127.0.0.0/8, 198.51.100.0/24, 203.0.113.7 }"));
+    assert_eq!(
+        RulesetState::parse(&text, &ports()).unwrap(),
+        RulesetState::empty()
     );
 }

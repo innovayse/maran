@@ -10,7 +10,7 @@ use crate::mail::seed_mail_maps::seed_mail_maps;
 /// How many of [`TABLES`] are Postfix lookup tables, which `postmap` indexes.
 const POSTFIX_TABLES: usize = 5;
 
-const TABLES: [&str; 9] = [
+const TABLES: [&str; 10] = [
     "/etc/maran/mail/virtual_domains",
     "/etc/maran/mail/virtual_mailboxes",
     "/etc/maran/mail/virtual_aliases",
@@ -20,6 +20,7 @@ const TABLES: [&str; 9] = [
     "/etc/maran/mail/account_sender_domains.map",
     "/etc/maran/mail/account_send_limits.map",
     "/etc/maran/mail/mailbox_accounts.map",
+    "/etc/maran/mail/alias_fanout.map",
 ];
 
 #[test]
@@ -43,7 +44,7 @@ fn every_table_is_created_empty_on_a_host_that_has_none() {
         Some("")
     );
     assert_eq!(
-        host.file("/etc/maran/mail/dkim/selectors").as_deref(),
+        host.file("/etc/rspamd/maran-dkim/selectors").as_deref(),
         Some("")
     );
 }

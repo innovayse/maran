@@ -119,6 +119,14 @@ namespace Maran.Agent.Client.Services.SystemService;
 /// Revision 28 adds <c>MailService.SetLocalSubmission</c> and <c>RemoveLocalSubmission</c> (issue #518). Both
 /// ends moved to it as the one-revision default: a revision-27 agent answers the two rpcs <c>UNIMPLEMENTED</c>,
 /// so mail submitted locally by an account would stay unbound to its sender addresses and send limit.
+/// Revision 29 adds <c>SetLocalSubmissionRequest.alias_fanouts</c> (issue #531). Both ends moved to it as the
+/// one-revision default: a revision-28 agent ignores the field and charges a message to a forwarding alias once
+/// where it leaves the host once per outside target, so the sender's hourly limit would not bound the mail the
+/// alias sends on its behalf.
+/// Revision 30 adds four Node.js refusal codes and <c>ListInstallableAppsOk.nodejs_unavailable_reason</c> (issue
+/// #532). Both ends moved to it as the one-revision default: a revision-29 agent reports the operator's
+/// refusals as one code that says "another major", and lists no reason for a missing Node.js, so the panel
+/// would tell an operator to remove a Node.js when the host needs a command run by hand, or say nothing.
 /// </para>
 /// <para>
 /// <b>Both ends are needed, and they move for different reasons.</b> An agent NEWER than
@@ -145,10 +153,10 @@ namespace Maran.Agent.Client.Services.SystemService;
 public static class AgentProtoVersionWindow
 {
     /// <summary>The oldest agent contract revision this panel drives.</summary>
-    public const uint Minimum = 28;
+    public const uint Minimum = 30;
 
     /// <summary>The newest agent contract revision this panel drives: the one it was built against.</summary>
-    public const uint Maximum = 28;
+    public const uint Maximum = 30;
 
     /// <summary>
     /// The machine code a handshake outside the window fails with, so a caller outside this assembly

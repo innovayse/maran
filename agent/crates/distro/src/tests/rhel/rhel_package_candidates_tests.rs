@@ -11,7 +11,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::{package_candidate_arguments, package_candidate_binary, read_package_candidates};
-use crate::PackageQueryFailure;
+use crate::rhel::RhelAdapter;
+use crate::{AppFacts, PackageQueryFailure};
 
 /// One of two names matched.
 const MIXED: &str =
@@ -79,4 +80,41 @@ fn the_query_is_a_cache_only_available_listing_with_the_operands_after_the_separ
 
     assert!(arguments.contains(&"-C".to_owned()));
     assert_eq!(arguments[arguments.len() - 3], "--");
+}
+
+/// `dnf -q -C list --available` on `almalinux:10` (10.2, dnf 4.20.0) for `nodejs`, `nodejs-npm`,
+/// `nodejs18`, `nodejs20`, `nodejs22`, `nodejs24`, `nodejs24-npm`, `nodejs-npm18`, `nodejs20-npm`
+/// and `nodejs22-npm` (exit 0): four of the ten exist.
+const EL10_NODEJS: &str =
+    include_str!("../../../tests/fixtures/package_manager/dnf_list_available_nodejs_el10.txt");
+
+#[test]
+fn the_10_generation_offers_the_default_and_the_24_node_packages_and_no_other_major() {
+    let adapter = RhelAdapter::EL10;
+    let mut asked = Vec::new();
+    for major in ["18", "20", "22", "24"] {
+        asked.push(adapter.nodejs_package(major));
+        asked.extend(adapter.nodejs_extra_packages(major));
+    }
+
+    let offered = read_package_candidates(0, EL10_NODEJS, "", &asked).unwrap();
+
+    // 22 is the plain `nodejs`; 18 and 20 have no package, so their names are not offered.
+    assert_eq!(
+        offered,
+        vec!["nodejs", "nodejs-npm", "nodejs24", "nodejs24-npm"]
+    );
+}
+
+#[test]
+fn a_node_major_package_the_sources_do_not_carry_is_not_offered_even_beside_ones_they_do() {
+    // Inverse control: a name that looks like the family's pattern is no offer unless it is listed.
+    let asked: Vec<String> = ["nodejs20", "nodejs24", "nodejs22"]
+        .iter()
+        .map(|name| (*name).to_owned())
+        .collect();
+
+    let offered = read_package_candidates(0, EL10_NODEJS, "", &asked).unwrap();
+
+    assert_eq!(offered, vec!["nodejs24"]);
 }

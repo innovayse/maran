@@ -8,6 +8,7 @@ use crate::mail::local_submission_tables::{
     AccountLines, EMPTY_TABLE, apply_account_lines, hold_tables, replace_account_lines,
 };
 use crate::mail::mail_error::MailError;
+use crate::mail::mail_host::MailHost;
 use crate::mail::model::local_submission_key::LocalSubmissionKey;
 
 #[test]
@@ -77,6 +78,7 @@ fn lines(uid: &str, account: &str, domain: &str, login: &str) -> AccountLines {
         send_limits: vec![format!("{account} 10")],
         mailbox_accounts: vec![format!("{login} {account}")],
         submit_users: vec![format!("{account} OK")],
+        alias_fanouts: Vec::new(),
     }
 }
 
@@ -254,46 +256,32 @@ fn a_filter_that_reports_the_rule_lets_the_account_be_admitted() {
     );
 }
 
-/// A host whose reads wait for a signal, so a second change can be started between
-/// a first change's read and its write.
+/// A change reads and writes the tables only while it holds their lock, so a second change cannot read
+/// between the first one's read and its write. Observed from inside the host: no thread, no sleep.
 #[test]
-fn two_changes_cannot_interleave_a_read_with_the_others_write() {
-    use std::sync::Arc;
-    use std::sync::atomic::{AtomicBool, Ordering};
+fn a_change_reads_and_writes_the_tables_only_under_their_lock() {
+    let host = FakeMailHost::new()
+        .enabled()
+        .with_file(ACCOUNTS, "1001 acme\n");
 
-    let host = Arc::new(
-        FakeMailHost::new()
-            .enabled()
-            .with_file(ACCOUNTS, "1001 acme\n"),
-    );
-    let inside = Arc::new(AtomicBool::new(false));
+    apply_account_lines(&host, distro(), "acme", &AccountLines::default(), false).unwrap();
 
-    // Hold the tables as a change in the middle of its read-render-write does.
-    let guard = hold_tables();
-    let removing = {
-        let host = Arc::clone(&host);
-        let inside = Arc::clone(&inside);
-        std::thread::spawn(move || {
-            inside.store(true, Ordering::SeqCst);
-            apply_account_lines(
-                host.as_ref(),
-                distro(),
-                "acme",
-                &AccountLines::default(),
-                false,
-            )
-        })
-    };
-    while !inside.load(Ordering::SeqCst) {
-        std::thread::yield_now();
-    }
-    std::thread::sleep(std::time::Duration::from_millis(100));
-
-    // The second change has not read or written anything while the first holds.
-    assert!(host.writes().is_empty());
-    assert_eq!(host.file(ACCOUNTS).as_deref(), Some("1001 acme\n"));
-    drop(guard);
-
-    removing.join().unwrap().unwrap();
     assert_eq!(host.file(ACCOUNTS).as_deref(), Some(EMPTY_TABLE));
+    let (under_the_lock, outside_it) = host.table_calls();
+    assert!(under_the_lock >= 1, "the change never reached the host");
+    assert_eq!(
+        outside_it, 0,
+        "the change used the tables outside their lock"
+    );
+}
+
+/// The control of the observation: a call made while this thread holds the tables is counted as held.
+#[test]
+fn a_call_made_while_the_tables_are_held_is_counted_as_held() {
+    let host = FakeMailHost::new().enabled();
+    let _guard = hold_tables();
+
+    let _ = host.read_config(std::path::Path::new(ACCOUNTS));
+
+    assert_eq!(host.table_calls(), (1, 0));
 }

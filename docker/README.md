@@ -659,6 +659,67 @@ container that shipped a running daemon would be pretending to be a host.
 php-fpm pool directory, one system user database, one database server and one
 sshd, which is not a fixture two tests may hold at once.
 
+### The mail lane
+
+The build-time run of `assert-installer-steps.sh` boots no mail daemon, so `parts/mail-local-submit.sh`
+and `parts/mail-port25-lockdown.sh` print `UNOBSERVED HERE (GAP)` there and check nothing. The `polygon-mail`
+job of `.github/workflows/agent.yml` runs them where a stack exists, on `ubuntu24` and `alma9`:
+
+    docker run --rm --init --privileged -v "$PWD:/maran" maran-polygon-ubuntu24 \
+      bash /maran/docker/polygon/asserts/mail-lane.sh
+
+`docker/polygon/asserts/mail-lane.sh` runs inside the ordinary suite image (built, labelled and stamped
+like the others; no image changed) and does five things in order:
+
+1. stages the mounted tree's installer, assertions and `systemctl` stand-in over the image's build-time copies;
+2. installs Postfix, Dovecot, Rspamd and the key-value server through step 89's own `step_mail`, plus
+   `rsyslog` (Postfix's mail log, which the assertions read, needs a syslog daemon an init-less image lacks),
+   `nftables` and the Redis client;
+3. runs the ignored real-host suite `agent/crates/agent/tests/mail_server_on_a_real_host.rs`
+   (`cargo test --test mail_server_on_a_real_host -- --ignored --test-threads=1`), which enables mail through
+   the agent's own `enable_mail`, opens SMTP with `allow_port` (which renders table `inet maran`), binds and
+   unbinds an account with `set_local_submission` / `remove_local_submission`, and deliberately leaves the
+   stack running. Nothing but the agent renders Postfix's `main.cf`/`master.cf` (`cleanup_local`,
+   `self_clients.cidr`), Rspamd's local-submission rule and maps, or the nftables table, so the lane
+   judges the agent's rendering and not the distribution's defaults. The suite must start and report
+   exactly the number of passing tests `POLYGON_LANE_OWNED_SUITES` declares for it (one), with none failed;
+4. refuses by name if the rendering, the table, a running Postfix, a valid Rspamd or the key-value socket is
+   missing afterwards;
+5. runs exactly the two assertions with `MARAN_MAIL_LOCAL_SUBMIT_REQUIRED=yes` and
+   `MARAN_MAIL_PORT25_REQUIRED=yes`, so a gap is a failure.
+
+The verdict is the script's `MAIL LANE VERDICT:` line, and the job refuses a log that still carries a GAP line.
+**Lane ownership.** `mail_server_on_a_real_host` is an ignored suite that only this lane can run (it needs the
+running stack), so the `polygon` job does not run it and `maran polygon verify` does not demand it in that job's
+logs or in `scripts/test-baseline.txt`. That is declared, not skipped: `POLYGON_LANE_OWNED_SUITES` in
+`scripts/lib/polygon.sh` has one row per such suite (`suite|lane|lane script|passed`) and is the only place it
+is written. `maran polygon verify` reads it, prints a `lane-owned:` line naming the suite, its lane and the exact
+count, and refuses (ABORTED) a row whose suite, lane script or workflow job does not exist, or a lane-owned suite
+that did run in the `polygon` logs. `mail-lane.sh` reads the same row for the suite it runs and for the count it
+owes (`polygon_lane_suites`, `polygon_lane_verdict`), so the lane fails when the suite did not start, printed
+no result line, failed, or passed a different number. An ignored suite that is NOT declared stays required in the
+`polygon` logs and the baseline. `maran polygon selftest` proves all four directions.
+
+**Why the daemons are started by the stand-in and not by a real init.** `enable_mail` starts the four
+daemons one stage at a time (key-value server, Rspamd, Dovecot, Postfix) and then waits for the kernel to
+show the mail ports bound, so a daemon has to come up at the moment the agent asks for it, after that stage's
+files are in place. `systemctl-stand-in.sh` therefore gained a "Real mail daemons" section: once the mail suite
+creates `/run/polygon-units/.mail-daemons-are-real`, `start`, `restart`, `reload`, `reload-or-restart`, `stop`
+and `disable --now` on the four mail units drive the real daemons by their own programs (`postfix start`,
+`dovecot`, `rspamd`, the key-value server as its own user; reload by `postfix reload`, `doveadm reload`,
+`SIGHUP`). Without the marker, which is created by this suite only, every other suite sees the unchanged
+recording stand-in. The alternative, a real-init image, was rejected: `images/ubuntu24/systemd.Dockerfile`
+is a separate image holding only systemd and nginx, with no Rust toolchain, installer or mail packages and no
+RHEL-family counterpart, so using it would mean a second image family to build and keep current and would
+leave `alma9` uncovered, for the same thing the stand-in does in one place. The claims about systemd itself stay
+what they already are: unobserved except by the systemd image.
+
+What it still does not prove: that systemd starts these daemons with the packaged units' sandboxing; the
+daemons, their rendered configuration and the kernel's sockets are real, the launcher is not. UNVERIFIED: the
+whole lane has not been run in a container yet, in particular the stand-in's start commands against each
+family's packaged daemons (rspamd's pid file and milter socket, valkey on the RHEL 10 family) and rsyslog's
+mail log file names.
+
 ## Integration Testing
 
 PostgreSQL should be running (see "Starting PostgreSQL" above). Tests can connect to `postgres://maran_dev:maran_dev@localhost:5432/maran_dev` (5432 is the default; use the `Database__Port` value from `.env` if you changed it).

@@ -76,6 +76,26 @@ export interface InstallableHostApp {
 }
 
 /**
+ * Why the installable list carries no Node.js app that is not installed (issue #532): the package
+ * sources carry no Node.js module streams (`noModuleStreams`, an answer), or the listing could not be
+ * read (`listingFailed`, which a retry may cure). Behaviour only; the sentence arrives localized.
+ */
+export type HostNodejsUnavailable = 'noModuleStreams' | 'listingFailed'
+
+/**
+ * What `GET /api/v1/apps/installable` answers: the installable apps and, when the host could not
+ * offer Node.js, the reason, so the screen says why instead of leaving Node.js out silently.
+ */
+export interface InstallableHostApps {
+  /** The installable apps in catalogue order, installed ones flagged. */
+  apps: InstallableHostApp[]
+  /** Why no Node.js app is on offer, or `null` when nothing is missing for a reason. */
+  nodejsUnavailable: HostNodejsUnavailable | null
+  /** The reason as a sentence an operator reads, in the request's language, or `null` with no reason. */
+  nodejsUnavailableName: string | null
+}
+
+/**
  * Whether the host is ready for sites, and which runtimes sites can use (`GET /api/v1/apps/stack`,
  * readable by any signed-in role). The backend's stack gate is the enforcement; the SPA only
  * reflects it.
@@ -137,9 +157,9 @@ export interface HostAppsApi {
   /**
    * Lists the apps the host's package sources can install (administrators only).
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns Every installable app, installed ones flagged.
+   * @returns Every installable app, installed ones flagged, and why Node.js is missing if it is.
    */
-  listInstallable: (signal?: AbortSignal) => Promise<InstallableHostApp[]>
+  listInstallable: (signal?: AbortSignal) => Promise<InstallableHostApps>
 
   /**
    * Reads the stack status (any signed-in role).

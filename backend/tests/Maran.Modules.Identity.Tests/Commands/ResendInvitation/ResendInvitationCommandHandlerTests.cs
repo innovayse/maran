@@ -92,6 +92,7 @@ public sealed class ResendInvitationCommandHandlerTests : IDisposable
 
         Assert.False(result.IsSuccess);
         Assert.Equal("InvitationAccountNotFound", result.Error!.Code);
+        AssertRefusalJournalled();
     }
 
     /// <summary>Resend on an already active login is refused.</summary>
@@ -112,6 +113,7 @@ public sealed class ResendInvitationCommandHandlerTests : IDisposable
         Assert.False(result.IsSuccess);
         Assert.Equal("InvitationLoginNotPending", result.Error!.Code);
         Assert.Empty(_bus.Published);
+        AssertRefusalJournalled();
     }
 
     /// <summary>Resend on a claimed login whose account is suspended is refused, the same way an active one is.</summary>
@@ -149,6 +151,7 @@ public sealed class ResendInvitationCommandHandlerTests : IDisposable
         Assert.Equal("InvitationAccountSuspended", result.Error!.Code);
         Assert.Empty(_bus.Published);
         Assert.Empty(await _context.InvitationTokens.ToListAsync());
+        AssertRefusalJournalled();
     }
 
     /// <summary>Resend retires the previous outstanding token.</summary>
@@ -187,6 +190,18 @@ public sealed class ResendInvitationCommandHandlerTests : IDisposable
         var entry = Assert.Single(_audit.Written);
         Assert.Equal(IdentityAuditActions.CustomerInvited, entry.Action);
         Assert.True(entry.Succeeded);
+        Assert.Equal("owner-one", entry.Subject);
+        Assert.DoesNotContain("token", entry.Subject, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Asserts exactly one failed entry for the administrator, naming the id the caller sent.</summary>
+    private void AssertRefusalJournalled()
+    {
+        var entry = Assert.Single(_audit.Written);
+        Assert.Equal(IdentityAuditActions.CustomerInvited, entry.Action);
+        Assert.False(entry.Succeeded);
+        Assert.Equal(_currentUser.UserId, entry.ActorUserId);
+        Assert.Equal(AccountId.ToString("D"), entry.Subject);
     }
 
     /// <summary>

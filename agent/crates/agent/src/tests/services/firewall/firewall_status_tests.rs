@@ -10,6 +10,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_agent_core::utils::host_addresses_error::HostAddressesError;
 use maran_ops::firewall::FirewallError;
 
 use super::to_agent_error;
@@ -33,8 +34,12 @@ fn every_variant() -> Vec<FirewallError> {
         },
         FirewallError::UnreadableNftOutput,
         FirewallError::RulesetUnreadable,
-        FirewallError::RenderFailed,
+        FirewallError::RenderFailed {
+            reason: String::new(),
+        },
         FirewallError::StagingFailed,
+        FirewallError::HostAddressesUnreadable(HostAddressesError::Ipv4Missing),
+        FirewallError::OutputChainMissing,
     ]
 }
 
@@ -149,8 +154,12 @@ fn the_remaining_host_faults_are_system_failures() {
     for error in [
         FirewallError::UnreadableNftOutput,
         FirewallError::RulesetUnreadable,
-        FirewallError::RenderFailed,
+        FirewallError::RenderFailed {
+            reason: String::new(),
+        },
         FirewallError::StagingFailed,
+        FirewallError::HostAddressesUnreadable(HostAddressesError::Ipv4Missing),
+        FirewallError::OutputChainMissing,
     ] {
         assert_eq!(
             code_of(&error),

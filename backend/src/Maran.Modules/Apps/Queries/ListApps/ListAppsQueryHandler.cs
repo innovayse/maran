@@ -34,6 +34,10 @@ namespace Maran.Modules.Apps.Queries.ListApps;
 /// and four Node.js versions), the agent answers it whole, and the search is over text only this handler
 /// holds (the localized name).
 /// </para>
+/// <para>
+/// <b>A stale busy row is settled before it is shown</b> (issue #533): one whose task is no longer running
+/// is judged against the host list this handler has just read, rather than waiting for a restart.
+/// </para>
 /// </remarks>
 public sealed class ListAppsQueryHandler
 {
@@ -59,15 +63,24 @@ public sealed class ListAppsQueryHandler
     /// <summary>Names an app, its kind, state and status in the request's language.</summary>
     private readonly AppDisplayNames _names;
 
+    /// <summary>Settles a busy row whose operation is over before the ledger is read (issue #533).</summary>
+    private readonly StaleOperationSettler _staleRows;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="agent">The agent's app store surface.</param>
     /// <param name="dbContext">The Apps module's database context.</param>
     /// <param name="names">Names an app, its kind, state and status in the request's language.</param>
-    public ListAppsQueryHandler(IAgentAppsClient agent, AppsDbContext dbContext, AppDisplayNames names)
+    /// <param name="staleRows">Settles a busy row whose operation is over.</param>
+    public ListAppsQueryHandler(
+        IAgentAppsClient agent,
+        AppsDbContext dbContext,
+        AppDisplayNames names,
+        StaleOperationSettler staleRows)
     {
         _agent = agent;
         _dbContext = dbContext;
         _names = names;
+        _staleRows = staleRows;
     }
 
     /// <summary>Returns the requested page of apps.</summary>
@@ -81,6 +94,10 @@ public sealed class ListAppsQueryHandler
         {
             return Result<PagedResult<AppDto>>.Fail(hostApps.Error!);
         }
+
+        // A row left installing or removing by an operation that is over is settled against the host list
+        // just read, so the ledger read below already says what is true.
+        await _staleRows.SettleAsync(hostApps.Value, cancellationToken);
 
         var ledger = await _dbContext.InstalledApps
             .AsNoTracking()

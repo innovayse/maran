@@ -20,6 +20,11 @@
 # version, kept it (issue #506).
 build_api() {
   local staging="$1" arch="${2:-$(arch_name)}" version="${3:?build_api needs the release version}"
+  # 1 for a published release: the build then carries MaranShippingBuild, which makes the Licensing project
+  # refuse a missing pinned key (issue #544). Any other build (a local or deploy-local one) is not shipping.
+  local shipping="${4:-0}"
+  local -a shipping_flag=()
+  [ "$shipping" -ne 1 ] || shipping_flag=(-p:MaranShippingBuild=true)
   require_tool dotnet "publishes the backend"
   # Staged under an arch-suffixed name so a two-architecture build does not have its first half
   # overwritten by its second (issue #53).
@@ -47,8 +52,15 @@ build_api() {
     --self-contained true -r "$rid" \
     -p:PublishTrimmed=false \
     -p:Version="$version" \
+    ${shipping_flag[@]+"${shipping_flag[@]}"} \
     >"${staging}/.api-publish.log" 2>&1 \
     || { cat "${staging}/.api-publish.log" >&2; release_failed "dotnet publish failed for Maran.Host (log above)"; }
+
+  # The pinned keys' fingerprints travel inside the api archive, so the code-integrity manifest covers
+  # them and `maran status` can print which keys this release pins (name and hash, never contents).
+  if [ "$shipping" -eq 1 ]; then
+    pinned_keys_lines "${root}/installer/keys" >"${publish_dir}/pinned-keys.txt"
+  fi
 
   # The apphost is what systemd execs, and a publish that produced no runtime beside it is the
   # defect this function exists to prevent — caught here rather than sixty seconds into an install.

@@ -444,11 +444,15 @@ test('the web server choice ignores the agent\'s installed flag, and the runtime
     if (request.path.endsWith('/api/v1/apps/installable')) {
       return {
         status: 200,
-        body: [
-          { appId: 'nginx', name: 'nginx', kind: 'webServer', kindName: 'Web server', installed: true },
-          { appId: 'php-8.3', name: 'PHP 8.3', kind: 'runtime', kindName: 'Runtime', installed: true },
-          { appId: 'php-8.4', name: 'PHP 8.4', kind: 'runtime', kindName: 'Runtime', installed: false },
-        ],
+        body: {
+          apps: [
+            { appId: 'nginx', name: 'nginx', kind: 'webServer', kindName: 'Web server', installed: true },
+            { appId: 'php-8.3', name: 'PHP 8.3', kind: 'runtime', kindName: 'Runtime', installed: true },
+            { appId: 'php-8.4', name: 'PHP 8.4', kind: 'runtime', kindName: 'Runtime', installed: false },
+          ],
+          nodejsUnavailable: null,
+          nodejsUnavailableName: null,
+        },
       }
     }
     return { status: 404 }

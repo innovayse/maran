@@ -1,7 +1,8 @@
 //! The packages behind an app, as the host's family names them.
 
+use maran_agent_core::validation::apps::nodejs_module_stream::NodejsModuleStream;
 use maran_agent_core::validation::apps::validated_app_id::ValidatedAppId;
-use maran_distro::DistroAdapter;
+use maran_distro::{DistroAdapter, NodejsPackaging};
 
 /// The packages an install of `id` hands the root install unit, in install order.
 ///
@@ -36,5 +37,22 @@ pub(crate) fn service_of(distro: &dyn DistroAdapter, id: &ValidatedAppId) -> Opt
         ValidatedAppId::Apache => Some(distro.apache_service().to_owned()),
         ValidatedAppId::Php(version) => Some(distro.php_fpm_service(version.as_str())),
         ValidatedAppId::Nodejs(_) => None,
+    }
+}
+
+/// The module stream behind `id`, `Some` only for a Node.js major on a family that ships Node.js
+/// as module streams: that app is installed and removed as a stream by the Node.js module
+/// units, never package by package.
+pub(crate) fn module_stream_of(
+    distro: &dyn DistroAdapter,
+    id: &ValidatedAppId,
+) -> Option<NodejsModuleStream> {
+    match id {
+        ValidatedAppId::Nodejs(major)
+            if distro.nodejs_packaging() == NodejsPackaging::ModuleStreams =>
+        {
+            Some(NodejsModuleStream::from_major(*major))
+        }
+        _ => None,
     }
 }

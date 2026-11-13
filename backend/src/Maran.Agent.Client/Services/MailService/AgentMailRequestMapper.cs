@@ -115,6 +115,10 @@ internal static class AgentMailRequestMapper
         };
         request.Domains.AddRange(submission.Domains);
         request.MailboxLogins.AddRange(submission.MailboxLogins);
+        request.AliasFanouts.AddRange(submission.AliasFanouts.Select(fanout =>
+        {
+            return new AliasFanout { Alias = fanout.Alias, ExternalTargets = fanout.ExternalTargets };
+        }));
 
         return request;
     }

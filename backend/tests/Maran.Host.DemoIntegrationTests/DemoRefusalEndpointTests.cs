@@ -138,6 +138,8 @@ public sealed class DemoRefusalEndpointTests : IClassFixture<SharedSeededDemo>
             scope.ServiceProvider.GetRequiredService<Maran.Modules.Licensing.Interfaces.ILicenceRawTextSource>());
         Assert.IsType<Maran.Host.Demo.Adapters.DemoLicenceStore>(
             scope.ServiceProvider.GetRequiredService<Maran.Modules.Licensing.Interfaces.ILicenceWriter>());
+        Assert.IsType<Maran.Host.Demo.Adapters.DemoLicenceExpiryAnnouncementStore>(
+            scope.ServiceProvider.GetRequiredService<Maran.Modules.Licensing.Interfaces.ILicenceExpiryAnnouncementStore>());
     }
 
     /// <summary>

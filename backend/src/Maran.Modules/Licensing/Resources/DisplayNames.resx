@@ -112,4 +112,52 @@
   <data name="LicenceLeaseNotRequired" xml:space="preserve">
     <value>No lease needed (offline licence)</value>
   </data>
+  <data name="LicenceServerIdLabel" xml:space="preserve">
+    <value>Server ID</value>
+  </data>
+  <data name="LicenceServerIdUnavailable" xml:space="preserve">
+    <value>unavailable</value>
+  </data>
+  <data name="LicenceLeaseRequestRenewed" xml:space="preserve">
+    <value>A lease was requested from the licence service and stored.</value>
+  </data>
+  <data name="LicenceLeaseRequestNotDue" xml:space="preserve">
+    <value>The stored lease is still recent, so none was requested.</value>
+  </data>
+  <data name="LicenceLeaseRequestSkippedOffline" xml:space="preserve">
+    <value>This is an offline licence and needs no lease, so none was requested.</value>
+  </data>
+  <data name="LicenceLeaseRequestSkippedNoLicence" xml:space="preserve">
+    <value>No valid licence is installed, so no lease was requested.</value>
+  </data>
+  <data name="LicenceLeaseRequestNotConfigured" xml:space="preserve">
+    <value>The address of the licence service is not set up correctly, so no lease was requested.</value>
+  </data>
+  <data name="LicenceLeaseRequestUnreachable" xml:space="preserve">
+    <value>The licence service could not be reached. The panel will try again later.</value>
+  </data>
+  <data name="LicenceLeaseRequestRefused" xml:space="preserve">
+    <value>The licence service would not issue a lease for this licence. The panel will try again later.</value>
+  </data>
+  <data name="LicenceLeaseRequestAnswerRejected" xml:space="preserve">
+    <value>The licence service answered with a lease this panel cannot use. The panel will try again later.</value>
+  </data>
+  <data name="LicenceLeaseRequestNotNewer" xml:space="preserve">
+    <value>The licence service returned a lease no newer than the stored one, so it was not changed.</value>
+  </data>
+  <data name="LicenceLeaseRequestWriteFailed" xml:space="preserve">
+    <value>A lease was received but could not be stored on this server. The panel will try again later.</value>
+  </data>
+  <data name="LicenceLeaseRequestLicenceChanged" xml:space="preserve">
+    <value>The licence was replaced while the lease was being requested, so the answer was dropped.</value>
+  </data>
+  <data name="LicenceLeaseRequestRenewalInProgress" xml:space="preserve">
+    <value>A lease request is already in progress, so the result is not known yet. The panel will keep trying on its own schedule.</value>
+  </data>
+  <data name="LicenceExpiryWarning" xml:space="preserve">
+    <value>The installed licence expires on {0} (days left: {1}).</value>
+  </data>
+  <data name="LicenceExpiryRenewalAdvice" xml:space="preserve">
+    <value>To renew: claim the licence again for this server on the marketplace, or install a new licence file. Add-on modules stop working when the licence expires; the modules included with the panel are not affected.</value>
+  </data>
 </root>

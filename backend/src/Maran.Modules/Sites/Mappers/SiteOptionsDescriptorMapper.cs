@@ -1,6 +1,7 @@
 using Maran.Agent.Client.Services.SitesService;
 using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
+using Maran.Modules.Sites.Domain.Policies;
 using Maran.Modules.Sites.Domain.ValueObjects;
 
 namespace Maran.Modules.Sites.Mappers;
@@ -18,14 +19,19 @@ public static class SiteOptionsDescriptorMapper
 {
     /// <summary>Describes a site's options to the agent.</summary>
     /// <param name="options">The stored options, or null when the site has none.</param>
+    /// <param name="bodySizeMib">
+    /// The request body limit the vhost carries, decided by <see cref="SiteBodySizePolicy"/> and not read
+    /// from the options: a stored figure is the owner's wish, and the limit the host serves is that wish
+    /// under the plan, or the plan's bound when there is none.
+    /// </param>
     /// <returns>The descriptor carrying those options; <see cref="SiteOptionsDescriptor.None"/>'s shape when there are none.</returns>
-    public static SiteOptionsDescriptor From(SiteOptions? options)
+    public static SiteOptionsDescriptor From(SiteOptions? options, int? bodySizeMib)
     {
         var values = SiteOptionsValuesMapper.From(options);
 
         return new SiteOptionsDescriptor(
             ToCanonicalHostKind(values.CanonicalHost),
-            values.ClientMaxBodySizeMib is { } bodySize ? checked((uint)bodySize) : null,
+            bodySizeMib is { } bodySize ? checked((uint)bodySize) : null,
             values.StaticCacheDays is { } cacheDays ? checked((uint)cacheDays) : null,
             values.Redirects
                 .Select(redirect =>

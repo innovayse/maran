@@ -1,5 +1,6 @@
 using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
+using Maran.Modules.Sites.Domain.Policies;
 using Maran.Modules.Sites.Mappers;
 using Maran.Modules.Sites.Persistence;
 using Maran.Sdk.Contracts;
@@ -22,11 +23,16 @@ public sealed class SiteDirectory : ISiteDirectory
     /// <summary>The Sites module's database context, carrying the caller's tenant scope.</summary>
     private readonly SitesDbContext _dbContext;
 
+    /// <summary>The plan bounds the vhost's request body limit follows.</summary>
+    private readonly SitePlanLimits _planLimits;
+
     /// <summary>Creates the directory over this module's context.</summary>
     /// <param name="dbContext">The Sites module's database context.</param>
-    public SiteDirectory(SitesDbContext dbContext)
+    /// <param name="planLimits">Reads the plan bounds the vhost's request body limit follows.</param>
+    public SiteDirectory(SitesDbContext dbContext, SitePlanLimits planLimits)
     {
         _dbContext = dbContext;
+        _planLimits = planLimits;
     }
 
     /// <inheritdoc />
@@ -36,7 +42,7 @@ public sealed class SiteDirectory : ISiteDirectory
             .AsNoTracking()
             .FirstOrDefaultAsync(candidate => candidate.Domain == domain, cancellationToken);
 
-        return site is null ? null : ToSnapshot(site);
+        return site is null ? null : await ToSnapshotAsync(site, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -62,7 +68,7 @@ public sealed class SiteDirectory : ISiteDirectory
             .FirstOrDefaultAsync(candidate => candidate.Id == siteId, cancellationToken);
 #pragma warning restore RS0030
 
-        return site is null ? null : ToSnapshot(site);
+        return site is null ? null : await ToSnapshotAsync(site, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -79,9 +85,33 @@ public sealed class SiteDirectory : ISiteDirectory
 
     /// <summary>Projects a stored row onto the cross-module snapshot.</summary>
     /// <param name="site">The row that defines the site.</param>
-    /// <returns>The snapshot carrying that row's own facts.</returns>
-    private static SiteSnapshot ToSnapshot(Site site)
+    /// <param name="cancellationToken">Cancels the plan read.</param>
+    /// <returns>
+    /// The snapshot carrying that row's own facts. Its request body limit is the one this module renders
+    /// the vhost with (<see cref="SiteBodySizePolicy"/>), so the module that re-renders from the snapshot
+    /// writes the same figure and not the owner's raw wish. Null for a PHP site whose account cannot be
+    /// read: its limit cannot be decided, and a snapshot with a guessed one would be re-rendered by the
+    /// caller as if it were right, so the site reads as absent, as it would for a caller who may not see it.
+    /// </returns>
+    /// <remarks>
+    /// The plan is read for a PHP site only. The upload bound is a PHP bound, so every other backend
+    /// carries its stated figure unchanged and a caller that only needs the site to exist (the mail,
+    /// FTP, database and backup modules) costs no account read for it.
+    /// </remarks>
+    private async Task<SiteSnapshot?> ToSnapshotAsync(Site site, CancellationToken cancellationToken)
     {
+        var limits = PhpLimitsSnapshot.Default;
+        if (site.BackendType == SiteBackendType.Php)
+        {
+            var read = await _planLimits.ReadAsync(site.AccountId, cancellationToken);
+            if (!read.IsSuccess)
+            {
+                return null;
+            }
+
+            limits = read.Value;
+        }
+
         return new SiteSnapshot(
             site.Id,
             site.AccountId,
@@ -92,7 +122,7 @@ public sealed class SiteDirectory : ISiteDirectory
             site.ProxyUpstream,
             new SiteNodeSnapshot(site.NodeVersion, site.AppPort, site.StartCommand),
             site.HasCertificate,
-            SiteOptionsSnapshotMapper.From(site.Options));
+            SiteOptionsSnapshotMapper.From(site.Options, SiteBodySizePolicy.Effective(site, limits)));
     }
 
     /// <summary>Maps this module's backend enum onto the Sdk's cross-module one.</summary>

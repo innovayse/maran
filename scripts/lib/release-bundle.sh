@@ -118,6 +118,10 @@ root="$(cd "$(dirname "$0")/../.." && pwd)"
 . "$root/scripts/lib/release-selftest-completeness.sh"
 # shellcheck disable=SC1091
 . "$root/scripts/lib/release-selftest-fields.sh"
+# shellcheck disable=SC1091
+. "$root/scripts/lib/release-selftest-keys.sh"
+# shellcheck disable=SC1091
+. "$root/scripts/lib/release-selftest-publish.sh"
 
 command_name="${1:-}"
 [ -n "$command_name" ] || usage

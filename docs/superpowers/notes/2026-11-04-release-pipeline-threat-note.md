@@ -100,3 +100,18 @@ item 10): every new network call happens in CI or on a maintainer's machine.
 - Where the published artifacts are mirrored for the release host
   (`releases.maran.innovayse.com`): an owner decision, recorded on issue #154. This change publishes a
   GitHub release only.
+
+## Amendment: the publish gates re-check the pinned keys (#544, #552)
+
+- `maran release sign --publish` and `verify --publish` (the commands the `sign` and `publish` jobs run) now
+  require the manifest's `pinned_keys` object to equal the hashes of the checkout's `installer/keys/` files, and
+  every `api-<arch>` archive's `pinned-keys.txt` to agree. The gate no longer lives only in the workflow's
+  `build --publish` flag: a bundle built without it cannot be signed or verified for publication.
+- A pinned key that is empty, or neither a PEM public key nor 64 hexadecimal characters, is refused by the
+  Licensing build target and by the manifest writer. A hash that cannot be computed aborts the build instead of
+  entering the signed manifest empty.
+- Every input of `sign` (integrity manifest, `openapi.json`) is checked before the first signature is written.
+- Not verified here: the first tagged run; the key ceremony must land before it (the build stops with `MARAN001`
+  until all five keys are in `installer/keys/`). A red installer leg blocks signing by design.
+
+Second review: OUTSTANDING (#331).

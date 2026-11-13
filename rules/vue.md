@@ -11,7 +11,7 @@ Required configuration, at minimum:
 - `eslint-plugin-vue` (flat, `vue3-recommended`) + `typescript-eslint` (`recommended-type-checked`, with the project's tsconfig wired for type-aware rules) + `eslint-plugin-jsdoc` + `eslint-config-prettier` last.
 - **Arrow-only functions:** `func-style: ["error", "expression"]` plus
   `no-restricted-syntax: ["error", {selector: "FunctionDeclaration", message: "Use a const arrow function (rules/vue.md)"}, {selector: "FunctionExpression", message: "Use an arrow function (rules/vue.md)"}]`.
-- **No raw HTML:** `vue/no-v-html: "error"`, and `no-restricted-properties` / `no-restricted-syntax` blocking `innerHTML` and `outerHTML` assignment.
+- **No raw HTML:** `vue/no-v-html: "error"`, and `no-restricted-properties` / `no-restricted-syntax` blocking `innerHTML` and `outerHTML` assignment. Three narrow exceptions (owner decision O-60, 2026-11-12), each in exactly one file and named in its lint override: (1) `XMLHttpRequest` in `composables/useApi.ts` alone (upload byte progress, which `fetch` cannot report, issue #169; not HTML, a `no-restricted-globals` exception, and its override exists today); (2) the `srcdoc` attribute in `UiMessageFrame` alone, the frame that shows a webmail message's HTML with scripts, forms and network off; (3) `contenteditable` in `UiRichTextEditor` alone, the compose box (issue #190). Exceptions (2) and (3) are not built yet: when each component lands, its lint override lands with it, and until then no file may use the attribute. No other file uses any of the three, and none admits `v-html`.
 - **UI kit only:** `vue/no-restricted-html-elements` set to error for `button`, `input`, `select`, `textarea`, `table`, `form`, `iframe` — configured to apply everywhere EXCEPT `src/components/ui/**`, which overrides it off.
 - **APIs only in stores:** `no-restricted-imports` with patterns `**/composables/useApi*` and `**/composables/apis/*` erroring across **all of `src/**`** (not just `.vue` — a util or another composable must not reach the API layer either), lifted only in `src/stores/**`, `src/composables/apis/**` and `src/composables/useApi.ts`. Plus `no-restricted-globals` for `fetch`/`XMLHttpRequest`, and a `no-restricted-syntax` selector blocking `window.fetch`, `globalThis.fetch` and `self.fetch`, which the globals rule does not catch.
 - **Docs:** `jsdoc/require-jsdoc` (error) covering arrow functions, function expressions, methods and class declarations with `publicOnly: false`; `jsdoc/require-param`, `jsdoc/require-returns`, `jsdoc/check-param-names`, `jsdoc/require-description` — all error. Test files (`**/*.spec.ts`) override these off.
@@ -51,7 +51,7 @@ dynamic loading:
 - **Enforcement lives on the server anyway.** The backend refuses a request for an unlicensed
   module regardless of what the browser holds, so shipping the UI buys no bypass — the panel is
   source-available, so hiding frontend code protects nothing.
-- **Simplicity.** One build, one Vue/Pinia/i18n instance, one type graph, one lint pass.
+- **Simplicity.** One build, one Vue/Pinia/i18n instance, one type graph, one lint pass. The public demo's `build:demo` compiles the same sources with `__MARAN_DEMO__` set into `dist-demo/`; the normal bundle must contain none of its strings, which a bundle check proves.
 
 What licence gating means in practice:
 
@@ -70,8 +70,9 @@ installed package (`.ipm`, issue #185) has no code in this bundle, and its scree
 into it: the shell shows it in a sandboxed frame. Decided so nobody reaches for federation or a
 dynamic `import()` later "just this once".
 
-- **The frame is an opaque origin.** `components/ui/UiSandboxFrame.vue` is the only `<iframe>` in
-  the SPA (`vue/no-restricted-html-elements` refuses it everywhere else) and fixes `sandbox` to
+- **The frame is an opaque origin.** `components/ui/UiSandboxFrame.vue` is the only iframe that hosts package code, and
+  `UiMessageFrame.vue` (srcdoc, scripts off, when added) is the only iframe that renders untrusted message HTML; no other
+  iframe exists (`vue/no-restricted-html-elements` refuses it everywhere else). `UiSandboxFrame` fixes `sandbox` to
   `allow-scripts` inside itself: never `allow-same-origin`, no top navigation, no popups, no forms,
   `referrerpolicy="no-referrer"`. The frame reads none of the shell's cookies, storage or DOM, and an
   uncaught error in it cannot reach the shell. A caller cannot widen the sandbox: it is not a prop.
@@ -261,6 +262,7 @@ async function remove(): Promise<void> { ... }
   - `UiSearchInput` is a plain `searchbox` unless it drives a listbox elsewhere: then pass `inputRole="combobox"` with `ariaControls`, `ariaExpanded` and `ariaActivedescendant`, because an `aria-*` written on the tag lands on the wrapper.
   - `UiInput`, `UiSearchInput` and `UiDateInput` share one error state: pass `error` (an already-translated sentence) and the field gets `border-danger`, `aria-invalid` and a message that `aria-describedby` names. A list search longer than the server's limit uses it through `useDebouncedSearch(..., refuseLongTerm)`, which holds the term back instead of sending a request the server will refuse.
   - `UiToolbar` is the one row of controls above a listing (search, filter trigger, toggle, refresh): `items-center` on one line, never a page's own `flex items-end` row. Controls share the kit's one height scale (`--d-control`), a `UiSearchInput` or `UiSelect` inside it hides its label visually (still its accessible name), and a switch or checkbox row takes the control height there. A control that does not match is fixed in the kit, not with a height class at the call site.
+  - `UiStack` (`direction`, `gap`, `wrap`, `align`, `justify`) is the one layout box: a column or a row of children with a named gap. Spacing or lining up elements is never a `<div class="flex ...">` in a feature component.
   - `UiAvatar` (`name`, `size`: `sm` or `md`) is the one initials disc; the letters come from `utils/initialsOf`, so no screen derives initials itself. It is decorative: the name is printed beside it. `UiIconTile` (`name` or the default slot, `size`: `sm`, `md`, `lg`) is the one accent icon square, also decorative; **it must not sit on `--s3`** (`--act` on the wash there is 4.40:1), where the neutral `bg-surface-3` square is used instead. `UiAuthHeading` (`title`, `subtitle`) is the title of a signed-out page, an `h2`.
 - **No raw HTML strings, ever**: `v-html`, `innerHTML`, and building markup from strings are forbidden — they are an XSS hole in a panel that renders customer-supplied names, domains and log lines.
 
@@ -269,7 +271,7 @@ async function remove(): Promise<void> { ... }
 - **The panel has exactly ONE icon source: the `lucide-vue-next` package**, reached through `UiIcon`
   in `src/components/ui/`. A hand-written `<svg>` in a component is forbidden — including a
   "just this once" three-line path for a chevron or a close cross. icon SVG comes only from lucide
-  via `UiIcon`; `UiChart` is the single non-icon SVG site.
+  via `UiIcon`; `UiChart` and the `UiLiveChart` family (`UiLiveChart*.vue`, the dashboard's streamed charts) are the only non-icon SVG sites.
 - This replaced the previous arrangement, in which `UiIcon` held ten glyphs copied from the design
   canvas as inline `<path>` data and nine more were written inline in the components that needed
   them. Those nineteen are gone: each was remapped to its lucide equivalent. Two glyphs had no exact

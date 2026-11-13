@@ -1,3 +1,4 @@
+using Maran.Modules.Licensing.Domain.Entities;
 using Maran.Modules.Licensing.Domain.Enums;
 using Maran.Modules.Licensing.Domain.Interfaces;
 using Maran.Modules.Licensing.Domain.Policies;
@@ -77,5 +78,21 @@ public sealed class LicenceCoverageSource
         return new LicenceCoverage(
             status,
             LeaseGracePolicy.StandingOf(reading, valid.Licence, hostMachineId, _clock.UtcNow));
+    }
+
+    /// <summary>
+    /// Judges the stored lease for one given licence, which need not be the one installed now. An install answers
+    /// for the licence it installed, so a second install that replaced it in the meantime does not lend its own
+    /// lease to the first answer: a lease that names another licence stands as such.
+    /// </summary>
+    /// <param name="licence">The licence the lease is judged for.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The standing of the stored lease for <paramref name="licence"/>.</returns>
+    public async Task<LeaseStanding> LeaseStandingForAsync(Licence licence, CancellationToken cancellationToken)
+    {
+        var reading = await _leaseSource.ReadAsync(cancellationToken);
+        var hostMachineId = await _serverIdentitySource.TryReadMachineIdAsync(cancellationToken);
+
+        return LeaseGracePolicy.StandingOf(reading, licence, hostMachineId, _clock.UtcNow);
     }
 }

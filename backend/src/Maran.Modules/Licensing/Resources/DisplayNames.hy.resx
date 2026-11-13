@@ -100,4 +100,52 @@
   <data name="LicenceLeaseNotRequired" xml:space="preserve">
     <value>Վարձակալություն պետք չէ (օֆլայն լիցենզիա)</value>
   </data>
+  <data name="LicenceServerIdLabel" xml:space="preserve">
+    <value>Սերվերի ID</value>
+  </data>
+  <data name="LicenceServerIdUnavailable" xml:space="preserve">
+    <value>անհասանելի</value>
+  </data>
+  <data name="LicenceLeaseRequestRenewed" xml:space="preserve">
+    <value>Վարձակալությունը պահանջվեց լիցենզիաների ծառայությունից և պահպանվեց։</value>
+  </data>
+  <data name="LicenceLeaseRequestNotDue" xml:space="preserve">
+    <value>Պահպանված վարձակալությունը դեռ թարմ է, ուստի նորը չի պահանջվել։</value>
+  </data>
+  <data name="LicenceLeaseRequestSkippedOffline" xml:space="preserve">
+    <value>Սա օֆլայն լիցենզիա է և վարձակալություն չի պահանջում, ուստի այն չի պահանջվել։</value>
+  </data>
+  <data name="LicenceLeaseRequestSkippedNoLicence" xml:space="preserve">
+    <value>Վավեր լիցենզիա տեղադրված չէ, ուստի վարձակալություն չի պահանջվել։</value>
+  </data>
+  <data name="LicenceLeaseRequestNotConfigured" xml:space="preserve">
+    <value>Լիցենզիաների ծառայության հասցեն սխալ է կարգավորված, ուստի վարձակալություն չի պահանջվել։</value>
+  </data>
+  <data name="LicenceLeaseRequestUnreachable" xml:space="preserve">
+    <value>Լիցենզիաների ծառայությանը չհաջողվեց միանալ։ Վահանակը կփորձի կրկին ավելի ուշ։</value>
+  </data>
+  <data name="LicenceLeaseRequestRefused" xml:space="preserve">
+    <value>Լիցենզիաների ծառայությունը այս լիցենզիայի համար վարձակալություն չտրամադրեց։ Վահանակը կփորձի կրկին ավելի ուշ։</value>
+  </data>
+  <data name="LicenceLeaseRequestAnswerRejected" xml:space="preserve">
+    <value>Լիցենզիաների ծառայությունը պատասխանեց վարձակալությամբ, որը այս վահանակը չի կարող օգտագործել։ Վահանակը կփորձի կրկին ավելի ուշ։</value>
+  </data>
+  <data name="LicenceLeaseRequestNotNewer" xml:space="preserve">
+    <value>Լիցենզիաների ծառայությունը վերադարձրեց պահպանվածից ոչ ավելի նոր վարձակալություն, ուստի այն չփոխվեց։</value>
+  </data>
+  <data name="LicenceLeaseRequestWriteFailed" xml:space="preserve">
+    <value>Վարձակալությունը ստացվեց, բայց չհաջողվեց պահպանել այս սերվերում։ Վահանակը կփորձի կրկին ավելի ուշ։</value>
+  </data>
+  <data name="LicenceLeaseRequestLicenceChanged" xml:space="preserve">
+    <value>Լիցենզիան փոխարինվեց վարձակալությունը պահանջելու ընթացքում, ուստի պատասխանը մերժվեց։</value>
+  </data>
+  <data name="LicenceLeaseRequestRenewalInProgress" xml:space="preserve">
+    <value>Վարձակալության պահանջն արդեն ընթանում է, ուստի արդյունքը դեռ հայտնի չէ։ Վահանակը կշարունակի փորձերը իր ժամանակացույցով։</value>
+  </data>
+  <data name="LicenceExpiryWarning" xml:space="preserve">
+    <value>Տեղադրված լիցենզիայի ժամկետը լրանում է {0}-ին (մնացել է {1} օր)։</value>
+  </data>
+  <data name="LicenceExpiryRenewalAdvice" xml:space="preserve">
+    <value>Ինչպես երկարաձգել՝ նորից ստացեք լիցենզիան այս սերվերի համար մարկետփլեյսում կամ տեղադրեք լիցենզիայի նոր ֆայլ։ Լիցենզիայի ժամկետը լրանալուց հետո հավելյալ մոդուլները կդադարեն աշխատել, վահանակի հետ ներառված մոդուլները չեն ազդվում։</value>
+  </data>
 </root>

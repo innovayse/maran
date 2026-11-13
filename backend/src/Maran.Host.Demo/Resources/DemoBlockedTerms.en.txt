@@ -1,0 +1,29 @@
+# Terms the public demo refuses in text a visitor types (English). One term per line; a line with several
+# words matches those words next to each other. Matching ignores case, accents, spacing tricks, characters
+# written inside a word to break it up (fu*ck, sh_it) and common digit-for-letter swaps.
+#
+# A term matches whole words. A term ending in * is a stem: it matches any word that starts with it
+# (fuck* matches fuck, fucking, fucker), so list a stem when no ordinary word starts with it, and list a
+# short or ambiguous word whole, with the few inflections wanted. A stem has at least three letters.
+# A word that merely contains a term in its middle always passes.
+# This is a seed list for the owner to extend; every language's file is read together.
+viagra*
+cialis*
+casino*
+porn*
+hentai*
+escort
+escorts
+free money
+make money fast
+crypto giveaway
+bitcoin doubler
+fuck*
+motherfuck*
+shit*
+cunt*
+bitch*
+asshole*
+nazi
+nazis
+kill yourself

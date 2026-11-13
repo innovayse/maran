@@ -26,6 +26,11 @@ namespace Maran.Modules.Ssl.Commands.RemoveCertificate;
 /// The site's certificate flag is cleared through the site directory, because a vhost re-rendered
 /// later from a row that still says "certificate" would write a TLS block pointing at files that are
 /// gone — which nginx refuses to load, taking the site down rather than merely leaving it on HTTP.
+///
+/// The lock orders this write against the other operations on the site; it does not decide whether the
+/// site is serving. A disabled site and the site of a suspended account keep a stub, and the agent keeps it
+/// when it compares the vhost on the host with the stub rendered for the descriptor sent here
+/// (<c>ssl::remove_certificate</c>), so the descriptor is the site's own and carries no status.
 /// </remarks>
 public sealed class RemoveCertificateCommandHandler
 {
@@ -47,6 +52,9 @@ public sealed class RemoveCertificateCommandHandler
     /// <summary>What the app store has installed, which names the web server whose vhost is rewritten.</summary>
     private readonly IStackStatus _stack;
 
+    /// <summary>The per-site lock every operation that rewrites the site's vhost holds.</summary>
+    private readonly ISiteOperationLock _locks;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Ssl module's database context.</param>
     /// <param name="sites">The window onto the sites this caller owns.</param>
@@ -54,13 +62,15 @@ public sealed class RemoveCertificateCommandHandler
     /// <param name="agent">The agent client that removes the material and rewrites the vhost.</param>
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="stack">What the app store has installed, which names the web server the vhost is rendered for.</param>
+    /// <param name="locks">The per-site operation lock shared with the Sites module.</param>
     public RemoveCertificateCommandHandler(
         SslDbContext dbContext,
         ISiteDirectory sites,
         IAccountDirectory accounts,
         IAgentSslClient agent,
         CertificateAuditJournal journal,
-        IStackStatus stack)
+        IStackStatus stack,
+        ISiteOperationLock locks)
     {
         _dbContext = dbContext;
         _sites = sites;
@@ -68,12 +78,16 @@ public sealed class RemoveCertificateCommandHandler
         _agent = agent;
         _journal = journal;
         _stack = stack;
+        _locks = locks;
     }
 
     /// <summary>Removes one of the caller's certificates.</summary>
     /// <param name="command">The certificate to remove.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
-    /// <returns>Success, or <c>CertificateNotFound</c>, <c>SiteNotFound</c>, or the agent's failure.</returns>
+    /// <returns>
+    /// Success, or <c>CertificateNotFound</c>, <c>SiteNotFound</c>, <c>SiteBusy</c> when another operation
+    /// held the site for the whole wait, or the agent's failure.
+    /// </returns>
     public async Task<Result> HandleAsync(
         RemoveCertificateCommand command,
         CancellationToken cancellationToken)
@@ -86,6 +100,17 @@ public sealed class RemoveCertificateCommandHandler
             return await FailAsync(
                 command.Id.ToString(), Error.Of(nameof(ErrorMessages.CertificateNotFound), ErrorType.NotFound), command, cancellationToken);
         }
+
+        // The lock is keyed by the ROW's site, taken before the site is read so that the facts the
+        // vhost is rewritten from are the ones that are true once the wait is over.
+        var acquired = await _locks.AcquireAsync(
+            certificate.SiteId, CertificateLockWait.Interactive, cancellationToken);
+        if (!acquired.IsSuccess)
+        {
+            return await FailAsync(certificate.Domain, acquired.Error!, command, cancellationToken);
+        }
+
+        await using var held = acquired.Value;
 
         var site = await _sites.FindByDomainAsync(certificate.Domain, cancellationToken);
         if (site is null)

@@ -44,8 +44,6 @@ mod known_hosts_line;
 pub mod model;
 mod open_source_connection;
 mod open_source_shell;
-mod parse_fib_trie_local;
-mod parse_if_inet6;
 mod parse_scanned_host_keys;
 mod probe_source;
 mod probes;

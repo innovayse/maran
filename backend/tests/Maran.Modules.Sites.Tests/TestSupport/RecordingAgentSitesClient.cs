@@ -35,6 +35,12 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     /// </summary>
     public HashSet<string> ChangePhpThrowingDomains { get; } = [];
 
+    /// <summary>
+    /// Runs at the start of every <see cref="ChangePhpVersionAsync"/>, with the domain, before it answers. A test
+    /// uses it to commit another request's change at an exact point of a pass (a barrier between two calls).
+    /// </summary>
+    public Func<string, Task>? BeforeChangePhpVersion { get; set; }
+
     /// <summary>Operations this client was asked to perform, in order.</summary>
     public List<string> Calls { get; } = [];
 
@@ -46,6 +52,9 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
 
     /// <summary>The Node application each creation was given, in call order.</summary>
     public List<SiteNodeApp> NodeApps { get; } = [];
+
+    /// <summary>The options each create was asked to render the first vhost with, in order.</summary>
+    public List<SiteOptionsDescriptor> CreateOptions { get; } = [];
 
     /// <summary>The worker budgets handed to <see cref="ChangePhpVersionAsync"/>, in order.</summary>
     public List<uint> MaxChildren { get; } = [];
@@ -85,6 +94,7 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
         SiteNodeApp node,
         uint maxChildren,
         IReadOnlyList<PhpSettingDto> settingOverrides,
+        SiteOptionsDescriptor options,
         CancellationToken cancellationToken)
     {
         Calls.Add($"create:{accountUsername}:{domain}:{kind}:{phpVersion}:{string.Join('|', aliases)}:{maxChildren}");
@@ -92,6 +102,7 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
         SettingOverrides.Add(settingOverrides);
         WebServers.Add(webServer);
         NodeApps.Add(node);
+        CreateOptions.Add(options);
         var failure = CreateFailure ?? _failure;
         return Task.FromResult(failure is null
             ? Result<CreatedSiteDto>.Ok(new CreatedSiteDto($"/home/{accountUsername}/sites/{domain}"))
@@ -99,7 +110,7 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     }
 
     /// <inheritdoc/>
-    public Task<Result> ChangePhpVersionAsync(
+    public async Task<Result> ChangePhpVersionAsync(
         string accountUsername,
         string domain,
         string phpVersion,
@@ -114,14 +125,19 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
         Descriptors.Add(site);
         MaxChildren.Add(maxChildren);
         SettingOverrides.Add(settingOverrides);
+        if (BeforeChangePhpVersion is { } barrier)
+        {
+            await barrier(domain);
+        }
+
         if (ChangePhpThrowingDomains.Contains(domain))
         {
             throw new InvalidOperationException($"The agent is unreachable for {domain}.");
         }
 
-        return Task.FromResult(ChangePhpFailingDomains.Contains(domain)
+        return ChangePhpFailingDomains.Contains(domain)
             ? Result.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure))
-            : Answer());
+            : Answer();
     }
 
     /// <inheritdoc/>

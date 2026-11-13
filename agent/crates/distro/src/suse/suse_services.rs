@@ -323,6 +323,17 @@ pub fn nft_binary() -> AdapterBinary {
     AdapterBinary::fixed("/usr/sbin/nft")
 }
 
+/// The files that may define `UID_MIN`, most authoritative first.
+///
+/// `/etc/login.defs` overrides the vendor copy under `/usr/etc`, which is where this family ships its defaults when `/etc` holds none.
+///
+/// UNVERIFIED: the `/usr/etc/login.defs` location is taken from the family's
+/// usrmerge-era packaging notes and has not been seen on a `leap16` host.
+#[must_use]
+pub fn login_defs_paths() -> &'static [&'static str] {
+    &["/etc/login.defs", "/usr/etc/login.defs"]
+}
+
 /// Absolute path of the POSIX shell a crontab line names.
 ///
 /// Here with every other `*_binary` although the agent never spawns it: the agent writes the

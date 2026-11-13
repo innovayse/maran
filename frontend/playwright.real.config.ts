@@ -45,7 +45,11 @@ export default defineConfig({
   use: {
     baseURL: realUrl,
     ignoreHTTPSErrors: true,
-    trace: 'retain-on-failure',
+    // No trace: it records every request body, and the sign-in and change-password forms carry the
+    // lane's real passwords, which a trace uploaded as a workflow artifact would hand to every reader.
+    // A failure keeps its screenshot (below), which holds no request.
+    trace: 'off',
+    screenshot: 'only-on-failure',
     actionTimeout: 20_000,
   },
   projects: [

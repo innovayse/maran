@@ -116,6 +116,7 @@ const DASHBOARD: Dashboard = {
     certificatesExpiringSoon: loaded(2),
     failedBackups: loaded(1),
     sitesOnEndOfLifePhp: loaded(0),
+    licenceExpiring: loaded(0),
     alertDelivery: ALERT_DELIVERY_OK,
     bannedAddresses: loaded(3),
     failedTasks: loaded(1),

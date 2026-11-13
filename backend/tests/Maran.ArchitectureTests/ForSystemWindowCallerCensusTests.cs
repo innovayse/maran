@@ -5,8 +5,8 @@ namespace Maran.ArchitectureTests;
 /// <summary>
 /// The census over callers of the unscoped account snapshot window
 /// <c>IAccountDirectory.FindForSystemAsync</c> (issue #518): the only production code allowed to call it
-/// is the Mail module's local submission publisher, a system action raised after the owning module
-/// authorised it, so a new caller on a request path fails here by name.
+/// are the Mail module's local submission publisher and the Sites module's plan-limits reader, system actions
+/// raised after the owning module authorised them, so a new caller on a request path fails here by name.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -33,6 +33,10 @@ public sealed class ForSystemWindowCallerCensusTests
         // Binding an account's local mail submission on creation, resumption and plan change: the id comes
         // from the event, the figures are used by the push and never returned.
         "Maran.Modules/Mail/Services/MailLocalSubmissionPublisher.cs",
+        // Reading the plan's PHP bounds a vhost's request body limit follows, for the account cascades and the
+        // site directory the unattended certificate renewal reads through: the id comes from a row, the
+        // bounds decide a vhost and are never returned (issue #556).
+        "Maran.Modules/Sites/Services/SitePlanLimits.cs",
     ];
 
     /// <summary>A call written as code, never the declaration, which has no dot before the name.</summary>
@@ -40,9 +44,9 @@ public sealed class ForSystemWindowCallerCensusTests
         @"\.FindForSystemAsync\s*\(",
         RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
-    /// <summary>The only production caller of the window is the Mail module's local submission publisher.</summary>
+    /// <summary>The only production callers of the window are the listed system actions.</summary>
     [Fact]
-    public void The_only_production_caller_of_the_system_snapshot_window_is_the_mail_publisher()
+    public void The_only_production_callers_of_the_system_snapshot_window_are_the_listed_system_actions()
     {
         var sources = ProductionSources();
 

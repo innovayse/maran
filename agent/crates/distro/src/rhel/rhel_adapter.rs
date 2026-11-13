@@ -20,6 +20,7 @@ use crate::firewall_facts::FirewallFacts;
 use crate::key_value_server::KeyValueServer;
 use crate::mail_facts::MailFacts;
 use crate::nodejs_packaging::NodejsPackaging;
+use crate::nodejs_stream_listing::NodejsStreamListing;
 use crate::package_facts::PackageFacts;
 use crate::package_failure::PackageFailure;
 use crate::package_query_failure::PackageQueryFailure;
@@ -32,6 +33,7 @@ use crate::reboot_probe::RebootProbe;
 use crate::reboot_probe_failure::RebootProbeFailure;
 use crate::reboot_requirement::RebootRequirement;
 use crate::rhel::rhel_apps;
+use crate::rhel::rhel_generation::RhelGeneration;
 use crate::rhel::{
     rhel_package_candidates, rhel_packages, rhel_paths, rhel_php_extensions, rhel_services,
 };
@@ -41,9 +43,36 @@ use crate::vsftpd_tls_version_keys::VsftpdTlsVersionKeys;
 use crate::web_server_facts::WebServerFacts;
 
 /// Implements the agent's operations the RHEL way: dnf, `conf.d`, `nginx` user,
-/// SELinux contexts. Stateless, so [`crate::adapter_for()`] can hand out one shared
-/// reference.
-pub struct RhelAdapter;
+/// SELinux contexts. Holds nothing but the release generation it answers for, and there are
+/// exactly two values of it ([`Self::EL9`], [`Self::EL10`]), so [`crate::adapter_for()`] and
+/// [`crate::adapter_for_release()`] can hand out one shared reference each.
+pub struct RhelAdapter {
+    /// The generation of the release, which decides how Node.js is packaged
+    /// ([`RhelGeneration`]).
+    generation: RhelGeneration,
+}
+
+impl RhelAdapter {
+    /// The adapter of the 9 generation.
+    pub const EL9: Self = Self {
+        generation: RhelGeneration::El9,
+    };
+
+    /// The adapter of the 10 generation.
+    pub const EL10: Self = Self {
+        generation: RhelGeneration::El10,
+    };
+
+    /// The adapter of the release `version_id` names (the os-release `VERSION_ID`, `9.4`,
+    /// `10.2`): the one shared reference of its generation.
+    #[must_use]
+    pub fn for_release(version_id: &str) -> &'static Self {
+        match RhelGeneration::of(version_id) {
+            RhelGeneration::El9 => &Self::EL9,
+            RhelGeneration::El10 => &Self::EL10,
+        }
+    }
+}
 
 impl DistroAdapter for RhelAdapter {
     fn family(&self) -> DistroFamily {
@@ -187,11 +216,11 @@ impl WebServerFacts for RhelAdapter {
     }
 
     fn node_executable(&self, major: &NodeMajor) -> String {
-        rhel_services::node_executable(major)
+        rhel_services::node_executable(self.generation, major)
     }
 
     fn npm_executable(&self, major: &NodeMajor) -> String {
-        rhel_services::npm_executable(major)
+        rhel_services::npm_executable(self.generation, major)
     }
 }
 
@@ -229,15 +258,15 @@ impl AppFacts for RhelAdapter {
     }
 
     fn nodejs_packaging(&self) -> NodejsPackaging {
-        NodejsPackaging::PerMajorPackages
+        rhel_apps::nodejs_packaging(self.generation)
     }
 
     fn nodejs_package(&self, major: &str) -> String {
-        rhel_apps::nodejs_package(major)
+        rhel_apps::nodejs_package(self.generation, major)
     }
 
-    fn nodejs_extra_packages(&self, _major: &str) -> Vec<String> {
-        Vec::new()
+    fn nodejs_extra_packages(&self, major: &str) -> Vec<String> {
+        rhel_apps::nodejs_extra_packages(self.generation, major)
     }
 
     fn nodejs_candidate_major(&self, _candidate_query_stdout: &str) -> Option<String> {
@@ -245,7 +274,47 @@ impl AppFacts for RhelAdapter {
     }
 
     fn node_binary(&self, major: &NodeMajor) -> AdapterBinary {
-        rhel_apps::node_binary(major)
+        rhel_apps::node_binary(self.generation, major)
+    }
+
+    fn nodejs_stream_list_arguments(&self) -> Option<Vec<String>> {
+        match self.generation {
+            RhelGeneration::El9 => Some(rhel_apps::nodejs_stream_list_arguments()),
+            RhelGeneration::El10 => None,
+        }
+    }
+
+    fn read_nodejs_streams(
+        &self,
+        status: i32,
+        stdout: &str,
+        stderr: &str,
+    ) -> Result<NodejsStreamListing, PackageQueryFailure> {
+        match self.generation {
+            RhelGeneration::El9 => rhel_apps::read_nodejs_streams(status, stdout, stderr),
+            RhelGeneration::El10 => Ok(NodejsStreamListing::default()),
+        }
+    }
+
+    fn nodejs_unmanaged_removal_command(&self) -> &'static str {
+        match self.generation {
+            RhelGeneration::El9 => rhel_apps::nodejs_unmanaged_removal_command(),
+            RhelGeneration::El10 => "",
+        }
+    }
+
+    fn nodejs_stream_release_command(&self) -> &'static str {
+        match self.generation {
+            RhelGeneration::El9 => rhel_apps::nodejs_stream_release_command(),
+            RhelGeneration::El10 => "",
+        }
+    }
+
+    fn nodejs_module_packages(&self) -> &'static [&'static str] {
+        match self.generation {
+            RhelGeneration::El9 => rhel_apps::nodejs_module_packages(),
+            RhelGeneration::El10 => &[],
+        }
     }
 }
 
@@ -522,6 +591,10 @@ impl SchedulingFacts for RhelAdapter {
 impl FirewallFacts for RhelAdapter {
     fn nft_binary(&self) -> AdapterBinary {
         rhel_services::nft_binary()
+    }
+
+    fn login_defs_paths(&self) -> &'static [&'static str] {
+        rhel_services::login_defs_paths()
     }
 }
 

@@ -1379,6 +1379,27 @@ printf '%s\n' '        "plantedone" | "plantedtwo" => DistroFamily::Debian,' \
   || report "scripts/lib/check-structure.sh: check 25b did not read exactly the two ids of a planted detection arm, so it is blind or reads lines that are not arms (rules/testing.md)"
 rm -f "$detection_control"
 
+# 25c. The matrix is judged by the real preflight function, not by reading its text: the current
+#      Leaps (16.0 and 16.1) are accepted, the out-of-support Leap 15.6 and the look-alike 16.10 are
+#      refused (issue #559; the match is exact major.minor, not a prefix). Both directions are asserted, so a function that accepts everything or nothing
+#      fails here.
+preflight_os_verdict() {
+  ( export MARAN_PANEL_PORT=1; export MARAN_OS_ID="$1" MARAN_OS_VERSION_ID="$2"
+    # shellcheck source=/dev/null
+    source installer/lib/10-preflight.sh >/dev/null 2>&1
+    check_os_supported 2>&1 )
+}
+for accepted_pair in "opensuse-leap 16.0" "opensuse-leap 16.1" "sles 16.0" "sles 16.1" "rhel 9.4"; do
+  # shellcheck disable=SC2086
+  preflight_os_verdict $accepted_pair | grep -q '^PREFLIGHT OK' \
+    || report "installer/lib/10-preflight.sh: ${accepted_pair} is a supported target and must be accepted by check_os_supported (issue #559)"
+done
+for refused_pair in "opensuse-leap 15.6" "opensuse-leap 16.10" "opensuse-leap 16.19" "sles 16.10"; do
+  # shellcheck disable=SC2086
+  preflight_os_verdict $refused_pair | grep -q '^PREFLIGHT FAIL' \
+    || report "installer/lib/10-preflight.sh: ${refused_pair} is not a supported target and must be refused by check_os_supported (issue #559)"
+done
+
 # 26. Everything that mints a session or an access token asks whether the login may be used.
 #
 # The question has one definition — `User.MayAuthenticate` — and the reason it is a named member
@@ -1408,30 +1429,43 @@ fi
 # 27. The agent, the installer and the uninstaller spell the package-install and package-removal units the same way.
 #
 # The agent installs an app by starting `maran-app-install@<package>.service` and removes one by
-# starting `maran-app-remove@<package>.service`; the installer ships and installs both templates; the
-# uninstaller removes both. Three spellings of each name, in two languages and three files, and a
-# drift in any one is silent: a renamed template leaves the agent asking systemd for a unit that does
-# not exist, so every app install fails on a real host while each side is green on its own (issues
-# #93, #517).
+# starting `maran-app-remove@<package>.service`; on a release with module streams (the RHEL family before 10) a Node.js module stream is installed
+# and removed by `maran-app-nodejs-install@<major>.service` and `maran-app-nodejs-remove@<major>.service`
+# (issue #532). The installer ships every template and installs the module pair only where the release has streams
+# (issue #542); the uninstaller removes every one, wherever present.
+# Three spellings of each name, in two languages and three files, and a drift in any one is silent: a
+# renamed template leaves the agent asking systemd for a unit that does not exist, so every app install
+# fails on a real host while each side is green on its own (issues #93, #517, #532).
 #
-# The agent's install side is read from the string constant in ops/src/php/run_install_unit.rs
-# (INSTALL_UNIT_PREFIX), so this check follows a rename there instead of holding a fourth copy of the
-# name; the removal side is read from REMOVE_UNIT_PREFIX in the same file.
-php_unit_rust="agent/crates/ops/src/php/run_install_unit.rs"
-for unit_kind in INSTALL REMOVE; do
-  unit_const="MARAN_APP_${unit_kind}_UNIT_NAME"
-  unit_prefix="$(sed -n "s/^const ${unit_kind}_UNIT_PREFIX: &str = \"\(.*\)\";\$/\1/p" "$php_unit_rust" 2>/dev/null | sed -n 1p)"
-  if [ -z "$unit_prefix" ]; then
-    report "scripts/lib/check-structure.sh: check 27 could not read ${unit_kind}_UNIT_PREFIX from ${php_unit_rust}, so it is not a statement about the app ${unit_kind,,} unit's name (rules/testing.md)"
-  else
-    unit_template="${unit_prefix}.service"
-    [ -f "installer/systemd/${unit_template}" ] \
-      || report "installer/systemd/${unit_template}: missing, but the agent starts '${unit_prefix}<package>.service' (${php_unit_rust}) — every app ${unit_kind,,} would fail on a real host (issues #93, #517)"
-    grep -q "^readonly ${unit_const}=\"${unit_template}\"\$" installer/lib/70-services.sh 2>/dev/null \
-      || report "installer/lib/70-services.sh: ${unit_const} is not '${unit_template}', the template the agent's '${unit_prefix}' prefix names — the installer would install a unit the agent never starts (issues #93, #517)"
-    grep -q "rm -f /etc/systemd/system/${unit_template}\$" installer/uninstall.sh 2>/dev/null \
-      || report "installer/uninstall.sh: does not remove /etc/systemd/system/${unit_template}, which the installer drops — an uninstall would leave an unmanaged root package unit behind (issues #93, #517)"
-  fi
+# The agent's side is read from the string constants INSTALL_UNIT_PREFIX and REMOVE_UNIT_PREFIX of the
+# file that starts the unit (ops/src/php/run_install_unit.rs for packages, ops/src/packages/
+# run_nodejs_module_unit.rs for module streams), so this check follows a rename there instead of
+# holding a fourth copy of the name. The installer constant of the module pair is
+# MARAN_APP_NODEJS_{INSTALL,REMOVE}_UNIT_NAME.
+for unit_source in "agent/crates/ops/src/php/run_install_unit.rs:MARAN_APP" \
+                   "agent/crates/ops/src/packages/run_nodejs_module_unit.rs:MARAN_APP_NODEJS"; do
+  unit_rust="${unit_source%%:*}"
+  unit_const_stem="${unit_source#*:}"
+  # A renamed or moved file must fail the check, not read as an empty prefix (rules/testing.md).
+  for unit_file in "$unit_rust" installer/lib/70-services.sh installer/uninstall.sh; do
+    [ -f "$unit_file" ] || report "scripts/lib/check-structure.sh: check 27 needs ${unit_file}, which does not exist, so it is not a statement about the unit names (rules/testing.md)"
+  done
+  [ -f "$unit_rust" ] || continue
+  for unit_kind in INSTALL REMOVE; do
+    unit_const="${unit_const_stem}_${unit_kind}_UNIT_NAME"
+    unit_prefix="$(sed -n "s/^const ${unit_kind}_UNIT_PREFIX: &str = \"\(.*\)\";\$/\1/p" "$unit_rust" | sed -n 1p)"
+    if [ -z "$unit_prefix" ]; then
+      report "scripts/lib/check-structure.sh: check 27 could not read ${unit_kind}_UNIT_PREFIX from ${unit_rust}, so it is not a statement about that ${unit_kind,,} unit's name (rules/testing.md)"
+    else
+      unit_template="${unit_prefix}.service"
+      [ -f "installer/systemd/${unit_template}" ] \
+        || report "installer/systemd/${unit_template}: missing, but the agent starts '${unit_prefix}<instance>.service' (${unit_rust}) — every ${unit_kind,,} would fail on a real host (issues #93, #517, #532)"
+      grep -q "^readonly ${unit_const}=\"${unit_template}\"\$" installer/lib/70-services.sh \
+        || report "installer/lib/70-services.sh: ${unit_const} is not '${unit_template}', the template the agent's '${unit_prefix}' prefix names — the installer would install a unit the agent never starts (issues #93, #517, #532)"
+      grep -q "rm -f /etc/systemd/system/${unit_template}\$" installer/uninstall.sh \
+        || report "installer/uninstall.sh: does not remove /etc/systemd/system/${unit_template}, which the installer drops — an uninstall would leave an unmanaged root package unit behind (issues #93, #517, #532)"
+    fi
+  done
 done
 
 # 28-30. The FTPS unit keeps its documented rejections off, its capability bound enumerated, and

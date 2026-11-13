@@ -17,7 +17,7 @@ One GitHub release per tag, with these assets:
 | `api-<arch>.tar.gz`, `agent-<arch>.tar.gz`, `frontend-<arch>.tar.gz` | the three components, for `x86_64` and `aarch64` |
 | `maran-offline-<version>-<arch>.tar.gz` | one offline bundle per architecture, for `maran update --offline-tarball` |
 | `api.cdx.json`, `agent.cdx.json`, `frontend.cdx.json` | one CycloneDX SBOM per component |
-| `openapi.json` | the OpenAPI description of the API, generated from the tagged tree; **not signed** |
+| `openapi.json` and `openapi.json.sig` | the OpenAPI description of the API, generated from the tagged tree, and its signature (same key and scheme as `manifest.json.sig`) |
 | `SHA256SUMS` | sha256 of every other asset; NOT signed, a convenience only (see below) |
 
 The release notes are the body of the GitHub release, generated from the merged pull requests since
@@ -43,6 +43,25 @@ gates are settings the owner configures, once, in the repository:
   repository-level secret, so a job outside the environment cannot read it;
 - a **tag ruleset** limiting who may create `v*` tags.
 
+A published release (`maran release build --publish`) is a shipping build: it needs all five pinned public keys
+in `installer/keys/` (`MARAN001` otherwise), lists them with their SHA-256 in the signed manifest's `pinned_keys`
+object, and ships the same list as `pinned-keys.txt` for `maran status`. Details: `docs/operations/licensing.md`.
+`maran release sign --publish` and `verify --publish` hold the bundle to the same five: the manifest's `pinned_keys`
+must equal the hashes of the checkout's `installer/keys/` files and each `api-<arch>` archive's `pinned-keys.txt` must
+agree, so a bundle built without `--publish` can be neither signed nor verified for publication. A key file that is
+empty, or neither a PEM public key nor 64 hexadecimal characters, counts as missing.
+
+**The key ceremony comes before the first tag.** `installer/keys/` holds only `release-signing.pub` until the offline
+ceremony adds `licence-verification.pub`, `lease-verification.pub`, `marketplace-metadata.pub` and `module-signing.pub`.
+Until they are committed, the build job of the first tagged run stops with `MARAN001` naming the first missing file,
+by design: do not tag a release before all five are on `main`.
+
+**A flaky installer leg blocks the release.** `sign` needs the `installer` job, so a red polygon leg means nothing is
+signed or published and no release exists yet. Do not move or re-push the tag. Open the failed run in the Actions tab
+and choose "Re-run failed jobs": only the failed leg runs again, then `sign` (which asks the `release` reviewer again)
+and `publish` follow. Read the failed leg's log (`installer-logs-*` artifact) first: a leg that fails twice is a
+defect to fix on `main` and a new tag, not a flake to re-run.
+
 Pushing a tag matching `v*` starts `.github/workflows/release.yml` (it never runs on a pull request).
 Jobs, in order:
 
@@ -54,12 +73,15 @@ Jobs, in order:
    --install arm64`.
 3. **sbom**: the three SBOMs, in a job of their own, so the third-party generators never run beside
    the build. The **openapi** job runs beside it for the same reason: it generates `openapi.json`
-   (below) and holds no secret.
+   (below) and holds no secret. The **installer** job runs beside them too: it calls `nightly.yml`
+   (the installer polygon on Ubuntu 24.04 and AlmaLinux 9, under a throwaway key of its own, no
+   release secret), and `sign` needs it, so a tag whose installer leg is red is never signed (issue #553).
 4. **sign**: bound to the `release` environment, so it waits for a reviewer. It writes the key to a
-   0600 file, runs `maran release sign --key <file> --publish`, deletes the file in a step that
-   always runs, then verifies and packages the offline bundles. It has read-only repository access.
+   0600 file, runs `maran release sign --key <file> --publish --openapi <dir>`, deletes the file in a
+   step that always runs, then verifies and packages the offline bundles. It has read-only repository access.
 5. **publish**: the only job with `contents: write`, with no environment and no access to the key. It
-   runs `maran release verify --publish` (both architectures, signature, checksums) and only then
+   runs `maran release verify --publish --openapi <dir>` (both architectures, signature, checksums,
+   the signature of `openapi.json`) and only then
    creates the GitHub release, with the notes as its body. A `-beta.N` tag becomes a pre-release.
 
 A beta that goes out while second reviews of privileged changes are OUTSTANDING needs the owner's
@@ -116,12 +138,21 @@ tagged tree with `maran release openapi --out <dir>`, which uses the same genera
 anything when the document was not generated or describes no operation. The job holds no secret and
 no write permission; `publish` downloads its artifact and attaches it.
 
-**It is not signed.** That is an owner decision: the manifest signature and the integrity manifest
-do not cover it, and the only integrity statement is its line in `SHA256SUMS`, which is itself
-unsigned and detects a corrupted download, not a replaced one. A reader who needs the description to
-be trustworthy takes the baseline from the signed tag's own tree (`docs/api/openapi-baseline.json`)
-or regenerates it from that tree. The signing job's inputs are unchanged by this: it never sees the
-artifact.
+**It is signed** (issue #552). The `sign` job downloads the `openapi` job's artifact and signs
+`openapi.json` with the release key in the same invocation as the manifests, writing
+`openapi.json.sig` beside it (`maran release sign --openapi <dir>`). The manifest signature and the
+integrity manifest still do not list it; the detached signature is what binds it to the key. Both the
+`sign` job and the `publish` job run `maran release verify --openapi <dir>`, which fails when the
+signature is missing or does not match, on the beta channel as well, and both files are attached.
+`--publish` requires `--openapi` for both `sign` and `verify`, so a published bundle cannot pass without
+the signed document. To
+check a download:
+
+```
+openssl dgst -sha384 -verify release-signing.pub -signature openapi.json.sig openapi.json
+```
+
+It prints `Verified OK`. The `openapi` job still holds no secret: only `sign` sees the key.
 
 ## Release notes
 

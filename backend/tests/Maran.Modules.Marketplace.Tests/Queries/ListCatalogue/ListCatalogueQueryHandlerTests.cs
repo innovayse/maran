@@ -1,3 +1,4 @@
+using System.Globalization;
 using Maran.Modules.Marketplace.Domain.Enums;
 using Maran.Modules.Marketplace.Models;
 using Maran.Modules.Marketplace.Queries.ListCatalogue;
@@ -24,6 +25,48 @@ public sealed class ListCatalogueQueryHandlerTests
     {
         return new ListCatalogueQueryHandler(
             world.Client, world.OptionsReader, world.Eligibility, world.Projector, world.Names, world.Journal);
+    }
+
+    /// <summary>A thread on the invariant culture asks the service for English, never for the invariant two-letter code; a Russian thread still asks for Russian.</summary>
+    [Fact]
+    public async Task The_catalogue_is_asked_for_in_a_locale_the_contract_lists()
+    {
+        using var world = new OperationWorld();
+        world.Client.Page = Result<CataloguePage>.Ok(CatalogueSamples.Page());
+        var previous = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentUICulture = CultureInfo.InvariantCulture;
+            await HandlerFor(world).HandleAsync(Query, CancellationToken.None);
+            Assert.Equal("en", world.Client.LastLocale);
+
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("ru-RU");
+            await HandlerFor(world).HandleAsync(Query, CancellationToken.None);
+            Assert.Equal("ru", world.Client.LastLocale);
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = previous;
+        }
+    }
+
+    /// <summary>The screen gets the publisher's display name to print and the id to keep; a module whose service sent no id carries none.</summary>
+    [Fact]
+    public async Task The_publisher_name_and_id_reach_the_screen_apart()
+    {
+        using var world = new OperationWorld();
+        world.Client.Page = Result<CataloguePage>.Ok(CatalogueSamples.Page(
+            CatalogueSamples.Module("mail", CatalogueSamples.Version("1.0.0")) with { PublisherId = "innovayse" },
+            CatalogueSamples.Module("dns", CatalogueSamples.Version("1.0.0"))));
+
+        var catalogue = await HandlerFor(world).HandleAsync(Query, CancellationToken.None);
+
+        var mail = catalogue.Value.Items.Single(item => { return item.Id == "mail"; });
+        var dns = catalogue.Value.Items.Single(item => { return item.Id == "dns"; });
+        Assert.Equal("Innovayse", mail.Publisher);
+        Assert.Equal("innovayse", mail.PublisherId);
+        Assert.Equal("Innovayse", dns.Publisher);
+        Assert.Null(dns.PublisherId);
     }
 
     /// <summary>A revoked module is listed as revoked and is not installable, with the reason in words; a live one beside it is offered.</summary>

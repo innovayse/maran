@@ -38,14 +38,16 @@ export interface DemoRefusalReason {
 export interface DemoStatus {
   /** Hours between two resets of the demo. */
   intervalHours: number
-  /** When the demo was last reset, as an ISO-8601 instant. */
-  lastResetAt: string
-  /** When the demo will next be reset, as an ISO-8601 instant. */
-  nextResetAt: string
+  /** When the demo was last reset, as an ISO-8601 instant; `null` until a reset has been recorded. */
+  lastResetAt: string | null
+  /** When the demo will next be reset, as an ISO-8601 instant; `null` until a reset has been recorded. */
+  nextResetAt: string | null
   /** The published logins, administrator first. */
   identities: DemoIdentity[]
   /** The reasons the refused areas give. */
   refusalReasons: DemoRefusalReason[]
+  /** Where to report abusive content: an e-mail address or an https URL, configured by the operator. */
+  abuseContact: string
 }
 
 /** The calls the demo store makes, in one place the composable builds and the store consumes. */

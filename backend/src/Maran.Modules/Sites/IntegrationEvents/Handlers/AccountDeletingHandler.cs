@@ -1,9 +1,11 @@
 using Maran.Agent.Client.Interfaces;
+using Maran.Agent.Client.Services.SitesService;
 using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Sites.Services;
 using Maran.Sdk.Events;
+using Maran.Sdk.Interfaces;
 
 namespace Maran.Modules.Sites.IntegrationEvents.Handlers;
 
@@ -57,12 +59,23 @@ public sealed class AccountDeletingHandler
     /// <summary>Names the installed site web server, which every vhost this handler touches belongs to.</summary>
     private readonly SiteStackGate _stack;
 
+    /// <summary>Serialises the operations that change one site's host state.</summary>
+    private readonly ISiteOperationLock _locks;
+
+    /// <summary>The panel's clock, which bounds how long the cascade waits for busy sites.</summary>
+    private readonly IClock _clock;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Sites module's database context.</param>
     /// <param name="agent">The agent client that removes each vhost.</param>
     /// <param name="stack">Names the installed site web server the vhosts belong to.</param>
-    public AccountDeletingHandler(SitesDbContext dbContext, IAgentSitesClient agent, SiteStackGate stack)
+    /// <param name="locks">Serialises the operations that change one site's host state.</param>
+    /// <param name="clock">The panel's clock, which bounds how long the cascade waits for busy sites.</param>
+    public AccountDeletingHandler(
+        SitesDbContext dbContext, IAgentSitesClient agent, SiteStackGate stack, ISiteOperationLock locks, IClock clock)
     {
+        _clock = clock;
+        _locks = locks;
         _dbContext = dbContext;
         _agent = agent;
         _stack = stack;
@@ -120,17 +133,28 @@ public sealed class AccountDeletingHandler
         // sites still name — and the removal protocol validates AFTER unlinking, so php-fpm would
         // refuse and the pool would be put back, failing a deletion that had nothing wrong with it.
         var webServer = await _stack.RequireWebServerAsync(cancellationToken);
-        var retired = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var site in owned)
-        {
-            var removed = await _agent.DeleteAsync(
-                message.Username, site.Domain, RetiredVersion(site, owned, retired), webServer, cancellationToken);
-            if (!removed.IsSuccess)
+        var removedIds = new HashSet<Guid>();
+        var vanished = new HashSet<Guid>();
+
+        // Nothing is deleted from the panel unless every vhost went; the deletion is then retried whole. The
+        // row is read again under each lock: a site another request deleted since the listing has no vhost
+        // left to remove and no row left to delete here, so it drops out of this pass.
+        await SiteCascade.RunAsync(
+            owned,
+            _locks,
+            _clock,
+            message.AccountId,
+            "removed",
+            (siteId, budget) =>
             {
-                throw new InvalidOperationException(
-                    $"the vhost of {site.Domain} could not be removed: {removed.Error?.Code}");
-            }
-        }
+                return RemoveVhostAsync(siteId, message.AccountId, removedIds, message.Username, webServer, vanished, budget, cancellationToken);
+            },
+            cancellationToken);
+
+        owned.RemoveAll(site =>
+        {
+            return vanished.Contains(site.Id);
+        });
 
         // The hostname claims come with the sites through the tracked graph, so the names the
         // account held are freed rather than left claiming a site that no longer exists.
@@ -139,26 +163,108 @@ public sealed class AccountDeletingHandler
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    /// <summary>Removes one site's vhost, which the caller holds, unless the site has been deleted since the listing.</summary>
+    /// <param name="siteId">The listed site.</param>
+    /// <param name="accountId">The account being deleted.</param>
+    /// <param name="removedIds">The sites whose vhost an earlier step of this cascade already removed.</param>
+    /// <param name="username">The owning account's system user name.</param>
+    /// <param name="webServer">The installed site web server.</param>
+    /// <param name="vanished">Collects the ids of the sites found already deleted.</param>
+    /// <param name="budget">What is left of the cascade's waiting time, spent on the account's pools.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>Success, or the agent's refusal.</returns>
+    private async Task<Result> RemoveVhostAsync(
+        Guid siteId,
+        Guid accountId,
+        HashSet<Guid> removedIds,
+        string username,
+        SiteWebServer webServer,
+        HashSet<Guid> vanished,
+        SiteLockBudget budget,
+        CancellationToken cancellationToken)
+    {
+        var site = await SiteRowRefresh.ReadAsync(_dbContext, siteId, accountId, cancellationToken);
+        if (site is null)
+        {
+            vanished.Add(siteId);
+            return Result.Ok();
+        }
+
+        // A site that holds no pool asks nothing of the account's pools. One that does decides, and acts on,
+        // "the last site on this version" under the account's pool lock, so a version change of another site
+        // moving onto the same version cannot lose the pool it has just been given.
+        return site.BackendType == SiteBackendType.Php && !string.IsNullOrEmpty(site.PhpVersion)
+            ? await PhpPoolGuard.RunAsync(
+                _locks,
+                site.AccountId,
+                budget.NextWait(),
+                () =>
+                {
+                    return RemoveAsync(site, removedIds, username, webServer, cancellationToken);
+                },
+                cancellationToken)
+            : await RemoveAsync(site, removedIds, username, webServer, cancellationToken);
+    }
+
+    /// <summary>Asks the agent to remove one site's vhost, retiring the pool of the version it was the last on.</summary>
+    /// <param name="site">The site as stored now.</param>
+    /// <param name="removedIds">The sites whose vhost an earlier step of this cascade already removed.</param>
+    /// <param name="username">The owning account's system user name.</param>
+    /// <param name="webServer">The installed site web server.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>Success, or the agent's refusal.</returns>
+    private async Task<Result> RemoveAsync(
+        Site site,
+        HashSet<Guid> removedIds,
+        string username,
+        SiteWebServer webServer,
+        CancellationToken cancellationToken)
+    {
+        var removed = await _agent.DeleteAsync(
+            username, site.Domain, await RetiredVersionAsync(site, removedIds, cancellationToken), webServer, cancellationToken);
+
+        // NotFound means the vhost is already gone, which a retry of a half-finished cascade meets for
+        // every site the first attempt removed; reading it as a failure would make that retry impossible.
+        if (!removed.IsSuccess && removed.Error!.Type != ErrorType.NotFound)
+        {
+            return Result.Fail(removed.Error!);
+        }
+
+        removedIds.Add(site.Id);
+
+        return Result.Ok();
+    }
+
     /// <summary>The php-fpm version this site's removal retires, or the empty string when none.</summary>
-    /// <param name="site">The site being removed.</param>
-    /// <param name="owned">Every site the account owns, in the order they are being removed.</param>
-    /// <param name="retired">The versions already retired by an earlier site in this cascade.</param>
+    /// <param name="site">The site being removed, as stored now.</param>
+    /// <param name="removedIds">The sites whose vhost an earlier step of this cascade already removed.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>The version to retire, or the empty string, which the agent reads as "leave the pool".</returns>
-    private static string RetiredVersion(Site site, List<Site> owned, HashSet<string> retired)
+    /// <remarks>
+    /// Only the LAST site on a version retires it, so the pool outlives every site that still names it. The
+    /// answer is read from the rows now, under the account's pool lock, and not from the listing: a site
+    /// moved onto this version since the listing still needs the pool. Rows of this cascade stay until it
+    /// ends, so the sites it has already removed are excluded by id.
+    /// </remarks>
+    private async Task<string> RetiredVersionAsync(Site site, HashSet<Guid> removedIds, CancellationToken cancellationToken)
     {
         if (site.BackendType != SiteBackendType.Php || string.IsNullOrEmpty(site.PhpVersion))
         {
             return string.Empty;
         }
 
-        // Only the LAST site on a version retires it, so the pool outlives every site that still
-        // names it. `retired` then makes the answer idempotent for the degenerate case of two sites
-        // that compare equal on the ordering above.
-        var lastOnThisVersion = owned.FindLast(other =>
-        {
-            return other.PhpVersion == site.PhpVersion;
-        });
+#pragma warning disable RS0030 // an account job has no principal; the read is bounded by one account id
+        var stillUsed = await _dbContext.Sites
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .AnyAsync(
+                other => other.AccountId == site.AccountId
+                    && other.Id != site.Id
+                    && other.PhpVersion == site.PhpVersion
+                    && !removedIds.Contains(other.Id),
+                cancellationToken);
+#pragma warning restore RS0030
 
-        return lastOnThisVersion == site && retired.Add(site.PhpVersion) ? site.PhpVersion : string.Empty;
+        return stillUsed ? string.Empty : site.PhpVersion;
     }
 }

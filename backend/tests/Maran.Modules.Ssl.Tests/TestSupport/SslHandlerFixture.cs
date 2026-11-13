@@ -1,6 +1,8 @@
 using Maran.Modules.Ssl.Persistence;
 using Maran.Modules.Ssl.Services;
 using Maran.Sdk.Contracts;
+using Maran.Sdk.Interfaces;
+using Maran.Sdk.Modules;
 using Maran.SharedKernel.Apps;
 using Maran.SharedKernel.Results;
 using Npgsql;
@@ -64,6 +66,9 @@ public sealed class SslHandlerFixture : IDisposable
     /// <summary>The shared install path the handlers use.</summary>
     public CertificateInstaller Installer { get; }
 
+    /// <summary>The per-site lock, the real in-process one unless a test supplied another, shared by every handler and the installer of this fixture.</summary>
+    public ISiteOperationLock SiteLocks { get; }
+
     /// <summary>The expiry alert double, which records what it was asked and what it raised.</summary>
     public RecordingSslAlertMailer Alerts { get; } = new();
 
@@ -97,6 +102,7 @@ public sealed class SslHandlerFixture : IDisposable
     /// <param name="saveFailures">How many database writes should be refused, simulating a database failure.</param>
     /// <param name="saveFailureSqlState">The SQLSTATE those refusals carry; a unique violation by default.</param>
     /// <param name="webServer">The installed site web server; nginx by default.</param>
+    /// <param name="siteLock">The per-site lock; the real in-process one when omitted.</param>
     public SslHandlerFixture(
         string[] domains,
         Error? acmeFailure = null,
@@ -105,8 +111,10 @@ public sealed class SslHandlerFixture : IDisposable
         bool knowsAccount = true,
         int saveFailures = 0,
         string saveFailureSqlState = PostgresErrorCodes.UniqueViolation,
-        StackWebServer webServer = StackWebServer.Nginx)
+        StackWebServer webServer = StackWebServer.Nginx,
+        ISiteOperationLock? siteLock = null)
     {
+        SiteLocks = siteLock ?? new SiteOperationLock();
         Stack = new FakeStackStatus(webServer);
         var currentUser = FakeCurrentUser.Customer(AccountId);
         CurrentUser = currentUser;
@@ -136,7 +144,7 @@ public sealed class SslHandlerFixture : IDisposable
         Agent = new RecordingAgentSslClient(agentFailure);
         AgentSites = new RecordingAgentSitesClient(reloadFailure);
         Journal = new CertificateAuditJournal(Audit, currentUser);
-        Installer = new CertificateInstaller(Agent, Sites, Stack);
+        Installer = new CertificateInstaller(Agent, Sites, Stack, SiteLocks);
         Wildcards = new WildcardAvailabilityCheck(Features, new AcmeDnsChallengeWriter([DnsChallenges]));
     }
 

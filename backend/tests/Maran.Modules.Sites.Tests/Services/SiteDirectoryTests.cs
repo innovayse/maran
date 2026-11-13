@@ -44,7 +44,7 @@ public sealed class SiteDirectoryTests
 
         await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(mine), database);
 
-        Assert.Null(await new SiteDirectory(context).FindByDomainAsync("theirs.example.com", CancellationToken.None));
+        Assert.Null(await SiteDirectories.Over(context).FindByDomainAsync("theirs.example.com", CancellationToken.None));
     }
 
     /// <summary>A domain that does not exist and one that belongs to somebody else are indistinguishable.</summary>
@@ -56,7 +56,7 @@ public sealed class SiteDirectoryTests
         await SeedAsync(database, mine, Guid.NewGuid());
 
         await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(mine), database);
-        var directory = new SiteDirectory(context);
+        var directory = SiteDirectories.Over(context);
 
         // Telling them apart would let a caller confirm a domain is hosted here by an account it may
         // not see (rules/security.md — 404, never 403).
@@ -73,7 +73,7 @@ public sealed class SiteDirectoryTests
         await SeedAsync(database, mine, Guid.NewGuid());
 
         await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(mine), database);
-        var site = await new SiteDirectory(context).FindByDomainAsync("mine.example.com", CancellationToken.None);
+        var site = await SiteDirectories.Over(context).FindByDomainAsync("mine.example.com", CancellationToken.None);
 
         Assert.NotNull(site);
         Assert.Equal(mine, site.AccountId);
@@ -108,7 +108,7 @@ public sealed class SiteDirectoryTests
         }
 
         await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(mine), database);
-        var directory = new SiteDirectory(context);
+        var directory = SiteDirectories.Over(context);
         var node = await directory.FindByDomainAsync("app.example.com", CancellationToken.None);
         var php = await directory.FindByDomainAsync("mine.example.com", CancellationToken.None);
 
@@ -132,7 +132,7 @@ public sealed class SiteDirectoryTests
         }
 
         await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(mine), database);
-        var directory = new SiteDirectory(context);
+        var directory = SiteDirectories.Over(context);
 
         Assert.Equal(
             ["alpha.example.com", "mine.example.com"],
@@ -151,7 +151,7 @@ public sealed class SiteDirectoryTests
         await SeedAsync(database, mine, Guid.NewGuid());
 
         await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(mine), database);
-        var directory = new SiteDirectory(context);
+        var directory = SiteDirectories.Over(context);
         var site = await directory.FindByDomainAsync("mine.example.com", CancellationToken.None);
 
         Assert.True(await directory.AttachCertificateAsync(site!.Id, CancellationToken.None));
@@ -170,7 +170,7 @@ public sealed class SiteDirectoryTests
         await SeedAsync(database, mine, Guid.NewGuid());
 
         await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(mine), database);
-        var directory = new SiteDirectory(context);
+        var directory = SiteDirectories.Over(context);
         var site = await directory.FindByDomainAsync("mine.example.com", CancellationToken.None);
         await directory.AttachCertificateAsync(site!.Id, CancellationToken.None);
 
@@ -186,7 +186,7 @@ public sealed class SiteDirectoryTests
     public async Task Flipping_the_flag_on_a_site_that_does_not_exist_answers_false_rather_than_throwing()
     {
         await using var context = SitesTestContext.Create(FakeCurrentUser.Admin());
-        var directory = new SiteDirectory(context);
+        var directory = SiteDirectories.Over(context);
 
         Assert.False(await directory.AttachCertificateAsync(Guid.NewGuid(), CancellationToken.None));
         Assert.False(await directory.DetachCertificateAsync(Guid.NewGuid(), CancellationToken.None));
@@ -205,11 +205,66 @@ public sealed class SiteDirectoryTests
         var theirSite = await admin.Sites.AsNoTracking().SingleAsync(site => site.AccountId == theirs);
 
         await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(mine), database);
-        var found = await new SiteDirectory(context).FindByIdUnscopedAsync(theirSite.Id, CancellationToken.None);
+        var found = await SiteDirectories.Over(context).FindByIdUnscopedAsync(theirSite.Id, CancellationToken.None);
 
         // Deliberate: renewal runs for the whole server and serves no tenant. It takes an id the
         // caller already holds from its own row, so it cannot be used to enumerate or probe.
         Assert.NotNull(found);
         Assert.Equal(theirs, found.AccountId);
+    }
+
+    /// <summary>A PHP site whose account cannot be read reads as absent, and no exception escapes.</summary>
+    [Fact]
+    public async Task A_php_site_whose_account_cannot_be_read_reads_as_absent()
+    {
+        var mine = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        await SeedAsync(database, mine, Guid.NewGuid());
+        await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(mine), database);
+        var directory = new SiteDirectory(context, new SitePlanLimits(new StubAccountDirectory()));
+
+        Assert.Null(await directory.FindByDomainAsync("mine.example.com", CancellationToken.None));
+    }
+
+    /// <summary>A site that is not PHP is answered without reading the account (inverse control).</summary>
+    [Fact]
+    public async Task A_site_that_is_not_php_is_answered_without_reading_the_account()
+    {
+        var mine = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        await using (var seed = SitesTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            seed.Sites.Add(new Site(
+                Guid.NewGuid(), mine, "static.example.com", [], SiteBackendType.Static,
+                string.Empty, string.Empty, string.Empty, 0, string.Empty, "/home/acme/sites/static.example.com",
+                new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)));
+            await seed.SaveChangesAsync();
+        }
+
+        await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(mine), database);
+        var accounts = new StubAccountDirectory();
+        var site = await new SiteDirectory(context, new SitePlanLimits(accounts))
+            .FindByDomainAsync("static.example.com", CancellationToken.None);
+
+        Assert.NotNull(site);
+        Assert.Equal(SiteBackend.Static, site.Backend);
+    }
+
+    /// <summary>The plan reader answers a missing account with a typed error and a present one with its bounds.</summary>
+    [Fact]
+    public async Task The_plan_reader_answers_a_missing_account_with_a_typed_error_and_a_present_one_with_its_bounds()
+    {
+        var present = Guid.NewGuid();
+        var limits = new PhpLimitsSnapshot(128, 32, 60, 1000);
+        var reader = new SitePlanLimits(
+            new StubAccountDirectory(Snapshots.Account(present, "acme") with { PhpLimits = limits }));
+
+        var missing = await reader.ReadAsync(Guid.NewGuid(), CancellationToken.None);
+        var found = await reader.ReadAsync(present, CancellationToken.None);
+
+        Assert.False(missing.IsSuccess);
+        Assert.Equal("AccountNotFound", missing.Error!.Code);
+        Assert.Equal(Maran.SharedKernel.Results.ErrorType.NotFound, missing.Error.Type);
+        Assert.Equal(limits, found.Value);
     }
 }

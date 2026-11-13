@@ -53,6 +53,9 @@ const { t } = useI18n()
             })
           }}
         </UiFieldHint>
+        <UiFieldHint v-if="limits.planMaximumBodySizeMib !== null">
+          {{ t('siteOptions.limits.uploadPlanHint', { maximum: limits.planMaximumBodySizeMib }) }}
+        </UiFieldHint>
       </div>
       <div class="flex min-w-0 flex-col gap-2">
         <UiInput

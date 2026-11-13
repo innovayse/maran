@@ -49,6 +49,9 @@ public sealed class MarketplaceClient : IMarketplaceClient
     /// <summary>Holds verified catalogue pages.</summary>
     private readonly CatalogueCache _cache;
 
+    /// <summary>Names the lease credential a catalogue page is asked with.</summary>
+    private readonly LeaseFingerprintReader _lease;
+
     /// <summary>Downloads and checks a package.</summary>
     private readonly PackageDownloader _downloader;
 
@@ -59,6 +62,7 @@ public sealed class MarketplaceClient : IMarketplaceClient
     /// <param name="reader">Verifies and parses answers.</param>
     /// <param name="checker">Verifies signatures and freshness, and holds the trusted keys.</param>
     /// <param name="cache">Holds verified catalogue pages.</param>
+    /// <param name="lease">Names the lease credential a catalogue page is asked with.</param>
     /// <param name="downloader">Downloads and checks a package.</param>
     public MarketplaceClient(
         IMarketplaceSwitch marketplaceSwitch,
@@ -67,6 +71,7 @@ public sealed class MarketplaceClient : IMarketplaceClient
         SignedResponseReader reader,
         CatalogueSignatureChecker checker,
         CatalogueCache cache,
+        LeaseFingerprintReader lease,
         PackageDownloader downloader)
     {
         _switch = marketplaceSwitch;
@@ -75,6 +80,7 @@ public sealed class MarketplaceClient : IMarketplaceClient
         _reader = reader;
         _checker = checker;
         _cache = cache;
+        _lease = lease;
         _downloader = downloader;
     }
 
@@ -88,7 +94,9 @@ public sealed class MarketplaceClient : IMarketplaceClient
     {
         var enabled = await _switch.IsEnabledAsync(ct);
         var transport = Choose(enabled);
-        var key = CatalogueCache.KeyOf(channel, locale, search, cursor);
+
+        // The switch is off: nothing is read, not even the lease, and nothing is served from the cache.
+        var key = CatalogueCache.KeyOf(channel, locale, search, cursor, enabled ? await _lease.ReadAsync(ct) : string.Empty);
         var cached = enabled ? _cache.Find(key) : null;
 
         // A fresh entry is served without a request, but its signature's age is judged again every time.

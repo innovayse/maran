@@ -11,7 +11,7 @@ use crate::mail::mail_host::MailHost;
 /// Replaces everything the account has in the local-submission tables with
 /// `submission`, as one unit (contract `docs/mail/local-submission.md`, issue #518).
 ///
-/// The account's old lines are dropped from all five tables and its new ones put
+/// The account's old lines are dropped from all six tables and its new ones put
 /// in, so a domain or mailbox the panel no longer lists disappears. Other accounts'
 /// lines are untouched, except that a uid is held by ONE account (the newest
 /// binding wins) and a sender domain or mailbox login owned by another account is
@@ -60,6 +60,17 @@ pub fn set_local_submission(
             .map(|login| format!("{} {account}", login.to_address()))
             .collect(),
         submit_users: vec![format!("{account} OK")],
+        alias_fanouts: submission
+            .alias_fanouts
+            .iter()
+            .map(|fanout| {
+                format!(
+                    "{} {} {account}",
+                    fanout.recipient.to_key(),
+                    fanout.external_targets
+                )
+            })
+            .collect(),
     };
     apply_account_lines(host, distro, account, &lines, true)
 }

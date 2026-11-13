@@ -7,7 +7,7 @@ bundle never contains it.
 
 | Path | What it is |
 |---|---|
-| `panel.env.example` | Names, comments and safe placeholders of every variable the service reads |
+| `panel.env.example` | Names, comments and safe placeholders of every variable the service reads, including the required `Demo__AbuseContact` shown on the banner |
 | `seed.env.example` | The one-time setup token, read by the deploy script for the seed only; the service never loads it |
 | `nginx/maran-demo.conf.template` | The TLS edge: static SPA, API proxy, connection caps, no client address in any log |
 | `systemd/` | The API unit (no network egress), the reset service and timer, the socket directory |
@@ -17,3 +17,9 @@ bundle never contains it.
 | `keys/demo-release-signing.pub` | Placeholder for the demo bundle's own public key (no key material is committed) |
 
 The full procedure, the threat model and what is not verified are in `docs/operations/demo.md`.
+
+The demonstration refuses visitor text that carries a blocked word or a link to an outside site before it is
+stored, and the banner tells every visitor where to report abusive content. The contact is
+`Demo__AbuseContact` in `/etc/maran-demo/panel.env` (a bare e-mail address or an https URL; the service does
+not start without it). The word lists are data embedded from `backend/src/Maran.Host.Demo/Resources/`
+(`DemoBlockedTerms.<language>.txt`, `DemoAllowedHosts.txt`, `DemoDocumentationHosts.txt`); extending them needs a rebuilt bundle.

@@ -92,6 +92,15 @@ public sealed class DemoStatusProviderTests : IDisposable
             });
     }
 
+    /// <summary>The status carries the configured abuse contact for the banner.</summary>
+    [Fact]
+    public async Task The_status_carries_the_configured_abuse_contact()
+    {
+        var status = await Provider().GetAsync(CancellationToken.None);
+
+        Assert.Equal("abuse@innovayse.com", status.AbuseContact);
+    }
+
     /// <summary>The reasons cover every refusal area, each with a sentence.</summary>
     [Fact]
     public async Task The_refusal_reasons_are_every_refusal_area()
@@ -141,7 +150,8 @@ public sealed class DemoStatusProviderTests : IDisposable
     {
         return new DemoStatusProvider(
             Marker(),
-            new OptionsWrapper<DemoOptions>(new DemoOptions { ResetIntervalHours = 3 }),
+            new OptionsWrapper<DemoOptions>(
+                new DemoOptions { ResetIntervalHours = 3, AbuseContact = "abuse@innovayse.com" }),
             new OptionsWrapper<DemoIdentityOptions>(new DemoIdentityOptions
             {
                 AdministratorUsername = "demoadmin",

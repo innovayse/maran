@@ -106,6 +106,7 @@ public sealed class LeaseRenewalPolicyTests
     [InlineData(LeaseRenewalOutcome.SkippedNoLicence, false)]
     [InlineData(LeaseRenewalOutcome.NotConfigured, false)]
     [InlineData(LeaseRenewalOutcome.LicenceChanged, false)]
+    [InlineData(LeaseRenewalOutcome.RenewalInProgress, false)]
     public void Only_a_due_renewal_that_stored_nothing_is_a_failure(LeaseRenewalOutcome outcome, bool expected)
     {
         Assert.Equal(expected, LeaseRenewalPolicy.IsFailure(outcome));

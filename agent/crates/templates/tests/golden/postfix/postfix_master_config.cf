@@ -11,8 +11,23 @@
 # login services ORIGINATING, so a customer connecting to any of them can never be
 # taken for a local submission.
 #
+# The same service runs the table that names the submitting uid in a header: Postfix
+# shows a milter no Received line of its own, and that line is where the uid is
+# (issue #591, docs/mail/local-submission.md).
+#
+# Port 25 also refuses a client connecting from this host itself (issue #531): the
+# table names the loopback and every interface address, and a customer's process
+# reaching port 25 from the server would otherwise arrive as outside mail,
+# counted against no account. Any other client is permitted here and still meets
+# the relay and recipient restrictions of main.cf. The table sits after the
+# `check_client_access` word as the next list element, the form master.cf can
+# carry because it splits an `-o` value at whitespace. `smtpd_delay_reject=no` makes the
+# refusal the greeting itself: by default Postfix greets first and refuses at RCPT.
+#
 # service  type  private unpriv  chroot  wakeup  maxproc command + args
 smtp       inet  n       -       n       -       -       smtpd
+  -o smtpd_client_restrictions=check_client_access,cidr:/etc/maran/mail/self_clients.cidr,permit
+  -o smtpd_delay_reject=no
   -o milter_macro_daemon_name=INBOUND
 submission inet  n       -       n       -       -       smtpd
   -o syslog_name=postfix/submission
@@ -38,6 +53,7 @@ pickup     unix  n       -       n       60      1       pickup
 cleanup    unix  n       -       n       -       0       cleanup
 cleanup_local unix n     -       n       -       0       cleanup
   -o milter_macro_daemon_name=MARAN_LOCAL
+  -o header_checks=regexp:/etc/maran/mail/local_submitter_headers.regexp
 qmgr       unix  n       -       n       300     1       qmgr
 tlsmgr     unix  -       -       n       1000?   1       tlsmgr
 rewrite    unix  -       -       n       -       -       trivial-rewrite

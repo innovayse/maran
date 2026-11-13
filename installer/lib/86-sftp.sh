@@ -59,6 +59,9 @@ readonly MARAN_SSHD_FTPS_GROUP="maran-ftps"
 readonly MARAN_SFTP_JAIL_ROOT="/var/lib/maran-sftp"
 
 readonly MARAN_SSHD_CONFIG="/etc/ssh/sshd_config"
+# Where a distribution that ships its defaults under /usr/etc (openSUSE Leap 16) keeps the vendor copy
+# of the file above, which it leaves for the administrator to create under /etc.
+readonly MARAN_SSHD_VENDOR_CONFIG="/usr/etc/ssh/sshd_config"
 
 # The directory holding one root-owned public-key file per SFTP login (issue
 # #135), matching `AgentPaths::SFTP_AUTHORIZED_KEYS_DIRECTORY`. root:root 0711:
@@ -250,6 +253,12 @@ EOF
 # result, instead of writing the block themselves. An image that manufactures the
 # precondition it asserts proves nothing about the installer.
 install_sshd_match_block() {
+  # A family that ships its defaults under /usr/etc leaves /etc/ssh/sshd_config to be created, and
+  # sshd reads the file under /etc first. The vendor copy is the starting point such a host would
+  # have been given, so the block is added to a copy of it and the vendor file is left alone.
+  if [ ! -f "$MARAN_SSHD_CONFIG" ] && [ -f "$MARAN_SSHD_VENDOR_CONFIG" ]; then
+    install -D -m 0644 "$MARAN_SSHD_VENDOR_CONFIG" "$MARAN_SSHD_CONFIG"
+  fi
   if [ ! -f "$MARAN_SSHD_CONFIG" ]; then
     echo "86-sftp.sh: ${MARAN_SSHD_CONFIG} not found; is openssh-server installed?" >&2
     exit 1

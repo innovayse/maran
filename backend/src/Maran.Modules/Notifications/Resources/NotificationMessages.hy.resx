@@ -81,6 +81,9 @@
   <data name="FeedAlertPanelUpdateInterruptedCritical">
     <value>Պլանային թարմացումը ընդհատվել է՝ {0}</value>
   </data>
+  <data name="FeedAlertLicenceExpiringWarning">
+    <value>Տեղադրված լիցենզիայի ժամկետը լրանում է {1}-ին (մնացել է {2} օր)։ Երկարաձգելու համար բացեք «Կարգավորումներ», ապա «Լիցենզիա»։</value>
+  </data>
   <data name="FeedBackupScheduledRunFailedWarning">
     <value>Ժամանակացույցով կրկնօրինակումը ձախողվեց՝ {0}</value>
   </data>

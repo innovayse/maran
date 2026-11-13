@@ -5,6 +5,8 @@ using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Services;
 using Maran.Modules.Sites.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.Sdk.Interfaces;
+using Maran.Sdk.Modules;
 using Maran.SharedKernel.Apps;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
@@ -347,6 +349,7 @@ public sealed class ChangeSitePhpVersionCommandHandlerTests
     /// <param name="maxPhpWorkersPerPool">The plan's per-pool worker budget.</param>
     /// <param name="audit">The journal double.</param>
     /// <param name="stack">The installed stack; overrides <paramref name="installedPhp"/> when given.</param>
+    /// <param name="locks">The per-site lock; defaults to a private real one, shared when a test passes it.</param>
     private static ChangeSitePhpVersionCommandHandler Handler(
         Maran.Modules.Sites.Persistence.SitesDbContext context,
         Guid accountId,
@@ -354,7 +357,8 @@ public sealed class ChangeSitePhpVersionCommandHandlerTests
         string[]? installedPhp = null,
         int maxPhpWorkersPerPool = 10,
         RecordingAuditWriter? audit = null,
-        SiteStackGate? stack = null)
+        SiteStackGate? stack = null,
+        ISiteOperationLock? locks = null)
     {
         var accounts = new StubAccountDirectory(new AccountSnapshot(
             accountId,
@@ -372,7 +376,8 @@ public sealed class ChangeSitePhpVersionCommandHandlerTests
             new SiteAuditJournal(audit ?? new RecordingAuditWriter(), FakeCurrentUser.Customer(accountId)),
             SitesTestContext.SiteNames(),
             new PhpAccountPoolSettings(context),
-            stack ?? SiteStacks.With(StackWebServer.Nginx, installedPhp ?? ["8.3", "8.4"], ["22"]));
+            stack ?? SiteStacks.With(StackWebServer.Nginx, installedPhp ?? ["8.3", "8.4"], ["22"]),
+            locks ?? new SiteOperationLock());
     }
 
     /// <summary>Seeds one site and returns its id.</summary>

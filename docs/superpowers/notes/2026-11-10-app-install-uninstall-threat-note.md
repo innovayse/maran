@@ -249,6 +249,10 @@ port-80 block; moving that block is the installer's step and is not done by the 
   not ready.
 - **The ledger yields to the host.** `StartupAppReconciler` settles `apps.InstalledApps` against
   `ListApps` at start-up; a row the host does not have never keeps the stack ready.
+  While the panel runs, reading the apps list settles a row left `Installing`/`Removing` whose task is no
+  longer `Running` by the same rule (issue #533), through the Sdk window `ITaskStateReader`, which answers
+  a task's state and nothing else and ignores the tasks module's visibility filter on purpose; a running
+  task, or a row with no task id, is left alone.
 - **The audit subject is a catalogue id** (and, for a service action, one of four action words), never
   agent output. Install and removal are journalled twice: the request under the administrator's name and
   the outcome under the panel's system actor.
@@ -324,5 +328,122 @@ security updates (`MARAN_OS_UPDATE_HOLD`, asserted spelled out by the polygon pa
 `os-security-updates.sh`), so no unattended run crosses a major. A manual upgrade by an
 administrator can; after it the installed probe reports the major that answers.
 `docs/apps/README.md` says the same to the operator.
+
+### RHEL Node.js module streams (issue #532)
+
+On the RHEL family a Node.js major is a dnf **module stream**, which `maran-app-install@.service`
+(one fixed `dnf install -- %i`) cannot select. Two further root template units carry it:
+`maran-app-nodejs-install@<major>.service` (`dnf module reset -y nodejs`, then
+`dnf module install -y -- nodejs:%i/common`) and `maran-app-nodejs-remove@<major>.service`
+(`dnf module remove -y -- nodejs:%i/common`, then `dnf module reset -y nodejs`). They are installed
+by step 70 on the RHEL family only, have no `[Install]` section, are never enabled, and carry the
+generic install unit's sandbox directive for directive.
+
+What the panel can choose: the instance. It is **digits only** and arrives as `%i`; the agent builds it
+from `NodejsModuleStream` (a type over the closed supported majors, `from_major` the only constructor),
+so a hostile string cannot reach the unit through the agent. Like the generic units, the unit does not
+re-check it: anyone able to start a system unit can already run dnf as root, and the `nodejs:%i/common`
+spelling puts `%i` where only a stream name is read. `--` ends option parsing for the module spec.
+
+Two guards in the agent, neither of which a hand-started unit gets:
+
+- **One major at a time.** One `node` answers for every Node.js site, and the reset in the install
+  unit would silently switch the stream under them. The agent refuses a different major while a
+  `/usr/bin/node` of another major answers (including an unmanaged one), as
+  `apps.nodeMajorActive`; the same major is idempotent.
+- **The removal dry run** (`dnf module remove --assumeno`) is read before the removal unit starts,
+  like the packages' (#527). Its extra headers (`Disabling module profiles`, `Disabling modules`,
+  `Resetting modules`) are known; the Node.js package set (`nodejs`, `npm`, `nodejs-libs`,
+  `nodejs-docs`, `nodejs-full-i18n`) is the app's own; anything else is refused. Unreadable output is
+  an error.
+
+The stream list the install is offered from is parsed from `dnf -C module list nodejs` (cache only, no
+network); a line that does not parse is an error, not an empty list.
+
+Review amendment (issue #532, second pass), what changed and why it is safe:
+
+- **A gap in Node.js never hides the other apps.** `dnf -C module list nodejs` fails on a release
+  without modularity (recorded on `almalinux:10`, dnf 4.20: exit 1, `Error: No matching Modules to
+  list` on standard error, nothing on standard output; that generation ships `nodejs` 22 and
+  `nodejs24` as plain packages the agent does not install by name) and on a cold cache (`Cache-only
+  enabled but no cache for 'appstream'`, both generations). `list_installable_apps` now returns the
+  apps with a typed `NodejsUnavailable` beside them (`NoModuleStreams`: the sources carry none;
+  `ListingFailed`: the host could not be asked), the Node.js apps that are not installed are left out,
+  and the reason goes to the operator's log and, since proto revision 30, to the panel
+  (`ListInstallableAppsOk.nodejs_unavailable_reason`: `NO_MODULE_STREAMS`, `LISTING_FAILED`, unset
+  when nothing is missing), so the app store says why Node.js is absent; an installed Node.js stays
+  listed. A deadline
+  kill of the listing is still an error, as it is for every query.
+- **Fail closed on an interpreter that is there and does not answer.** `installed_node_major` treats a
+  missing `/usr/bin/node` as the only "nothing installed"; a file whose `--version` exits non-zero or
+  prints no digits refuses the install and the removal (`NodeInterpreterUnreadable`, wire
+  `ERROR_CODE_NODE_INTERPRETER_UNREADABLE`). Before, it read as nothing installed and the unit's `module reset` and `module
+  install` ran over live packages.
+- **One Node.js module operation at a time** (`AppsHost::app_operation_lock`, a lock of the host
+  object, taken as the first statement of the install and the removal of a Node.js major on a
+  module-stream family). It REFUSES and never waits (`NodejsOperationInProgress`, wire `ERROR_CODE_NODE_OPERATION_IN_PROGRESS`),
+  is a leaf (nothing held under it takes another lock of the agent's table), and is process-local
+  like the others: it does not stop an operator's own `dnf`.
+- **A Node.js the module system does not own.** `dnf install nodejs` on `almalinux:9` installs
+  Node.js 16 with no stream enabled; `dnf module remove nodejs:20/common` then prints `Unable to
+  match profile` and `Nothing to do` (recorded), which the dry-run reader rightly refuses, so the
+  removal could never be started. The install and the removal now tell the two cases apart by the
+  `[e]` marker of the module listing and refuse the unmanaged one with `UnmanagedNodeInstalled`,
+  whose text names the operator's command (`dnf remove nodejs`, from the adapter). It travels as the
+  own wire code `ERROR_CODE_NODE_UNMANAGED_INSTALL` (revision 30); the message names the operator's
+  command and the panel's text says the same, in the request's language.
+- **The reset is not the panel's to spend.** The install unit's `module reset -y nodejs` would drop a
+  stream an operator enabled by hand with nothing installed. With nothing installed, an enabled
+  stream of ANOTHER major refuses the install (`NodeStreamEnabledByOperator`, wire
+  `ERROR_CODE_NODE_STREAM_ENABLED_BY_OPERATOR`, command `dnf module reset
+  nodejs`); the stream asked for being the enabled one is the install's own business. The removal
+  unit's trailing reset only ever drops the stream it just removed (one stream is active per module).
+- A failed module unit is reported by the stream's spec (`nodejs:20/common`) and not by its digits.
+
+Review amendment (issue #542), Node.js on the RHEL 10 generation, what changed and why it is safe:
+
+- **No new privileged surface.** The 10 generation has no module streams; Node.js is plain packages
+  (`nodejs` = 22, `nodejs24` and `nodejs24-npm`, `nodejs-npm`, observed on `almalinux:10` 10.2, dnf 4.20). The
+  agent chooses its behaviour from the release (`adapter_for_release`, the os-release `VERSION_ID` the
+  daemon read at start; major 10 and above is the 10 generation), and on that generation Node.js goes
+  through the SAME generic units as nginx, Apache and PHP, `maran-app-install@<package>` and
+  `maran-app-remove@<package>`, with the package names from the adapter (`nodejs` for the default
+  major 22, `nodejs<major>` otherwise, each with its `-npm` package): no new unit, no new root
+  command line, no caller text in a package name (the name is built from a validated Node.js major
+  of the closed catalogue). The two module units stay installed on the whole RHEL family (step 70 is
+  by family, not by release) and are never started on the 10 generation; they are surplus there and
+  not reachable from the agent.
+- **The majors coexist, and each is asked through its own file.** Observed: `nodejs` installs
+  `/usr/bin/node-22` (and `/usr/bin/node`, a link to it), `nodejs24` installs `/usr/bin/node-24`
+  only, no alternatives entry is created and neither package removes the other's files. So the
+  installed probe, the in-use check and the site unit's interpreter all use the versioned file
+  (`/usr/bin/node-<major>`, `/usr/bin/npm-<major>`), and the one-major-at-a-time refusal
+  (`apps.nodeMajorActive`) does not apply there, as it does not on SUSE. The refusals that remain
+  are the generic ones: in use, would remove others, not simulated, not installed, unknown app.
+- **The removal dry run is the packages', per package** (`dnf remove --assumeno`, recorded): removing
+  `nodejs24` lists `nodejs24-npm` as a dependent package, both are the app's own, and the plan of
+  removing the default major's `nodejs` (which takes `nodejs-npm`) is refused for Node.js 24 as
+  other packages. Unused dependencies are, as for every app, not held to the app's own set
+  (`removal_plan.rs`): in a container where the install had pulled `openssl` as a dependency, the
+  recorded dry run of removing `nodejs` lists it among the unused ones. That is the existing
+  decision for the libraries an install brought, and it is only as safe as it was: a package the
+  host needs is installed explicitly or required by something that stays, and dnf does not list it.
+- **`NoModuleStreams` is no longer what a RHEL 10 host answers.** The module listing is not asked
+  there at all; the Node.js apps are offered from the packages the sources carry, so a host whose
+  sources carry none lists the other apps with no reason (nothing is missing for a reason; the
+  sources simply carry no Node.js).
+
+What the author could not verify: the listing's behaviour when two sources carry the module, a
+Fedora-generation dnf 5 listing (the reader refuses an unknown layout), whether a later 10.x minor
+moves the default major of `nodejs` away from 22 (the install would then end as "not completed",
+never as a success, because `/usr/bin/node-22` would not appear), Rocky and Oracle Linux 10 (only
+AlmaLinux 10 was observed; they rebuild the same sources), and a release newer than 10, which is
+read as the 10 generation.
+
+Not established (OUTSTANDING): the two units' sandbox on a booted systemd with `dnf module` (measured
+only for `dnf install`), an enforcing SELinux host, and the polygon's stand-in runs the same dnf argvs
+without the sandbox (`docker/polygon/asserts/parts/app-store.sh`; the module streams on alma9, the
+coexisting packages on alma10). The unit's second `ExecStart=` runs only if the first succeeded
+(oneshot semantics).
 
 Second review: OUTSTANDING (#331)

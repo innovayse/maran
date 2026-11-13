@@ -1,0 +1,19 @@
+Dependencies resolved.
+================================================================================
+ Package             Arch    Version                          Repository   Size
+================================================================================
+Removing:
+ nodejs24            x86_64  1:24.22.1-3.el10_2               @appstream  322 k
+Removing dependent packages:
+ nodejs24-npm        noarch  2:11.19.1-1.24.22.1.3.el10_2     @appstream  9.4 M
+Removing unused dependencies:
+ nodejs24-docs       noarch  1:24.22.1-3.el10_2               @appstream   57 M
+ nodejs24-full-i18n  x86_64  1:24.22.1-3.el10_2               @appstream   32 M
+ nodejs24-libs       x86_64  1:24.22.1-3.el10_2               @appstream   88 M
+
+Transaction Summary
+================================================================================
+Remove  5 Packages
+
+Freed space: 186 M
+Operation aborted.

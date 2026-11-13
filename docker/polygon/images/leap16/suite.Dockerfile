@@ -241,6 +241,8 @@ COPY installer/systemd/maran-agent.service /tmp/maran-installer/systemd/maran-ag
 # (issue #93), so it must be here or the step aborts on a missing source and no suite runs.
 COPY installer/systemd/maran-app-install@.service /tmp/maran-installer/systemd/maran-app-install@.service
 COPY installer/systemd/maran-app-remove@.service /tmp/maran-installer/systemd/maran-app-remove@.service
+COPY installer/systemd/maran-app-nodejs-install@.service /tmp/maran-installer/systemd/maran-app-nodejs-install@.service
+COPY installer/systemd/maran-app-nodejs-remove@.service /tmp/maran-installer/systemd/maran-app-nodejs-remove@.service
 COPY installer/lib/70-services.sh /tmp/maran-installer/lib/70-services.sh
 # Step 80 again — the earlier COPY was consumed by the `rm -rf /tmp/maran-installer` that ends
 # the include block above — and step 40 beside it. Both are RUN by the assert script, not read:
@@ -438,6 +440,7 @@ RUN bash -c 'set -euo pipefail; \
       zypper --non-interactive install --no-recommends openssh-server openssh-clients $(mysql_packages_for_family); \
       getent passwd mysql >/dev/null || { echo "85-mysql.sh: mysql_packages_for_family produced no MariaDB SERVER package" >&2; exit 1; }; \
       install -d -o mysql -g mysql -m 0755 /run/mysqld /var/lib/mysql; \
+      install -d -o mysql -g mysql -m 0750 /var/lib/mysql-files; \
       mariadb-install-db --user=mysql --datadir=/var/lib/mysql >/dev/null; \
       ssh-keygen -A; \
       install -d -m 0755 /run/sshd; \
@@ -491,7 +494,7 @@ RUN bash -c 'set -euo pipefail; \
 
 # cronie, this family's cron. The package name is the installer's own (`cron_packages_for_family`)
 # and the unit is `cron_service_name` — `cron`, not the `crond` of the RHEL family, and no alias
-# bridges them. UNVERIFIED: both, and that the daemon lands at /usr/sbin/crond (confirm with
+# bridges them. Measured: the daemon lands at /usr/sbin/cron, not /usr/sbin/crond (confirm with
 # `rpm -ql cronie | grep sbin`).
 #
 # NO `broken_shadow` edit to the PAM stack here. The other RHEL-family image needs one because
@@ -505,8 +508,9 @@ RUN bash -c 'set -euo pipefail; \
       export MARAN_OS_FAMILY=suse; \
       . /tmp/maran-installer/lib/88-cron.sh; \
       zypper --non-interactive install --no-recommends $(cron_packages_for_family); \
+      create_cron_spool; \
       zypper --non-interactive clean --all; \
-      test -x /usr/sbin/crond; \
+      test -x /usr/sbin/cron; \
       getent protocols ipv6-icmp >/dev/null'
 
 # `/usr/bin/passwd`, which the agent's suspension attestation runs (`passwd -S`). On the RHEL family it
@@ -517,10 +521,25 @@ RUN bash -c 'set -euo pipefail; \
 RUN test -x /usr/bin/passwd
 
 # at(1), for the account-deletion leftovers suite (see the other family images for why).
-# UNVERIFIED: the package name `at` and its paths.
+# The spool directories are declared in the package's tmpfiles snippet and created by the next boot,
+# which a container never has: without applying the snippet here, `atq` answers "Cannot change to
+# /var/spool/atjobs" and exits 1, which the account deletion (it lists an account's at jobs) rightly
+# reads as a refusal. It is applied exactly as a booted host applies it.
 RUN zypper --non-interactive install --no-recommends at \
     && zypper --non-interactive clean --all \
+    && systemd-tmpfiles --create /usr/lib/tmpfiles.d/at.conf \
+    && test -d /var/spool/atjobs \
     && test -x /usr/bin/at && test -x /usr/bin/atq && test -x /usr/bin/atrm
+
+# The mail spool directory, which the account-deletion suites plant a customer's mailbox in. The base
+# image has no mail package, and on this family it is a mail package that brings the directory: with
+# none installed neither `/var/spool/mail` (the real directory, which is what the adapter answers) nor
+# `/var/mail` exists. A host that runs mail has both, `/var/mail` a link to the real one, and that is
+# the layout made here so the suites meet the host they are about. UNVERIFIED: the mode 1777 is
+# the one a mail package gives it; confirm with `rpm -ql postfix | grep spool/mail` in the pinned image.
+RUN install -d -m 1777 /var/spool/mail \
+    && ln -s spool/mail /var/mail \
+    && test "$(readlink -f /var/mail)" = /var/spool/mail
 
 # The tmpfiles snippet that builds /run/maran-host, the mount points the agent unit binds the host's
 # shared temporary directories onto. The directory-layout assertion applies THIS file with the
@@ -547,13 +566,13 @@ RUN chmod 755 /usr/sbin/setquota
 
 # BIND, from the installer's own package list (`dns_packages_for_family`, public on purpose); the
 # reasoning is the same as in the other family images. UNVERIFIED: the package `bind` and the
-# checker's path (confirm with `rpm -ql bind | grep sbin`).
+# checker's path (measured: the checkers are in /usr/bin).
 RUN bash -c 'set -euo pipefail; \
       export MARAN_OS_FAMILY=suse; export MARAN_OS_VERSION_ID=16.1; \
       . /tmp/maran-installer/lib/89-dns.sh; \
       zypper --non-interactive install --no-recommends $(dns_packages_for_family); \
       zypper --non-interactive clean --all; \
-      test -x /usr/sbin/named-checkzone'
+      test -x /usr/bin/named-checkzone'
 
 # 88-cron.sh's own gate, run against this image — and then run against a cron
 # that is DOWN, so the green half is not the only half anybody has seen.

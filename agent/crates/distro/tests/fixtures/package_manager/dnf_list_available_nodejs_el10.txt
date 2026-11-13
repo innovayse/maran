@@ -1,0 +1,5 @@
+Available Packages
+nodejs.x86_64                  1:22.23.4-1.el10_2                      appstream
+nodejs-npm.x86_64              1:10.9.9-1.22.23.4.1.el10_2             appstream
+nodejs24.x86_64                1:24.22.1-3.el10_2                      appstream
+nodejs24-npm.noarch            2:11.19.1-1.24.22.1.3.el10_2            appstream

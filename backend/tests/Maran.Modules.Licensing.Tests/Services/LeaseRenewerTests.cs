@@ -387,4 +387,21 @@ public sealed class LeaseRenewerTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => { return harness.Renewer.RenewAsync(cancelled.Token); });
     }
+
+    /// <summary>A pass named for a licence that is not the installed one asks the service nothing; the named licence is the control.</summary>
+    [Fact]
+    public async Task A_pass_named_for_another_licence_asks_nothing_and_the_installed_licence_is_renewed()
+    {
+        using var harness = new RenewalHarness();
+        harness.InstallLicence(RenewalHarness.Licence("lic-002"));
+        harness.Client.Returns(RenewalHarness.Lease(Start, licence: "lic-002"));
+
+        var other = await harness.Renewer.RenewAsync("lic-001", CancellationToken.None);
+
+        Assert.Equal(LeaseRenewalOutcome.LicenceChanged, other.Outcome);
+        Assert.Empty(harness.Client.Requests);
+        Assert.Equal(
+            LeaseRenewalOutcome.Renewed,
+            (await harness.Renewer.RenewAsync("lic-002", CancellationToken.None)).Outcome);
+    }
 }

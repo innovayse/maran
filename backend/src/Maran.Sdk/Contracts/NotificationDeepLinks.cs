@@ -33,8 +33,11 @@ public static class NotificationDeepLinks
     /// <summary>The server monitoring page.</summary>
     public const string Monitoring = "monitoring";
 
+    /// <summary>The licence page (Settings, Licence).</summary>
+    public const string Licence = "licence";
+
     /// <summary>Every destination a notification may name.</summary>
-    public static readonly IReadOnlyList<string> All = [Tasks, Backups, BackupDestinations, Monitoring];
+    public static readonly IReadOnlyList<string> All = [Tasks, Backups, BackupDestinations, Monitoring, Licence];
 
     /// <summary>Whether a name is one of <see cref="All"/>.</summary>
     /// <param name="name">The candidate name; compared exactly, because a route name is.</param>

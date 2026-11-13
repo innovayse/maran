@@ -264,6 +264,7 @@ public sealed class UpdatePlanCommandHandler
         // decided here, before the plan holds them, so the announcement below needs no second reading.
         var phpLimits = command.PhpLimits is null ? null : PhpLimitsMapper.ToDomain(command.PhpLimits);
         var phpLimitsChanged = phpLimits is not null && phpLimits != plan.PhpLimits;
+        var uploadBoundChanged = phpLimits is not null && phpLimits.UploadMaxMb != plan.PhpLimits.UploadMaxMb;
         if (phpLimits is not null)
         {
             plan.ChangePhpLimits(phpLimits);
@@ -332,7 +333,7 @@ public sealed class UpdatePlanCommandHandler
                 .Select(a => a.Id)
                 .ToListAsync(cancellationToken);
 
-            await _announcer.AnnounceAsync(accountIds, cancellationToken);
+            await _announcer.AnnounceAsync(accountIds, uploadBoundChanged, cancellationToken);
         }
 
         await _journal.RecordSuccessAsync(

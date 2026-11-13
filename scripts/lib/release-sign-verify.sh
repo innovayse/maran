@@ -23,15 +23,18 @@ require_signing_key() {
 }
 
 cmd_sign() {
-  local key="${MARAN_RELEASE_SIGNING_KEY:-}" bundle_dir="/tmp/maran-release-bundle" publish=0
+  local key="${MARAN_RELEASE_SIGNING_KEY:-}" bundle_dir="/tmp/maran-release-bundle" publish=0 openapi_dir=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --key) key="${2:?--key requires a value}"; shift 2 ;;
       --bundle) bundle_dir="${2:?--bundle requires a value}"; shift 2 ;;
       --publish) publish=1; shift ;;
+      --openapi) openapi_dir="${2:?--openapi requires a value}"; shift 2 ;;
       *) echo "release sign: unknown argument: $1" >&2; usage ;;
     esac
   done
+  [ "$publish" -eq 0 ] || [ -n "$openapi_dir" ] \
+    || release_failed "release sign --publish requires --openapi DIR: a published release carries a signed openapi.json (issue #552)"
   require_tool openssl "signs the manifest"
   require_signing_key "$key"
   [ -f "${bundle_dir}/manifest.json" ] || release_failed "no manifest.json under ${bundle_dir} — run: maran release build"
@@ -40,7 +43,14 @@ cmd_sign() {
   if [ "$publish" -eq 1 ]; then
     require_publishable_manifest "${bundle_dir}/manifest.json" \
       || release_failed "refusing to sign an incomplete published release (reason printed above)."
+    require_pinned_keys "$bundle_dir" "${root}/installer/keys" \
+      || release_failed "refusing to sign a published release that does not pin installer/keys/ (reason printed above)."
   fi
+  # Every input is present before the first signature is written, so a missing file never leaves a
+  # half-signed bundle behind.
+  [ -f "${bundle_dir}/integrity-manifest.json" ] || release_failed "no integrity-manifest.json under ${bundle_dir} — run: maran release build (this bundle predates the code-integrity hash list)"
+  [ -z "$openapi_dir" ] || [ -s "${openapi_dir}/openapi.json" ] \
+    || release_failed "no openapi.json under ${openapi_dir} to sign — run: maran release openapi --out ${openapi_dir}"
 
   sign_release_file "$key" "${bundle_dir}/manifest.json" "${bundle_dir}/manifest.json.sig" \
     || release_failed "signing manifest.json failed"
@@ -49,13 +59,18 @@ cmd_sign() {
 
   # integrity-manifest.json: same key, same invocation, a SECOND file rather than folded
   # into the manifest.json signature above — see write_integrity_manifest's comment.
-  [ -f "${bundle_dir}/integrity-manifest.json" ] || release_failed "no integrity-manifest.json under ${bundle_dir} — run: maran release build (this bundle predates the code-integrity hash list)"
 
   sign_release_file "$key" "${bundle_dir}/integrity-manifest.json" \
       "${bundle_dir}/integrity-manifest.json.sig" \
     || release_failed "signing integrity-manifest.json failed"
 
   echo "Signed ${bundle_dir}/integrity-manifest.json -> ${bundle_dir}/integrity-manifest.json.sig"
+
+  # The OpenAPI document (issue #552): the same key, a detached signature beside the document.
+  if [ -n "$openapi_dir" ]; then
+    openapi_sign "$key" "$openapi_dir" || release_failed "signing openapi.json failed"
+    echo "Signed ${openapi_dir}/openapi.json -> ${openapi_dir}/openapi.json.sig"
+  fi
 }
 
 # verify_bundle: the SAME two checks the installer and `maran update` perform: the same
@@ -114,18 +129,27 @@ verify_bundle() {
 }
 
 cmd_verify() {
-  local bundle_dir="/tmp/maran-release-bundle" pubkey="$root/installer/keys/release-signing.pub" publish=0
+  local bundle_dir="/tmp/maran-release-bundle" pubkey="$root/installer/keys/release-signing.pub" publish=0 openapi_dir=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --bundle) bundle_dir="${2:?--bundle requires a value}"; shift 2 ;;
       --pubkey) pubkey="${2:?--pubkey requires a value}"; shift 2 ;;
       --publish) publish=1; shift ;;
+      --openapi) openapi_dir="${2:?--openapi requires a value}"; shift 2 ;;
       *) echo "release verify: unknown argument: $1" >&2; usage ;;
     esac
   done
+  [ "$publish" -eq 0 ] || [ -n "$openapi_dir" ] \
+    || release_failed "release verify --publish requires --openapi DIR: a published release carries a signed openapi.json (issue #552)"
   require_tool openssl "verifies the manifest"
   if [ "$publish" -eq 1 ] && ! require_publishable_manifest "${bundle_dir}/manifest.json"; then
     release_failed "${bundle_dir} is not a complete published release (reason printed above)."
+  fi
+  if [ "$publish" -eq 1 ] && ! require_pinned_keys "$bundle_dir" "${root}/installer/keys"; then
+    release_failed "${bundle_dir} does not pin the public keys of installer/keys/ (reason printed above)."
+  fi
+  if [ -n "$openapi_dir" ] && ! openapi_verify "$pubkey" "$openapi_dir"; then
+    release_failed "${openapi_dir}/openapi.json did not verify against ${pubkey} (reason printed above)."
   fi
   if verify_bundle "$bundle_dir" "$pubkey"; then
     release_ok "${bundle_dir} verifies against ${pubkey} (signature + every checksum the manifest names)."

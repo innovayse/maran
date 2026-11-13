@@ -17,4 +17,9 @@ namespace Maran.Sdk.Events;
 /// </para>
 /// </remarks>
 /// <param name="AccountId">The account whose plan figures changed.</param>
-public sealed record AccountPlanChanged(Guid AccountId);
+/// <param name="UploadBoundChanged">
+/// Whether the plan's upload bound (<see cref="Contracts.PhpLimitsSnapshot.UploadMaxMb"/>) differs from what the
+/// account had before. The bound is the figure a PHP site's vhost request body limit follows, so a subscriber
+/// that renders vhosts needs to act only when it moved; the other bounds change pools alone.
+/// </param>
+public sealed record AccountPlanChanged(Guid AccountId, bool UploadBoundChanged);

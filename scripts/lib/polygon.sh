@@ -15,6 +15,9 @@
 #   polygon_suites          discovers every polygon suite by what it CONTAINS (`#[ignore]`), never
 #                           by a hard-coded list. A hard-coded list is how docker/README.md ran six
 #                           suites out of ten for a whole plan while everyone believed otherwise.
+#   polygon_lane_*          POLYGON_LANE_OWNED_SUITES: a suite another lane runs and proves (the mail
+#                           suite, in the `polygon-mail` lane), declared once, read by the verifier
+#                           and by that lane's own verdict.
 #   polygon_fingerprint     the content hash of everything an image is built FROM.
 #   polygon_ensure_image    refuses to run against a STALE image; builds one whose tag IS the
 #                           fingerprint of its sources.
@@ -115,6 +118,136 @@ polygon_test_args() {
     fi
     printf -- '--test\n%s\n' "$suite"
   done
+}
+
+# POLYGON_LANE_OWNED_SUITES: the ONE declaration of which polygon suites belong to another lane, and
+# how that lane proves them.
+#
+# Each row is `suite|lane|lane script|passed`. A suite listed here is an ignored real-host suite that
+# the `polygon` job cannot run: it needs a stack only its own lane builds (the mail suite needs a
+# running Postfix, Rspamd and nftables table, which `docker/polygon/asserts/mail-lane.sh` installs).
+# This is not a skip and not an exemption from being proved. It MOVES the proof: `maran polygon
+# verify` does not require the suite in the `polygon` job's logs and says so in its output, and the
+# owning lane's verdict (polygon_lane_verdict, called by the lane script) requires the suite to have
+# started, finished and passed EXACTLY `passed` tests. The lane script reads its suite and that count
+# from this array, so the job, the verifier and the lane cannot disagree. A suite NOT declared here
+# is held to every rule above: an undeclared ignored suite missing from the `polygon` logs is a failure.
+# polygon_lane_declaration_problems proves each row against the tree, the lane script and the workflow.
+POLYGON_LANE_OWNED_SUITES=(
+  "mail_server_on_a_real_host|polygon-mail|docker/polygon/asserts/mail-lane.sh|1"
+)
+
+# polygon_lane_row_field <suite> <field-number>: one field of the suite's row; status 1 when undeclared.
+polygon_lane_row_field() {
+  local row key
+  for row in ${POLYGON_LANE_OWNED_SUITES[@]+"${POLYGON_LANE_OWNED_SUITES[@]}"}; do
+    key="${row%%|*}"
+    [ "$key" = "$1" ] || continue
+    printf '%s' "$row" | cut -d'|' -f"$2"
+    return 0
+  done
+  return 1
+}
+
+# polygon_lane_of <suite>: the lane that owns the suite; status 1 when no lane does.
+polygon_lane_of() { polygon_lane_row_field "$1" 2; }
+
+# polygon_lane_script_of <suite>: the lane script's path, relative to the repository root.
+polygon_lane_script_of() { polygon_lane_row_field "$1" 3; }
+
+# polygon_lane_expected_passed <suite>: how many tests the owning lane must see pass, exactly.
+polygon_lane_expected_passed() { polygon_lane_row_field "$1" 4; }
+
+# polygon_lane_owned_suites: every lane-owned suite, one per line.
+polygon_lane_owned_suites() {
+  local row
+  for row in ${POLYGON_LANE_OWNED_SUITES[@]+"${POLYGON_LANE_OWNED_SUITES[@]}"}; do
+    printf '%s\n' "${row%%|*}"
+  done
+}
+
+# polygon_lane_suites <lane>: the suites that lane owns, one per line.
+polygon_lane_suites() {
+  local row
+  for row in ${POLYGON_LANE_OWNED_SUITES[@]+"${POLYGON_LANE_OWNED_SUITES[@]}"}; do
+    [ "$(printf '%s' "$row" | cut -d'|' -f2)" = "$1" ] || continue
+    printf '%s\n' "${row%%|*}"
+  done
+}
+
+# polygon_without_lane_owned: reads suite names on stdin, writes those NO other lane owns. What the
+# `polygon` job runs and requires is the discovered list through this filter.
+polygon_without_lane_owned() {
+  local suite
+  while IFS= read -r suite; do
+    polygon_lane_of "$suite" >/dev/null || printf '%s\n' "$suite"
+  done
+}
+
+# polygon_lane_verdict <suite> <log>: the owning lane's proof that the suite ran. Prints the problems
+# and returns 1 unless the log shows the suite's binary started, exactly one `test result:` line, and
+# that line `ok` with exactly the declared number passed and none failed. "No tests ran", a different
+# count and a failure are all refusals; an undeclared suite is refused too (nothing says what it owes).
+polygon_lane_verdict() {
+  local suite="$1" log="$2" expected clean results problems=""
+  if ! expected="$(polygon_lane_expected_passed "$suite")"; then
+    echo "  '$suite' is not declared in POLYGON_LANE_OWNED_SUITES, so no lane owes it and nothing says how many tests it must pass."
+    return 1
+  fi
+  clean="$(mktemp)"
+  sed -E 's/\x1b\[[0-9;]*[A-Za-z]//g' "$log" >"$clean" 2>/dev/null || true
+  if ! polygon_banner_seen "$clean" "$suite"; then
+    problems="$problems
+  suite '$suite' never started: no 'Running tests/$suite.rs' line in the lane's output."
+  fi
+  results="$(grep -c '^test result:' "$clean" || true)"
+  if [ "${results:-0}" -ne 1 ]; then
+    problems="$problems
+  suite '$suite' printed ${results:-0} 'test result:' lines; the lane runs exactly this one suite and owes exactly one."
+  elif ! grep -Eq "^test result: ok\. ${expected} passed; 0 failed;" "$clean"; then
+    problems="$problems
+  suite '$suite' did not report 'ok. ${expected} passed; 0 failed': the lane owes exactly ${expected} passing test(s) (POLYGON_LANE_OWNED_SUITES)."
+  fi
+  rm -f "$clean"
+  [ -z "$problems" ] && return 0
+  printf '%s\n' "$problems"
+  return 1
+}
+
+# polygon_lane_declaration_problems <root>: proves every lane-owned row against what it points at: the
+# suite exists and is ignored, the passed count is a positive number, the lane script exists and asks
+# this declaration for its suite and verdict, and the workflow has a job of that name. Prints the
+# problems; status 1 on any. A row that points at nothing would exempt a suite from the polygon job
+# and prove it nowhere.
+polygon_lane_declaration_problems() {
+  local root="$1" row suite lane script passed problems="" suite_file
+  for row in ${POLYGON_LANE_OWNED_SUITES[@]+"${POLYGON_LANE_OWNED_SUITES[@]}"}; do
+    IFS='|' read -r suite lane script passed <<<"$row"
+    suite_file="$(find "$root"/agent/crates/*/tests -maxdepth 1 -name "$suite.rs" 2>/dev/null | head -1)"
+    if [ -z "$suite_file" ]; then
+      problems="$problems
+  $suite is declared owned by lane $lane and the tree has no such suite (a stale declaration)."
+    elif ! grep -q '#\[ignore' "$suite_file"; then
+      problems="$problems
+  $suite is declared owned by lane $lane but carries no #[ignore], so it is not a polygon suite."
+    fi
+    case "$passed" in ''|*[!0-9]*|0)
+      problems="$problems
+  $suite: the passed count '$passed' is not a positive number." ;;
+    esac
+    if [ ! -r "$root/$script" ]; then
+      problems="$problems
+  $suite: lane script $script does not exist."
+    elif ! grep -q 'polygon_lane_suites' "$root/$script" || ! grep -q 'polygon_lane_verdict' "$root/$script"; then
+      problems="$problems
+  $suite: $script does not read its suite from POLYGON_LANE_OWNED_SUITES (polygon_lane_suites) and judge it with polygon_lane_verdict, so the lane would not prove the suite the polygon job stopped requiring."
+    fi
+    grep -q "^  $lane:" "$root/.github/workflows/agent.yml" 2>/dev/null || problems="$problems
+  $suite: .github/workflows/agent.yml has no job named '$lane'."
+  done
+  [ -z "$problems" ] && return 0
+  printf '%s\n' "$problems"
+  return 1
 }
 
 # polygon_family_from_log <log>: the image family the log's stamp lines name, when they name exactly
@@ -696,12 +829,12 @@ baseline declares for $lanes runs of every suite — reconciled PER LANE, never 
 # route around it.
 #
 # What refuses the trap this axis exists for is NOT the line anchor, which never contributed
-# anything: it is the word `Running` and the `(<dir>/deps/<suite>-<hex>)` tail. A container that
+# anything: it is the word `Running` and the `(<dir>/(deps|out)/<suite>-<hex>)` tail (`out` is the layout of cargo 1.100). A container that
 # executed nothing exits 0 printing `Finished` and naming every suite executable; `Finished` is a
 # different word, it does not match, and the binary named in the tail must be this suite's own.
 polygon_banner_seen() {
   local log="$1" suite="$2"
-  grep -qE "[[:space:]]Running .*tests/$suite\.rs \(\S*deps/$suite-[0-9a-f]+\)" "$log"
+  grep -qE "[[:space:]]Running .*tests/$suite\.rs \(\S*/(deps|out)/$suite-[0-9a-f]+\)" "$log"
 }
 
 # polygon_selftest_presence: the POSITIVE and NEGATIVE control for polygon_banner_seen.
@@ -716,16 +849,21 @@ polygon_selftest_presence() {
   sample="$(mktemp)"
   printf '%s\n' \
     'test something_in_the_previous_suite ...      Running tests/selftest_spliced_on_a_real_host.rs (/tmp/target/debug/deps/selftest_spliced_on_a_real_host-0123456789abcdef)' \
+    '     Running tests/selftest_newlayout_on_a_real_host.rs (/tmp/target/debug/build/pkg/0123456789abcdef/out/selftest_newlayout_on_a_real_host-0123456789abcdef)' \
     '     Finished tests/selftest_absent_on_a_real_host.rs (/tmp/target/debug/deps/selftest_absent_on_a_real_host-0123456789abcdef)' \
     >"$sample"
-  polygon_banner_seen "$sample" selftest_spliced_on_a_real_host && accepted=1
+  if polygon_banner_seen "$sample" selftest_spliced_on_a_real_host &&
+    polygon_banner_seen "$sample" selftest_newlayout_on_a_real_host; then
+    accepted=1
+  fi
   polygon_banner_seen "$sample" selftest_absent_on_a_real_host || refused=1
   rm -f "$sample"
 
   if [ "$accepted" -ne 1 ]; then
     echo "SELF-TEST FAILED: the presence axis was handed a banner spliced into a test line — the" >&2
-    echo "                  shape a real ubuntu24 run produced for three of eleven suites — and" >&2
-    echo "                  did not see it. It would report a suite that ran as never started." >&2
+    echo "                  shape a real ubuntu24 run produced for three of eleven suites — and a" >&2
+    echo "                  banner in the cargo 1.100 build layout (.../out/<suite>-<hex>), and did" >&2
+    echo "                  not see both. It would report a suite that ran as never started." >&2
     return 1
   fi
   if [ "$refused" -ne 1 ]; then

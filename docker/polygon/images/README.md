@@ -38,8 +38,8 @@ so in its cell instead of carrying a number:
 
 ## The SUSE row, and what is still owed on it
 
-`leap16/` is the family's only folder, and it is the polygon's claim for three matrix pairs:
-`opensuse-leap:16.0`, `opensuse-leap:16.1` and `sles:16.0` (`installer/lib/10-preflight.sh`).
+`leap16/` is the family's only folder, and it is the polygon's claim for the matrix pairs
+`opensuse-leap:16.0`, `opensuse-leap:16.1`, `sles:16.0` and `sles:16.1` (`installer/lib/10-preflight.sh`).
 
 - **SLES 16 is claimed through Leap 16**, the same way RHEL is claimed through its rebuilds: SLES
   needs a subscription, so the polygon cannot pull it, and Leap 16 is its community sibling on the

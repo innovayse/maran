@@ -55,6 +55,7 @@ public sealed class ResilientAgentSitesClient : IAgentSitesClient
         SiteNodeApp node,
         uint maxChildren,
         IReadOnlyList<PhpSettingDto> settingOverrides,
+        SiteOptionsDescriptor options,
         CancellationToken cancellationToken)
     {
         return ExecuteAsync(token =>
@@ -70,6 +71,7 @@ public sealed class ResilientAgentSitesClient : IAgentSitesClient
                 node,
                 maxChildren,
                 settingOverrides,
+                options,
                 token);
         }, cancellationToken);
     }

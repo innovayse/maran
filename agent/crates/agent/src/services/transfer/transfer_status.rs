@@ -39,7 +39,7 @@ pub fn to_agent_error(error: &TransferOpError) -> AgentError {
         TransferOpError::Unreachable
         | TransferOpError::KeyGenerationFailed
         | TransferOpError::ScratchUnavailable
-        | TransferOpError::HostAddressesUnavailable
+        | TransferOpError::HostAddressesUnavailable(_)
         | TransferOpError::Spawn(_)
         | TransferOpError::InvalidRemoteOutput => ErrorCode::SystemFailure,
         // This host has no room: the same refusal every writing area makes below

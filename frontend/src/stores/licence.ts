@@ -72,6 +72,28 @@ export const useLicenceStore = defineStore('licence', () => {
   })
 
   /**
+   * What the lease request made by the last install amounted to, in the panel's own words; `null`
+   * unless that install was accepted and its answer is the status now held.
+   */
+  const leaseRequestMessage: ComputedRef<string | null> = computed(() => {
+    if (installSubmission.value.state !== 'done' || state.value === null) {
+      return null
+    }
+    return state.value.leaseRequestDisplayName
+  })
+
+  /**
+   * Whether the last install's lease request ended well: a lease was stored, the stored one is still recent,
+   * or the licence is offline and needs none. It follows the request's own outcome and not the standing of the
+   * lease, because a lease can stand as fresh while the request just made failed (a recent lease that is due
+   * again, with the service unreachable).
+   */
+  const leaseRequestSucceeded: ComputedRef<boolean> = computed(() => {
+    const request = state.value?.leaseRequest ?? null
+    return request === 'renewed' || request === 'notDue' || request === 'skippedOffline'
+  })
+
+  /**
    * Reads the licence status. When reads overlap, the latest one wins: an earlier answer or
    * failure is dropped on arrival.
    * @returns Resolves once the request has settled, successfully or not.
@@ -132,6 +154,8 @@ export const useLicenceStore = defineStore('licence', () => {
     installed,
     installFailed,
     installMessage,
+    leaseRequestMessage,
+    leaseRequestSucceeded,
     load,
     install,
     resetInstall,

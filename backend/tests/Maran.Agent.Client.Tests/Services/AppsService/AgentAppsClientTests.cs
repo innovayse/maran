@@ -96,7 +96,28 @@ public sealed class AgentAppsClientTests
                 new AgentInstallableApp("php-8.4", AgentAppKind.Runtime, false),
                 new AgentInstallableApp("nginx", AgentAppKind.WebServer, true),
             ],
-            result.Value);
+            result.Value.Apps);
+        Assert.Null(result.Value.NodejsUnavailable);
+    }
+
+    /// <summary>Each wire reason Node.js is missing reaches the panel's own enum; the unset value is no reason (issue #532).</summary>
+    /// <param name="wire">The wire reason.</param>
+    /// <param name="expected">The panel's reason, or null.</param>
+    [Theory]
+    [InlineData(NodejsUnavailableReason.NoModuleStreams, AgentNodejsUnavailableReason.NoModuleStreams)]
+    [InlineData(NodejsUnavailableReason.ListingFailed, AgentNodejsUnavailableReason.ListingFailed)]
+    [InlineData(NodejsUnavailableReason.Unspecified, null)]
+    public async Task The_installable_list_maps_why_nodejs_is_missing(
+        NodejsUnavailableReason wire,
+        AgentNodejsUnavailableReason? expected)
+    {
+        var ok = new ListInstallableAppsOk { NodejsUnavailableReason = wire };
+        ok.Apps.Add(new InstallableApp { AppId = "nginx", Kind = AppKind.WebServer, Installed = false });
+        var stub = new StubAppsService { InstallableResponse = new ListInstallableAppsResponse { Ok = ok } };
+
+        var result = await NewClient(stub).ListInstallableAppsAsync(CancellationToken.None);
+
+        Assert.Equal(expected, result.Value.NodejsUnavailable);
     }
 
     /// <summary>A service action sends the app and the action and answers the resulting status.</summary>
@@ -155,6 +176,11 @@ public sealed class AgentAppsClientTests
     [InlineData(ErrorCode.AppNotInstalled, "AgentAppNotInstalled", ErrorType.NotFound)]
     [InlineData(ErrorCode.AppInUse, "AgentAppInUse", ErrorType.Conflict)]
     [InlineData(ErrorCode.WebServerAlreadyInstalled, "AgentWebServerAlreadyInstalled", ErrorType.Conflict)]
+    [InlineData(ErrorCode.NodeMajorAlreadyInstalled, "AgentNodeMajorAlreadyInstalled", ErrorType.Conflict)]
+    [InlineData(ErrorCode.NodeUnmanagedInstall, "AgentNodeUnmanagedInstall", ErrorType.Conflict)]
+    [InlineData(ErrorCode.NodeStreamEnabledByOperator, "AgentNodeStreamEnabledByOperator", ErrorType.Conflict)]
+    [InlineData(ErrorCode.NodeInterpreterUnreadable, "AgentNodeInterpreterUnreadable", ErrorType.Conflict)]
+    [InlineData(ErrorCode.NodeOperationInProgress, "AgentNodeOperationInProgress", ErrorType.Conflict)]
     public async Task An_app_store_refusal_is_a_typed_failure(ErrorCode code, string expectedCode, ErrorType expectedType)
     {
         var stub = new StubAppsService();

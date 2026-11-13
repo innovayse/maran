@@ -6,7 +6,8 @@
     "saving": "Saving…",
     "errors": {
       "notANumber": "Enter a whole number, or leave the field empty.",
-      "burstNeedsRate": "Enter a requests-per-second limit too, or clear the burst."
+      "burstNeedsRate": "Enter a requests-per-second limit too, or clear the burst.",
+      "uploadAbovePlan": "That size is above your plan's limit of {maximum} MiB."
     },
     "canonicalHost": {
       "heading": "Main name",
@@ -19,6 +20,7 @@
       "uploadLabel": "Largest upload (MiB)",
       "uploadPlaceholder": "Server default",
       "uploadHint": "From {minimum} to {maximum} MiB; leave empty for the server's default. PHP has upload limits of its own, and the smaller of the two applies. Applies to PHP and reverse-proxied sites.",
+      "uploadPlanHint": "Your plan allows uploads of up to {maximum} MiB; a larger figure is refused.",
       "cacheLabel": "Browser cache for static files (days)",
       "cachePlaceholder": "No cache headers",
       "cacheHint": "From {minimum} to {maximum} days; leave empty to send no cache headers. Applies to PHP and static sites."

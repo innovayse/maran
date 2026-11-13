@@ -60,7 +60,7 @@ public sealed class ModuleLayeringTests
         }
 
         // The vacuity guard sits on the axes that can go blind: the module set, and the layer's types.
-        // The layer is summed over modules because Cron, Files, Backups, Provisioning and Licensing own
+        // The layer is summed over modules because Cron, Files, Backups and Licensing own
         // no domain (rules/csharp.md), so a per-module floor would be false.
         Assert.True(modules.Count > 0, $"No module assembly was loaded, so nothing was judged. {BlindSpot}");
         Assert.True(

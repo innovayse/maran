@@ -1,0 +1,40 @@
+<Project>
+
+  <!-- Issue #544: a SHIPPING build trusts exactly the keys the release pins, so a missing pinned key is a
+       build error, not a silently weaker panel (a build without one refuses every licence, lease and
+       catalogue: NoVerificationKey, CatalogueKeyMissing). "Shipping" is the dedicated property
+       MaranShippingBuild=true, which only the release pipeline sets (scripts/lib/release-build-components.sh);
+       it is deliberately not Configuration=Release, because CI, the OpenAPI emit and the module packager
+       build Release without producing a shippable panel. Every other build, Release included, embeds a
+       pinned key only when its file exists (the test keys) and is otherwise unaffected: tests inject TEST
+       keys through the verifiers' constructors. PinnedKeysDirectory is a property only so the release
+       selftest can point the check at a fixture directory. marketplace-metadata.pub and
+       module-signing.pub are installed beside the panel (installer/lib/40-user.sh) rather than embedded,
+       but the same release ships them, so the same check names them. The release selftest
+       (scripts/lib/release-selftest-keys.sh) imports this file from a throwaway project. -->
+  <PropertyGroup>
+    <PinnedKeysDirectory Condition="'$(PinnedKeysDirectory)' == ''">$(MSBuildThisFileDirectory)..\..\..\..\installer\keys\</PinnedKeysDirectory>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PinnedKey Include="licence-verification.pub" />
+    <PinnedKey Include="lease-verification.pub" />
+    <PinnedKey Include="marketplace-metadata.pub" />
+    <PinnedKey Include="module-signing.pub" />
+    <PinnedKey Include="release-signing.pub" />
+  </ItemGroup>
+
+  <!-- A key file is present AND shaped like a key: a PEM block (the text begins, after optional whitespace, with a BEGIN PUBLIC KEY armor line of five dashes on each side) or
+       the 64 hexadecimal characters of an Ed25519 public key, surrounded only by whitespace (no whitespace inside the hex). An empty file or a placeholder would be
+       embedded and yield the panel that trusts nothing. scripts/lib/release-bundle-support.sh
+       (pinned_key_shape_ok) holds the same two shapes; the release selftest drives both. -->
+  <Target Name="VerifyPinnedKeys" BeforeTargets="BeforeBuild" Condition="'$(MaranShippingBuild)' == 'true'">
+    <Error Condition="!Exists('$(PinnedKeysDirectory)%(PinnedKey.Identity)')"
+           Code="MARAN001"
+           Text="Shipping build refused: the pinned public key installer/keys/%(PinnedKey.Identity) is missing (looked in $(PinnedKeysDirectory)). A panel built without it refuses every licence, lease or catalogue. Add the public half generated in the offline key ceremony; never a placeholder." />
+    <Error Condition="Exists('$(PinnedKeysDirectory)%(PinnedKey.Identity)') And !$([System.Text.RegularExpressions.Regex]::IsMatch($([System.IO.File]::ReadAllText('$(PinnedKeysDirectory)%(PinnedKey.Identity)')), '^\s*-----BEGIN PUBLIC KEY-----')) And !$([System.Text.RegularExpressions.Regex]::IsMatch($([System.IO.File]::ReadAllText('$(PinnedKeysDirectory)%(PinnedKey.Identity)')), '^\s*[0-9a-fA-F]{64}\s*$'))"
+           Code="MARAN001"
+           Text="Shipping build refused: the pinned public key installer/keys/%(PinnedKey.Identity) is empty or is not a public key (a PEM block or 64 hexadecimal characters) in $(PinnedKeysDirectory). Add the public half generated in the offline key ceremony; never a placeholder." />
+  </Target>
+
+</Project>

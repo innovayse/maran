@@ -79,6 +79,38 @@ demonstration. Mail goes to an in-memory sink, ACME and the licence are
 simulated in process, and the API unit has no network. nginx logs no client address
 (`demo/nginx/maran-demo.conf.template`).
 
+## What the demo does with abusive text
+
+The demo stores what visitors type and shows it to the next visitor, so the guard also screens text
+(`Guard/DemoContentFilter`, threat note T7). On every write the table lets through, each string of the request
+(a name, a domain, a note, a cron command, the content of a saved file, an uploaded file's name) is judged by
+`DemoTextScreen`, which makes no outbound call. A write is refused with a 400 `DemoContentRefused`, in the
+visitor's language and naming the field but never repeating the text, and nothing is stored, when a string:
+
+- contains a blocked word. The words are embedded data, one file per language
+  (`backend/src/Maran.Host.Demo/Resources/DemoBlockedTerms.en.txt`, `.ru.txt`, `.hy.txt`). A line is a whole word,
+  or, when it ends in `*`, a stem that matches every word starting with it (so `fuck*` finds `fucking` and the
+  Russian stems find the inflected forms). Matching folds case, accents, invisible characters, full-width forms,
+  digit swaps (inside words that have a letter) and look-alike letters, and reads through letters spaced out or
+  broken up with `. - * _`;
+- links to a host that is not on `Resources/DemoAllowedHosts.txt` (the documentation names `example.*`, `test` and
+  `invalid`; never `localhost` or an address) or, for `http` and `https` only, on
+  `Resources/DemoDocumentationHosts.txt` (`w3.org`, `apache.org`, `schema.org`, so XML namespaces and licence headers
+  in saved files pass). A link is `scheme://host` for any scheme (`s3://`, `git://`, `php://` included), `http:/host`,
+  `//host.tld` or `www.host`. A host the screen cannot judge (an accent, a percent escape, a quote inside it) is
+  refused; or the text uses a script or content scheme (`javascript:`, `vbscript:`, `magnet:?`, `data:` followed by
+  a media type at the start of a URL).
+
+A bare `name.tld` is not refused, because a domain field is that shape. Passwords and secrets are not screened.
+The lists are a seed, not a moderator; extending one is a file edit and a rebuilt bundle.
+
+**The abuse contact.** `Demo__AbuseContact` is required (a bare e-mail address or an https URL; use a role
+mailbox, never a person). The service refuses to start without a valid one. The status endpoint returns it as
+`abuseContact` and the banner prints "Report abusive content: ..." in English, Russian and Armenian.
+`demo/panel.env.example` carries the placeholder `abuse@innovayse.com`; the operator replaces it.
+`maran demo seed` starts the same host, so it needs `Demo__AbuseContact` exported in the calling shell and stops with a
+message when it is missing; the deploy script's seed run already has it, because it loads `panel.env`.
+
 ## Why the demo bundle is refused by a real installer
 
 The demo bundle has two components (no agent), a manifest with `"flavour": "demo"` and no channel, and a
@@ -97,6 +129,8 @@ manifest is refused, and that the committed demo key differs from the product ke
   the control (the same probe without the restriction) succeeded. The web server's caps and the server's
   routes to internal networks are measured at the first deployment.
 - The demo API unit is not yet scored by `maran units`, which reads only `installer/systemd`.
+- The content filter's seed word lists have not been measured against real use, and `string.Normalize` refusing
+  malformed Unicode (the screen then refuses the text) was assumed from its documentation, not run here.
 - The demo's second security review is outstanding (issue #331); the change must not merge to `main`
   before it.
 

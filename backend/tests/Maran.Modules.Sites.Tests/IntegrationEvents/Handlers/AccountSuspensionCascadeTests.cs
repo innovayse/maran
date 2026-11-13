@@ -2,8 +2,10 @@ using Maran.Agent.Client.Services.SitesService;
 using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.IntegrationEvents.Handlers;
+using Maran.Modules.Sites.Services;
 using Maran.Modules.Sites.Tests.TestSupport;
 using Maran.Sdk.Events;
+using Maran.Sdk.Modules;
 using Maran.SharedKernel.Apps;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
@@ -35,7 +37,7 @@ public sealed class AccountSuspensionCascadeTests
         var agent = new RecordingAgentSitesClient();
         await using var context = SitesTestContext.Create(FakeCurrentUser.Admin(), database);
 
-        await new AccountSuspendingHandler(context, agent, SiteStacks.Ready()).HandleAsync(
+        await new AccountSuspendingHandler(context, agent, SiteStacks.Ready(), Limits(account), new SiteOperationLock(), new FakeClock(DateTimeOffset.UnixEpoch)).HandleAsync(
             new AccountSuspending(account, Username), CancellationToken.None);
 
         Assert.Equal(["disable:acme:a.example.com", "disable:acme:b.example.com"], agent.Calls);
@@ -57,7 +59,7 @@ public sealed class AccountSuspensionCascadeTests
         await SeedAsync(database, SitesTestContext.PhpSite(account, "on.example.com"), disabled);
         await using (var context = SitesTestContext.Create(FakeCurrentUser.Admin(), database))
         {
-            await new AccountSuspendingHandler(context, new RecordingAgentSitesClient(), SiteStacks.Ready()).HandleAsync(
+            await new AccountSuspendingHandler(context, new RecordingAgentSitesClient(), SiteStacks.Ready(), Limits(account), new SiteOperationLock(), new FakeClock(DateTimeOffset.UnixEpoch)).HandleAsync(
                 new AccountSuspending(account, Username), CancellationToken.None);
         }
 
@@ -84,7 +86,7 @@ public sealed class AccountSuspensionCascadeTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
         {
-            await new AccountSuspendingHandler(context, agent, SiteStacks.Ready()).HandleAsync(
+            await new AccountSuspendingHandler(context, agent, SiteStacks.Ready(), Limits(account), new SiteOperationLock(), new FakeClock(DateTimeOffset.UnixEpoch)).HandleAsync(
                 new AccountSuspending(account, Username), CancellationToken.None);
         });
     }
@@ -102,7 +104,7 @@ public sealed class AccountSuspensionCascadeTests
         var agent = new RecordingAgentSitesClient();
         await using var context = SitesTestContext.Create(FakeCurrentUser.Admin(), database);
 
-        await new AccountSuspendingHandler(context, agent, SiteStacks.Ready()).HandleAsync(
+        await new AccountSuspendingHandler(context, agent, SiteStacks.Ready(), Limits(suspended), new SiteOperationLock(), new FakeClock(DateTimeOffset.UnixEpoch)).HandleAsync(
             new AccountSuspending(suspended, Username), CancellationToken.None);
 
         Assert.Equal(["disable:acme:mine.example.com"], agent.Calls);
@@ -124,7 +126,7 @@ public sealed class AccountSuspensionCascadeTests
         var agent = new RecordingAgentSitesClient();
         await using var context = SitesTestContext.Create(FakeCurrentUser.Admin(), database);
 
-        await new AccountSuspendingHandler(context, agent, SiteStacks.Ready()).HandleAsync(
+        await new AccountSuspendingHandler(context, agent, SiteStacks.Ready(), Limits(account), new SiteOperationLock(), new FakeClock(DateTimeOffset.UnixEpoch)).HandleAsync(
             new AccountSuspending(account, Username), CancellationToken.None);
 
         var descriptor = Assert.Single(agent.Descriptors);
@@ -150,7 +152,7 @@ public sealed class AccountSuspensionCascadeTests
         var agent = new RecordingAgentSitesClient();
         await using var context = SitesTestContext.Create(FakeCurrentUser.Admin(), database);
 
-        await new AccountResumingHandler(context, agent, SiteStacks.Ready()).HandleAsync(
+        await new AccountResumingHandler(context, agent, SiteStacks.Ready(), Limits(account), new SiteOperationLock(), new FakeClock(DateTimeOffset.UnixEpoch)).HandleAsync(
             new AccountResuming(account, Username), CancellationToken.None);
 
         Assert.Equal(["enable:acme:on.example.com"], agent.Calls);
@@ -168,7 +170,7 @@ public sealed class AccountSuspensionCascadeTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
         {
-            await new AccountResumingHandler(context, agent, SiteStacks.Ready()).HandleAsync(
+            await new AccountResumingHandler(context, agent, SiteStacks.Ready(), Limits(account), new SiteOperationLock(), new FakeClock(DateTimeOffset.UnixEpoch)).HandleAsync(
                 new AccountResuming(account, Username), CancellationToken.None);
         });
     }
@@ -191,9 +193,9 @@ public sealed class AccountSuspensionCascadeTests
         var agent = new RecordingAgentSitesClient();
         await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(stranger), database);
 
-        await new AccountSuspendingHandler(context, agent, SiteStacks.Ready()).HandleAsync(
+        await new AccountSuspendingHandler(context, agent, SiteStacks.Ready(), Limits(owner), new SiteOperationLock(), new FakeClock(DateTimeOffset.UnixEpoch)).HandleAsync(
             new AccountSuspending(owner, Username), CancellationToken.None);
-        await new AccountResumingHandler(context, agent, SiteStacks.Ready()).HandleAsync(
+        await new AccountResumingHandler(context, agent, SiteStacks.Ready(), Limits(owner), new SiteOperationLock(), new FakeClock(DateTimeOffset.UnixEpoch)).HandleAsync(
             new AccountResuming(owner, Username), CancellationToken.None);
 
         Assert.Equal(["disable:acme:a.example.com", "enable:acme:a.example.com"], agent.Calls);
@@ -212,9 +214,9 @@ public sealed class AccountSuspensionCascadeTests
         var agent = new RecordingAgentSitesClient();
         await using var context = SitesTestContext.Create(FakeCurrentUser.Admin(), database);
 
-        await new AccountSuspendingHandler(context, agent, SiteStacks.Ready()).HandleAsync(
+        await new AccountSuspendingHandler(context, agent, SiteStacks.Ready(), Limits(account), new SiteOperationLock(), new FakeClock(DateTimeOffset.UnixEpoch)).HandleAsync(
             new AccountSuspending(account, Username), CancellationToken.None);
-        await new AccountResumingHandler(context, agent, SiteStacks.Ready()).HandleAsync(
+        await new AccountResumingHandler(context, agent, SiteStacks.Ready(), Limits(account), new SiteOperationLock(), new FakeClock(DateTimeOffset.UnixEpoch)).HandleAsync(
             new AccountResuming(account, Username), CancellationToken.None);
 
         Assert.Empty(agent.Calls);
@@ -233,9 +235,9 @@ public sealed class AccountSuspensionCascadeTests
         var apache = SiteStacks.With(StackWebServer.Apache, ["8.3"], []);
         await using var context = SitesTestContext.Create(FakeCurrentUser.Admin(), database);
 
-        await new AccountSuspendingHandler(context, agent, apache).HandleAsync(
+        await new AccountSuspendingHandler(context, agent, apache, Limits(account), new SiteOperationLock(), new FakeClock(DateTimeOffset.UnixEpoch)).HandleAsync(
             new AccountSuspending(account, Username), CancellationToken.None);
-        await new AccountResumingHandler(context, agent, apache).HandleAsync(
+        await new AccountResumingHandler(context, agent, apache, Limits(account), new SiteOperationLock(), new FakeClock(DateTimeOffset.UnixEpoch)).HandleAsync(
             new AccountResuming(account, Username), CancellationToken.None);
 
         Assert.All(agent.Descriptors, descriptor =>
@@ -257,7 +259,7 @@ public sealed class AccountSuspensionCascadeTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
         {
-            return new AccountSuspendingHandler(context, agent, SiteStacks.NotReady()).HandleAsync(
+            return new AccountSuspendingHandler(context, agent, SiteStacks.NotReady(), Limits(account), new SiteOperationLock(), new FakeClock(DateTimeOffset.UnixEpoch)).HandleAsync(
                 new AccountSuspending(account, Username), CancellationToken.None);
         });
         Assert.Empty(agent.Calls);
@@ -269,8 +271,56 @@ public sealed class AccountSuspensionCascadeTests
     {
         await using var context = SitesTestContext.Create(FakeCurrentUser.Admin(), Guid.NewGuid().ToString());
 
-        await new AccountSuspendingHandler(context, new RecordingAgentSitesClient(), SiteStacks.NotReady()).HandleAsync(
+        await new AccountSuspendingHandler(context, new RecordingAgentSitesClient(), SiteStacks.NotReady(), Limits(), new SiteOperationLock(), new FakeClock(DateTimeOffset.UnixEpoch)).HandleAsync(
             new AccountSuspending(Guid.NewGuid(), Username), CancellationToken.None);
+    }
+
+    /// <summary>Resuming an account renders each PHP vhost with the plan's upload bound, not a literal.</summary>
+    [Fact]
+    public async Task Resuming_an_account_renders_each_php_vhost_with_the_plans_upload_bound()
+    {
+        var account = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        await SeedAsync(database, SitesTestContext.PhpSite(account, "a.example.com"));
+        var agent = new RecordingAgentSitesClient();
+        await using var context = SitesTestContext.Create(FakeCurrentUser.Admin(), database);
+        var plan = Snapshots.Account(account, Username) with { PhpLimits = new Maran.Sdk.Contracts.PhpLimitsSnapshot(256, 200, 120, 3000) };
+
+        await new AccountResumingHandler(context, agent, SiteStacks.Ready(), new SitePlanLimits(new StubAccountDirectory(plan)), new SiteOperationLock(), new FakeClock(DateTimeOffset.UnixEpoch)).HandleAsync(
+            new AccountResuming(account, Username), CancellationToken.None);
+
+        Assert.Equal(200u, Assert.Single(agent.Descriptors).Options.ClientMaxBodySizeMib);
+    }
+
+    /// <summary>An account the plan cannot be read for aborts the resumption rather than rendering a guess.</summary>
+    [Fact]
+    public async Task An_account_the_plan_cannot_be_read_for_aborts_the_resumption()
+    {
+        var account = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        await SeedAsync(database, SitesTestContext.PhpSite(account, "a.example.com"));
+        var agent = new RecordingAgentSitesClient();
+        await using var context = SitesTestContext.Create(FakeCurrentUser.Admin(), database);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        {
+            return new AccountResumingHandler(context, agent, SiteStacks.Ready(), Limits(), new SiteOperationLock(), new FakeClock(DateTimeOffset.UnixEpoch)).HandleAsync(
+                new AccountResuming(account, Username), CancellationToken.None);
+        });
+        Assert.Empty(agent.Calls);
+    }
+
+    /// <summary>Reads the plan bounds of the given accounts, the Sites module's way of learning a vhost's body limit.</summary>
+    /// <param name="accounts">The accounts the directory knows.</param>
+    /// <returns>The reader over a directory holding those accounts.</returns>
+    private static SitePlanLimits Limits(params Guid[] accounts)
+    {
+        return new SitePlanLimits(new StubAccountDirectory(accounts
+            .Select(id =>
+            {
+                return Snapshots.Account(id, Username);
+            })
+            .ToArray()));
     }
 
     /// <summary>Seeds the given sites into a shared in-memory database.</summary>

@@ -29,9 +29,13 @@ namespace Maran.Modules.Identity.Services;
 /// </para>
 /// <para>
 /// <b>No cache.</b> The row is read on every request, so a revocation takes effect on the next call. A
-/// key a reseller owns is additionally refused while its reseller has no login that may authenticate,
-/// judged after the digest comparison and for a matching key only, so it adds no difference between an
-/// unknown prefix and a known one.
+/// key is also refused while the login that created it does not exist or may not authenticate
+/// (suspended, not yet active, or deleted), judged after the digest comparison and for a matching key
+/// only, so it adds no difference between an unknown prefix and a known one. That is the root of the
+/// rule for every key, an administrator's and a reseller's alike (issue #551): a credential a person
+/// issued does not outlive the person's right to sign in. This check is defence in depth: a reseller's
+/// suspension also revokes its keys on the row (<see cref="ApiKeyCreatorRevoker"/>), so resuming the
+/// login does not revive them, and a missing creator row refuses its keys regardless.
 /// </para>
 /// <para>
 /// <b>Last use</b> is recorded only after a successful validation, so wrong keys cannot move a real
@@ -79,15 +83,14 @@ public sealed class ApiKeyAuthenticator : IApiKeyAuthenticator
             "API key {KeyId} refused: usable {Usable}, address allowed {AddressAllowed} (address {Address}).");
 
     /// <summary>
-    /// Pre-compiled log delegate for a key a reseller owns whose owner has no login that may sign in
-    /// (suspended, not yet active, or gone); it carries the key id and the caller's address, never the
-    /// presented value.
+    /// Pre-compiled log delegate for a key whose creating login may not sign in (suspended, not yet
+    /// active, or gone); it carries the key id and the caller's address, never the presented value.
     /// </summary>
-    private static readonly Action<ILogger, Guid, string, Exception?> LogOwnerInactive =
+    private static readonly Action<ILogger, Guid, string, Exception?> LogCreatorInactive =
         LoggerMessage.Define<Guid, string>(
             LogLevel.Information,
             new EventId(5, nameof(ApiKeyAuthenticator)),
-            "API key {KeyId} refused: its reseller has no login that may authenticate (address {Address}).");
+            "API key {KeyId} refused: the login that created it may not authenticate (address {Address}).");
 
     /// <summary>
     /// Pre-compiled log delegate for a last-use stamp that could not be saved; the exception is attached
@@ -148,9 +151,9 @@ public sealed class ApiKeyAuthenticator : IApiKeyAuthenticator
             return ApiKeyDenied.Instance;
         }
 
-        if (key.ResellerId is { } resellerId && !await OwnerMayAuthenticateAsync(resellerId, cancellationToken))
+        if (!await CreatorMayAuthenticateAsync(key.CreatedByUserId, cancellationToken))
         {
-            LogOwnerInactive(_logger, key.Id, clientAddress, null);
+            LogCreatorInactive(_logger, key.Id, clientAddress, null);
             return ApiKeyDenied.Instance;
         }
 
@@ -160,19 +163,19 @@ public sealed class ApiKeyAuthenticator : IApiKeyAuthenticator
     }
 
     /// <summary>
-    /// Whether the reseller that owns a key still has a login that may authenticate. A key a reseller
-    /// owns lives only as long as that reseller does: suspending the reseller suspends its login, and a
-    /// reseller with no login (deleted, or never accepted its invitation) cannot have a working key. Read
-    /// on every call, with no cache, so a suspension takes effect on the next request.
+    /// Whether the login that created a key still exists and may authenticate. A key lives only as long
+    /// as the person who issued it may sign in: suspending a reseller suspends its login, and a login
+    /// that was deleted, or never accepted its invitation, cannot have a working key. Read on every call,
+    /// with no cache, so a suspension takes effect on the next request.
     /// </summary>
-    /// <param name="resellerId">The reseller that owns the key.</param>
+    /// <param name="creatorUserId">The login that issued the key (<see cref="ApiKey.CreatedByUserId"/>).</param>
     /// <param name="cancellationToken">Cancels the read.</param>
-    /// <returns>True when the reseller's login exists and may sign in.</returns>
-    private async Task<bool> OwnerMayAuthenticateAsync(Guid resellerId, CancellationToken cancellationToken)
+    /// <returns>True when the creating login exists and may sign in.</returns>
+    private async Task<bool> CreatorMayAuthenticateAsync(Guid creatorUserId, CancellationToken cancellationToken)
     {
         var login = await _dbContext.Users
             .AsNoTracking()
-            .SingleOrDefaultAsync(candidate => candidate.ResellerId == resellerId, cancellationToken);
+            .SingleOrDefaultAsync(candidate => candidate.Id == creatorUserId, cancellationToken);
 
         return login is { MayAuthenticate: true };
     }

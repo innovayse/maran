@@ -19,11 +19,11 @@ public sealed class AccountPlanChangeAnnouncerTests
         var second = Guid.NewGuid();
 
         await new AccountPlanChangeAnnouncer(bus, new RecordingLogger<AccountPlanChangeAnnouncer>())
-            .AnnounceAsync([first, second], CancellationToken.None);
+            .AnnounceAsync([first, second], true, CancellationToken.None);
 
         Assert.Equal(2, bus.Invoked.Count);
-        Assert.Equal(new AccountPlanChanged(first), bus.Invoked[0]);
-        Assert.Equal(new AccountPlanChanged(second), bus.Invoked[1]);
+        Assert.Equal(new AccountPlanChanged(first, true), bus.Invoked[0]);
+        Assert.Equal(new AccountPlanChanged(second, true), bus.Invoked[1]);
     }
 
     /// <summary>No account announces nothing.</summary>
@@ -33,7 +33,7 @@ public sealed class AccountPlanChangeAnnouncerTests
         var bus = new StubMessageBus();
 
         await new AccountPlanChangeAnnouncer(bus, new RecordingLogger<AccountPlanChangeAnnouncer>())
-            .AnnounceAsync([], CancellationToken.None);
+            .AnnounceAsync([], true, CancellationToken.None);
 
         Assert.Empty(bus.Invoked);
     }
@@ -45,7 +45,7 @@ public sealed class AccountPlanChangeAnnouncerTests
         var bus = new StubMessageBus { HasSubscribers = false };
         var logger = new RecordingLogger<AccountPlanChangeAnnouncer>();
 
-        await new AccountPlanChangeAnnouncer(bus, logger).AnnounceAsync([Guid.NewGuid()], CancellationToken.None);
+        await new AccountPlanChangeAnnouncer(bus, logger).AnnounceAsync([Guid.NewGuid()], true, CancellationToken.None);
 
         Assert.Empty(bus.Invoked);
         Assert.Empty(logger.Messages);
@@ -59,7 +59,7 @@ public sealed class AccountPlanChangeAnnouncerTests
         var logger = new RecordingLogger<AccountPlanChangeAnnouncer>();
         var accountId = Guid.NewGuid();
 
-        await new AccountPlanChangeAnnouncer(bus, logger).AnnounceAsync([accountId], CancellationToken.None);
+        await new AccountPlanChangeAnnouncer(bus, logger).AnnounceAsync([accountId], true, CancellationToken.None);
 
         Assert.Single(bus.Invoked);
         Assert.Contains(logger.Messages, message =>
@@ -75,7 +75,7 @@ public sealed class AccountPlanChangeAnnouncerTests
         var bus = new StubMessageBus(new InvalidOperationException("agent unreachable"));
 
         await new AccountPlanChangeAnnouncer(bus, new RecordingLogger<AccountPlanChangeAnnouncer>())
-            .AnnounceAsync([Guid.NewGuid(), Guid.NewGuid()], CancellationToken.None);
+            .AnnounceAsync([Guid.NewGuid(), Guid.NewGuid()], true, CancellationToken.None);
 
         Assert.Equal(2, bus.Invoked.Count);
     }
@@ -89,7 +89,7 @@ public sealed class AccountPlanChangeAnnouncerTests
         var bus = new StubMessageBus(new OperationCanceledException(source.Token));
 
         await new AccountPlanChangeAnnouncer(bus, new RecordingLogger<AccountPlanChangeAnnouncer>())
-            .AnnounceAsync([Guid.NewGuid(), Guid.NewGuid()], source.Token);
+            .AnnounceAsync([Guid.NewGuid(), Guid.NewGuid()], true, source.Token);
 
         Assert.Single(bus.Invoked);
     }

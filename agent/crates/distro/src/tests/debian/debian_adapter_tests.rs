@@ -693,3 +693,41 @@ fn the_debian_family_names_the_packages_of_the_app_catalogue() {
         crate::nodejs_packaging::NodejsPackaging::SingleDistroPackage
     );
 }
+
+/// The firewall's customer-uid floor is read from the host's own `login.defs`;
+/// an absolute path, `/etc` first so the administrator's file overrides a
+/// vendor copy.
+#[test]
+fn debian_names_the_files_that_may_define_the_customer_uid_floor() {
+    let paths = DebianAdapter.login_defs_paths();
+
+    assert_eq!(paths, &["/etc/login.defs"]);
+    assert!(paths.iter().all(|path| path.starts_with('/')));
+}
+
+/// The debian family has no Node.js module streams (issue #532): it is never asked to list or
+/// remove one, and what it answers when asked is nothing, not a plan.
+#[test]
+fn debian_has_no_nodejs_module_streams() {
+    let stream =
+        maran_agent_core::validation::apps::nodejs_module_stream::NodejsModuleStream::from_major(
+            maran_agent_core::validation::web::node_major::NodeMajor::parse("20").unwrap(),
+        );
+
+    assert_ne!(
+        DebianAdapter.nodejs_packaging(),
+        crate::nodejs_packaging::NodejsPackaging::ModuleStreams
+    );
+    assert_eq!(DebianAdapter.nodejs_stream_list_arguments(), None);
+    assert_eq!(
+        DebianAdapter.read_nodejs_streams(0, "nodejs 20 [e] common [d]\n", ""),
+        Ok(crate::NodejsStreamListing::default())
+    );
+    assert!(DebianAdapter.nodejs_module_packages().is_empty());
+    assert!(DebianAdapter.nodejs_unmanaged_removal_command().is_empty());
+    assert!(DebianAdapter.nodejs_stream_release_command().is_empty());
+    assert!(
+        crate::RemovalFacts::nodejs_removal_simulation_arguments(&DebianAdapter, &stream)
+            .is_empty()
+    );
+}

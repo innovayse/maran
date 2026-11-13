@@ -4,6 +4,7 @@ use maran_agent_core::validation::web::node_major::NodeMajor;
 use maran_agent_core::validation::web::php_version::PhpVersion;
 
 use crate::adapter_binary::AdapterBinary;
+use crate::rhel::rhel_generation::RhelGeneration;
 use crate::vsftpd_tls_version_keys::VsftpdTlsVersionKeys;
 
 /// Absolute path of the nginx binary, for the process-execution allow-list.
@@ -150,22 +151,32 @@ pub fn apache_group() -> &'static str {
 /// Text and not an `AdapterBinary`: the agent never executes it, the service manager does,
 /// from a unit the agent renders (the same split as `sh_binary`).
 #[must_use]
-pub fn node_executable(major: &NodeMajor) -> String {
-    crate::rhel::rhel_apps::node_binary(major)
+pub fn node_executable(generation: RhelGeneration, major: &NodeMajor) -> String {
+    crate::rhel::rhel_apps::node_binary(generation, major)
         .as_str()
         .to_owned()
 }
 
 /// Absolute path of the npm launcher that a site's unit may run.
 ///
-/// Observed in `almalinux:9` (9.8) with `rpm -ql npm | grep bin/` after `dnf module install
-/// nodejs:20/common`: `/usr/bin/npm` (a link to `npm-cli.js`) from the separate `npm` package, the
-/// only npm launcher; a module stream has no per-major file.
+/// The 9 generation: observed in `almalinux:9` (9.8) with `rpm -ql npm | grep bin/` after `dnf
+/// module install nodejs:20/common`, `/usr/bin/npm` (a link to `npm-cli.js`) from the separate
+/// `npm` package, the only npm launcher; a module stream has no per-major file.
+///
+/// The 10 generation: observed in `almalinux:10` (10.2) with `nodejs`, `nodejs-npm`, `nodejs24`
+/// and `nodejs24-npm` installed, each major's npm package ships a launcher of its own,
+/// `/usr/bin/npm-22` and `/usr/bin/npm-24` (links into `/usr/lib/node_modules_<major>`), and
+/// the unversioned `/usr/bin/npm` is the default major's, so the versioned name is the one that
+/// belongs to `major` whatever else is installed
+/// (`tests/fixtures/package_manager/el10_nodejs_binaries.txt`).
 ///
 /// Text for the same reason as [`node_executable`].
 #[must_use]
-pub fn npm_executable(_major: &NodeMajor) -> String {
-    "/usr/bin/npm".to_owned()
+pub fn npm_executable(generation: RhelGeneration, major: &NodeMajor) -> String {
+    match generation {
+        RhelGeneration::El9 => "/usr/bin/npm".to_owned(),
+        RhelGeneration::El10 => format!("/usr/bin/npm-{}", major.as_str()),
+    }
 }
 
 /// Name of the php-fpm systemd service unit for `version`, e.g.
@@ -590,6 +601,14 @@ pub fn crontab_binary() -> AdapterBinary {
 #[must_use]
 pub fn nft_binary() -> AdapterBinary {
     AdapterBinary::fixed("/usr/sbin/nft")
+}
+
+/// The files that may define `UID_MIN`, most authoritative first.
+///
+/// `/etc/login.defs` is the shadow-utils file on this family.
+#[must_use]
+pub fn login_defs_paths() -> &'static [&'static str] {
+    &["/etc/login.defs"]
 }
 
 /// Absolute path of the POSIX shell a crontab line names.

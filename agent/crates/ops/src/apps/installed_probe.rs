@@ -141,7 +141,7 @@ pub(crate) fn installed_version<H: AppsHost>(
 /// leading `v`; `None` when that interpreter does not run. On a family with one package per major
 /// each major has a file of its own, so a second major beside the first is found and not
 /// mistaken for the first's absence (issue #530).
-fn node_version<H: AppsHost>(
+pub(crate) fn node_version<H: AppsHost>(
     host: &H,
     distro: &dyn DistroAdapter,
     major: &NodeMajor,

@@ -1,7 +1,10 @@
 //! Failures of the mail host lifecycle.
 
 use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::host_addresses_error::HostAddressesError;
 use maran_agent_core::utils::spawn_error::SpawnError;
+
+use maran_templates::render_error::RenderError;
 
 use crate::mail::model::local_submission_hazard::LocalSubmissionHazard;
 use crate::mail::model::local_submission_key::LocalSubmissionKey;
@@ -80,8 +83,11 @@ pub enum MailError {
     Bound(#[from] BoundExceeded),
 
     /// The template and its render type have drifted apart.
-    #[error("the mail configuration could not be rendered")]
-    Render,
+    #[error("the mail configuration could not be rendered: {reason}")]
+    Render {
+        /// The template engine's own message, for the operator log.
+        reason: String,
+    },
 
     /// A live file exists and cannot be read.
     #[error("a mail configuration file could not be read")]
@@ -97,6 +103,13 @@ pub enum MailError {
     /// The kernel's table of listening sockets could not be read.
     #[error("the listening sockets could not be read")]
     SocketsUnreadable,
+
+    /// The kernel's tables of this host's own addresses could not be read, so the
+    /// table that keeps the host's users off port 25 could not be rendered and
+    /// nothing was changed. Rendering it from a partial list would leave an
+    /// address of the host open, so there is no partial answer.
+    #[error("this host's own addresses could not be read: {0}")]
+    HostAddressesUnreadable(#[from] HostAddressesError),
 
     /// The host is in a state where binding an account's local mail submission
     /// would not hold, so nothing was changed (docs/mail/local-submission.md).
@@ -167,3 +180,11 @@ impl MailError {
 #[cfg(test)]
 #[path = "../tests/mail/mail_error_tests.rs"]
 mod tests;
+
+impl From<RenderError> for MailError {
+    fn from(error: RenderError) -> Self {
+        Self::Render {
+            reason: error.to_string(),
+        }
+    }
+}

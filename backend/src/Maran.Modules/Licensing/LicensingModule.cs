@@ -1,5 +1,6 @@
 using System.Resources;
 using Maran.Modules.Licensing.Domain.Interfaces;
+using Maran.Modules.Licensing.Domain.Policies;
 using Maran.Modules.Licensing.Extensions;
 using Maran.Modules.Licensing.Interfaces;
 using Maran.Modules.Licensing.Options;
@@ -126,11 +127,37 @@ public sealed class LicensingModule : IPanelModule
             .ValidateDataAnnotations()
             .ValidateOnStart();
         services.AddLeaseServiceClient();
+        // Asking for a lease now (an install does) is the same pass the schedule runs: the requester is the
+        // module's worker singleton, so the two can never be two objects with two runs of failures.
+        services.AddSingleton<ILeaseRenewalRequester>(provider =>
+        {
+            return provider.GetRequiredService<LeaseRenewalWorker>();
+        });
         services.AddSingleton<LeaseEnvelopeReader>();
         services.AddSingleton<ILeaseWriter, FileLeaseWriter>();
         services.AddSingleton<LeaseRenewer>();
         services.AddSingleton<LeaseRenewalWorker>();
         services.AddScoped<LeaseRenewalAlerter>();
+
+        // Where the licence screen sends an administrator to claim a licence for this server: an address the
+        // administrator's browser opens, never one the panel contacts. Checked when the link is built, so a typo
+        // can only cost the link.
+        services.AddOptions<LicenceClaimOptions>().Bind(configuration.GetSection(LicenceClaimOptions.SectionName));
+
+        // How early the installed licence's expiry is warned about. The thresholds are validated at start, because
+        // one that silently never fires is worse than a refusal to boot; the source holds nothing and reads the
+        // clock on every call, the alerter is scoped because it carries the journal.
+        services.AddOptions<LicenceExpiryWarningOptions>()
+            .Bind(configuration.GetSection(LicenceExpiryWarningOptions.SectionName))
+            .Validate(
+                options => { return LicenceExpiryWarningPolicy.AreValid(options.ExpiryWarningDays); },
+                "Licensing:ExpiryWarningDays must hold whole days between 1 and 365, or be empty to turn the warning off.")
+            .ValidateOnStart();
+        services.AddSingleton<LicenceExpiryWarningSource>();
+        // What the operator was last told about the expiry survives a restart, as a file beside the licence.
+        services.AddSingleton<ILicenceExpiryAnnouncementStore, FileLicenceExpiryAnnouncementStore>();
+        services.AddScoped<LicenceExpiryAlerter>();
+        services.AddSingleton<LicenceServerFactsSource>();
 
         // Where the installed licence artefact lives (default: /var/lib/maran/licence.json — the
         // threat note's §1 own conclusion). A server's own value is never set; the seam exists so a

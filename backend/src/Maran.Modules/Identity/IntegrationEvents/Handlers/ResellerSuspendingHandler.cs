@@ -1,6 +1,7 @@
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Interfaces;
 using Maran.Modules.Identity.Persistence;
+using Maran.Modules.Identity.Services;
 using Maran.Sdk.Events;
 
 namespace Maran.Modules.Identity.IntegrationEvents.Handlers;
@@ -26,6 +27,11 @@ namespace Maran.Modules.Identity.IntegrationEvents.Handlers;
 /// the fifteen minutes of an already-issued token.
 /// </para>
 /// <para>
+/// <b>The login's API keys are revoked with it (issue #551).</b> A reseller creates its own keys, so the
+/// suspension revokes every key the login still holds, journalled with the reason
+/// <c>CreatorDisabled</c>. Resuming the reseller does not revive them: new keys have to be issued.
+/// </para>
+/// <para>
 /// <b>Repeating it is harmless.</b> A login already suspended stays so, and a reseller with no login
 /// (its issuance failed and has not been repeated) has nothing to do.
 /// </para>
@@ -47,16 +53,24 @@ public sealed class ResellerSuspendingHandler
     /// <summary>Ends the login's live sessions.</summary>
     private readonly ISessionService _sessionService;
 
+    /// <summary>Revokes the API keys the login created.</summary>
+    private readonly ApiKeyCreatorRevoker _keyRevoker;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Identity module's database context.</param>
     /// <param name="sessionService">Ends the login's live sessions.</param>
-    public ResellerSuspendingHandler(IdentityDbContext dbContext, ISessionService sessionService)
+    /// <param name="keyRevoker">Revokes the API keys the login created.</param>
+    public ResellerSuspendingHandler(
+        IdentityDbContext dbContext,
+        ISessionService sessionService,
+        ApiKeyCreatorRevoker keyRevoker)
     {
         _dbContext = dbContext;
         _sessionService = sessionService;
+        _keyRevoker = keyRevoker;
     }
 
-    /// <summary>Suspends the reseller's login and revokes every session it holds.</summary>
+    /// <summary>Suspends the reseller's login and revokes every session and API key it holds.</summary>
     /// <param name="message">The reseller about to be suspended.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>Resolves once the login is suspended and its sessions are gone.</returns>
@@ -71,6 +85,10 @@ public sealed class ResellerSuspendingHandler
         }
 
         login.Suspend();
+
+        // The keys are revoked and their entries staged on this context, so the one save below stores the
+        // suspension, the revocations and the journal rows together (see ApiKeyCreatorRevoker).
+        await _keyRevoker.RevokeAsync(login.Id, cancellationToken);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _sessionService.RevokeAllAsync(login.Id, SessionRevocationReason.ResellerSuspended, cancellationToken);

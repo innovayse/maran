@@ -242,9 +242,9 @@ public sealed class ResellerApiKeyEndpointTests : IAsyncLifetime
         Assert.Equal(string.Empty, await revoked.Content.ReadAsStringAsync());
     }
 
-    /// <summary>Suspending the reseller stops its keys on the next call, and resuming it lets them work again.</summary>
+    /// <summary>Suspending the reseller revokes its keys on the next call; resuming it does not revive them, and a key issued afterwards works (issue #551).</summary>
     [Fact]
-    public async Task Suspending_the_reseller_stops_its_keys_and_resuming_it_restores_them()
+    public async Task Suspending_the_reseller_revokes_its_keys_and_resuming_it_does_not_revive_them()
     {
         await using var world = await new ResellerFixtureBuilder(_pg).BuildAsync();
         using var alpha = await world.SignInAsync("alpha");
@@ -258,7 +258,12 @@ public sealed class ResellerApiKeyEndpointTests : IAsyncLifetime
         var resumed = await GetWithKeyAsync(world, AccountsRoute, secret);
 
         Assert.Equal(HttpStatusCode.Unauthorized, suspended.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, resumed.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, resumed.StatusCode);
+
+        // The accepting control: the refusals are not what every key meets. A key the resumed reseller issues works.
+        using var again = await world.SignInAsync("alpha");
+        var (_, fresh) = await CreateKeyAsync(again, "after-resume", ApiKeyScopes.AccountsRead);
+        Assert.Equal(HttpStatusCode.OK, (await GetWithKeyAsync(world, AccountsRoute, fresh)).StatusCode);
     }
 
     /// <summary>A reseller's key cannot reach the key-management surface, an account's detail, the panel's own plan list or the reseller's own screen.</summary>

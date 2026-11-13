@@ -164,6 +164,34 @@ public sealed class CreateSiteCommandHandlerTests
         Assert.Equal(expected, Assert.Single(world.Agent.WebServers));
     }
 
+    /// <summary>A PHP site is created with the plan's upload bound as its request body limit.</summary>
+    [Fact]
+    public async Task A_php_site_is_created_with_the_plans_upload_bound_as_its_request_body_limit()
+    {
+        var account = Guid.NewGuid();
+        var world = new CreateSiteWorld(account);
+
+        var result = await world.Handler().HandleAsync(CreateSiteWorld.Command(account), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(64u, Assert.Single(world.Agent.CreateOptions).ClientMaxBodySizeMib);
+    }
+
+    /// <summary>A static site is created with no request body limit (the inverse control: the plan does not reach it).</summary>
+    [Fact]
+    public async Task A_static_site_is_created_with_no_request_body_limit()
+    {
+        var account = Guid.NewGuid();
+        var world = new CreateSiteWorld(account, installedPhp: [], installedNode: []);
+
+        var result = await world.Handler().HandleAsync(
+            CreateSiteWorld.Command(account) with { BackendType = SiteBackendType.Static, PhpVersion = string.Empty },
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Null(Assert.Single(world.Agent.CreateOptions).ClientMaxBodySizeMib);
+    }
+
     /// <summary>A static site is created without any runtime installed.</summary>
     [Fact]
     public async Task A_static_site_is_created_without_any_runtime_installed()

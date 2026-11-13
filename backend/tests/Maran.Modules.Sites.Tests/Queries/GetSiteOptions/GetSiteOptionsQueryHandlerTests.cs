@@ -1,6 +1,7 @@
 using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Queries.GetSiteOptions;
 using Maran.Modules.Sites.Tests.TestSupport;
+using Maran.Sdk.Contracts;
 
 namespace Maran.Modules.Sites.Tests.Queries.GetSiteOptions;
 
@@ -16,7 +17,7 @@ public sealed class GetSiteOptionsQueryHandlerTests
         var siteId = await SeedAsync(database, account, withOptions: true);
         await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(account), database);
 
-        var result = await new GetSiteOptionsQueryHandler(context, SitesTestContext.SiteNames())
+        var result = await new GetSiteOptionsQueryHandler(context, Accounts(account), SitesTestContext.SiteNames())
             .HandleAsync(new GetSiteOptionsQuery(siteId), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -33,7 +34,7 @@ public sealed class GetSiteOptionsQueryHandlerTests
         var siteId = await SeedAsync(database, account, withOptions: false);
         await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(account), database);
 
-        var result = await new GetSiteOptionsQueryHandler(context, SitesTestContext.SiteNames())
+        var result = await new GetSiteOptionsQueryHandler(context, Accounts(account), SitesTestContext.SiteNames())
             .HandleAsync(new GetSiteOptionsQuery(siteId), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -51,12 +52,47 @@ public sealed class GetSiteOptionsQueryHandlerTests
         var theirSiteId = await SeedAsync(database, theirs, withOptions: true);
         await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(Guid.NewGuid()), database);
 
-        var result = await new GetSiteOptionsQueryHandler(context, SitesTestContext.SiteNames())
+        var result = await new GetSiteOptionsQueryHandler(context, Accounts(theirs), SitesTestContext.SiteNames())
             .HandleAsync(new GetSiteOptionsQuery(theirSiteId), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("SiteNotFound", result.Error!.Code);
         Assert.Equal(Maran.SharedKernel.Results.ErrorType.NotFound, result.Error.Type);
+    }
+
+    /// <summary>The options answer carries the plan's upload bound, and another bound moves it (inverse control).</summary>
+    [Fact]
+    public async Task The_options_answer_carries_the_plans_upload_bound()
+    {
+        var account = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        var siteId = await SeedAsync(database, account, withOptions: false);
+        await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(account), database);
+
+        var small = await new GetSiteOptionsQueryHandler(context, Accounts(account, new PhpLimitsSnapshot(256, 64, 120, 3000)), SitesTestContext.SiteNames())
+            .HandleAsync(new GetSiteOptionsQuery(siteId), CancellationToken.None);
+        var large = await new GetSiteOptionsQueryHandler(context, Accounts(account, new PhpLimitsSnapshot(256, 128, 120, 3000)), SitesTestContext.SiteNames())
+            .HandleAsync(new GetSiteOptionsQuery(siteId), CancellationToken.None);
+
+        Assert.Equal(64, small.Value.Limits.PlanMaximumBodySizeMib);
+        Assert.Equal(128, large.Value.Limits.PlanMaximumBodySizeMib);
+    }
+
+    /// <summary>Builds the account window the handler reads the plan through.</summary>
+    /// <param name="accountId">The account the caller owns.</param>
+    /// <param name="limits">The plan's PHP bounds, or null for the defaults.</param>
+    private static StubAccountDirectory Accounts(Guid accountId, PhpLimitsSnapshot? limits = null)
+    {
+        return new StubAccountDirectory(new AccountSnapshot(
+            accountId,
+            "acme",
+            MaxSites: 5,
+            MaxDatabases: 2,
+            MaxSftpUsers: 3,
+            MaxCronEntries: 7,
+            MaxPhpWorkersPerPool: 10,
+            DiskQuotaMb: 1_024, AccountState.Active) with
+        { PhpLimits = limits ?? PhpLimitsSnapshot.Default });
     }
 
     /// <summary>Seeds one site and returns its id.</summary>

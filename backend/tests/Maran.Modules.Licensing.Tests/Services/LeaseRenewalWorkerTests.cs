@@ -264,4 +264,133 @@ public sealed class LeaseRenewalWorkerTests
 
         Assert.Empty(world.Audit.Entries);
     }
+
+    /// <summary>A pass asked for out of turn is the same pass: journalled as the panel, with the same entry a timer pass writes.</summary>
+    [Fact]
+    public async Task A_requested_pass_is_journalled_like_a_scheduled_one()
+    {
+        using var world = new RenewalWorld();
+        world.Harness.InstallLicence(RenewalHarness.Licence());
+        world.Harness.Client.Returns(RenewalHarness.Lease(Start));
+
+        var result = await world.Worker.RequestNowAsync("lic-001", CancellationToken.None);
+
+        Assert.Equal(LeaseRenewalOutcome.Renewed, result.Outcome);
+        var entry = Assert.Single(world.Audit.Entries);
+        Assert.Equal(LicenceAuditActions.LeaseRenewed, entry.Action);
+        Assert.NotNull(world.Harness.StoredLease);
+    }
+
+    /// <summary>A requested pass joins the run of failures the schedule keeps: two scheduled failures and a requested one alert the operator.</summary>
+    [Fact]
+    public async Task A_requested_failure_counts_in_the_same_run_as_the_scheduled_ones()
+    {
+        using var world = new RenewalWorld();
+        world.Harness.InstallLicence(RenewalHarness.Licence());
+        ServiceDown(world);
+
+        await PassAsync(world);
+        await PassAsync(world);
+        Assert.Empty(Alerts(world));
+
+        await world.Worker.RequestNowAsync("lic-001", CancellationToken.None);
+
+        Assert.Single(Alerts(world));
+    }
+
+    /// <summary>Without the requested pass the run stops at two and nobody is alerted; the case above is its control.</summary>
+    [Fact]
+    public async Task Two_scheduled_failures_alone_alert_nobody()
+    {
+        using var world = new RenewalWorld();
+        world.Harness.InstallLicence(RenewalHarness.Licence());
+        ServiceDown(world);
+
+        await PassAsync(world);
+        await PassAsync(world);
+
+        Assert.Empty(Alerts(world));
+    }
+
+    /// <summary>A request never throws for a pass that failed in a way the renewer does not turn into an outcome.</summary>
+    [Fact]
+    public async Task A_request_survives_a_pass_that_throws()
+    {
+        using var world = new RenewalWorld();
+        world.Harness.InstallLicence(RenewalHarness.Licence());
+        world.Harness.Client.WhileAsking = () => { throw new InvalidOperationException("boom"); };
+
+        var result = await world.Worker.RequestNowAsync("lic-001", CancellationToken.None);
+
+        Assert.Equal(LeaseRenewalOutcome.Unreachable, result.Outcome);
+    }
+
+    /// <summary>
+    /// A scheduled pass that holds the gate past the install deadline does not hold the install: the request answers
+    /// "in progress", asks the service nothing itself and does not count as a failure.
+    /// </summary>
+    [Fact]
+    public async Task A_request_behind_a_long_scheduled_pass_answers_in_progress_within_the_deadline()
+    {
+        using var world = new RenewalWorld(installDeadlineSeconds: 1);
+        world.Harness.InstallLicence(RenewalHarness.Licence());
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var asking = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        world.Harness.Client.WhileAskingAsync = async _ =>
+        {
+            asking.TrySetResult();
+            await release.Task;
+        };
+        var scheduled = PassAsync(world);
+        await asking.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        var result = await world.Worker.RequestNowAsync("lic-001", CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(LeaseRenewalOutcome.RenewalInProgress, result.Outcome);
+        Assert.Single(world.Harness.Client.Requests);
+        Assert.Empty(world.Audit.Entries);
+        release.SetResult();
+        await scheduled;
+    }
+
+    /// <summary>A service that does not answer within the deadline ends the request as unreachable, journalled like a failed pass.</summary>
+    [Fact]
+    public async Task A_request_to_a_service_that_does_not_answer_ends_at_the_deadline_as_unreachable()
+    {
+        using var world = new RenewalWorld(installDeadlineSeconds: 1);
+        world.Harness.InstallLicence(RenewalHarness.Licence());
+        world.Harness.Client.WhileAskingAsync = token => { return Task.Delay(Timeout.Infinite, token); };
+
+        var result = await world.Worker.RequestNowAsync("lic-001", CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(LeaseRenewalOutcome.Unreachable, result.Outcome);
+        var entry = Assert.Single(world.Audit.Entries);
+        Assert.Equal(LicenceAuditActions.LeaseRenewalFailed, entry.Action);
+    }
+
+    /// <summary>The caller's own cancellation is not mistaken for the deadline: it propagates.</summary>
+    [Fact]
+    public async Task A_request_the_caller_cancels_throws_instead_of_reporting_an_outcome()
+    {
+        using var world = new RenewalWorld();
+        world.Harness.InstallLicence(RenewalHarness.Licence());
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => { return world.Worker.RequestNowAsync("lic-001", cancelled.Token); });
+    }
+
+    /// <summary>A request names its licence: when another one is installed it asks the service about nothing.</summary>
+    [Fact]
+    public async Task A_request_for_a_licence_that_is_not_the_installed_one_asks_nothing()
+    {
+        using var world = new RenewalWorld();
+        world.Harness.InstallLicence(RenewalHarness.Licence("lic-002"));
+
+        var result = await world.Worker.RequestNowAsync("lic-001", CancellationToken.None);
+
+        Assert.Equal(LeaseRenewalOutcome.LicenceChanged, result.Outcome);
+        Assert.Empty(world.Harness.Client.Requests);
+    }
 }

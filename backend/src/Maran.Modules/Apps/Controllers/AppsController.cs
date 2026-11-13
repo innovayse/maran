@@ -65,9 +65,9 @@ public sealed class AppsController : BaseApiController
 
     /// <summary>Lists the apps the host's package sources can install, installed ones included.</summary>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The installable apps.</returns>
+    /// <returns>The installable apps, and why no Node.js app is among them when none is.</returns>
     [HttpGet("installable")]
-    [ProducesResponseType(typeof(IReadOnlyList<InstallableAppDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(InstallableAppsDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status502BadGateway)]
@@ -75,7 +75,7 @@ public sealed class AppsController : BaseApiController
     public async Task<IActionResult> GetInstallableAsync(CancellationToken cancellationToken)
     {
         return ToActionResult(
-            await _bus.InvokeAsync<Result<IReadOnlyList<InstallableAppDto>>>(
+            await _bus.InvokeAsync<Result<InstallableAppsDto>>(
                 new ListInstallableAppsQuery(),
                 cancellationToken));
     }

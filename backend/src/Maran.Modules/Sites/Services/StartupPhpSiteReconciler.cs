@@ -50,6 +50,14 @@ namespace Maran.Modules.Sites.Services;
 /// because this class is not reachable from any request.
 /// </para>
 /// <para>
+/// <b>It never renders from a row it read earlier than it holds the site.</b> The pass lists every PHP site
+/// once, while the panel is already serving requests, and then visits them one by one. Each site is rendered
+/// under that site's operation lock (<see cref="ISiteOperationLock"/>, issue #561) from a row read again once
+/// the lock is held, the way every other writer of a vhost does, so a disable, an options save or a delete that
+/// committed during the pass is honoured and not overwritten by a vhost rendered from the listing. A site that
+/// stays busy for the whole wait counts as failed, which the pass's own retry then converges.
+/// </para>
+/// <para>
 /// <b>An agent that is not up yet is expected</b>, as for the firewall's startup pass: the panel and
 /// the agent are separate units with no ordering guarantee across a reboot. A pass that leaves any
 /// site unconverged is retried up to <see cref="MaximumAttempts"/> times and then abandoned with an
@@ -58,6 +66,22 @@ namespace Maran.Modules.Sites.Services;
 /// </remarks>
 public sealed class StartupPhpSiteReconciler : BackgroundService
 {
+    /// <summary>What became of one site in a pass.</summary>
+    private enum ConvergeOutcome
+    {
+        /// <summary>The agent converged the site.</summary>
+        Converged,
+
+        /// <summary>The site was deleted, or is no longer PHP, so there is nothing to converge.</summary>
+        Gone,
+
+        /// <summary>The agent refused the site or could not be reached.</summary>
+        Refused,
+
+        /// <summary>Another operation held the site for the whole wait.</summary>
+        Busy,
+    }
+
     /// <summary>How many times a pass that left a site unconverged is retried before giving up.</summary>
     public const int MaximumAttempts = 5;
 
@@ -70,7 +94,7 @@ public sealed class StartupPhpSiteReconciler : BackgroundService
             LogLevel.Information,
             new EventId(1, nameof(StartupPhpSiteReconciler)),
             "Converged {Converged} of {Total} PHP sites to the current pool and vhost layout; "
-            + "{Failed} failed and {Skipped} were skipped because their account is missing");
+            + "{Failed} failed and {Skipped} were skipped because their account is gone or the site itself is gone or no longer PHP");
 
     /// <summary>Pre-compiled log delegate for a site the agent would not converge.</summary>
     private static readonly Action<ILogger, string, string, Exception?> LogSiteFailed =
@@ -85,6 +109,20 @@ public sealed class StartupPhpSiteReconciler : BackgroundService
             LogLevel.Warning,
             new EventId(3, nameof(StartupPhpSiteReconciler)),
             "Skipped PHP site {Domain}: its owning account does not exist");
+
+    /// <summary>Pre-compiled log delegate for a site that was deleted, or left PHP, since the pass listed it.</summary>
+    private static readonly Action<ILogger, string, Exception?> LogSiteGone =
+        LoggerMessage.Define<string>(
+            LogLevel.Information,
+            new EventId(8, nameof(StartupPhpSiteReconciler)),
+            "Skipped PHP site {Domain}: it was deleted, or stopped being a PHP site, since the pass listed it");
+
+    /// <summary>Pre-compiled log delegate for a site that stayed busy for the whole wait.</summary>
+    private static readonly Action<ILogger, string, Exception?> LogSiteBusy =
+        LoggerMessage.Define<string>(
+            LogLevel.Warning,
+            new EventId(7, nameof(StartupPhpSiteReconciler)),
+            "Could not converge PHP site {Domain}: another operation held it for the whole wait");
 
     /// <summary>Pre-compiled log delegate for a pass that found PHP sites and no installed site web server.</summary>
     private static readonly Action<ILogger, Exception?> LogStackNotReady =
@@ -152,6 +190,7 @@ public sealed class StartupPhpSiteReconciler : BackgroundService
         var accountDirectory = scope.ServiceProvider.GetRequiredService<IAccountDirectory>();
         var poolSettings = scope.ServiceProvider.GetRequiredService<PhpAccountPoolSettings>();
         var stack = scope.ServiceProvider.GetRequiredService<SiteStackGate>();
+        var locks = scope.ServiceProvider.GetRequiredService<ISiteOperationLock>();
 
 #pragma warning disable RS0030 // startup has no principal; every tenant's PHP sites are converged
         var sites = await dbContext.Sites
@@ -199,13 +238,24 @@ public sealed class StartupPhpSiteReconciler : BackgroundService
                 settingsOfAccount[account.Id] = settings;
             }
 
-            if (await ConvergeAsync(agent, site, account, settings, webServer!.Value, cancellationToken))
+            var outcome = await ConvergeGuardedAsync(
+                dbContext, locks, agent, site.Id, site.Domain, account, settings, webServer!.Value, cancellationToken);
+            switch (outcome)
             {
-                converged++;
-            }
-            else
-            {
-                failed++;
+                case ConvergeOutcome.Converged:
+                    converged++;
+                    break;
+                case ConvergeOutcome.Gone:
+                    LogSiteGone(_logger, site.Domain, null);
+                    skipped++;
+                    break;
+                case ConvergeOutcome.Busy:
+                    LogSiteBusy(_logger, site.Domain, null);
+                    failed++;
+                    break;
+                default:
+                    failed++;
+                    break;
             }
         }
 
@@ -240,6 +290,55 @@ public sealed class StartupPhpSiteReconciler : BackgroundService
         }
     }
 
+    /// <summary>Converges one site while holding it, from the row as stored once it is held.</summary>
+    /// <param name="dbContext">The Sites module's context.</param>
+    /// <param name="locks">The shared per-site lock.</param>
+    /// <param name="agent">The agent's site operations.</param>
+    /// <param name="siteId">The listed PHP site; only its id is trusted.</param>
+    /// <param name="domain">The listed site's domain, for the log.</param>
+    /// <param name="account">The site's owning account.</param>
+    /// <param name="settings">The settings the account's pools carry, cut to its plan's bounds.</param>
+    /// <param name="webServer">The installed site web server the vhost is rendered for.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>What became of the site.</returns>
+    private async Task<ConvergeOutcome> ConvergeGuardedAsync(
+        SitesDbContext dbContext,
+        ISiteOperationLock locks,
+        IAgentSitesClient agent,
+        Guid siteId,
+        string domain,
+        AccountSnapshot account,
+        IReadOnlyList<PhpSettingDto> settings,
+        SiteWebServer webServer,
+        CancellationToken cancellationToken)
+    {
+        var guarded = await SiteGuard.RunAsync(
+            locks,
+            siteId,
+            SiteLockWait.Job,
+            async () =>
+            {
+                // Read again now that nothing else can change the site: it may have been deleted, or
+                // moved to another version or backend, since the pass listed it.
+                var site = await SiteRowRefresh.ReadAsync(dbContext, siteId, account.Id, cancellationToken);
+                if (site is null || site.BackendType != SiteBackendType.Php)
+                {
+                    return Result<ConvergeOutcome>.Ok(ConvergeOutcome.Gone);
+                }
+
+                var converged = await ConvergeAsync(agent, site, account, settings, webServer, cancellationToken);
+
+                return Result<ConvergeOutcome>.Ok(converged ? ConvergeOutcome.Converged : ConvergeOutcome.Refused);
+            },
+            cancellationToken);
+        if (!guarded.IsSuccess)
+        {
+            return SiteBusyFailure.Is(guarded.Error) ? ConvergeOutcome.Busy : ConvergeOutcome.Refused;
+        }
+
+        return guarded.Value;
+    }
+
     /// <summary>Asks the agent to converge one site, turning anything it throws into a failure.</summary>
     /// <param name="agent">The agent's site operations.</param>
     /// <param name="site">The stored PHP site.</param>
@@ -267,7 +366,7 @@ public sealed class StartupPhpSiteReconciler : BackgroundService
                 account.Username,
                 site.Domain,
                 site.PhpVersion,
-                SiteDescriptorMapper.From(site, webServer),
+                SiteDescriptorMapper.From(site, webServer, account.PhpLimits),
                 (uint)account.MaxPhpWorkersPerPool,
                 settings,
                 removePreviousPool: false,

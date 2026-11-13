@@ -2,13 +2,13 @@
 # update-schedule.sh: `maran update-schedule enable|disable|status` — switches the unattended
 # security-patch update on and off (issue #383).
 #
-# The installer puts maran-update-security.service and .timer in place and enables the timer on a first
-# install (installer/lib/69-update-schedule.sh). This verb is the operator's switch afterwards. It is
+# The installer puts maran-update-security.service and .timer in place and leaves the timer OFF
+# (installer/lib/69-update-schedule.sh, issue #550). This verb is the operator's switch. It is
 # the whole of the switch: `enable` and `disable` are one `systemctl` call on the one timer, and no file
 # is written, so there is no configured value to validate and nothing a drop-in could smuggle into a
 # unit (rules/security.md item 4). The timer carries its own OnCalendar= and RandomizedDelaySec=.
 # `systemctl disable` removes the enablement link, which survives a reboot, an installer re-run (the
-# installer enables the timer only the first time it installs the unit) and `maran update`.
+# installer never touches the enablement) and `maran update`; so does `enable`.
 # docs/superpowers/notes/2026-11-07-security-patch-updates-threat-note.md section 3 carries the argument.
 
 readonly MARAN_USCHED_USAGE="Usage: maran update-schedule enable|disable|status"
@@ -62,6 +62,7 @@ cli_usched_status() {
   active="$(systemctl is-active -- "$MARAN_USCHED_TIMER" 2>/dev/null || true)"
   echo "Automatic security-patch updates:"
   printf '  %-12s %s\n' "enabled" "${enabled:-not-installed}"
+  [ "$enabled" != "disabled" ] || echo "  installed, off. To enable: sudo maran update-schedule enable"
   printf '  %-12s %s\n' "active" "${active:-unknown}"
   printf '  %-12s %s\n' "installed" "$(cli_layout_current_version 2>/dev/null || true)"
   echo "Timer:"

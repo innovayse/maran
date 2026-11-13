@@ -98,8 +98,17 @@ use crate::proto::{
 /// `ERROR_CODE_APP_IN_USE` and `ERROR_CODE_WEB_SERVER_ALREADY_INSTALLED`
 /// (issue #517). 28 adds `SetLocalSubmission` and `RemoveLocalSubmission` to
 /// `mail.proto`, the binding of locally submitted mail to the account's own
-/// sender domains and send limit (issue #518).
-const PROTO_VERSION: u32 = 28;
+/// sender domains and send limit (issue #518). 29 adds
+/// `SetLocalSubmissionRequest.alias_fanouts`, the outside fan-out of each
+/// forwarding alias, so a message to such an alias is charged once per outside
+/// recipient (issue #531), and `ERROR_CODE_NODE_MAJOR_ALREADY_INSTALLED` (25), the refusal of a
+/// Node.js install over a different major, a Node.js no module stream installed, or a stream an
+/// operator enabled by hand (issue #532). 30 gives each Node.js refusal an operator must act on its own
+/// code (`ERROR_CODE_NODE_UNMANAGED_INSTALL`, `ERROR_CODE_NODE_STREAM_ENABLED_BY_OPERATOR`,
+/// `ERROR_CODE_NODE_INTERPRETER_UNREADABLE`, `ERROR_CODE_NODE_OPERATION_IN_PROGRESS`) and adds
+/// `ListInstallableAppsOk.nodejs_unavailable_reason`, why the Node.js apps are missing from the list
+/// (issue #532).
+const PROTO_VERSION: u32 = 30;
 
 /// Answers "what agent is this, and what host is it on?".
 pub struct SystemServiceImpl {

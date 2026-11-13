@@ -11,6 +11,8 @@
 //! and is crate-internal: the two public types that carry a local part both
 //! call it, so the rule cannot drift between them.
 
+pub mod alias_fanout;
+pub mod alias_fanout_error;
 pub mod autoresponder_body;
 pub mod autoresponder_body_error;
 pub mod autoresponder_subject;
@@ -21,6 +23,7 @@ pub mod dkim_private_key;
 pub mod dkim_private_key_error;
 pub mod dkim_selector;
 pub mod dkim_selector_error;
+pub mod fanout_recipient;
 pub(crate) mod is_text_reordering;
 pub mod local_submission;
 pub mod local_submission_error;

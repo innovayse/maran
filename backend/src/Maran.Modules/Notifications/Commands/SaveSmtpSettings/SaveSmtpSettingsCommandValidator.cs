@@ -1,6 +1,9 @@
 using FluentValidation;
+using Maran.Modules.Notifications.Options;
 using Maran.Modules.Notifications.Resources;
 using Maran.SharedKernel.Utilities.Mail;
+using Maran.SharedKernel.Utilities.Network;
+using Microsoft.Extensions.Options;
 
 namespace Maran.Modules.Notifications.Commands.SaveSmtpSettings;
 
@@ -16,6 +19,13 @@ namespace Maran.Modules.Notifications.Commands.SaveSmtpSettings;
 /// <b>The password is bounded but otherwise unconstrained.</b> It is a credential for somebody
 /// else's system: this panel has no business having an opinion about its shape, and a policy here
 /// would only ever refuse a working one.
+/// </para>
+/// <para>
+/// <b>Port 25 of THIS machine is refused unless the deployment opts in.</b> "This machine" is loopback,
+/// <c>localhost</c>, any address of an interface and the host's own (fully qualified) name
+/// (<see cref="ThisMachineRule"/>); the opt-in is <see cref="SmtpLocalRelayOptions.AllowLocalPort25Relay"/>,
+/// for a host whose port 25 is a relay Maran does not manage. The refusal is advice: the managed mail
+/// server refuses the same connection by itself, and a name that only resolves here is not recognised.
 /// </para>
 /// </remarks>
 public sealed class SaveSmtpSettingsCommandValidator : AbstractValidator<SaveSmtpSettingsCommand>
@@ -39,9 +49,19 @@ public sealed class SaveSmtpSettingsCommandValidator : AbstractValidator<SaveSmt
     /// <summary>The highest TCP port number.</summary>
     private const int MaximumPort = 65535;
 
-    /// <summary>Declares the rules.</summary>
-    public SaveSmtpSettingsCommandValidator()
+    /// <summary>The port a mail server accepts mail from other servers on, which the panel's own mail server closes to every local client.</summary>
+    private const int TransferPort = 25;
+
+    /// <summary>Creates the validator.</summary>
+    /// <param name="relay">The deployment switch for a relay of its own on port 25.</param>
+    /// <param name="machine">Where the addresses and names of the machine the panel runs on are read, at every validation.</param>
+    public SaveSmtpSettingsCommandValidator(IOptions<SmtpLocalRelayOptions> relay, IThisMachineFactsSource machine)
     {
+        ArgumentNullException.ThrowIfNull(relay);
+        ArgumentNullException.ThrowIfNull(machine);
+
+        var allowLocalRelay = relay.Value.AllowLocalPort25Relay;
+
         RuleFor(command => command.Host)
             .NotEmpty()
             .MaximumLength(HostMaxLength)
@@ -53,6 +73,18 @@ public sealed class SaveSmtpSettingsCommandValidator : AbstractValidator<SaveSmt
             .InclusiveBetween(MinimumPort, MaximumPort)
             .WithErrorCode(nameof(ErrorMessages.SmtpPortInvalid))
             .WithMessage(nameof(ErrorMessages.SmtpPortInvalid));
+
+        // The mail server on this machine refuses every local client on port 25: that port is where mail
+        // arrives from other servers, and a process on the machine must not be able to hand it mail as if
+        // it were one. The panel submits through the submission port with a login instead, like any
+        // other client of that server. A host whose port 25 is a relay Maran does not manage opts in.
+        RuleFor(command => command.Port)
+            .Must((command, port) =>
+            {
+                return allowLocalRelay || port != TransferPort || !ThisMachineRule.IsThisMachine(command.Host, machine.Read());
+            })
+            .WithErrorCode(nameof(ErrorMessages.SmtpLocalPort25Refused))
+            .WithMessage(nameof(ErrorMessages.SmtpLocalPort25Refused));
 
         // IsInEnum also refuses the value 0 a request gets by omitting the field, because the enum has
         // no member with that value: the choice of a protection mode, cleartext included, is explicit.

@@ -110,6 +110,7 @@ public sealed class BarrierSitesAgent : IAgentSitesClient
     /// <param name="node"></param>
     /// <param name="maxChildren">The pool's worker budget; ignored.</param>
     /// <param name="settingOverrides">The php.ini overrides; ignored.</param>
+    /// <param name="options"></param>
     /// <param name="cancellationToken">Cancellation for the wait and the call.</param>
     /// <returns>The document root, as the real agent reports it.</returns>
     public async Task<Result<CreatedSiteDto>> CreateAsync(
@@ -123,6 +124,7 @@ public sealed class BarrierSitesAgent : IAgentSitesClient
         SiteNodeApp node,
         uint maxChildren,
         IReadOnlyList<PhpSettingDto> settingOverrides,
+        SiteOptionsDescriptor options,
         CancellationToken cancellationToken)
     {
         Interlocked.Increment(ref _createCalls);

@@ -235,9 +235,9 @@ public sealed class ApiKeyAuthenticatorTests : IDisposable
     public async Task A_key_a_reseller_owns_authenticates_with_the_resellers_id_while_its_login_may_sign_in()
     {
         var resellerId = Guid.NewGuid();
-        await AddResellerLoginAsync(resellerId);
+        var login = await AddResellerLoginAsync(resellerId);
         var (key, plaintext) = await ApiKeySeed.AddAsync(
-            _context, Now.AddDays(-1), scopes: [ApiKeyScopes.AccountsRead], resellerId: resellerId);
+            _context, Now.AddDays(-1), scopes: [ApiKeyScopes.AccountsRead], resellerId: resellerId, createdBy: login.Id);
 
         var authenticated = Assert.IsType<ApiKeyAuthenticated>(await AuthenticateAsync(plaintext));
 
@@ -257,22 +257,18 @@ public sealed class ApiKeyAuthenticatorTests : IDisposable
         Assert.Null(authenticated.ResellerId);
     }
 
-    /// <summary>Suspending the reseller stops its keys on the next call with the one shared denial, and resuming restores them.</summary>
+    /// <summary>Suspending the reseller stops its keys on the next call with the one shared denial, even a key whose row was not revoked (defence in depth).</summary>
     [Fact]
-    public async Task A_key_stops_working_while_its_resellers_login_is_suspended_and_works_again_after()
+    public async Task A_key_stops_working_while_its_resellers_login_is_suspended()
     {
         var resellerId = Guid.NewGuid();
         var login = await AddResellerLoginAsync(resellerId);
-        var (_, plaintext) = await ApiKeySeed.AddAsync(_context, Now.AddDays(-1), resellerId: resellerId);
+        var (_, plaintext) = await ApiKeySeed.AddAsync(_context, Now.AddDays(-1), resellerId: resellerId, createdBy: login.Id);
         Assert.IsType<ApiKeyAuthenticated>(await AuthenticateAsync(plaintext));
 
         login.Suspend();
         await _context.SaveChangesAsync();
         Assert.Same(ApiKeyDenied.Instance, await AuthenticateAsync(plaintext));
-
-        login.Resume();
-        await _context.SaveChangesAsync();
-        Assert.IsType<ApiKeyAuthenticated>(await AuthenticateAsync(plaintext));
     }
 
     /// <summary>A key whose reseller has no login at all, or one that never accepted its invitation, is refused.</summary>
@@ -281,9 +277,11 @@ public sealed class ApiKeyAuthenticatorTests : IDisposable
     {
         var withoutLogin = Guid.NewGuid();
         var notActivated = Guid.NewGuid();
-        await AddResellerLoginAsync(notActivated, activated: false);
-        var (_, orphan) = await ApiKeySeed.AddAsync(_context, Now.AddDays(-1), name: "orphan", resellerId: withoutLogin);
-        var (_, pending) = await ApiKeySeed.AddAsync(_context, Now.AddDays(-1), name: "pending", resellerId: notActivated);
+        var pendingLogin = await AddResellerLoginAsync(notActivated, activated: false);
+        var (_, orphan) = await ApiKeySeed.AddAsync(
+            _context, Now.AddDays(-1), name: "orphan", resellerId: withoutLogin, createdBy: Guid.NewGuid());
+        var (_, pending) = await ApiKeySeed.AddAsync(
+            _context, Now.AddDays(-1), name: "pending", resellerId: notActivated, createdBy: pendingLogin.Id);
 
         Assert.Same(ApiKeyDenied.Instance, await AuthenticateAsync(orphan));
         Assert.Same(ApiKeyDenied.Instance, await AuthenticateAsync(pending));
@@ -295,12 +293,68 @@ public sealed class ApiKeyAuthenticatorTests : IDisposable
     {
         var suspended = Guid.NewGuid();
         var other = Guid.NewGuid();
-        await AddResellerLoginAsync(suspended, suspended: true);
-        await AddResellerLoginAsync(other);
-        var (_, suspendedKey) = await ApiKeySeed.AddAsync(_context, Now.AddDays(-1), name: "a", resellerId: suspended);
-        var (_, otherKey) = await ApiKeySeed.AddAsync(_context, Now.AddDays(-1), name: "b", resellerId: other);
+        var suspendedLogin = await AddResellerLoginAsync(suspended, suspended: true);
+        var otherLogin = await AddResellerLoginAsync(other);
+        var (_, suspendedKey) = await ApiKeySeed.AddAsync(
+            _context, Now.AddDays(-1), name: "a", resellerId: suspended, createdBy: suspendedLogin.Id);
+        var (_, otherKey) = await ApiKeySeed.AddAsync(
+            _context, Now.AddDays(-1), name: "b", resellerId: other, createdBy: otherLogin.Id);
 
         Assert.Same(ApiKeyDenied.Instance, await AuthenticateAsync(suspendedKey));
         Assert.IsType<ApiKeyAuthenticated>(await AuthenticateAsync(otherKey));
+    }
+
+    /// <summary>A key the administrator owns is refused when the login that created it does not exist, though its digest, state and address are right.</summary>
+    [Fact]
+    public async Task An_administrator_key_whose_creator_login_is_missing_is_refused()
+    {
+        var (_, orphan) = await ApiKeySeed.AddAsync(_context, Now.AddDays(-1), name: "orphan", createdBy: Guid.NewGuid());
+        var (_, kept) = await ApiKeySeed.AddAsync(_context, Now.AddDays(-1), name: "kept");
+
+        Assert.Same(ApiKeyDenied.Instance, await AuthenticateAsync(orphan));
+        Assert.IsType<ApiKeyAuthenticated>(await AuthenticateAsync(kept));
+    }
+
+    /// <summary>A key whose creating login cannot sign in (an invitation never accepted) is refused, and works once the login may.</summary>
+    [Fact]
+    public async Task A_key_is_refused_while_its_creator_login_may_not_authenticate_and_works_once_it_may()
+    {
+        var resellerId = Guid.NewGuid();
+        var login = await AddResellerLoginAsync(resellerId, activated: false);
+        var (_, plaintext) = await ApiKeySeed.AddAsync(_context, Now.AddDays(-1), createdBy: login.Id);
+        Assert.Same(ApiKeyDenied.Instance, await AuthenticateAsync(plaintext));
+
+        login.Activate("hash");
+        await _context.SaveChangesAsync();
+
+        Assert.IsType<ApiKeyAuthenticated>(await AuthenticateAsync(plaintext));
+    }
+
+    /// <summary>Deleting the creator login revokes its keys for good: the row says revoked, and a login of the same id appearing later does not revive them.</summary>
+    [Fact]
+    public async Task A_key_whose_creator_login_was_deleted_stays_refused_and_is_revoked_on_its_row()
+    {
+        var resellerId = Guid.NewGuid();
+        var login = await AddResellerLoginAsync(resellerId);
+        var (key, plaintext) = await ApiKeySeed.AddAsync(_context, Now.AddDays(-1), createdBy: login.Id);
+        var (_, bystander) = await ApiKeySeed.AddAsync(_context, Now.AddDays(-1), name: "bystander");
+        Assert.IsType<ApiKeyAuthenticated>(await AuthenticateAsync(plaintext));
+
+        var revoker = ErasureHandlers.KeyRevoker(_context);
+        var revoked = await revoker.RevokeAsync(login.Id, CancellationToken.None);
+        _context.Users.Remove(login);
+        await _context.SaveChangesAsync();
+
+        Assert.Equal(1, revoked);
+        Assert.Same(ApiKeyDenied.Instance, await AuthenticateAsync(plaintext));
+        Assert.NotNull((await _context.ApiKeys.AsNoTracking().SingleAsync(row => row.Id == key.Id)).RevokedAt);
+        Assert.IsType<ApiKeyAuthenticated>(await AuthenticateAsync(bystander));
+
+        // A login that later holds the same id (a restore) finds the key revoked, not restored.
+        var again = User.InviteReseller(login.Id, "reseller-again", "again@example.com", resellerId, Now);
+        again.Activate("hash");
+        _context.Users.Add(again);
+        await _context.SaveChangesAsync();
+        Assert.Same(ApiKeyDenied.Instance, await AuthenticateAsync(plaintext));
     }
 }

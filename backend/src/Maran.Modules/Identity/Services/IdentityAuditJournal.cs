@@ -69,6 +69,12 @@ public sealed class IdentityAuditJournal
     /// <summary>The lowest HTTP status that counts as a failed call in the journal.</summary>
     private const int MinimumFailureStatus = 400;
 
+    /// <summary>
+    /// The reason written on the entry of a key the panel revoked because the login that created it
+    /// was deleted (issue #551). It ends the entry's subject, so a reader can filter on it.
+    /// </summary>
+    private const string CreatorDisabledReason = "reason=CreatorDisabled";
+
     /// <summary>The panel's append-only journal.</summary>
     private readonly IAuditWriter _auditWriter;
 
@@ -186,6 +192,27 @@ public sealed class IdentityAuditJournal
 
         await WriteAsync(actorUserId, name, action, subject, ipAddress, userAgent, succeeded, subjectUserId: null,
             cancellationToken);
+    }
+
+    /// <summary>Records an invitation resend the issuer refused, naming the administrator who asked.</summary>
+    /// <param name="actorUserId">The administrator who asked for the resend.</param>
+    /// <param name="action">The invitation action, one of the Sdk's <c>*AuditActions</c> constants.</param>
+    /// <param name="subjectId">The id the caller named; a refusal may be exactly "nothing by that id exists".</param>
+    /// <param name="ipAddress">The caller's address.</param>
+    /// <param name="userAgent">The caller's user agent.</param>
+    /// <param name="cancellationToken">Cancellation token for the write.</param>
+    /// <returns>Resolves once the entry is stored.</returns>
+    /// <remarks>The subject is the parsed id and there is no token to carry, so the entry holds no secret.</remarks>
+    public Task RecordInvitationResendRefusedAsync(
+        Guid actorUserId,
+        string action,
+        Guid subjectId,
+        string ipAddress,
+        string userAgent,
+        CancellationToken cancellationToken)
+    {
+        return RecordIdentifiedAsync(
+            actorUserId, action, subjectId.ToString("D"), ipAddress, userAgent, succeeded: false, cancellationToken);
     }
 
     /// <summary>Records a refused attempt whose caller neither proved nor claimed an identity.</summary>
@@ -350,16 +377,34 @@ public sealed class IdentityAuditJournal
     {
         ArgumentNullException.ThrowIfNull(key);
 
-        var subject = key.Prefix + " " + key.Name + " [" + string.Join(',', key.Scopes) + "]";
-
         await RecordIdentifiedAsync(
             administratorUserId,
             action,
-            subject,
+            ApiKeySubject(key),
             ipAddress,
             userAgent,
             succeeded: true,
             cancellationToken);
+    }
+
+    /// <summary>
+    /// Builds the entry for the panel revoking an API key because the login that created it was suspended
+    /// (issue #551): the existing revoke action, the panel as the actor, and the reason on the subject.
+    /// </summary>
+    /// <param name="key">The key revoked. Only its public prefix, name and scopes are written.</param>
+    /// <returns>The entry, for the caller to stage with the revocation.</returns>
+    public static AuditEntry ApiKeyRevokedForCreatorEntry(ApiKey key)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+
+        return new AuditEntry(
+            null,
+            SystemAuditEntry.NameFor(ModuleName),
+            IdentityAuditActions.ApiKeyRevoked,
+            ApiKeySubject(key) + " " + CreatorDisabledReason,
+            string.Empty,
+            string.Empty,
+            true);
     }
 
     /// <summary>Records one call made with an API key, after the action it reached has run.</summary>
@@ -402,6 +447,14 @@ public sealed class IdentityAuditJournal
             statusCode < MinimumFailureStatus,
             subjectUserId: null,
             cancellationToken);
+    }
+
+    /// <summary>Names a key in an entry by prefix, name and scopes and by nothing that could be used as the key.</summary>
+    /// <param name="key">The key acted on.</param>
+    /// <returns>The subject text.</returns>
+    private static string ApiKeySubject(ApiKey key)
+    {
+        return key.Prefix + " " + key.Name + " [" + string.Join(',', key.Scopes) + "]";
     }
 
     /// <summary>Builds and stores one entry.</summary>

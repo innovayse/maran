@@ -10,6 +10,7 @@ use crate::firewall::firewall_lock::firewall_lock;
 use crate::firewall::list_rules::read_ruleset;
 use crate::firewall::model::firewall_rule::FirewallRule;
 use crate::firewall::model::ruleset_ports::RulesetPorts;
+use crate::firewall::read_output_policy::read_output_policy;
 
 /// Adds `rule` to the host's firewall and loads the result.
 ///
@@ -74,9 +75,12 @@ pub fn allow_port(
         return Err(FirewallError::AlreadyExists);
     }
 
+    // Read fresh: the output chain's uid floor and address list are host
+    // facts, not stored rules, so every apply restates them.
+    let policy = read_output_policy(host, distro)?;
     let wanted = current.with(rule);
-    let contents = wanted.render(ports)?;
-    if contents == current.render(ports)? {
+    let contents = wanted.render(ports, &policy)?;
+    if contents == current.render(ports, &policy)? {
         return Err(FirewallError::AlreadyExists);
     }
 

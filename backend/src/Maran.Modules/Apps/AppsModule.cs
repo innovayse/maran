@@ -73,6 +73,10 @@ public sealed class AppsModule : IPanelModule
         services.AddScoped<IAppOperationDispatcher, MessageBusAppOperationDispatcher>();
         services.AddScoped<AppUsageGuard>();
 
+        // Settles a busy row whose operation is over, whenever the apps are read (issue #533). Asks the
+        // Tasks module whether the row's task can still be running through ITaskStateReader.
+        services.AddScoped<StaleOperationSettler>();
+
         // The shared resource pool the panel-wide ResxErrorTextProvider resolves error codes and
         // Manifest.DisplayNameKey against. Module-internal lookups inject IStringLocalizer<T> instead.
         services.AddSingleton(new ResourceManager(ErrorMessagesResourceBaseName, typeof(AppsModule).Assembly));

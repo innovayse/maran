@@ -6,6 +6,7 @@ using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Sites.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
+using Maran.Sdk.Modules;
 using Maran.SharedKernel.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -122,6 +123,7 @@ public sealed class StartupPhpSiteReconcilerTests : IAsyncLifetime
             options.UseNpgsql(_pg.GetConnectionString());
         });
         services.AddSingleton(agent);
+        services.AddSingleton<ISiteOperationLock>(new SiteOperationLock());
         services.AddScoped<IStackStatus, ReadyStackStatus>();
         services.AddScoped<SiteStackGate>();
         services.AddScoped<PhpAccountPoolSettings>();

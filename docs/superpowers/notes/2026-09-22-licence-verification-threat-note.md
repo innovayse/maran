@@ -327,6 +327,18 @@ obtainable: until the key ceremony happens no build can validate a licence. The 
 form is outside it, and the offline key ceremony is what covers that. The guard still does not catch
 service location (rules/security.md item 13's stated limit).
 
+## Release build refuses a missing pinned key (#544)
+
+A shipping build fails with `MARAN001` when any of the five pinned public keys under `installer/keys/` is absent, so
+the silent "trust nothing" panel can no longer ship by accident. "Shipping" is the property `MaranShippingBuild=true`,
+set only by `maran release build --publish`; it is not `Configuration=Release`, because CI and the OpenAPI emit build
+Release without a full key set. The signed manifest lists the five keys with their SHA-256 (`pinned_keys`), the api
+archive carries the list as `pinned-keys.txt` under the code-integrity manifest, and `maran status` prints name and a
+twelve-character fingerprint, never contents. Unobserved: the check tests presence, not that the file is the
+production key (the committed-secret census above covers the test-key case); the operator still has to compare the
+printed fingerprints with the key ceremony's record; anyone who can run the release pipeline can set or omit the
+property, so the release workflow's reviewer gate is what protects it.
+
 ## Second review: OUTSTANDING (#331)
 
 The privileged surfaces touched here (licence verification, the agent capability guard) have not had their

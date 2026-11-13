@@ -33,6 +33,8 @@ interface NumberProblem {
   section: SiteOptionsSection
   /** The locale key of the note. */
   key: string
+  /** Figures the note names, when it names any. */
+  params?: Record<string, number>
 }
 
 /** What {@link useSiteOptionsForm} hands to the options screen. */
@@ -141,7 +143,7 @@ export const useSiteOptionsForm = (): SiteOptionsForm => {
    * @returns The message, or `null`.
    */
   const numberErrorFor = (section: SiteOptionsSection): string | null => {
-    return numberProblem.value?.section === section ? t(numberProblem.value.key) : errorFor(section)
+    return numberProblem.value?.section === section ? t(numberProblem.value.key, numberProblem.value.params ?? {}) : errorFor(section)
   }
 
   /**
@@ -193,6 +195,20 @@ export const useSiteOptionsForm = (): SiteOptionsForm => {
     // Each check narrows its own value, so everything below holds plain numbers or `null`.
     if (size === undefined) {
       numberProblem.value = { section: 'uploadSize', key: 'siteOptions.errors.notANumber' }
+      return null
+    }
+    // The plan's upload bound is advice here: the panel refuses a larger figure on its own and is the
+    // enforcement, so this only saves the round trip. Absent bound, nothing to check. Only a figure that
+    // CHANGED is checked, as the panel does: the form echoes the stored figure back with every save, and one
+    // a later plan edit left above the bound must not block saving the other options.
+    const planMaximum = options.value?.limits.planMaximumBodySizeMib ?? null
+    const stored = options.value?.clientMaxBodySizeMib ?? null
+    if (size !== null && size !== stored && planMaximum !== null && size > planMaximum) {
+      numberProblem.value = {
+        section: 'uploadSize',
+        key: 'siteOptions.errors.uploadAbovePlan',
+        params: { maximum: planMaximum },
+      }
       return null
     }
     if (days === undefined) {

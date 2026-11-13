@@ -93,6 +93,21 @@
   <data name="BackupFailureAgentWebServerAlreadyInstalled">
     <value>Веб-сервер для сайтов уже был установлен на сервере</value>
   </data>
+  <data name="BackupFailureAgentNodeMajorAlreadyInstalled">
+    <value>Другая версия Node.js уже была установлена на сервере</value>
+  </data>
+  <data name="BackupFailureAgentNodeUnmanagedInstall">
+    <value>На сервере уже был Node.js, установленный не панелью</value>
+  </data>
+  <data name="BackupFailureAgentNodeStreamEnabledByOperator">
+    <value>На сервере уже был вручную включён модульный поток Node.js</value>
+  </data>
+  <data name="BackupFailureAgentNodeInterpreterUnreadable">
+    <value>Программа Node.js на сервере не сообщила свою версию</value>
+  </data>
+  <data name="BackupFailureAgentNodeOperationInProgress">
+    <value>На сервере уже выполнялась другая установка или удаление Node.js</value>
+  </data>
   <data name="BackupDestinationDefault">
     <value>Локальное хранилище</value>
   </data>

@@ -425,6 +425,33 @@ impl AgentPaths {
     /// counts against the same hourly bucket as local submission (issue #518).
     pub const MAIL_MAILBOX_ACCOUNTS_PATH: &'static str = "/etc/maran/mail/mailbox_accounts.map";
 
+    /// Rspamd map `<alias-address> <external-target-count> <account>`, one line
+    /// per alias of the account that forwards to addresses outside the server
+    /// (issue #531). The local-submission rule charges the hourly bucket one unit
+    /// per external target of an alias a message names, because Postfix expands
+    /// the alias after the filter has counted the recipient once. The third column
+    /// names the owner so the account's lines can be replaced whole.
+    pub const MAIL_ALIAS_FANOUT_PATH: &'static str = "/etc/maran/mail/alias_fanout.map";
+
+    /// The Postfix CIDR table of this host's own client addresses (issue #531):
+    /// the loopback ranges and every address an interface carries, each mapped to
+    /// a `REJECT`. The port 25 service looks a client up here first (master.cf),
+    /// so a customer's process cannot use the public SMTP door from the server it
+    /// runs on. Rendered by the agent from the kernel's address tables each time
+    /// the Postfix stage converges, so it follows an address the host gains or
+    /// loses. A cidr table needs no index and Postfix reads it as its own user,
+    /// hence the world-readable directory. An agent decision identical on every
+    /// family.
+    pub const MAIL_SELF_CLIENTS_PATH: &'static str = "/etc/maran/mail/self_clients.cidr";
+
+    /// The Postfix `header_checks` table of the local-submission service
+    /// (`cleanup_local`, master.cf): it copies the submitting uid out of the
+    /// Received line `pickup` writes into a header the Rspamd milter can read,
+    /// because Postfix shows a milter no Received line of its own (issue #591).
+    /// A static file, the same on every family, read by Postfix as its own user.
+    pub const MAIL_LOCAL_SUBMITTER_HEADERS_PATH: &'static str =
+        "/etc/maran/mail/local_submitter_headers.regexp";
+
     /// File name of the table of system users allowed to submit mail through
     /// the local `sendmail` and `postdrop` commands (issue #500).
     ///
@@ -451,12 +478,15 @@ impl AgentPaths {
 
     /// The directory of DKIM private keys, `root:<rspamd user>` mode 0750, created
     /// by the installer and filled by the data plane (one `<domain>.<selector>.key`
-    /// per signing key). Keys never leave it and are never logged.
-    pub const MAIL_DKIM_DIRECTORY: &'static str = "/etc/maran/mail/dkim";
+    /// per signing key). Keys never leave it and are never logged. It sits under
+    /// Rspamd's own configuration directory, not under `/etc/maran`: that one is
+    /// `root:<service group>` 0750, which Rspamd's worker cannot traverse to read a
+    /// key (issue #593).
+    pub const MAIL_DKIM_DIRECTORY: &'static str = "/etc/rspamd/maran-dkim";
 
     /// The Rspamd map from a signing domain to its active selector. Lives beside
     /// the keys, in the directory Rspamd can read.
-    pub const MAIL_DKIM_SELECTORS_PATH: &'static str = "/etc/maran/mail/dkim/selectors";
+    pub const MAIL_DKIM_SELECTORS_PATH: &'static str = "/etc/rspamd/maran-dkim/selectors";
 
     /// The one `named.conf` this panel's DNS daemon is started against.
     ///

@@ -4,6 +4,7 @@ use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::apps::validated_app_id::ValidatedAppId;
 use maran_distro::DistroAdapter;
 
+use crate::apps::app_packages::module_stream_of;
 use crate::apps::{AppsHost, AppsOpError};
 use crate::packages::PackageError;
 use crate::safe_write::SafeWriteError;
@@ -32,6 +33,10 @@ use crate::safe_write::SafeWriteError;
 /// explicitly, which every manager records, so it is never reported as unused; the one package
 /// whose loss would be fatal anyway, nginx, is checked by name.
 ///
+/// A Node.js major on a module-stream family is removed as its stream (`dnf module remove`), so
+/// there is ONE dry run, of that module removal, and the app's own set is the stream's profile
+/// (the adapter's `nodejs_module_packages`): the same rule, with the same refusals, for a different transaction.
+///
 /// A dry run that fails or prints a plan the adapter does not read (a line it does not know
 /// included: the readers fail closed) refuses the removal as well: a removal that cannot be
 /// understood is not started.
@@ -52,8 +57,15 @@ pub(crate) fn ensure_removal_is_contained<H: AppsHost>(
     let allowed = allowed_packages(distro, id, packages);
     let mut others: Vec<String> = Vec::new();
 
-    for package in packages {
-        let arguments = distro.removal_simulation_arguments(package);
+    let simulations: Vec<Vec<String>> = match module_stream_of(distro, id) {
+        Some(stream) => vec![distro.nodejs_removal_simulation_arguments(&stream)],
+        None => packages
+            .iter()
+            .map(|package| distro.removal_simulation_arguments(package))
+            .collect(),
+    };
+
+    for arguments in simulations {
         let arguments: Vec<&str> = arguments.iter().map(String::as_str).collect();
         let outcome =
             host.run(&program, &arguments, CallClass::Query)
@@ -97,8 +109,8 @@ pub(crate) fn ensure_removal_is_contained<H: AppsHost>(
     })
 }
 
-/// The packages a removal of `id` may take: the app's own `packages` and, for Apache, the
-/// companions the family installs with it.
+/// The packages a removal of `id` may take: the app's own `packages`, for Apache the
+/// companions the family installs with it, and for a Node.js module stream its profile's packages.
 fn allowed_packages(
     distro: &dyn DistroAdapter,
     id: &ValidatedAppId,
@@ -109,6 +121,14 @@ fn allowed_packages(
         allowed.extend(
             distro
                 .apache_companion_packages()
+                .iter()
+                .map(|package| (*package).to_owned()),
+        );
+    }
+    if module_stream_of(distro, id).is_some() {
+        allowed.extend(
+            distro
+                .nodejs_module_packages()
                 .iter()
                 .map(|package| (*package).to_owned()),
         );

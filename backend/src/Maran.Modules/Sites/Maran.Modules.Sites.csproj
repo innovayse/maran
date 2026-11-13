@@ -29,6 +29,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The module's own tests reach its internal job helpers (the per-site row refresh and the account cascade),
+         which are internal because nothing outside the module may call them. -->
+    <InternalsVisibleTo Include="Maran.Modules.Sites.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Npgsql.EntityFrameworkCore.PostgreSQL: the module owns its PostgreSQL schema and
          DbContext (rules/architecture.md). WolverineFx: command/query dispatch. FluentValidation:
          command/query validators (rules/csharp.md "Operation naming is fixed"). -->

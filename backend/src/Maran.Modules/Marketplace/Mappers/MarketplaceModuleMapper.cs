@@ -29,6 +29,7 @@ public static class MarketplaceModuleMapper
             module.DisplayName,
             module.Summary,
             module.Publisher,
+            module.PublisherId,
             module.Tier,
             texts.TierDisplayName,
             module.Price is null ? null : new MarketplacePriceDto(module.Price.Display, module.Price.PurchaseUrl),

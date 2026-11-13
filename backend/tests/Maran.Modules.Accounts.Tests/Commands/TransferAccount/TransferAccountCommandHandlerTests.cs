@@ -156,7 +156,7 @@ public sealed class TransferAccountCommandHandlerTests : IDisposable
         Assert.True(result.IsSuccess);
         Assert.Equal(2, _bus.Invoked.Count);
         Assert.IsType<AccountOwnerChanged>(_bus.Invoked[0]);
-        Assert.Equal(new AccountPlanChanged(world.AccountA.Id), _bus.Invoked[1]);
+        Assert.Equal(new AccountPlanChanged(world.AccountA.Id, true), _bus.Invoked[1]);
     }
 
     /// <summary>A move to a plan with the same PHP bounds announces only the owner change.</summary>

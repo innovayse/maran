@@ -66,4 +66,10 @@
   <data name="AppFamilyNode">
     <value>Node.js {0}</value>
   </data>
+  <data name="NodejsUnavailableNoModuleStreams">
+    <value>Node.js на этом сервере не предлагается: его источники пакетов не содержат модульных потоков Node.js. Ничего не сломано; остальные приложения показаны как обычно.</value>
+  </data>
+  <data name="NodejsUnavailableListingFailed">
+    <value>Не удалось получить список Node.js: менеджер пакетов не ответил или его ответ не удалось разобрать. Повторите через минуту; остальные приложения показаны как обычно.</value>
+  </data>
 </root>

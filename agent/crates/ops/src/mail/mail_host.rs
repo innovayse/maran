@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use maran_agent_core::command_outcome::CommandOutcome;
 use maran_agent_core::utils::call_class::CallClass;
+use maran_agent_core::utils::host_addresses::HostAddresses;
 use maran_agent_core::validation::web::domain::Domain;
 use maran_distro::AdapterBinary;
 
@@ -127,6 +128,20 @@ pub trait MailHost: Send + Sync {
     /// Returns [`MailError::SocketsUnreadable`] when the IPv4 table cannot be
     /// read. A host without an IPv6 table is an empty IPv6 half and not an error.
     fn listening_sockets(&self) -> Result<Vec<ListeningSocket>, MailError>;
+
+    /// Lists every address configured on an interface of this host, IPv4 and IPv6,
+    /// loopback included, and the IPv4 ranges its routing table marks local.
+    ///
+    /// Read from the kernel's own tables, as [`Self::listening_sockets`] is: the
+    /// table that keeps the host's users off port 25 must name what the host
+    /// really carries, not what a configuration says it should.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MailError::HostAddressesUnreadable`] when the IPv4 table cannot
+    /// be read, or the IPv6 table exists and cannot be read. A host without IPv6
+    /// is an empty IPv6 half and not an error.
+    fn host_addresses(&self) -> Result<HostAddresses, MailError>;
 
     /// Answers what certificate material is installed for `domain`.
     ///

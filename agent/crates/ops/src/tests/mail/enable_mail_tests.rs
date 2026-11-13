@@ -4,6 +4,8 @@
 // A failing assertion IS the reporting mechanism for a test.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_agent_core::utils::host_addresses_error::HostAddressesError;
+
 use crate::mail::enable_mail::enable_mail;
 use crate::mail::fake_mail_host::{FakeMailHost, VERSION_ID, distro, settings, settings_with_pop3};
 use crate::mail::mail_error::MailError;
@@ -182,4 +184,66 @@ fn debian_13_is_configured_with_the_dovecot_2_4_generation() {
             .unwrap()
             .contains("dovecot_config_version = 2.4.0")
     );
+}
+
+#[test]
+fn enabling_writes_the_table_of_the_hosts_own_addresses_beside_postfixs_files() {
+    let host = FakeMailHost::new();
+
+    enable_mail(&host, distro(), VERSION_ID, &settings()).unwrap();
+
+    let table = host.file("/etc/maran/mail/self_clients.cidr").unwrap();
+    assert!(table.contains("127.0.0.0/8 REJECT"));
+    assert!(table.contains("192.0.2.10/32 REJECT"));
+    assert!(table.contains("2001:db8::5/128 REJECT"));
+    // Inverse control: an address the host does not carry is not refused.
+    assert!(!table.contains("198.51.100.7"));
+    assert!(
+        host.file("/etc/postfix/master.cf")
+            .unwrap()
+            .contains("cidr:/etc/maran/mail/self_clients.cidr,permit")
+    );
+}
+
+#[test]
+fn an_address_the_host_gained_is_in_the_table_after_the_next_enable() {
+    let host = FakeMailHost::new();
+    enable_mail(&host, distro(), VERSION_ID, &settings()).unwrap();
+    assert!(
+        !host
+            .file("/etc/maran/mail/self_clients.cidr")
+            .unwrap()
+            .contains("198.51.100.7")
+    );
+    let writes = host.writes().len();
+
+    host.gain_address("198.51.100.7");
+    enable_mail(&host, distro(), VERSION_ID, &settings()).unwrap();
+
+    assert!(
+        host.file("/etc/maran/mail/self_clients.cidr")
+            .unwrap()
+            .contains("198.51.100.7/32 REJECT")
+    );
+    // Only Postfix's stage differs, so only it is written.
+    let added: Vec<MailDaemon> = host.writes()[writes..]
+        .iter()
+        .map(|write| write.daemon)
+        .collect();
+    assert_eq!(added, [MailDaemon::Postfix]);
+}
+
+#[test]
+fn unreadable_address_tables_refuse_the_enable_before_anything_is_written() {
+    // A partial list would leave an address of the host open on port 25.
+    let host = FakeMailHost::new().with_unreadable_host_addresses();
+
+    let refused = enable_mail(&host, distro(), VERSION_ID, &settings()).unwrap_err();
+
+    assert_eq!(
+        refused,
+        MailError::HostAddressesUnreadable(HostAddressesError::Ipv4Missing)
+    );
+    assert!(host.writes().is_empty());
+    assert!(host.is_masked("postfix"));
 }

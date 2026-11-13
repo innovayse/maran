@@ -13,6 +13,7 @@ using Maran.Modules.Ssl.Persistence;
 using Maran.Modules.Ssl.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
+using Maran.Sdk.Modules;
 using Maran.SharedKernel.Interfaces;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
@@ -202,7 +203,7 @@ public sealed class CertificateRenewalAnonymousCallerTests : IAsyncLifetime
             sites,
             new AccountDirectory(accounts, principal),
             acme,
-            new CertificateInstaller(agent, sites, new ReadyStackStatus()),
+            new CertificateInstaller(agent, sites, new ReadyStackStatus(), new SiteOperationLock()),
             agentSites,
             new CertificateAuditJournal(new RecordingAuditWriter(), principal),
             new SilentAlertMailer(),

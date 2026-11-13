@@ -92,6 +92,10 @@ mod list_bans;
 mod list_rules;
 pub mod model;
 mod process_firewall_host;
+mod read_output_policy;
+mod read_output_policy_or_inert;
+mod reconcile_output_chain;
+mod refresh_self_sets;
 mod unban_address;
 
 pub use allow_port::allow_port;
@@ -107,6 +111,7 @@ pub use model::firewall_rule::FirewallRule;
 // Re-exported for the same reason as the protocol below: a service that builds
 // a `FirewallRule` has to be able to name what it opens, and the range refusal
 // lives in this type rather than in the handler that receives the two numbers.
+pub use model::output_policy::OutputPolicy;
 pub use model::port_span::PortSpan;
 // Re-exported rather than left for a caller to reach into `maran-templates`
 // for. `FirewallRule` carries its protocol as this enum, so a service that
@@ -115,7 +120,13 @@ pub use model::port_span::PortSpan;
 // template crate to spell one type (rules/rust.md: `agent` translates,
 // `templates` renders).
 pub use maran_templates::nftables::nftables_protocol::NftablesProtocol;
+pub use model::output_chain_outcome::OutputChainOutcome;
 pub use model::ruleset_ports::RulesetPorts;
 pub use model::ruleset_state::RulesetState;
+pub use model::self_sets_outcome::SelfSetsOutcome;
 pub use process_firewall_host::ProcessFirewallHost;
+pub use read_output_policy::read_output_policy;
+pub use read_output_policy_or_inert::read_output_policy_or_inert;
+pub use reconcile_output_chain::reconcile_output_chain;
+pub use refresh_self_sets::refresh_self_sets;
 pub use unban_address::unban_address;

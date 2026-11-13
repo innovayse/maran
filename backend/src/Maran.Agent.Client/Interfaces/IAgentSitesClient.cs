@@ -33,6 +33,7 @@ public interface IAgentSitesClient
     /// <param name="node">What a Node backend runs; <see cref="SiteNodeApp.None"/> for any other backend.</param>
     /// <param name="maxChildren">The plan's worker budget, written into the pool's <c>pm.max_children</c>; ignored unless the backend is PHP.</param>
     /// <param name="settingOverrides">The customer's php.ini overrides, re-validated by the agent; ignored unless the backend is PHP.</param>
+    /// <param name="options">The site's per-site options the first vhost is rendered with; <see cref="SiteOptionsDescriptor.None"/> with the plan-derived request body limit for a PHP site.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>
     /// Where the site's files live, or a typed failure. <c>AgentAlreadyExists</c> means a vhost for this
@@ -50,6 +51,7 @@ public interface IAgentSitesClient
         SiteNodeApp node,
         uint maxChildren,
         IReadOnlyList<PhpSettingDto> settingOverrides,
+        SiteOptionsDescriptor options,
         CancellationToken cancellationToken);
 
     /// <summary>Rebinds a PHP-backed site to a different installed version and reloads its pool.</summary>

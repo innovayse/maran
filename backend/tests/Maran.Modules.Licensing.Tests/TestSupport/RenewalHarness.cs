@@ -40,6 +40,9 @@ internal sealed class RenewalHarness : IDisposable
     /// <summary>The renewal under test.</summary>
     internal LeaseRenewer Renewer { get; }
 
+    /// <summary>The gate the renewal stores a lease under; an install under test must use the same one.</summary>
+    internal LicenceInstallLock InstallLock { get; } = new();
+
     /// <summary>Where the licence is stored.</summary>
     internal string LicenceFilePath
     {
@@ -84,7 +87,7 @@ internal sealed class RenewalHarness : IDisposable
             Client,
             new LeaseEnvelopeReader(leaseVerifier),
             writer ?? new FileLeaseWriter(storage),
-            new LicenceInstallLock(),
+            InstallLock,
             Invalidator,
             Clock,
             NullLogger<LeaseRenewer>.Instance);

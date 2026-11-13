@@ -448,8 +448,8 @@ main() {
   # services start on a host whose package policy is already settled.
   run_step 68-os-updates.sh   step_os_updates
   # The units of the unattended security-patch update (issue #383), after the verb they run (66). The
-  # timer is enabled on the first install of the unit and left alone afterwards, and never enabled on
-  # an offline install.
+  # timer is installed and left OFF (issue #550); the operator opts in with
+  # `maran update-schedule enable`, and no install changes that choice.
   run_step 69-update-schedule.sh step_update_schedule
   # The units through which the panel's "Update now" button starts `maran update --requested` (issue
   # #382), and the directory the panel's request goes in. Before 70: the API unit's ReadWritePaths= names

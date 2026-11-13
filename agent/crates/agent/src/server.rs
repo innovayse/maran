@@ -24,6 +24,11 @@ use maran_ops::ssl::{ProcessPanelChallengeHost, ProcessSslHost};
 use maran_ops::transfer::{ProcessTransferHost, ProcessTransferWorkHost};
 use tonic::transport::Server;
 
+use crate::address_watch::firewall_sets_layer::FirewallSetsLayer;
+use crate::address_watch::host_address_source::KernelAddressSource;
+use crate::address_watch::host_address_watch::HostAddressWatch;
+use crate::address_watch::mail_clients_layer::MailClientsLayer;
+use crate::address_watch::run_host_address_watch::run_host_address_watch;
 use crate::audit::audit_layer::AuditLayer;
 use crate::error::StartupError;
 use crate::fleet::agent_incoming::agent_incoming;
@@ -70,7 +75,9 @@ use crate::shutdown::{StopSignals, drain_deadline};
 use crate::startup::bind_socket::bind_socket;
 use crate::startup::reconcile_dns_zones::reconcile_dns_zones;
 use crate::startup::reconcile_import_users::reconcile_import_users;
+use crate::startup::reconcile_mail_maps::reconcile_mail_maps;
 use crate::startup::reconcile_opcache_drop_ins::reconcile_opcache_drop_ins;
+use crate::startup::reconcile_output_chain::reconcile_firewall_output_chain;
 use crate::startup::reconcile_php_pool_trees::reconcile_php_pool_trees;
 use crate::startup::reconcile_sftp_key_files::reconcile_sftp_key_files;
 use crate::startup::reconcile_site_auth_files::reconcile_site_auth_files;
@@ -135,7 +142,7 @@ pub async fn serve(
     // On the blocking pool, because a restore finished here also mounts the
     // account's file-transfer jails onto the restored home (issue #487), which
     // waits on the service manager and takes `safe_write::config_tree_lock`.
-    let adapter = maran_distro::adapter_for(distro.family);
+    let adapter = maran_distro::adapter_for_release(&distro);
     let recovery = tokio::task::spawn_blocking(move || {
         maran_ops::backup::recover_restores(&FileTransferJails::new(
             ProcessSftpHost::new(),
@@ -238,6 +245,20 @@ pub async fn serve(
             adapter,
             PathBuf::from(AgentPaths::BULK_SCRATCH_ROOT),
         ));
+
+        // The local-submission maps a newer agent added, on a host that enabled mail
+        // under an earlier release (issue #531): the fan-out map is seeded empty so the
+        // rule does not defer every message until the panel next publishes. BEFORE the
+        // socket, so no `SetLocalSubmission` can be writing a map while the pass checks
+        // whether it exists (the pass holds the table lock regardless).
+        reconcile_mail_maps(&ProcessMailHost::new(), adapter);
+
+        // The firewall's output chain, the second layer of the port-25 lockdown
+        // (issue #531). BEFORE the socket, so no `AllowPort` or `DenyPort` can be
+        // re-rendering the ruleset while the pass decides whether its tail is
+        // current (the pass holds the firewall lock regardless), and so a host
+        // upgraded from a file without the chain has it from the first request on.
+        reconcile_firewall_output_chain(&ProcessFirewallHost::new(), adapter);
     });
     if let Err(failure) = passes.await {
         std::panic::resume_unwind(failure.into_panic());
@@ -286,6 +307,26 @@ pub async fn serve(
             "a backup dependency is missing; scheduled backups will fail until it is restored"
         );
     }
+
+    // The periodic check of the host's own addresses (issue #535): the two layers of
+    // the port-25 lockdown are filled from them, and a host gains addresses without
+    // anybody editing a rule. It runs once now and then at an interval, reads the
+    // addresses once for both layers, and writes a layer only when they changed. It
+    // is stopped with the server below; a failure inside it is logged and retried
+    // and never ends it.
+    let address_watch = tokio::spawn(run_host_address_watch(HostAddressWatch::new(
+        Box::new(KernelAddressSource),
+        vec![
+            Box::new(FirewallSetsLayer::new(
+                Box::new(ProcessFirewallHost::new()),
+                adapter,
+            )),
+            Box::new(MailClientsLayer::new(
+                Box::new(ProcessMailHost::new()),
+                adapter,
+            )),
+        ],
+    )));
 
     let (signalled, deadline) = tokio::sync::oneshot::channel();
 
@@ -544,6 +585,8 @@ pub async fn serve(
              the next start"
         ),
     }
+
+    address_watch.abort();
 
     // The socket is removed on the way out so that a stopped agent leaves no
     // entry the panel can connect to and hang on. It is belt to `serve`'s

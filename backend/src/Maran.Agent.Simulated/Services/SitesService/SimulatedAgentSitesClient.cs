@@ -76,12 +76,14 @@ public sealed class SimulatedAgentSitesClient : IAgentSitesClient
         SiteNodeApp node,
         uint maxChildren,
         IReadOnlyList<PhpSettingDto> settingOverrides,
+        SiteOptionsDescriptor options,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(aliases);
         ArgumentNullException.ThrowIfNull(settingOverrides);
         ArgumentNullException.ThrowIfNull(node);
+        ArgumentNullException.ThrowIfNull(options);
 
         // A Node site is refused without its runtime facts, as the real agent refuses it; the web server
         // is not modelled by the simulation, which renders no vhost text.

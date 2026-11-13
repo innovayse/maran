@@ -4,6 +4,7 @@ using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Domain.Policies;
 using Maran.Modules.Sites.Services;
+using Maran.Sdk.Contracts;
 
 namespace Maran.Modules.Sites.Mappers;
 
@@ -19,8 +20,9 @@ public static class SiteOptionsMapper
     /// <summary>Restates a site's options for the options screen.</summary>
     /// <param name="site">The site whose options are shown; <see cref="Site.Options"/> may be null.</param>
     /// <param name="names">Labels the closed sets in the request's culture.</param>
+    /// <param name="limits">The plan's PHP bounds of the site's account, which cap its body size.</param>
     /// <returns>The outward view.</returns>
-    public static SiteOptionsDto From(Site site, SiteDisplayNames names)
+    public static SiteOptionsDto From(Site site, SiteDisplayNames names, PhpLimitsSnapshot limits)
     {
         var values = SiteOptionsValuesMapper.From(site.Options);
 
@@ -50,6 +52,7 @@ public static class SiteOptionsMapper
                 SiteOptionsLimits.MaximumIpRules,
                 SiteOptionsLimits.MinimumBodySizeMib,
                 SiteOptionsLimits.MaximumBodySizeMib,
+                SiteBodySizePolicy.PlanCeiling(site.BackendType, limits),
                 SiteOptionsLimits.MinimumCacheDays,
                 SiteOptionsLimits.MaximumCacheDays,
                 SiteOptionsLimits.MinimumPasswordLength,

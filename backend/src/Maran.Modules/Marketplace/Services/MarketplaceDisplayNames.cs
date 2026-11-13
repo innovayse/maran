@@ -1,5 +1,6 @@
 using System.Globalization;
 using Maran.Modules.Marketplace.Domain.Enums;
+using Maran.Modules.Marketplace.Domain.Policies;
 using Maran.Modules.Marketplace.Resources;
 using Microsoft.Extensions.Localization;
 
@@ -35,12 +36,12 @@ public sealed class MarketplaceDisplayNames
     /// <summary>This module's names.</summary>
     private readonly IStringLocalizer<DisplayNames> _names;
 
-    /// <summary>The two-letter language of the current request, which the marketplace localizes its own text in.</summary>
+    /// <summary>The language of the current request, clamped to the ones the marketplace contract lists (<c>en</c>, <c>ru</c>, <c>hy</c>; English otherwise).</summary>
     public static string Locale
     {
         get
         {
-            return CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+            return MarketplaceLocalePolicy.For(CultureInfo.CurrentUICulture);
         }
     }
 

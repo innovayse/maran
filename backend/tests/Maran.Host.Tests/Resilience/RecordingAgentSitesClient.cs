@@ -74,6 +74,7 @@ internal sealed class RecordingAgentSitesClient : IAgentSitesClient
         SiteNodeApp node,
         uint maxChildren,
         IReadOnlyList<PhpSettingDto> settingOverrides,
+        SiteOptionsDescriptor options,
         CancellationToken cancellationToken)
     {
         LastAccountUsername = accountUsername;

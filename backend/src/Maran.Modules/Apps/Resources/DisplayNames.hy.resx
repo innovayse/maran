@@ -66,4 +66,10 @@
   <data name="AppFamilyNode">
     <value>Node.js {0}</value>
   </data>
+  <data name="NodejsUnavailableNoModuleStreams">
+    <value>Node.js-ը այս սերվերում չի առաջարկվում․ փաթեթների աղբյուրները Node.js-ի մոդուլային հոսքեր չեն պարունակում։ Ոչինչ վնասված չէ․ մյուս հավելվածները ցուցադրված են ինչպես միշտ։</value>
+  </data>
+  <data name="NodejsUnavailableListingFailed">
+    <value>Node.js-ի ցանկը չհաջողվեց ստանալ․ փաթեթների կառավարիչը չպատասխանեց կամ նրա պատասխանը չհաջողվեց կարդալ։ Փորձեք մի քանի րոպեից․ մյուս հավելվածները ցուցադրված են ինչպես միշտ։</value>
+  </data>
 </root>

@@ -5,7 +5,7 @@ using Microsoft.Extensions.Localization;
 
 namespace Maran.Modules.Apps.Services;
 
-/// <summary>Resolves the names of an app, its kind, its ledger state and its service status in the current request's culture.</summary>
+/// <summary>Resolves the names of an app, its kind, its ledger state, its service status and the reason Node.js is missing in the current request's culture.</summary>
 /// <remarks>
 /// <b>The names are the backend's to produce, not the SPA's</b> (rules/architecture.md "The backend owns
 /// the data, the SPA renders it"). Every set is closed and every member has an entry, so a miss is a defect
@@ -22,6 +22,9 @@ public sealed class AppDisplayNames
 
     /// <summary>The prefix a service status's resx key carries.</summary>
     private const string ServiceStatusPrefix = "AppServiceStatus";
+
+    /// <summary>The prefix a Node.js unavailability reason's resx key carries.</summary>
+    private const string NodejsUnavailablePrefix = "NodejsUnavailable";
 
     /// <summary>The prefix an app family's resx key carries.</summary>
     private const string FamilyPrefix = "AppFamily";
@@ -66,5 +69,13 @@ public sealed class AppDisplayNames
     public string Of(AppServiceStatus status)
     {
         return _displayNames[ServiceStatusPrefix + status].Value;
+    }
+
+    /// <summary>Names why the Node.js apps are missing from the installable list (issue #532).</summary>
+    /// <param name="reason">The reason.</param>
+    /// <returns>The sentence in the request's language.</returns>
+    public string Of(NodejsUnavailableReason reason)
+    {
+        return _displayNames[NodejsUnavailablePrefix + reason].Value;
     }
 }

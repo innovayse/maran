@@ -65,6 +65,7 @@ public sealed class AgentSitesClient : IAgentSitesClient
         SiteNodeApp node,
         uint maxChildren,
         IReadOnlyList<PhpSettingDto> settingOverrides,
+        SiteOptionsDescriptor options,
         CancellationToken cancellationToken)
     {
         var request = new CreateSiteRequest
@@ -79,6 +80,7 @@ public sealed class AgentSitesClient : IAgentSitesClient
             AppPort = node.Port,
             StartCommand = node.StartCommand,
             MaxChildren = maxChildren,
+            Options = options.ToWire(),
         };
         request.Aliases.AddRange(aliases);
         foreach (var setting in settingOverrides)

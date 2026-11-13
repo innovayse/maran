@@ -12,6 +12,8 @@ use maran_agent_core::validation::web::node_major::NodeMajor;
 
 use crate::adapter_binary::AdapterBinary;
 use crate::nodejs_packaging::NodejsPackaging;
+use crate::nodejs_stream_listing::NodejsStreamListing;
+use crate::package_query_failure::PackageQueryFailure;
 
 /// The package behind each app of the catalogue, and how Apache is prepared.
 pub trait AppFacts: Send + Sync {
@@ -84,4 +86,49 @@ pub trait AppFacts: Send + Sync {
     /// every major has a path of its own; a [`NodejsPackaging::SingleDistroPackage`] family has
     /// one interpreter whatever `major` is.
     fn node_binary(&self, major: &NodeMajor) -> AdapterBinary;
+
+    /// The arguments of the read-only, cache-only run that lists the streams of the `nodejs`
+    /// module, run with [`PackageFacts::package_query_binary`](crate::PackageFacts::package_query_binary)
+    /// (issue #532). `Some` for [`NodejsPackaging::ModuleStreams`] only; every other family, and
+    /// the RHEL 10 generation, answers `None` ("there is no module question to ask"), so a caller
+    /// can never run the package manager with an empty argument list.
+    fn nodejs_stream_list_arguments(&self) -> Option<Vec<String>>;
+
+    /// Reads the run of [`Self::nodejs_stream_list_arguments`]: its exit `status`, `stdout` and
+    /// `stderr`, as the streams of the catalogue's majors the sources list with the `common`
+    /// profile (in the order they are listed, once each) and the streams the host has enabled.
+    ///
+    /// A row the reader does not understand fails the whole read, and so does a status that is
+    /// not a listing's: "the sources list no stream" and "the sources could not be asked" are
+    /// different facts, and so is "the sources carry no modules at all"
+    /// ([`PackageQueryFailure::NoModules`]), which only `stderr` tells from the others. A family
+    /// without module streams answers an empty listing.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`PackageQueryFailure`] for an unsuccessful exit, for sources without modules,
+    /// and for a `nodejs` row outside the grammar of the family's listing.
+    fn read_nodejs_streams(
+        &self,
+        status: i32,
+        stdout: &str,
+        stderr: &str,
+    ) -> Result<NodejsStreamListing, PackageQueryFailure>;
+
+    /// The command an operator runs to take a Node.js off the host that was installed outside the
+    /// panel (no module stream enabled), for the refusal that tells them how to go on. Text for
+    /// the operator, never run by the agent. Empty for a family without module streams.
+    fn nodejs_unmanaged_removal_command(&self) -> &'static str;
+
+    /// The command an operator runs to give up a Node.js module stream that is enabled but has
+    /// nothing installed (`dnf module reset nodejs`), for the refusal that tells them the panel
+    /// will not reset a choice it did not make. Text for the operator, never run by the agent.
+    /// Empty for a family without module streams.
+    fn nodejs_stream_release_command(&self) -> &'static str;
+
+    /// The package names a removal of a Node.js module stream may take off the host: what the
+    /// stream's `common` profile installs. The dry run of the removal is accepted only when
+    /// every package it removes because the stream goes is one of these. Empty for a family
+    /// without module streams.
+    fn nodejs_module_packages(&self) -> &'static [&'static str];
 }

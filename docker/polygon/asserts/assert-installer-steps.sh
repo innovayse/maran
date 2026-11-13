@@ -66,6 +66,10 @@ readonly AGENT_UNIT="${INSTALLER_ROOT}/systemd/maran-agent.service"
 # COPY stops the build at the step and not only at the assertion.
 readonly APP_INSTALL_UNIT_SOURCE="${INSTALLER_ROOT}/systemd/maran-app-install@.service"
 readonly APP_REMOVE_UNIT_SOURCE="${INSTALLER_ROOT}/systemd/maran-app-remove@.service"
+# The RHEL-only Node.js module-stream pair (issue #532), copied into every image so the refusal on the
+# other families is observed too.
+readonly APP_NODEJS_INSTALL_UNIT_SOURCE="${INSTALLER_ROOT}/systemd/maran-app-nodejs-install@.service"
+readonly APP_NODEJS_REMOVE_UNIT_SOURCE="${INSTALLER_ROOT}/systemd/maran-app-nodejs-remove@.service"
 readonly SERVICES_STEP="${INSTALLER_LIB}/70-services.sh"
 # The shared helpers the step files call but no step defines. Sourced rather than read: a step that
 # calls `host_display_name` and cannot find it exits 127 with no assertion of this script ever
@@ -263,6 +267,8 @@ require_installer_file "$HOST_TMPFILES" installer/systemd/maran-host.tmpfiles.co
 require_installer_file "$AGENT_UNIT" installer/systemd/maran-agent.service
 require_installer_file "$APP_INSTALL_UNIT_SOURCE" installer/systemd/maran-app-install@.service
 require_installer_file "$APP_REMOVE_UNIT_SOURCE" installer/systemd/maran-app-remove@.service
+require_installer_file "$APP_NODEJS_INSTALL_UNIT_SOURCE" installer/systemd/maran-app-nodejs-install@.service
+require_installer_file "$APP_NODEJS_REMOVE_UNIT_SOURCE" installer/systemd/maran-app-nodejs-remove@.service
 require_installer_file "$SERVICES_STEP" installer/lib/70-services.sh
 require_installer_file "$COMMON_LIB" installer/lib/00-common.sh
 require_installer_file "$PREFLIGHT_STEP" installer/lib/10-preflight.sh
@@ -559,6 +565,7 @@ for __part in \
   "${ASSERT_PARTS_DIR}/dns.sh" \
   "${ASSERT_PARTS_DIR}/mail-uninstall.sh" \
   "${ASSERT_PARTS_DIR}/mail-local-submit.sh" \
+  "${ASSERT_PARTS_DIR}/mail-port25-lockdown.sh" \
   "${ASSERT_PARTS_DIR}/artifacts-and-packages.sh" \
   "${ASSERT_PARTS_DIR}/cli-recovery.sh" \
   "${ASSERT_PARTS_DIR}/cli-update.sh" \
@@ -646,10 +653,13 @@ main() {
   # and the socket assertion above leaves the unit directory clean for them.
   assert_the_app_package_units_are_the_fixed_oneshots_the_design_allows
   assert_step_70_installs_the_app_package_units_root_owned_and_never_enabled
+  assert_the_nodejs_module_units_are_fixed_oneshots_where_the_release_has_module_streams
   # The first-run state and one app installed and removed through the units' stand-in (issue #517).
   # After the unit assertions, which leave the unit directory clean for it.
   assert_a_fresh_host_has_the_panel_front_and_no_site_runtime
   assert_an_app_installs_and_uninstalls_through_the_package_units
+  assert_a_nodejs_module_stream_installs_once_and_uninstalls_clean
+  assert_node_majors_are_plain_packages_that_coexist_where_the_release_has_no_modules
   # The scheduled panel backup's units (issue #129), after the two units above for the same reason
   # they follow each other: every one of them installs into /etc/systemd/system and removes only its
   # own files, so none is holding a file another is about to look for. These three put the image
@@ -755,7 +765,12 @@ main() {
   # it refuses to start without, so it does not depend on the order of anything above it.
   assert_remove_mail_stops_only_the_recorded_key_value_unit
   # Local submission binding (issue #518): needs a running mail stack, says so where there is none.
+  # The build runs no mail daemon, so both mail assertions below print their GAP here. The mail lane
+  # (docker/polygon/asserts/mail-lane.sh, the `polygon-mail` job of agent.yml) runs them against a running
+  # stack with MARAN_MAIL_LOCAL_SUBMIT_REQUIRED=yes and MARAN_MAIL_PORT25_REQUIRED=yes, where a gap fails.
   assert_local_submission_is_bound_to_the_account
+  # Port 25 closed to customers on both layers, local DKIM and the alias fan-out charge (issue #531).
+  assert_port_25_is_closed_to_customers
   # The SUSE family does not offer mail until it is measured: the step must skip in plain words and
   # leave nothing behind. After the uninstall half above, which plants and removes its own records.
   if [ "${MARAN_OS_FAMILY:-}" = suse ]; then

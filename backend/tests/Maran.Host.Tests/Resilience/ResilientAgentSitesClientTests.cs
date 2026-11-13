@@ -48,7 +48,7 @@ public sealed class ResilientAgentSitesClientTests
 
         var result = await Invoke(inner, client =>
         {
-            return client.CreateAsync("acc1", "example.com", [], SiteBackendKind.Static, "", "", SiteWebServer.Nginx, SiteNodeApp.None, 0, [], default);
+            return client.CreateAsync("acc1", "example.com", [], SiteBackendKind.Static, "", "", SiteWebServer.Nginx, SiteNodeApp.None, 0, [], SiteOptionsDescriptor.None, default);
         });
 
         Assert.True(result.IsSuccess);
@@ -154,7 +154,7 @@ public sealed class ResilientAgentSitesClientTests
             SiteNodeApp.None,
             9,
             [],
-            default);
+            SiteOptionsDescriptor.None, default);
 
         Assert.Equal("acc1", inner.LastAccountUsername);
         Assert.Equal("example.com", inner.LastDomain);

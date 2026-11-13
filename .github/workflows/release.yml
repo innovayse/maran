@@ -9,11 +9,15 @@ name: release
 #
 #   check      validates the tag and that its commit is on main. Holds nothing secret.
 #   openapi    generates the OpenAPI document of the tagged tree. Holds no secret, no write permission;
-#              the document is attached unsigned and listed in SHA256SUMS only.
+#              the `sign` job signs it (issue #552).
+#   installer  the installer polygon on ubuntu24 and alma9 (nightly.yml, called as a reusable workflow,
+#              issue #553). Holds no secret (it signs with a throwaway key of its own). `sign` needs it,
+#              so a tag whose installer run is red is never signed.
 #   build      builds the UNSIGNED bundle for both architectures, the SBOMs and the notes. Runs the
 #              third-party SBOM generators. Holds no secret and no write permission.
 #   sign       the ONLY job that sees the signing key (environment `release`, required reviewers).
-#              Writes the key, signs, deletes the key, verifies, packages. Read-only repository access.
+#              Writes the key, signs the manifests and openapi.json, deletes the key, verifies,
+#              packages. Read-only repository access.
 #   publish    the ONLY job with `contents: write`. It never sees the key. It re-verifies the signed
 #              bundle and only then creates the GitHub release.
 #
@@ -284,9 +288,9 @@ jobs:
     # cache, so 30 is that tripled and a hang guard. Re-measure from the first tag run.
     timeout-minutes: 30
     steps:
-      # A job of its own, like `sbom`: it holds no secret and no write permission, and the signing
-      # job's view (the `release-unsigned` and `release-sbom` artifacts) is unchanged by it. The
-      # document is NOT signed (owner decision, issue #143): `publish` lists it in SHA256SUMS only.
+      # A job of its own, like `sbom`: it holds no secret and no write permission. The document
+      # is signed by the `sign` job (issue #552), which downloads this artifact: the generating job
+      # never sees the key, and the signing job never runs the generator.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
@@ -334,8 +338,20 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  # THE INSTALLER POLYGON (issue #553): the same nightly.yml that can be dispatched by hand, called
+  # here with its default scope (ubuntu24 and alma9). It builds its own bundle under a throwaway key, so
+  # it needs nothing from this workflow and holds no release secret. The `sign` job needs it: a red
+  # installer leg fails this job and the key is never written.
+  installer:
+    needs: check
+    uses: ./.github/workflows/nightly.yml
+    with:
+      scope: nightly
+    permissions:
+      contents: read
+
   sign:
-    needs: [check, build, sbom]
+    needs: [check, build, sbom, openapi, installer]
     runs-on: ubuntu-24.04
     # The protected environment: the owner configures required reviewers on it, and the signing key
     # is its secret. A run stops here until a reviewer approves, and that wait does not count
@@ -367,6 +383,13 @@ jobs:
           name: release-sbom
           path: release-out/sbom
 
+      # The document the key signs below (issue #552). It lands in release-out/openapi, which the
+      # `release-signed` artifact carries on to `publish` together with its signature.
+      - uses: actions/download-artifact@v7
+        with:
+          name: release-openapi
+          path: release-out/openapi
+
       # THE KEY'S LIFE: written here, used by the one step after, deleted by the step after that.
       # The secret is in the environment of THIS step only, which runs two shell builtins and no
       # other program; `umask 077` makes the file 0600 from creation (no window where it is
@@ -386,13 +409,14 @@ jobs:
           printf '%s\n' "$MARAN_RELEASE_SIGNING_KEY" > "$RUNNER_TEMP/release-signing.key"
 
       # The key is passed to the script BY PATH, never by value; the secret is not in this step's
-      # environment at all. `--publish` refuses a manifest that lacks either architecture.
+      # environment at all. `--publish` refuses a manifest that lacks either architecture. `--openapi`
+      # signs openapi.json with the same key into openapi.json.sig (issue #552).
       - name: Sign the manifest
         run: |
           set +x
           set -euo pipefail
           bash scripts/maran release sign --key "$RUNNER_TEMP/release-signing.key" \
-            --bundle "$PWD/release-out/bundle" --publish
+            --bundle "$PWD/release-out/bundle" --publish --openapi "$PWD/release-out/openapi"
 
       # `if: always()`: the key is removed whether signing worked or not, and straight after the
       # one step that needs it, so nothing below runs with a key on disk. `shred` where it exists,
@@ -410,14 +434,16 @@ jobs:
           echo "the signing key file is gone"
 
       # The verification the installer would make, over what was just signed: both architectures,
-      # the signature against the pinned public key, every checksum.
+      # the signature against the pinned public key, every checksum, and openapi.json's signature (a
+      # missing or wrong one fails the release on every channel).
       - name: Verify the signed bundle
         run: |
           set -euo pipefail
           # Passes on the LAST printed verdict line being OK AND on the exit status, never on either alone.
           log="$RUNNER_TEMP/verify-sign.log"
           status=0
-          bash scripts/maran release verify --bundle "$PWD/release-out/bundle" --publish >"$log" 2>&1 || status=$?
+          bash scripts/maran release verify --bundle "$PWD/release-out/bundle" --publish \
+            --openapi "$PWD/release-out/openapi" >"$log" 2>&1 || status=$?
           cat "$log"
           last="$(grep -a 'RELEASE VERDICT:' "$log" | tail -n 1 || true)"
           case "$last" in
@@ -439,7 +465,7 @@ jobs:
           retention-days: 7
 
   publish:
-    needs: [check, build, sbom, openapi, sign]
+    needs: [check, build, sbom, sign]
     runs-on: ubuntu-24.04
     # NEVER RUN: no measured basis. Verification repeats the sign job's, and `gh release create`
     # uploads roughly the size of the bundle (both architectures' components plus two offline
@@ -468,22 +494,19 @@ jobs:
           name: release-sbom
           path: release-out/sbom
 
-      # Not signed, so it is not in the signed bundle and the sign job never sees it.
-      - uses: actions/download-artifact@v7
-        with:
-          name: release-openapi
-          path: release-out/openapi
-
       # VERIFY BEFORE PUBLISH, again, in the job that can publish: this job does not take the sign
       # job's word for it. No key is needed, only the pinned public key in the repository. The
       # release is created only if both of these, and the SBOM check, pass (each step fails the job).
+      # The openapi.json signature is part of the first check (issue #552): the signed artifact carries
+      # release-out/openapi/openapi.json and openapi.json.sig from the sign job.
       - name: Verify the signed bundle before anything is published
         run: |
           set -euo pipefail
           # Passes on the LAST printed verdict line being OK AND on the exit status, never on either alone.
           log="$RUNNER_TEMP/verify-publish.log"
           status=0
-          bash scripts/maran release verify --bundle "$PWD/release-out/bundle" --publish >"$log" 2>&1 || status=$?
+          bash scripts/maran release verify --bundle "$PWD/release-out/bundle" --publish \
+            --openapi "$PWD/release-out/openapi" >"$log" 2>&1 || status=$?
           cat "$log"
           last="$(grep -a 'RELEASE VERDICT:' "$log" | tail -n 1 || true)"
           case "$last" in
@@ -527,9 +550,10 @@ jobs:
             sbom_count=$((sbom_count + 1))
           done < <(find release-out/sbom -type f -print0)
           [ "$sbom_count" -gt 0 ] || { echo "::error::no SBOM files to attach."; exit 1; }
-          # NOT signed (owner decision, issue #143): attached and checksummed in SHA256SUMS only. A
-          # missing file fails the copy and the job.
+          # Signed by the sign job and verified above (issue #552): the document and its signature are
+          # attached, and both are checksummed in SHA256SUMS. A missing file fails the copy and the job.
           cp -- release-out/openapi/openapi.json "$assets/openapi.json"
+          cp -- release-out/openapi/openapi.json.sig "$assets/openapi.json.sig"
           # Written outside the directory first, so the checksum file does not list itself.
           (cd "$assets" && sha256sum -- * > ../SHA256SUMS)
           mv release-out/SHA256SUMS "$assets/SHA256SUMS"

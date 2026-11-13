@@ -12,29 +12,15 @@ use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::utils::child_input::ChildInput;
 use maran_agent_core::utils::child_output::ChildOutput;
 use maran_agent_core::utils::current_uid::current_uid;
+use maran_agent_core::utils::read_host_addresses::read_host_addresses;
 use maran_agent_core::utils::run_bounded::run_bounded;
 use maran_agent_core::utils::spawn_request::SpawnRequest;
 use maran_agent_core::validation::web::port::Port;
 use maran_agent_core::validation::web::remote_host::RemoteHost;
 use maran_distro::AdapterBinary;
 
-use crate::transfer::parse_fib_trie_local::parse_fib_trie_local;
-use crate::transfer::parse_if_inet6::parse_if_inet6;
 use crate::transfer::transfer_host::TransferHost;
 use crate::transfer::transfer_op_error::TransferOpError;
-
-/// The kernel's table of the host's IPv4 routes and local addresses.
-///
-/// A kernel interface, identical on every family and not a `distro` fact (the
-/// same reasoning `ProcessMonitorHost` gives its `/proc` files).
-const PROC_FIB_TRIE: &str = "/proc/net/fib_trie";
-
-/// The kernel's table of the host's IPv6 addresses. Absent when IPv6 is off.
-const PROC_IF_INET6: &str = "/proc/net/if_inet6";
-
-/// The most of either table that is read. A host carrying a full routing table
-/// is over it and is refused rather than read whole.
-const ADDRESS_TABLE_LIMIT: u64 = 16 * 1024 * 1024;
 
 /// The most standard error any program run through this host may write. `ssh`
 /// at `LogLevel=ERROR` prints a line; this is far above that and far below the
@@ -104,26 +90,6 @@ impl Default for ProcessTransferHost {
     fn default() -> Self {
         Self::new()
     }
-}
-
-/// Reads one kernel address table, bounded.
-///
-/// # Errors
-///
-/// Returns the I/O error kind when the file cannot be read, and
-/// [`ErrorKind::InvalidData`] when it exceeds [`ADDRESS_TABLE_LIMIT`].
-fn read_address_table(path: &str) -> Result<String, ErrorKind> {
-    let file = File::open(path).map_err(|error| error.kind())?;
-    let mut text = String::new();
-    file.take(ADDRESS_TABLE_LIMIT + 1)
-        .read_to_string(&mut text)
-        .map_err(|error| error.kind())?;
-
-    if text.len() as u64 > ADDRESS_TABLE_LIMIT {
-        return Err(ErrorKind::InvalidData);
-    }
-
-    Ok(text)
 }
 
 impl TransferHost for ProcessTransferHost {
@@ -288,21 +254,9 @@ impl TransferHost for ProcessTransferHost {
     /// cannot be read or is over its bound, or the IPv6 table exists and cannot
     /// be read. An absent IPv6 table is IPv6 turned off, which lists nothing.
     fn local_addresses(&self) -> Result<Vec<IpAddr>, TransferOpError> {
-        let mut addresses: Vec<IpAddr> = parse_fib_trie_local(
-            &read_address_table(PROC_FIB_TRIE)
-                .map_err(|_| TransferOpError::HostAddressesUnavailable)?,
-        )
-        .into_iter()
-        .map(IpAddr::V4)
-        .collect();
-
-        match read_address_table(PROC_IF_INET6) {
-            Ok(text) => addresses.extend(parse_if_inet6(&text).into_iter().map(IpAddr::V6)),
-            Err(ErrorKind::NotFound) => {}
-            Err(_) => return Err(TransferOpError::HostAddressesUnavailable),
-        }
-
-        Ok(addresses)
+        read_host_addresses()
+            .map(|host| host.addresses)
+            .map_err(TransferOpError::HostAddressesUnavailable)
     }
 }
 

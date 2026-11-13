@@ -49,7 +49,7 @@ public sealed class ResilientAgentAppsClient : IAgentAppsClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<IReadOnlyList<AgentInstallableApp>>> ListInstallableAppsAsync(
+    public async Task<Result<AgentInstallableApps>> ListInstallableAppsAsync(
         CancellationToken cancellationToken)
     {
         return await AgentOperationPipeline.ExecuteAsync(

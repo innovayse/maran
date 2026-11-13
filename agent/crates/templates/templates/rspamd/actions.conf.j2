@@ -5,4 +5,11 @@
 greylist = {{ greylist }};
 add_header = {{ add_header }};
 reject = {{ reject }};
+# `discard` is not a built-in Rspamd action: the local-submission rule asks for it
+# (a refusal whose bounce would reach an address nobody verified), and without this
+# definition the request raises and the message would be deferred forever. The
+# milter answers it with a silent drop.
+discard {
+  flags = ["no_threshold"];
+}
 {# A trailing comment keeps the final newline, which askama would otherwise drop. #}

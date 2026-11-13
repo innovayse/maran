@@ -43,7 +43,7 @@
     <value>This version of the module has been withdrawn by its publisher and cannot be installed.</value>
   </data>
   <data name="GrantHostRefused">
-    <value>The marketplace sent a download address that this panel does not trust, so nothing was downloaded.</value>
+    <value>The marketplace sent a download address whose scheme, host or port differs from the marketplace address configured on this server (Marketplace__BaseUrl), so nothing was downloaded. The service's public address and this setting must name the same origin.</value>
   </data>
   <data name="DownloadSizeMismatch">
     <value>The downloaded package is not the size the marketplace announced, so it was discarded. Nothing was installed.</value>
@@ -104,5 +104,17 @@
   </data>
   <data name="MarketplaceCursorInvalid">
     <value>The page marker is too long or contains characters that are not allowed.</value>
+  </data>
+  <data name="LicenceUnknown">
+    <value>The marketplace no longer knows this server's licence. Install the licence again, then try again.</value>
+  </data>
+  <data name="LicenceRevoked">
+    <value>This server's licence has been revoked, so the marketplace refuses the request. Contact the licence issuer.</value>
+  </data>
+  <data name="MarketplaceRateLimited">
+    <value>The marketplace is receiving too many requests from this server. Wait a moment and try again.</value>
+  </data>
+  <data name="DownloadGrantUnusable">
+    <value>The marketplace no longer accepts this download, because it expired or was already used. Start the installation again.</value>
   </data>
 </root>

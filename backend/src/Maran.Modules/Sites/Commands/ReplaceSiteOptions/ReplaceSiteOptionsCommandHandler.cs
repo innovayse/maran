@@ -80,6 +80,9 @@ public sealed class ReplaceSiteOptionsCommandHandler
     /// <summary>Refuses the operation while no site web server is installed.</summary>
     private readonly SiteStackGate _stack;
 
+    /// <summary>Serialises the operations that change one site's host state.</summary>
+    private readonly ISiteOperationLock _locks;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Sites module's database context.</param>
     /// <param name="accounts">The owning account's system user name.</param>
@@ -88,6 +91,7 @@ public sealed class ReplaceSiteOptionsCommandHandler
     /// <param name="siteNames">Labels the closed sets for the request's culture.</param>
     /// <param name="logger">Where a failed compensation is reported.</param>
     /// <param name="stack">Refuses the operation while no site web server is installed.</param>
+    /// <param name="locks">Serialises the operations that change one site's host state.</param>
     public ReplaceSiteOptionsCommandHandler(
         SitesDbContext dbContext,
         IAccountDirectory accounts,
@@ -95,8 +99,10 @@ public sealed class ReplaceSiteOptionsCommandHandler
         SiteAuditJournal journal,
         SiteDisplayNames siteNames,
         ILogger<ReplaceSiteOptionsCommandHandler> logger,
-        SiteStackGate stack)
+        SiteStackGate stack,
+        ISiteOperationLock locks)
     {
+        _locks = locks;
         _stack = stack;
         _dbContext = dbContext;
         _accounts = accounts;
@@ -111,7 +117,7 @@ public sealed class ReplaceSiteOptionsCommandHandler
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>
     /// The options in their new state, or <c>SiteNotFound</c>, <c>AccountNotFound</c>,
-    /// <c>SiteOptionNotForBackend</c>, <c>SiteCanonicalHostNotServed</c>, <c>SiteBasicAuthPasswordRequired</c>, or the agent's own typed
+    /// <c>SiteOptionNotForBackend</c>, <c>SiteBodySizeAbovePlan</c>, <c>SiteCanonicalHostNotServed</c>, <c>SiteBasicAuthPasswordRequired</c>, or the agent's own typed
     /// failure.
     /// </returns>
     /// <exception cref="DbUpdateException">
@@ -130,6 +136,33 @@ public sealed class ReplaceSiteOptionsCommandHandler
             return await FailAsync(command, command.SiteId.ToString(), notReady, cancellationToken);
         }
 
+        // The site is held for the whole change, from reading its row to saving it, so no other
+        // operation on it interleaves; the row is read inside the guard for that reason (#531).
+        var guarded = await SiteGuard.RunAsync(
+            _locks,
+            command.SiteId,
+            SiteLockWait.Interactive,
+            () =>
+            {
+                return ApplyAsync(command, installed, cancellationToken);
+            },
+            cancellationToken);
+
+        return !guarded.IsSuccess && SiteBusyFailure.Is(guarded.Error)
+            ? await FailAsync(command, command.SiteId.ToString(), guarded.Error!, cancellationToken)
+            : guarded;
+    }
+
+    /// <summary>Applies the change to the site, which the caller holds.</summary>
+    /// <param name="command">Which site to act on.</param>
+    /// <param name="installed">The apps the stack gate found installed.</param>
+    /// <param name="cancellationToken">Cancels the operation.</param>
+    /// <returns>The change's outcome, or the typed failure.</returns>
+    private async Task<Result<SiteOptionsDto>> ApplyAsync(
+        ReplaceSiteOptionsCommand command,
+        SiteHostApps installed,
+        CancellationToken cancellationToken)
+    {
         var site = await _dbContext.Sites.SingleOrDefaultAsync(candidate => candidate.Id == command.SiteId, cancellationToken);
         if (site is null)
         {
@@ -152,6 +185,17 @@ public sealed class ReplaceSiteOptionsCommandHandler
                 && site.BackendType is SiteBackendType.ReverseProxy or SiteBackendType.Node))
         {
             return await FailAsync(command, site.Domain, Error.Of(nameof(ErrorMessages.SiteOptionNotForBackend), ErrorType.Validation), cancellationToken);
+        }
+
+        // A PHP site's body limit is capped by its plan's upload bound, the bound its pool already holds.
+        // Refused here with a code of its own so the customer sees the bound. Only a figure that CHANGES is
+        // refused: this is a full replacement, so a customer saving some other option sends the stored figure
+        // back, and a stored one that a later plan edit left above the bound is cut when the vhost is rendered,
+        // not refused (SiteBodySizePolicy). Refusing it would block every unrelated edit until they lowered it.
+        if (command.ClientMaxBodySizeMib != site.Options?.ClientMaxBodySizeMib
+            && SiteBodySizePolicy.ExceedsPlan(site.BackendType, command.ClientMaxBodySizeMib, account.PhpLimits))
+        {
+            return await FailAsync(command, site.Domain, Error.Of(nameof(ErrorMessages.SiteBodySizeAbovePlan), ErrorType.Validation), cancellationToken);
         }
 
         if (!CanonicalHostIsServed(site, command.CanonicalHost))
@@ -189,7 +233,7 @@ public sealed class ReplaceSiteOptionsCommandHandler
         if (site.Status == SiteStatus.Enabled)
         {
             var rendered = await _agent.EnableAsync(
-                account.Username, site.Domain, SiteDescriptorMapper.From(site, installed.WebServer!.Value), cancellationToken);
+                account.Username, site.Domain, SiteDescriptorMapper.From(site, installed.WebServer!.Value, account.PhpLimits), cancellationToken);
             if (!rendered.IsSuccess)
             {
                 // The change was only ever made in memory; clearing it makes sure nothing later in
@@ -205,7 +249,7 @@ public sealed class ReplaceSiteOptionsCommandHandler
         }
         catch (DbUpdateException)
         {
-            await RestoreVhostAsync(site, account.Username, installed.WebServer!.Value);
+            await RestoreVhostAsync(site, account.Username, installed.WebServer!.Value, account.PhpLimits);
             throw;
         }
 
@@ -222,7 +266,7 @@ public sealed class ReplaceSiteOptionsCommandHandler
             command.UserAgent,
             cancellationToken);
 
-        return Result<SiteOptionsDto>.Ok(SiteOptionsMapper.From(site, _siteNames));
+        return Result<SiteOptionsDto>.Ok(SiteOptionsMapper.From(site, _siteNames, account.PhpLimits));
     }
 
     /// <summary>Whether the site claims both names of the pair a canonical-host choice redirects between.</summary>
@@ -301,7 +345,8 @@ public sealed class ReplaceSiteOptionsCommandHandler
     /// <param name="site">The site, whose tracked state still holds the unsaved replacement.</param>
     /// <param name="accountUsername">The owning account's system user name.</param>
     /// <param name="webServer">The installed site web server the vhost is rendered for.</param>
-    private async Task RestoreVhostAsync(Site site, string accountUsername, SiteWebServer webServer)
+    /// <param name="limits">The plan's PHP bounds of the owning account.</param>
+    private async Task RestoreVhostAsync(Site site, string accountUsername, SiteWebServer webServer, PhpLimitsSnapshot limits)
     {
         if (site.Status != SiteStatus.Enabled)
         {
@@ -320,7 +365,7 @@ public sealed class ReplaceSiteOptionsCommandHandler
         }
 
         var restored = await _agent.EnableAsync(
-            accountUsername, domain, SiteDescriptorMapper.From(stored, webServer), CancellationToken.None);
+            accountUsername, domain, SiteDescriptorMapper.From(stored, webServer, limits), CancellationToken.None);
         if (!restored.IsSuccess)
         {
             LogRestoreFailed(_logger, domain, restored.Error!.Code, null);

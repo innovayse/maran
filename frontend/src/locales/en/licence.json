@@ -11,6 +11,7 @@
     "leaseLabel": "Lease",
     "leaseValidUntil": "valid until {date}",
     "leaseExpiredNotice": "The licence lease has expired. Paid modules that depend on it stay locked until the lease is renewed.",
+    "expiryClaimAgain": "Claim the licence again for this server",
     "offlineNote": "This is an offline licence: it is verified on this server without contacting a licensing service.",
     "installTitle": "Install a licence",
     "installHint": "Paste the licence you received. The panel verifies its signature before it accepts it.",
@@ -18,6 +19,16 @@
     "installSubmit": "Install licence",
     "installing": "Installing…",
     "installRequired": "Paste the licence text first.",
-    "installed": "The licence was installed."
+    "installed": "The licence was installed.",
+    "server": {
+      "title": "This server",
+      "intro": "A licence can be tied to this server. Give the marketplace this ID when you claim a licence, and the licence will work here and nowhere else.",
+      "idLabel": "Server ID",
+      "copy": "Copy server ID",
+      "copied": "Copied",
+      "claimLink": "Claim a licence for this server",
+      "noClaimLink": "The marketplace does not accept this ID, so no claim link can be made for it.",
+      "unavailable": "The panel could not read this server's ID. Check that the panel agent is running."
+    }
   }
 }

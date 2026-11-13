@@ -90,6 +90,7 @@ create_directory_layout' \
   local entry checked=0
   for entry in \
     "/usr/local/maran:0:0:755" \
+    "/etc/security/limits.d:0:0:755" \
     "/etc/maran:0:${panel_gid}:750" \
     "/var/lib/maran:${panel_uid}:${panel_gid}:750" \
     "/var/lib/maran/marketplace:${panel_uid}:${panel_gid}:700" \
@@ -116,8 +117,8 @@ create_directory_layout' \
   # anywhere. A count is not decoration on that axis: it is the only thing that observes the
   # list's SIZE, which is the property the assertions themselves cannot see. Raise it with the
   # list.
-  [ "$checked" -eq 17 ] \
-    || fail "the directory layout list checked ${checked} paths, not the 17 this list names (12 from step 40, the PHP socket directory from its tmpfiles snippet, and /run/maran-host with its three mount points). A path has been dropped from the list, and a check that is not in the list is not a check that failed — it is one that no longer exists."
+  [ "$checked" -eq 18 ] \
+    || fail "the directory layout list checked ${checked} paths, not the 18 this list names (13 from step 40, the PHP socket directory from its tmpfiles snippet, and /run/maran-host with its three mount points). A path has been dropped from the list, and a check that is not in the list is not a check that failed — it is one that no longer exists."
 
   # The scratch is a SIBLING of /var/lib/maran, never a child, and the reason is the whole
   # fix: the owner of a directory can rename an entry inside it aside and leave a symlink
@@ -189,7 +190,7 @@ create_directory_layout' \
   assert_the_web_user_reaches_php_sockets_and_not_the_agent_directory
   assert_the_host_mount_points_are_built_by_their_snippet
 
-  echo "Step 40's directory layout verified: sixteen directories, each a real directory with its own owner and mode, and every root-written log leaf under a root-only ancestry."
+  echo "Step 40's directory layout verified: eighteen directories, each a real directory with its own owner and mode, and every root-written log leaf under a root-only ancestry."
   echo "UNOBSERVED HERE: only the two directories the INSTALLER creates are asserted above — /var/log/maran and /var/log/maran/sites. The per-account level, /var/log/maran/sites/<account> root:root 0750, is created by the agent as root at site-create time (SiteHost::create_site_log_directory), never by the installer, because the installer does not know the accounts and an account created later must get one anyway. It is asserted where it is made: agent/crates/agent/tests/sites_on_a_real_host.rs, every_directory_the_site_log_tree_is_made_of_belongs_to_root. Nothing here can see it, and a reader must not take the rows above as covering the whole tree."
   echo "UNOBSERVED HERE: the ancestry above is the state step 40 leaves behind, not a guarantee about later. Neither of the two root writers that made this directory a defect runs in this image — install.sh's own \`tee -a\` and the root nginx master's access_log/error_log opens — and the nginx one could not be gated even where it does run, because nginx re-creates those files itself on every start, reload and SIGUSR1, after every check the installer performs. The ownership asserted above is the whole defence, not a check in front of the write."
 }

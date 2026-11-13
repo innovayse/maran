@@ -57,7 +57,8 @@ public sealed class AttentionTallyTests
             DashboardSection.Loaded(1),
             DashboardSection.Loaded(1),
             Synchronized(),
-            Delivering());
+            Delivering(),
+            DashboardSection.Loaded(0));
 
         var total = AttentionTally.Total(attention);
 
@@ -91,11 +92,67 @@ public sealed class AttentionTallyTests
             DashboardSection.Loaded(1),
             DashboardSection.Unavailable<int>(),
             Synchronized(),
-            Delivering());
+            Delivering(),
+            DashboardSection.Loaded(0));
 
         var total = AttentionTally.Total(attention);
 
         Assert.Equal(DashboardSectionState.Unavailable, total.State);
+    }
+
+    /// <summary>A licence close to its expiry adds one to the figure; the same figure without it is the control.</summary>
+    [Fact]
+    public void A_licence_close_to_its_expiry_adds_one_to_the_total()
+    {
+        var without = AttentionTally.Total(Attention(2, 3, 5, 7, Synchronized()));
+        var with = AttentionTally.Total(Attention(2, 3, 5, 7, Synchronized(), licenceExpiring: 1));
+
+        Assert.Equal(17, ValueOf(without));
+        Assert.Equal(18, ValueOf(with));
+    }
+
+    /// <summary>
+    /// A licence state that could not be read degrades only its own section: the badge counts the other sources and
+    /// stays loaded. The control is the next test's rule, that any other unread source still makes the total
+    /// unavailable, and the licence read when it is there still adds its one.
+    /// </summary>
+    [Fact]
+    public void An_unread_licence_source_does_not_silence_the_total()
+    {
+        var attention = new DashboardAttentionDto(
+            DashboardSection.Loaded(4),
+            DashboardSection.Loaded(1),
+            DashboardSection.Loaded(1),
+            DashboardSection.Loaded(1),
+            DashboardSection.Loaded(0),
+            Synchronized(),
+            Delivering(),
+            DashboardSection.Unavailable<int>());
+
+        var total = AttentionTally.Total(attention);
+
+        Assert.Equal(DashboardSectionState.Loaded, total.State);
+        Assert.Equal(7, ValueOf(total));
+    }
+
+    /// <summary>
+    /// With the licence unread, a second unread source (backups) still makes the total unavailable: the licence is the
+    /// only source with this allowance.
+    /// </summary>
+    [Fact]
+    public void An_unread_licence_source_does_not_excuse_another_unread_source()
+    {
+        var attention = new DashboardAttentionDto(
+            DashboardSection.Loaded(4),
+            DashboardSection.Unavailable<int>(),
+            DashboardSection.Loaded(1),
+            DashboardSection.Loaded(1),
+            DashboardSection.Loaded(0),
+            Synchronized(),
+            Delivering(),
+            DashboardSection.Unavailable<int>());
+
+        Assert.Equal(DashboardSectionState.Unavailable, AttentionTally.Total(attention).State);
     }
 
     /// <summary>A clock that could not be read makes the figure unavailable too.</summary>
@@ -139,6 +196,7 @@ public sealed class AttentionTallyTests
     /// <param name="clock">The clock section.</param>
     /// <param name="alertDelivery">The alert delivery section; both channels delivering when omitted.</param>
     /// <param name="endOfLifeSites">Sites on an end-of-life PHP version.</param>
+    /// <param name="licenceExpiring">1 when the licence is within an expiry threshold.</param>
     /// <returns>The block.</returns>
     private static DashboardAttentionDto Attention(
         int certificates,
@@ -147,7 +205,8 @@ public sealed class AttentionTallyTests
         int tasks,
         DashboardSection<ClockSyncDto> clock,
         DashboardSection<AlertDeliveryStatusDto>? alertDelivery = null,
-        int endOfLifeSites = 0)
+        int endOfLifeSites = 0,
+        int licenceExpiring = 0)
     {
         return new DashboardAttentionDto(
             DashboardSection.Loaded(certificates),
@@ -156,7 +215,8 @@ public sealed class AttentionTallyTests
             DashboardSection.Loaded(tasks),
             DashboardSection.Loaded(endOfLifeSites),
             clock,
-            alertDelivery ?? Delivering());
+            alertDelivery ?? Delivering(),
+            DashboardSection.Loaded(licenceExpiring));
     }
 
     /// <summary>An alert delivery section reporting both channels fine.</summary>

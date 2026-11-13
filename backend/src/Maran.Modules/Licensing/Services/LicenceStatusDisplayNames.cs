@@ -1,4 +1,6 @@
+using System.Globalization;
 using Maran.Modules.Licensing.Domain.Enums;
+using Maran.Modules.Licensing.Models;
 using Maran.Modules.Licensing.Resources;
 using Microsoft.Extensions.Localization;
 
@@ -33,6 +35,9 @@ public sealed class LicenceStatusDisplayNames
 
     /// <summary>Prefix of the resource keys naming a lease's standing, completed by the standing's name.</summary>
     private const string LeaseKeyPrefix = "LicenceLease";
+
+    /// <summary>Prefix of the resource keys naming what a lease request amounted to, completed by the outcome's name.</summary>
+    private const string LeaseRequestKeyPrefix = "LicenceLeaseRequest";
 
     /// <summary>This module's display-name resources for the current culture.</summary>
     private readonly IStringLocalizer<DisplayNames> _displayNames;
@@ -122,5 +127,45 @@ public sealed class LicenceStatusDisplayNames
     public string LeaseNameFor(LeaseStandingKind standing)
     {
         return _displayNames[LeaseKeyPrefix + standing];
+    }
+
+    /// <summary>The sentence an administrator reads for what a request for a lease amounted to.</summary>
+    /// <param name="outcome">What the renewal pass the install asked for did.</param>
+    /// <returns>The sentence in the request's culture, saying what happened and whether the panel will try again.</returns>
+    public string LeaseRequestNameFor(LeaseRenewalOutcome outcome)
+    {
+        return _displayNames[LeaseRequestKeyPrefix + outcome];
+    }
+
+    /// <summary>The label that precedes the server id on a console line.</summary>
+    /// <returns>The label in the process culture.</returns>
+    public string ServerIdLabel()
+    {
+        return _displayNames["LicenceServerIdLabel"];
+    }
+
+    /// <summary>The word that stands where the server id would be when it cannot be read.</summary>
+    /// <returns>The word in the process culture.</returns>
+    public string ServerIdUnavailable()
+    {
+        return _displayNames["LicenceServerIdUnavailable"];
+    }
+
+    /// <summary>The sentence that tells an administrator the licence is close to its expiry.</summary>
+    /// <param name="warning">The warning, from <see cref="LicenceExpiryWarningSource"/>.</param>
+    /// <returns>The sentence in the current culture, naming the expiry day (UTC, <c>yyyy-MM-dd</c>) and the days left.</returns>
+    public string ExpiryWarningFor(LicenceExpiryWarning warning)
+    {
+        return _displayNames[
+            "LicenceExpiryWarning",
+            warning.Expiry.UtcDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            warning.DaysLeft.ToString(CultureInfo.InvariantCulture)];
+    }
+
+    /// <summary>The steps that renew a licence: claim it again on the marketplace, or install a new licence file.</summary>
+    /// <returns>The steps in the current culture. They never carry the claim link, which the caller adds beside them.</returns>
+    public string ExpiryRenewalAdvice()
+    {
+        return _displayNames["LicenceExpiryRenewalAdvice"];
     }
 }

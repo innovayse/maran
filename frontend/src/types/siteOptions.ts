@@ -50,6 +50,8 @@ export interface SiteOptionsLimits {
   minimumBodySizeMib: number
   /** The largest request body limit that may be set, in MiB. */
   maximumBodySizeMib: number
+  /** The largest request body limit the site's plan allows, in MiB, or `null` when the plan does not cap this site. */
+  planMaximumBodySizeMib: number | null
   /** The smallest static-file cache lifetime that may be set, in days. */
   minimumCacheDays: number
   /** The largest static-file cache lifetime that may be set, in days. */

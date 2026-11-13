@@ -60,6 +60,19 @@ test('the catalogue lists every module the server offers and says when it was fe
   await expect(page.getByRole('button', { name: 'Install Weather widgets' })).toBeEnabled()
 })
 
+test('a card prints the publisher display name and never the publisher id', async ({ page }) => {
+  // The positive checks on the display names are the control: a page that had stopped drawing the publisher
+  // row would fail them, so the absence of the id cannot pass by an empty row.
+  const named = catalogueModule('weather', 'Weather widgets', { publisher: 'Innovayse Ltd', publisherId: 'innovayse-ltd' })
+  const other = catalogueModule('backup-viewer', 'Backup viewer', { publisher: 'Acme Works', publisherId: 'acme' })
+  await openMarketplace(page, worldWith([named, other]))
+
+  const card = page.getByTestId('module-card-weather')
+  await expect(card.getByText('Innovayse Ltd')).toBeVisible()
+  await expect(card.getByText('innovayse-ltd')).toHaveCount(0)
+  await expect(page.getByTestId('module-card-backup-viewer').getByText('Acme Works')).toBeVisible()
+})
+
 test('searching asks the server and clearing the search brings every module back', async ({ page }) => {
   const recorder = await openMarketplace(page, worldWith([WEATHER, BACKUPS]))
   await expect(page.getByTestId('module-card-backup-viewer')).toBeVisible()

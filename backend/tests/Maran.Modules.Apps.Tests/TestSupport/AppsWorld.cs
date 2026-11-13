@@ -46,6 +46,9 @@ public sealed class AppsWorld : IDisposable
     /// <summary>The task recorder.</summary>
     public RecordingTaskRecorder Tasks { get; } = new();
 
+    /// <summary>The states of the tasks the ledger's rows hold.</summary>
+    public FakeTaskStateReader TaskStates { get; } = new();
+
     /// <summary>The audit writer.</summary>
     public RecordingAuditWriter Audit { get; } = new();
 
@@ -68,8 +71,10 @@ public sealed class AppsWorld : IDisposable
     /// <param name="ids">The catalogue ids the host's sources offer.</param>
     public void Offer(params string[] ids)
     {
-        Agent.Installable = Maran.SharedKernel.Results.Result<IReadOnlyList<AgentInstallableApp>>.Ok(
-            ids.Select(id => { return new AgentInstallableApp(id, AgentAppKind.WebServer, false); }).ToList());
+        Agent.Installable = Maran.SharedKernel.Results.Result<AgentInstallableApps>.Ok(
+            new AgentInstallableApps(
+                ids.Select(id => { return new AgentInstallableApp(id, AgentAppKind.WebServer, false); }).ToList(),
+                null));
     }
 
     /// <summary>Whether a task of <paramref name="kind"/> was opened.</summary>

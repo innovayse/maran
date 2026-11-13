@@ -24,4 +24,12 @@ public sealed class LicenceStorageOptions
     [Required]
     [MinLength(1)]
     public string LicenceFilePath { get; set; } = "/var/lib/maran/licence.json";
+
+    /// <summary>
+    /// The absolute path of the note that records which expiry threshold the operator was last told about, so a
+    /// restart does not announce it again. Beside the licence by default, like the lease file.
+    /// </summary>
+    [Required]
+    [MinLength(1)]
+    public string ExpiryAnnouncementFilePath { get; set; } = "/var/lib/maran/licence-expiry-announced.json";
 }

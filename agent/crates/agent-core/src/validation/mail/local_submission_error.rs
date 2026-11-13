@@ -1,5 +1,6 @@
 //! Why a local submission binding was refused.
 
+use super::alias_fanout_error::AliasFanoutError;
 use super::mail_address_error::MailAddressError;
 use super::mail_domain_error::MailDomainError;
 use super::send_limit_per_hour_error::SendLimitPerHourError;
@@ -71,6 +72,40 @@ pub enum LocalSubmissionError {
     /// Two mailbox logins are the same address once lower-cased.
     #[error("mailbox login {index} repeats an earlier one")]
     DuplicateMailboxLogin {
+        /// The zero-based position of the repeat.
+        index: usize,
+    },
+
+    /// More alias fan-outs than the ceiling.
+    #[error("an account cannot have more than {maximum} alias fan-outs")]
+    TooManyAliasFanouts {
+        /// The most fan-outs accepted.
+        maximum: usize,
+    },
+
+    /// An alias fan-out is not an acceptable alias and count.
+    #[error("alias fan-out {index} is not valid: {source}")]
+    InvalidAliasFanout {
+        /// The zero-based position of the refused fan-out.
+        index: usize,
+        /// Why it was refused.
+        source: AliasFanoutError,
+    },
+
+    /// An alias fan-out names an address outside the account's sender domains.
+    ///
+    /// The count is charged to the account that sends to the alias, and the
+    /// alias key is shared by every account, so an alias the account does not
+    /// own must never be written under its binding.
+    #[error("alias fan-out {index} is not on one of the account's domains")]
+    AliasFanoutOutsideDomains {
+        /// The zero-based position of the refused fan-out.
+        index: usize,
+    },
+
+    /// Two alias fan-outs are the same address once lower-cased.
+    #[error("alias fan-out {index} repeats an earlier one")]
+    DuplicateAliasFanout {
         /// The zero-based position of the repeat.
         index: usize,
     },

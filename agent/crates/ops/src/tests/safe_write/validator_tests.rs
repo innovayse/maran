@@ -199,6 +199,18 @@ fn every_validator_is_a_check_except_the_six_that_have_no_check_mode() {
                 "&distro.postmap_binary()",
                 "CallClass::Mutation"
             ),
+            // Pure — `postfix check` over the configuration the refreshed client list is about to
+            // join, when the address watch rewrites it (issue #535).
+            row(
+                "mail/refresh_self_clients.rs",
+                "&validator_program",
+                "CallClass::Validate"
+            ),
+            row(
+                "mail/seed_local_submission_maps.rs",
+                "&distro.rspamadm_binary()",
+                "CallClass::Reload"
+            ),
             // Seeding the empty lookup tables (issue #177). `postmap` writes the index file it
             // is asked to build, so it is an action on a file the daemon reads and runs in the
             // Mutation class; `doveconf -n` is a pure parse; `rspamadm configtest` is pure but
@@ -208,11 +220,6 @@ fn every_validator_is_a_check_except_the_six_that_have_no_check_mode() {
                 "mail/seed_mail_maps.rs",
                 "&distro.doveconf_binary()",
                 "CallClass::Validate"
-            ),
-            row(
-                "mail/seed_mail_maps.rs",
-                "&distro.rspamadm_binary()",
-                "CallClass::Reload"
             ),
             row(
                 "mail/seed_mail_maps.rs",
@@ -363,7 +370,9 @@ fn every_mutating_validator_runs_in_the_reload_class_and_every_pure_one_in_valid
         if class == "stage.validator_class"
             || (matches!(
                 file.as_str(),
-                "mail/seed_mail_maps.rs" | "mail/local_submission_tables.rs"
+                "mail/seed_mail_maps.rs"
+                    | "mail/seed_local_submission_maps.rs"
+                    | "mail/local_submission_tables.rs"
             ) && (program == "&postmap"
                 || program == "&distro.postmap_binary()"
                 || program == "&distro.rspamadm_binary()"))

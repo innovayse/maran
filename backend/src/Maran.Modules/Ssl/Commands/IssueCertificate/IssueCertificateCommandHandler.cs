@@ -199,7 +199,12 @@ public sealed class IssueCertificateCommandHandler
         await _tasks.ReportAsync(taskId, 70, "installing the material and reloading the web server", cancellationToken);
 
         var installed = await _installer.InstallAsync(
-            account.Username, site, issued.Value.CertificatePem, issued.Value.PrivateKeyPem, cancellationToken);
+            account.Username,
+            site,
+            issued.Value.CertificatePem,
+            issued.Value.PrivateKeyPem,
+            CertificateLockWait.Interactive,
+            cancellationToken);
         if (!installed.IsSuccess)
         {
             return await FailAsync(command, installed.Error!, taskId, cancellationToken);

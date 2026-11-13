@@ -192,7 +192,7 @@ public sealed class ResilientAgentMailClientTests
     {
         var set = new RecordingAgentMailClient { FailuresBeforeSuccess = 1 };
         var remove = new RecordingAgentMailClient { FailuresBeforeSuccess = 1 };
-        var submission = new AgentLocalSubmission("alice", ["a.test"], 100, ["info@a.test"]);
+        var submission = new AgentLocalSubmission("alice", ["a.test"], 100, ["info@a.test"], []);
 
         var applied = await Decorate(set).SetLocalSubmissionAsync(submission, default).WaitAsync(TestTimeout);
         var removed = await Decorate(remove).RemoveLocalSubmissionAsync("alice", default).WaitAsync(TestTimeout);

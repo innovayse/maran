@@ -20,6 +20,9 @@ public sealed class DemoAuditJournal
     /// <summary>Recorded when a mutating call was refused by the table.</summary>
     public const string ActionRefused = "DemoActionRefused";
 
+    /// <summary>Recorded when a call carried text the content filter refuses.</summary>
+    public const string ContentRefused = "DemoContentRefused";
+
     /// <summary>Recorded once, when the demo's whole mutation budget ran out.</summary>
     public const string BudgetExhausted = "DemoBudgetExhausted";
 
@@ -53,6 +56,23 @@ public sealed class DemoAuditJournal
         CancellationToken cancellationToken)
     {
         await WriteAsync(ActionRefused, $"{endpointLabel} ({areaId})", ipAddress, userAgent, cancellationToken);
+    }
+
+    /// <summary>Records a call refused for the text it carried. The text itself is never recorded.</summary>
+    /// <param name="endpointLabel">The endpoint's label, from <c>DemoWriteGuard.LabelOf</c>.</param>
+    /// <param name="field">The member that held the refused text: a name from this code, not a visitor's value.</param>
+    /// <param name="ipAddress">The caller's pseudonymous address.</param>
+    /// <param name="userAgent">The caller's coarse user agent family.</param>
+    /// <param name="cancellationToken">Cancellation token for the write.</param>
+    /// <returns>Resolves once the entry is stored.</returns>
+    public async Task RecordContentRefusalAsync(
+        string endpointLabel,
+        string field,
+        string ipAddress,
+        string userAgent,
+        CancellationToken cancellationToken)
+    {
+        await WriteAsync(ContentRefused, $"{endpointLabel} ({field})", ipAddress, userAgent, cancellationToken);
     }
 
     /// <summary>Records that the demo's whole mutation budget ran out.</summary>

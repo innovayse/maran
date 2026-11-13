@@ -105,6 +105,7 @@ public sealed class MarketplaceTestWorld : IDisposable
             new SignedResponseReader(Checker),
             Checker,
             Cache,
+            new LeaseFingerprintReader(Lease),
             Downloader);
     }
 

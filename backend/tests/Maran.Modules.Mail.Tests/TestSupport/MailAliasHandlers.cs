@@ -31,6 +31,7 @@ public static class MailAliasHandlers
             context.Accounts,
             Publisher(context),
             context.Journal,
+            context.LocalSubmission,
             new AliasKeyLocalizer<DisplayNames>(),
             context.Clock);
     }
@@ -46,6 +47,7 @@ public static class MailAliasHandlers
             context.Accounts,
             Publisher(context),
             context.Journal,
+            context.LocalSubmission,
             new AliasKeyLocalizer<DisplayNames>());
     }
 
@@ -55,7 +57,7 @@ public static class MailAliasHandlers
     public static DeleteMailAliasCommandHandler Delete(MailTestContext context)
     {
         return new DeleteMailAliasCommandHandler(
-            context.Database, context.Accounts, Publisher(context), context.Journal);
+            context.Database, context.Accounts, Publisher(context), context.Journal, context.LocalSubmission);
     }
 
     /// <summary>Builds the list handler.</summary>

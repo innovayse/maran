@@ -75,6 +75,16 @@ public sealed class ResendResellerInvitationCommandHandler
         var issued = await _issuer.IssueAsync(command.ResellerId, _clock.UtcNow, cancellationToken);
         if (!issued.IsSuccess)
         {
+            // A refused attempt leaves a trace too: the subject is the id the caller named, because
+            // a refusal may be exactly "nothing by that id exists"; there is no token to carry.
+            await _journal.RecordInvitationResendRefusedAsync(
+                SignedInCallerPolicy.Require(_currentUser).UserId,
+                IdentityAuditActions.ResellerInvited,
+                command.ResellerId,
+                command.IpAddress,
+                command.UserAgent,
+                cancellationToken);
+
             return Result.Fail(issued.Error!);
         }
 
