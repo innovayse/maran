@@ -369,7 +369,10 @@ assert_port_25_local_mail_is_signed_and_charged_for_what_it_is() {
     printf 'sales@one.test %s acc1\n@one.test %s acc1\n' "$PORT25_FANOUT_TARGETS" "$PORT25_CATCH_ALL_TARGETS" > "${LOCAL_SUBMIT_DIRECTORY}/alias_fanout.map"
     printf 'info@one.test acc1\n' > "${LOCAL_SUBMIT_DIRECTORY}/mailbox_accounts.map"
     chmod 0644 "${LOCAL_SUBMIT_DIRECTORY}/alias_fanout.map" "${LOCAL_SUBMIT_DIRECTORY}/mailbox_accounts.map"
-    sleep 2
+    # Rspamd re-reads a changed map on its own schedule, which can be later than the cases below; a reload
+    # makes the new catch-all line the one in force before anything is judged against it.
+    systemctl reload rspamd.service >/dev/null 2>&1 || rspamadm control reload >/dev/null 2>&1 || true
+    sleep 4
     port25_assert_debit "$backup" "$planted_files" sales@one.test "$PORT25_FANOUT_TARGETS" "an alias with ${PORT25_FANOUT_TARGETS} outside targets"
     port25_assert_debit "$backup" "$planted_files" sales+news@one.test "$PORT25_FANOUT_TARGETS" "the same alias behind an address extension"
     port25_assert_debit "$backup" "$planted_files" nobody@one.test "$PORT25_CATCH_ALL_TARGETS" "an address only the catch-all claims"
