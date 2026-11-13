@@ -508,6 +508,7 @@ RUN bash -c 'set -euo pipefail; \
       export MARAN_OS_FAMILY=suse; \
       . /tmp/maran-installer/lib/88-cron.sh; \
       zypper --non-interactive install --no-recommends $(cron_packages_for_family); \
+      create_cron_spool; \
       zypper --non-interactive clean --all; \
       test -x /usr/sbin/cron; \
       getent protocols ipv6-icmp >/dev/null'

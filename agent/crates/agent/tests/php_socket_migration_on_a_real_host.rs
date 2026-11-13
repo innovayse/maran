@@ -161,7 +161,7 @@ fn forget_reloads() {
 fn reloadable_units() -> [String; 2] {
     [
         polygon_distro().nginx_service().to_owned(),
-        polygon_distro().php_fpm_service(PolygonPhp::VERSION),
+        polygon_distro().php_fpm_service(PolygonPhp::label()),
     ]
 }
 
@@ -296,10 +296,10 @@ impl ServedSite {
         UpdateSitePhpVersionRequest {
             account_username: self.account_name.clone(),
             domain: self.domain.as_str().to_owned(),
-            php_version: PolygonPhp::VERSION.to_owned(),
+            php_version: PolygonPhp::label().to_owned(),
             site: Some(SiteSpec {
                 backend_type: SiteBackendType::Php as i32,
-                php_version: PolygonPhp::VERSION.to_owned(),
+                php_version: PolygonPhp::label().to_owned(),
                 ..SiteSpec::default()
             }),
             max_children: POLYGON_WORKERS,
@@ -324,7 +324,7 @@ impl ServedSite {
         Path::new(directory).join(format!(
             "{}-{}.sock",
             self.account_name,
-            PolygonPhp::VERSION
+            PolygonPhp::label()
         ))
     }
 

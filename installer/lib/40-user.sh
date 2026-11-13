@@ -102,6 +102,12 @@ create_service_user() {
 # its own 0640 mode by 60-config.sh); the directory itself only needs to be traversable.
 create_directory_layout() {
   install -d -o root  -g root         -m 0755 /usr/local/maran
+  # The directory pam_limits reads per-account drop-ins from (the agent writes
+  # /etc/security/limits.d/maran-<account>.conf, AgentPaths::PAM_LIMITS_DIRECTORY). The Debian and
+  # RHEL packages ship it; openSUSE Leap 16 ships neither limits.conf nor this directory (measured in
+  # the pinned image), so the agent's write failed there with nothing to write into. pam_limits reads
+  # the directory when it exists, so creating it empty changes no limit for anyone.
+  install -d -o root  -g root         -m 0755 /etc/security /etc/security/limits.d
   install -d -o root  -g "$MARAN_GROUP" -m 0750 /etc/maran
   install -d -o "$MARAN_USER" -g "$MARAN_GROUP" -m 0750 /var/lib/maran
   # The marketplace's package directory (Marketplace__PackageDirectory, default

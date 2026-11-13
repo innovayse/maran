@@ -72,7 +72,7 @@ fn the_php_fpm_binary_the_adapter_names_exists_on_this_family() {
         "the adapter names {binary} as this family's php-fpm and it is not there"
     );
 
-    let pools = polygon_distro().php_fpm_pool_directory(PolygonPhp::VERSION);
+    let pools = polygon_distro().php_fpm_pool_directory(PolygonPhp::label());
     assert!(
         Path::new(&pools).is_dir(),
         "the adapter names {pools} as this family's pool directory and it is not there"
@@ -148,7 +148,7 @@ fn a_pool_the_real_php_fpm_rejects_is_refused_by_write_pool_and_leaves_the_previ
     // validator refuses — and the agent's next write has to notice, put its own
     // previous content back, and say so with a typed error rather than leaving a
     // half-applied change behind.
-    let planted = PathBuf::from(polygon_distro().php_fpm_pool_directory(PolygonPhp::VERSION))
+    let planted = PathBuf::from(polygon_distro().php_fpm_pool_directory(PolygonPhp::label()))
         .join("maran-polygon-planted.conf");
     let _planted = PolygonConfigFile::at(&planted);
     std::fs::write(

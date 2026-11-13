@@ -59,8 +59,8 @@ cron_packages_for_family() {
   case "$MARAN_OS_FAMILY" in
     debian) echo "cron" ;;
     rhel)   echo "cronie" ;;
-    # UNVERIFIED: `cronie` on openSUSE Leap 16, which the SUSE adapter answers (cron.service).
-    # Confirm with `rpm -qf /usr/bin/crontab` in the pinned image. The `at` package (atd.service)
+    # `cronie` on openSUSE Leap 16, which the SUSE adapter answers (cron.service); its daemon is
+    # /usr/sbin/cron and its spool is created by create_cron_spool. The `at` package (atd.service)
     # is NOT installed here, exactly as on the other two families: no step installs `at`, and the
     # agent's account-removal path reads at jobs through atq only where it is present. Owed: confirm
     # that tolerance with the first SUSE polygon run (`rpm -q at`) before claiming at support.
@@ -88,6 +88,26 @@ cron_service_name() {
       echo "88-cron.sh: unsupported OS family '${MARAN_OS_FAMILY}'" >&2
       exit 1
       ;;
+  esac
+}
+
+# create_cron_spool: the spool directories the cron package declares, created now.
+#
+# On the SUSE family `/var/spool/cron/tabs` is not in the package payload: the package only declares
+# it in /usr/lib/tmpfiles.d/cronie.conf, and the directory exists after the next boot or after
+# systemd-tmpfiles is asked for it (measured in the pinned Leap 16.1 image: the rpm lists the path,
+# the path is absent after the install, and `crontab` then answers "/var/spool/cron/tabs: mkdir: No
+# such file or directory" and installs nothing, which is every scheduled job the panel offers). Asking
+# systemd-tmpfiles for the package's OWN declaration, rather than mkdir-ing a copy of its modes here,
+# keeps one authority for owner and mode and is idempotent. The other two families create the
+# directory in the package itself, so this is a no-op there.
+#
+# Public on purpose, like cron_packages_for_family: the SUSE polygon image calls it after installing
+# the package, so the image gets the spool the installer gives a host and not a second spelling.
+create_cron_spool() {
+  case "$MARAN_OS_FAMILY" in
+    suse) systemd-tmpfiles --create /usr/lib/tmpfiles.d/cronie.conf ;;
+    *) ;;
   esac
 }
 
@@ -165,6 +185,7 @@ step_cron() {
   # Unquoted on purpose: the answer is a package LIST and the words are the packages.
   # shellcheck disable=SC2086
   pkg_install $packages
+  create_cron_spool
 
   # `enable --now` is idempotent by design: on a re-run the unit is already enabled and
   # already running, and systemd treats both as success.

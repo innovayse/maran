@@ -146,7 +146,7 @@ impl Drop for ReenableOnDrop {
     /// a panicking test is already reporting.
     fn drop(&mut self) {
         let _ = std::process::Command::new(PHPENMOD)
-            .args(["-v", PolygonPhp::VERSION, "-s", "fpm", &self.module])
+            .args(["-v", PolygonPhp::label(), "-s", "fpm", &self.module])
             .output();
     }
 }
