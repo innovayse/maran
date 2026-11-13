@@ -329,7 +329,16 @@ assert_port_25_local_mail_is_signed_and_charged_for_what_it_is() {
     marker="p25-signed-$$-$RANDOM"
     local_submit_send "$LOCAL_SUBMIT_USER_OWN" "${LOCAL_SUBMIT_USER_OWN}@one.test" one.test "$marker"
     result="$(port25_signed "$marker")"
-    [ "$result" = yes ] || { port25_restore "$backup" "$planted_files"; fail "a bound customer's message from its own domain was not DKIM-signed (${result})"; }
+    if [ "$result" != yes ]; then
+      {
+        echo "port25 case 6a: what Rspamd and the signing configuration held for ${marker}:"
+        echo "--- dkim_signing as Rspamd reads it:"; rspamadm configdump -j dkim_signing 2>&1 | head -n 30
+        echo "--- selector map and key:"; cat "$(printf '%s\n' "$planted_files" | sed -n 2p)" 2>&1; ls -l "$(printf '%s\n' "$planted_files" | sed -n 1p)" 2>&1
+        echo "--- rspamd log, lines about signing, the rule or the message:"
+        grep -hiE "dkim|maran|${marker}|selector" /var/log/rspamd/rspamd.log 2>/dev/null | grep -v "rspamd.com" | tail -n 30
+      } >&2
+      port25_restore "$backup" "$planted_files"; fail "a bound customer's message from its own domain was not DKIM-signed (${result})"
+    fi
 
     # 6b. Bound customer, foreign From: domain: the rule refuses it before any signing.
     marker="p25-foreign-$$-$RANDOM"
