@@ -10,18 +10,18 @@ use crate::adapter_binary::AdapterBinary;
 
 /// Absolute path of `named-checkconf` on the SUSE family.
 ///
-/// UNVERIFIED: confirm with `rpm -ql bind | grep named-checkconf`; the checkers may live in a
-/// separate utilities package, in which case the installer must install that one too.
+/// Measured in the pinned Leap 16.1 image: `rpm -ql bind` lists it under `/usr/bin`, not
+/// `/usr/sbin`.
 #[must_use]
 pub fn dns_checkconf_binary() -> AdapterBinary {
-    AdapterBinary::fixed("/usr/sbin/named-checkconf")
+    AdapterBinary::fixed("/usr/bin/named-checkconf")
 }
 
 /// Absolute path of `named-checkzone` on the SUSE family; the same source and the same
 /// measurement status as [`dns_checkconf_binary`].
 #[must_use]
 pub fn dns_checkzone_binary() -> AdapterBinary {
-    AdapterBinary::fixed("/usr/sbin/named-checkzone")
+    AdapterBinary::fixed("/usr/bin/named-checkzone")
 }
 
 /// Absolute path of `rndc` on the SUSE family; the same source and the same measurement status

@@ -243,7 +243,12 @@ assert_ftps_is_skipped_in_plain_words_and_touches_nothing() {
   fi
 
   before="$(suse_ftps_footprint)"
-  case "$before" in
+  # The jail base is the second stated exception, beside the group below: step 40 creates
+  # ${MARAN_FTPS_JAIL_ROOT} on every family (installer/lib/40-user.sh, because maran-agent.service
+  # names it in ReadWritePaths= and a missing path kills the unit), and the assertions that ran step 40
+  # before this one leave it. Its presence BEFORE step 89 is therefore expected; what is required is
+  # that step 89 does not change it, which the before/after comparison below enforces for it too.
+  case "$(printf '%s\n' "$before" | grep -vxF "present:${MARAN_FTPS_JAIL_ROOT}")" in
     *"present:"*) fail "something FTPS-shaped is already on this image before the assertion ran (${before//$'\n'/ }), so 'nothing was left behind' would be about whoever made it" ;;
   esac
   # The group is the one exception, and a stated one: the sshd assertions create ${MARAN_FTPS_GROUP}
@@ -278,7 +283,7 @@ step_ftps' _ "$COMMON_LIB" "$DEPENDENCIES_STEP" "$FTPS_STEP" 2>&1)" || status=$?
   after="$(suse_ftps_footprint)"
   [ "$before" = "$after" ] \
     || fail "step_ftps left something behind on the SUSE family. Before: ${before//$'\n'/ } After: ${after//$'\n'/ }"
-  echo "FTPS is skipped on the SUSE family in the installer's words, with exit 0, and the host is unchanged: no change to the group ${MARAN_FTPS_GROUP} (the sshd assertions leave it), no PAM stack, jail root, configuration directory, logrotate policy or unit, no vsftpd.service and no /usr/sbin/vsftpd. The gate answers yes for the Debian and RHEL families and no for this one."
+  echo "FTPS is skipped on the SUSE family in the installer's words, with exit 0, and the host is unchanged: no change to the group ${MARAN_FTPS_GROUP} (the sshd assertions leave it) or to the jail base (step 40 makes it), no PAM stack, configuration directory, logrotate policy or unit, no vsftpd.service and no /usr/sbin/vsftpd. The gate answers yes for the Debian and RHEL families and no for this one."
   echo "UNOBSERVED HERE: that vsftpd is unavailable from this family's repositories (decision 222 rests on a documentation reading; 'zypper search vsftpd' in the pinned image settles it), and the build-time FTPS assertions that exercise vsftpd, its PAM stack and the PAM witness, which do not run on this family."
 }
 

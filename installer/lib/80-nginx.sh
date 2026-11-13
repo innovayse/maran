@@ -187,8 +187,21 @@ nginx_conf_dest() {
 #
 # UNVERIFIED: the dump's grammar. Confirm in the pinned Leap image with `nginx -T | grep -n include`.
 # Both the relative and the absolute spelling are accepted because the prefix is resolved by nginx.
+#
+# `nginx -T` dumps nothing when the tree it was asked to load does not parse, so on a host whose
+# conf.d holds a file nginx refuses (the vhost a killed install left on the served path) it answers
+# "no include" about an nginx.conf that has one, and ensure_conf_d_include_in_nginx_conf would add a
+# second include, blame it for the refusal and abort before the vhost step's own recovery runs. When
+# the dump is unavailable the answer is therefore read from nginx.conf's own text, by the same
+# pattern; the dump stays the authority whenever it exists, because it also sees includes reached
+# through other files.
 nginx_conf_includes_conf_d() {
-  nginx -T 2>/dev/null | grep -Eq '^[[:space:]]*include[[:space:]]+(/etc/nginx/)?conf\.d/\*\.conf[[:space:]]*;'
+  local pattern='^[[:space:]]*include[[:space:]]+(/etc/nginx/)?conf\.d/\*\.conf[[:space:]]*;' dump
+  if dump="$(nginx -T 2>/dev/null)"; then
+    printf '%s\n' "$dump" | grep -Eq "$pattern"
+  else
+    grep -Eq "$pattern" /etc/nginx/nginx.conf 2>/dev/null
+  fi
 }
 
 # render_nginx_conf_with_conf_d_include: the host's nginx.conf with one line added, to stdout: an

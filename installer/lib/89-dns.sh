@@ -182,9 +182,9 @@ dns_binaries_for_family() {
   case "${MARAN_OS_FAMILY:-}" in
     debian) echo "/usr/sbin/named /usr/bin/named-checkconf /usr/bin/named-checkzone /usr/sbin/rndc" ;;
     rhel)   echo "/usr/sbin/named /usr/sbin/named-checkconf /usr/sbin/named-checkzone /usr/sbin/rndc" ;;
-    # UNVERIFIED: the paths suse_dns_services.rs answers; /usr/sbin/named is the daemon and also the
-    # ExecStart of maran-dns.service. Confirm with `rpm -ql bind | grep -E 'sbin/'` in the pinned image.
-    suse)   echo "/usr/sbin/named /usr/sbin/named-checkconf /usr/sbin/named-checkzone /usr/sbin/rndc" ;;
+    # Measured in the pinned Leap 16.1 image (`rpm -ql bind`): the daemon and rndc are in /usr/sbin, the
+    # two checkers in /usr/bin, as on Debian. These are the paths suse_dns_services.rs answers.
+    suse)   echo "/usr/sbin/named /usr/bin/named-checkconf /usr/bin/named-checkzone /usr/sbin/rndc" ;;
     *)
       echo "89-dns.sh: unsupported OS family '${MARAN_OS_FAMILY:-}'" >&2
       exit 1

@@ -537,11 +537,11 @@ fn the_suse_family_reads_the_reboot_probe_status() {
 fn the_suse_family_names_the_dns_checkers_and_control_client() {
     assert_eq!(
         SuseAdapter.dns_checkconf_binary(),
-        "/usr/sbin/named-checkconf"
+        "/usr/bin/named-checkconf"
     );
     assert_eq!(
         SuseAdapter.dns_checkzone_binary(),
-        "/usr/sbin/named-checkzone"
+        "/usr/bin/named-checkzone"
     );
     assert_eq!(SuseAdapter.dns_control_binary(), "/usr/sbin/rndc");
 }

@@ -494,7 +494,7 @@ RUN bash -c 'set -euo pipefail; \
 
 # cronie, this family's cron. The package name is the installer's own (`cron_packages_for_family`)
 # and the unit is `cron_service_name` — `cron`, not the `crond` of the RHEL family, and no alias
-# bridges them. UNVERIFIED: both, and that the daemon lands at /usr/sbin/crond (confirm with
+# bridges them. Measured: the daemon lands at /usr/sbin/cron, not /usr/sbin/crond (confirm with
 # `rpm -ql cronie | grep sbin`).
 #
 # NO `broken_shadow` edit to the PAM stack here. The other RHEL-family image needs one because
@@ -509,7 +509,7 @@ RUN bash -c 'set -euo pipefail; \
       . /tmp/maran-installer/lib/88-cron.sh; \
       zypper --non-interactive install --no-recommends $(cron_packages_for_family); \
       zypper --non-interactive clean --all; \
-      test -x /usr/sbin/crond; \
+      test -x /usr/sbin/cron; \
       getent protocols ipv6-icmp >/dev/null'
 
 # `/usr/bin/passwd`, which the agent's suspension attestation runs (`passwd -S`). On the RHEL family it
@@ -550,13 +550,13 @@ RUN chmod 755 /usr/sbin/setquota
 
 # BIND, from the installer's own package list (`dns_packages_for_family`, public on purpose); the
 # reasoning is the same as in the other family images. UNVERIFIED: the package `bind` and the
-# checker's path (confirm with `rpm -ql bind | grep sbin`).
+# checker's path (measured: the checkers are in /usr/bin).
 RUN bash -c 'set -euo pipefail; \
       export MARAN_OS_FAMILY=suse; export MARAN_OS_VERSION_ID=16.1; \
       . /tmp/maran-installer/lib/89-dns.sh; \
       zypper --non-interactive install --no-recommends $(dns_packages_for_family); \
       zypper --non-interactive clean --all; \
-      test -x /usr/sbin/named-checkzone'
+      test -x /usr/bin/named-checkzone'
 
 # 88-cron.sh's own gate, run against this image — and then run against a cron
 # that is DOWN, so the green half is not the only half anybody has seen.
