@@ -168,6 +168,10 @@ struct RecordingHost {
     /// Whether removing an account's `pam_limits` drop-in fails, for the
     /// fail-closed test of the deletion.
     limits_removal_fails: Mutex<bool>,
+    /// What `crontab -l` answers, as `(status, stdout, stderr)`, when a test needs the listing to
+    /// say something different from the program that was just refused. `None` leaves it answering
+    /// like every other program.
+    crontab_listing: Mutex<Option<(i32, String, String)>>,
 }
 
 impl RecordingHost {
@@ -200,7 +204,18 @@ impl RecordingHost {
             shm_table: Mutex::new(String::new()),
             available: Mutex::new(u64::MAX),
             limits_removal_fails: Mutex::new(false),
+            crontab_listing: Mutex::new(None),
         }
+    }
+
+    /// Makes `crontab -l` answer with its own outcome, whatever the removal before it said.
+    fn with_crontab_listing(self, status: i32, stdout: &str, stderr: &str) -> Self {
+        *self
+            .crontab_listing
+            .lock()
+            .expect("the fixture lock is never poisoned") =
+            Some((status, stdout.to_owned(), stderr.to_owned()));
+        self
     }
 
     /// Makes the removal of an account's open-files drop-in fail.
@@ -476,6 +491,17 @@ impl SystemHost for RecordingHost {
             }));
         }
         let program = program.as_str();
+        if program.ends_with("crontab")
+            && arguments.contains(&"-l")
+            && let Some((status, stdout, stderr)) = self
+                .crontab_listing
+                .lock()
+                .expect("the fixture lock is never poisoned")
+                .clone()
+        {
+            self.recording.set_next(status, &stdout, &stderr);
+            return Ok(self.recording.record(program, arguments));
+        }
         let status = if program.ends_with("pkill") || program.ends_with("pgrep") {
             self.pkill_statuses
                 .lock()
@@ -2346,6 +2372,57 @@ fn an_account_that_never_had_a_crontab_is_still_deleted() {
     assert!(
         !operations_calls(&operations, "userdel").is_empty(),
         "userdel must still run for an account that never had a crontab"
+    );
+}
+
+#[test]
+fn a_removal_refused_in_other_words_is_forgiven_only_when_the_listing_finds_no_table() {
+    // The SUSE family's `crontab -r`, run with no `HOME`, answers an account with no table by
+    // naming the missing spool file instead of the usual sentence. The listing, which has no
+    // backup step, still says the sentence, and that is the question that decides it.
+    let operations = debian(
+        RecordingHost::new()
+            .with_user("acme")
+            .with_stderr("/var/spool/cron/tabs/acme: No such file or directory\n")
+            .with_stdout("")
+            .failing_next(1)
+            .with_crontab_listing(1, "", "no crontab for acme\n"),
+    );
+
+    operations
+        .delete_under_lock(
+            &FakePhpHost::empty(),
+            &no_databases(),
+            &no_sftp(),
+            &no_ftps(),
+            &name(),
+        )
+        .expect("an account the listing proves has no table is deleted");
+    assert!(
+        !operations_calls(&operations, "userdel").is_empty(),
+        "userdel must run once the listing has shown there was nothing to remove"
+    );
+
+    // And the inverse: the same refusal while the listing returns a table is still a refusal, so
+    // the second question cannot turn a real failure into a success.
+    let operations = debian(
+        RecordingHost::new()
+            .with_user("acme")
+            .with_stderr("/var/spool/cron/tabs/acme: Permission denied\n")
+            .with_stdout("")
+            .failing_next(1)
+            .with_crontab_listing(0, "* * * * * true\n", ""),
+    );
+    let refusal = operations.delete_under_lock(
+        &FakePhpHost::empty(),
+        &no_databases(),
+        &no_sftp(),
+        &no_ftps(),
+        &name(),
+    );
+    assert!(
+        matches!(refusal, Err(AccountError::CommandFailed { .. })),
+        "a table that exists and could not be removed must still stop the deletion: {refusal:?}"
     );
 }
 

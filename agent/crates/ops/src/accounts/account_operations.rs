@@ -1479,7 +1479,42 @@ impl<H: SystemHost> AccountOperations<H> {
             return Ok(());
         }
 
+        // The SUSE family's `crontab -r` keeps a backup of the table it removes under `$HOME` or
+        // `$XDG_CACHE_HOME`, and this agent hands its children neither. For an account with no
+        // table it then fails on the missing spool file with a sentence of its own instead of
+        // `no crontab for <account>`, which made an ordinary account undeletable there (measured
+        // in the Leap 16.1 image). The listing has no backup step and says the same sentence
+        // on every family, so a refused removal is followed by the question that decides it.
+        if self.account_has_no_crontab(account, &program)? {
+            return Ok(());
+        }
+
         Err(AccountError::command_failed(program.as_str(), &outcome))
+    }
+
+    /// Whether `crontab -u <account> -l` says the account has no table at all.
+    ///
+    /// The same three conditions `CrontabSpool` requires before it believes the sentence: a
+    /// non-zero exit, nothing on standard output (the account writes that stream, and a table
+    /// holding the sentence must not be read as an absent one), and the sentence on standard
+    /// error.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AccountError::Bound`] when `crontab` outlived its deadline and was killed.
+    fn account_has_no_crontab(
+        &self,
+        account: &ManagedAccount,
+        program: &AdapterBinary,
+    ) -> Result<bool, AccountError> {
+        let listing = self.host.run(
+            program,
+            &["-u", account.name().as_str(), "-l"],
+            CallClass::Query,
+        )?;
+        Ok(listing.status != 0
+            && listing.stdout.is_empty()
+            && listing.stderr.contains(NO_CRONTAB_MARKER))
     }
 
     /// Runs a program and turns a non-zero exit into an error.
