@@ -478,12 +478,15 @@ impl AgentPaths {
 
     /// The directory of DKIM private keys, `root:<rspamd user>` mode 0750, created
     /// by the installer and filled by the data plane (one `<domain>.<selector>.key`
-    /// per signing key). Keys never leave it and are never logged.
-    pub const MAIL_DKIM_DIRECTORY: &'static str = "/etc/maran/mail/dkim";
+    /// per signing key). Keys never leave it and are never logged. It sits under
+    /// Rspamd's own configuration directory, not under `/etc/maran`: that one is
+    /// `root:<service group>` 0750, which Rspamd's worker cannot traverse to read a
+    /// key (issue #593).
+    pub const MAIL_DKIM_DIRECTORY: &'static str = "/etc/rspamd/maran-dkim";
 
     /// The Rspamd map from a signing domain to its active selector. Lives beside
     /// the keys, in the directory Rspamd can read.
-    pub const MAIL_DKIM_SELECTORS_PATH: &'static str = "/etc/maran/mail/dkim/selectors";
+    pub const MAIL_DKIM_SELECTORS_PATH: &'static str = "/etc/rspamd/maran-dkim/selectors";
 
     /// The one `named.conf` this panel's DNS daemon is started against.
     ///

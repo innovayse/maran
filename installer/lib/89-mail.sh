@@ -81,8 +81,9 @@ readonly MARAN_MAIL_CONFIG_DIR="/etc/maran/mail"
 readonly MARAN_MAIL_DOVECOT_DIR="/etc/maran/mail/dovecot"
 
 # Where the DKIM private keys live, matching `AgentPaths::MAIL_DKIM_DIRECTORY`.
-# root:<rspamd group> 0750.
-readonly MARAN_MAIL_DKIM_DIR="/etc/maran/mail/dkim"
+# root:<rspamd group> 0750. Under Rspamd's own directory, not /etc/maran (root:<service group>
+# 0750), which its worker cannot traverse to read a key (issue #593).
+readonly MARAN_MAIL_DKIM_DIR="/etc/rspamd/maran-dkim"
 
 # The parent of the directories above, created by step 60. Named here only so that this step, run
 # on its own, does not invent a mode for a directory somebody else owns.

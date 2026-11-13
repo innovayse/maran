@@ -44,7 +44,7 @@ fn every_table_is_created_empty_on_a_host_that_has_none() {
         Some("")
     );
     assert_eq!(
-        host.file("/etc/maran/mail/dkim/selectors").as_deref(),
+        host.file("/etc/rspamd/maran-dkim/selectors").as_deref(),
         Some("")
     );
 }

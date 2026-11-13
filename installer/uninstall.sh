@@ -1101,7 +1101,7 @@ remove_mail() {
       systemctl disable "${unit}.service" 2>/dev/null || true
     fi
   done
-  rm -rf /etc/maran/mail
+  rm -rf /etc/maran/mail /etc/rspamd/maran-dkim
   systemctl daemon-reload 2>/dev/null || true
 
   echo "NOTE: the mail packages, the configuration under /etc/postfix, /etc/dovecot and /etc/rspamd"

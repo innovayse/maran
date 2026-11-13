@@ -515,8 +515,8 @@ fn rspamd_files_render_their_goldens() {
     );
     assert_eq!(
         RspamdDkimSigning {
-            selectors_path: "/etc/maran/mail/dkim/selectors".to_owned(),
-            keys_directory: "/etc/maran/mail/dkim".to_owned(),
+            selectors_path: "/etc/rspamd/maran-dkim/selectors".to_owned(),
+            keys_directory: "/etc/rspamd/maran-dkim".to_owned(),
             condition_path: "/etc/rspamd/lua.local.d/maran_dkim_condition.lua".to_owned(),
         }
         .render_config()
@@ -549,8 +549,8 @@ fn the_rule_cuts_extensions_at_the_character_main_cf_sets() {
 #[test]
 fn signing_is_per_exact_domain_and_the_normal_worker_is_off() {
     let signing = RspamdDkimSigning {
-        selectors_path: "/etc/maran/mail/dkim/selectors".to_owned(),
-        keys_directory: "/etc/maran/mail/dkim".to_owned(),
+        selectors_path: "/etc/rspamd/maran-dkim/selectors".to_owned(),
+        keys_directory: "/etc/rspamd/maran-dkim".to_owned(),
         condition_path: "/etc/rspamd/lua.local.d/maran_dkim_condition.lua".to_owned(),
     }
     .render_config()

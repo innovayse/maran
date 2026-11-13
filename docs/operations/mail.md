@@ -30,7 +30,7 @@ documented when they ship.
 |---|---|---|
 | `/etc/maran/mail/` | `root:root` 0755 | the lookup tables Postfix reads, written by the agent |
 | `/etc/maran/mail/dovecot/` | `root:dovecot` 0750 | the Dovecot passwd-file, which holds password hashes |
-| `/etc/maran/mail/dkim/` | `root:_rspamd` 0750 | DKIM private keys and the selector map |
+| `/etc/rspamd/maran-dkim/` | `root:_rspamd` 0750 | DKIM private keys and the selector map |
 
 ## Turning it on and off
 

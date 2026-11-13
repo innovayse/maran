@@ -5,6 +5,7 @@
 
 use maran_templates::postfix::postfix_local_submitter_headers::PostfixLocalSubmitterHeaders;
 use maran_templates::postfix::postfix_master_config::PostfixMasterConfig;
+use maran_templates::rspamd::rspamd_dkim_signing::RspamdDkimSigning;
 use maran_templates::rspamd::rspamd_local_submit::RspamdLocalSubmit;
 
 fn golden(relative: &str) -> String {
