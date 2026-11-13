@@ -521,9 +521,14 @@ RUN bash -c 'set -euo pipefail; \
 RUN test -x /usr/bin/passwd
 
 # at(1), for the account-deletion leftovers suite (see the other family images for why).
-# UNVERIFIED: the package name `at` and its paths.
+# The spool directories are declared in the package's tmpfiles snippet and created by the next boot,
+# which a container never has: without applying the snippet here, `atq` answers "Cannot change to
+# /var/spool/atjobs" and exits 1, which the account deletion (it lists an account's at jobs) rightly
+# reads as a refusal. It is applied exactly as a booted host applies it.
 RUN zypper --non-interactive install --no-recommends at \
     && zypper --non-interactive clean --all \
+    && systemd-tmpfiles --create /usr/lib/tmpfiles.d/at.conf \
+    && test -d /var/spool/atjobs \
     && test -x /usr/bin/at && test -x /usr/bin/atq && test -x /usr/bin/atrm
 
 # The tmpfiles snippet that builds /run/maran-host, the mount points the agent unit binds the host's

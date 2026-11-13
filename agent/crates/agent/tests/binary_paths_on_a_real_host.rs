@@ -60,13 +60,6 @@ use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_distro::{AdapterBinary, DistroAdapter, DistroFamily, adapter_for, detect};
 use polygon_php::PolygonPhp;
 
-/// The PHP version the Debian and RHEL polygon images ship.
-///
-/// The SUSE family ships one distribution minor (8.4, UNVERIFIED) under unversioned paths, so
-/// its adapter answers the same path for this label; it is a label there, not the installed
-/// version, and the test below that stats the answer is unaffected.
-const POLYGON_PHP_VERSION: &str = "8.3";
-
 /// The environment variable each polygon image sets, naming itself.
 const POLYGON_MARKER: &str = "MARAN_POLYGON";
 
@@ -121,9 +114,9 @@ fn polygon_distro() -> &'static dyn DistroAdapter {
 ///
 /// # Panics
 ///
-/// Panics when [`POLYGON_PHP_VERSION`] is not a valid PHP version.
+/// Panics when [`PolygonPhp::label`] is not a valid PHP version.
 fn declared_binaries(distro: &'static dyn DistroAdapter) -> Vec<(&'static str, String)> {
-    let php_version = PhpVersion::parse(POLYGON_PHP_VERSION).expect("a valid PHP version");
+    let php_version = PhpVersion::parse(PolygonPhp::label()).expect("a valid PHP version");
 
     let mut declared = vec![
         ("nginx_binary", distro.nginx_binary().to_string()),

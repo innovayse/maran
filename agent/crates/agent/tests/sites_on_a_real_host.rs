@@ -60,16 +60,6 @@ use polygon_account::PolygonAccount;
 use polygon_config_file::PolygonConfigFile;
 use polygon_php::PolygonPhp;
 
-/// The PHP version the Debian and RHEL polygon images install: 8.3 on Sury, 83 on Remi.
-///
-/// On the SUSE family it is a label: that family ships one distribution minor (8.4, UNVERIFIED)
-/// under unversioned paths, so its adapter answers the same pool directory for any version.
-///
-/// The agent writes it in the one form the panel uses, and the adapter turns it
-/// into whatever the family spells it as — which is the reason a site can name a
-/// version at all without the operation knowing a distribution's name.
-const POLYGON_PHP_VERSION: &str = "8.3";
-
 /// The argument that makes nginx check its configuration instead of serving it.
 ///
 /// Spelled again here rather than imported. `ops::sites::write_vhost` declares it
@@ -321,7 +311,7 @@ fn php_site(account: &PolygonAccount, domain: &Domain) -> CreateSiteInput {
         domain: domain.clone(),
         aliases: Vec::new(),
         kind: SiteKind::Php {
-            version: PhpVersion::parse(POLYGON_PHP_VERSION).expect("a valid PHP version"),
+            version: PhpVersion::parse(PolygonPhp::label()).expect("a valid PHP version"),
         },
         web_server: maran_distro::SiteWebServer::Nginx,
         certificate: None,
@@ -637,7 +627,7 @@ fn fetch_until(host: &str, path: &str, accepted: impl Fn(&str) -> bool) -> Strin
 /// and be caught, not quietly followed.
 fn pool_guard(account: &PolygonAccount) -> PolygonConfigFile {
     PolygonConfigFile::at(
-        Path::new(&polygon_distro().php_fpm_pool_directory(POLYGON_PHP_VERSION))
+        Path::new(&polygon_distro().php_fpm_pool_directory(PolygonPhp::label()))
             .join(format!("{}.conf", account.name().as_str())),
     )
 }
@@ -665,7 +655,7 @@ fn deleting_an_account_leaves_a_host_the_real_php_fpm_will_still_start() {
             .unwrap_or_else(|error| panic!("creating the PHP site must succeed: {error}"));
         let _vhost = PolygonConfigFile::at(Path::new(&created.config_path));
 
-        let pool = Path::new(&polygon_distro().php_fpm_pool_directory(POLYGON_PHP_VERSION))
+        let pool = Path::new(&polygon_distro().php_fpm_pool_directory(PolygonPhp::label()))
             .join(format!("{}.conf", account.name().as_str()));
         assert!(
             pool.exists(),
@@ -683,7 +673,7 @@ fn deleting_an_account_leaves_a_host_the_real_php_fpm_will_still_start() {
     // gone but that php-fpm will still start, and only php-fpm can say so — a
     // pool that was emptied, renamed, or left in a directory php-fpm no longer
     // reads would pass a file check and fail this.
-    let php_version = PhpVersion::parse(POLYGON_PHP_VERSION).expect("a valid PHP version");
+    let php_version = PhpVersion::parse(PolygonPhp::label()).expect("a valid PHP version");
     let checked = std::process::Command::new(polygon_distro().php_fpm_binary(&php_version))
         .arg(VALIDATE_ARGUMENT)
         .output()
@@ -763,7 +753,7 @@ fn deleting_a_site_takes_its_private_key_off_the_disk() {
             domain: domain.clone(),
             web_server: maran_distro::SiteWebServer::Nginx,
         },
-        Some(&PhpVersion::parse(POLYGON_PHP_VERSION).expect("a valid PHP version")),
+        Some(&PhpVersion::parse(PolygonPhp::label()).expect("a valid PHP version")),
     )
     .expect("the deletion must succeed");
 
@@ -840,7 +830,7 @@ fn deleting_a_site_takes_its_visitor_logs_so_a_recreated_pair_starts_empty() {
             domain: domain.clone(),
             web_server: maran_distro::SiteWebServer::Nginx,
         },
-        Some(&PhpVersion::parse(POLYGON_PHP_VERSION).expect("a valid PHP version")),
+        Some(&PhpVersion::parse(PolygonPhp::label()).expect("a valid PHP version")),
     )
     .expect("the deletion must succeed");
 
